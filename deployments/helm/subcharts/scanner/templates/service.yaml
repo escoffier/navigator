@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "scanner.fullname" . }}
+  namespace: {{ .Values.serviceNamespace }}
+  labels:
+    helm.sh/chart: {{ include "scanner.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+      protocol: TCP
+      name: {{ include "scanner.name" . }}
+  selector:
+    app.kubernetes.io/name: {{ include "scanner.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

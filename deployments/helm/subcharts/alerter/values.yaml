@@ -1,0 +1,5 @@
+image:
+  tag: alerter
+
+imagePullSecrets:
+  - name: vegeta-gitlab

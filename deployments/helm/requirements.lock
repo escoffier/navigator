@@ -1,0 +1,21 @@
+dependencies:
+- name: alerter
+  repository: file://./subcharts/alerter
+  version: 0.1.0
+- name: elasticsearch
+  repository: https://helm.elastic.co
+  version: 7.3.2
+- name: etcd-operator
+  repository: https://kubernetes-charts.storage.googleapis.com
+  version: 0.10.0
+- name: kibana
+  repository: https://helm.elastic.co
+  version: 7.3.2
+- name: mongodb
+  repository: https://kubernetes-charts.storage.googleapis.com
+  version: 7.2.10
+- name: mongo-express
+  repository: file://./subcharts/mongo-express
+  version: 0.1.0
+digest: sha256:0f2c9bc85d634e112d2cb4c468051c638152b92a0c8b66c8d010ec3c30bf26b2
+generated: "2019-10-03T22:44:01.277263-07:00"

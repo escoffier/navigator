@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "alerter.fullname" . }}
+  labels:
+{{ include "alerter.labels" . | indent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "alerter.name" . }}
+      release: "{{ .Release.Name }}"
+  template:
+    metadata:
+      labels:
+{{ include "alerter.labels" . | indent 8 }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "registry.gitlab.com/piccolo_su/vegeta:{{ .Values.image.tag }}"
+          env:
+            - name: ETCD_CLUSTER_HOST
+              value: "etcd-cluster-client"

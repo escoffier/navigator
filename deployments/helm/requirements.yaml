@@ -1,0 +1,29 @@
+dependencies:
+  - name: alerter
+    version: 0.1.0
+    repository: "file://./subcharts/alerter"
+    condition: alerter.enabled
+
+  - name: elasticsearch
+    version: 7.3.2
+    repository: "@elastic"
+    condition: elasticsearch.enabled
+
+  - name: etcd-operator
+    version: 0.10.0
+    repository: "@stable"
+
+  - name: kibana
+    version: 7.3.2
+    repository: "@elastic"
+    condition: kibana.enabled
+
+  - name: mongodb
+    version: 7.2.10
+    repository: "@stable"
+    condition: mongodb.enabled
+
+  - name: mongo-express
+    version: 0.1.0
+    repository: "file://./subcharts/mongo-express"
+    condition: mongo-express.enabled

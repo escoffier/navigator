@@ -1,0 +1,4 @@
+image:
+  tag: 0.49.0
+mongodbPassword: ""
+mongodbUsername: ""

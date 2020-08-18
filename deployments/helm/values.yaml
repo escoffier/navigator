@@ -1,0 +1,58 @@
+imageCredentials:
+  registry: registry.gitlab.com
+  username: gitlab-ci-token
+  password: H5d1HXjeRBf1PoBXU2J3
+
+alerter:
+  enabled: true
+
+elasticsearch:
+  enabled: true
+  replicas: 1
+  extraInitContainers: |
+    - name: chown
+      securityContext:
+        runAsUser: 0
+        privileged: true
+      image: "{{ .Values.image }}:{{ .Values.imageTag }}"
+      command:
+        - chown
+        - -R
+        - 1000:1000
+        - /usr/share/elasticsearch/data
+      {{- if .Values.persistence.enabled }}
+      volumeMounts:
+        - name: "{{ template "uname" . }}"
+          mountPath: /usr/share/elasticsearch/data
+      {{- end }}
+
+etcd-operator:
+  enabled: true
+  customResources:
+    createEtcdClusterCRD: true
+  etcdCluster:
+    size: 3
+    version: 3.4.1
+    image:
+      tag: v3.4.1
+
+kibana:
+  enabled: true
+
+mongodb:
+  enabled: true
+  image:
+    tag: 4.2.0-debian-9-r37
+  mongodbUsername: redstone
+  mongodbPassword: redstoneMongo123
+  mongodbRootPassword: redstoneMongo123
+  mongodbDatabase: elasticalert
+  volumePermissions:
+    enabled: true
+
+mongo-express:
+  enabled: true
+  image:
+    tag: 0.49.0
+  mongodbUsername: root
+  mongodbPassword: redstoneMongo123
