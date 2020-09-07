@@ -1,0 +1,1512 @@
+basePath: /
+definitions:
+  api.LoginResponse:
+    properties:
+      currentAuthority:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+    type: object
+  api.User:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      group:
+        type: string
+      name:
+        type: string
+      title:
+        type: string
+      userid:
+        type: string
+      username:
+        type: string
+    type: object
+  api.activitiesData:
+    items:
+      $ref: '#/definitions/api.activity'
+    type: array
+  api.activity:
+    properties:
+      group:
+        $ref: '#/definitions/api.nameStat'
+        type: object
+      id:
+        type: string
+      project:
+        $ref: '#/definitions/api.nameStat'
+        type: object
+      severity:
+        $ref: '#/definitions/api.nameStat'
+        type: object
+      template:
+        type: string
+      updatedAt:
+        type: string
+      user:
+        $ref: '#/definitions/api.nameStat'
+        type: object
+    type: object
+  api.alarmAlertItemData:
+    properties:
+      category:
+        type: integer
+      content:
+        type: string
+      createdAt:
+        type: string
+      key:
+        type: string
+      owner:
+        type: string
+      ownerId:
+        type: string
+      severity:
+        type: integer
+      source:
+        $ref: '#/definitions/api.alarmAlertSource'
+        type: object
+      status:
+        type: integer
+      taskId:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  api.alarmAlertSource:
+    properties:
+      key:
+        type: integer
+      name:
+        type: string
+    type: object
+  api.alarmVulnerabilityTagItemData:
+    properties:
+      name:
+        type: string
+      type:
+        type: integer
+      value:
+        type: integer
+    type: object
+  api.alarmsAlerts:
+    items:
+      $ref: '#/definitions/api.alarmAlertItemData'
+    type: array
+  api.alarmsReports:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.reportItemData'
+        type: array
+    type: object
+  api.alarmsReportsProblems:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.reportProblemItemData'
+        type: array
+    type: object
+  api.alarmsVulnerabilities:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.alertVulnerabilityItemData'
+        type: array
+    type: object
+  api.alarmsVulnsTags:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.alarmVulnerabilityTagItemData'
+        type: array
+    type: object
+  api.alertVulnerabilityItemData:
+    properties:
+      affectContainers:
+        items:
+          type: integer
+        type: array
+      affectHosts:
+        items:
+          type: integer
+        type: array
+      affectImages:
+        items:
+          type: integer
+        type: array
+      component:
+        type: string
+      criticalRecent:
+        type: boolean
+      cvss2:
+        type: number
+      cvss3:
+        type: number
+      description:
+        type: string
+      evalScore:
+        type: integer
+      hostPrivilege:
+        type: boolean
+      inProduction:
+        type: boolean
+      key:
+        type: integer
+      lnk:
+        type: string
+      name:
+        type: string
+      networkExploitable:
+        type: boolean
+      recent:
+        type: integer
+      severity:
+        type: integer
+      solved:
+        type: boolean
+      updated:
+        type: string
+    type: object
+  api.alertsDistDataCluster:
+    items:
+      $ref: '#/definitions/api.xyAxisData'
+    type: array
+  api.alertsDistDataContainer:
+    items:
+      $ref: '#/definitions/api.xyAxisData'
+    type: array
+  api.alertsDistDataHost:
+    items:
+      $ref: '#/definitions/api.xyAxisData'
+    type: array
+  api.allTimeData:
+    properties:
+      all:
+        items:
+          $ref: '#/definitions/api.xyAxisData'
+        type: array
+      critical:
+        items:
+          $ref: '#/definitions/api.xyAxisData'
+        type: array
+    type: object
+  api.analysisData:
+    properties:
+      alertsDistDataCluster:
+        $ref: '#/definitions/api.alertsDistDataCluster'
+        type: object
+      alertsDistDataContainer:
+        $ref: '#/definitions/api.alertsDistDataContainer'
+        type: object
+      alertsDistDataHost:
+        $ref: '#/definitions/api.alertsDistDataHost'
+        type: object
+      allTimeData:
+        $ref: '#/definitions/api.allTimeData'
+        type: object
+      complianceChartData:
+        $ref: '#/definitions/api.complianceChartData'
+        type: object
+      complianceData:
+        $ref: '#/definitions/api.complianceData'
+        type: object
+      rankingListData:
+        $ref: '#/definitions/api.rankListData'
+        type: object
+      severityAlertData:
+        $ref: '#/definitions/api.severityAlertData'
+        type: object
+      severityCheckData:
+        $ref: '#/definitions/api.severityCheckData'
+        type: object
+      severityVulnerabilityData:
+        $ref: '#/definitions/api.severityVulnerabilityData'
+        type: object
+      visitData:
+        $ref: '#/definitions/api.visitData'
+        type: object
+      vulnerabilityData:
+        $ref: '#/definitions/api.vulnerabilityData'
+        type: object
+    type: object
+  api.axisData:
+    properties:
+      category:
+        type: string
+      x:
+        type: string
+      "y":
+        type: integer
+    type: object
+  api.chartData:
+    properties:
+      radarData:
+        $ref: '#/definitions/api.radarDataArray'
+        type: object
+    type: object
+  api.cluster:
+    properties:
+      config:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        description: Kubenetes 1, OpenShift 2, Docker 3
+        type: integer
+    type: object
+  api.complianceChartData:
+    items:
+      $ref: '#/definitions/api.complianceChartItem'
+    type: array
+  api.complianceChartItem:
+    properties:
+      x:
+        type: integer
+      y1:
+        type: integer
+      y2:
+        type: integer
+    type: object
+  api.complianceData:
+    items:
+      $ref: '#/definitions/api.complianceItem'
+    type: array
+  api.complianceItem:
+    properties:
+      cvr:
+        type: number
+      name:
+        type: string
+    type: object
+  api.dataStat:
+    properties:
+      agents:
+        $ref: '#/definitions/api.totalStat'
+        type: object
+      containers:
+        $ref: '#/definitions/api.totalStat'
+        type: object
+      images:
+        $ref: '#/definitions/api.totalStat'
+        type: object
+      nodes:
+        $ref: '#/definitions/api.totalStat'
+        type: object
+      services:
+        $ref: '#/definitions/api.totalStat'
+        type: object
+    type: object
+  api.detailContainer:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/api.detailNodeLogData'
+        type: array
+      detail:
+        $ref: '#/definitions/api.detailContainerStatData'
+        type: object
+      logs:
+        items:
+          $ref: '#/definitions/api.detailNodeLogData'
+        type: array
+      reports:
+        items:
+          $ref: '#/definitions/api.detailNodeReportData'
+        type: array
+    type: object
+  api.detailContainerImage:
+    properties:
+      key:
+        type: string
+      name:
+        type: string
+    type: object
+  api.detailContainerStatData:
+    properties:
+      created:
+        type: string
+      image:
+        $ref: '#/definitions/api.detailContainerImage'
+        type: object
+      name:
+        type: string
+      namespace:
+        type: string
+      owner:
+        type: string
+      status:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      updated:
+        type: string
+    type: object
+  api.detailDocker:
+    type: object
+  api.detailImage:
+    properties:
+      commands:
+        $ref: '#/definitions/api.detailImageHistoryData'
+        type: object
+      details:
+        $ref: '#/definitions/api.detailImageStatData'
+        type: object
+      files:
+        $ref: '#/definitions/api.detailImageFileData'
+        type: object
+      packages:
+        $ref: '#/definitions/api.detailImagePackageData'
+        type: object
+      vulns:
+        $ref: '#/definitions/api.detailImageVulnData'
+        type: object
+    type: object
+  api.detailImageFileData:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.detailImageFileItemData'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.paginationData'
+        type: object
+    type: object
+  api.detailImageFileItemData:
+    properties:
+      cate:
+        type: string
+      component:
+        type: string
+      description:
+        type: string
+      inwhite:
+        type: boolean
+      key:
+        type: string
+      layer:
+        type: integer
+      name:
+        type: string
+      scanDate:
+        type: string
+      severity:
+        type: integer
+      sha:
+        type: string
+      vt_lnk:
+        type: string
+      vt_score:
+        $ref: '#/definitions/api.vtScoreData'
+        type: object
+    type: object
+  api.detailImageHistoryData:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.detailImageHistoryItemData'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.paginationData'
+        type: object
+    type: object
+  api.detailImageHistoryItemData:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+      layer:
+        type: integer
+      name:
+        type: string
+      sha:
+        type: string
+      vulnerabilities:
+        type: integer
+    type: object
+  api.detailImagePackageData:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.detailImagePackageItemData'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.paginationData'
+        type: object
+    type: object
+  api.detailImagePackageItemData:
+    properties:
+      key:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      source:
+        type: string
+      version:
+        type: string
+      vulnerabilities:
+        type: integer
+    type: object
+  api.detailImageStatData:
+    properties:
+      containers:
+        items:
+          type: integer
+        type: array
+      created:
+        type: string
+      digest:
+        type: string
+      id:
+        type: string
+      image:
+        $ref: '#/definitions/api.detailContainerImage'
+        type: object
+      name:
+        type: string
+      namespace:
+        type: string
+      os:
+        type: string
+      owner:
+        type: string
+      status:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      total:
+        type: integer
+      updated:
+        type: string
+    type: object
+  api.detailImageVulnData:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/api.detailImageVulnItemData'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.paginationData'
+        type: object
+    type: object
+  api.detailImageVulnItemData:
+    properties:
+      component:
+        type: string
+      cvss2:
+        type: number
+      cvss3:
+        type: number
+      description:
+        type: string
+      fix:
+        type: string
+      hasFix:
+        type: boolean
+      inwhite:
+        type: boolean
+      key:
+        type: string
+      layer:
+        type: integer
+      lnk:
+        type: string
+      name:
+        type: string
+      severity:
+        type: integer
+    type: object
+  api.detailNode:
+    properties:
+      containers:
+        items:
+          $ref: '#/definitions/api.detailNodeContainerData'
+        type: array
+      detail:
+        $ref: '#/definitions/api.detailNodeStatData'
+        type: object
+      logs:
+        items:
+          $ref: '#/definitions/api.detailNodeLogData'
+        type: array
+      reports:
+        items:
+          $ref: '#/definitions/api.detailNodeReportData'
+        type: array
+    type: object
+  api.detailNodeContainerData:
+    properties:
+      createdAt:
+        type: string
+      image:
+        type: string
+      image_id:
+        type: integer
+      key:
+        type: integer
+      name:
+        type: string
+      node:
+        type: integer
+      owner:
+        type: string
+      status:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  api.detailNodeLogData:
+    properties:
+      created:
+        type: string
+      description:
+        type: string
+      key:
+        type: string
+      name:
+        type: string
+      severity:
+        type: integer
+    type: object
+  api.detailNodeReportData:
+    properties:
+      audit:
+        type: string
+      category:
+        type: string
+      item:
+        type: string
+      key:
+        type: string
+      object:
+        type: string
+      remediation:
+        type: string
+      result:
+        type: integer
+      test:
+        type: string
+    type: object
+  api.detailNodeStatData:
+    properties:
+      created:
+        type: string
+      kernel:
+        type: string
+      name:
+        type: string
+      os:
+        type: string
+      owner:
+        type: string
+      status:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      updated:
+        type: string
+    type: object
+  api.detailReport:
+    properties:
+      detail:
+        $ref: '#/definitions/api.detailReportData'
+        type: object
+    type: object
+  api.detailReportData:
+    properties:
+      created:
+        type: string
+      critical:
+        type: integer
+      entities:
+        items:
+          $ref: '#/definitions/api.hostItemData'
+        type: array
+      finsihed:
+        type: string
+      name:
+        type: string
+      owner:
+        type: string
+      status:
+        type: integer
+      total:
+        type: integer
+    type: object
+  api.hostItemData:
+    properties:
+      lnk:
+        type: string
+      name:
+        type: string
+    type: object
+  api.nameStat:
+    properties:
+      avatar:
+        type: string
+      link:
+        type: string
+      name:
+        type: string
+    type: object
+  api.overStat:
+    properties:
+      statData:
+        $ref: '#/definitions/api.dataStat'
+        type: object
+    type: object
+  api.paginationData:
+    properties:
+      current:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  api.profilesPoliceItemData:
+    properties:
+      category:
+        type: string
+      createdAt:
+        type: string
+      entities:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      key:
+        type: integer
+      level:
+        type: string
+      name:
+        type: string
+      node:
+        type: string
+      owner:
+        type: string
+      ownerId:
+        type: string
+      triggers:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  api.profilesPolicies:
+    items:
+      $ref: '#/definitions/api.profilesPoliceItemData'
+    type: array
+  api.profilesRules:
+    type: object
+  api.radarData:
+    properties:
+      label:
+        type: string
+      name:
+        type: string
+      value:
+        type: integer
+    type: object
+  api.radarDataArray:
+    items:
+      $ref: '#/definitions/api.radarData'
+    type: array
+  api.rankListData:
+    items:
+      $ref: '#/definitions/api.titleData'
+    type: array
+  api.reportItemData:
+    properties:
+      created:
+        type: string
+      critical:
+        type: integer
+      finished:
+        type: string
+      int:
+        type: integer
+      name:
+        type: string
+      severity:
+        type: integer
+      total:
+        type: integer
+    type: object
+  api.reportProblemItemData:
+    properties:
+      complianceHost:
+        items:
+          $ref: '#/definitions/api.hostItemData'
+        type: array
+      critical:
+        type: integer
+      description:
+        type: string
+      handle:
+        type: string
+      int:
+        type: integer
+      name:
+        type: string
+      result:
+        type: integer
+    type: object
+  api.severityAlertData:
+    items:
+      $ref: '#/definitions/api.axisData'
+    type: array
+  api.severityCheckData:
+    items:
+      $ref: '#/definitions/api.axisData'
+    type: array
+  api.severityVulnerabilityData:
+    items:
+      $ref: '#/definitions/api.axisData'
+    type: array
+  api.timeAxisData:
+    properties:
+      x:
+        type: string
+      "y":
+        type: integer
+    type: object
+  api.titleData:
+    properties:
+      title:
+        type: string
+      value:
+        type: integer
+    type: object
+  api.totalStat:
+    properties:
+      inUse:
+        type: integer
+      total:
+        type: integer
+    type: object
+  api.visitData:
+    items:
+      $ref: '#/definitions/api.timeAxisData'
+    type: array
+  api.vtScoreData:
+    properties:
+      benign:
+        type: integer
+      malicious:
+        type: integer
+      unknown:
+        type: integer
+    type: object
+  api.vulnerabilityData:
+    items:
+      $ref: '#/definitions/api.vulnerabilityItem'
+    type: array
+  api.vulnerabilityItem:
+    properties:
+      count:
+        type: integer
+      index:
+        type: integer
+      keyword:
+        type: string
+      range:
+        type: integer
+      status:
+        type: integer
+    type: object
+  api.xyAxisData:
+    properties:
+      x:
+        type: string
+      "y":
+        type: integer
+    type: object
+  response.EmptyResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  response.HTTPRedirectError:
+    properties:
+      redirect:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: This is the Vegeta central server - Console
+  license: {}
+  title: Vegeta API
+  version: "1.0"
+paths:
+  /api/v1/alarms/alerts:
+    get:
+      description: Get all Alerts
+      operationId: v1-alarms-alerts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Alerts Alarms Data
+          schema:
+            $ref: '#/definitions/api.alarmsAlerts'
+      summary: Alarm Alerts API
+  /api/v1/alarms/reports:
+    get:
+      description: Get all Reports
+      operationId: v1-alarms-reports
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reports Alarms Data
+          schema:
+            $ref: '#/definitions/api.alarmsReports'
+      summary: Alarm Reports API
+  /api/v1/alarms/reports/problems:
+    get:
+      description: Get all Problems in Reports
+      operationId: v1-alarms-reports-problems
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reports Problems Alarms Data
+          schema:
+            $ref: '#/definitions/api.alarmsReportsProblems'
+      summary: Alarm Reports Problems API
+  /api/v1/alarms/vulnerabilities:
+    get:
+      description: Get all Vulnerabilities
+      operationId: v1-alarms-vulnerabilities
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vulnerability Alarms Data
+          schema:
+            $ref: '#/definitions/api.alarmsVulnerabilities'
+      summary: Alarm Vulnerabilities API
+  /api/v1/alarms/vulnerabilities/tags:
+    get:
+      description: Get all Vulnerabilities Tags
+      operationId: v1-alarms-vulnerabilities-tags
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vulnerabilities Tags Alarms Data
+          schema:
+            $ref: '#/definitions/api.alarmsVulnsTags'
+      summary: Alarm Vulnerabilities Tags API
+  /api/v1/assets/clusters:
+    get:
+      description: Get Different Type of Assets in Cluster
+      operationId: v1-assets-clusters
+      produces:
+      - application/json
+      summary: Clusters Detail API
+  /api/v1/assets/containers:
+    get:
+      description: Get Different Type of Assets in Cluster
+      operationId: v1-assets-containers
+      parameters:
+      - description: node id
+        in: query
+        name: node
+        type: integer
+      produces:
+      - application/json
+      summary: Images Detail API  Only for docker container
+  /api/v1/assets/images:
+    get:
+      description: Get Different Type of Assets in Cluster
+      operationId: v1-assets-images
+      parameters:
+      - description: image name
+        in: query
+        name: name
+        type: string
+      - description: ' status '
+        in: query
+        name: status
+        type: integer
+      - description: ' reference low bound '
+        in: query
+        name: numberAbove
+        type: integer
+      - description: 'reference high bound '
+        in: query
+        name: numberBelow
+        type: integer
+      - description: ' last scan time '
+        in: query
+        name: date
+        type: string
+      - description: repo name
+        in: query
+        name: repoName
+        type: string
+      - description: image sha
+        in: query
+        name: sha
+        type: string
+      produces:
+      - application/json
+      summary: Images Detail API
+  /api/v1/config/agent/{agentID}:
+    get:
+      description: Get an agent
+      operationId: v1-config-agent-get
+      parameters:
+      - description: agent ID
+        in: path
+        name: agentID
+        required: true
+        type: string
+      - description: return yaml only if yaml = true
+        in: query
+        name: yaml
+        type: boolean
+      produces:
+      - application/json
+      summary: Delete an agent by agent ID
+  /api/v1/config/agents:
+    get:
+      description: Get the list of Agents
+      operationId: v1-config-agents-get
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: Get the list of Agents
+    post:
+      description: Create an agent entry with YAML
+      operationId: v1-config-agents-post
+      parameters:
+      - description: agent name
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: 'agent type: daemonset, scanner, sidecar'
+        in: body
+        name: type
+        required: true
+        schema:
+          type: string
+      - description: the namespace the agent is running in
+        in: body
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: 'the etcd endpoint: <host>:<port>'
+        in: body
+        name: etcd
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      summary: Create an agent entry with YAML
+  /api/v1/config/cluster:
+    post:
+      description: Add new cluster
+      operationId: v1-config-cluster-post
+      parameters:
+      - description: clusterName
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: 'kubeConfig -- base64String '
+        in: body
+        name: config
+        required: true
+        schema:
+          type: string
+      - description: Kubenetes 1, OpenShift 2, Docker 3
+        in: body
+        name: type
+        required: true
+        schema:
+          type: integer
+      produces:
+      - application/json
+      summary: Add new cluster
+  /api/v1/config/cluster/{clusterID}:
+    delete:
+      description: Delete a cluster by cluster ID
+      operationId: v1-config-cluster-delete
+      parameters:
+      - description: clusterID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: MongoDB DeletedCount
+          schema:
+            type: string
+      summary: Delete a cluster
+    get:
+      description: Get single cluster information
+      operationId: v1-config-cluster-get
+      parameters:
+      - description: clusterID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.cluster'
+        "400":
+          description: clusterID is not provided
+          schema:
+            type: string
+      summary: Get single cluster information
+    put:
+      description: Update single cluster information
+      operationId: v1-config-cluster-put
+      parameters:
+      - description: clusterID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      - description: clusterID
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: kubeConfig -- base64String
+        in: body
+        name: config
+        required: true
+        schema:
+          type: string
+      - description: Kubenetes 1, OpenShift 2, Docker 3
+        in: body
+        name: type
+        required: true
+        schema:
+          type: integer
+      produces:
+      - application/json
+      summary: Update single cluster information
+  /api/v1/config/clusters:
+    get:
+      description: Get all cluster information
+      operationId: v1-config-cluster-get-all
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: Get all clusters information
+  /api/v1/detail/container:
+    get:
+      description: Get Container Detail Given ID
+      operationId: v1-detail-container
+      parameters:
+      - description: container id
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: query type
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Container Detail Data
+          schema:
+            $ref: '#/definitions/api.detailContainer'
+      summary: Container Detail API
+  /api/v1/detail/docker:
+    get:
+      description: Get Docker Detail Given ID
+      operationId: v1-detail-docker
+      parameters:
+      - description: docker id
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: query type
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Docker Detail Data
+          schema:
+            $ref: '#/definitions/api.detailDocker'
+      summary: Docker Detail API
+  /api/v1/detail/image:
+    get:
+      description: Get Image Detail Given ID
+      operationId: v1-detail-image
+      parameters:
+      - description: image id
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: query type
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Image Detail Data
+          schema:
+            $ref: '#/definitions/api.detailImage'
+      summary: Image Detail API
+  /api/v1/detail/node:
+    get:
+      description: Get Node Detail Given ID
+      operationId: v1-detail-node
+      parameters:
+      - description: detail ID
+        in: query
+        name: ID
+        required: true
+        type: integer
+      - description: query type
+        in: query
+        name: query
+        required: true
+        type: string
+      - description: number of logs
+        in: query
+        name: vulns
+        type: integer
+      - description: date of queried
+        in: query
+        name: date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Node Detail Data
+          schema:
+            $ref: '#/definitions/api.detailNode'
+      summary: Node Detail API
+  /api/v1/detail/report:
+    get:
+      description: Get Compliance Report Detail Given ID
+      operationId: v1-detail-report
+      parameters:
+      - description: report id
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report Detail Data
+          schema:
+            $ref: '#/definitions/api.detailReport'
+      summary: Compliance Report Detail API
+  /api/v1/detail/service:
+    get:
+      description: Get Service Detail Given ID
+      operationId: v1-detail-service
+      parameters:
+      - description: service id
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: query type
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Container Detail Data
+          schema:
+            $ref: '#/definitions/api.detailContainer'
+      summary: Service Detail API
+  /api/v1/journals/search:
+    get:
+      description: search api to ElasticSearchj for journals
+      operationId: v1-journals-search
+      parameters:
+      - description: from timestamp
+        in: query
+        name: from
+        type: integer
+      - description: to timestamp
+        in: query
+        name: to
+        type: integer
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      - description: search message
+        in: query
+        name: message
+        type: string
+      produces:
+      - application/json
+      summary: Search Journals
+  /api/v1/overall/activities:
+    get:
+      description: activity User
+      operationId: v1-stat-activities
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: activitiesData of users
+          schema:
+            $ref: '#/definitions/api.activitiesData'
+      summary: activity API
+  /api/v1/overall/analysis_chart:
+    get:
+      description: Get Overall Analysis Chart
+      operationId: v1-overall-analysis_chart
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Analysis Chart Data
+          schema:
+            $ref: '#/definitions/api.analysisData'
+      summary: Overall Analysis Chart API
+  /api/v1/overall/chart:
+    get:
+      description: chartData
+      operationId: v1-overall-chart
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chart Data
+          schema:
+            $ref: '#/definitions/api.chartData'
+      summary: Chart Data API
+  /api/v1/overall/notice:
+    get:
+      description: Get current user
+      operationId: v1-stat-notice
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Current user
+          schema:
+            $ref: '#/definitions/api.User'
+      summary: User API
+  /api/v1/overall/stat:
+    get:
+      description: Get Overall Stat
+      operationId: v1-overall-stat
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: overStat Data
+          schema:
+            $ref: '#/definitions/api.overStat'
+      summary: Overall Stat API
+  /api/v1/profiles/policies:
+    get:
+      description: Get all policies
+      operationId: v1-profiles-policies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile Policies Data
+          schema:
+            $ref: '#/definitions/api.profilesPolicies'
+      summary: Profiles Policies API
+  /api/v1/profiles/rules:
+    get:
+      description: Get all rules
+      operationId: v1-profiles-rules
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile Rules Data
+          schema:
+            $ref: '#/definitions/api.profilesRules'
+      summary: Profiles Rules API
+  /api/v1/rest-auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login by username/password
+      operationId: v1-rest-auth-login
+      parameters:
+      - description: Username
+        in: body
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: Password
+        in: body
+        name: password
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login response
+          schema:
+            $ref: '#/definitions/api.LoginResponse'
+        "401":
+          description: if the credentials provided is wrong
+          schema:
+            $ref: '#/definitions/response.HTTPRedirectError'
+      summary: Login API
+  /api/v1/rest-auth/logout:
+    post:
+      description: Logout
+      operationId: v1-rest-auth-logout
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout response
+          schema:
+            $ref: '#/definitions/response.EmptyResponse'
+      summary: Logout API
+  /api/v1/rest-auth/user:
+    get:
+      description: Get current user
+      operationId: v1-rest-auth-user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Current user
+          schema:
+            $ref: '#/definitions/api.User'
+      summary: User API
+  /api/v1/scanner/scan:
+    post:
+      description: Tell scanner to scan an image
+      operationId: v1-scanner-scan
+      parameters:
+      - description: image name
+        in: body
+        name: image
+        required: true
+        schema:
+          type: string
+      - description: force rescan the image
+        in: body
+        name: rescan
+        required: true
+        schema:
+          type: boolean
+      produces:
+      - application/json
+      summary: Tell scanner to scan an image
+  /api/v1/scanner/task/{taskID}:
+    get:
+      description: Get a scan task
+      operationId: v1-scanner-task-get
+      parameters:
+      - description: scan task ID
+        in: path
+        name: taskID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Get a scan task by scantask ID
+  /api/v1/scap/check:
+    post:
+      description: Tell scap to check
+      operationId: v1-scap-check
+      produces:
+      - application/json
+      summary: Tell scap to check
+  /api/v1/scap/task/{taskID}:
+    get:
+      description: Get a scap task
+      operationId: v1-scap-task-get
+      parameters:
+      - description: scap task ID
+        in: path
+        name: taskID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Get a scap task by scaptask ID
+swagger: "2.0"

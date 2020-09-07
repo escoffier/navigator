@@ -16,13 +16,13 @@ spec:
         app.kubernetes.io/name: {{ include "scanner.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
-    {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
+    # {{- with .Values.imagePullSecrets }}
+    #   imagePullSecrets:
+    #     {{- toYaml . | nindent 8 }}
     {{- end }}
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.port }}

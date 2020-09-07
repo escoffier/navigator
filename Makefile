@@ -5,6 +5,8 @@ ifeq ($(UNAME_S),Linux)
 	LDFLAGS = '-extldflags "-static"'
 endif
 
+REPOPREFIX=localhost:32000/
+
 .PHONY: help
 help:
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -54,21 +56,24 @@ clean:				## Clean all artifacts
 	rm -fr dist
 
 .PHONY: console
-console: generate		## Build console binary
+console: generate frontend		## Build console binary
 	@echo "+ $@"
 	go build -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
+	docker build -t $(REPOPREFIX)vegeta-console:latest -f ./build/console/Dockerfile .
 
 .PHONY: alerter
 alerter:			## Build alerter tarball
 	@echo "+ $@"
 	$(MAKE) -C alerter build
+	docker build -t $(REPOPREFIX)vegeta-alerter:latest -f ./build/alerter/Dockerfile .
 
 .PHONY: daemon
 daemon:				## Build daemon tarball
 	@echo "+ $@"
 	$(MAKE) -C nodemon/daemon build
+	docker build -t $(REPOPREFIX)vegeta-daemon:latest -f ./build/daemon/Dockerfile .
 
 .PHONY: scanner
 scanner: generate		## Build scanner binary
@@ -76,6 +81,7 @@ scanner: generate		## Build scanner binary
 	go build -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
+	docker build -t $(REPOPREFIX)vegeta-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: scap
 scap:				## Build scap binary
@@ -83,6 +89,18 @@ scap:				## Build scap binary
 	go build -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scap/Version=$(VERSION)" \
 		-o dist/vegeta-scap gitlab.com/piccolo_su/vegeta/cmd/scap
+	docker build -t $(REPOPREFIX)vegeta-scap:latest -f ./build/scap/Dockerfile .
+
+.PHONY: all
+all: scap scanner console daemon alerter
+
+.PHONY: pushimages
+pushimages:
+	docker push localhost:32000/vegeta-console
+	docker push localhost:32000/vegeta-scanner
+	docker push localhost:32000/vegeta-scap
+	docker push localhost:32000/vegeta-daemon
+	docker push localhost:32000/vegeta-alerter
 
 .PHONY: frontend
 frontend:			## Build frontend
@@ -91,3 +109,12 @@ frontend:			## Build frontend
 	rm -fr dist/ui
 	mkdir -p dist/ui
 	cp -r cmd/console/frontend/dist/* dist/ui/
+
+.PHONY: redeploy
+redeploy:
+	@echo "+ $@"
+	cd deployments/helm; \
+		microk8s helm delete --purge vegeta; \
+		microk8s helm dep up; \
+		microk8s helm install ./ --namespace vegeta --name vegeta; \
+		cd -

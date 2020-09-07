@@ -1,0 +1,39 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {},
+        "license": {}
+    },
+    "paths": {
+        "/api/v1/scan/one": {
+            "post": {
+                "description": "Scan one image",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Scan one image",
+                "operationId": "v1-scan-one-post",
+                "parameters": [
+                    {
+                        "description": "image name",
+                        "name": "image",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "force rescan the image",
+                        "name": "rescan",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

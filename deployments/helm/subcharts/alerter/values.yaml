@@ -1,5 +1,9 @@
-image:
-  tag: alerter
 
-imagePullSecrets:
-  - name: vegeta-gitlab
+# imagePullSecrets:
+#   - name: vegeta-gitlab
+
+image:
+  name: vegeta-alerter
+  repository: localhost:32000
+  tag: latest
+  pullPolicy: Always

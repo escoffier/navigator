@@ -1,0 +1,25 @@
+info:
+  contact: {}
+  license: {}
+paths:
+  /api/v1/scan/one:
+    post:
+      description: Scan one image
+      operationId: v1-scan-one-post
+      parameters:
+      - description: image name
+        in: body
+        name: image
+        required: true
+        schema:
+          type: string
+      - description: force rescan the image
+        in: body
+        name: rescan
+        required: true
+        schema:
+          type: boolean
+      produces:
+      - application/json
+      summary: Scan one image
+swagger: "2.0"
