@@ -25,7 +25,7 @@ function getFakeContainer(req, res, u) {
           updated: '2019-10-13 00:01:01',
           owner: '管理员',
           namespace: 'DEV',
-          tags: ['DEVELOPMENT', 'ARKSEC'],
+          tags: ['DEVELOPMENT', 'TENSORSEC'],
           status: Math.floor(Math.random() * 10) % 3,
           total: Math.floor(Math.random() * 10),
         },

@@ -69,7 +69,7 @@ for (let i = 0; i < 8; i += 1) {
     namespace: namespaces[Math.floor(Math.random() * 10) % 4],
     type: categories[statusRandom],
     title: `一个任务名称 ${i}`,
-    tags: ["arksec.io", "production", "develop"],
+    tags: ["tensorsec.io", "production", "develop"],
     owner: "管理员",
     desc: "这是一段描述",
     callNo: Math.floor(Math.random() * 1000),

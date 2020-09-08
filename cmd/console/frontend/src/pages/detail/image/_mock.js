@@ -147,7 +147,7 @@ function getFakeImageDetail(req, res) {
         os: 'Debian GNU/Linux 9 (stretch)',
         digest: 'sha256:73c59c460a7325ad5f62cdd3a7dd3e34a3fb16ce0140742777e1229069ace663',
         id: 'sha256:a5d38e6055d633617781f53d6bee5cb49c5c0e82f8ade135226c245eb7080df4',
-        tags: ['DEVELOPMENT', 'ARKSEC'],
+        tags: ['DEVELOPMENT', 'TENSORSEC'],
         status: Math.floor(Math.random() * 10) % 3,
         total: Math.floor(Math.random() * 10),
         containers: [1, 2, 3],

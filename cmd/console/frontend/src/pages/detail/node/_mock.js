@@ -358,7 +358,7 @@ function getFakeNode(req, res) {
         owner: '管理员',
         os: 'Ubuntu: 18.04',
         kernel: '4.18',
-        tags: ['DEVELOPMENT', 'ARKSEC'],
+        tags: ['DEVELOPMENT', 'TENSORSEC'],
         status: 2,
       },
     }

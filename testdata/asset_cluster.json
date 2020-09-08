@@ -11,7 +11,7 @@
             "type": "POD",
             "title": "一个任务名称 0",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -34,7 +34,7 @@
             "type": "NODE",
             "title": "一个任务名称 1",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -57,7 +57,7 @@
             "type": "NODE",
             "title": "一个任务名称 2",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -80,7 +80,7 @@
             "type": "POD",
             "title": "一个任务名称 3",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -103,7 +103,7 @@
             "type": "NODE",
             "title": "一个任务名称 4",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -126,7 +126,7 @@
             "type": "POD",
             "title": "一个任务名称 5",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -149,7 +149,7 @@
             "type": "POD",
             "title": "一个任务名称 6",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],
@@ -172,7 +172,7 @@
             "type": "ENDPOINT",
             "title": "一个任务名称 7",
             "tags": [
-                "arksec.io",
+                "tensorsecurity.io",
                 "production",
                 "develop"
             ],

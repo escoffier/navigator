@@ -14,7 +14,7 @@ function getFakeContainer(req, res) {
         updated: '2019-10-13 00:01:01',
         owner: '管理员',
         namespace: 'DEV',
-        tags: ['DEVELOPMENT', 'ARKSEC'],
+        tags: ['DEVELOPMENT', 'TENSORSEC'],
         status: Math.floor(Math.random() * 10) % 3,
         total: Math.floor(Math.random() * 10),
       },
@@ -72,7 +72,7 @@ function getFakeFormData(req, res) {
           name: '标签',
           key: 't-1',
           nodes: [
-            { name: 'arksec.io/install', key: 't-1-0' },
+            { name: 'tensorsec.io/install', key: 't-1-0' },
             { name: 'helm.chart/install', key: 't-1-1' },
             { name: 'develop', key: 't-1-2' },
           ],
@@ -173,7 +173,7 @@ function getFakeFormData(req, res) {
           name: '标签',
           key: 't-1',
           nodes: [
-            { name: 'arksec.io/install', key: 't-1-0' },
+            { name: 'tensorsec.io/install', key: 't-1-0' },
             { name: 'helm.chart/install', key: 't-1-1' },
             { name: 'develop', key: 't-1-2' },
           ],

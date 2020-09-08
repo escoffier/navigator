@@ -5,6 +5,9 @@ dependencies:
 - name: scanner
   repository: file://./subcharts/scanner
   version: 0.1.0
+- name: console
+  repository: file://./subcharts/console
+  version: 0.1.0
 - name: elasticsearch
   repository: https://helm.elastic.co
   version: 7.4.1
@@ -20,5 +23,5 @@ dependencies:
 - name: mongo-express
   repository: file://./subcharts/mongo-express
   version: 0.1.0
-digest: sha256:4b27b7f9ab6e5b814ad6b6ee488628d7b26fffc29d0b3a9e619c7c2e438dd2e6
-generated: "2020-09-08T10:30:56.262873222+02:00"
+digest: sha256:9fbb52a34dda0ba9278efdfb0de14e3e980c767a9c2b37c7564684a09d56b51d
+generated: "2020-09-08T10:55:54.973286988+02:00"

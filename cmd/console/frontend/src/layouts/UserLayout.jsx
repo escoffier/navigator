@@ -1,34 +1,38 @@
-import { DefaultFooter, getMenuData, getPageTitle } from '@ant-design/pro-layout';
-import DocumentTitle from 'react-document-title';
-import Link from 'umi/link';
-import React from 'react';
-import { connect } from 'dva';
-import { formatMessage } from 'umi-plugin-react/locale';
-import SelectLang from '@/components/SelectLang';
-import logo from '../assets/logo.svg';
-import styles from './UserLayout.less';
+import {
+  DefaultFooter,
+  getMenuData,
+  getPageTitle
+} from "@ant-design/pro-layout";
+import DocumentTitle from "react-document-title";
+import Link from "umi/link";
+import React from "react";
+import { connect } from "dva";
+import { formatMessage } from "umi-plugin-react/locale";
+import SelectLang from "@/components/SelectLang";
+import logo from "../assets/logo.svg";
+import styles from "./UserLayout.less";
 
 const UserLayout = props => {
   const mylinks = [
     {
-      key: 'container-log',
-      title: '赤炎石系列容器安全产品',
-      href: 'http://arksec.io',
-      blankTarget: true,
-    },
+      key: "container-log",
+      title: "领航容器安全",
+      href: "http://tensorsecurity.io",
+      blankTarget: true
+    }
   ];
 
   const {
     route = {
-      routes: [],
-    },
+      routes: []
+    }
   } = props;
   const { routes = [] } = route;
   const {
     children,
     location = {
-      pathname: '',
-    },
+      pathname: ""
+    }
   } = props;
   const { breadcrumb } = getMenuData(routes);
   return (
@@ -37,7 +41,7 @@ const UserLayout = props => {
         pathname: location.pathname,
         breadcrumb,
         formatMessage,
-        ...props,
+        ...props
       })}
     >
       <div className={styles.container}>
@@ -49,14 +53,14 @@ const UserLayout = props => {
             <div className={styles.header}>
               <Link to="/">
                 <img alt="logo" className={styles.logo} src={logo} />
-                <span className={styles.title}>赤炎石容器安全平台</span>
+                <span className={styles.title}>领航容器安全</span>
               </Link>
             </div>
             <div className={styles.desc}></div>
           </div>
           {children}
         </div>
-        <DefaultFooter copyright="南京尓嘉网络科技有限公司" links={mylinks}/>
+        <DefaultFooter copyright="南京尓嘉网络科技有限公司" links={mylinks} />
       </div>
     </DocumentTitle>
   );

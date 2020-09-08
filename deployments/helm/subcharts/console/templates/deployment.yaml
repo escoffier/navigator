@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "scanner.fullname" . }}
+  name: {{ template "console.fullname" . }}
   labels:
-{{ include "scanner.labels" . | indent 4 }}
+{{ include "console.labels" . | indent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "scanner.name" . }}
+      app.kubernetes.io/name: {{ include "console.name" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "scanner.name" . }}
+        app.kubernetes.io/name: {{ include "console.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
     # {{- with .Values.imagePullSecrets }}
@@ -23,11 +23,15 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        command: ["/vegeta-console"]
+        args: ["--mongo-endpoint=vegeta-mongodb:27017"]
+          # /dist/vegeta-console --mongo-endpoint 10.152.183.167:27017 --mongo-database elasticaler
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}
-            name: {{ include "scanner.name" . }}
+            name: {{ include "console.name" . }}
 
+        # env: {{ .Release.Name }}-mongodb
         volumeMounts:
           - name: dockersock
             mountPath: "/var/run/docker.sock"

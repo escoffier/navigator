@@ -89,9 +89,23 @@ Run unit tests.
 make TAGS=--tags=ci test
 ```
 
-Run all tests (includes intergration tests, which require running deployment).
+Run all tests (includes intergration tests, which (seem to) require running deployment).
 
 ```bash
 make test
 ```
 
+## Use
+
+Check IP and port of console service:
+
+```bash
+microk8s kubectl describe service console --namespace=vegeta
+```
+```bash
+# Example
+IP:                10.152.183.236
+Port:              console  8889/TCP
+```
+
+Go to this IP and port in browser. Default username/password is admin/admin.

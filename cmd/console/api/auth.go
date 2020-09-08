@@ -97,7 +97,7 @@ func (api *api) login() http.HandlerFunc {
 				Username: creds.Username,
 				Name:     "管理员",
 				UserID:   "00000001",
-				Email:    "admin@arksec.io",
+				Email:    "admin@tensorsecurity.io",
 				Title:    "系统管理员",
 				Group:    "事业群－平台部－技术部－集群管理",
 				Avatar: "http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/48/" +

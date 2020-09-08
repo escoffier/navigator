@@ -1,22 +1,22 @@
 # imagePullSecrets:
 #   - name: vegeta-gitlab
 
-nameOverride: "scanner"
-fullnameOverride: "scanner"
+nameOverride: "console"
+fullnameOverride: "console"
 
 restartPolicy: Always
 
 service:
   type: ClusterIP
-  port: 8888
+  port: 8889
   containerPort: 8080
 
 replicaCount: 1
 
-apiInstallLabel: "scanner.vegeta/install"
+apiInstallLabel: "console.vegeta/install"
 
 image:
-  name: vegeta-scanner
+  name: vegeta-console
   repository: localhost:32000
   tag: latest
   pullPolicy: Always

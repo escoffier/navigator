@@ -1,0 +1,10 @@
+# alerter/ <- commented out because docker build adds alerter/dist
+build/
+cmd/
+# configs/ <- used
+deployments/
+# nodemon/ <- commented out because docker build adds nodemon/daemon/dist
+pkg/
+# testdata/ <- used by console build
+
+.git/

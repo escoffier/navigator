@@ -3,36 +3,39 @@
  * You can view component api by:
  * https://github.com/ant-design/ant-design-pro-layout
  */
-import ProLayout, { DefaultFooter } from '@ant-design/pro-layout';
-import React, { useEffect } from 'react';
-import Link from 'umi/link';
-import { connect } from 'dva';
-import { Icon } from 'antd';
-import { formatMessage } from 'umi-plugin-react/locale';
-import Authorized from '@/utils/Authorized';
-import RightContent from '@/components/GlobalHeader/RightContent';
-import { isAntDesignPro } from '@/utils/utils';
-import logo from '../assets/logo.svg';
+import ProLayout, { DefaultFooter } from "@ant-design/pro-layout";
+import React, { useEffect } from "react";
+import Link from "umi/link";
+import { connect } from "dva";
+import { Icon } from "antd";
+import { formatMessage } from "umi-plugin-react/locale";
+import Authorized from "@/utils/Authorized";
+import RightContent from "@/components/GlobalHeader/RightContent";
+import { isAntDesignPro } from "@/utils/utils";
+import logo from "../assets/logo.svg";
 
 /**
  * use Authorized check all menu item
  */
 const menuDataRender = menuList =>
   menuList.map(item => {
-    const localItem = { ...item, children: item.children ? menuDataRender(item.children) : [] };
+    const localItem = {
+      ...item,
+      children: item.children ? menuDataRender(item.children) : []
+    };
     return Authorized.check(item.authority, localItem, null);
   });
 
 const defaultFooterDom = (
   <DefaultFooter
-    copyright="南京尔嘉网络科技有限公司"
+    copyright="探真科技"
     links={[
       {
-        key: 'redstone',
-        title: '赤炎石容器安全平台',
-        href: 'https://arksec.io',
-        blankTarget: true,
-      },
+        key: "navigator",
+        title: "领航容器安全",
+        href: "https://tensorsecurity.io",
+        blankTarget: true
+      }
     ]}
   />
 );
@@ -47,11 +50,15 @@ const footerRender = () => {
       {defaultFooterDom}
       <div
         style={{
-          padding: '0px 24px 24px',
-          textAlign: 'center',
+          padding: "0px 24px 24px",
+          textAlign: "center"
         }}
       >
-        <a href="https://www.netlify.com" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://www.netlify.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <img
             src="https://www.netlify.com/img/global/badges/netlify-color-bg.svg"
             width="82px"
@@ -72,10 +79,10 @@ const BasicLayout = props => {
   useEffect(() => {
     if (dispatch) {
       dispatch({
-        type: 'user/fetchCurrent',
+        type: "user/fetchCurrent"
       });
       dispatch({
-        type: 'settings/getSetting',
+        type: "settings/getSetting"
       });
     }
   }, []);
@@ -86,8 +93,8 @@ const BasicLayout = props => {
   const handleMenuCollapse = payload => {
     if (dispatch) {
       dispatch({
-        type: 'global/changeLayoutCollapsed',
-        payload,
+        type: "global/changeLayoutCollapsed",
+        payload
       });
     }
   };
@@ -97,27 +104,26 @@ const BasicLayout = props => {
       logo={logo}
       onCollapse={handleMenuCollapse}
       menuItemRender={(menuItemProps, defaultDom) => {
-          // add the 3 lines below
-          if (menuItemProps.isUrl || menuItemProps.children) {
-              return defaultDom;
-          }
-          return <Link to={menuItemProps.path}>{defaultDom}</Link>;
+        // add the 3 lines below
+        if (menuItemProps.isUrl || menuItemProps.children) {
+          return defaultDom;
+        }
+        return <Link to={menuItemProps.path}>{defaultDom}</Link>;
       }}
-
       breadcrumbRender={(routers = []) => [
         {
-          path: '/',
+          path: "/",
           breadcrumbName: formatMessage({
-            id: 'menu.home',
-            defaultMessage: 'Home',
-          }),
+            id: "menu.home",
+            defaultMessage: "Home"
+          })
         },
-        ...routers,
+        ...routers
       ]}
       itemRender={(route, params, routes, paths) => {
         const first = routes.indexOf(route) === 0;
         return first ? (
-          <Link to={paths.join('/')}>{route.breadcrumbName}</Link>
+          <Link to={paths.join("/")}>{route.breadcrumbName}</Link>
         ) : (
           <span>{route.breadcrumbName}</span>
         );
@@ -136,5 +142,5 @@ const BasicLayout = props => {
 
 export default connect(({ global, settings }) => ({
   collapsed: global.collapsed,
-  settings,
+  settings
 }))(BasicLayout);

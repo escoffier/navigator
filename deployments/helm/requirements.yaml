@@ -9,6 +9,11 @@ dependencies:
     repository: "file://./subcharts/scanner"
     condition: scanner.enabled
 
+  - name: console
+    version: 0.1.0
+    repository: "file://./subcharts/console"
+    condition: console.enabled
+
   - name: elasticsearch
     version: 7.4.1
 # Note about elastic versions.

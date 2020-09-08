@@ -9,6 +9,9 @@ alerter:
 scanner:
   enabled: true
 
+console:
+  enabled: true
+
 elasticsearch:
   enabled: true
   replicas: 1
@@ -49,7 +52,9 @@ mongodb:
   mongodbUsername: redstone
   mongodbPassword: redstoneMongo123
   mongodbRootPassword: redstoneMongo123
-  mongodbDatabase: elasticalert
+  mongodbDatabase: vegeta
+  # mongodbDatabase: elasticalert
+  # NOTE: we need to create elasticalert database as well.
   volumePermissions:
     enabled: true
 

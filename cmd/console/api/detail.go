@@ -256,7 +256,7 @@ func queryStat(ID int) detailNodeStatData {
 		Owner:   "管理员",
 		OS:      "Ubuntu: 18.04",
 		Kernel:  "4.18",
-		Tags:    []string{"DEVELOPMENT", "ARKSEC.IO"},
+		Tags:    []string{"DEVELOPMENT", "TENSORSECURITY.IO"},
 		Status:  2,
 	}
 }
@@ -272,7 +272,7 @@ func queryContainerStat(ID int) detailContainerStatData {
 		Owner:     "管理员",
 		Namespace: "DEVELOPMENT",
 		Image:     detailContainerImage{Key: "0", Name: "nginx:latest"},
-		Tags:      []string{"DEVELOPMENT", "ARKSEC.IO"},
+		Tags:      []string{"DEVELOPMENT", "TENSORSECURITY.IO"},
 		Status:    2,
 	}
 }
@@ -529,7 +529,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 		// 	Updated:   updated,
 		// 	Status:    rand.Intn(3),
 		// 	Namespace: "DEVELOPMENT",
-		// 	Tags:      []string{"DEVELOPMENT", "ARKSEC.io"},
+		// 	Tags:      []string{"DEVELOPMENT", "TENSORSECURITY.io"},
 		// }
 
 		// switch queryType {
@@ -653,7 +653,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 				Updated:    time.Now(),
 				Owner:      "管理员",
 				Status:     rand.Intn(3),
-				Tags:       []string{"Development", "arksec.io"},
+				Tags:       []string{"Development", "TENSORSECURITY.io"},
 				Image:      detailContainerImage{"100", "image1"},
 				Namespace:  "dockerhub.com",
 				Total:      rand.Intn(15),

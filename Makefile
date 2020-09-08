@@ -56,9 +56,11 @@ clean:				## Clean all artifacts
 	rm -fr dist
 
 .PHONY: console
-console: generate frontend		## Build console binary
+console: generate 		## Build console binary
+	# This target depends on frontend, but for optimisation, if we want to build only console, frontend won't be built.
+	# Only when we make all it will also build frontend.
 	@echo "+ $@"
-	go build -a \
+	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
 	docker build -t $(REPOPREFIX)vegeta-console:latest -f ./build/console/Dockerfile .
@@ -78,7 +80,7 @@ daemon:				## Build daemon tarball
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
-	go build -a \
+	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	docker build -t $(REPOPREFIX)vegeta-scanner:latest -f ./build/scanner/Dockerfile .
@@ -86,13 +88,13 @@ scanner: generate		## Build scanner binary
 .PHONY: scap
 scap:				## Build scap binary
 	@echo "+ $@"
-	go build -a \
+	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scap/Version=$(VERSION)" \
 		-o dist/vegeta-scap gitlab.com/piccolo_su/vegeta/cmd/scap
 	docker build -t $(REPOPREFIX)vegeta-scap:latest -f ./build/scap/Dockerfile .
 
 .PHONY: all
-all: scap scanner console daemon alerter
+all: scap scanner frontend console daemon alerter
 
 .PHONY: pushimages
 pushimages:
@@ -115,6 +117,7 @@ redeploy:
 	@echo "+ $@"
 	cd deployments/helm; \
 		microk8s helm delete --purge vegeta; \
+		rm -rf charts; \
 		microk8s helm dep up; \
 		microk8s helm install ./ --namespace vegeta --name vegeta; \
 		cd -

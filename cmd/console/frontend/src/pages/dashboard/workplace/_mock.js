@@ -428,7 +428,7 @@ export default {
   'GET /api/v1/rest-auth/user/': {
     // pk: 2,
     // username: 'test',
-    // email: 'test@arksec.io',
+    // email: 'test@tensorsec.io',
     // first_name: '员',
     // last_name: '测试',
     name: '管理员',
