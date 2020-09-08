@@ -4,6 +4,11 @@ dependencies:
     repository: "file://./subcharts/alerter"
     condition: alerter.enabled
 
+  - name: scanner
+    version: 0.1.0
+    repository: "file://./subcharts/scanner"
+    condition: scanner.enabled
+
   - name: elasticsearch
     version: 7.4.1
 # Note about elastic versions.
