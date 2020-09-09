@@ -14,6 +14,16 @@ dependencies:
     repository: "file://./subcharts/console"
     condition: console.enabled
 
+  - name: clair
+    version: 0.1.2
+    repository: "file://./subcharts/clair"
+    condition: clair.enabled
+
+  - name: postgresql
+    version: "6.3.9"
+    condition: postgresql.enabled
+    repository: "alias:stable"
+
   - name: elasticsearch
     version: 7.4.1
 # Note about elastic versions.

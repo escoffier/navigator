@@ -109,3 +109,17 @@ Port:              console  8889/TCP
 ```
 
 Go to this IP and port in browser. Default username/password is admin/admin.
+
+
+
+
+# Manual testing
+
+Obtain JWT token by logging into dashboard and inspecting subsequent HTTP request cookie header. 
+
+Scan image:
+
+
+```bash
+curl -X POST -H "Cookie: jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE1OTk2NDI2NTIsInVzZXJuYW1lIjoiYWRtaW4ifQ.h_9FBr7SXbYxdmBjCScnlcjNnQG4oE_fdsif7A4lGeM" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://10.152.183.238:8889/api/v1/scanner/scan -v
+```

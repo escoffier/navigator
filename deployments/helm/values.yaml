@@ -12,6 +12,39 @@ scanner:
 console:
   enabled: true
 
+clair:
+  enabled: true
+
+postgresql:
+  enabled: true
+  image:
+    repository: arminc/clair-db # Custom image with prefilled vulnerabilities info
+    tag: latest
+  # Use the same PGDATA as the travis job that builds arminc/clair-db
+  # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
+  # TODO: this should be a persistent volume mount
+  postgresqlDataDir: /var/lib/postgresql/clair
+  postgresqlUsername: postgres
+  postgresqlPassword: password
+  postgresqlDatabase: postgres
+  replication:
+    enabled: false
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+  persistence:
+    enabled: true
+    size: 10Gi
+  metrics:
+    enabled: false
+  # Based on https://github.com/timescale/timescaledb/issues/522#issuecomment-437162196
+  # Otherwise we get CrashLoopBackoff: chmod: /var/lib/postgresql/clair: Operation not permitted
+  securityContext:
+    enabled: true
+    fsGroup: 70
+    runAsUser: 70
+
 elasticsearch:
   enabled: true
   replicas: 1
