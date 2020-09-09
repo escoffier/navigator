@@ -117,9 +117,26 @@ Go to this IP and port in browser. Default username/password is admin/admin.
 
 Obtain JWT token by logging into dashboard and inspecting subsequent HTTP request cookie header. 
 
-Scan image:
-
+```bash
+# Add to ~/.bashrc:
+alias mk8="microk8s kubectl "
+alias mk8v="mk8 --namespace=vegeta "
+```
 
 ```bash
-curl -X POST -H "Cookie: jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE1OTk2NDI2NTIsInVzZXJuYW1lIjoiYWRtaW4ifQ.h_9FBr7SXbYxdmBjCScnlcjNnQG4oE_fdsif7A4lGeM" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://10.152.183.238:8889/api/v1/scanner/scan -v
+# Get console IP
+CONSOLEIP=$(mk8v describe service console | grep IP: | awk '{print $2;}')
+SCANNERIP=$(mk8v describe service scanner | grep IP: | awk '{print $2;}')
+
+# Login
+JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEIP:8889/api/v1/rest-auth/login -v 2>&1 | grep Set-Cookie | awk '{print $3;}')
+
+```
+Scan image:
+
+```bash
+curl -v -X POST -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEIP:8889/api/v1/scanner/scan
+
+# Or directly to Scanner, bypassing JWT auth, hehe
+curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 ```

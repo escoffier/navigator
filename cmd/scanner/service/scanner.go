@@ -62,11 +62,13 @@ func NewScanner(
 	}
 
 	// mongo client
-	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf(
-		"mongodb://%s:%s@%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint)))
+	// TODO: authSource database should be a separate argument.
+	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
+	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(mongoString))
 	if err != nil {
 		return nil, err
 	}
+
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
 	// main function context

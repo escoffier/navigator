@@ -16,6 +16,9 @@ clair:
   enabled: true
 
 postgresql:
+  # Note for maintainers:
+  # Some confusion may appear here because we use docker image created from "official" dockerhub base image postgresql 
+  # but we use helm chart designed for bitnami/postgresql.
   enabled: true
   image:
     repository: arminc/clair-db # Custom image with prefilled vulnerabilities info
@@ -27,6 +30,13 @@ postgresql:
   postgresqlUsername: postgres
   postgresqlPassword: password
   postgresqlDatabase: postgres
+  # Based on https://github.com/timescale/timescaledb/issues/522#issuecomment-437162196
+  # Otherwise we get CrashLoopBackoff: chmod: /var/lib/postgresql/clair: Operation not permitted
+  securityContext:
+    enabled: true
+    fsGroup: 70
+    runAsUser: 70
+
   replication:
     enabled: false
   resources:
@@ -38,12 +48,7 @@ postgresql:
     size: 10Gi
   metrics:
     enabled: false
-  # Based on https://github.com/timescale/timescaledb/issues/522#issuecomment-437162196
-  # Otherwise we get CrashLoopBackoff: chmod: /var/lib/postgresql/clair: Operation not permitted
-  securityContext:
-    enabled: true
-    fsGroup: 70
-    runAsUser: 70
+
 
 elasticsearch:
   enabled: true

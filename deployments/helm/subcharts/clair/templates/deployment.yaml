@@ -37,7 +37,7 @@ spec:
           do echo waiting for database; sleep 1; done;"]
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
         - "-log-level={{ .Values.logLevel }}"
@@ -62,4 +62,11 @@ spec:
           mountPath: /etc/clair
           readOnly: true
         resources:
+      # - name: clair-scanner
+      #   image: localhost:32000/clair-scanner:latest
+      #   tag: latest
+      #   volumeMounts:
+      #   - name:
+      #     mountPath: /tmp
+      #     readOnly: false
 {{ toYaml .Values.resources | indent 10 }}

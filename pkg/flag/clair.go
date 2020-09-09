@@ -31,8 +31,18 @@ type ClairOpts struct {
 // NewDefaultClairOpts the new default clair options.
 func NewDefaultClairOpts() *ClairOpts {
 	return &ClairOpts{
-		EndpointAddress:    "localhost",
-		EndpointClairPort:  9278,
+		// Scanner creates a local HTTP server that serves container layers.
+		// When scan request comes in, Scanner splits image into layers and then sends
+		// many requests to remote Clair process with URI paths on this local server.
+		// Clair will pull layers for analysis from this server and respond.
+		// Why not just send those layers to remote Clair process? I think this is because
+		// initially the layer was being shared via mounted /tmp dir, but this is not
+		// a good idea in microservice environment I guess. Unless we want to have
+		// Scanner and Clair services in the same pod, which maybe isn't such a bad idea.??
+		// Anyways, this should be address that is accessible from outside (e.g. K8s service address)
+		EndpointAddress:   "localhost",
+		EndpointClairPort: 9278,
+		// Address of Clair service.
 		RemoteClairAddress: "localhost",
 		RemoteClairPort:    6060,
 		IgnoreFileList:     string("configs/scanner/ignore_files.json"),

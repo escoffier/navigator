@@ -19,14 +19,28 @@ spec:
     # {{- with .Values.imagePullSecrets }}
     #   imagePullSecrets:
     #     {{- toYaml . | nindent 8 }}
-    {{- end }}
+    # {{- end }}
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+        command: ["/vegeta-scanner"]
+        args: [
+          "--mongo-endpoint=vegeta-mongodb:27017",
+          "--clair-remote-address=vegeta-clair",
+          # clair-address and clair-port refer to Scanner Service address. Clair service needs to have access to layers published by Scanner service.
+          # Path to them is sent in Scan request to Clair.
+          # TODO: maybe rename? I spent hours on this because I was confused.
+          "--clair-address=scanner",
+          "--clair-port={{ .Values.service.LayerPort }}",
+          "-v"]
+
         ports:
-          - containerPort: {{ .Values.service.containerPort }}
-            name: {{ include "scanner.name" . }}
+          - containerPort: {{ .Values.service.ApiContainerPort }}
+            name: {{ include "scanner.name" . }}-api
+          - containerPort: {{ .Values.service.LayerContainerPort }}
+            name: {{ include "scanner.name" . }}-layer
 
         volumeMounts:
           - name: dockersock

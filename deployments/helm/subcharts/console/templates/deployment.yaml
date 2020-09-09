@@ -19,19 +19,22 @@ spec:
     # {{- with .Values.imagePullSecrets }}
     #   imagePullSecrets:
     #     {{- toYaml . | nindent 8 }}
-    {{- end }}
+    # {{- end }}
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         command: ["/vegeta-console"]
-        args: ["--mongo-endpoint=vegeta-mongodb:27017"]
-          # /dist/vegeta-console --mongo-endpoint 10.152.183.167:27017 --mongo-database elasticaler
+        args: [
+          "--mongo-endpoint=vegeta-mongodb:27017",
+          "--vegeta-scanner-host=scanner",
+          "--vegeta-scanner-port=8888",
+          "-v"]
+
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}
             name: {{ include "console.name" . }}
 
-        # env: {{ .Release.Name }}-mongodb
         volumeMounts:
           - name: dockersock
             mountPath: "/var/run/docker.sock"

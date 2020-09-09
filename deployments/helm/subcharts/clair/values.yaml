@@ -5,10 +5,10 @@ replicaCount: 1
 logLevel: info
 insecureTls: false
 image:
-  # name: coreos/clair
-  # repository: quay.io
-  name: arminc/clair-local-scan
-  tag: latest
+  name: coreos/clair
+  repository: quay.io
+  # name: arminc/clair-local-scan
+  tag: v2.1.4
   pullPolicy: Always
 service:
   type: ClusterIP
