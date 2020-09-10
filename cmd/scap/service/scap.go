@@ -31,8 +31,9 @@ func init() {
 func Run(name string, conf model.CheckerConfig, cmd *cobra.Command) {
 	mongoOpts := flag.GetMongoOpts(cmd)
 	// mongo client
-	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf(
-		"mongodb://%s:%s@%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint)))
+
+	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
+	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(mongoString))
 	if err != nil {
 		log.Error().Msgf("Error: %v", err)
 		return

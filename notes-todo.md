@@ -48,6 +48,10 @@ names in subcharts/*/template/deployment which are being passed as command args.
 
 Maybe Clair and Scanner should be in the same pod? Note: clair-db maybe should be in another pod.
 
+---
+
+Elastic and etcd have default auth
+
 # Backend
 
 console requries JWT to access scanner API (acts like proxy). However, scanner API doesn't require JWT token, completely bypassing the security mechanism.
@@ -68,3 +72,5 @@ clair-address and clair-port refer to Scanner Service address. Clair service nee
 Path to them is sent in Scan request to Clair. TODO: maybe rename? I spent hours on this because I was confused.
 
 ---
+
+Console: scanner/heartbeat seems to be wrong path. 

@@ -26,10 +26,12 @@ spec:
         command: ["/vegeta-console"]
         args: [
           "--mongo-endpoint=vegeta-mongodb:27017",
+          "--etcd-endpoints=etcd-cluster-client:2379",
+          "--es-urls=elasticsearch-master:9200",
           "--vegeta-scanner-host=scanner",
           "--vegeta-scanner-port=8888",
-          "-v"]
-
+          "-v"]   
+    
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}

@@ -140,3 +140,14 @@ curl -v -X POST -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' 
 # Or directly to Scanner, bypassing JWT auth, hehe
 curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 ```
+
+Some oneliners:
+
+```bash
+mongo "mongodb://redstone:redstoneMongo123@10.152.183.243:27017/vegeta?authMechanism=SCRAM-SHA-1"
+```
+
+```bash
+ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get / --prefix
+ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get /agents/agentID/pods/scanner/heartbeat
+```
