@@ -151,3 +151,8 @@ mongo "mongodb://redstone:redstoneMongo123@10.152.183.243:27017/vegeta?authMecha
 ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get / --prefix
 ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get /agents/agentID/pods/scanner/heartbeat
 ```
+
+# Glossary
+
+* Agent, AgentID - this means Tenant. There is a use case where our client has multiple k8s clusters that share physical hosts. AgentID differentiates instances of 
+our components between those k8s clusters.
