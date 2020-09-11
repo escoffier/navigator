@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -43,6 +44,9 @@ func (api *api) getCluster() http.HandlerFunc {
 		Cluster cluster `json:"cluster"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
+
 		clusterID := chi.URLParam(r, "clusterID")
 
 		if clusterID == "" {
@@ -50,32 +54,36 @@ func (api *api) getCluster() http.HandlerFunc {
 			return
 		}
 
-		var queryCluster cluster
-		clusterObjectID, err := primitive.ObjectIDFromHex(clusterID)
+		queryCluster, err := api.getClusterFromMongo(ctx, clusterID)
 		if err != nil {
 			response.Bad(w, err.Error())
 			return
 		}
-		filter := bson.M{"_id": clusterObjectID}
-		ctx, cancel := api.getTimeoutCtx()
-		defer cancel()
-
-		queryResult := api.mongodb.Collection(clusterCol).FindOne(ctx, filter)
-		if queryResult.Err() != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", queryResult.Err()))
-			return
-		}
-
-		err = queryResult.Decode(&queryCluster)
-		if err != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", err))
-			return
-		}
 
 		response.Ok(w, &resp{
-			Cluster: queryCluster,
+			Cluster: *queryCluster,
 		})
 	}
+}
+
+func (api *api) getClusterFromMongo(ctx context.Context, clusterID string) (*cluster, error) {
+	var queryCluster cluster
+	clusterObjectID, err := primitive.ObjectIDFromHex(clusterID)
+	if err != nil {
+		return nil, err
+	}
+	filter := bson.M{"_id": clusterObjectID}
+
+	queryResult := api.mongodb.Collection(clusterCol).FindOne(ctx, filter)
+	if queryResult.Err() != nil {
+		return nil, fmt.Errorf("MongoDB: %s", queryResult.Err())
+	}
+
+	err = queryResult.Decode(&queryCluster)
+	if err != nil {
+		return nil, fmt.Errorf("MongoDB: %s", err)
+	}
+	return &queryCluster, nil
 }
 
 // @Summary Get all clusters information
@@ -190,6 +198,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		ctx, cancel := api.getTimeoutCtx()
 		defer cancel()
+
 		_, err = api.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 		if err != nil {
 			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
@@ -329,11 +338,11 @@ func checkKubeConfigValid(kubeConfig string) error {
 	}
 	_, err = kubeClient.CoreV1().Namespaces().Get(nameSpace, metav1.GetOptions{})
 	if err != nil {
-		return errors.New("Namespace not exist or no Namespace view authriazation")
+		return fmt.Errorf("Maybe namespace doesn't exist or no authorization?: %s", err)
 	}
 	_, err = kubeClient.CoreV1().Pods(nameSpace).List(metav1.ListOptions{})
 	if err != nil {
-		return errors.New("No Pod view authriazation")
+		return fmt.Errorf("Maybe no pod view authorization?: %s", err)
 	}
 	return nil
 }

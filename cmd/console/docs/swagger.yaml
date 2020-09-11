@@ -1489,13 +1489,24 @@ paths:
       produces:
       - application/json
       summary: Get a scan task by scantask ID
-  /api/v1/scap/check:
+  /api/v1/scap/check/{checkType}/cluster/{clusterID}:
     post:
-      description: Tell scap to check
+      description: Run compliance check on specified cluster
       operationId: v1-scap-check
+      parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
+      - description: cluster ID
+        in: path
+        name: clusterID
+        required: true
+        type: string
       produces:
       - application/json
-      summary: Tell scap to check
+      summary: Run compliance check on specified cluster
   /api/v1/scap/task/{taskID}:
     get:
       description: Get a scap task

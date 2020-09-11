@@ -55,10 +55,20 @@ clean:				## Clean all artifacts
 	$(MAKE) -C cmd/console/frontend clean
 	rm -fr dist
 
+.PHONY: scap-jobs
+.ONESHELL:
+scap-jobs:
+	cd configs/scap/jobs/kube-bench
+	$(MAKE) DOCKER_REGISTRY=localhost:32000 VERSION=latest build-docker
+	cd -
+	cd configs/scap/jobs/docker-bench-security
+	docker build -t localhost:32000/docker-bench-security:latest .
+	cd -
+
 .PHONY: console
 console: generate 		## Build console binary
-	# This target depends on frontend, but for optimisation, if we want to build only console, frontend won't be built.
-	# Only when we make all it will also build frontend.
+	# This target depends on frontend and scap-jobs, but for optimisation, if we want to build only console, they won't be built.
+	# To build all targets, use make all.
 	@echo "+ $@"
 	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
@@ -94,7 +104,7 @@ scap:				## Build scap binary
 	docker build -t $(REPOPREFIX)vegeta-scap:latest -f ./build/scap/Dockerfile .
 
 .PHONY: all
-all: scap scanner frontend console daemon alerter
+all: scap scanner frontend scap-jobs console daemon alerter
 
 .PHONY: pushimages
 pushimages:
@@ -103,6 +113,8 @@ pushimages:
 	docker push localhost:32000/vegeta-scap
 	docker push localhost:32000/vegeta-daemon
 	docker push localhost:32000/vegeta-alerter
+	docker push localhost:32000/kube-bench
+	docker push localhost:32000/docker-bench-security
 
 .PHONY: frontend
 frontend:			## Build frontend
@@ -114,6 +126,9 @@ frontend:			## Build frontend
 
 .PHONY: redeploy
 redeploy:
+	# Note, if you get:
+	# Error: release vegeta failed: object is being deleted: persistentvolumeclaims "vegeta-mongodb" already exists
+	# then run this target again.
 	@echo "+ $@"
 	cd deployments/helm; \
 		microk8s helm delete --purge vegeta; \

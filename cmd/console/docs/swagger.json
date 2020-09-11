@@ -950,14 +950,30 @@
                 ]
             }
         },
-        "/api/v1/scap/check": {
+        "/api/v1/scap/check/{checkType}/cluster/{clusterID}": {
             "post": {
-                "description": "Tell scap to check",
+                "description": "Run compliance check on specified cluster",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Tell scap to check",
-                "operationId": "v1-scap-check"
+                "summary": "Run compliance check on specified cluster",
+                "operationId": "v1-scap-check",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "kube/docker/host",
+                        "name": "checkType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "cluster ID",
+                        "name": "clusterID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
             }
         },
         "/api/v1/scap/task/{taskID}": {

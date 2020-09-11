@@ -52,6 +52,15 @@ Maybe Clair and Scanner should be in the same pod? Note: clair-db maybe should b
 
 Elastic and etcd have default auth
 
+---
+
+Improve and make more consistent the Makefile build system around kube-bench and docker-bench-security and root Makefile. 
+
+--- 
+
+a bunch of todos in job.yaml files in kube-bench and docker-bench-security.
+
+
 # Backend
 
 console requries JWT to access scanner API (acts like proxy). However, scanner API doesn't require JWT token, completely bypassing the security mechanism.
@@ -74,3 +83,13 @@ Path to them is sent in Scan request to Clair. TODO: maybe rename? I spent hours
 ---
 
 Console: scanner/heartbeat seems to be wrong path. 
+
+---
+
+upgrade go-client; one customer reported to having kubernetes-1.14.3
+
+---
+
+rename kube-bench and docker-bench-security to something more branded.
+
+---

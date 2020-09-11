@@ -115,6 +115,8 @@ Go to this IP and port in browser. Default username/password is admin/admin.
 
 # Manual testing
 
+## APIs
+
 Obtain JWT token by logging into dashboard and inspecting subsequent HTTP request cookie header. 
 
 ```bash
@@ -122,6 +124,8 @@ Obtain JWT token by logging into dashboard and inspecting subsequent HTTP reques
 alias mk8="microk8s kubectl "
 alias mk8v="mk8 --namespace=vegeta "
 ```
+
+Login:
 
 ```bash
 # Get console IP
@@ -132,6 +136,7 @@ SCANNERIP=$(mk8v describe service scanner | grep IP: | awk '{print $2;}')
 JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEIP:8889/api/v1/rest-auth/login -v 2>&1 | grep Set-Cookie | awk '{print $3;}')
 
 ```
+
 Scan image:
 
 ```bash
@@ -140,6 +145,24 @@ curl -v -X POST -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' 
 # Or directly to Scanner, bypassing JWT auth, hehe
 curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 ```
+
+Run scap job:
+
+```bash
+# For dev: microk8s kubectl config shows that k8s API is at 127.0.0.1. Replace it with externally routable IP of the host so that the pod can access it.
+# Note: change 'enp3s0' depending on your system.
+ACTUALKUBEAPIADDRESS=$(ip -4 addr show enp3s0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+KUBECONFIG=$(microk8s kubectl config view --raw -o json | sed "s/127.0.0.1/$ACTUALKUBEAPIADDRESS/" | base64 | tr -d "\n ")
+# Create cluster
+curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": \"$KUBECONFIG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster
+# Get cluster (object ID from previuos request)
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5b55734cc11283e19fbfe6
+
+curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": \"$KUBECONFIG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f5ba6ec207541f94d05c059
+
+```
+
+## Database access
 
 Some oneliners:
 
@@ -150,6 +173,13 @@ mongo "mongodb://redstone:redstoneMongo123@10.152.183.243:27017/vegeta?authMecha
 ```bash
 ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get / --prefix
 ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get /agents/agentID/pods/scanner/heartbeat
+```
+
+## Docker registry
+
+```bash
+curl -X GET http://localhost:32000/v2/_catalog
+curl -X GET http://localhost:32000/v2/ubuntu/tags/list
 ```
 
 # Glossary
