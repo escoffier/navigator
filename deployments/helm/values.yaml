@@ -1,3 +1,7 @@
+global:
+  # Not sure if it's good practice to pas our docker repo address to our subcharts like this.
+  ourDockerRepo: 192.168.1.203:32000
+
 imageCredentials:
   registry: registry.gitlab.com
   username: gitlab-ci-token
@@ -51,7 +55,7 @@ postgresql:
 
 
 elasticsearch:
-  enabled: true
+  enabled: false
   replicas: 1
   extraInitContainers: |
     - name: chown
@@ -81,7 +85,7 @@ etcd-operator:
       tag: v3.4.1
 
 kibana:
-  enabled: true
+  enabled: false
 
 mongodb:
   enabled: true

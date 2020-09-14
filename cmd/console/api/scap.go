@@ -6,15 +6,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
+	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -134,29 +139,123 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		// schedule job
-		jobsClient := kubeClient.BatchV1().Jobs("default")
-		res, err := jobsClient.Create(jobObj)
+		// Subsitute job's image repository in job.yaml for the one configured for Console.
+		currImage := jobObj.Spec.Template.Spec.Containers[0].Image
+		splitted := strings.Split(currImage, "/")
+		currImgname := splitted[1]
+		newImage := fmt.Sprintf("%s/%s", api.scapper.DockerRepoHostPort, currImgname)
+		jobObj.Spec.Template.Spec.Containers[0].Image = newImage
 
-		// HACK
-		if k8serrors.IsAlreadyExists(err) {
-			err = jobsClient.Delete(jobObj.Name, &metav1.DeleteOptions{})
+		// find nodes to schedule job on
+		nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		if err != nil {
+			response.InternalError(w, fmt.Sprintf("Can't list nodes in this cluster: %s", err))
+			return
+		}
+
+		// generate job uuid that will identify results of this run in database
+		jobUUID := uuid.NewV4()
+
+		// get namespace of this pod - it will be used for scheduled jobs/pods
+		namespace := os.Getenv("MY_POD_NAMESPACE")
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		// schedule jobs
+		logging.GetLogger().Info().
+			Str("job-type", checkType).
+			Str("job-uuid", jobUUID.String()).
+			Str("namespace", namespace).
+			Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
+			Msg("Scheduling SCAP jobs")
+
+		for _, targetNode := range nodes.Items {
+			// Note: I tested it on a 2-node microk8s cluster (ubuntu 18.04 and centos 8)
+			// question is - will it scale?
+			// What about context timeout? Launching jobs for thousands of nodes may take a while.
+
+			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
+			// or do we not care about this since this is a rare operation?
+			// Also, this should also clean up all Error and Completed pods.
+
+			// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#specifying-your-own-pod-selector
+			// We must specify controller-uid ourselves and tell k8s that we know what we're doing.
+			// manSec := true
+			// jobObj.Spec.ManualSelector = &manSec
+
+			// // generate job uuid
+			// jobControllerUUID := uuid.NewV4()
+
+			// selector := metav1.LabelSelector{
+			// 	MatchLabels: map[string]string{
+			// 		"kubernetes.io/hostname": targetHostname,
+			// 		"controller-uid":         jobControllerUUID.String(),
+			// 	},
+			// }
+			// jobObj.Spec.Selector = &selector
+
+			// jobObj.
+
+			// jobObj.Spec.Template.Labels["kubernetes.io/hostname"] = targetHostname
+			// jobObj.Spec.Template.Labels["controller-uid"] = jobControllerUUID.String()
+
+			jobObj.Spec.Template.Spec.NodeName = targetNode.Name
+
+			jobEnv := corev1.EnvVar{
+				Name:  "JOB_ID",
+				Value: jobUUID.String(),
+			}
+			jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, jobEnv)
+
+			nodeNameEnv := corev1.EnvVar{
+				Name:  "NODE_NAME",
+				Value: targetNode.Name,
+			}
+			jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, nodeNameEnv)
+
+			// TODO: This should be a secret. There's probably a better way to do this anyways.
+			mongoString := fmt.Sprintf("mongodb://%s:%s@%s/%s?authSource=%s",
+				api.scapper.MongoUsername, api.scapper.MongoPassword, api.scapper.MongoEndpoint, api.scapper.MongoDatabase, api.scapper.MongoDatabase)
+			mongoStringEnv := corev1.EnvVar{
+				Name:  "MONGO_STRING",
+				Value: mongoString,
+			}
+			jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, mongoStringEnv)
+
+			jobObj.Name = fmt.Sprintf("%s-%s", jobObj.Name, targetNode.Name)
+
+			jobsClient := kubeClient.BatchV1().Jobs(namespace)
+			res, err := jobsClient.Create(jobObj)
+			// HACK
+			if k8serrors.IsAlreadyExists(err) {
+				err = jobsClient.Delete(jobObj.Name, &metav1.DeleteOptions{})
+				if err != nil {
+
+					response.InternalError(w, fmt.Sprintf("Job already exists, so tried deleting, but: %s", err))
+					return
+				}
+
+				time.Sleep(time.Second * 10)
+				res, err = jobsClient.Create(jobObj)
+			}
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("Job already exists, so tried deleting, but: %s", err))
+				response.InternalError(w, fmt.Sprintf("Couldn't schedule job: %s", err))
 				return
 			}
 
-			time.Sleep(time.Second * 10)
-			res, err = jobsClient.Create(jobObj)
+			jobName := res.ObjectMeta.Name
+
+			logging.GetLogger().Info().
+				Str("target-node", jobObj.Spec.Template.Spec.NodeName).
+				Str("job-name", jobName).
+				Msg("Scheduled SCAP job")
 		}
 
 		if err != nil {
 			response.InternalError(w, fmt.Sprintf("Failed to schedule job: %s", err))
 			return
 		}
-
-		jobName := res.ObjectMeta.Name
-		fmt.Println("jobName: ", jobName)
 	}
 }
 

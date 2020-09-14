@@ -57,7 +57,12 @@ var rootCmd = &cobra.Command{
 			Int("port", scannerOpts.Port).
 			Msg("Vegeta Scanner options")
 
-		console, err := service.NewConsole(httpOpts, esOpts, etcdOpts, mongoOpts, scannerOpts)
+		scapOpts := flag.GetScapOpts(cmd)
+		logging.GetLogger().Info().
+			Str("scap-job-repo", scapOpts.HostPort).
+			Msg("Scap options")
+
+		console, err := service.NewConsole(httpOpts, esOpts, etcdOpts, mongoOpts, scannerOpts, scapOpts)
 		if err != nil {
 			return err
 		}
@@ -87,4 +92,5 @@ func init() {
 	flag.AddEtcdFlags(rootCmd)
 	flag.AddMongoFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
+	flag.AddScapFlags(rootCmd)
 }

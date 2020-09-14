@@ -46,6 +46,7 @@ func SetupRoutes(
 	esClient *elasticsearch.Client,
 	etcdClient *clientv3.Client,
 	mongodb *mongo.Database,
+	scapper *Scapper,
 	scannerURL string,
 ) {
 	log.Debug().Msg("setting up routes...")
@@ -54,7 +55,7 @@ func SetupRoutes(
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
-	api := newAPI(ctx, sessionExpiration, esClient, etcdClient, mongodb, scannerURL)
+	api := newAPI(ctx, sessionExpiration, esClient, etcdClient, mongodb, scapper, scannerURL)
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
 			r.Route("/rest-auth", api.restAuth())

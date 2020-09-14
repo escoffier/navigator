@@ -21,6 +21,7 @@ type api struct {
 	esClient   *elasticsearch.Client
 	etcdClient *clientv3.Client
 	mongodb    *mongo.Database
+	scapper    *Scapper
 	scannerURL string
 }
 
@@ -30,6 +31,7 @@ func newAPI(
 	esClient *elasticsearch.Client,
 	etcdClient *clientv3.Client,
 	mongodb *mongo.Database,
+	scapper *Scapper,
 	scannerURL string,
 ) *api {
 	return &api{
@@ -39,6 +41,7 @@ func newAPI(
 		esClient:   esClient,
 		etcdClient: etcdClient,
 		mongodb:    mongodb,
+		scapper:    scapper,
 		scannerURL: scannerURL,
 	}
 }

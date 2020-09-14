@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -43,6 +44,7 @@ func NewConsole(
 	etcdOpts *flag.EtcdOpts,
 	mongoOpts *flag.MongoOpts,
 	scannerOpts *flag.VegetaScannerOpts,
+	scapOpts *flag.ScapOpts,
 ) (*Console, error) {
 	// elasticsearch client
 	es, err := elasticsearch.NewClient(elasticsearch.Config{
@@ -76,6 +78,15 @@ func NewConsole(
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
+	// scap service
+	scapper := &api.Scapper{
+		DockerRepoHostPort: scapOpts.HostPort,
+		MongoEndpoint:      mongoOpts.Endpoint,
+		MongoUsername:      mongoOpts.Username,
+		MongoPassword:      mongoOpts.Password,
+		MongoDatabase:      mongoOpts.Database,
+	}
+
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
@@ -87,6 +98,7 @@ func NewConsole(
 				es,
 				etcd,
 				mongodb,
+				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 			),

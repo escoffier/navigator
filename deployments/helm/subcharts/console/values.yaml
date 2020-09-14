@@ -17,6 +17,6 @@ apiInstallLabel: "console.vegeta/install"
 
 image:
   name: vegeta-console
-  repository: localhost:32000
+  # repository: localhost:32000
   tag: latest
   pullPolicy: Always

@@ -65,6 +65,17 @@ make pushimages
 
 ## Deploy
 
+### 1 node
+
+Change deployments/helm/values.yaml to point to correct docker repo.
+
+
+```bash
+global:
+  # If you use microk8s for testing only on 1 node (localhost):
+  ourDockerRepo: 127.0.0.1
+```
+
 Simplified version for development:
 
 ```bash
@@ -79,6 +90,29 @@ After a while, ensure all pods are RUNNING:
 ```bash
 microk8s helm get pod --namespace=vegeta
 ```
+
+### Multi node setup
+
+If you want microk8s repo to be accessed from external hosts (e.g. in multi-node setup):
+
+Change deployments/helm/values.yaml to point to correct docker repo.
+
+```bash
+  ourDockerRepo: $YOURIPADDRESS:32000
+```
+
+You must also change microk8s config, otherwise will fail with https related error:
+
+```bash
+  # 
+sudo vi /var/snap/microk8s/current/args/containerd-template.toml
+  # Under section `[plugins] -> [plugins."io.containerd.grpc.v1.cri".registry] -> [plugins."io.containerd.grpc.v1.cri".registry.mirrors]` add:
+    #   [plugins."io.containerd.grpc.v1.cri".registry.mirrors."$YOURIPADDRESS:32000"]
+    #     endpoint = ["http://$YOURIPADDRESS:32000"]
+microk8s stop
+microk8s start
+```
+
 
 ## Test
 
@@ -156,9 +190,12 @@ KUBECONFIG=$(microk8s kubectl config view --raw -o json | sed "s/127.0.0.1/$ACTU
 # Create cluster
 curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": \"$KUBECONFIG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5b55734cc11283e19fbfe6
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5be0d19ae8fe01e1b52a3f
 
-curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": \"$KUBECONFIG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f5ba6ec207541f94d05c059
+# Kube-bench
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f5f755c5a31a8a0652d75b2
+# Docker-bench
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/docker/cluster/5f5f755c5a31a8a0652d75b2
 
 ```
 

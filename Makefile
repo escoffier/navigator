@@ -56,14 +56,11 @@ clean:				## Clean all artifacts
 	rm -fr dist
 
 .PHONY: scap-jobs
-.ONESHELL:
 scap-jobs:
-	cd configs/scap/jobs/kube-bench
-	$(MAKE) DOCKER_REGISTRY=localhost:32000 VERSION=latest build-docker
-	cd -
-	cd configs/scap/jobs/docker-bench-security
-	docker build -t localhost:32000/docker-bench-security:latest .
-	cd -
+	cd configs/scap/jobs/kube-bench && \
+		$(MAKE) DOCKER_REGISTRY=localhost:32000 VERSION=latest build-docker 
+	cd configs/scap/jobs/docker-bench-security && \
+		docker build -t localhost:32000/docker-bench-security:latest .
 
 .PHONY: console
 console: generate 		## Build console binary

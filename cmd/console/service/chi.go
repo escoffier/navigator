@@ -19,6 +19,7 @@ func setupChiRouter(
 	esClient *elasticsearch.Client,
 	etcdClient *clientv3.Client,
 	mongodb *mongo.Database,
+	scapper *api.Scapper,
 	scannerURL string,
 	httpLoggerDisabled bool,
 ) http.Handler {
@@ -34,7 +35,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, 24*time.Hour, esClient, etcdClient, mongodb, scannerURL)
+	api.SetupRoutes(ctx, r, 24*time.Hour, esClient, etcdClient, mongodb, scapper, scannerURL)
 
 	return r
 }

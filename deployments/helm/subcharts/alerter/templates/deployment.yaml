@@ -21,7 +21,7 @@ spec:
     # {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
           env:
             - name: ETCD_CLUSTER_HOST
               value: "etcd-cluster-client"

@@ -19,6 +19,6 @@ apiInstallLabel: "scanner.vegeta/install"
 
 image:
   name: vegeta-scanner
-  repository: localhost:32000
+  # repository: localhost:32000
   tag: latest
   pullPolicy: Always

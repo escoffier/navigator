@@ -22,7 +22,7 @@ spec:
     # {{- end }}
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         command: ["/vegeta-console"]
         args: [
           "--mongo-endpoint=vegeta-mongodb:27017",
@@ -30,18 +30,19 @@ spec:
           "--es-urls=elasticsearch-master:9200",
           "--vegeta-scanner-host=scanner",
           "--vegeta-scanner-port=8888",
-          "-v"]   
+          "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
+          "-v"]
     
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}
             name: {{ include "console.name" . }}
-
-        volumeMounts:
-          - name: dockersock
-            mountPath: "/var/run/docker.sock"
-          - name: tmp
-            mountPath: "/tmp/"
+        env:
+        # Required for managing scap jobs
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
       volumes:
       - name: dockersock
         hostPath:
@@ -49,5 +50,3 @@ spec:
       - name: tmp
         hostPath:
           path: /tmp/
-
-
