@@ -55,7 +55,7 @@ postgresql:
 
 
 elasticsearch:
-  enabled: false
+  enabled: true
   replicas: 1
   extraInitContainers: |
     - name: chown
@@ -85,7 +85,7 @@ etcd-operator:
       tag: v3.4.1
 
 kibana:
-  enabled: false
+  enabled: true
 
 mongodb:
   enabled: true

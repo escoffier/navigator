@@ -60,7 +60,7 @@ sudo gpasswd -a $USER docker
 
 ```bash
 # Use: 
-NODE_COUNT=1 BOX_OS=centos8 DISK_COUNT=1 DISK_SIZE_GB=40 make up -j 2
+NODE_COUNT=1 BOX_OS=centos8 DISK_COUNT=1 DISK_SIZE_GB=40 MASTER_MEMORY_SIZE_GB=3 NODE_MEMORY_SIZE_GB=3 make up -j 2
 ```
 
 3. Our nodes have 40GB disk each, but they're not mounted. So let's mount them. Also, we must configure docker insecure registry. Run the following commands on every node.
@@ -160,6 +160,12 @@ kubectl get pv
 # NAME                CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS    REASON   AGE
 # local-pv-1a3cbf29   39Gi       RWO            Retain           Available           local-storage            40s
 # local-pv-218adf71   39Gi       RWO            Retain           Available           local-storage            40s
+```
+
+8. Untaint master
+
+```bash
+kubectl taint nodes master node-role.kubernetes.io/master-
 ```
 
 ## Build
@@ -323,7 +329,7 @@ curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": 
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5be0d19ae8fe01e1b52a3f
 
 # Kube-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f60c265985ed30180253da5
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f61d3ace8cb89573afd9e27
 # Docker-bench
 curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/docker/cluster/5f5f755c5a31a8a0652d75b2
 ```
@@ -354,7 +360,7 @@ curl -X GET http://localhost:32000/v2/ubuntu/tags/list
 
 ```bash
 # Delete pods by pattern (dry run - uncomment last part of command to run for real)
-kubectl get pods --all-namespaces -o name | grep "kube-bench" # | xargs kubectl --all-namespaces delete  
+microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "kube-bench"  | xargs microk8s kubectl --namespace vegeta  delete  
 ```
 
 # Glossary
