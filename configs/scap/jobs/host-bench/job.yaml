@@ -1,0 +1,31 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: host-bench
+spec:
+  template:
+    metadata:
+      labels:
+        app: host-bench
+    spec:
+      hostPID: true
+
+      # docker run --rm -v /:/mnt/root -v $(pwd):/mnt/results 
+      # openscap/openscap:f27-1 oscap-chroot /mnt/root xccdf eval --report /mnt/results/results.html --results /mnt/results/results.xccdf --profile common /usr/share/xml/scap/ssg/content/ssg-ubuntu1604-ds.xml
+
+
+      containers:
+        - name: host-bench
+          # TODO: templatize this image source
+          image: 192.168.1.203:32000/host-bench:latest
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: mnt-root
+              mountPath: /mnt/root
+              readOnly: true
+      restartPolicy: Never
+      volumes:
+        - name: mnt-root
+          hostPath:
+            path: "/"

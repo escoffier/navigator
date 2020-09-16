@@ -61,6 +61,8 @@ scap-jobs:
 		$(MAKE) DOCKER_REGISTRY=localhost:32000 VERSION=latest build-docker 
 	cd configs/scap/jobs/docker-bench-security && \
 		docker build -t localhost:32000/docker-bench-security:latest .
+	cd configs/scap/jobs/host-bench && \
+		docker build -t localhost:32000/host-bench:latest .
 
 .PHONY: console
 console: generate 		## Build console binary
@@ -112,6 +114,7 @@ pushimages:
 	docker push localhost:32000/vegeta-alerter
 	docker push localhost:32000/kube-bench
 	docker push localhost:32000/docker-bench-security
+	docker push localhost:32000/host-bench:latest
 
 .PHONY: frontend
 frontend:			## Build frontend
