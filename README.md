@@ -18,7 +18,7 @@ I recommend usnig one of the following, since I (Michał) use them and may be ab
 1. local, 1 node deployment using microk8s
 2. multinode, 2 node deployment using vagrant, behind NAT, using https://github.com/galexrt/k8s-vagrant-multi-node
 
-I tried microk8s multinode feature but it's new and I had problems configuring networking, so I gave up.
+*Note: I tried microk8s multinode feature but it's new and I had problems configuring networking, so I gave up.*
 
 ### Microk8s
 
@@ -54,7 +54,7 @@ sudo gpasswd -a $USER docker
 
 ### k8s-vagrant-multi-node
 
-1. Clone https://github.com/galexrt/k8s-vagrant-multi-node and install prerequisites (I use provide Virtualbox)
+1. Clone https://github.com/galexrt/k8s-vagrant-multi-node and install prerequisites (I use provider 'Virtualbox')
 
 2. Deploy 2 node k8s centos8 cluster (1 worker, 1 master)
 
@@ -94,6 +94,8 @@ for i in $(seq 1 10); do
   echo /mnt/${DISK_UUID}/vol${i} /mnt/disks/${DISK_UUID}_vol${i} none bind 0 0 | sudo tee -a /etc/fstab
 done
 # Note: make sure that DISK_UUIDs weren't null in above commands, there is some race condition (hence the sleep).
+# If it's null, use `df -h` and `umount` to unmount /dev/sdb. Also remove entries that were created in /etc/fstab.
+# Then try again but maybe `sleep` for longer.
 ############
 
 # Configure insecure registry
@@ -104,7 +106,7 @@ sudo systemctl restart docker
 exit
 ```
 
-4. We must enable `DefaultStorageClass` plugin on k8s cluster to easily provision Persitent Volumes. Do this on mater node:
+4. We must enable `DefaultStorageClass` plugin on k8s cluster to easily provision Persistent Volumes. Do this on master node:
 
 ```bash
 make ssh-master
@@ -239,7 +241,7 @@ global:
 3. After a while, ensure all pods are RUNNING:
 
 ```bash
-microk8s helm get pod --namespace=vegeta
+microk8s kubectl get pod --namespace=vegeta
 ```
 
 ## Test
