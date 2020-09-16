@@ -1,5 +1,12 @@
 # Vegeta
 
+Before you do anything, make sure that submodules are present:
+
+```bash
+git submodule init
+git submodule update
+```
+
 ## Prepare environment
 
 Instructions for Ubuntu 2004.
