@@ -128,8 +128,8 @@ redeploy:
 	# then run this target again.
 	@echo "+ $@"
 	cd deployments/helm; \
-		microk8s helm delete --purge vegeta; \
+		helm delete --purge vegeta; \
 		rm -rf charts; \
-		microk8s helm dep up; \
-		microk8s helm install ./ --namespace vegeta --name vegeta; \
+		helm dep up; \
+		helm install ./ --namespace vegeta --name vegeta; \
 		cd -

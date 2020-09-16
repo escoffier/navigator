@@ -155,6 +155,11 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		// generate job uuid that will identify results of this run in database
 		jobUUID := uuid.NewV4()
+		jobEnv := corev1.EnvVar{
+			Name:  "JOB_ID",
+			Value: jobUUID.String(),
+		}
+		jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, jobEnv)
 
 		// get namespace of this pod - it will be used for scheduled jobs/pods
 		namespace := os.Getenv("MY_POD_NAMESPACE")
@@ -200,19 +205,15 @@ func (api *api) scapCheck() http.HandlerFunc {
 			// jobObj.Spec.Template.Labels["kubernetes.io/hostname"] = targetHostname
 			// jobObj.Spec.Template.Labels["controller-uid"] = jobControllerUUID.String()
 
-			jobObj.Spec.Template.Spec.NodeName = targetNode.Name
+			jobObjCp := jobObj.DeepCopy()
 
-			jobEnv := corev1.EnvVar{
-				Name:  "JOB_ID",
-				Value: jobUUID.String(),
-			}
-			jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, jobEnv)
+			jobObjCp.Spec.Template.Spec.NodeName = targetNode.Name
 
 			nodeNameEnv := corev1.EnvVar{
 				Name:  "NODE_NAME",
 				Value: targetNode.Name,
 			}
-			jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, nodeNameEnv)
+			jobObjCp.Spec.Template.Spec.Containers[0].Env = append(jobObjCp.Spec.Template.Spec.Containers[0].Env, nodeNameEnv)
 
 			// TODO: This should be a secret. There's probably a better way to do this anyways.
 			mongoString := fmt.Sprintf("mongodb://%s:%s@%s/%s?authSource=%s",
@@ -221,15 +222,15 @@ func (api *api) scapCheck() http.HandlerFunc {
 				Name:  "MONGO_STRING",
 				Value: mongoString,
 			}
-			jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, mongoStringEnv)
+			jobObjCp.Spec.Template.Spec.Containers[0].Env = append(jobObjCp.Spec.Template.Spec.Containers[0].Env, mongoStringEnv)
 
-			jobObj.Name = fmt.Sprintf("%s-%s", jobObj.Name, targetNode.Name)
+			jobObjCp.Name = fmt.Sprintf("%s-%s", jobObjCp.Name, targetNode.Name)
 
 			jobsClient := kubeClient.BatchV1().Jobs(namespace)
-			res, err := jobsClient.Create(jobObj)
+			res, err := jobsClient.Create(jobObjCp)
 			// HACK
 			if k8serrors.IsAlreadyExists(err) {
-				err = jobsClient.Delete(jobObj.Name, &metav1.DeleteOptions{})
+				err = jobsClient.Delete(jobObjCp.Name, &metav1.DeleteOptions{})
 				if err != nil {
 
 					response.InternalError(w, fmt.Sprintf("Job already exists, so tried deleting, but: %s", err))
@@ -237,7 +238,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 				}
 
 				time.Sleep(time.Second * 10)
-				res, err = jobsClient.Create(jobObj)
+				res, err = jobsClient.Create(jobObjCp)
 			}
 			if err != nil {
 				response.InternalError(w, fmt.Sprintf("Couldn't schedule job: %s", err))
@@ -247,7 +248,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 			jobName := res.ObjectMeta.Name
 
 			logging.GetLogger().Info().
-				Str("target-node", jobObj.Spec.Template.Spec.NodeName).
+				Str("target-node", jobObjCp.Spec.Template.Spec.NodeName).
 				Str("job-name", jobName).
 				Msg("Scheduled SCAP job")
 		}

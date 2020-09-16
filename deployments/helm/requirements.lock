@@ -30,4 +30,4 @@ dependencies:
   repository: file://./subcharts/mongo-express
   version: 0.1.0
 digest: sha256:37ac9ab2aa65a985fa7dd8d019771d77dd7efab499b7eb4fec242c33a1577e88
-generated: "2020-09-09T13:30:56.222326474+02:00"
+generated: "2020-09-15T13:21:41.438501897+02:00"
