@@ -976,19 +976,26 @@
                 ]
             }
         },
-        "/api/v1/scap/task/{taskID}": {
+        "/api/v1/scap/check/{checkType}/{checkID}": {
             "get": {
-                "description": "Get a scap task",
+                "description": "Get current scap results for a specific job",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get a scap task by scaptask ID",
-                "operationId": "v1-scap-task-get",
+                "summary": "Get scap results",
+                "operationId": "v1-scap-job-get",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "scap task ID",
-                        "name": "taskID",
+                        "description": "kube/docker/host",
+                        "name": "checkType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "scap job ID",
+                        "name": "checkID",
                         "in": "path",
                         "required": true
                     }

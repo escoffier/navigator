@@ -26,13 +26,44 @@ case $NAME in
   ;;
 esac
 
-DSPATH="/usr/share/xml/scap/ssg/content/ssg-$DS_STR-ds.xml"
-PROFILE="content_profile_standard"
+DSPATH="/usr/share/xml/scap/ssg/content/ssg-$DS_STR-xccdf.xml"
+PROFILE="standard"
 
 echo "Using datasource $DSPATH"
 echo "Using profile $PROFILE"
 
-oscap-chroot /mnt/root/ xccdf eval --report=report.html --results=results.html --profile=content_profile_standard $DSPATH
-exit $?
+echo "Running oscap-chroot"
+oscap-chroot /mnt/root/ xccdf eval --report=report.html --results=results.xccdf --profile=standard /usr/share/xml/scap/ssg/content/ssg-ubuntu1804-xccdf.xml > stdout.txt
+# oscap-chroot /mnt/root/ xccdf eval --report=report.html --results=results.xccdf --profile=$PROFILE $DSPATH > stdout.txt
+retval=$?
+if [ $retval -ne 0 ]; then
+  exit $retval
+fi
 
-# TODO: write to mongo
+echo "Running xccdfparser"
+xccdfparser -o ./out.json ./results.xccdf
+retval=$?
+if [ $retval -ne 0 ]; then
+  exit $retval
+fi
+
+echo "Converting output json to mongo record: Node name: $NODE_NAME, Check ID: $CHECK_ID"
+jq -n \
+    --arg nodeName "$NODE_NAME" \
+    --arg timestamp $(date +%s) \
+    --arg checkid "$CHECK_ID" \
+    --slurpfile resultsData \
+    docker-bench-security.sh.log.json \
+    '{"checkId": $checkid, "nodeName":$nodeName, "status": "completed", "finishedAt": $timestamp, "results": $resultsData}' > record.json
+retVal=$?
+if [ $retVal -ne 0 ]; then
+    exit $retVal
+fi
+
+echo "Importing record to mongo"
+mongoimport record.json --uri $MONGO_STRING --collection "host-bench-records" --mode=merge --upsertFields=jobId,nodeName
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  exit $retVal
+fi
+exit 0

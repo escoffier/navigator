@@ -6,3 +6,6 @@
 	path = configs/scap/jobs/kube-bench
 	url = git@bitbucket.org:tensorsec/kube-bench.git
 	branch = forkmaster
+[submodule "configs/scap/jobs/host-bench/xccdfparser"]
+	path = configs/scap/jobs/host-bench/xccdfparser
+	url = git@gitlab.com:tensorsecurity-rd/xccdfparser.git

@@ -19,7 +19,7 @@ classes:
   blockCleanerCommand:
    - "/scripts/blkdiscard.sh"
   storageClass:
-    reclaimPolicy: Retain
+    reclaimPolicy: Delete
     isDefaultClass: true
 
 daemonset:

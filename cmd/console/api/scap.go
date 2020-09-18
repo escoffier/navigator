@@ -13,11 +13,11 @@ import (
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
 	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,39 +27,89 @@ import (
 
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/task/{taskID}", api.getScapTask())
+		// TODO: rethink paths, this is bad
+		r.Get("/check/{checkType}/{checkID}", api.getScapJob())
 		r.Post("/check/{checkType}/cluster/{clusterID}", api.scapCheck())
 	}
 }
 
-// @Summary Get a scap task by scaptask ID
-// @Description Get a scap task
-// @ID v1-scap-task-get
+type JobEntry struct {
+	ID         primitive.ObjectID `json:"db_id,omitempty" bson:"_id, omitempty"`
+	CheckID    string             `json:"check_id" bson:"checkId"`
+	NodeName   string             `json:"node_name" bson:"nodeName"`
+	Status     string             `json:"status" bson:"status"`
+	CreatedAt  int64              `json:"created_at" bson:"createdAt"`
+	FinishedAt int64              `json:"finished_at" bson:"finishedAt"`
+	Results    string             `json:"results" bson:"results"`
+}
+
+// @Summary Get scap results
+// @Description Get current scap results for a specific job
+// @ID v1-scap-job-get
 // @Produce json
-// @Param taskID path string true "scap task ID"
-// @Router /api/v1/scap/task/{taskID} [get]
-func (api *api) getScapTask() http.HandlerFunc {
+// @Param checkType path string true "kube/docker/host"
+// @Param checkID path string true "scap job ID"
+// @Router /api/v1/scap/check/{checkType}/{checkID} [get]
+func (api *api) getScapJob() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// get ObjectID
-		taskObjectID, err := getTaskObjectIDFromURL(r)
-		if err != nil {
-			response.Bad(w, err.Error())
+		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		defer cancel()
+
+		checkID := chi.URLParam(r, "checkID")
+		if checkID == "" {
+			response.Bad(w, "checkID param missing")
 			return
 		}
 
-		ctx, cancel := api.getTimeoutCtx()
-		defer cancel()
+		checkType := chi.URLParam(r, "checkType")
+		if checkType == "" {
+			response.Bad(w, "checkType param missing")
+			return
+		}
+		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+			response.Bad(w, "invalid checkType param value (allowed: kube/docker/host)")
+			return
+		}
 
 		// from mongo
-		var result model.ScapTask
-		err = api.mongodb.Collection(model.ScapTasksCollection).FindOne(
-			ctx, bson.M{"_id": taskObjectID}).Decode(&result)
+		mongoCollection := ""
+		if checkType == "kube" {
+			mongoCollection = "kube-bench-records"
+		} else if checkType == "docker" {
+			mongoCollection = "docker-bench-records"
+		} else if checkType == "host" {
+			mongoCollection = "host-bench-records"
+		} else {
+			response.InternalError(w, "Unreachable code reached")
+			return
+		}
+
+		cursor, err := api.mongodb.Collection(mongoCollection).Find(ctx, bson.M{"checkId": checkID})
+		if err != nil {
+			response.InternalError(w, err.Error())
+			return
+		}
+		defer cursor.Close(ctx)
+
+		var results []JobEntry
+		for cursor.Next(ctx) {
+			var result JobEntry
+			err := cursor.Decode(&result)
+			if err != nil {
+				response.InternalError(w, err.Error())
+				return
+			}
+			// TODO: pagination
+			results = append(results, result)
+		}
+
+		err = cursor.Err()
 		if err != nil {
 			response.InternalError(w, err.Error())
 			return
 		}
 
-		response.Ok(w, result)
+		response.Ok(w, results)
 	}
 }
 
@@ -71,9 +121,6 @@ func (api *api) getScapTask() http.HandlerFunc {
 // @Param clusterID path string true "cluster ID"
 // @Router /api/v1/scap/check/{checkType}/cluster/{clusterID} [post]
 func (api *api) scapCheck() http.HandlerFunc {
-	// type resp struct {
-	// 	ClusterID string `json:"clusterID"`
-	// }
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
 		defer cancel()
@@ -116,12 +163,19 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		// read job yaml for this check type
 		jobYamlPath := ""
+		mongoCollection := ""
 		if checkType == "kube" {
 			jobYamlPath = "/jobs/kube-bench/job.yaml"
+			mongoCollection = "kube-bench-records"
 		} else if checkType == "docker" {
 			jobYamlPath = "/jobs/docker-bench-security/job.yaml"
+			mongoCollection = "docker-bench-records"
+
+		} else if checkType == "host" {
+			jobYamlPath = "/jobs/host-bench/job.yaml"
+			mongoCollection = "host-bench-records"
 		} else {
-			response.InternalError(w, "TODO host SCAP")
+			response.InternalError(w, "Unreachable code reached")
 			return
 		}
 
@@ -146,20 +200,20 @@ func (api *api) scapCheck() http.HandlerFunc {
 		newImage := fmt.Sprintf("%s/%s", api.scapper.DockerRepoHostPort, currImgname)
 		jobObj.Spec.Template.Spec.Containers[0].Image = newImage
 
-		// find nodes to schedule job on
+		// find nodes to schedule check jobs on
 		nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 		if err != nil {
 			response.InternalError(w, fmt.Sprintf("Can't list nodes in this cluster: %s", err))
 			return
 		}
 
-		// generate job uuid that will identify results of this run in database
-		jobUUID := uuid.NewV4()
-		jobEnv := corev1.EnvVar{
-			Name:  "JOB_ID",
-			Value: jobUUID.String(),
+		// generate check uuid that will identify results of this run in database
+		checkUUID := uuid.NewV4()
+		checkEnv := corev1.EnvVar{
+			Name:  "CHECK_ID",
+			Value: checkUUID.String(),
 		}
-		jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, jobEnv)
+		jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, checkEnv)
 
 		// get namespace of this pod - it will be used for scheduled jobs/pods
 		namespace := os.Getenv("MY_POD_NAMESPACE")
@@ -169,45 +223,29 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		// schedule jobs
 		logging.GetLogger().Info().
-			Str("job-type", checkType).
-			Str("job-uuid", jobUUID.String()).
+			Str("check-type", checkType).
+			Str("check-uuid", checkUUID.String()).
 			Str("namespace", namespace).
 			Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
-			Msg("Scheduling SCAP jobs")
+			Msg("Scheduling SCAP check jobs")
 
 		for _, targetNode := range nodes.Items {
-			// Note: I tested it on a 2-node microk8s cluster (ubuntu 18.04 and centos 8)
-			// question is - will it scale?
+			// TODO: will it scale?
 			// What about context timeout? Launching jobs for thousands of nodes may take a while.
 
 			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 			// or do we not care about this since this is a rare operation?
 			// Also, this should also clean up all Error and Completed pods.
 
-			// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#specifying-your-own-pod-selector
-			// We must specify controller-uid ourselves and tell k8s that we know what we're doing.
-			// manSec := true
-			// jobObj.Spec.ManualSelector = &manSec
-
-			// // generate job uuid
-			// jobControllerUUID := uuid.NewV4()
-
-			// selector := metav1.LabelSelector{
-			// 	MatchLabels: map[string]string{
-			// 		"kubernetes.io/hostname": targetHostname,
-			// 		"controller-uid":         jobControllerUUID.String(),
-			// 	},
-			// }
-			// jobObj.Spec.Selector = &selector
-
-			// jobObj.
-
-			// jobObj.Spec.Template.Labels["kubernetes.io/hostname"] = targetHostname
-			// jobObj.Spec.Template.Labels["controller-uid"] = jobControllerUUID.String()
-
 			jobObjCp := jobObj.DeepCopy()
 
 			jobObjCp.Spec.Template.Spec.NodeName = targetNode.Name
+
+			if jobObjCp.Labels == nil {
+				jobObjCp.Labels = make(map[string]string)
+			}
+			jobObjCp.Labels["CHECK_ID"] = checkUUID.String()
+			jobObjCp.Name = fmt.Sprintf("%s-%s", checkUUID.String()[:8], jobObjCp.Name)
 
 			nodeNameEnv := corev1.EnvVar{
 				Name:  "NODE_NAME",
@@ -232,7 +270,6 @@ func (api *api) scapCheck() http.HandlerFunc {
 			if k8serrors.IsAlreadyExists(err) {
 				err = jobsClient.Delete(jobObjCp.Name, &metav1.DeleteOptions{})
 				if err != nil {
-
 					response.InternalError(w, fmt.Sprintf("Job already exists, so tried deleting, but: %s", err))
 					return
 				}
@@ -247,16 +284,30 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 			jobName := res.ObjectMeta.Name
 
+			now := time.Now()
+			secs := now.Unix()
+			entry := JobEntry{
+				ID:        primitive.NewObjectIDFromTimestamp(now),
+				CheckID:   checkUUID.String(),
+				NodeName:  targetNode.Name,
+				Status:    "scheduled",
+				CreatedAt: secs,
+			}
+			// TODO: Potential race condition: we are inserting to mongo after scheduling the job (which upserts to mongo).
+			// However I don't see a better way to do this right now.
+			_, err = api.mongodb.Collection(mongoCollection).InsertOne(ctx, entry)
+			if err != nil {
+				response.InternalError(w, err.Error())
+				return
+			}
+
 			logging.GetLogger().Info().
 				Str("target-node", jobObjCp.Spec.Template.Spec.NodeName).
 				Str("job-name", jobName).
-				Msg("Scheduled SCAP job")
+				Msg("Scheduled SCAP check job")
 		}
 
-		if err != nil {
-			response.InternalError(w, fmt.Sprintf("Failed to schedule job: %s", err))
-			return
-		}
+		response.Ok(w, checkUUID.String())
 	}
 }
 

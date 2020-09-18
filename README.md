@@ -60,7 +60,7 @@ sudo gpasswd -a $USER docker
 
 ```bash
 # Use: 
-NODE_COUNT=1 BOX_OS=centos8 DISK_COUNT=1 DISK_SIZE_GB=40 MASTER_MEMORY_SIZE_GB=3 NODE_MEMORY_SIZE_GB=3 make up -j 2
+NODE_COUNT=1 BOX_OS=centos8 DISK_COUNT=1 DISK_SIZE_GB=40 MASTER_MEMORY_SIZE_GB=4 NODE_MEMORY_SIZE_GB=4 make up -j 2
 ```
 
 3. Our nodes have 40GB disk each, but they're not mounted. So let's mount them. Also, we must configure docker insecure registry. Run the following commands on every node.
@@ -80,8 +80,8 @@ On each node:
 ############
 # Copy paste the following commands as one and run
 yes | sudo mkfs.ext4 -L sdb /dev/sdb
-sleep 5
-DISK_UUID=$(blkid -s UUID -o value /dev/sdb) 
+DISK_UUID=$(sudo blkid -s UUID -o value /dev/sdb)
+echo $DISK_UUID
 sudo mkdir -p /mnt/$DISK_UUID
 sudo mount -t ext4 /dev/sdb /mnt/$DISK_UUID
 echo UUID=`sudo blkid -s UUID -o value /dev/sdb` /mnt/$DISK_UUID ext4 defaults 0 2 | sudo tee -a /etc/fstab
@@ -95,7 +95,6 @@ for i in $(seq 1 10); do
 done
 # Note: make sure that DISK_UUIDs weren't null in above commands, there is some race condition (hence the sleep).
 # If it's null, use `df -h` and `umount` to unmount /dev/sdb. Also remove entries that were created in /etc/fstab.
-# Then try again but maybe `sleep` for longer.
 ############
 
 # Configure insecure registry
@@ -215,6 +214,23 @@ make pushimages
 
 *Note: uses docker image tag prefix REPOPREFIX, see Makefile.*
 
+Pushing to our docker registry:
+
+```bash
+# Add insecure registries entry to daemon.json:
+# vi /var/snap/docker/current/config/daemon.json
+#"insecure-registries": ["registry.t-appagile.com"],
+
+# Login to docker registry
+docker login registry.t-appagile.com/
+
+# Retag images from local to remote registry
+REPOPREFIX=registry.t-appagile.com/tensorsecurity/ REPOPREFIXOLD=localhost:32000/ make retag
+
+# Push retagged images
+REPOPREFIX=registry.t-appagile.com/tensorsecurity/ make pushimages
+```
+
 ## Deploy
 
 1. You can switch between microk8s and multi node cluster by changing KUBECONFIG env variable:
@@ -231,7 +247,7 @@ export KUBECONFIG=/home/michal/.kube/microk8s-config
 ```bash
 global:
   # If you only have microk8s cluster, this can stay as
-  ourDockerRepo: 127.0.0.1
+  ourDockerRepo: 127.0.0.1:32000
   # Otherwise, supply address of docker registry
   # Note: notice, that microk8s already creates a docker registry for us
   # IP is the IP of my development PC/laptop. 
@@ -331,9 +347,18 @@ curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": 
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5be0d19ae8fe01e1b52a3f
 
 # Kube-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f61d3ace8cb89573afd9e27
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f64bc25984ef43452ab3020
 # Docker-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/docker/cluster/5f5f755c5a31a8a0652d75b2
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/docker/cluster/5f64bc25984ef43452ab3020
+# Host-bench
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/host/cluster/5f64bc25984ef43452ab3020
+
+# They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
+
+
+# Get results using check ID:
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/host/6a2a4d5f-a8b6-46d1-9971-7fab43ffb178
+#[{"db_id":"5f64dd91901666ed50d11ca1","check_id":"0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94","node_name":"master","status":"scheduled","created_at":1600445841,"finished_at":0,"results":""},{"db_id":"5f64dd93901666ed50d11ca2","check_id":"0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94","node_name":"node1","status":"scheduled","created_at":1600445843,"finished_at":0,"results":""}]
 ```
 
 ## Database access
@@ -362,7 +387,7 @@ curl -X GET http://localhost:32000/v2/ubuntu/tags/list
 
 ```bash
 # Delete pods by pattern (dry run - uncomment last part of command to run for real)
-microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "kube-bench"  | xargs microk8s kubectl --namespace vegeta  delete  
+microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "-bench"  | xargs microk8s kubectl --namespace vegeta  delete  
 ```
 
 # Glossary

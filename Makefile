@@ -5,7 +5,8 @@ ifeq ($(UNAME_S),Linux)
 	LDFLAGS = '-extldflags "-static"'
 endif
 
-REPOPREFIX=localhost:32000/
+REPOPREFIX?=localhost:32000/
+REPOPREFIXOLD?=localhost:32000/
 
 .PHONY: help
 help:
@@ -107,14 +108,14 @@ all: scap scanner frontend scap-jobs console daemon alerter
 
 .PHONY: pushimages
 pushimages:
-	docker push localhost:32000/vegeta-console
-	docker push localhost:32000/vegeta-scanner
-	docker push localhost:32000/vegeta-scap
-	docker push localhost:32000/vegeta-daemon
-	docker push localhost:32000/vegeta-alerter
-	docker push localhost:32000/kube-bench
-	docker push localhost:32000/docker-bench-security
-	docker push localhost:32000/host-bench:latest
+	docker push $(REPOPREFIX)vegeta-console
+	docker push $(REPOPREFIX)vegeta-scanner
+	docker push $(REPOPREFIX)vegeta-scap
+	docker push $(REPOPREFIX)vegeta-daemon
+	docker push $(REPOPREFIX)vegeta-alerter
+	docker push $(REPOPREFIX)kube-bench
+	docker push $(REPOPREFIX)docker-bench-security
+	docker push $(REPOPREFIX)host-bench:latest
 
 .PHONY: frontend
 frontend:			## Build frontend
@@ -123,6 +124,18 @@ frontend:			## Build frontend
 	rm -fr dist/ui
 	mkdir -p dist/ui
 	cp -r cmd/console/frontend/dist/* dist/ui/
+
+.PHONY: retag
+retag:
+	docker tag $(REPOPREFIXOLD)vegeta-console $(REPOPREFIX)vegeta-console:latest
+	docker tag $(REPOPREFIXOLD)vegeta-scanner $(REPOPREFIX)vegeta-scanner:latest
+	docker tag $(REPOPREFIXOLD)vegeta-scap $(REPOPREFIX)vegeta-scap:latest
+	docker tag $(REPOPREFIXOLD)vegeta-daemon $(REPOPREFIX)vegeta-daemon:latest
+	docker tag $(REPOPREFIXOLD)vegeta-alerter $(REPOPREFIX)vegeta-alerter:latest
+	docker tag $(REPOPREFIXOLD)kube-bench $(REPOPREFIX)kube-bench:latest
+	docker tag $(REPOPREFIXOLD)docker-bench-security $(REPOPREFIX)docker-bench-security:latest
+	docker tag $(REPOPREFIXOLD)host-bench $(REPOPREFIX)host-bench:latest
+
 
 .PHONY: redeploy
 redeploy:
