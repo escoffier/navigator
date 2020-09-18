@@ -1,10 +1,10 @@
 [submodule "configs/scap/jobs/docker-bench-security"]
 	path = configs/scap/jobs/docker-bench-security
-	url = git@bitbucket.org:tensorsec/docker-bench-security.git
+	url = git@gitlab.com:tensorsecurity-rd/docker-bench-security.git
 	branch = forkmaster
 [submodule "configs/scap/jobs/kube-bench"]
 	path = configs/scap/jobs/kube-bench
-	url = git@bitbucket.org:tensorsec/kube-bench.git
+	url = git@gitlab.com:tensorsecurity-rd/kube-bench.git
 	branch = forkmaster
 [submodule "configs/scap/jobs/host-bench/xccdfparser"]
 	path = configs/scap/jobs/host-bench/xccdfparser
