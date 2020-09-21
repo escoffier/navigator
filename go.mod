@@ -3,12 +3,9 @@ module gitlab.com/piccolo_su/vegeta
 go 1.13
 
 require (
-	cloud.google.com/go v0.38.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
-	github.com/Azure/go-autorest/autorest v0.9.0 // indirect
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
-	github.com/aquasecurity/kube-bench v0.2.2
 	github.com/containerd/containerd v1.3.1 // indirect
 	github.com/containerd/continuity v0.0.0-20191214063359-1097c8bae83b // indirect
 	github.com/coreos/etcd v3.3.17+incompatible // indirect
@@ -18,17 +15,18 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/elastic/go-elasticsearch/v7 v7.4.1
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
-	github.com/fatih/color v1.7.0
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-chi/jwtauth v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.9 // indirect
 	github.com/go-openapi/swag v0.19.9 // indirect
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/gophercloud/gophercloud v0.1.0 // indirect
+	github.com/google/gofuzz v1.0.0 // indirect
+	github.com/google/uuid v1.1.1 // indirect
+	github.com/googleapis/gnostic v0.3.0 // indirect
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/gorilla/securecookie v1.1.1
-	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
+	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/oceanicdev/chi-param v1.1.0
@@ -36,7 +34,6 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/rs/zerolog v1.17.2
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v0.0.5
@@ -55,8 +52,13 @@ require (
 	golang.org/x/net v0.0.0-20200904194848-62affa334b73
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/tools v0.0.0-20200904185747-39188db58858 // indirect
+	google.golang.org/appengine v1.5.0 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.0.0-20190409021203-6e4e0e4f393b
 	k8s.io/apimachinery v0.0.0-20191004074956-01f8b7d1121a
 	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/klog v0.3.3 // indirect
+	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
+	sigs.k8s.io/yaml v1.1.0 // indirect
 )
