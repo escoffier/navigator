@@ -394,3 +394,22 @@ microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "-b
 
 * Agent, AgentID - this means Tenant. There is a use case where our client has multiple k8s clusters that share physical hosts. AgentID differentiates instances of 
 our components between those k8s clusters.
+
+
+# Troubleshooting
+
+Multi-node deployment - nodes error with "lack of ephemeral storage" type errors. Need to resize main disks
+
+```bash
+vagrant plugin install vagrant-disksize
+vi ./k8s-vagrant-multi-node/vagrantfiles/Vagrantfile
+# Add config.disksize.size = '20GB'
+
+# On each node:
+sudo cfdisk /dev/sda
+# Resize -> Write -> Quit
+sudo xfs_growfs /
+
+# Verify with
+df -h
+```

@@ -53,7 +53,7 @@ jq -n \
     --arg timestamp $(date +%s) \
     --arg checkid "$CHECK_ID" \
     --slurpfile resultsData \
-    docker-bench-security.sh.log.json \
+    out.json \
     '{"checkId": $checkid, "nodeName":$nodeName, "status": "completed", "finishedAt": $timestamp, "results": $resultsData}' > record.json
 retVal=$?
 if [ $retVal -ne 0 ]; then
