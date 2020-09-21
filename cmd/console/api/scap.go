@@ -498,30 +498,3 @@ func (api *api) deleteJobAndPods(kubeClient *kubernetes.Clientset, namespace str
 	}
 	return nil
 }
-
-// @Summary Tell scap to check
-// @Description Tell scap to check
-// @ID v1-scap-check
-// @Produce json
-// @Router /api/v1/scap/check [post]
-// func (api *api) scapcheck() http.HandlerFunc {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		task := &model.ScapTask{
-// 			ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-// 			ScannerType: "kubebench_all",
-// 			Status:      model.ScannerStatusReady,
-// 			CreatedAt:   time.Now().Unix(),
-// 		}
-
-// 		ctx, cancel := api.getTimeoutCtx()
-// 		defer cancel()
-// 		_, err := api.mongodb.Collection(model.ScapTasksCollection).
-// 			InsertOne(ctx, task)
-// 		if err != nil {
-// 			response.InternalError(w, err.Error())
-// 			return
-// 		}
-
-// 		response.Ok(w, task)
-// 	}
-// }
