@@ -169,6 +169,29 @@ kubectl get pv
 kubectl taint nodes master node-role.kubernetes.io/master-
 ```
 
+9. You're good to go! However, if you notice that many of your pods get evicted, check node status.
+
+```bash
+# e.g.
+kubectl describe node master
+```
+
+If you notice errors like "lack of ephemeral storage" you need to grow the root disk and partition on the node:
+
+```bash
+vagrant plugin install vagrant-disksize
+vi ./k8s-vagrant-multi-node/vagrantfiles/Vagrantfile
+# Add config.disksize.size = '20GB'
+
+# On each node:
+sudo cfdisk /dev/sda
+# Resize -> Write -> Quit
+sudo xfs_growfs /
+
+# Verify with
+df -h
+```
+
 ## Build
 
 ### Prepare environment
@@ -347,18 +370,23 @@ curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": 
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5be0d19ae8fe01e1b52a3f
 
 # Kube-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/kube/cluster/5f64bc25984ef43452ab3020
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020
 # Docker-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/docker/cluster/5f64bc25984ef43452ab3020
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020
 # Host-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/host/cluster/5f64bc25984ef43452ab3020
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 
 
-# Get results using check ID:
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/check/host/6a2a4d5f-a8b6-46d1-9971-7fab43ffb178
-#[{"db_id":"5f64dd91901666ed50d11ca1","check_id":"0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94","node_name":"master","status":"scheduled","created_at":1600445841,"finished_at":0,"results":""},{"db_id":"5f64dd93901666ed50d11ca2","check_id":"0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94","node_name":"node1","status":"scheduled","created_at":1600445843,"finished_at":0,"results":""}]
+# Get results using cluster ID and optional query parameters
+# host-bench
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/results?checkId=5c916470-59c0-45f3-9c06-7e1a57246b68&nodeName=master&status=completed" > out.json
+# kube-bench
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020/results?checkId=a470f0f5-f9b1-4541-ab7b-8e386cf42cb5&nodeName=master&status=completed" > out.json
+# docker-bench
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/results?checkId=c2aef55c-ebfe-4a6f-aedd-1596da413f5a&nodeName=master&status=completed" > out.json
+
 ```
 
 ## Database access
@@ -394,22 +422,3 @@ microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "-b
 
 * Agent, AgentID - this means Tenant. There is a use case where our client has multiple k8s clusters that share physical hosts. AgentID differentiates instances of 
 our components between those k8s clusters.
-
-
-# Troubleshooting
-
-Multi-node deployment - nodes error with "lack of ephemeral storage" type errors. Need to resize main disks
-
-```bash
-vagrant plugin install vagrant-disksize
-vi ./k8s-vagrant-multi-node/vagrantfiles/Vagrantfile
-# Add config.disksize.size = '20GB'
-
-# On each node:
-sudo cfdisk /dev/sda
-# Resize -> Write -> Quit
-sudo xfs_growfs /
-
-# Verify with
-df -h
-```

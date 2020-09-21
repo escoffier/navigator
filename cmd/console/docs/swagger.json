@@ -950,7 +950,7 @@
                 ]
             }
         },
-        "/api/v1/scap/check/{checkType}/cluster/{clusterID}": {
+        "/api/v1/scap/{checkType}/{clusterID}": {
             "post": {
                 "description": "Run compliance check on specified cluster",
                 "produces": [
@@ -976,7 +976,7 @@
                 ]
             }
         },
-        "/api/v1/scap/check/{checkType}/{checkID}": {
+        "/api/v1/scap/{checkType}/{clusterID}/results": {
             "get": {
                 "description": "Get current scap results for a specific job",
                 "produces": [
@@ -994,10 +994,28 @@
                     },
                     {
                         "type": "string",
-                        "description": "scap job ID",
-                        "name": "checkID",
+                        "description": "cluster ID",
+                        "name": "clusterID",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "check ID",
+                        "name": "checkID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "node name",
+                        "name": "nodeName",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "status (inprogress/failed/completed)",
+                        "name": "status",
+                        "in": "query"
                     }
                 ]
             }

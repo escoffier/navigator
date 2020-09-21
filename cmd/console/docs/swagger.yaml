@@ -1489,25 +1489,7 @@ paths:
       produces:
       - application/json
       summary: Get a scan task by scantask ID
-  /api/v1/scap/check/{checkType}/{checkID}:
-    get:
-      description: Get current scap results for a specific job
-      operationId: v1-scap-job-get
-      parameters:
-      - description: kube/docker/host
-        in: path
-        name: checkType
-        required: true
-        type: string
-      - description: scap job ID
-        in: path
-        name: checkID
-        required: true
-        type: string
-      produces:
-      - application/json
-      summary: Get scap results
-  /api/v1/scap/check/{checkType}/cluster/{clusterID}:
+  /api/v1/scap/{checkType}/{clusterID}:
     post:
       description: Run compliance check on specified cluster
       operationId: v1-scap-check
@@ -1525,4 +1507,34 @@ paths:
       produces:
       - application/json
       summary: Run compliance check on specified cluster
+  /api/v1/scap/{checkType}/{clusterID}/results:
+    get:
+      description: Get current scap results for a specific job
+      operationId: v1-scap-job-get
+      parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
+      - description: cluster ID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      - description: check ID
+        in: query
+        name: checkID
+        type: string
+      - description: node name
+        in: query
+        name: nodeName
+        type: string
+      - description: status (inprogress/failed/completed)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      summary: Get scap results
 swagger: "2.0"

@@ -50,18 +50,18 @@ fi
 echo "Converting output json to mongo record: Node name: $NODE_NAME, Check ID: $CHECK_ID"
 jq -n \
     --arg nodeName "$NODE_NAME" \
-    --arg timestamp $(date +%s) \
+    --argjson timestamp $(date +%s) \
     --arg checkid "$CHECK_ID" \
     --slurpfile resultsData \
     out.json \
-    '{"checkId": $checkid, "nodeName":$nodeName, "status": "completed", "finishedAt": $timestamp, "results": $resultsData}' > record.json
+    '{"checkId": $checkid, "nodeName": $nodeName, "status": "completed", "finishedAt": $timestamp, "results": $resultsData}' > record.json
 retVal=$?
 if [ $retVal -ne 0 ]; then
     exit $retVal
 fi
 
 echo "Importing record to mongo"
-mongoimport record.json --uri $MONGO_STRING --collection "host-bench-records" --mode=merge --upsertFields=jobId,nodeName
+mongoimport record.json --uri $MONGO_STRING --collection "host-bench-records" --mode=merge --upsertFields=checkId,nodeName
 retVal=$?
 if [ $retVal -ne 0 ]; then
   exit $retVal

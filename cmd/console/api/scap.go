@@ -34,20 +34,21 @@ import (
 
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		// TODO: rethink paths, this is bad
-		r.Get("/check/{checkType}/{checkID}", api.getScapJob())
-		r.Post("/check/{checkType}/cluster/{clusterID}", api.scapCheck())
+		r.Get("/{checkType}/{clusterID}/resultsummaries", api.getScapJob())
+		r.Get("/{checkType}/{clusterID}/results", api.getScapJob())
+		r.Post("/{checkType}/{clusterID}", api.scapCheck())
 	}
 }
 
 type JobEntry struct {
-	ID         primitive.ObjectID `json:"db_id,omitempty" bson:"_id, omitempty"`
+	ID         primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
 	CheckID    string             `json:"check_id" bson:"checkId"`
 	NodeName   string             `json:"node_name" bson:"nodeName"`
-	Status     string             `json:"status" bson:"status"`
-	CreatedAt  int64              `json:"created_at" bson:"createdAt"`
-	FinishedAt int64              `json:"finished_at" bson:"finishedAt"`
-	Results    string             `json:"results" bson:"results"`
+	ClusterID  string             `json:"cluster_id" bson:"clusterId"`
+	Status     string             `json:"status" bson:"status,omitempty"`
+	CreatedAt  int64              `json:"created_at" bson:"createdAt,omitempty"`
+	FinishedAt int64              `json:"finished_at" bson:"finishedAt,omitempty"`
+	Results    []interface{}      `json:"results" bson:"results,omitempty"`
 }
 
 // @Summary Get scap results
@@ -55,16 +56,19 @@ type JobEntry struct {
 // @ID v1-scap-job-get
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
-// @Param checkID path string true "scap job ID"
-// @Router /api/v1/scap/check/{checkType}/{checkID} [get]
+// @Param clusterID path string true "cluster ID"
+// @Param checkID query string false "check ID"
+// @Param nodeName query string false "node name"
+// @Param status query string false "status (inprogress/failed/completed)"
+// @Router /api/v1/scap/{checkType}/{clusterID}/results [get]
 func (api *api) getScapJob() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
 		defer cancel()
 
-		checkID := chi.URLParam(r, "checkID")
-		if checkID == "" {
-			response.Bad(w, "checkID param missing")
+		clusterID := chi.URLParam(r, "clusterID")
+		if clusterID == "" {
+			response.Bad(w, "clusterID is not provided")
 			return
 		}
 
@@ -78,20 +82,28 @@ func (api *api) getScapJob() http.HandlerFunc {
 			return
 		}
 
-		// from mongo
-		mongoCollection := ""
-		if checkType == "kube" {
-			mongoCollection = "kube-bench-records"
-		} else if checkType == "docker" {
-			mongoCollection = "docker-bench-records"
-		} else if checkType == "host" {
-			mongoCollection = "host-bench-records"
-		} else {
-			response.InternalError(w, "Unreachable code reached")
-			return
+		filter := bson.M{"clusterId": clusterID}
+
+		checkID := r.URL.Query().Get("checkId")
+		if checkID != "" {
+			filter["checkId"] = checkID
 		}
 
-		cursor, err := api.mongodb.Collection(mongoCollection).Find(ctx, bson.M{"checkId": checkID})
+		nodeName := r.URL.Query().Get("nodeName")
+		if nodeName != "" {
+			filter["nodeName"] = nodeName
+		}
+
+		status := r.URL.Query().Get("status")
+		if status != "" {
+			if status != "inprogress" && status != "failed" && status != "completed" {
+				response.Bad(w, "invalid status param value (allowed: inprogress/failed/completed)")
+				return
+			}
+			filter["status"] = status
+		}
+
+		cursor, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
 			response.InternalError(w, err.Error())
 			return
@@ -126,7 +138,7 @@ func (api *api) getScapJob() http.HandlerFunc {
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param clusterID path string true "cluster ID"
-// @Router /api/v1/scap/check/{checkType}/cluster/{clusterID} [post]
+// @Router /api/v1/scap/{checkType}/{clusterID} [post]
 func (api *api) scapCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
@@ -206,16 +218,19 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 			// or do we not care about this since this is a rare operation?
-			// Also, this should also clean up all Error and Completed pods.
 
-			err := api.scheduleOneJob(kubeClient, namespace, jobObj.DeepCopy(), checkUUID, targetNode.Name)
+			err := api.addInitialEntry(ctx, checkType, checkUUID, targetNode.Name, clusterID)
+			if err != nil {
+				response.InternalError(w, fmt.Sprintf("Failed to add job to mongo: %s", err))
+				return
+			}
+
+			err = api.scheduleOneJob(kubeClient, namespace, jobObj.DeepCopy(), checkUUID, targetNode.Name)
 			if err != nil {
 				response.InternalError(w, fmt.Sprintf("Failed to schedule job: %s", err))
 				return
 			}
 			numScheduledJobs++
-
-			api.addScapInitialEntry(ctx, checkType, checkUUID, targetNode.Name)
 
 		}
 
@@ -334,18 +349,18 @@ func (api *api) scheduleOneJob(kubeClient *kubernetes.Clientset, namespace strin
 	return nil
 }
 
-func (api *api) addScapInitialEntry(ctx context.Context, checkType string, checkUUID uuid.UUID, targetNodeName string) error {
+func (api *api) addInitialEntry(ctx context.Context, checkType string, checkUUID uuid.UUID, targetNodeName, clusterId string) error {
 	now := time.Now()
 	secs := now.Unix()
 	entry := JobEntry{
 		ID:        primitive.NewObjectIDFromTimestamp(now),
 		CheckID:   checkUUID.String(),
 		NodeName:  targetNodeName,
-		Status:    "scheduled",
+		ClusterID: clusterId,
+		Status:    "inprogress",
 		CreatedAt: secs,
 	}
-	// TODO: Potential race condition: we are inserting to mongo after scheduling the job (which upserts to mongo).
-	// However I don't see a better way to do this right now.
+
 	_, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(checkType)).InsertOne(ctx, entry)
 	if err != nil {
 		return fmt.Errorf("Failed insert to mongo: %s", err)
