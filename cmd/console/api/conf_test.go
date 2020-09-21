@@ -84,12 +84,13 @@ func setupAPI(
 		err = mongoClient.Connect(context.TODO())
 		require.NoError(t, err)
 	}
-	return newAPI(context.TODO(), time.Minute, setupESClient(t, f), etcdClient, mongodb, ""),
+	scapper := Scapper{}
+	return newAPI(context.TODO(), time.Minute, setupESClient(t, f), etcdClient, mongodb, &scapper, ""),
 		etcdTeardown, mongoTeardown
 }
 
 func setupTestServer(t *testing.T) *httptest.Server {
 	r := chi.NewRouter()
-	SetupRoutes(context.TODO(), r, 500*time.Millisecond, nil, nil, nil, "")
+	SetupRoutes(context.TODO(), r, 500*time.Millisecond, nil, nil, nil, nil, "")
 	return httptest.NewServer(r)
 }

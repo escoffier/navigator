@@ -35,7 +35,7 @@ func setup(t *testing.T,
 
 	console, err := NewConsole(
 		httpOpts, esOpts, flag.NewDefaultEtcdOpts(), flag.NewDefaultMongoOpts(),
-		flag.NewDefaultVegetaScannerOpts())
+		flag.NewDefaultVegetaScannerOpts(), flag.NewDefaultScapOpts())
 	require.NoError(t, err)
 
 	stop := console.Run()

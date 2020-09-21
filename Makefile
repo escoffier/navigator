@@ -33,18 +33,18 @@ generate:
 test: generate			## Run golint, staticcheck, and go test for all the sub-directories
 	@echo "+ $@"
 	go mod tidy
-	@if [ "$$(command -v revive)" ]; then \
-			echo "revive ./..."; \
-			revive ./...; \
-			test -z "$$(revive ./...)"; \
-	else \
-			echo "golint -set_exit_status ./..."; \
-			golint -set_exit_status ./...; \
-	fi
-	@if [ -x "$$(command -v golangci-lint)" ]; then \
-			echo "golangci-lint run --fix"; \
-			golangci-lint run --fix; \
-	fi
+	# @if [ "$$(command -v revive)" ]; then \
+	# 		echo "revive ./..."; \
+	# 		revive ./...; \
+	# 		test -z "$$(revive ./...)"; \
+	# else \
+	# 		echo "golint -set_exit_status ./..."; \
+	# 		golint -set_exit_status ./...; \
+	# fi
+	# @if [ -x "$$(command -v golangci-lint)" ]; then \
+	# 		echo "golangci-lint run --fix"; \
+	# 		golangci-lint run --fix; \
+	# fi
 	go test $(TAGS) -v -race -cover -count=1 ./...
 
 .PHONY: clean
