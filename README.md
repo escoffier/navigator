@@ -381,13 +381,13 @@ curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$C
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020/reports?checkId=38ea119b-1b74-41ec-b0ae-27c7828847d9&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020/reports?checkId=4e6672aa-a960-4824-a029-2f1ea297c2fa&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/reports?checkId=b8888ab7-81a5-4e2e-9866-7fc04ae885ab&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/reports?checkId=55860015-a410-4109-bd9d-a9d973513b51&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/reports?checkId=22e51cbe-fe9f-46aa-a17e-4d6b9a5e23d1&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/reports?checkId=b69229a1-558e-4545-8547-b759050d8ef1&nodeName=master&status=completed" > out.json
 
 
 ```
@@ -418,7 +418,10 @@ curl -X GET http://localhost:32000/v2/ubuntu/tags/list
 
 ```bash
 # Delete pods by pattern (dry run - uncomment last part of command to run for real)
-microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "-bench"  | xargs microk8s kubectl --namespace vegeta  delete  
+microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "-bench"  | xargs microk8s kubectl --namespace vegeta delete
+
+# Delete all scap jobs (will remove pods as well)
+kubectl --namespace vegeta get job --all-namespaces   | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace vegeta delete job
 ```
 
 # Glossary
