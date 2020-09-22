@@ -52,9 +52,9 @@ jq -n \
     --arg nodeName "$NODE_NAME" \
     --argjson timestamp $(date +%s) \
     --arg checkid "$CHECK_ID" \
-    --slurpfile resultsData \
+    --argfile resultsData \
     out.json \
-    '{"checkId": $checkid, "nodeName": $nodeName, "status": "completed", "finishedAt": $timestamp, "results": $resultsData}' > record.json
+    '{"checkId": $checkid, "nodeName": $nodeName, "status": "completed", "finishedAt": $timestamp, "report": $resultsData}' > record.json
 retVal=$?
 if [ $retVal -ne 0 ]; then
     exit $retVal

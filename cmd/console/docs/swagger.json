@@ -976,13 +976,13 @@
                 ]
             }
         },
-        "/api/v1/scap/{checkType}/{clusterID}/results": {
+        "/api/v1/scap/{checkType}/{clusterID}/reports": {
             "get": {
-                "description": "Get current scap results for a specific job",
+                "description": "Get scap report for cluster and filter criteria",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get scap results",
+                "summary": "Get scap reports",
                 "operationId": "v1-scap-job-get",
                 "parameters": [
                     {

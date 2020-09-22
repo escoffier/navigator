@@ -380,12 +380,15 @@ curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$C
 
 
 # Get results using cluster ID and optional query parameters
-# host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/results?checkId=5c916470-59c0-45f3-9c06-7e1a57246b68&nodeName=master&status=completed" > out.json
 # kube-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020/results?checkId=a470f0f5-f9b1-4541-ab7b-8e386cf42cb5&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020/reports?checkId=38ea119b-1b74-41ec-b0ae-27c7828847d9&nodeName=master&status=completed" > out.json
+
 # docker-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/results?checkId=c2aef55c-ebfe-4a6f-aedd-1596da413f5a&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/reports?checkId=b8888ab7-81a5-4e2e-9866-7fc04ae885ab&nodeName=master&status=completed" > out.json
+
+# host-bench
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/reports?checkId=22e51cbe-fe9f-46aa-a17e-4d6b9a5e23d1&nodeName=master&status=completed" > out.json
+
 
 ```
 

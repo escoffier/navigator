@@ -34,25 +34,25 @@ import (
 
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/{checkType}/{clusterID}/resultsummaries", api.getScapJob())
-		r.Get("/{checkType}/{clusterID}/results", api.getScapJob())
+		r.Get("/{checkType}/{clusterID}/reportsummaries", api.getScapReports())
+		r.Get("/{checkType}/{clusterID}/reports", api.getScapReports())
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
 	}
 }
 
 type JobEntry struct {
-	ID         primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CheckID    string             `json:"check_id" bson:"checkId"`
-	NodeName   string             `json:"node_name" bson:"nodeName"`
-	ClusterID  string             `json:"cluster_id" bson:"clusterId"`
-	Status     string             `json:"status" bson:"status,omitempty"`
-	CreatedAt  int64              `json:"created_at" bson:"createdAt,omitempty"`
-	FinishedAt int64              `json:"finished_at" bson:"finishedAt,omitempty"`
-	Results    []interface{}      `json:"results" bson:"results,omitempty"`
+	ID         primitive.ObjectID     `json:"db_id,omitempty" bson:"_id,omitempty"`
+	CheckID    string                 `json:"check_id" bson:"checkId"`
+	NodeName   string                 `json:"node_name" bson:"nodeName"`
+	ClusterID  string                 `json:"cluster_id" bson:"clusterId"`
+	Status     string                 `json:"status" bson:"status,omitempty"`
+	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
+	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
+	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
 }
 
-// @Summary Get scap results
-// @Description Get current scap results for a specific job
+// @Summary Get scap reports
+// @Description Get scap report for cluster and filter criteria
 // @ID v1-scap-job-get
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
@@ -60,8 +60,8 @@ type JobEntry struct {
 // @Param checkID query string false "check ID"
 // @Param nodeName query string false "node name"
 // @Param status query string false "status (inprogress/failed/completed)"
-// @Router /api/v1/scap/{checkType}/{clusterID}/results [get]
-func (api *api) getScapJob() http.HandlerFunc {
+// @Router /api/v1/scap/{checkType}/{clusterID}/reports [get]
+func (api *api) getScapReports() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
 		defer cancel()
@@ -118,7 +118,7 @@ func (api *api) getScapJob() http.HandlerFunc {
 				response.InternalError(w, err.Error())
 				return
 			}
-			// TODO: pagination
+			// TODO: pagination, maybe https://github.com/gobeam/mongo-go-pagination?
 			results = append(results, result)
 		}
 
@@ -485,7 +485,12 @@ func (api *api) startManagedJobRoutine(kubeClient *kubernetes.Clientset, namespa
 		Msg("Starting to watch for job events")
 	kubeInformerFactory.Start(stop)
 
-	for atomic.LoadInt64(&waitingForJobCompletionCount) > 0 {
+	startOfWait := time.Now()
+
+	// TODO: this can be configurable. It's mostly for garbage collect in case that operator manually removes pods/jobs
+	timeout := time.Hour * 1
+
+	for atomic.LoadInt64(&waitingForJobCompletionCount) > 0 && time.Since(startOfWait) < timeout {
 		time.Sleep(time.Second * 1)
 	}
 
