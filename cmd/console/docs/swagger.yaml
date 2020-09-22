@@ -1507,9 +1507,9 @@ paths:
       produces:
       - application/json
       summary: Run compliance check on specified cluster
-  /api/v1/scap/{checkType}/{clusterID}/results:
+  /api/v1/scap/{checkType}/{clusterID}/reports:
     get:
-      description: Get current scap results for a specific job
+      description: Get scap report for cluster and filter criteria
       operationId: v1-scap-job-get
       parameters:
       - description: kube/docker/host
@@ -1536,5 +1536,5 @@ paths:
         type: string
       produces:
       - application/json
-      summary: Get scap results
+      summary: Get scap reports
 swagger: "2.0"

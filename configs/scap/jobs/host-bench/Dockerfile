@@ -22,6 +22,13 @@ RUN cd xccdfparser && \
     pip3 install . && \
     cd -
 
+# Prefetch remote resources for CentOS: https://bugzilla.redhat.com/show_bug.cgi?id=1851375
+# It actually uses redhat data.
+RUN curl -o security-data-oval-com.redhat.rhsa-RHEL8.xml https://www.redhat.com/security/data/oval/com.redhat.rhsa-RHEL8.xml && \
+    sed "s#https://www.redhat.com/security/data/oval/com.redhat.rhsa-RHEL8.xml#file:security-data-oval-com.redhat.rhsa-RHEL8.xml#g" /usr/share/xml/scap/ssg/content/ssg-centos8-ds.xml > ssg-rhel8-offline-ds.xml
+
+ADD tailoring-file-centos8.xml tailoring/
+
 ADD entrypoint.sh .
 
 CMD ["./entrypoint.sh"]

@@ -13,12 +13,31 @@ source /mnt/root/etc/os-release
 # NAME="CentOS Linux"
 # VERSION_ID="8"
 
+
 case $NAME in 
   *Ubuntu*)
-    DS_STR="ubuntu${VERSION_ID}04"
+    echo "Unsupported OS: $NAME"
+    exit 1
+    # DSPATH="/usr/share/xml/scap/ssg/content/ssg-ubuntu${VERSION_ID}04-ds.xml"
+
+    # We get:
+    # WARNING: Datastream component 'scap_org.open-scap_cref_-ubuntu-security-oval-com.ubuntu.xenial.cve.oval.xml' points out to the remote 'https://people.canonical.com/~ubuntu-security/oval/com.ubuntu.xenial.cve.oval.xml'. Use '--fetch-remote-resources' option to download it.
+    # We have to prefetch offline resource in dockerfile, similar to centos.
   ;;
   *CentOS*)
-    DS_STR="centos${VERSION_ID}"
+    # Use offline ds (use resources prefetched during dockerfile build)
+    DSPATH="./ssg-rhel8-offline-ds.xml"
+    TAILORINGPATH="./tailoring/tailoring-file-centos8.xml"
+    # PROFILE="xccdf_org.ssgproject.content_profile_standard"
+
+    echo "Running oscap-chroot"
+    oscap-chroot /mnt/root/ xccdf eval --tailoring-file $TAILORINGPATH --report=report.html --results=results.xccdf --profile xccdf_org.tensorsecurity.content_profile_unselect_memory_intensive_from_standard $DSPATH
+
+    # retval == 0, when no error, passed all rules
+    # retval == 2, when no error, failed some rules
+    if [[ $retval -eq 1 ]]; then
+      exit $retval
+    fi
   ;;
   *)
     echo "Unsupported OS: $NAME"
@@ -26,19 +45,6 @@ case $NAME in
   ;;
 esac
 
-DSPATH="/usr/share/xml/scap/ssg/content/ssg-$DS_STR-xccdf.xml"
-PROFILE="standard"
-
-echo "Using datasource $DSPATH"
-echo "Using profile $PROFILE"
-
-echo "Running oscap-chroot"
-oscap-chroot /mnt/root/ xccdf eval --report=report.html --results=results.xccdf --profile=standard /usr/share/xml/scap/ssg/content/ssg-ubuntu1804-xccdf.xml > stdout.txt
-# oscap-chroot /mnt/root/ xccdf eval --report=report.html --results=results.xccdf --profile=$PROFILE $DSPATH > stdout.txt
-retval=$?
-if [ $retval -ne 0 ]; then
-  exit $retval
-fi
 
 echo "Running xccdfparser"
 xccdfparser -o ./out.json ./results.xccdf
@@ -52,9 +58,9 @@ jq -n \
     --arg nodeName "$NODE_NAME" \
     --argjson timestamp $(date +%s) \
     --arg checkid "$CHECK_ID" \
-    --slurpfile resultsData \
+    --argfile resultsData \
     out.json \
-    '{"checkId": $checkid, "nodeName": $nodeName, "status": "completed", "finishedAt": $timestamp, "results": $resultsData}' > record.json
+    '{"checkId": $checkid, "nodeName": $nodeName, "status": "completed", "finishedAt": $timestamp, "report": $resultsData}' > record.json
 retVal=$?
 if [ $retVal -ne 0 ]; then
     exit $retVal

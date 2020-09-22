@@ -18,6 +18,17 @@ spec:
             - name: mnt-root
               mountPath: /mnt/root
               readOnly: true
+          resources:
+            limits:
+              # OpenScap tends to use quite a bit of memory (some scap rules tend to use a lot of it).
+              # So let's limit the memory usage.
+              # If there are more OOM errors, try disabling more rules in tailoring file.
+              # Uses ~331Mi throughout the check, and ~726Mi at the end (while writing output file)
+              # Results of top while check is running:
+              # 25426 root      20   0 1656672 338992  14800 S  98.3   4.2   0:23.87 oscap
+              # Results of top at the end:
+              # 25426 root      20   0 2316548 743668  16752 R  95.7   9.1   0:40.63 oscap
+              memory: "1024Mi"
       restartPolicy: Never
       volumes:
         - name: mnt-root
