@@ -95,22 +95,13 @@ scanner: generate		## Build scanner binary
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	docker build -t $(REPOPREFIX)vegeta-scanner:latest -f ./build/scanner/Dockerfile .
 
-.PHONY: scap
-scap:				## Build scap binary
-	@echo "+ $@"
-	go build -v -a \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scap/Version=$(VERSION)" \
-		-o dist/vegeta-scap gitlab.com/piccolo_su/vegeta/cmd/scap
-	docker build -t $(REPOPREFIX)vegeta-scap:latest -f ./build/scap/Dockerfile .
-
 .PHONY: all
-all: scap scanner frontend scap-jobs console daemon alerter
+all: scanner frontend scap-jobs console daemon alerter
 
 .PHONY: pushimages
 pushimages:
 	docker push $(REPOPREFIX)vegeta-console
 	docker push $(REPOPREFIX)vegeta-scanner
-	docker push $(REPOPREFIX)vegeta-scap
 	docker push $(REPOPREFIX)vegeta-daemon
 	docker push $(REPOPREFIX)vegeta-alerter
 	docker push $(REPOPREFIX)kube-bench
@@ -129,7 +120,6 @@ frontend:			## Build frontend
 retag:
 	docker tag $(REPOPREFIXOLD)vegeta-console $(REPOPREFIX)vegeta-console:latest
 	docker tag $(REPOPREFIXOLD)vegeta-scanner $(REPOPREFIX)vegeta-scanner:latest
-	docker tag $(REPOPREFIXOLD)vegeta-scap $(REPOPREFIX)vegeta-scap:latest
 	docker tag $(REPOPREFIXOLD)vegeta-daemon $(REPOPREFIX)vegeta-daemon:latest
 	docker tag $(REPOPREFIXOLD)vegeta-alerter $(REPOPREFIX)vegeta-alerter:latest
 	docker tag $(REPOPREFIXOLD)kube-bench $(REPOPREFIX)kube-bench:latest
