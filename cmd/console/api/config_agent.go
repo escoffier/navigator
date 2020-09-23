@@ -83,9 +83,9 @@ func (api *api) createAgent() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			AgentID: fmt.Sprintf("%v", insertResult.InsertedID),
-		})
+		}))
 	}
 }
 
@@ -146,7 +146,7 @@ func (api *api) listAgents() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, resp)
+		response.Ok(w, response.WithItem(resp))
 	}
 }
 
@@ -206,7 +206,7 @@ func (api *api) getAgent() http.HandlerFunc {
 			response.InternalError(w, err.Error())
 			return
 		}
-		response.Ok(w, result)
+		response.Ok(w, response.WithItem(result))
 	}
 }
 
@@ -236,6 +236,6 @@ func (api *api) deleteAgent() http.HandlerFunc {
 			response.InternalError(w, err.Error())
 			return
 		}
-		response.Ok(w, nil)
+		response.Ok(w)
 	}
 }

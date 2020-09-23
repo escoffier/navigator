@@ -165,7 +165,7 @@ func (api *api) restStat() func(chi.Router) {
 // @Success 200 {object} api.User "Current user"
 // @Router /api/v1/overall/notice [get]
 func notice(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, notices{
+	response.Ok(w, response.WithItem(notices{
 		{ID: "xxx1", Title: "周期性镜像扫描任务",
 			Logo: "http://icons.iconarchive.com/icons/igh0zt/ios7-style-metro-ui/" +
 				"32/MetroUI-Apps-Winamp-icon.png",
@@ -196,7 +196,7 @@ func notice(w http.ResponseWriter, r *http.Request) {
 				"32/MetroUI-Folder-OS-Security-Approved-icon.png",
 			Description: "对平台下容器进行进程级监测", UpdatedAt: time.Now(),
 			Member: "浏览容器中进程列表", Href: "/policy/general", Cate: "docker", MemLink: "/alerts/overview"},
-	})
+	}))
 }
 
 // @Summary activity API
@@ -206,7 +206,7 @@ func notice(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} api.activitiesData "activitiesData of users"
 // @Router /api/v1/overall/activities [get]
 func activities(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, activitiesData{
+	response.Ok(w, response.WithItem(activitiesData{
 		{
 			ID:        "alert-1",
 			UpdatedAt: time.Now(),
@@ -222,7 +222,7 @@ func activities(w http.ResponseWriter, r *http.Request) {
 			Group:    nameStat{Name: "主机监测任务", Link: ""},
 			Project:  nameStat{Name: "[文件访问]", Link: ""},
 			Template: "在 @{group} 中触发了 @{project}规则 警报级别[@{severity}]",
-		}})
+		}}))
 }
 
 // @Summary Chart Data API
@@ -232,7 +232,7 @@ func activities(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} api.chartData "Chart Data"
 // @Router /api/v1/overall/chart [get]
 func chartdata(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, chartData{Radar: radarDataArray{
+	response.Ok(w, response.WithItem(chartData{Radar: radarDataArray{
 		radarData{Name: "主机", Label: "漏洞数", Value: 10},
 		radarData{Name: "主机", Label: "错误数", Value: 8},
 		radarData{Name: "主机", Label: "动态警报数", Value: 4},
@@ -249,7 +249,7 @@ func chartdata(w http.ResponseWriter, r *http.Request) {
 		radarData{Name: "微服务集群", Label: "网络连接数", Value: 5},
 		radarData{Name: "微服务集群", Label: "服务数", Value: 7},
 	},
-	})
+	}))
 }
 
 // @Summary Overall Stat API
@@ -259,9 +259,9 @@ func chartdata(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} api.overStat "overStat Data"
 // @Router /api/v1/overall/stat [get]
 func overallstat(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, overStat{StatData: dataStat{
+	response.Ok(w, response.WithItem(overStat{StatData: dataStat{
 		Containers: totalStat{31, 0}, Agents: totalStat{2, 0},
-		Images: totalStat{120, 34}, Services: totalStat{43, 0}, Nodes: totalStat{1, 0}}})
+		Images: totalStat{120, 34}, Services: totalStat{43, 0}, Nodes: totalStat{1, 0}}}))
 }
 
 // @Summary Overall Analysis Chart API
@@ -284,5 +284,5 @@ func analysischart(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	response.Ok(w, chart)
+	response.Ok(w, response.WithItem(chart))
 }

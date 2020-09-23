@@ -75,7 +75,7 @@ func (api *api) login() http.HandlerFunc {
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
 		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
 		if errUsername != nil || errPassword != nil {
-			response.Unauthorized(w, redirectURL)
+			response.Unauthorized(w, "Invalid username or password")
 			return
 		}
 
@@ -105,11 +105,11 @@ func (api *api) login() http.HandlerFunc {
 			},
 			cache.DefaultExpiration)
 
-		response.Ok(w, LoginResponse{
+		response.Ok(w, response.WithItem(LoginResponse{
 			CurrentAuthority: "admin",
 			Status:           "ok",
 			Type:             "account",
-		})
+		}))
 	}
 }
 
@@ -123,7 +123,7 @@ func (api *api) logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, claims, err := jwtauth.FromContext(r.Context())
 		if err != nil || token == nil || !token.Valid {
-			response.Ok(w, nil)
+			response.Ok(w)
 			return
 		}
 
@@ -139,7 +139,7 @@ func (api *api) logout() http.HandlerFunc {
 			Expires:  time.Unix(0, 0),
 			HttpOnly: true,
 		})
-		response.Ok(w, nil)
+		response.Ok(w)
 	}
 }
 
@@ -150,5 +150,5 @@ func (api *api) logout() http.HandlerFunc {
 // @Success 200 {object} api.User "Current user"
 // @Router /api/v1/rest-auth/user [get]
 func user(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, r.Context().Value(userKey).(*User))
+	response.Ok(w, response.WithItem(r.Context().Value(userKey).(*User)))
 }

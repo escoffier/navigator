@@ -59,7 +59,7 @@ func (api *api) getScannerTask() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, result)
+		response.Ok(w, response.WithItem(result))
 	}
 }
 

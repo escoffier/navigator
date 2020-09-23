@@ -60,9 +60,7 @@ func (api *api) getCluster() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, &resp{
-			Cluster: *queryCluster,
-		})
+		response.Ok(w, response.WithItem(queryCluster))
 	}
 }
 
@@ -94,13 +92,8 @@ func (api *api) getClusterFromMongo(ctx context.Context, clusterID string) (*clu
 // @Param limit query int false "returned data limit"
 // @Router /api/v1/config/clusters [get]
 func (api *api) listClusters() http.HandlerFunc {
-	type resp struct {
-		Clusters []cluster      `json:"clusters"`
-		Page     paginationData `json:"pagination"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var clusters []cluster
-		var page paginationData
 
 		filter := bson.D{}
 
@@ -138,14 +131,11 @@ func (api *api) listClusters() http.HandlerFunc {
 			return
 		}
 
-		page.Total = docNum
-		page.Current = offset
-		page.PageSize = limit
-
-		response.Ok(w, &resp{
-			Clusters: clusters,
-			Page:     page,
-		})
+		response.Ok(w,
+			response.WithItems(clusters),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
 	}
 }
 
@@ -204,9 +194,9 @@ func (api *api) updateCluster() http.HandlerFunc {
 			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
 			return
 		}
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			Message: "Successful updated",
-		})
+		}))
 	}
 }
 
@@ -279,9 +269,9 @@ func (api *api) addCluster() http.HandlerFunc {
 			response.InternalError(w, err.Error())
 			return
 		}
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			ClusterID: fmt.Sprintf("%v", insertResult.InsertedID),
-		})
+		}))
 	}
 }
 
@@ -319,9 +309,9 @@ func (api *api) delCluster() http.HandlerFunc {
 			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
 			return
 		}
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			Message: fmt.Sprintf("MongoDB DeletedCount: %d", delResult.DeletedCount),
-		})
+		}))
 	}
 }
 

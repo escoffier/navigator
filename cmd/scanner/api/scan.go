@@ -68,6 +68,6 @@ func (api *api) scanOne() http.HandlerFunc {
 		// add the task to redclair
 		api.redclair.AddScanTask(task)
 
-		response.Ok(w, task)
+		response.Ok(w, response.WithItem(task))
 	}
 }

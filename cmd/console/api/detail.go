@@ -110,7 +110,6 @@ type detailImageVulnItemData struct {
 
 type detailImageVulnData struct {
 	Vulns []detailImageVulnItemData `json:"list"`
-	Page  paginationData            `json:"pagination"`
 }
 
 type vtScoreData struct {
@@ -136,7 +135,6 @@ type detailImageFileItemData struct {
 
 type detailImageFileData struct {
 	Files []detailImageFileItemData `json:"list"`
-	Page  paginationData            `json:"pagination"`
 }
 
 type detailImageHistoryItemData struct {
@@ -159,12 +157,10 @@ type detailImagePackageItemData struct {
 
 type detailImageHistoryData struct {
 	History []detailImageHistoryItemData `json:"list"`
-	Page    paginationData               `json:"pagination"`
 }
 
 type detailImagePackageData struct {
 	Packages []detailImagePackageItemData `json:"list"`
-	Page     paginationData               `json:"pagination"`
 }
 
 type detailNodeReportData struct {
@@ -391,7 +387,7 @@ func nodeDetail(w http.ResponseWriter, r *http.Request) {
 		d = queryReports(ID)
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Container Detail API
@@ -434,7 +430,7 @@ func containerDetail(w http.ResponseWriter, r *http.Request) {
 		d.DetailContainerStat = stat
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Service Detail API
@@ -552,7 +548,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 		// 	}
 		// }
 
-		response.Ok(w, d)
+		response.Ok(w, response.WithItem(d))
 	}
 }
 
@@ -632,16 +628,16 @@ func (api *api) imageDetail() http.HandlerFunc {
 			d.DetailImageStat = dtwo.DetailImageStat
 		case "vulns":
 			items := dtwo.DetailImageVulns
-			d.DetailImageVulns = detailImageVulnData{items, paginationData{}}
+			d.DetailImageVulns = detailImageVulnData{items}
 		case "files":
 			items := dtwo.DetailImageFiles
-			d.DetailImageFiles = detailImageFileData{items, paginationData{}}
+			d.DetailImageFiles = detailImageFileData{items}
 		case "commands":
 			items := dtwo.DetailImageHistory
-			d.DetailImageHistory = detailImageHistoryData{items, paginationData{}}
+			d.DetailImageHistory = detailImageHistoryData{items}
 		case "packages":
 			items := dtwo.DetailImagePackage
-			d.DetailImagePackage = detailImagePackageData{items, paginationData{}}
+			d.DetailImagePackage = detailImagePackageData{items}
 		}
 		/**
 		 * POC part
@@ -812,7 +808,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 		}
 		**/
 
-		response.Ok(w, d)
+		response.Ok(w, response.WithItem(d))
 	}
 }
 
@@ -838,7 +834,7 @@ func dockerDetail(w http.ResponseWriter, r *http.Request) {
 
 	d := detailDocker{}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Compliance Report Detail API
@@ -858,5 +854,5 @@ func reportDetail(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }

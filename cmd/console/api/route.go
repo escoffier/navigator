@@ -26,8 +26,7 @@ import (
 type key int
 
 const (
-	redirectURL     = "api/v1/rest-auth/login"
-	userKey     key = iota
+	userKey key = iota
 )
 
 var (
@@ -95,7 +94,7 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
 			if err != nil || token == nil || !token.Valid {
-				response.Unauthorized(w, redirectURL)
+				response.Unauthorized(w, "Invalid token")
 				return
 			}
 
@@ -103,7 +102,7 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			username := claims["username"].(string)
 			userPtr, ok := userCache.Get(username)
 			if !ok {
-				response.Unauthorized(w, redirectURL)
+				response.Unauthorized(w, "User session expired")
 				return
 			}
 

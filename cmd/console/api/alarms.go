@@ -163,7 +163,7 @@ func vulnabilitiesAlarms(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Alarm Alerts API
@@ -221,7 +221,7 @@ func alertsAlarms(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Alarm Reports API
@@ -255,7 +255,7 @@ func reportsAlarms(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Alarm Reports Problems API
@@ -333,7 +333,7 @@ func reportsProblemsAlarms(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Alarm Vulnerabilities Tags API
@@ -355,5 +355,5 @@ func vulnsTagsAlarms(w http.ResponseWriter, r *http.Request) {
 	d := alarmsVulnsTags{
 		items,
 	}
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }

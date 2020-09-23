@@ -45,6 +45,6 @@ func (api *api) searchJournals() http.HandlerFunc {
 			response.InternalError(w, fmt.Sprintf("error in ElasticSearch: %s", err))
 			return
 		}
-		response.Ok(w, res)
+		response.Ok(w, response.WithItem(res))
 	}
 }

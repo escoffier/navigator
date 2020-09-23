@@ -128,7 +128,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, results)
+		response.Ok(w, response.WithItems(results))
 	}
 }
 
@@ -231,10 +231,15 @@ func (api *api) scapCheck() http.HandlerFunc {
 				return
 			}
 			numScheduledJobs++
-
 		}
 
-		response.Ok(w, checkUUID.String())
+		type resp struct {
+			CheckUUID string `json:"checkUUID"`
+		}
+
+		response.Ok(w, response.WithItem(resp{
+			CheckUUID: checkUUID.String(),
+		}))
 
 		go api.startManagedJobRoutine(kubeClient, namespace, checkUUID, numScheduledJobs, checkType)
 	}

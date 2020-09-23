@@ -367,7 +367,7 @@ CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
 # Create cluster
 curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": \"$CFG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f5be0d19ae8fe01e1b52a3f
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f64bc25984ef43452ab3020
 
 # Kube-bench
 curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020
