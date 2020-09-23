@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi"
 
 	es "gitlab.com/piccolo_su/vegeta/pkg/elasticsearch"
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -31,7 +33,7 @@ func (api *api) searchJournals() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		index, buf, err := es.GetQueryFromRequest(r)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("error in creating the query from request: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("error in creating the query from request: %s", err)))
 			return
 		}
 
@@ -42,7 +44,8 @@ func (api *api) searchJournals() http.HandlerFunc {
 			api.esClient.Search.WithTrackTotalHits(true),
 		))
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("error in ElasticSearch: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.ElasticsearchError, r)))
 			return
 		}
 		response.Ok(w, response.WithItem(res))

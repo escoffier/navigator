@@ -378,9 +378,6 @@ definitions:
         items:
           $ref: '#/definitions/api.detailImageFileItemData'
         type: array
-      pagination:
-        $ref: '#/definitions/api.paginationData'
-        type: object
     type: object
   api.detailImageFileItemData:
     properties:
@@ -416,9 +413,6 @@ definitions:
         items:
           $ref: '#/definitions/api.detailImageHistoryItemData'
         type: array
-      pagination:
-        $ref: '#/definitions/api.paginationData'
-        type: object
     type: object
   api.detailImageHistoryItemData:
     properties:
@@ -441,9 +435,6 @@ definitions:
         items:
           $ref: '#/definitions/api.detailImagePackageItemData'
         type: array
-      pagination:
-        $ref: '#/definitions/api.paginationData'
-        type: object
     type: object
   api.detailImagePackageItemData:
     properties:
@@ -500,9 +491,6 @@ definitions:
         items:
           $ref: '#/definitions/api.detailImageVulnItemData'
         type: array
-      pagination:
-        $ref: '#/definitions/api.paginationData'
-        type: object
     type: object
   api.detailImageVulnItemData:
     properties:
@@ -674,15 +662,6 @@ definitions:
         $ref: '#/definitions/api.dataStat'
         type: object
     type: object
-  api.paginationData:
-    properties:
-      current:
-        type: integer
-      pageSize:
-        type: integer
-      total:
-        type: integer
-    type: object
   api.profilesPoliceItemData:
     properties:
       category:
@@ -844,11 +823,6 @@ definitions:
   response.EmptyResponse:
     properties:
       status:
-        type: string
-    type: object
-  response.HTTPRedirectError:
-    properties:
-      redirect:
         type: string
     type: object
 info:
@@ -1427,10 +1401,6 @@ paths:
           description: Login response
           schema:
             $ref: '#/definitions/api.LoginResponse'
-        "401":
-          description: if the credentials provided is wrong
-          schema:
-            $ref: '#/definitions/response.HTTPRedirectError'
       summary: Login API
   /api/v1/rest-auth/logout:
     post:

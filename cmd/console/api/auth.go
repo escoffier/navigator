@@ -11,6 +11,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/crypto/bcrypt"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -55,7 +57,6 @@ func (api *api) restAuth() func(chi.Router) {
 // @Param username body string true "Username"
 // @Param password body string true "Password"
 // @Success 200 {object} api.LoginResponse "Login response"
-// @Failure 401 {object} response.HTTPRedirectError "if the credentials provided is wrong"
 // @Router /api/v1/rest-auth/login [post]
 func (api *api) login() http.HandlerFunc {
 	type credentials struct {
@@ -66,7 +67,8 @@ func (api *api) login() http.HandlerFunc {
 		creds := &credentials{}
 		err := json.NewDecoder(r.Body).Decode(creds)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
 
@@ -75,7 +77,8 @@ func (api *api) login() http.HandlerFunc {
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
 		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
 		if errUsername != nil || errPassword != nil {
-			response.Unauthorized(w, "Invalid username or password")
+			logging.GetLogger().Info().Err(err).Msg("Invalid username or password")
+			response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidUsernameOrPasswordError, r)))
 			return
 		}
 

@@ -365,7 +365,8 @@ func queryLogs(r *http.Request, ID int) detailNode {
 func nodeDetail(w http.ResponseWriter, r *http.Request) {
 	ID, err := param.QueryInt(r, "id")
 	if err != nil {
-		response.InternalError(w, "node id cannot be empty")
+		response.Bad(w, response.WithMessage("node id cannot be empty"))
+		return
 	}
 
 	queryType, err := param.QueryString(r, "query")
@@ -401,7 +402,7 @@ func nodeDetail(w http.ResponseWriter, r *http.Request) {
 func containerDetail(w http.ResponseWriter, r *http.Request) {
 	ID, err := param.QueryInt(r, "id")
 	if err != nil {
-		response.InternalError(w, "node id cannot be empty")
+		response.Bad(w, response.WithMessage("node id cannot be empty"))
 	}
 
 	queryType, err := param.QueryString(r, "query")
@@ -446,7 +447,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ID, err := param.QueryString(r, "id")
 		if err != nil {
-			response.InternalError(w, "service id cannot be empty")
+			response.Bad(w, response.WithMessage("service id cannot be empty"))
 			return
 		}
 
@@ -463,14 +464,14 @@ func (api *api) serviceDetail() http.HandlerFunc {
 		selectFilter := options.FindOne().SetProjection(pickField)
 		queryResult := api.mongodb.Collection(clusterAssetCol).FindOne(ctx, findFilter, selectFilter)
 		if queryResult.Err() != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", queryResult.Err()))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", queryResult.Err())))
 			return
 		}
 
 		m := make(map[string]interface{})
 		err = queryResult.Decode(&m)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", err)))
 			return
 		}
 
@@ -478,7 +479,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 
 		detailServiceRawData, err := bson.Marshal(m["details"])
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 			return
 		}
 		var detailData detailServiceStatData
@@ -493,7 +494,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 			var inData []detailServiceInOutBoundData
 			inboundRawData, err := bson.Marshal(m["inbound"])
 			if err != nil {
-				response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+				response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 				return
 			}
 			err = bson.Unmarshal(inboundRawData, &inData)
@@ -505,7 +506,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 			var outData []detailServiceInOutBoundData
 			inboundRawData, err := bson.Marshal(m["outbound"])
 			if err != nil {
-				response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+				response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 				return
 			}
 			err = bson.Unmarshal(inboundRawData, &outData)
@@ -572,7 +573,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ID, err := param.QueryString(r, "id")
 		if err != nil {
-			response.InternalError(w, "node id cannot be empty")
+			response.Bad(w, response.WithMessage("node id cannot be empty"))
 			return
 		}
 
@@ -593,33 +594,33 @@ func (api *api) imageDetail() http.HandlerFunc {
 		queryResult := api.mongodb.Collection(imageAssetCol).FindOne(ctx, findFilter, selectFilter)
 
 		if queryResult.Err() != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", queryResult.Err()))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", queryResult.Err())))
 			return
 		}
 
 		m := make(map[string]interface{})
 		err = queryResult.Decode(&m)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", err)))
 			return
 		}
 
 		mtwo := make(map[string]interface{})
 		RawData, err := bson.Marshal(m["details"])
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 			return
 		}
 		err = bson.Unmarshal(RawData, &mtwo)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 			return
 		}
 
 		dtwo := detailImageReceive{}
 		err = bson.Unmarshal(RawData, &dtwo)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("Decode error: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("Decode error: %s", err)))
 			return
 		}
 
@@ -823,7 +824,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 func dockerDetail(w http.ResponseWriter, r *http.Request) {
 	//ID, err := param.QueryInt(r, "id")
 	//if err != nil {
-	//	response.InternalError(w, "node id cannot be empty")
+	//	response.Bad(w, response.WithMessage("node id cannot be empty"))
 	//}
 	//
 	//queryType, err := param.QueryString(r, "query")

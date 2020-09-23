@@ -387,7 +387,7 @@ curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$C
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/reports?checkId=55860015-a410-4109-bd9d-a9d973513b51&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/reports?checkId=b69229a1-558e-4545-8547-b759050d8ef1&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/reports?checkId=02943e17-27b7-4edf-b060-620c47fdb2c1&nodeName=master&status=completed" > out.json
 
 
 ```

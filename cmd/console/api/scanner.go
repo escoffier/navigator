@@ -13,6 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -43,7 +45,8 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		// get ObjectID
 		taskObjectID, err := getTaskObjectIDFromURL(r)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("taskID not provided")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("taskID", ""))
 			return
 		}
 
@@ -55,7 +58,8 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
 			ctx, bson.M{"_id": taskObjectID}).Decode(&result)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
@@ -79,13 +83,15 @@ func (api *api) scan() http.HandlerFunc {
 		var param param
 		err := decodeJSONBody(w, r, &param)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
 
 		jsonValue, err := json.Marshal(param)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Failed to marshal json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
 
@@ -101,13 +107,15 @@ func (api *api) scan() http.HandlerFunc {
 			defer resp.Body.Close()
 		}
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("POST to Scanner failed")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.ConnectionError, r)))
 			return
 		}
 
 		_, err = io.Copy(w, resp.Body)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't respond with response from canner")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.HTTPResponseError, r)))
 			return
 		}
 	}

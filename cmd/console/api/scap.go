@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
@@ -66,23 +67,27 @@ func (api *api) getScapReports() http.HandlerFunc {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
 		defer cancel()
 
-		clusterID := chi.URLParam(r, "clusterID")
-		if clusterID == "" {
-			response.Bad(w, "clusterID is not provided")
+		clusterObjectID, err := getClusterIDFromURL(r)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			response.Bad(w, "checkType param missing")
+			logging.GetLogger().Info().Msg("checkType param missing")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
 			return
+
 		}
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			response.Bad(w, "invalid checkType param value (allowed: kube/docker/host)")
+			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
 			return
 		}
 
-		filter := bson.M{"clusterId": clusterID}
+		filter := bson.M{"clusterId": clusterObjectID.Hex()}
 
 		checkID := r.URL.Query().Get("checkId")
 		if checkID != "" {
@@ -97,7 +102,8 @@ func (api *api) getScapReports() http.HandlerFunc {
 		status := r.URL.Query().Get("status")
 		if status != "" {
 			if status != "inprogress" && status != "failed" && status != "completed" {
-				response.Bad(w, "invalid status param value (allowed: inprogress/failed/completed)")
+				logging.GetLogger().Info().Msg("invalid status param value (allowed: inprogress/failed/completed)")
+				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("status", ""))
 				return
 			}
 			filter["status"] = status
@@ -105,7 +111,8 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cursor.Close(ctx)
@@ -115,7 +122,8 @@ func (api *api) getScapReports() http.HandlerFunc {
 			var result JobEntry
 			err := cursor.Decode(&result)
 			if err != nil {
-				response.InternalError(w, err.Error())
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			// TODO: pagination, maybe https://github.com/gobeam/mongo-go-pagination?
@@ -124,7 +132,8 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Cursor error")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
@@ -144,33 +153,39 @@ func (api *api) scapCheck() http.HandlerFunc {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
 		defer cancel()
 
-		checkType := chi.URLParam(r, "checkType")
-		if checkType == "" {
-			response.Bad(w, "checkType param missing")
-			return
-		}
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			response.Bad(w, "invalid checkType param value (allowed: kube/docker/host)")
+		clusterObjectID, err := getClusterIDFromURL(r)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
 
-		clusterID := chi.URLParam(r, "clusterID")
-		if clusterID == "" {
-			response.Bad(w, "clusterID is not provided")
+		checkType := chi.URLParam(r, "checkType")
+		if checkType == "" {
+			logging.GetLogger().Info().Msg("checkType param missing")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			return
+
+		}
+		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
 			return
 		}
 
 		// get kube client for this cluster
-		kubeClient, err := api.getKubeClientForCluster(ctx, clusterID)
+		kubeClient, err := api.getKubeClientForCluster(ctx, clusterObjectID)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("Can't get k8s client: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Can't get k8s client")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
 			return
 		}
 
 		// read job yaml for this check type
 		jobObj, err := api.readJobObjFromYamlFile(checkType)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("Can't read job .yaml file: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
 			return
 		}
 
@@ -184,7 +199,8 @@ func (api *api) scapCheck() http.HandlerFunc {
 		// find nodes to schedule check jobs on
 		nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("Can't list nodes in this cluster: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Can't list nodes in this cluster")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
 			return
 		}
 
@@ -219,15 +235,17 @@ func (api *api) scapCheck() http.HandlerFunc {
 			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 			// or do we not care about this since this is a rare operation?
 
-			err := api.addInitialEntry(ctx, checkType, checkUUID, targetNode.Name, clusterID)
+			err := api.addInitialEntry(ctx, checkType, checkUUID, targetNode.Name, clusterObjectID.Hex())
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("Failed to add job to mongo: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Failed to add job to mongo")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 
 			err = api.scheduleOneJob(kubeClient, namespace, jobObj.DeepCopy(), checkUUID, targetNode.Name)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("Failed to schedule job: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
 				return
 			}
 			numScheduledJobs++
@@ -245,8 +263,8 @@ func (api *api) scapCheck() http.HandlerFunc {
 	}
 }
 
-func (api *api) getKubeClientForCluster(ctx context.Context, clusterID string) (*kubernetes.Clientset, error) {
-	cluster, err := api.getClusterFromMongo(ctx, clusterID)
+func (api *api) getKubeClientForCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (*kubernetes.Clientset, error) {
+	cluster, err := api.getClusterFromMongo(ctx, clusterObjectID)
 	if err != nil {
 		return nil, fmt.Errorf("Cluster not found: %s", err)
 	}

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -10,6 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -143,7 +144,8 @@ func (api *api) clusterAssets() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -153,7 +155,8 @@ func (api *api) clusterAssets() http.HandlerFunc {
 			var elem clusterOverviewItem
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			items = append(items, elem)
@@ -161,7 +164,8 @@ func (api *api) clusterAssets() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
@@ -231,7 +235,8 @@ func (api *api) imageAssets() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -241,7 +246,8 @@ func (api *api) imageAssets() http.HandlerFunc {
 			var elem imageOverviewItem
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			items = append(items, elem)
@@ -249,7 +255,8 @@ func (api *api) imageAssets() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
@@ -315,7 +322,8 @@ func (api *api) dockerAssets() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -325,7 +333,8 @@ func (api *api) dockerAssets() http.HandlerFunc {
 			var elem asssetsContainerOverviewItem
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			items = append(items, elem)
@@ -333,7 +342,8 @@ func (api *api) dockerAssets() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
