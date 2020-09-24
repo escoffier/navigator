@@ -332,24 +332,32 @@ Login:
  ```bash
 # If multinode
 k8v port-forward service/console 8889:8889 &
-CONSOLEIP=127.0.0.1
+CONSOLEADDR=127.0.0.1:8889
+
+# if remote system
+# CONSOLEADDR=console.tensorsecurity.cn:80
 
 # If singlenode using microk8s
 # CONSOLEIP=$(k8v describe service console | grep IP: | awk '{print $2;}')
 # SCANNERIP=$(k8v describe service scanner | grep IP: | awk '{print $2;}')
 
 # Login
-JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEIP:8889/api/v1/rest-auth/login -v 2>&1 | grep Set-Cookie | awk '{print $3;}')
+JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/rest-auth/login -v 2>&1 | grep Set-Cookie | awk '{print $3;}')
 
 ```
 
 Scan image:
 
 ```bash
-curl -v -X POST -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEIP:8889/api/v1/scanner/scan
+curl -v -X POST -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/scan
+
+curl -v -X GET -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f6c6389ff52c0bd69c4d22b
+
 
 # Or directly to Scanner, bypassing JWT auth, hehe
-curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
+# curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
+
+
 ```
 
 Run scap job:
@@ -363,31 +371,33 @@ Run scap job:
 
 # if multinode
 CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
+# if remote system
+# CFG=$(ssh root@120.53.227.174 'kubectl config view --raw -o json  | base64 | tr -d "\n "')
 
 # Create cluster
-curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust\", \"config\": \"$CFG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster
+curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/config/cluster/5f64bc25984ef43452ab3020
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f6c74c5eec5cb4d093a8b9c
 
 # Kube-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f6cc8aa1050cb43043c2f79
 # Docker-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f6cc8aa1050cb43043c2f79
 # Host-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f6cc8aa1050cb43043c2f79
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/kube/5f64bc25984ef43452ab3020/reports?checkId=4e6672aa-a960-4824-a029-2f1ea297c2fa&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f6cc8aa1050cb43043c2f79/reports?checkId=93972528-fc8c-4382-b9e8-0a1c3574b050&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/docker/5f64bc25984ef43452ab3020/reports?checkId=55860015-a410-4109-bd9d-a9d973513b51&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f6cc8aa1050cb43043c2f79/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEIP:8889/api/v1/scap/host/5f64bc25984ef43452ab3020/reports?checkId=02943e17-27b7-4edf-b060-620c47fdb2c1&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f6cc8aa1050cb43043c2f79/reports?checkId=2b9fefef-324d-4843-b9ca-784278864f2e&nodeName=master&status=completed" > out.json
 
 
 ```

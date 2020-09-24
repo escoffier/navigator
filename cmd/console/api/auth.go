@@ -72,6 +72,18 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
+		if creds.Username == "" {
+			logging.GetLogger().Info().Err(err).Msg("Missing field 'username'")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("username", ""))
+			return
+		}
+
+		if creds.Password == "" {
+			logging.GetLogger().Info().Err(err).Msg("Missing field 'password'")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("password", ""))
+			return
+		}
+
 		// compare the password, defaults to admin:admin till Mongo integration
 		hashed, _ := bcrypt.GenerateFromPassword([]byte("admin"), 8)
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
@@ -91,7 +103,7 @@ func (api *api) login() http.HandlerFunc {
 			Name:     "jwt",
 			Value:    tokenString,
 			Path:     "/",
-			Expires:  time.Now().Add(24 * time.Hour),
+			Expires:  time.Now().Add(7 * 24 * time.Hour),
 			HttpOnly: true,
 		})
 		api.userCache.Set(

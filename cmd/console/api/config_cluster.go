@@ -12,9 +12,12 @@ import (
 	"github.com/go-chi/chi"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -51,7 +54,7 @@ func (api *api) getCluster() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
@@ -59,7 +62,7 @@ func (api *api) getCluster() http.HandlerFunc {
 		queryCluster, err := api.getClusterFromMongo(ctx, clusterObjectID)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't get cluster from mongo")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			apperror.RespondWithSuggested(w, r, err)
 			return
 		}
 
@@ -81,12 +84,15 @@ func (api *api) getClusterFromMongo(ctx context.Context, clusterObjectID primiti
 
 	queryResult := api.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
-		return nil, fmt.Errorf("MongoDB: %s", queryResult.Err())
+		if queryResult.Err() == mongo.ErrNoDocuments {
+			return nil, apperror.New(locale.MongoError, http.StatusNotFound, fmt.Errorf("Document not found: %s", queryResult.Err()))
+		}
+		return nil, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %s", queryResult.Err()))
 	}
 
 	err := queryResult.Decode(&queryCluster)
 	if err != nil {
-		return nil, fmt.Errorf("MongoDB: %s", err)
+		return nil, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %s", queryResult.Err()))
 	}
 	return &queryCluster, nil
 }
@@ -165,7 +171,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
@@ -181,11 +187,17 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		// No sure the this api can work under Openshift
 		if upCluster.ClusterType < 3 {
-			//valid vegeta Namespace is there and have the auth to view the pods
-			err = checkKubeConfigValid(upCluster.KubeConfig)
+			kubeClient, err := kubeClientFromB64KubeConfig(upCluster.KubeConfig)
 			if err != nil {
-				logging.GetLogger().Info().Err(err).Msg("Kubeconfig invalid")
+				logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
 				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
+				return
+			}
+
+			err = checkKubeClientConnection(kubeClient)
+			if err != nil {
+				logging.GetLogger().Info().Err(err).Msg("Failed to connect to k8s cluster")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)), response.WithSuberror("config", ""))
 				return
 			}
 		}
@@ -251,12 +263,17 @@ func (api *api) addCluster() http.HandlerFunc {
 
 		// No sure the this api can work under Openshift
 		if newCluster.ClusterType < 3 {
-			//valid vegeta Namespace is there and have the auth to view the pods
-
-			err = checkKubeConfigValid(newCluster.KubeConfig)
+			kubeClient, err := kubeClientFromB64KubeConfig(newCluster.KubeConfig)
 			if err != nil {
-				logging.GetLogger().Info().Err(err).Msg("Kubeconfig invalid")
+				logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
 				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
+				return
+			}
+
+			err = checkKubeClientConnection(kubeClient)
+			if err != nil {
+				logging.GetLogger().Info().Err(err).Msg("Failed to connect to k8s cluster")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)), response.WithSuberror("config", ""))
 				return
 			}
 		}
@@ -303,7 +320,7 @@ func (api *api) delCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
@@ -325,18 +342,21 @@ func (api *api) delCluster() http.HandlerFunc {
 	}
 }
 
-func checkKubeConfigValid(kubeConfig string) error {
-	//valid vegeta Namespace is there and have the auth to view the pods
+func kubeClientFromB64KubeConfig(kubeConfig string) (*kubernetes.Clientset, error) {
 	kubeconfig, err := b64.StdEncoding.DecodeString(kubeConfig)
 	if err != nil {
-		return errors.New((fmt.Sprintf("Can't decoding the kubeconfig: %s", err)))
+		return nil, fmt.Errorf("Can't decode kubeconfig: %s", err)
 	}
 
 	kubeClient, err := k8s.CreateK8sClientFromKubeConfig(kubeconfig)
 	if err != nil {
-		return errors.New((fmt.Sprintf("Cluster API Request: %s", err)))
+		return nil, fmt.Errorf("Cluster API Request: %s", err)
 	}
-	_, err = kubeClient.CoreV1().Namespaces().Get(nameSpace, metav1.GetOptions{})
+	return kubeClient, nil
+}
+
+func checkKubeClientConnection(kubeClient *kubernetes.Clientset) error {
+	_, err := kubeClient.CoreV1().Namespaces().Get(nameSpace, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("Maybe namespace doesn't exist or no authorization?: %s", err)
 	}
