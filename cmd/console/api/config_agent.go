@@ -14,6 +14,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -62,7 +64,8 @@ func (api *api) createAgent() http.HandlerFunc {
 		param := &param{}
 		err := json.NewDecoder(r.Body).Decode(param)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
 
@@ -79,13 +82,14 @@ func (api *api) createAgent() http.HandlerFunc {
 		defer cancel()
 		insertResult, err := api.mongodb.Collection(agentCollection).InsertOne(ctx, newAgent)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			AgentID: fmt.Sprintf("%v", insertResult.InsertedID),
-		})
+		}))
 	}
 }
 
@@ -112,7 +116,8 @@ func (api *api) listAgents() http.HandlerFunc {
 
 		cur, err := api.mongodb.Collection(agentCollection).Find(ctx, bson.D{}, opts)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -124,7 +129,8 @@ func (api *api) listAgents() http.HandlerFunc {
 			var elem agent
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, err.Error())
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 
@@ -135,18 +141,20 @@ func (api *api) listAgents() http.HandlerFunc {
 			elem.Heartbeats, elem.LastUpdatedAt, elem.Running, err = heartbeat.GetAll(
 				ctx, api.etcdClient, elem.ID.Hex())
 			if err != nil {
-				response.InternalError(w, err.Error())
+				logging.GetLogger().Error().Err(err).Msg("Couldn't get heartbeat")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.EtcdError, r)))
 				return
 			}
 
 			resp.Agents = append(resp.Agents, elem)
 		}
 		if err := cur.Err(); err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Cursor error")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
-		response.Ok(w, resp)
+		response.Ok(w, response.WithItem(resp))
 	}
 }
 
@@ -170,7 +178,8 @@ func (api *api) getAgent() http.HandlerFunc {
 		// get ObjectID
 		agentObjectID, err := getAgentObjectIDFromURL(r)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read agentObjectID")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("agentID", ""))
 			return
 		}
 
@@ -182,7 +191,8 @@ func (api *api) getAgent() http.HandlerFunc {
 		err = api.mongodb.Collection(agentCollection).FindOne(
 			ctx, bson.M{"_id": agentObjectID}).Decode(&result)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
@@ -194,7 +204,8 @@ func (api *api) getAgent() http.HandlerFunc {
 			w.WriteHeader(200)
 			_, err = w.Write([]byte(result.Yaml))
 			if err != nil {
-				response.InternalError(w, err.Error())
+				logging.GetLogger().Error().Err(err).Msg("Error writing response")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.HTTPResponseError, r)))
 			}
 			return
 		}
@@ -203,10 +214,11 @@ func (api *api) getAgent() http.HandlerFunc {
 		result.Heartbeats, result.LastUpdatedAt, result.Running, err = heartbeat.GetAll(
 			ctx, api.etcdClient, result.ID.Hex())
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't get heartbeat")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.EtcdError, r)))
 			return
 		}
-		response.Ok(w, result)
+		response.Ok(w, response.WithItem(result))
 	}
 }
 
@@ -222,7 +234,8 @@ func (api *api) deleteAgent() http.HandlerFunc {
 		// get ObjectID
 		agentObjectID, err := getAgentObjectIDFromURL(r)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read agentObjectID")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("agentID", ""))
 			return
 		}
 
@@ -233,9 +246,10 @@ func (api *api) deleteAgent() http.HandlerFunc {
 		_, err = api.mongodb.Collection(agentCollection).DeleteOne(
 			ctx, bson.M{"_id": agentObjectID})
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't delete document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
-		response.Ok(w, nil)
+		response.Ok(w)
 	}
 }

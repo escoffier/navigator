@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -10,6 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -18,12 +19,6 @@ const (
 	imageAssetCol     = "image_asset"
 	containerAssetCol = "container_asset"
 )
-
-type paginationData struct {
-	Total    int64 `json:"total"`
-	PageSize int64 `json:"pageSize"`
-	Current  int64 `json:"current"`
-}
 
 type clusterOverviewItem struct {
 	Key       string    `json:"key"`
@@ -61,23 +56,6 @@ type imageOverviewItem struct {
 	VulnerabilityOverview []vulnerabilityOverviewItem `json:"vulnerabilities,omitempty"`
 }
 
-// type metaData struct {
-// 	Namespaces []string `json:"namespaces"`
-// 	Cluster    []string `json:"clusters"`
-// 	Categories []string `json:"categories"`
-// }
-
-// type assetsClusters struct {
-// 	Assets assetList      `json:"list"`
-// 	Page   paginationData `json:"pagination,omitempty"`
-// 	Meta   metaData       `json:"meta,omitempty"`
-// }
-
-// type assetsImages struct {
-// 	Images imageList      `json:"list"`
-// 	Page   paginationData `json:"pagination,omitempty"`
-// }
-
 type asssetsContainerOverviewItem struct {
 	Key       string    `json:"key"`
 	Name      string    `json:"name"`
@@ -91,11 +69,6 @@ type asssetsContainerOverviewItem struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 	CreatedAt time.Time `json:"createdAt"`
 }
-
-// type assetsContainers struct {
-// 	Containers []asssetsContainerOverviewItem `json:"list"`
-// 	Page       paginationData                 `json:"pagination"`
-// }
 
 type clusterList []clusterOverviewItem
 type imageList []imageOverviewItem
@@ -151,13 +124,8 @@ func filterByCondition(d assetsClusters, r *http.Request) assetsClusters {
 // @Produce json
 // @Router /api/v1/assets/clusters [get]
 func (api *api) clusterAssets() http.HandlerFunc {
-	type resp struct {
-		Items clusterList    `json:"list"`
-		Page  paginationData `json:"pagination"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var items clusterList
-		var page paginationData
 		var filter = bson.M{}
 		assetType, err := param.QueryString(r, "type")
 		if err == nil {
@@ -176,7 +144,8 @@ func (api *api) clusterAssets() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -186,7 +155,8 @@ func (api *api) clusterAssets() http.HandlerFunc {
 			var elem clusterOverviewItem
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			items = append(items, elem)
@@ -194,18 +164,16 @@ func (api *api) clusterAssets() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
-		page.Total = docNum
-		page.Current = offset
-		page.PageSize = limit
-
-		response.Ok(w, &resp{
-			Items: items,
-			Page:  page,
-		})
+		response.Ok(w,
+			response.WithItems(items),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
 	}
 }
 
@@ -222,13 +190,8 @@ func (api *api) clusterAssets() http.HandlerFunc {
 // @Param sha query string false "image sha"
 // @Router /api/v1/assets/images [get]
 func (api *api) imageAssets() http.HandlerFunc {
-	type resp struct {
-		Items imageList      `json:"list"`
-		Page  paginationData `json:"pagination"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var items imageList
-		var page paginationData
 		var filter = bson.M{}
 
 		imageName, err := param.QueryString(r, "name")
@@ -272,7 +235,8 @@ func (api *api) imageAssets() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -282,7 +246,8 @@ func (api *api) imageAssets() http.HandlerFunc {
 			var elem imageOverviewItem
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			items = append(items, elem)
@@ -290,18 +255,21 @@ func (api *api) imageAssets() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
-		page.Total = docNum
-		page.Current = offset
-		page.PageSize = limit
+		response.Ok(w,
+			response.WithItems(items),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
 
-		response.Ok(w, &resp{
-			Items: items,
-			Page:  page,
-		})
+		// response.Ok(w, &resp{
+		// 	Items: items,
+		// 	Page:  page,
+		// })
 		// data := []imageOverviewItem{}
 		// for i := 0; i < 8; i++ {
 		// 	data = append(data, imageOverviewItem{
@@ -333,13 +301,8 @@ func (api *api) imageAssets() http.HandlerFunc {
 // @Param node query int false "node id"
 // @Router /api/v1/assets/containers [get]
 func (api *api) dockerAssets() http.HandlerFunc {
-	type resp struct {
-		Items containerList  `json:"list"`
-		Page  paginationData `json:"pagination"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var items containerList
-		var page paginationData
 		var filter = bson.M{}
 		node, err := param.QueryInt(r, "node")
 		if err == nil {
@@ -359,7 +322,8 @@ func (api *api) dockerAssets() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -369,7 +333,8 @@ func (api *api) dockerAssets() http.HandlerFunc {
 			var elem asssetsContainerOverviewItem
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			items = append(items, elem)
@@ -377,18 +342,17 @@ func (api *api) dockerAssets() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
-		page.Total = docNum
-		page.Current = offset
-		page.PageSize = limit
+		response.Ok(w,
+			response.WithItems(items),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
 
-		response.Ok(w, &resp{
-			Items: items,
-			Page:  page,
-		})
 		// ID, err := param.QueryInt(r, "node")
 		// if err != nil {
 		// 	response.InternalError(w, "node id cannot be empty")

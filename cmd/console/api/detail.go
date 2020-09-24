@@ -110,7 +110,6 @@ type detailImageVulnItemData struct {
 
 type detailImageVulnData struct {
 	Vulns []detailImageVulnItemData `json:"list"`
-	Page  paginationData            `json:"pagination"`
 }
 
 type vtScoreData struct {
@@ -136,7 +135,6 @@ type detailImageFileItemData struct {
 
 type detailImageFileData struct {
 	Files []detailImageFileItemData `json:"list"`
-	Page  paginationData            `json:"pagination"`
 }
 
 type detailImageHistoryItemData struct {
@@ -159,12 +157,10 @@ type detailImagePackageItemData struct {
 
 type detailImageHistoryData struct {
 	History []detailImageHistoryItemData `json:"list"`
-	Page    paginationData               `json:"pagination"`
 }
 
 type detailImagePackageData struct {
 	Packages []detailImagePackageItemData `json:"list"`
-	Page     paginationData               `json:"pagination"`
 }
 
 type detailNodeReportData struct {
@@ -369,7 +365,8 @@ func queryLogs(r *http.Request, ID int) detailNode {
 func nodeDetail(w http.ResponseWriter, r *http.Request) {
 	ID, err := param.QueryInt(r, "id")
 	if err != nil {
-		response.InternalError(w, "node id cannot be empty")
+		response.Bad(w, response.WithMessage("node id cannot be empty"))
+		return
 	}
 
 	queryType, err := param.QueryString(r, "query")
@@ -391,7 +388,7 @@ func nodeDetail(w http.ResponseWriter, r *http.Request) {
 		d = queryReports(ID)
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Container Detail API
@@ -405,7 +402,7 @@ func nodeDetail(w http.ResponseWriter, r *http.Request) {
 func containerDetail(w http.ResponseWriter, r *http.Request) {
 	ID, err := param.QueryInt(r, "id")
 	if err != nil {
-		response.InternalError(w, "node id cannot be empty")
+		response.Bad(w, response.WithMessage("node id cannot be empty"))
 	}
 
 	queryType, err := param.QueryString(r, "query")
@@ -434,7 +431,7 @@ func containerDetail(w http.ResponseWriter, r *http.Request) {
 		d.DetailContainerStat = stat
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Service Detail API
@@ -450,7 +447,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ID, err := param.QueryString(r, "id")
 		if err != nil {
-			response.InternalError(w, "service id cannot be empty")
+			response.Bad(w, response.WithMessage("service id cannot be empty"))
 			return
 		}
 
@@ -467,14 +464,14 @@ func (api *api) serviceDetail() http.HandlerFunc {
 		selectFilter := options.FindOne().SetProjection(pickField)
 		queryResult := api.mongodb.Collection(clusterAssetCol).FindOne(ctx, findFilter, selectFilter)
 		if queryResult.Err() != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", queryResult.Err()))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", queryResult.Err())))
 			return
 		}
 
 		m := make(map[string]interface{})
 		err = queryResult.Decode(&m)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", err)))
 			return
 		}
 
@@ -482,7 +479,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 
 		detailServiceRawData, err := bson.Marshal(m["details"])
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 			return
 		}
 		var detailData detailServiceStatData
@@ -497,7 +494,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 			var inData []detailServiceInOutBoundData
 			inboundRawData, err := bson.Marshal(m["inbound"])
 			if err != nil {
-				response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+				response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 				return
 			}
 			err = bson.Unmarshal(inboundRawData, &inData)
@@ -509,7 +506,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 			var outData []detailServiceInOutBoundData
 			inboundRawData, err := bson.Marshal(m["outbound"])
 			if err != nil {
-				response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+				response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 				return
 			}
 			err = bson.Unmarshal(inboundRawData, &outData)
@@ -552,7 +549,7 @@ func (api *api) serviceDetail() http.HandlerFunc {
 		// 	}
 		// }
 
-		response.Ok(w, d)
+		response.Ok(w, response.WithItem(d))
 	}
 }
 
@@ -576,7 +573,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ID, err := param.QueryString(r, "id")
 		if err != nil {
-			response.InternalError(w, "node id cannot be empty")
+			response.Bad(w, response.WithMessage("node id cannot be empty"))
 			return
 		}
 
@@ -597,33 +594,33 @@ func (api *api) imageDetail() http.HandlerFunc {
 		queryResult := api.mongodb.Collection(imageAssetCol).FindOne(ctx, findFilter, selectFilter)
 
 		if queryResult.Err() != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", queryResult.Err()))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", queryResult.Err())))
 			return
 		}
 
 		m := make(map[string]interface{})
 		err = queryResult.Decode(&m)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("MongoDB: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("MongoDB: %s", err)))
 			return
 		}
 
 		mtwo := make(map[string]interface{})
 		RawData, err := bson.Marshal(m["details"])
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 			return
 		}
 		err = bson.Unmarshal(RawData, &mtwo)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("BSON Marshal: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("BSON Marshal: %s", err)))
 			return
 		}
 
 		dtwo := detailImageReceive{}
 		err = bson.Unmarshal(RawData, &dtwo)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("Decode error: %s", err))
+			response.Bad(w, response.WithMessage(fmt.Sprintf("Decode error: %s", err)))
 			return
 		}
 
@@ -632,16 +629,16 @@ func (api *api) imageDetail() http.HandlerFunc {
 			d.DetailImageStat = dtwo.DetailImageStat
 		case "vulns":
 			items := dtwo.DetailImageVulns
-			d.DetailImageVulns = detailImageVulnData{items, paginationData{}}
+			d.DetailImageVulns = detailImageVulnData{items}
 		case "files":
 			items := dtwo.DetailImageFiles
-			d.DetailImageFiles = detailImageFileData{items, paginationData{}}
+			d.DetailImageFiles = detailImageFileData{items}
 		case "commands":
 			items := dtwo.DetailImageHistory
-			d.DetailImageHistory = detailImageHistoryData{items, paginationData{}}
+			d.DetailImageHistory = detailImageHistoryData{items}
 		case "packages":
 			items := dtwo.DetailImagePackage
-			d.DetailImagePackage = detailImagePackageData{items, paginationData{}}
+			d.DetailImagePackage = detailImagePackageData{items}
 		}
 		/**
 		 * POC part
@@ -812,7 +809,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 		}
 		**/
 
-		response.Ok(w, d)
+		response.Ok(w, response.WithItem(d))
 	}
 }
 
@@ -827,7 +824,7 @@ func (api *api) imageDetail() http.HandlerFunc {
 func dockerDetail(w http.ResponseWriter, r *http.Request) {
 	//ID, err := param.QueryInt(r, "id")
 	//if err != nil {
-	//	response.InternalError(w, "node id cannot be empty")
+	//	response.Bad(w, response.WithMessage("node id cannot be empty"))
 	//}
 	//
 	//queryType, err := param.QueryString(r, "query")
@@ -838,7 +835,7 @@ func dockerDetail(w http.ResponseWriter, r *http.Request) {
 
 	d := detailDocker{}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Compliance Report Detail API
@@ -858,5 +855,5 @@ func reportDetail(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }

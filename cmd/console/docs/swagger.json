@@ -855,12 +855,6 @@
                         "schema": {
                             "$ref": "#/definitions/api.LoginResponse"
                         }
-                    },
-                    "401": {
-                        "description": "if the credentials provided is wrong",
-                        "schema": {
-                            "$ref": "#/definitions/response.HTTPRedirectError"
-                        }
                     }
                 }
             }
@@ -1584,10 +1578,6 @@
                     "items": {
                         "$ref": "#/definitions/api.detailImageFileItemData"
                     }
-                },
-                "pagination": {
-                    "type": "object",
-                    "$ref": "#/definitions/api.paginationData"
                 }
             }
         },
@@ -1641,10 +1631,6 @@
                     "items": {
                         "$ref": "#/definitions/api.detailImageHistoryItemData"
                     }
-                },
-                "pagination": {
-                    "type": "object",
-                    "$ref": "#/definitions/api.paginationData"
                 }
             }
         },
@@ -1679,10 +1665,6 @@
                     "items": {
                         "$ref": "#/definitions/api.detailImagePackageItemData"
                     }
-                },
-                "pagination": {
-                    "type": "object",
-                    "$ref": "#/definitions/api.paginationData"
                 }
             }
         },
@@ -1768,10 +1750,6 @@
                     "items": {
                         "$ref": "#/definitions/api.detailImageVulnItemData"
                     }
-                },
-                "pagination": {
-                    "type": "object",
-                    "$ref": "#/definitions/api.paginationData"
                 }
             }
         },
@@ -2034,20 +2012,6 @@
                 }
             }
         },
-        "api.paginationData": {
-            "type": "object",
-            "properties": {
-                "current": {
-                    "type": "integer"
-                },
-                "pageSize": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
         "api.profilesPoliceItemData": {
             "type": "object",
             "properties": {
@@ -2294,14 +2258,6 @@
             "type": "object",
             "properties": {
                 "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "response.HTTPRedirectError": {
-            "type": "object",
-            "properties": {
-                "redirect": {
                     "type": "string"
                 }
             }

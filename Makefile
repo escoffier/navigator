@@ -70,7 +70,7 @@ console: generate 		## Build console binary
 	# This target depends on frontend and scap-jobs, but for optimisation, if we want to build only console, they won't be built.
 	# To build all targets, use make all.
 	@echo "+ $@"
-	go build -v -a \
+	go build  -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
 	docker build -t $(REPOPREFIX)vegeta-console:latest -f ./build/console/Dockerfile .

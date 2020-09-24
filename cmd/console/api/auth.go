@@ -11,6 +11,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/crypto/bcrypt"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -55,7 +57,6 @@ func (api *api) restAuth() func(chi.Router) {
 // @Param username body string true "Username"
 // @Param password body string true "Password"
 // @Success 200 {object} api.LoginResponse "Login response"
-// @Failure 401 {object} response.HTTPRedirectError "if the credentials provided is wrong"
 // @Router /api/v1/rest-auth/login [post]
 func (api *api) login() http.HandlerFunc {
 	type credentials struct {
@@ -66,7 +67,8 @@ func (api *api) login() http.HandlerFunc {
 		creds := &credentials{}
 		err := json.NewDecoder(r.Body).Decode(creds)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
 
@@ -75,7 +77,8 @@ func (api *api) login() http.HandlerFunc {
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
 		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
 		if errUsername != nil || errPassword != nil {
-			response.Unauthorized(w, redirectURL)
+			logging.GetLogger().Info().Err(err).Msg("Invalid username or password")
+			response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidUsernameOrPasswordError, r)))
 			return
 		}
 
@@ -105,11 +108,11 @@ func (api *api) login() http.HandlerFunc {
 			},
 			cache.DefaultExpiration)
 
-		response.Ok(w, LoginResponse{
+		response.Ok(w, response.WithItem(LoginResponse{
 			CurrentAuthority: "admin",
 			Status:           "ok",
 			Type:             "account",
-		})
+		}))
 	}
 }
 
@@ -123,7 +126,7 @@ func (api *api) logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, claims, err := jwtauth.FromContext(r.Context())
 		if err != nil || token == nil || !token.Valid {
-			response.Ok(w, nil)
+			response.Ok(w)
 			return
 		}
 
@@ -139,7 +142,7 @@ func (api *api) logout() http.HandlerFunc {
 			Expires:  time.Unix(0, 0),
 			HttpOnly: true,
 		})
-		response.Ok(w, nil)
+		response.Ok(w)
 	}
 }
 
@@ -150,5 +153,5 @@ func (api *api) logout() http.HandlerFunc {
 // @Success 200 {object} api.User "Current user"
 // @Router /api/v1/rest-auth/user [get]
 func user(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, r.Context().Value(userKey).(*User))
+	response.Ok(w, response.WithItem(r.Context().Value(userKey).(*User)))
 }

@@ -16,6 +16,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -47,31 +49,34 @@ func (api *api) getCluster() http.HandlerFunc {
 		ctx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		clusterID := chi.URLParam(r, "clusterID")
-
-		if clusterID == "" {
-			response.Bad(w, "clusterID is not provided")
-			return
-		}
-
-		queryCluster, err := api.getClusterFromMongo(ctx, clusterID)
+		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
 
-		response.Ok(w, &resp{
-			Cluster: *queryCluster,
-		})
+		queryCluster, err := api.getClusterFromMongo(ctx, clusterObjectID)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Couldn't get cluster from mongo")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(queryCluster))
 	}
 }
 
-func (api *api) getClusterFromMongo(ctx context.Context, clusterID string) (*cluster, error) {
-	var queryCluster cluster
-	clusterObjectID, err := primitive.ObjectIDFromHex(clusterID)
-	if err != nil {
-		return nil, err
+func getClusterIDFromURL(r *http.Request) (primitive.ObjectID, error) {
+	clusterID := chi.URLParam(r, "clusterID")
+	if clusterID == "" {
+		return primitive.NilObjectID, errors.New("clusterID is not provided")
 	}
+	return primitive.ObjectIDFromHex(clusterID)
+}
+
+func (api *api) getClusterFromMongo(ctx context.Context, clusterObjectID primitive.ObjectID) (*cluster, error) {
+	var queryCluster cluster
 	filter := bson.M{"_id": clusterObjectID}
 
 	queryResult := api.mongodb.Collection(clusterCol).FindOne(ctx, filter)
@@ -79,7 +84,7 @@ func (api *api) getClusterFromMongo(ctx context.Context, clusterID string) (*clu
 		return nil, fmt.Errorf("MongoDB: %s", queryResult.Err())
 	}
 
-	err = queryResult.Decode(&queryCluster)
+	err := queryResult.Decode(&queryCluster)
 	if err != nil {
 		return nil, fmt.Errorf("MongoDB: %s", err)
 	}
@@ -94,13 +99,8 @@ func (api *api) getClusterFromMongo(ctx context.Context, clusterID string) (*clu
 // @Param limit query int false "returned data limit"
 // @Router /api/v1/config/clusters [get]
 func (api *api) listClusters() http.HandlerFunc {
-	type resp struct {
-		Clusters []cluster      `json:"clusters"`
-		Page     paginationData `json:"pagination"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var clusters []cluster
-		var page paginationData
 
 		filter := bson.D{}
 
@@ -116,7 +116,8 @@ func (api *api) listClusters() http.HandlerFunc {
 
 		cur, err := coll.Find(ctx, filter, opts)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 		defer cur.Close(ctx)
@@ -126,7 +127,8 @@ func (api *api) listClusters() http.HandlerFunc {
 			var elem cluster
 			err := cur.Decode(&elem)
 			if err != nil {
-				response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
 			clusters = append(clusters, elem)
@@ -134,18 +136,16 @@ func (api *api) listClusters() http.HandlerFunc {
 
 		docNum, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't count documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
 
-		page.Total = docNum
-		page.Current = offset
-		page.PageSize = limit
-
-		response.Ok(w, &resp{
-			Clusters: clusters,
-			Page:     page,
-		})
+		response.Ok(w,
+			response.WithItems(clusters),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
 	}
 }
 
@@ -163,31 +163,29 @@ func (api *api) updateCluster() http.HandlerFunc {
 		Message string `json:"message"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		clusterID := chi.URLParam(r, "clusterID")
-		if clusterID == "" {
-			response.Bad(w, "clusterID is not provided")
+		clusterObjectID, err := getClusterIDFromURL(r)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
 
 		var upCluster cluster
-		clusterObjectID, err := primitive.ObjectIDFromHex(clusterID)
-		if err != nil {
-			response.Bad(w, fmt.Sprintf("Cluster API Request: %s", err))
-			return
-		}
 
 		err = decodeJSONBody(w, r, &upCluster)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("Cluster API Request: %s", err))
+			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
+
 		// No sure the this api can work under Openshift
 		if upCluster.ClusterType < 3 {
 			//valid vegeta Namespace is there and have the auth to view the pods
-
 			err = checkKubeConfigValid(upCluster.KubeConfig)
 			if err != nil {
-				response.InternalError(w, err.Error())
+				logging.GetLogger().Info().Err(err).Msg("Kubeconfig invalid")
+				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
 				return
 			}
 		}
@@ -201,12 +199,13 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		_, err = api.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't update document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			Message: "Successful updated",
-		})
+		}))
 	}
 }
 
@@ -232,12 +231,14 @@ func (api *api) addCluster() http.HandlerFunc {
 
 		err := decodeJSONBody(w, r, &param)
 		if err != nil {
-			response.Bad(w, fmt.Sprintf("Cluster API Request: %s", err))
+			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
+			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
 			return
 		}
 
 		if param.ClusterType > 3 || param.ClusterType < 1 {
-			response.Bad(w, "ClusterType is out range")
+			logging.GetLogger().Info().Err(err).Msg("ClusterType is out range")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("type", ""))
 			return
 		}
 
@@ -254,7 +255,8 @@ func (api *api) addCluster() http.HandlerFunc {
 
 			err = checkKubeConfigValid(newCluster.KubeConfig)
 			if err != nil {
-				response.InternalError(w, err.Error())
+				logging.GetLogger().Info().Err(err).Msg("Kubeconfig invalid")
+				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
 				return
 			}
 		}
@@ -270,18 +272,20 @@ func (api *api) addCluster() http.HandlerFunc {
 
 		//if find the record then return
 		if queryResult.Err() == nil {
-			response.Bad(w, "This cluster is already in the db")
+			logging.GetLogger().Info().Err(err).Msg("Cluster with this name already exists")
+			response.Conflict(w, response.WithMessage(locale.Error(locale.ClusterAlreadyExists, r)))
 			return
 		}
 
 		insertResult, err := collection.InsertOne(ctx, newCluster)
 		if err != nil {
-			response.InternalError(w, err.Error())
+			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			ClusterID: fmt.Sprintf("%v", insertResult.InsertedID),
-		})
+		}))
 	}
 }
 
@@ -297,15 +301,10 @@ func (api *api) delCluster() http.HandlerFunc {
 		Message string `json:"message"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		clusterID := chi.URLParam(r, "clusterID")
-		if clusterID == "" {
-			response.Bad(w, "clusterID is not provided")
-			return
-		}
-
-		clusterObjectID, err := primitive.ObjectIDFromHex(clusterID)
+		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			response.Bad(w, err.Error())
+			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
 
@@ -316,12 +315,13 @@ func (api *api) delCluster() http.HandlerFunc {
 
 		delResult, err := api.mongodb.Collection(clusterCol).DeleteOne(ctx, filter)
 		if err != nil {
-			response.InternalError(w, fmt.Sprintf("MongoDB: %s", err))
+			logging.GetLogger().Error().Err(err).Msg("Couldn't delete document")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
-		response.Ok(w, &resp{
+		response.Ok(w, response.WithItem(resp{
 			Message: fmt.Sprintf("MongoDB DeletedCount: %d", delResult.DeletedCount),
-		})
+		}))
 	}
 }
 

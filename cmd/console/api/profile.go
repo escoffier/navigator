@@ -75,7 +75,7 @@ func policiesProfiles(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }
 
 // @Summary Profiles Rules API
@@ -86,5 +86,5 @@ func policiesProfiles(w http.ResponseWriter, r *http.Request) {
 // @Router /api/v1/profiles/rules [get]
 func rulesProfiles(w http.ResponseWriter, r *http.Request) {
 	d := profilesRules{}
-	response.Ok(w, d)
+	response.Ok(w, response.WithItem(d))
 }

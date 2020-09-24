@@ -60,8 +60,7 @@ func TestAssetsClusters(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	body, _ := ioutil.ReadAll(w.Body)
 	type respCluster struct {
-		Items clusterList    `json:"list"`
-		Page  paginationData `json:"pagination"`
+		Items clusterList `json:"list"`
 	}
 	var respc respCluster
 	err := json.Unmarshal(body, &respc)
@@ -73,8 +72,7 @@ func TestAssetsClusters(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	body, _ = ioutil.ReadAll(w.Body)
 	type respImage struct {
-		Items imageList      `json:"list"`
-		Page  paginationData `json:"pagination"`
+		Items imageList `json:"list"`
 	}
 	var respi respImage
 	err = json.Unmarshal(body, &respi)
@@ -86,8 +84,7 @@ func TestAssetsClusters(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	body, _ = ioutil.ReadAll(w.Body)
 	type respContainer struct {
-		Items containerList  `json:"list"`
-		Page  paginationData `json:"pagination"`
+		Items containerList `json:"list"`
 	}
 	var respcon respContainer
 	err = json.Unmarshal(body, &respcon)
@@ -130,8 +127,7 @@ func initImagesMongoDb(mdb *mongo.Database) {
 
 func initContainersMongoDb(mdb *mongo.Database) {
 	type resp struct {
-		Items containerList  `json:"list"`
-		Page  paginationData `json:"pagination"`
+		Items containerList `json:"list"`
 	}
 	items := []asssetsContainerOverviewItem{
 		{
