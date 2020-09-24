@@ -2,7 +2,9 @@ package response
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"reflect"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -31,17 +33,34 @@ func WithSuberror(location, message string) ResponseErrorOptionFunc {
 }
 
 func WithItems(items interface{}) ResponseDataOptionFunc {
-	return func(ev *HTTPEnvelope) {
-		// We don't actually check whether it's an array.
-		// It's a costly reflection operation. Trust the caller.
-		ev.Data.Items = items
+	val := reflect.ValueOf(items)
+	if val.Kind() != reflect.Array && val.Kind() != reflect.Slice {
+		return func(ev *HTTPEnvelope) {
+			ev.EnvelopeError = fmt.Sprintf("WithItem expected reflect.Array or reflect.Slice, got %s", val.Kind().String())
+		}
+	} else {
+		return func(ev *HTTPEnvelope) {
+			if val.Len() == 0 {
+				// force return of empty array if `items` is empty.
+				// because if it's a slice, it's returned as `null`
+				ev.Data.Items = []int{}
+			} else {
+				ev.Data.Items = items
+			}
+		}
 	}
 }
 
 func WithItem(item interface{}) ResponseDataOptionFunc {
-	return func(ev *HTTPEnvelope) {
-		// We don't actually check whether it's a single item. See WithItems.
-		ev.Data.Item = item
+	val := reflect.ValueOf(item)
+	if val.Kind() != reflect.Struct {
+		return func(ev *HTTPEnvelope) {
+			ev.EnvelopeError = fmt.Sprintf("WithItem expected reflect.Struct, got %s", val.Kind().String())
+		}
+	} else {
+		return func(ev *HTTPEnvelope) {
+			ev.Data.Item = item
+		}
 	}
 }
 
@@ -64,26 +83,26 @@ func WithStartIndex(n int64) ResponseDataOptionFunc {
 }
 
 func Bad(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	respError(w, http.StatusBadRequest, opts...)
+	RespError(w, http.StatusBadRequest, opts...)
 }
 
 func InternalError(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	respError(w, http.StatusInternalServerError, opts...)
+	RespError(w, http.StatusInternalServerError, opts...)
 }
 
 func Unauthorized(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	respError(w, http.StatusUnauthorized, opts...)
+	RespError(w, http.StatusUnauthorized, opts...)
 }
 
 func Conflict(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	respError(w, http.StatusConflict, opts...)
+	RespError(w, http.StatusConflict, opts...)
 }
 
 func Ok(w http.ResponseWriter, opts ...ResponseDataOptionFunc) {
-	respData(w, http.StatusOK, opts...)
+	RespData(w, http.StatusOK, opts...)
 }
 
-func respError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc) {
+func RespError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc) {
 	resp := HTTPEnvelope{
 		ApiVersion: "1.0",
 		Error: &HTTPError{
@@ -96,10 +115,15 @@ func respError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc)
 		opt(&resp)
 	}
 
+	if resp.EnvelopeError != "" {
+		logging.GetLogger().Error().Str("message", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
+		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+	}
+
 	respond(w, code, resp)
 }
 
-func respData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
+func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 	resp := HTTPEnvelope{
 		ApiVersion: "1.0",
 		Data:       &HTTPData{},
@@ -109,7 +133,13 @@ func respData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 		opt(&resp)
 	}
 
+	if resp.EnvelopeError != "" {
+		logging.GetLogger().Error().Str("message", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
+		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+	}
+
 	respond(w, code, resp)
+
 }
 
 func respond(w http.ResponseWriter, code int, payload interface{}) {

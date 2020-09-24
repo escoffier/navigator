@@ -45,7 +45,7 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		// get ObjectID
 		taskObjectID, err := getTaskObjectIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("taskID not provided")
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read taskID")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("taskID", ""))
 			return
 		}

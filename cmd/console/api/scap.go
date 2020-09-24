@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	b64 "encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,7 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -69,7 +68,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
@@ -155,7 +154,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("ClusterID not provided")
+			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
 			return
 		}
@@ -174,10 +173,17 @@ func (api *api) scapCheck() http.HandlerFunc {
 		}
 
 		// get kube client for this cluster
-		kubeClient, err := api.getKubeClientForCluster(ctx, clusterObjectID)
+		cluster, err := api.getClusterFromMongo(ctx, clusterObjectID)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Can't get k8s client")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
+			logging.GetLogger().Error().Err(err).Msg("Failed to get cluster from Mongo")
+			apperror.RespondWithSuggested(w, r, err)
+			return
+		}
+
+		kubeClient, err := kubeClientFromB64KubeConfig(cluster.KubeConfig)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)))
 			return
 		}
 
@@ -185,7 +191,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		jobObj, err := api.readJobObjFromYamlFile(checkType)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
+			apperror.RespondWithSuggested(w, r, err)
 			return
 		}
 
@@ -200,7 +206,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Can't list nodes in this cluster")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
+			response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)))
 			return
 		}
 
@@ -238,14 +244,14 @@ func (api *api) scapCheck() http.HandlerFunc {
 			err := api.addInitialEntry(ctx, checkType, checkUUID, targetNode.Name, clusterObjectID.Hex())
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to add job to mongo")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				apperror.RespondWithSuggested(w, r, err)
 				return
 			}
 
 			err = api.scheduleOneJob(kubeClient, namespace, jobObj.DeepCopy(), checkUUID, targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.AnError, r)))
+				apperror.RespondWithSuggested(w, r, err)
 				return
 			}
 			numScheduledJobs++
@@ -261,25 +267,6 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		go api.startManagedJobRoutine(kubeClient, namespace, checkUUID, numScheduledJobs, checkType)
 	}
-}
-
-func (api *api) getKubeClientForCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (*kubernetes.Clientset, error) {
-	cluster, err := api.getClusterFromMongo(ctx, clusterObjectID)
-	if err != nil {
-		return nil, fmt.Errorf("Cluster not found: %s", err)
-	}
-
-	kubeConfigDecoded, err := b64.StdEncoding.DecodeString(cluster.KubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Can't decode kubeconfig: %s", err)
-	}
-
-	kubeClient, err := k8s.CreateK8sClientFromKubeConfig(kubeConfigDecoded)
-	if err != nil {
-		return nil, fmt.Errorf("Can't create k8s client: %s", err)
-	}
-
-	return kubeClient, nil
 }
 
 func (api *api) getMongoCollectionForCheckType(checkType string) string {
@@ -303,19 +290,20 @@ func (api *api) readJobObjFromYamlFile(checkType string) (*batchv1.Job, error) {
 	} else if checkType == "host" {
 		jobYamlPath = "/jobs/host-bench/job.yaml"
 	} else {
-		return nil, fmt.Errorf("Unreachable code reached")
+		return nil, apperror.New(locale.AnError, http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))
 	}
 
 	jobYaml, err := ioutil.ReadFile(jobYamlPath)
 	if err != nil {
-		return nil, fmt.Errorf("Can't read job file: %s", err)
+		return nil, apperror.New(locale.ConfigurationError, http.StatusInternalServerError, fmt.Errorf("Can't read job file: %s", err))
 	}
 
 	jobObj := &batchv1.Job{}
 	decoder := k8Yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(jobYaml)), 1000)
 	err = decoder.Decode(&jobObj)
 	if err != nil {
-		return nil, fmt.Errorf("Can't decode job file: %s", err)
+		return nil, apperror.New(locale.ConfigurationError, http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %s", err))
+
 	}
 	return jobObj, nil
 }
@@ -352,14 +340,14 @@ func (api *api) scheduleOneJob(kubeClient *kubernetes.Clientset, namespace strin
 	if k8serrors.IsAlreadyExists(err) {
 		err = jobsClient.Delete(jobObj.Name, &metav1.DeleteOptions{})
 		if err != nil {
-			return fmt.Errorf("Job already exists, so tried deleting, but: %s", err)
+			return apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Job already exists, so tried deleting, but: %s", err))
 		}
 
 		time.Sleep(time.Second * 10)
 		res, err = jobsClient.Create(jobObj)
 	}
 	if err != nil {
-		return fmt.Errorf("Couldn't schedule job: %s", err)
+		return apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %s", err))
 	}
 
 	jobName := res.ObjectMeta.Name
@@ -386,7 +374,7 @@ func (api *api) addInitialEntry(ctx context.Context, checkType string, checkUUID
 
 	_, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(checkType)).InsertOne(ctx, entry)
 	if err != nil {
-		return fmt.Errorf("Failed insert to mongo: %s", err)
+		return apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %s", err))
 	}
 
 	return nil
