@@ -30,6 +30,8 @@ spec:
               # 25426 root      20   0 2316548 743668  16752 R  95.7   9.1   0:40.63 oscap
               memory: "1024Mi"
       restartPolicy: Never
+      imagePullSecrets:
+      - name: harbor-admin-secret
       volumes:
         - name: mnt-root
           hostPath:
