@@ -66,7 +66,9 @@ func (api *api) getCluster() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItem(queryCluster))
+		response.Ok(w, response.WithItem(resp{
+			Cluster: *queryCluster,
+		}))
 	}
 }
 
@@ -300,8 +302,15 @@ func (api *api) addCluster() http.HandlerFunc {
 			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
+		id, ok := insertResult.InsertedID.(primitive.ObjectID)
+		if !ok {
+			logging.GetLogger().Error().Str("InsertedID", fmt.Sprintf("%v", insertResult.InsertedID)).Msg("Invalid object ID returned")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+
 		response.Ok(w, response.WithItem(resp{
-			ClusterID: fmt.Sprintf("%v", insertResult.InsertedID),
+			ClusterID: fmt.Sprintf("%v", id.Hex()),
 		}))
 	}
 }

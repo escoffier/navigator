@@ -116,8 +116,9 @@ func RespError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc)
 	}
 
 	if resp.EnvelopeError != "" {
-		logging.GetLogger().Error().Str("message", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
+		logging.GetLogger().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
 		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+		return
 	}
 
 	respond(w, code, resp)
@@ -134,8 +135,9 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 	}
 
 	if resp.EnvelopeError != "" {
-		logging.GetLogger().Error().Str("message", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
+		logging.GetLogger().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
 		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+		return
 	}
 
 	respond(w, code, resp)
