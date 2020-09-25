@@ -32,7 +32,7 @@ const defaultFooterDom = (
     links={[
       {
         key: "navigator",
-        title: "领航容器安全",
+        title: "探真科技网络公司",
         href: "https://tensorsecurity.io",
         blankTarget: true
       }

@@ -16,7 +16,7 @@ const UserLayout = props => {
   const mylinks = [
     {
       key: "container-log",
-      title: "领航容器安全",
+      title: "探真科技网络公司",
       href: "http://tensorsecurity.io",
       blankTarget: true
     }
@@ -53,7 +53,7 @@ const UserLayout = props => {
             <div className={styles.header}>
               <Link to="/">
                 <img alt="logo" className={styles.logo} src={logo} />
-                <span className={styles.title}>领航容器安全</span>
+                <span className={styles.title}>探真科技网络公司</span>
               </Link>
             </div>
             <div className={styles.desc}></div>
