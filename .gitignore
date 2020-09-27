@@ -3,3 +3,8 @@ node_modules/
 *egg-info/
 *docs.go
 charts/
+
+
+## Frontend related ignores
+
+cmd/console/frontend/src/pages/.umi
