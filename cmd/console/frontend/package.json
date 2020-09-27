@@ -19,6 +19,7 @@
     "lint:prettier": "check-prettier lint",
     "lint:style": "stylelint --fix \"src/**/*.less\" --syntax less",
     "prettier": "prettier -c --write \"**/*\"",
+    "prettier:all": "prettier --write \"**/*\"",
     "start": "umi dev",
     "start:no-mock": "cross-env MOCK=none umi dev",
     "test": "umi test",
@@ -26,11 +27,6 @@
     "test:component": "umi test ./src/components",
     "ui": "umi ui",
     "react-vis-force": "0.3.1"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "npm run lint-staged"
-    }
   },
   "lint-staged": {
     "**/*.less": "stylelint --syntax less",
