@@ -3,6 +3,21 @@ def moduleToDeploy = "${env.MODULE}"
 
 podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
     node (label) {
+        wrap([$class: 'BuildUser']) {
+        script {
+            BUILD_USER_ID = "${env.BUILD_USER_ID}"
+            BUILD_USER = "${env.BUILD_USER}"
+            BUILD_USER_EMAIL = "${env.BUILD_USER_EMAIL}"
+            }
+		}
+        addShortText(
+        text: "$moduleToDeploy",
+        color: "red"
+        )
+        addShortText(
+        text: "$BUILD_USER_ID",
+        color: "green"
+        )
         stage('git clone'){
             container('golang') {
             git credentialsId: 'ab33d484-a7a7-4ba8-acfe-5c3d5e695f64', url: 'https://gitlab.com/tensorsecurity-rd/tensornavigator.git'
