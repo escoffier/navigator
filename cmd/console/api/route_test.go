@@ -3,15 +3,24 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func setupTestServer(t *testing.T) *httptest.Server {
+	r := chi.NewRouter()
+	SetupRoutes(context.TODO(), r, 500*time.Millisecond, nil, nil, "")
+	return httptest.NewServer(r)
+}
 
 func TestAPIUnauthenticated(t *testing.T) {
 	ts := setupTestServer(t)

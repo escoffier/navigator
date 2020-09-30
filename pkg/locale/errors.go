@@ -7,8 +7,6 @@ type LocaleErrCode int
 const (
 	AnError LocaleErrCode = iota
 	MongoError
-	ElasticsearchError
-	EtcdError
 	KubernetesError
 	HTTPResponseError
 	ConfigurationError
@@ -29,14 +27,6 @@ var translationTable = map[LocaleErrCode]map[string]string{
 	MongoError: map[string]string{
 		"en": "Database error has occured (MongoDB)",
 		"zh": "Database error has occured (MongoDB) but in 中文",
-	},
-	ElasticsearchError: map[string]string{
-		"en": "Database error has occured (Elasticsearch)",
-		"zh": "Database error has occured (Elasticsearch) but in 中文",
-	},
-	EtcdError: map[string]string{
-		"en": "Database error has occured (Etcd)",
-		"zh": "Database error has occured (Etcd) but in 中文",
 	},
 	KubernetesError: map[string]string{
 		"en": "Kubernetes error has occured",

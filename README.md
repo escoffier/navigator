@@ -248,10 +248,10 @@ Pushing to our docker registry:
 docker login registry.t-appagile.com/
 
 # Retag images from local to remote registry
-REPOPREFIX=registry.t-appagile.com/tensorsecurity/ REPOPREFIXOLD=localhost:32000/ make retag
+REPOPREFIX=registry.t-appagile.com/tensorsecurity REPOPREFIXOLD=localhost:32000 make retag
 
 # Push retagged images
-REPOPREFIX=registry.t-appagile.com/tensorsecurity/ make pushimages
+REPOPREFIX=registry.t-appagile.com/tensorsecurity make pushimages
 ```
 
 ## Deploy

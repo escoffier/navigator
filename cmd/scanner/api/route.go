@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -31,7 +30,6 @@ func init() {
 func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
-	etcdClient *clientv3.Client,
 	redclair *component.RedClair,
 	mongodb *mongo.Database,
 ) {
@@ -40,7 +38,7 @@ func SetupRoutes(
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
-	api := newAPI(ctx, etcdClient, redclair, mongodb)
+	api := newAPI(ctx, redclair, mongodb)
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
 			r.Route("/scan", api.scan())

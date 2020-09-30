@@ -165,5 +165,6 @@ func (api *api) logout() http.HandlerFunc {
 // @Success 200 {object} api.User "Current user"
 // @Router /api/v1/rest-auth/user [get]
 func user(w http.ResponseWriter, r *http.Request) {
-	response.Ok(w, response.WithItem(r.Context().Value(userKey).(*User)))
+	u := r.Context().Value(userKey).(*User)
+	response.Ok(w, response.WithItem(*u))
 }

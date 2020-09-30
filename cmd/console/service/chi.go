@@ -5,10 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	elasticsearch "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
@@ -16,8 +14,6 @@ import (
 
 func setupChiRouter(
 	ctx context.Context,
-	esClient *elasticsearch.Client,
-	etcdClient *clientv3.Client,
 	mongodb *mongo.Database,
 	scapper *api.Scapper,
 	scannerURL string,
@@ -35,7 +31,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, 24*time.Hour, esClient, etcdClient, mongodb, scapper, scannerURL)
+	api.SetupRoutes(ctx, r, 24*time.Hour, mongodb, scapper, scannerURL)
 
 	return r
 }

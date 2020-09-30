@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	elasticsearch "github.com/elastic/go-elasticsearch/v7"
-	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -30,8 +28,6 @@ func init() {
 type Console struct {
 	lifecycle.Service
 	server      *http.Server
-	es          *elasticsearch.Client
-	etcd        *clientv3.Client
 	mongoClient *mongo.Client
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -40,34 +36,10 @@ type Console struct {
 // NewConsole is to create a new Console struct.
 func NewConsole(
 	httpOpts *flag.HTTPOpts,
-	esOpts *flag.ElasticSearchOpts,
-	etcdOpts *flag.EtcdOpts,
 	mongoOpts *flag.MongoOpts,
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
 ) (*Console, error) {
-	// elasticsearch client
-	es, err := elasticsearch.NewClient(elasticsearch.Config{
-		Addresses: esOpts.URLs,
-		Username:  esOpts.Username,
-		Password:  esOpts.Password,
-		APIKey:    esOpts.APIKey,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// etcd client
-	etcd, err := clientv3.New(clientv3.Config{
-		Endpoints:   etcdOpts.Endpoints,
-		DialTimeout: 5 * time.Second,
-		Username:    etcdOpts.Username,
-		Password:    etcdOpts.Password,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	// mongo client
 	// TODO: authSource database should be a separate argument.
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
@@ -95,16 +67,12 @@ func NewConsole(
 			Addr: httpOpts.HTTPListen,
 			Handler: setupChiRouter(
 				mainCtx,
-				es,
-				etcd,
 				mongodb,
 				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 			),
 		},
-		es:          es,
-		etcd:        etcd,
 		mongoClient: mongoClient,
 		ctx:         mainCtx,
 		cancel:      mainCancel,
@@ -124,22 +92,6 @@ func (c *Console) Run() func() {
 				log.Error().
 					Err(err).
 					Msg("error in http.Server.ListenAndServe")
-			}
-		}
-	}()
-
-	// etcd watch test example
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		watchChan := c.etcd.Watch(c.ctx, "/scanner/heartbeat")
-		for watchResp := range watchChan {
-			for _, event := range watchResp.Events {
-				log.Info().
-					Str("event_type", event.Type.String()).
-					Str("event_kv_key", string(event.Kv.Key)).
-					Str("event_kv_value", string(event.Kv.Value)).
-					Msg("scanner heartbeat")
 			}
 		}
 	}()

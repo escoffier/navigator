@@ -33,18 +33,6 @@ var rootCmd = &cobra.Command{
 			Str("listen", httpOpts.HTTPListen).
 			Msg("HTTP options")
 
-		esOpts := flag.GetElasticSearchOpts(cmd)
-		logging.GetLogger().Info().
-			Strs("urls", esOpts.URLs).
-			Str("username", esOpts.Username).
-			Msg("ElasticSearch options")
-
-		etcdOpts := flag.GetEtcdOpts(cmd)
-		logging.GetLogger().Info().
-			Strs("endpoints", etcdOpts.Endpoints).
-			Str("username", etcdOpts.Username).
-			Msg("etcd options")
-
 		mongoOpts := flag.GetMongoOpts(cmd)
 		logging.GetLogger().Info().
 			Str("endpoint", mongoOpts.Endpoint).
@@ -62,7 +50,7 @@ var rootCmd = &cobra.Command{
 			Str("scap-job-repo", scapOpts.HostPort).
 			Msg("Scap options")
 
-		console, err := service.NewConsole(httpOpts, esOpts, etcdOpts, mongoOpts, scannerOpts, scapOpts)
+		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts)
 		if err != nil {
 			return err
 		}
@@ -88,8 +76,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 
 	flag.AddHTTPFlags(rootCmd)
-	flag.AddElasticSearchFlags(rootCmd)
-	flag.AddEtcdFlags(rootCmd)
 	flag.AddMongoFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)

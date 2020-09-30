@@ -6,9 +6,6 @@ import (
 
 func (api *api) config() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/agent/{agentID}", api.getAgent())
-		r.Get("/agents", api.listAgents())
-		r.Post("/agents", api.createAgent())
 		r.Get("/cluster", api.getCluster())
 		r.Post("/cluster", api.updateCluster())
 		r.Delete("/cluster", api.delCluster())
