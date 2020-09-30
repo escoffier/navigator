@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -49,6 +48,13 @@ type JobEntry struct {
 	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
 	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
+}
+
+type Check struct {
+	CheckType string
+	CheckUUID uuid.UUID
+	ClusterID string
+	Namespace string
 }
 
 // @Summary Get scap reports
@@ -164,8 +170,8 @@ func (api *api) scapCheck() http.HandlerFunc {
 			logging.GetLogger().Info().Msg("checkType param missing")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
 			return
-
 		}
+
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
 			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
@@ -187,20 +193,28 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		// read job yaml for this check type
-		jobObj, err := api.readJobObjFromYamlFile(checkType)
+		// generate check uuid that will identify results of this run in database
+		checkUUID := uuid.NewV4()
+
+		// get namespace of this pod - it will be used for scheduled jobs/pods
+		namespace := os.Getenv("MY_POD_NAMESPACE")
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		check := Check{
+			CheckType: checkType,
+			CheckUUID: checkUUID,
+			ClusterID: clusterObjectID.Hex(),
+			Namespace: namespace,
+		}
+
+		jobObj, err := api.prepareJobObject(&check)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
+			logging.GetLogger().Error().Err(err).Msg("Failed to prepare job object")
 			apperror.RespondWithSuggested(w, r, err)
 			return
 		}
-
-		// Subsitute job's image repository in job.yaml for the one configured for Console.
-		currImage := jobObj.Spec.Template.Spec.Containers[0].Image
-		splitted := strings.Split(currImage, "/")
-		currImgname := splitted[1]
-		newImage := fmt.Sprintf("%s/%s", api.scapper.DockerRepoHostPort, currImgname)
-		jobObj.Spec.Template.Spec.Containers[0].Image = newImage
 
 		// find nodes to schedule check jobs on
 		nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
@@ -210,52 +224,29 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		// generate check uuid that will identify results of this run in database
-		checkUUID := uuid.NewV4()
-		checkEnv := corev1.EnvVar{
-			Name:  "CHECK_ID",
-			Value: checkUUID.String(),
-		}
-		jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, checkEnv)
-
-		// get namespace of this pod - it will be used for scheduled jobs/pods
-		namespace := os.Getenv("MY_POD_NAMESPACE")
-		if namespace == "" {
-			namespace = "default"
-		}
-
 		// schedule jobs
 		logging.GetLogger().Info().
-			Str("check-type", checkType).
-			Str("check-uuid", checkUUID.String()).
-			Str("namespace", namespace).
+			Str("check-type", check.CheckType).
+			Str("check-cluster", check.ClusterID).
+			Str("check-uuid", check.CheckUUID.String()).
+			Str("namespace", check.Namespace).
 			Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
 			Msg("Scheduling SCAP check jobs")
 
-		numScheduledJobs := 0
-
 		for _, targetNode := range nodes.Items {
-			// TODO: will it scale?
-			// What about context timeout? Launching jobs for thousands of nodes may take a while.
-
 			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 			// or do we not care about this since this is a rare operation?
 
-			err := api.addInitialEntry(ctx, checkType, checkUUID, targetNode.Name, clusterObjectID.Hex())
+			err := api.mongoAddJobStatusInProgress(ctx, &check, targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to add job to mongo")
 				apperror.RespondWithSuggested(w, r, err)
 				return
 			}
-
-			err = api.scheduleOneJob(kubeClient, namespace, jobObj.DeepCopy(), checkUUID, targetNode.Name)
-			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
-				apperror.RespondWithSuggested(w, r, err)
-				return
-			}
-			numScheduledJobs++
 		}
+
+		asyncCtx, _ := api.getTimeoutCtx(time.Minute * 10)
+		go api.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes)
 
 		type resp struct {
 			CheckUUID string `json:"checkUUID"`
@@ -264,9 +255,55 @@ func (api *api) scapCheck() http.HandlerFunc {
 		response.Ok(w, response.WithItem(resp{
 			CheckUUID: checkUUID.String(),
 		}))
-
-		go api.startManagedJobRoutine(kubeClient, namespace, checkUUID, numScheduledJobs, checkType)
 	}
+}
+
+func (api *api) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
+
+	scheduledNodesCh := make(chan string, len(nodes.Items))
+	go api.asyncJobStatusUpdater(ctx, kubeClient, check, scheduledNodesCh, len(nodes.Items))
+
+	for _, targetNode := range nodes.Items {
+		select {
+		case <-ctx.Done():
+			logging.GetLogger().Error().Err(ctx.Err()).Msg("Ctx timeout while scheduling jobs")
+			close(scheduledNodesCh)
+			return
+		default:
+			// TODO: will it scale?
+			// Note: I think it's safe to run this as goroutine for each job,
+			// but I don't know if we should spam kube api this way...
+			// I know kubeClient has some built in rate limiting so maybe it's ok?
+			// go func() {
+			err := api.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), targetNode.Name)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
+				api.mongoJobStatusToFailed(ctx, check, targetNode.Name, fmt.Sprintf("Failed to schedule job: %s", err), time.Now().Unix())
+			} else {
+				scheduledNodesCh <- targetNode.Name
+			}
+			// }()
+		}
+	}
+	close(scheduledNodesCh)
+
+}
+
+func (api *api) prepareJobObject(check *Check) (*batchv1.Job, error) {
+	jobObj, err := api.readJobObjFromYamlFile(check.CheckType)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
+		return nil, err
+	}
+
+	// Subsitute job's image repository in job.yaml for the one configured for Console.
+	currImage := jobObj.Spec.Template.Spec.Containers[0].Image
+	splitted := strings.Split(currImage, "/")
+	currImgname := splitted[1]
+	newImage := fmt.Sprintf("%s/%s", api.scapper.DockerRepoHostPort, currImgname)
+	jobObj.Spec.Template.Spec.Containers[0].Image = newImage
+
+	return jobObj, nil
 }
 
 func (api *api) getMongoCollectionForCheckType(checkType string) string {
@@ -308,14 +345,20 @@ func (api *api) readJobObjFromYamlFile(checkType string) (*batchv1.Job, error) {
 	return jobObj, nil
 }
 
-func (api *api) scheduleOneJob(kubeClient *kubernetes.Clientset, namespace string, jobObj *batchv1.Job, checkUUID uuid.UUID, targetNodeName string) error {
+func (api *api) scheduleOneJob(kubeClient *kubernetes.Clientset, check *Check, jobObj *batchv1.Job, targetNodeName string) error {
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
 		jobObj.Labels = make(map[string]string)
 	}
-	jobObj.Labels["CHECK_ID"] = checkUUID.String()
-	jobObj.Name = fmt.Sprintf("%s-%s", checkUUID.String()[:8], jobObj.Name)
+	jobObj.Labels["CHECK_ID"] = check.CheckUUID.String()
+	jobObj.Name = fmt.Sprintf("%s-%s", check.CheckUUID.String()[:8], jobObj.Name)
+
+	checkEnv := corev1.EnvVar{
+		Name:  "CHECK_ID",
+		Value: check.CheckUUID.String(),
+	}
+	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, checkEnv)
 
 	nodeNameEnv := corev1.EnvVar{
 		Name:  "NODE_NAME",
@@ -334,7 +377,7 @@ func (api *api) scheduleOneJob(kubeClient *kubernetes.Clientset, namespace strin
 
 	jobObj.Name = fmt.Sprintf("%s-%s", jobObj.Name, targetNodeName)
 
-	jobsClient := kubeClient.BatchV1().Jobs(namespace)
+	jobsClient := kubeClient.BatchV1().Jobs(check.Namespace)
 	res, err := jobsClient.Create(jobObj)
 	// HACK
 	if k8serrors.IsAlreadyExists(err) {
@@ -360,19 +403,19 @@ func (api *api) scheduleOneJob(kubeClient *kubernetes.Clientset, namespace strin
 	return nil
 }
 
-func (api *api) addInitialEntry(ctx context.Context, checkType string, checkUUID uuid.UUID, targetNodeName, clusterId string) error {
+func (api *api) mongoAddJobStatusInProgress(ctx context.Context, check *Check, targetNodeName string) error {
 	now := time.Now()
 	secs := now.Unix()
 	entry := JobEntry{
 		ID:        primitive.NewObjectIDFromTimestamp(now),
-		CheckID:   checkUUID.String(),
+		CheckID:   check.CheckUUID.String(),
 		NodeName:  targetNodeName,
-		ClusterID: clusterId,
+		ClusterID: check.ClusterID,
 		Status:    "inprogress",
 		CreatedAt: secs,
 	}
 
-	_, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(checkType)).InsertOne(ctx, entry)
+	_, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
 	if err != nil {
 		return apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %s", err))
 	}
@@ -380,10 +423,24 @@ func (api *api) addInitialEntry(ctx context.Context, checkType string, checkUUID
 	return nil
 }
 
-func (api *api) startManagedJobRoutine(kubeClient *kubernetes.Clientset, namespace string, checkUUID uuid.UUID,
-	numScheduledJobs int, checkType string) {
-	var waitingForJobCompletionCount int64
-	waitingForJobCompletionCount = int64(numScheduledJobs)
+func (api *api) mongoJobStatusToFailed(ctx context.Context, check *Check, nodeName, msg string, timeEpochSecs int64) {
+	filter := bson.M{"checkId": check.CheckUUID.String(), "nodeName": nodeName}
+	// TODO: is there better way to do this using struct annotations?
+	update := bson.M{"$set": bson.M{
+		"status":     "failed",
+		"finishedAt": timeEpochSecs,
+		"message":    msg,
+	}}
+	_, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
+	if err != nil {
+		logging.GetLogger().Error().
+			Str("checkId", check.CheckUUID.String()).
+			Str("nodeName", nodeName).
+			Msg("Failed to update mongo entry status to failed")
+	}
+}
+
+func (api *api) asyncJobStatusUpdater(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, scheduledNodesCh chan string, maxNumJobs int) {
 
 	// TODO: if console restarts while job is running, that job's events won't be watched.
 	// TODO: rethink. Maybe we should have a listener thread all the time and utilize AddFunc
@@ -391,8 +448,14 @@ func (api *api) startManagedJobRoutine(kubeClient *kubernetes.Clientset, namespa
 	// I think this design is kinda fragile... but I don't have any quick ideas.
 	// A better design would be to create a k8s custom resource with a custom controller to manage it.
 
-	kubeInformerFactory := informers.NewFilteredSharedInformerFactory(kubeClient, time.Second*30, namespace, func(listOpts *v1.ListOptions) {
-		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"CHECK_ID": checkUUID.String()}}
+	finishedNodesCh := make(chan string, maxNumJobs)
+
+	kubeInformerFactory := informers.NewFilteredSharedInformerFactory(kubeClient, time.Second*30, check.Namespace, func(listOpts *v1.ListOptions) {
+		labelSelector := metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"CHECK_ID": check.CheckUUID.String(),
+			},
+		}
 		listOpts.LabelSelector = labels.Set(labelSelector.MatchLabels).String()
 	})
 	jobInformer := kubeInformerFactory.Batch().V1().Jobs().Informer()
@@ -409,77 +472,32 @@ func (api *api) startManagedJobRoutine(kubeClient *kubernetes.Clientset, namespa
 				return
 			}
 
+			// Finished successfuly?
 			if job.Status.Succeeded > 0 {
-				atomic.AddInt64(&waitingForJobCompletionCount, -1)
 				logging.GetLogger().Info().
 					Str("job-name", fmt.Sprintf("%s", job.Name)).
-					Int64("jobs-left", atomic.LoadInt64(&waitingForJobCompletionCount)).
 					Msg("Managed job succeeded")
 
-				// not sure if  we should delete... we should allow for user to read logs probably.
-				// err := api.deleteJobAndPods(kubeClient, namespace, job)
-				// if err != nil {
-				// 	logging.GetLogger().Error().
-				// 		Str("job-name", fmt.Sprintf("%s", job.Name)).
-				// 		Err(err).
-				// 		Msg("Failed to clean up job in k8s")
-				// }
+				thisNodeName := job.Spec.Template.Spec.NodeName
+				finishedNodesCh <- thisNodeName
 				return
 			}
 
-			var failedCondition *batchv1.JobCondition
-			failedCondition = nil
-			for idx, condition := range job.Status.Conditions {
-				if condition.Type == batchv1.JobFailed {
-					// according to documentation of JobStatus,
-					// "When a job fails, one of the conditions will have type == "Failed"."
-					failedCondition = &job.Status.Conditions[idx]
-				}
-			}
-			if failedCondition != nil {
-				atomic.AddInt64(&waitingForJobCompletionCount, -1)
+			// Finished and failed?
+			if isFailed, failedCondition := api.isJobFailed(job); isFailed {
 				logging.GetLogger().Info().
 					Str("job-name", fmt.Sprintf("%s", job.Name)).
-					Int64("jobs-left", atomic.LoadInt64(&waitingForJobCompletionCount)).
-					Msg("Managed job failed - updating it in mongo")
+					Msg("Managed job failed")
+
+				thisNodeName := job.Spec.Template.Spec.NodeName
+				finishedNodesCh <- thisNodeName
 
 				transTime := failedCondition.LastTransitionTime
 				msg := fmt.Sprintf("Message: %s; Reason: %s", failedCondition.Message, failedCondition.Reason)
 
-				mongoCtx, cancel := api.getTimeoutCtx(time.Second * 10)
-				defer cancel()
-
-				thisNodeName := job.Spec.Template.Spec.NodeName
-				// thisNodeName := ""
-				// for _, env := range job.Spec.Template.Spec.Containers[0].Env {
-				// 	if env.Name == "NODE_NAME" {
-				// 		thisNodeName = env.Value
-				// 	}
-				// }
-
-				filter := bson.M{"checkId": checkUUID.String(), "nodeName": thisNodeName}
-				// TODO: is there better way to do this using struct annotations?
-				update := bson.M{"$set": bson.M{
-					"status":     "failed",
-					"finishedAt": transTime.Unix(),
-					"message":    msg,
-				}}
-				_, err := api.mongodb.Collection(api.getMongoCollectionForCheckType(checkType)).UpdateOne(mongoCtx, filter, update)
-				if err != nil {
-					logging.GetLogger().Error().
-						Str("checkId", checkUUID.String()).
-						Str("nodeName", thisNodeName).
-						Msg("Failed to update mongo entry status to failed")
-				}
-
-				// not sure if  we should delete... we should allow for user to read logs probably.
-				// err = api.deleteJobAndPods(kubeClient, namespace, job)
-				// if err != nil {
-				// 	logging.GetLogger().Error().
-				// 		Str("job-name", fmt.Sprintf("%s", job.Name)).
-				// 		Err(err).
-				// 		Msg("Failed to clean up job in k8s")
-				// }
+				mongoCtx, mongoCtxCancel := api.getTimeoutCtx(time.Second * 10)
+				api.mongoJobStatusToFailed(mongoCtx, check, thisNodeName, msg, transTime.Unix())
+				mongoCtxCancel()
 				return
 			}
 
@@ -492,40 +510,90 @@ func (api *api) startManagedJobRoutine(kubeClient *kubernetes.Clientset, namespa
 	defer close(stop)
 
 	logging.GetLogger().Info().
-		Str("checkId", checkUUID.String()).
+		Str("checkId", check.CheckUUID.String()).
 		Msg("Starting to watch for job events")
 	kubeInformerFactory.Start(stop)
 
-	startOfWait := time.Now()
-
-	// TODO: this can be configurable. It's mostly for garbage collect in case that operator manually removes pods/jobs
-	timeout := time.Hour * 1
-
-	for atomic.LoadInt64(&waitingForJobCompletionCount) > 0 && time.Since(startOfWait) < timeout {
-		time.Sleep(time.Second * 1)
+	// get a list of nodes on which we scheduled a job
+	runningNodeNames := []string{}
+	for scheduledNodeName := range scheduledNodesCh {
+		runningNodeNames = append(runningNodeNames, scheduledNodeName)
 	}
 
-	logging.GetLogger().Info().
-		Str("checkId", checkUUID.String()).
-		Msg("All managed jobs accounted for, done watching for events")
+	for {
+		select {
+		case <-ctx.Done():
+			logging.GetLogger().Error().Err(ctx.Err()).Msg("Ctx timeout while waiting for jobs to finish, will mark them as timed out")
+			// mark remaining runningJobs as timed out.
+			now := time.Now().Unix()
+			for _, runningNodeName := range runningNodeNames {
+				mongoCtx, mongoCtxCancel := api.getTimeoutCtx(time.Second * 10)
+				api.mongoJobStatusToFailed(mongoCtx, check, runningNodeName, fmt.Sprintf("Timed out: %s", ctx.Err()), now)
+				mongoCtxCancel()
+			}
+			return
+
+		case finishedJobName := <-finishedNodesCh:
+			runningNodeNames = removeElement(finishedJobName, runningNodeNames)
+			logging.GetLogger().Info().Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job finished")
+
+			if len(runningNodeNames) == 0 {
+				logging.GetLogger().Info().
+					Str("checkId", check.CheckUUID.String()).
+					Msg("All managed jobs accounted for, done watching for events")
+				break
+			}
+		}
+	}
+
 }
 
-func (api *api) deleteJobAndPods(kubeClient *kubernetes.Clientset, namespace string, job *batchv1.Job) error {
-	err := kubeClient.BatchV1().Jobs(namespace).Delete(job.Name, &metav1.DeleteOptions{})
-	if err != nil {
-		logging.GetLogger().Error().
-			Str("job-name", fmt.Sprintf("%s", job.Name)).
-			Err(err).
-			Msg("Failed to delete job in k8s")
-		return fmt.Errorf("Failed to delete job: %s", err)
+func (api *api) isJobFailed(job *batchv1.Job) (bool, *batchv1.JobCondition) {
+	var failedCondition *batchv1.JobCondition
+	failedCondition = nil
+	for idx, condition := range job.Status.Conditions {
+		if condition.Type == batchv1.JobFailed {
+			// according to documentation of JobStatus,
+			// "When a job fails, one of the conditions will have type == "Failed"."
+			failedCondition = &job.Status.Conditions[idx]
+		}
 	}
+	if failedCondition != nil {
+		return true, failedCondition
+	} else {
+		return false, nil
+	}
+}
 
-	listOpts := metav1.ListOptions{
-		LabelSelector: labels.Set(job.Spec.Selector.MatchLabels).String(),
+// func (api *api) deleteJobAndPods(kubeClient *kubernetes.Clientset, namespace string, job *batchv1.Job) error {
+// 	err := kubeClient.BatchV1().Jobs(namespace).Delete(job.Name, &metav1.DeleteOptions{})
+// 	if err != nil {
+// 		logging.GetLogger().Error().
+// 			Str("job-name", fmt.Sprintf("%s", job.Name)).
+// 			Err(err).
+// 			Msg("Failed to delete job in k8s")
+// 		return fmt.Errorf("Failed to delete job: %s", err)
+// 	}
+
+// 	listOpts := metav1.ListOptions{
+// 		LabelSelector: labels.Set(job.Spec.Selector.MatchLabels).String(),
+// 	}
+// 	err = kubeClient.CoreV1().Pods(namespace).DeleteCollection(&metav1.DeleteOptions{}, listOpts)
+// 	if err != nil {
+// 		return fmt.Errorf("Failed to job's pods: %s", err)
+// 	}
+// 	return nil
+// }
+
+func removeAtIdx(s []string, index int) []string {
+	return append(s[:index], s[index+1:]...)
+}
+
+func removeElement(what string, from []string) []string {
+	for idx, el := range from {
+		if el == what {
+			return removeAtIdx(from, idx)
+		}
 	}
-	err = kubeClient.CoreV1().Pods(namespace).DeleteCollection(&metav1.DeleteOptions{}, listOpts)
-	if err != nil {
-		return fmt.Errorf("Failed to job's pods: %s", err)
-	}
-	return nil
+	return from
 }
