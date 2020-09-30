@@ -5,12 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	elasticsearch "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-chi/jwtauth"
 	"github.com/gorilla/securecookie"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/patrickmn/go-cache"
-	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -18,8 +16,6 @@ type api struct {
 	ctx        context.Context
 	userCache  *cache.Cache
 	tokenAuth  *jwtauth.JWTAuth
-	esClient   *elasticsearch.Client
-	etcdClient *clientv3.Client
 	mongodb    *mongo.Database
 	scapper    *Scapper
 	scannerURL string
@@ -28,8 +24,6 @@ type api struct {
 func newAPI(
 	ctx context.Context,
 	sessionExpiration time.Duration,
-	esClient *elasticsearch.Client,
-	etcdClient *clientv3.Client,
 	mongodb *mongo.Database,
 	scapper *Scapper,
 	scannerURL string,
@@ -38,8 +32,6 @@ func newAPI(
 		ctx:        ctx,
 		userCache:  cache.New(sessionExpiration, time.Minute),
 		tokenAuth:  jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
-		esClient:   esClient,
-		etcdClient: etcdClient,
 		mongodb:    mongodb,
 		scapper:    scapper,
 		scannerURL: scannerURL,

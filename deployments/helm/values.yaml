@@ -2,14 +2,6 @@ global:
   # Not sure if it's good practice to pas our docker repo address to our subcharts like this.
   ourDockerRepo: 192.168.1.203:5000
 
-imageCredentials:
-  registry: registry.gitlab.com
-  username: gitlab-ci-token
-  password: H5d1HXjeRBf1PoBXU2J3
-
-alerter:
-  enabled: true
-
 scanner:
   enabled: true
 
@@ -53,54 +45,6 @@ postgresql:
   metrics:
     enabled: false
 
-elasticsearch:
-  enabled: true
-  replicas: 1
-  extraInitContainers: |
-    - name: chown
-      securityContext:
-        runAsUser: 0
-        privileged: true
-      image: "{{ .Values.image }}:{{ .Values.imageTag }}"
-      command:
-        - chown
-        - -R
-        - 1000:1000
-        - /usr/share/elasticsearch/data
-      {{- if .Values.persistence.enabled }}
-      volumeMounts:
-        - name: "{{ template "uname" . }}"
-          mountPath: /usr/share/elasticsearch/data
-      {{- end }}
-  # Use default values for persistence, mem and cpu of different elasticsearch chart
-  # (https://hub.helm.sh/charts/bitnami/elasticsearch)
-  volumeClaimTemplate:
-    accessModes: [ "ReadWriteOnce" ]
-    resources:
-      requests:
-        storage: 8Gi
-  resources:
-    requests:
-      cpu: "25m"
-      memory: "256Mi"
-    limits:
-      cpu: "25m"
-      memory: "256Mi"
-  
-
-etcd-operator:
-  enabled: true
-  customResources:
-    createEtcdClusterCRD: true
-  etcdCluster:
-    size: 3
-    version: 3.4.1
-    image:
-      tag: v3.4.1
-
-kibana:
-  enabled: true
-
 mongodb:
   enabled: true
   image:
@@ -113,10 +57,3 @@ mongodb:
   # NOTE: we need to create elasticalert database as well.
   volumePermissions:
     enabled: true
-
-mongo-express:
-  enabled: true
-  image:
-    tag: 0.49.0
-  mongodbUsername: root
-  mongodbPassword: redstoneMongo123

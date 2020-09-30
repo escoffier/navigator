@@ -12,8 +12,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v0.7.3-0.20190813234819-fade624f1696
-	github.com/docker/go-connections v0.4.0
-	github.com/elastic/go-elasticsearch/v7 v7.4.1
+	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-chi/jwtauth v4.0.3+incompatible
@@ -49,7 +48,7 @@ require (
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.3
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200904194848-62affa334b73
+	golang.org/x/net v0.0.0-20200904194848-62affa334b73 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/tools v0.0.0-20200904185747-39188db58858 // indirect
 	google.golang.org/appengine v1.5.0 // indirect

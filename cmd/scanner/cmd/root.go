@@ -34,12 +34,6 @@ var rootCmd = &cobra.Command{
 			Str("listen", httpOpts.HTTPListen).
 			Msg("HTTP options")
 
-		etcdOpts := flag.GetEtcdOpts(cmd)
-		logging.GetLogger().Info().
-			Strs("endpoints", etcdOpts.Endpoints).
-			Str("username", etcdOpts.Username).
-			Msg("etcd options")
-
 		mongoOpts := flag.GetMongoOpts(cmd)
 		logging.GetLogger().Info().
 			Str("endpoint", mongoOpts.Endpoint).
@@ -58,17 +52,12 @@ var rootCmd = &cobra.Command{
 			Str("clair-secretpattern", clairOpts.SecretPattern).
 			Msg("Clair options")
 
-		agentOpts := flag.GetAgentOpts(cmd)
-		logging.GetLogger().Info().
-			Str("agentID", agentOpts.AgentID).
-			Msg("Agent options")
-
 		logging.GetLogger().Info().
 			Str("version", Version).
 			Msg("starting Vegeta Scanner")
 
 		scanner, err := service.NewScanner(
-			agentOpts.AgentID, httpOpts, etcdOpts, mongoOpts, clairOpts)
+			httpOpts, mongoOpts, clairOpts)
 		if err != nil {
 			return err
 		}
@@ -93,8 +82,6 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 	flag.AddHTTPFlags(rootCmd)
-	flag.AddEtcdFlags(rootCmd)
 	flag.AddMongoFlags(rootCmd)
-	flag.AddAgentFlags(rootCmd)
 	flag.AddClairFlags(rootCmd)
 }

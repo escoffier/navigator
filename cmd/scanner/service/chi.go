@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
@@ -15,7 +14,6 @@ import (
 
 func setupChiRouter(
 	ctx context.Context,
-	etcdClient *clientv3.Client,
 	redclair *component.RedClair,
 	mongodb *mongo.Database,
 	httpLoggerDisabled bool,
@@ -31,7 +29,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, etcdClient, redclair, mongodb)
+	api.SetupRoutes(ctx, r, redclair, mongodb)
 
 	return r
 }

@@ -1,4 +1,0 @@
-host: "localhost"
-user: "redstone"
-password: "redstoneMongo123"
-db: "default"

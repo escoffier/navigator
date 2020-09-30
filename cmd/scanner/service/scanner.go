@@ -13,7 +13,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -26,14 +25,9 @@ func init() {
 	log = logging.GetLogger()
 }
 
-const (
-	heartbeatEtcdKey = "/agents/%s/pods/scanner/heartbeat"
-)
-
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
-	agentID     string
 	server      *http.Server
 	etcd        *clientv3.Client
 	redclair    *component.RedClair
@@ -44,23 +38,10 @@ type Scanner struct {
 
 // NewScanner is to create a new Scanner struct.
 func NewScanner(
-	agentID string,
 	httpOpts *flag.HTTPOpts,
-	etcdOpts *flag.EtcdOpts,
 	mongoOpts *flag.MongoOpts,
 	clairOpts *flag.ClairOpts,
 ) (*Scanner, error) {
-	// etcd client
-	etcd, err := clientv3.New(clientv3.Config{
-		Endpoints:   etcdOpts.Endpoints,
-		DialTimeout: 5 * time.Second,
-		Username:    etcdOpts.Username,
-		Password:    etcdOpts.Password,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	// mongo client
 	// TODO: authSource database should be a separate argument.
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
@@ -78,12 +59,10 @@ func NewScanner(
 	redclair := component.NewRedClair(mainCtx, clairOpts, mongodb)
 
 	return &Scanner{
-		agentID: agentID,
 		server: &http.Server{
 			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, etcd, redclair, mongodb, httpOpts.HTTPLoggerDisabled),
+			Handler: setupChiRouter(mainCtx, redclair, mongodb, httpOpts.HTTPLoggerDisabled),
 		},
-		etcd:        etcd,
 		redclair:    redclair,
 		mongoClient: mongoClient,
 		ctx:         mainCtx,
@@ -106,13 +85,6 @@ func (s *Scanner) Run() func() {
 					Msg("error in http.Server.ListenAndServe")
 			}
 		}
-	}()
-
-	// etcd heartbeat
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		heartbeat.Update(s.ctx, s.etcd, fmt.Sprintf(heartbeatEtcdKey, s.agentID))
 	}()
 
 	// start clair scanner

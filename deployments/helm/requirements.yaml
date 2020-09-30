@@ -24,32 +24,7 @@ dependencies:
     condition: postgresql.enabled
     repository: "alias:stable"
 
-  - name: elasticsearch
-    version: 7.4.1
-# Note about elastic versions.
-# On 7.3.2 I got: Error: validation failed: unable to recognize "": no matches for kind "StatefulSet" in version "apps/v1beta1"
-# On 7.9.1 and 7.6.2 (didn't test on 7.5.*) I got: Error: render error in "vegeta/charts/elasticsearch/templates/statefulset.yaml": template: vegeta/charts/elasticsearch/templates/statefulset.yaml:186:3: executing "vegeta/charts/elasticsearch/templates/statefulset.yaml" at <tpl .Values.extraInitContainers .>: error calling tpl: Error during tpl function execution for "- name: chown\n  securityContext:\n    runAsUser: 0\n    privileged: true\n  image: \"{{ .Values.image }}:{{ .Values.imageTag }}\"\n  command:\n    - chown\n    - -R\n    - 1000:1000\n    - /usr/share/elasticsearch/data\n  {{- if .Values.persistence.enabled }}\n  volumeMounts:\n    - name: \"{{ template \"uname\" . }}\"\n      mountPath: /usr/share/elasticsearch/data\n  {{- end }}\n": render error in "vegeta/charts/elasticsearch/templates/statefulset.yaml": template: vegeta/charts/elasticsearch/templates/statefulset.yaml:13:25: executing "vegeta/charts/elasticsearch/templates/statefulset.yaml" at <{{template "uname" .}}>: template "uname" not defined
-# Using "binary search" we use 7.4.1.
-    repository: "@elastic"
-    condition: elasticsearch.enabled
-
-  - name: etcd-operator
-    version: 0.10.0
-    repository: "@stable"
-
-  - name: kibana
-    version: 7.4.1
-    repository: "@elastic"
-    condition: kibana.enabled
-
   - name: mongodb
     version: 7.2.10
     repository: "@stable"
     condition: mongodb.enabled
-
-  - name: mongo-express
-    version: 0.1.0
-    repository: "file://./subcharts/mongo-express"
-    condition: mongo-express.enabled
-
-

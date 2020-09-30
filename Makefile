@@ -5,8 +5,8 @@ ifeq ($(UNAME_S),Linux)
 	LDFLAGS = '-extldflags "-static"'
 endif
 
-REPOPREFIX?=localhost:32000/
-REPOPREFIXOLD?=localhost:32000/
+REPOPREFIX?=localhost:32000
+REPOPREFIXOLD?=localhost:32000
 
 .PHONY: help
 help:
@@ -50,9 +50,6 @@ test: generate			## Run golint, staticcheck, and go test for all the sub-directo
 .PHONY: clean
 clean:				## Clean all artifacts
 	@echo "+ $@"
-	$(MAKE) -C alerter clean
-	$(MAKE) -C nodemon/daemon clean
-	$(MAKE) -C nodemon/scanner clean
 	$(MAKE) -C cmd/console/frontend clean
 	rm -fr dist
 
@@ -61,9 +58,9 @@ scap-jobs:
 	cd configs/scap/jobs/kube-bench && \
 		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX) VERSION=latest build-docker 
 	cd configs/scap/jobs/docker-bench-security && \
-		docker build -t $(REPOPREFIX)docker-bench-security:latest .
+		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
 	cd configs/scap/jobs/host-bench && \
-		docker build -t $(REPOPREFIX)host-bench:latest .
+		docker build -t $(REPOPREFIX)/host-bench:latest .
 
 .PHONY: console
 console: generate 		## Build console binary
@@ -73,40 +70,26 @@ console: generate 		## Build console binary
 	go build  -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
-	docker build -t $(REPOPREFIX)vegeta-console:latest -f ./build/console/Dockerfile .
-
-.PHONY: alerter
-alerter:			## Build alerter tarball
-	@echo "+ $@"
-	$(MAKE) -C alerter build
-	docker build -t $(REPOPREFIX)vegeta-alerter:latest -f ./build/alerter/Dockerfile .
-
-.PHONY: daemon
-daemon:				## Build daemon tarball
-	@echo "+ $@"
-	$(MAKE) -C nodemon/daemon build
-	docker build -t $(REPOPREFIX)vegeta-daemon:latest -f ./build/daemon/Dockerfile .
+	docker build -t $(REPOPREFIX)/vegeta-console:latest -f ./build/console/Dockerfile .
 
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
-	go build -v -a \
+	go build -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
-	docker build -t $(REPOPREFIX)vegeta-scanner:latest -f ./build/scanner/Dockerfile .
+	docker build -t $(REPOPREFIX)/vegeta-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: all
-all: scanner frontend scap-jobs console daemon alerter
+all: scanner frontend scap-jobs console
 
 .PHONY: pushimages
 pushimages:
-	docker push $(REPOPREFIX)vegeta-console
-	docker push $(REPOPREFIX)vegeta-scanner
-	docker push $(REPOPREFIX)vegeta-daemon
-	docker push $(REPOPREFIX)vegeta-alerter
-	docker push $(REPOPREFIX)kube-bench
-	docker push $(REPOPREFIX)docker-bench-security
-	docker push $(REPOPREFIX)host-bench:latest
+	docker push $(REPOPREFIX)/vegeta-console:latest
+	docker push $(REPOPREFIX)/vegeta-scanner:latest
+	docker push $(REPOPREFIX)/kube-bench:latest
+	docker push $(REPOPREFIX)/docker-bench-security:latest
+	docker push $(REPOPREFIX)/host-bench:latest
 
 .PHONY: frontend
 frontend:			## Build frontend
@@ -118,13 +101,11 @@ frontend:			## Build frontend
 
 .PHONY: retag
 retag:
-	docker tag $(REPOPREFIXOLD)vegeta-console $(REPOPREFIX)vegeta-console:latest
-	docker tag $(REPOPREFIXOLD)vegeta-scanner $(REPOPREFIX)vegeta-scanner:latest
-	docker tag $(REPOPREFIXOLD)vegeta-daemon $(REPOPREFIX)vegeta-daemon:latest
-	docker tag $(REPOPREFIXOLD)vegeta-alerter $(REPOPREFIX)vegeta-alerter:latest
-	docker tag $(REPOPREFIXOLD)kube-bench $(REPOPREFIX)kube-bench:latest
-	docker tag $(REPOPREFIXOLD)docker-bench-security $(REPOPREFIX)docker-bench-security:latest
-	docker tag $(REPOPREFIXOLD)host-bench $(REPOPREFIX)host-bench:latest
+	docker tag $(REPOPREFIXOLD)/vegeta-console $(REPOPREFIX)/vegeta-console:latest
+	docker tag $(REPOPREFIXOLD)/vegeta-scanner $(REPOPREFIX)/vegeta-scanner:latest
+	docker tag $(REPOPREFIXOLD)/kube-bench $(REPOPREFIX)/kube-bench:latest
+	docker tag $(REPOPREFIXOLD)/docker-bench-security $(REPOPREFIX)/docker-bench-security:latest
+	docker tag $(REPOPREFIXOLD)/host-bench $(REPOPREFIX)/host-bench:latest
 
 
 .PHONY: redeploy

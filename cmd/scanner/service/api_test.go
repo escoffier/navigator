@@ -26,25 +26,8 @@ func setup(t *testing.T) (string, func(t *testing.T)) {
 	httpOpts.HTTPListen = fmt.Sprintf(":%d", port)
 	httpOpts.HTTPLoggerDisabled = true
 
-	// etcd
-	// var etcdClient *clientv3.Client
-	// var etcdTeardown func() error
-	// if etcdEnabled {
-	// 	var etcdPort int
-	// 	var err error
-	// 	etcdPort, etcdTeardown, err = docker.RunEtcd()
-	// 	require.NoError(t, err)
-
-	// 	etcdClient, err = clientv3.New(clientv3.Config{
-	// 		Endpoints: []string{fmt.Sprintf("http://localhost:%d", etcdPort)},
-	// 	})
-	// 	require.NoError(t, err)
-	// }
-
 	scanner, err := NewScanner(
-		"agentID",
 		httpOpts,
-		flag.NewDefaultEtcdOpts(),
 		flag.NewDefaultMongoOpts(),
 		flag.NewDefaultClairOpts(),
 	)

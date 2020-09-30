@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/facebookarchive/freeport"
@@ -21,11 +20,6 @@ func setup(t *testing.T,
 	// disable the log
 	logging.Disable()
 
-	// mock ElasticSearch server using httptest
-	es := httptest.NewServer(http.HandlerFunc(f))
-	esOpts := flag.NewDefaultElasticSearchOpts()
-	esOpts.URLs = []string{es.URL}
-
 	port, err := freeport.Get()
 	require.NoError(t, err)
 
@@ -34,7 +28,7 @@ func setup(t *testing.T,
 	httpOpts.HTTPLoggerDisabled = true
 
 	console, err := NewConsole(
-		httpOpts, esOpts, flag.NewDefaultEtcdOpts(), flag.NewDefaultMongoOpts(),
+		httpOpts, flag.NewDefaultMongoOpts(),
 		flag.NewDefaultVegetaScannerOpts(), flag.NewDefaultScapOpts())
 	require.NoError(t, err)
 
@@ -42,7 +36,6 @@ func setup(t *testing.T,
 
 	return httpOpts.HTTPListen, func(t *testing.T) {
 		stop()
-		es.Close()
 	}
 }
 
