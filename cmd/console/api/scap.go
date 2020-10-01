@@ -36,18 +36,351 @@ func (api *api) scap() func(chi.Router) {
 		r.Get("/{checkType}/{clusterID}/reportsummaries", api.getScapReports())
 		r.Get("/{checkType}/{clusterID}/reports", api.getScapReports())
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
+		r.Get("/kube/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
+		r.Get("/kube/breakdown/{checkID}", api.getKubeBreakdown())
+		r.Get("/kube/history", api.getKubeHistory())
 	}
 }
 
+type KubeCheckBreakdown struct {
+    PolicyNumber    string `json:"policy_number"`
+	Name            string `json:"name"`
+    Description     string `json:"description"`
+    NumSuccessful   int64  `json:"num_successful"`
+    NumFailed       int64  `json:"num_failed"`
+    NumInconclusive int64  `json:"num_inconclusive"`
+}
+
 type JobEntry struct {
-	ID         primitive.ObjectID     `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CheckID    string                 `json:"check_id" bson:"checkId"`
-	NodeName   string                 `json:"node_name" bson:"nodeName"`
-	ClusterID  string                 `json:"cluster_id" bson:"clusterId"`
-	Status     string                 `json:"status" bson:"status,omitempty"`
-	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
-	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
-	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
+	ID         primitive.ObjectID      `json:"db_id,omitempty" bson:"_id,omitempty"`
+	CheckID    string                  `json:"check_id" bson:"checkId"`
+	NodeName   string                  `json:"node_name" bson:"nodeName"`
+	ClusterID  string                  `json:"cluster_id" bson:"clusterId"`
+	Status     string                  `json:"status" bson:"status,omitempty"`
+	CreatedAt  int64                   `json:"created_at" bson:"createdAt,omitempty"`
+	FinishedAt int64                   `json:"finished_at" bson:"finishedAt,omitempty"`
+	Report     map[string]ReportResult `json:"report" bson:"report,omitempty"`
+}
+
+type ReportResult struct {
+    ID       string    `json:"id" bson:"id"`
+    Version  string    `json:"version" bson:"version"`
+    Text     string    `json:"text" bson:"text"`
+    NodeType string    `json:"node_type" bson:"node_type"`
+    Tests    []Section `json:"tests" bson:"tests"`
+}
+
+type Section struct {
+    Section     string       `json:"section" bson:"section"`
+    Pass        int64        `json:"pass" bson:"pass"`
+    Fail        int64        `json:"fail" bson:"fail"`
+    Warn        int64        `json:"warn" bson:"warn"`
+    Info        int64        `json:"info" bson:"info"`
+    Description string       `json:"desc" bson:"desc"`
+    Results     []TestResult `json:"results" bson:"results"`
+}
+
+type KubeCheckHistoryEntry struct {
+    CheckId         string `json:"check_id"`
+    ClusterId       string `json:"cluster_id"`
+    Status          string `json:"status"`
+    CreatedAt       int64  `json:"created_at"`
+    FinishedAt      int64  `json:"finished_at"`
+    NumSuccessful   int64  `json:"num_successful"`
+    NumFailed       int64  `json:"num_failed"`
+    NumWaiting      int64  `json:"num_waiting"`
+    NumInconclusive int64  `json:"num_inconclusive"`
+}
+
+type TestResult struct {
+    TestNumber      string   `json:"test_number" bson:"test_number"`
+    TestDescription string   `json:"test_desc" bson:"test_desc"`
+    Audit           string   `json:"audit" bson:"audit"`
+    Type            string   `json:"type" bson:"type"`
+    Remediation     string   `json:"remediation" bson:"remediation"`
+    TestInfo        []string `json:"test_info" bson:"test_info"`
+    ExpectedResult  string   `json:"expected_result" bson:"expected_result"`
+    IsMultiple      bool     `json:"IsMultiple" bson:"IsMultiple"`
+    ActualValue     string   `json:"actual_value" bson:"actual_value"`
+    Status          string   `json:"status" bson:"status"`
+}
+
+type PolicyDetails struct {
+    PolicyNumber    string   `json:"policy_number"`
+    Name            string   `json:"name"`
+    Description     string   `json:"description"`
+    Audit           string   `json:"audit"`
+    ExpectedResult  string   `json:"expected_result"`
+    Remediation     string   `json:"remediation"`
+    TestInfo        []string `json:"test_info"`
+    NumSuccessful   int64    `json:"num_successful"`
+    NumFailed       int64    `json:"num_failed"`
+    NumInconclusive int64    `json:"num_inconclusive"`
+    FailedOn        []string `json:"failed_on"`
+    InconclusiveOn  []string `json:"inconclusive_on"`
+    SuccessfulOn    []string `json:"successful_on"`
+}
+
+// @Summary Get kube history
+// @Description Get kube history
+// @ID v1-kube-history
+// @Produce json
+// @Param status query string false "status (inprogress/failed/completed)"
+// @Param checkID query string false "checkID"
+// @Param clusterID query string false "clusterID"
+// @Router /api/v1/scap/kube/history [get]
+func (api *api) getKubeHistory() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		defer cancel()
+
+		filter := bson.M{}
+
+		checkID := r.URL.Query().Get("checkID")
+		if checkID != "" {
+			filter["checkId"] = checkID
+		}
+
+		clusterID := r.URL.Query().Get("clusterID")
+		if clusterID != "" {
+			filter["clusterId"] = clusterID
+		}
+
+		status := r.URL.Query().Get("status")
+		if status != "" {
+			if status != "inprogress" && status != "completed" {
+				logging.GetLogger().Info().Msg("invalid status param value (allowed: inprogress/completed)")
+				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("status", ""))
+				return
+			}
+			filter["status"] = status
+		}
+
+		cursor, err := api.mongodb.Collection(api.getMongoCollectionForCheckType("kube")).Find(ctx, filter)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+		defer cursor.Close(ctx)
+
+        var results []KubeCheckHistoryEntry
+		for cursor.Next(ctx) {
+			var complianceTest JobEntry
+			err := cursor.Decode(&complianceTest)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				return
+			}
+			numFailed := int64(0)
+			numSuccessful := int64(0)
+			numInconclusive := int64(0)
+            for _, reportDetails := range complianceTest.Report {
+                for _, section := range reportDetails.Tests {
+                    numFailed = numFailed + section.Fail
+                    numSuccessful = numSuccessful + section.Pass
+                    numInconclusive = numInconclusive + section.Info
+                    numInconclusive = numInconclusive + section.Warn
+                }
+            }
+            result := KubeCheckHistoryEntry{
+                CheckId: complianceTest.CheckID,
+                ClusterId: complianceTest.ClusterID,
+                Status: complianceTest.Status,
+                CreatedAt: complianceTest.CreatedAt,
+                FinishedAt: complianceTest.FinishedAt,
+                NumSuccessful: numSuccessful,
+                NumInconclusive: numInconclusive,
+                NumFailed: numFailed,
+            }
+        	results = append(results, result)
+		}
+
+        err = cursor.Err()
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Cursor error")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(results))
+
+    }
+}
+
+// @Summary Get kube scap job breakdown
+// @Description Get kube scap job breakdown
+// @ID v1-kube-job-breakdown
+// @Produce json
+// @Param checkID path string true "check ID"
+// @Param policy_number query string false "policy number"
+// @Router /api/v1/scap/kube/breakdown/{checkID} [get]
+func (api *api) getKubeBreakdown() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		defer cancel()
+
+		checkID := chi.URLParam(r, "checkID")
+		if checkID == "" {
+			logging.GetLogger().Info().Msg("checkID param missing")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkID", ""))
+			return
+		}
+
+		policyNumber := r.URL.Query().Get("policy_number")
+
+		filter := bson.M{"checkId": checkID}
+
+		cursor, err := api.mongodb.Collection(api.getMongoCollectionForCheckType("kube")).Find(ctx, filter)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+		defer cursor.Close(ctx)
+
+		kubeCheckMap := make(map[string]*KubeCheckBreakdown)
+        for cursor.Next(ctx) {
+			var complianceTest JobEntry
+			err := cursor.Decode(&complianceTest)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				return
+			}
+            for _, reportDetails := range complianceTest.Report {
+                for _, section := range reportDetails.Tests {
+                    testName := section.Description
+                    for _, test := range section.Results {
+                        testDescription := test.TestDescription
+                        testNumber := test.TestNumber
+                        if policyNumber != "" && policyNumber != testNumber {
+                            continue
+                        }
+                        if _, ok := kubeCheckMap[testName]; !ok {
+                            kubeCheckMap[testName] = &KubeCheckBreakdown{
+                                PolicyNumber: testNumber,
+                                Name: testName,
+                                Description: testDescription,
+                            }
+                        }
+                        testStatus := test.Status
+                        if testStatus == "FAIL" {
+                            kubeCheckMap[testName].NumFailed = kubeCheckMap[testName].NumFailed + 1
+                        } else if testStatus == "WARN" {
+                            kubeCheckMap[testName].NumInconclusive = kubeCheckMap[testName].NumInconclusive + 1
+                        } else if testStatus == "PASS" {
+                            kubeCheckMap[testName].NumSuccessful = kubeCheckMap[testName].NumSuccessful + 1
+                        } else if testStatus == "INFO" {
+                            kubeCheckMap[testName].NumInconclusive = kubeCheckMap[testName].NumInconclusive + 1
+                        }
+                    }
+                }
+			}
+		}
+		var results []*KubeCheckBreakdown
+        for _, v := range kubeCheckMap {
+            results = append(results, v)
+        }
+
+		err = cursor.Err()
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Cursor error")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(results))
+	}
+}
+
+// @Summary Get kube scap job policy
+// @Description Get kube scap job policy
+// @ID v1-kube-job-policy
+// @Produce json
+// @Param checkID path string true "check ID"
+// @Param policyNumber path string true "policy number"
+// @Router /api/v1/scap/kube/breakdown/{checkID}/{policyNumber}/details [get]
+func (api *api) getPolicyDetails() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		defer cancel()
+
+		checkID := chi.URLParam(r, "checkID")
+		if checkID == "" {
+			logging.GetLogger().Info().Msg("checkID param missing")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkID", ""))
+			return
+		}
+
+		policyNumber := chi.URLParam(r, "policyNumber")
+		if policyNumber == "" {
+			logging.GetLogger().Info().Msg("policyNumber param missing")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("policyNumber", ""))
+			return
+		}
+
+		filter := bson.M{"checkId": checkID}
+
+		cursor, err := api.mongodb.Collection(api.getMongoCollectionForCheckType("kube")).Find(ctx, filter)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+		defer cursor.Close(ctx)
+
+		policyDetails := &PolicyDetails{}
+        for cursor.Next(ctx) {
+			var complianceTest JobEntry
+			err := cursor.Decode(&complianceTest)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				return
+			}
+
+            for _, reportDetails := range complianceTest.Report {
+                for _, section := range reportDetails.Tests {
+                    for _, test := range section.Results {
+                        if test.TestNumber == policyNumber {
+                            policyDetails.PolicyNumber = test.TestNumber
+                            policyDetails.Name = test.TestNumber
+                            policyDetails.Description = test.TestDescription
+                            policyDetails.Audit = test.Audit
+                            policyDetails.ExpectedResult = test.ExpectedResult
+                            policyDetails.Remediation = test.Remediation
+                            policyDetails.TestInfo = test.TestInfo
+                            testStatus := test.Status
+                            if testStatus == "FAIL" {
+                                policyDetails.NumFailed = policyDetails.NumFailed + 1
+                                policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+                            } else if testStatus == "WARN" {
+                                policyDetails.NumInconclusive = policyDetails.NumInconclusive + 1
+                                policyDetails.InconclusiveOn = append(policyDetails.InconclusiveOn, complianceTest.NodeName)
+                            } else if testStatus == "PASS" {
+                                policyDetails.NumSuccessful = policyDetails.NumSuccessful + 1
+                                policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
+                            } else if testStatus == "INFO" {
+                                policyDetails.NumInconclusive = policyDetails.NumInconclusive + 1
+                                policyDetails.InconclusiveOn = append(policyDetails.InconclusiveOn, complianceTest.NodeName)
+                            }
+                        }
+                    }
+                }
+			}
+		}
+
+		err = cursor.Err()
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Cursor error")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(*policyDetails))
+	}
 }
 
 type Check struct {

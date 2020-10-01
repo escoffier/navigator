@@ -300,6 +300,87 @@
                 ]
             }
         },
+        "/api/v1/scap/kube/breakdown/{checkID}": {
+            "get": {
+                "description": "Get kube scap job breakdown",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get kube scap job breakdown",
+                "operationId": "v1-kube-job-breakdown",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "check ID",
+                        "name": "checkID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "policy number",
+                        "name": "policy_number",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
+        "/api/v1/scap/kube/breakdown/{checkID}/{policyNumber}/details": {
+            "get": {
+                "description": "Get kube scap job policy",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get kube scap job policy",
+                "operationId": "v1-kube-job-policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "check ID",
+                        "name": "checkID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "policy number",
+                        "name": "policyNumber",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/api/v1/scap/kube/history": {
+            "get": {
+                "description": "Get kube history",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get kube history",
+                "operationId": "v1-kube-history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "status (inprogress/failed/completed)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "checkID",
+                        "name": "checkID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "clusterID",
+                        "name": "clusterID",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
         "/api/v1/scap/{checkType}/{clusterID}": {
             "post": {
                 "description": "Run compliance check on specified cluster",
