@@ -1,7 +1,4 @@
 dependencies:
-- name: alerter
-  repository: file://./subcharts/alerter
-  version: 0.1.0
 - name: scanner
   repository: file://./subcharts/scanner
   version: 0.1.0
@@ -14,20 +11,8 @@ dependencies:
 - name: postgresql
   repository: https://kubernetes-charts.storage.googleapis.com
   version: 6.3.9
-- name: elasticsearch
-  repository: https://helm.elastic.co
-  version: 7.4.1
-- name: etcd-operator
-  repository: https://kubernetes-charts.storage.googleapis.com
-  version: 0.10.0
-- name: kibana
-  repository: https://helm.elastic.co
-  version: 7.4.1
 - name: mongodb
   repository: https://kubernetes-charts.storage.googleapis.com
   version: 7.2.10
-- name: mongo-express
-  repository: file://./subcharts/mongo-express
-  version: 0.1.0
-digest: sha256:37ac9ab2aa65a985fa7dd8d019771d77dd7efab499b7eb4fec242c33a1577e88
-generated: "2020-09-15T13:21:41.438501897+02:00"
+digest: sha256:6f3594224bd8a51cda13b683676d206adfd047eecd7452efe6c5894946290393
+generated: "2020-10-01T10:53:29.595958891+02:00"
