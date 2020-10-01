@@ -21,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -28,13 +29,6 @@ const (
 	clusterCol = "cluster"
 	nameSpace  = "vegeta"
 )
-
-type cluster struct {
-	ID          primitive.ObjectID `json:"id" bson:"_id, omitempty"`
-	ClusterName string             `json:"name" bson:"name"`
-	KubeConfig  string             `json:"config" bson:"config"`
-	ClusterType int                `json:"type" bson:"type"` // Kubenetes 1, OpenShift 2, Docker 3
-}
 
 // @Summary Get single cluster information
 // @Description Get single cluster information
@@ -46,7 +40,7 @@ type cluster struct {
 // @Router /api/v1/config/cluster/{clusterID} [get]
 func (api *api) getCluster() http.HandlerFunc {
 	type resp struct {
-		Cluster cluster `json:"cluster"`
+		Cluster model.Cluster `json:"cluster"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
@@ -80,8 +74,8 @@ func getClusterIDFromURL(r *http.Request) (primitive.ObjectID, error) {
 	return primitive.ObjectIDFromHex(clusterID)
 }
 
-func (api *api) getClusterFromMongo(ctx context.Context, clusterObjectID primitive.ObjectID) (*cluster, error) {
-	var queryCluster cluster
+func (api *api) getClusterFromMongo(ctx context.Context, clusterObjectID primitive.ObjectID) (*model.Cluster, error) {
+	var queryCluster model.Cluster
 	filter := bson.M{"_id": clusterObjectID}
 
 	queryResult := api.mongodb.Collection(clusterCol).FindOne(ctx, filter)
@@ -108,7 +102,7 @@ func (api *api) getClusterFromMongo(ctx context.Context, clusterObjectID primiti
 // @Router /api/v1/config/clusters [get]
 func (api *api) listClusters() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var clusters []cluster
+		var clusters []model.Cluster
 
 		filter := bson.D{}
 
@@ -132,7 +126,7 @@ func (api *api) listClusters() http.HandlerFunc {
 
 		for cur.Next(ctx) {
 			//Create a value into which the single document can be decoded
-			var elem cluster
+			var elem model.Cluster
 			err := cur.Decode(&elem)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
@@ -164,7 +158,6 @@ func (api *api) listClusters() http.HandlerFunc {
 // @Param clusterID path string true "clusterID"
 // @Param name body string true "clusterID"
 // @Param config body string true "kubeConfig -- base64String"
-// @Param type body int true "Kubenetes 1, OpenShift 2, Docker 3"
 // @Router /api/v1/config/cluster/{clusterID} [put]
 func (api *api) updateCluster() http.HandlerFunc {
 	type resp struct {
@@ -178,7 +171,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 			return
 		}
 
-		var upCluster cluster
+		var upCluster model.Cluster
 
 		err = decodeJSONBody(w, r, &upCluster)
 		if err != nil {
@@ -187,21 +180,18 @@ func (api *api) updateCluster() http.HandlerFunc {
 			return
 		}
 
-		// No sure the this api can work under Openshift
-		if upCluster.ClusterType < 3 {
-			kubeClient, err := kubeClientFromB64KubeConfig(upCluster.KubeConfig)
-			if err != nil {
-				logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
-				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
-				return
-			}
+		kubeClient, err := kubeClientFromB64KubeConfig(upCluster.KubeConfig)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
+			return
+		}
 
-			err = checkKubeClientConnection(kubeClient)
-			if err != nil {
-				logging.GetLogger().Info().Err(err).Msg("Failed to connect to k8s cluster")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)), response.WithSuberror("config", ""))
-				return
-			}
+		err = checkKubeClientConnection(kubeClient)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("Failed to connect to k8s cluster")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)), response.WithSuberror("config", ""))
+			return
 		}
 
 		filter := bson.M{"_id": clusterObjectID}
@@ -229,7 +219,6 @@ func (api *api) updateCluster() http.HandlerFunc {
 // @Produce json
 // @Param name body string true "clusterName"
 // @Param config body string true "kubeConfig -- base64String "
-// @Param type body int true "Kubenetes 1, OpenShift 2, Docker 3"
 // @Router /api/v1/config/cluster [post]
 func (api *api) addCluster() http.HandlerFunc {
 	type resp struct {
@@ -238,7 +227,6 @@ func (api *api) addCluster() http.HandlerFunc {
 	type param struct {
 		ClusterName string `json:"name" bson:"name"`
 		KubeConfig  string `json:"config" bson:"config"`
-		ClusterType int    `json:"type" bson:"type"` // Kubenetes 1, OpenShift 2, Docker 3
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var param param
@@ -250,34 +238,24 @@ func (api *api) addCluster() http.HandlerFunc {
 			return
 		}
 
-		if param.ClusterType > 3 || param.ClusterType < 1 {
-			logging.GetLogger().Info().Err(err).Msg("ClusterType is out range")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("type", ""))
-			return
-		}
-
-		newCluster := &cluster{
+		newCluster := &model.Cluster{
 			ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
 			ClusterName: param.ClusterName,
 			KubeConfig:  param.KubeConfig,
-			ClusterType: param.ClusterType,
 		}
 
-		// No sure the this api can work under Openshift
-		if newCluster.ClusterType < 3 {
-			kubeClient, err := kubeClientFromB64KubeConfig(newCluster.KubeConfig)
-			if err != nil {
-				logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
-				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
-				return
-			}
+		kubeClient, err := kubeClientFromB64KubeConfig(newCluster.KubeConfig)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("Failed to create kube client")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("config", ""))
+			return
+		}
 
-			err = checkKubeClientConnection(kubeClient)
-			if err != nil {
-				logging.GetLogger().Info().Err(err).Msg("Failed to connect to k8s cluster")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)), response.WithSuberror("config", ""))
-				return
-			}
+		err = checkKubeClientConnection(kubeClient)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("Failed to connect to k8s cluster")
+			response.InternalError(w, response.WithMessage(locale.Error(locale.KubernetesError, r)), response.WithSuberror("config", ""))
+			return
 		}
 
 		ctx, cancel := api.getTimeoutCtx()
