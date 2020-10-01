@@ -286,7 +286,7 @@ paths:
         in: query
         name: nodeName
         type: string
-      - description: status (inprogress/failed/completed)
+      - description: status (inprogress/error/completed)
         in: query
         name: status
         type: string
@@ -305,7 +305,7 @@ paths:
         type: string
       - description: policy number
         in: query
-        name: policy_number
+        name: policyNumber
         type: string
       produces:
       - application/json
@@ -333,10 +333,6 @@ paths:
       description: Get kube history
       operationId: v1-kube-history
       parameters:
-      - description: status (inprogress/failed/completed)
-        in: query
-        name: status
-        type: string
       - description: checkID
         in: query
         name: checkID

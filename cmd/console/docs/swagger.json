@@ -319,7 +319,7 @@
                     {
                         "type": "string",
                         "description": "policy number",
-                        "name": "policy_number",
+                        "name": "policyNumber",
                         "in": "query"
                     }
                 ]
@@ -360,12 +360,6 @@
                 "summary": "Get kube history",
                 "operationId": "v1-kube-history",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "status (inprogress/failed/completed)",
-                        "name": "status",
-                        "in": "query"
-                    },
                     {
                         "type": "string",
                         "description": "checkID",
@@ -444,7 +438,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "status (inprogress/failed/completed)",
+                        "description": "status (inprogress/error/completed)",
                         "name": "status",
                         "in": "query"
                     }

@@ -43,12 +43,13 @@ func (api *api) scap() func(chi.Router) {
 }
 
 type KubeCheckBreakdown struct {
-    PolicyNumber    string `json:"policy_number"`
-	Name            string `json:"name"`
-    Description     string `json:"description"`
-    NumSuccessful   int64  `json:"num_successful"`
-    NumFailed       int64  `json:"num_failed"`
-    NumInconclusive int64  `json:"num_inconclusive"`
+	PolicyNumber  string `json:"policyNumber"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	NumSuccessful int64  `json:"numSuccessful"`
+	NumFailed     int64  `json:"numFailed"`
+	NumInfo       int64  `json:"numInfo"`
+	NumWarn       int64  `json:"numWarn"`
 }
 
 type JobEntry struct {
@@ -63,69 +64,70 @@ type JobEntry struct {
 }
 
 type ReportResult struct {
-    ID       string    `json:"id" bson:"id"`
-    Version  string    `json:"version" bson:"version"`
-    Text     string    `json:"text" bson:"text"`
-    NodeType string    `json:"node_type" bson:"node_type"`
-    Tests    []Section `json:"tests" bson:"tests"`
+	ID       string    `json:"id" bson:"id"`
+	Version  string    `json:"version" bson:"version"`
+	Text     string    `json:"text" bson:"text"`
+	NodeType string    `json:"node_type" bson:"node_type"`
+	Tests    []Section `json:"tests" bson:"tests"`
 }
 
 type Section struct {
-    Section     string       `json:"section" bson:"section"`
-    Pass        int64        `json:"pass" bson:"pass"`
-    Fail        int64        `json:"fail" bson:"fail"`
-    Warn        int64        `json:"warn" bson:"warn"`
-    Info        int64        `json:"info" bson:"info"`
-    Description string       `json:"desc" bson:"desc"`
-    Results     []TestResult `json:"results" bson:"results"`
+	Section     string       `json:"section" bson:"section"`
+	Pass        int64        `json:"pass" bson:"pass"`
+	Fail        int64        `json:"fail" bson:"fail"`
+	Warn        int64        `json:"warn" bson:"warn"`
+	Info        int64        `json:"info" bson:"info"`
+	Description string       `json:"desc" bson:"desc"`
+	Results     []TestResult `json:"results" bson:"results"`
 }
 
 type KubeCheckHistoryEntry struct {
-    CheckId         string `json:"check_id"`
-    ClusterId       string `json:"cluster_id"`
-    Status          string `json:"status"`
-    CreatedAt       int64  `json:"created_at"`
-    FinishedAt      int64  `json:"finished_at"`
-    NumSuccessful   int64  `json:"num_successful"`
-    NumFailed       int64  `json:"num_failed"`
-    NumWaiting      int64  `json:"num_waiting"`
-    NumInconclusive int64  `json:"num_inconclusive"`
+	CheckId         string `json:"checkId"`
+	ClusterId       string `json:"clusterId"`
+	CreatedAt       int64  `json:"createdAt"`
+	FinishedAt      int64  `json:"finishedAt,omitempty"`
+	NumSuccessful   int64  `json:"numSuccessful"`
+	NumFailed       int64  `json:"numFailed"`
+	NumError        int64  `json:"numError"`
+	NumWaiting      int64  `json:"numWaiting"`
+	NumInconclusive int64  `json:"numInconclusive"`
 }
 
 type TestResult struct {
-    TestNumber      string   `json:"test_number" bson:"test_number"`
-    TestDescription string   `json:"test_desc" bson:"test_desc"`
-    Audit           string   `json:"audit" bson:"audit"`
-    Type            string   `json:"type" bson:"type"`
-    Remediation     string   `json:"remediation" bson:"remediation"`
-    TestInfo        []string `json:"test_info" bson:"test_info"`
-    ExpectedResult  string   `json:"expected_result" bson:"expected_result"`
-    IsMultiple      bool     `json:"IsMultiple" bson:"IsMultiple"`
-    ActualValue     string   `json:"actual_value" bson:"actual_value"`
-    Status          string   `json:"status" bson:"status"`
+	TestNumber      string   `json:"test_number" bson:"test_number"`
+	TestDescription string   `json:"test_desc" bson:"test_desc"`
+	Audit           string   `json:"audit" bson:"audit"`
+	Type            string   `json:"type" bson:"type"`
+	Remediation     string   `json:"remediation" bson:"remediation"`
+	TestInfo        []string `json:"test_info" bson:"test_info"`
+	ExpectedResult  string   `json:"expected_result" bson:"expected_result"`
+	IsMultiple      bool     `json:"IsMultiple" bson:"IsMultiple"`
+	ActualValue     string   `json:"actual_value" bson:"actual_value"`
+	Status          string   `json:"status" bson:"status"`
 }
 
 type PolicyDetails struct {
-    PolicyNumber    string   `json:"policy_number"`
-    Name            string   `json:"name"`
-    Description     string   `json:"description"`
-    Audit           string   `json:"audit"`
-    ExpectedResult  string   `json:"expected_result"`
-    Remediation     string   `json:"remediation"`
-    TestInfo        []string `json:"test_info"`
-    NumSuccessful   int64    `json:"num_successful"`
-    NumFailed       int64    `json:"num_failed"`
-    NumInconclusive int64    `json:"num_inconclusive"`
-    FailedOn        []string `json:"failed_on"`
-    InconclusiveOn  []string `json:"inconclusive_on"`
-    SuccessfulOn    []string `json:"successful_on"`
+	PolicyNumber   string   `json:"policyNumber"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Audit          string   `json:"audit"`
+	ExpectedResult string   `json:"expectedResult"`
+	Remediation    string   `json:"remediation"`
+	TestInfo       []string `json:"testInfo"`
+	NumSuccessful  int64    `json:"numSuccessful"`
+	NumFailed      int64    `json:"numFailed"`
+	NumInfo        int64    `json:"numInfo"`
+	NumWarn        int64    `json:"numWarn"`
+	FailedOn       []string `json:"failedOn"`
+	WarnOn         []string `json:"warnOn"`
+	InfoOn         []string `json:"infoOn"`
+	SuccessfulOn   []string `json:"successfulOn"`
 }
 
 // @Summary Get kube history
 // @Description Get kube history
 // @ID v1-kube-history
 // @Produce json
-// @Param status query string false "status (inprogress/failed/completed)"
 // @Param checkID query string false "checkID"
 // @Param clusterID query string false "clusterID"
 // @Router /api/v1/scap/kube/history [get]
@@ -146,16 +148,6 @@ func (api *api) getKubeHistory() http.HandlerFunc {
 			filter["clusterId"] = clusterID
 		}
 
-		status := r.URL.Query().Get("status")
-		if status != "" {
-			if status != "inprogress" && status != "completed" {
-				logging.GetLogger().Info().Msg("invalid status param value (allowed: inprogress/completed)")
-				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("status", ""))
-				return
-			}
-			filter["status"] = status
-		}
-
 		cursor, err := api.mongodb.Collection(api.getMongoCollectionForCheckType("kube")).Find(ctx, filter)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
@@ -164,7 +156,7 @@ func (api *api) getKubeHistory() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
-        var results []KubeCheckHistoryEntry
+		kubeCheckMap := make(map[string]*KubeCheckHistoryEntry)
 		for cursor.Next(ctx) {
 			var complianceTest JobEntry
 			err := cursor.Decode(&complianceTest)
@@ -173,31 +165,65 @@ func (api *api) getKubeHistory() http.HandlerFunc {
 				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
-			numFailed := int64(0)
-			numSuccessful := int64(0)
-			numInconclusive := int64(0)
-            for _, reportDetails := range complianceTest.Report {
-                for _, section := range reportDetails.Tests {
-                    numFailed = numFailed + section.Fail
-                    numSuccessful = numSuccessful + section.Pass
-                    numInconclusive = numInconclusive + section.Info
-                    numInconclusive = numInconclusive + section.Warn
-                }
-            }
-            result := KubeCheckHistoryEntry{
-                CheckId: complianceTest.CheckID,
-                ClusterId: complianceTest.ClusterID,
-                Status: complianceTest.Status,
-                CreatedAt: complianceTest.CreatedAt,
-                FinishedAt: complianceTest.FinishedAt,
-                NumSuccessful: numSuccessful,
-                NumInconclusive: numInconclusive,
-                NumFailed: numFailed,
-            }
-        	results = append(results, result)
+			if _, ok := kubeCheckMap[complianceTest.CheckID]; !ok {
+				kubeCheckMap[complianceTest.CheckID] = &KubeCheckHistoryEntry{
+					CheckId:   complianceTest.CheckID,
+					ClusterId: complianceTest.ClusterID,
+					CreatedAt: complianceTest.CreatedAt,
+				}
+				// We already had a node that didn't finish yet
+			}
+			if complianceTest.CreatedAt < kubeCheckMap[complianceTest.CheckID].CreatedAt {
+				kubeCheckMap[complianceTest.CheckID].CreatedAt = complianceTest.CreatedAt
+			}
+			if kubeCheckMap[complianceTest.CheckID].FinishedAt != -1 {
+				if complianceTest.Status == "inprogress" {
+					// Set to -1 not to 0, because 0 is the starting value.
+					kubeCheckMap[complianceTest.CheckID].FinishedAt = -1
+				} else {
+					if kubeCheckMap[complianceTest.CheckID].FinishedAt < complianceTest.FinishedAt {
+						kubeCheckMap[complianceTest.CheckID].FinishedAt = complianceTest.FinishedAt
+					}
+				}
+			}
+			if complianceTest.Status == "inprogress" {
+				kubeCheckMap[complianceTest.CheckID].NumWaiting++
+				continue
+			}
+			if complianceTest.Status == "error" {
+				kubeCheckMap[complianceTest.CheckID].NumError++
+				continue
+			}
+			policiesFailed := int64(0)
+			policiesInconclusive := int64(0)
+			policiesPassed := int64(0)
+			for _, reportDetails := range complianceTest.Report {
+				for _, section := range reportDetails.Tests {
+					policiesFailed += section.Fail
+					policiesPassed += section.Pass
+					policiesInconclusive += section.Info
+					policiesInconclusive += section.Warn
+				}
+			}
+			if policiesFailed != 0 {
+				kubeCheckMap[complianceTest.CheckID].NumFailed++
+			} else if policiesInconclusive != 0 {
+				kubeCheckMap[complianceTest.CheckID].NumInconclusive++
+			} else {
+				kubeCheckMap[complianceTest.CheckID].NumSuccessful++
+			}
 		}
 
-        err = cursor.Err()
+		var results []*KubeCheckHistoryEntry
+		for _, v := range kubeCheckMap {
+			// Convert -1 to 0 to omit the FinishedAt field
+			if v.FinishedAt == -1 {
+				v.FinishedAt = 0
+			}
+			results = append(results, v)
+		}
+
+		err = cursor.Err()
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Cursor error")
 			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
@@ -205,8 +231,7 @@ func (api *api) getKubeHistory() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItems(results))
-
-    }
+	}
 }
 
 // @Summary Get kube scap job breakdown
@@ -214,7 +239,7 @@ func (api *api) getKubeHistory() http.HandlerFunc {
 // @ID v1-kube-job-breakdown
 // @Produce json
 // @Param checkID path string true "check ID"
-// @Param policy_number query string false "policy number"
+// @Param policyNumber query string false "policy number"
 // @Router /api/v1/scap/kube/breakdown/{checkID} [get]
 func (api *api) getKubeBreakdown() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +253,7 @@ func (api *api) getKubeBreakdown() http.HandlerFunc {
 			return
 		}
 
-		policyNumber := r.URL.Query().Get("policy_number")
+		policyNumber := r.URL.Query().Get("policyNumber")
 
 		filter := bson.M{"checkId": checkID}
 
@@ -240,8 +265,10 @@ func (api *api) getKubeBreakdown() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
+		numWaiting := 0
+		numError := 0
 		kubeCheckMap := make(map[string]*KubeCheckBreakdown)
-        for cursor.Next(ctx) {
+		for cursor.Next(ctx) {
 			var complianceTest JobEntry
 			err := cursor.Decode(&complianceTest)
 			if err != nil {
@@ -249,40 +276,48 @@ func (api *api) getKubeBreakdown() http.HandlerFunc {
 				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
-            for _, reportDetails := range complianceTest.Report {
-                for _, section := range reportDetails.Tests {
-                    testName := section.Description
-                    for _, test := range section.Results {
-                        testDescription := test.TestDescription
-                        testNumber := test.TestNumber
-                        if policyNumber != "" && policyNumber != testNumber {
-                            continue
-                        }
-                        if _, ok := kubeCheckMap[testName]; !ok {
-                            kubeCheckMap[testName] = &KubeCheckBreakdown{
-                                PolicyNumber: testNumber,
-                                Name: testName,
-                                Description: testDescription,
-                            }
-                        }
-                        testStatus := test.Status
-                        if testStatus == "FAIL" {
-                            kubeCheckMap[testName].NumFailed = kubeCheckMap[testName].NumFailed + 1
-                        } else if testStatus == "WARN" {
-                            kubeCheckMap[testName].NumInconclusive = kubeCheckMap[testName].NumInconclusive + 1
-                        } else if testStatus == "PASS" {
-                            kubeCheckMap[testName].NumSuccessful = kubeCheckMap[testName].NumSuccessful + 1
-                        } else if testStatus == "INFO" {
-                            kubeCheckMap[testName].NumInconclusive = kubeCheckMap[testName].NumInconclusive + 1
-                        }
-                    }
-                }
+			if complianceTest.Status == "error" {
+				numError++
+				continue
+			}
+			if complianceTest.Status == "inprogress" {
+				numWaiting++
+				continue
+			}
+			for _, reportDetails := range complianceTest.Report {
+				for _, section := range reportDetails.Tests {
+					testName := section.Description
+					for _, test := range section.Results {
+						testDescription := test.TestDescription
+						testNumber := test.TestNumber
+						if policyNumber != "" && policyNumber != testNumber {
+							continue
+						}
+						if _, ok := kubeCheckMap[testName]; !ok {
+							kubeCheckMap[testName] = &KubeCheckBreakdown{
+								PolicyNumber: testNumber,
+								Name:         testName,
+								Description:  testDescription,
+							}
+						}
+						testStatus := test.Status
+						if testStatus == "FAIL" {
+							kubeCheckMap[testName].NumFailed++
+						} else if testStatus == "WARN" {
+							kubeCheckMap[testName].NumWarn++
+						} else if testStatus == "PASS" {
+							kubeCheckMap[testName].NumSuccessful++
+						} else if testStatus == "INFO" {
+							kubeCheckMap[testName].NumInfo++
+						}
+					}
+				}
 			}
 		}
 		var results []*KubeCheckBreakdown
-        for _, v := range kubeCheckMap {
-            results = append(results, v)
-        }
+		for _, v := range kubeCheckMap {
+			results = append(results, v)
+		}
 
 		err = cursor.Err()
 		if err != nil {
@@ -291,7 +326,7 @@ func (api *api) getKubeBreakdown() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItems(results))
+		response.Ok(w, response.WithCustomField("numWaiting", numWaiting), response.WithCustomField("numError", numError), response.WithItems(results))
 	}
 }
 
@@ -332,7 +367,9 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		defer cursor.Close(ctx)
 
 		policyDetails := &PolicyDetails{}
-        for cursor.Next(ctx) {
+		numWaiting := 0
+		numError := 0
+		for cursor.Next(ctx) {
 			var complianceTest JobEntry
 			err := cursor.Decode(&complianceTest)
 			if err != nil {
@@ -340,35 +377,43 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
+			if complianceTest.Status == "error" {
+				numError++
+				continue
+			}
+			if complianceTest.Status == "inprogress" {
+				numWaiting++
+				continue
+			}
 
-            for _, reportDetails := range complianceTest.Report {
-                for _, section := range reportDetails.Tests {
-                    for _, test := range section.Results {
-                        if test.TestNumber == policyNumber {
-                            policyDetails.PolicyNumber = test.TestNumber
-                            policyDetails.Name = test.TestNumber
-                            policyDetails.Description = test.TestDescription
-                            policyDetails.Audit = test.Audit
-                            policyDetails.ExpectedResult = test.ExpectedResult
-                            policyDetails.Remediation = test.Remediation
-                            policyDetails.TestInfo = test.TestInfo
-                            testStatus := test.Status
-                            if testStatus == "FAIL" {
-                                policyDetails.NumFailed = policyDetails.NumFailed + 1
-                                policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
-                            } else if testStatus == "WARN" {
-                                policyDetails.NumInconclusive = policyDetails.NumInconclusive + 1
-                                policyDetails.InconclusiveOn = append(policyDetails.InconclusiveOn, complianceTest.NodeName)
-                            } else if testStatus == "PASS" {
-                                policyDetails.NumSuccessful = policyDetails.NumSuccessful + 1
-                                policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
-                            } else if testStatus == "INFO" {
-                                policyDetails.NumInconclusive = policyDetails.NumInconclusive + 1
-                                policyDetails.InconclusiveOn = append(policyDetails.InconclusiveOn, complianceTest.NodeName)
-                            }
-                        }
-                    }
-                }
+			for _, reportDetails := range complianceTest.Report {
+				for _, section := range reportDetails.Tests {
+					for _, test := range section.Results {
+						if test.TestNumber == policyNumber {
+							policyDetails.PolicyNumber = test.TestNumber
+							policyDetails.Name = test.TestNumber
+							policyDetails.Description = test.TestDescription
+							policyDetails.Audit = test.Audit
+							policyDetails.ExpectedResult = test.ExpectedResult
+							policyDetails.Remediation = test.Remediation
+							policyDetails.TestInfo = test.TestInfo
+							testStatus := test.Status
+							if testStatus == "FAIL" {
+								policyDetails.NumFailed++
+								policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+							} else if testStatus == "WARN" {
+								policyDetails.NumWarn++
+								policyDetails.WarnOn = append(policyDetails.WarnOn, complianceTest.NodeName)
+							} else if testStatus == "PASS" {
+								policyDetails.NumSuccessful++
+								policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
+							} else if testStatus == "INFO" {
+								policyDetails.NumInfo++
+								policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+							}
+						}
+					}
+				}
 			}
 		}
 
@@ -379,7 +424,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItem(*policyDetails))
+		response.Ok(w, response.WithCustomField("numWaiting", numWaiting), response.WithCustomField("numError", numError), response.WithItem(*policyDetails))
 	}
 }
 
@@ -398,7 +443,7 @@ type Check struct {
 // @Param clusterID path string true "cluster ID"
 // @Param checkID query string false "check ID"
 // @Param nodeName query string false "node name"
-// @Param status query string false "status (inprogress/failed/completed)"
+// @Param status query string false "status (inprogress/error/completed)"
 // @Router /api/v1/scap/{checkType}/{clusterID}/reports [get]
 func (api *api) getScapReports() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -439,8 +484,8 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		status := r.URL.Query().Get("status")
 		if status != "" {
-			if status != "inprogress" && status != "failed" && status != "completed" {
-				logging.GetLogger().Info().Msg("invalid status param value (allowed: inprogress/failed/completed)")
+			if status != "inprogress" && status != "error" && status != "completed" {
+				logging.GetLogger().Info().Msg("invalid status param value (allowed: inprogress/error/completed)")
 				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("status", ""))
 				return
 			}
@@ -763,7 +808,7 @@ func (api *api) mongoJobStatusToFailed(ctx context.Context, check *Check, nodeNa
 	filter := bson.M{"checkId": check.CheckUUID.String(), "nodeName": nodeName}
 	// TODO: is there better way to do this using struct annotations?
 	update := bson.M{"$set": bson.M{
-		"status":     "failed",
+		"status":     "error",
 		"finishedAt": timeEpochSecs,
 		"message":    msg,
 	}}
