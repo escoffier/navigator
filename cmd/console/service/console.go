@@ -53,11 +53,13 @@ func NewConsole(
 	// scap service
 	scapper := &api.Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
+		MongoDB:            mongodb,
 		MongoEndpoint:      mongoOpts.Endpoint,
 		MongoUsername:      mongoOpts.Username,
 		MongoPassword:      mongoOpts.Password,
 		MongoDatabase:      mongoOpts.Database,
 	}
+	scapper.StartCrons()
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())

@@ -375,7 +375,7 @@ CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
 # CFG=$(ssh root@120.53.227.174 'kubectl config view --raw -o json  | base64 | tr -d "\n "')
 
 # Create cluster
-curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
+curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f75a5221b29c43e6838df66
 
@@ -391,15 +391,20 @@ curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$C
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/reports?checkId=3eec911c-a36f-4312-8050-918b12f5978c" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/reports?checkId=ebb296ee-0ff7-4f70-9989-715a04796f04&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f6cc8aa1050cb43043c2f79/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f6cc8aa1050cb43043c2f79/reports?checkId=2b9fefef-324d-4843-b9ca-784278864f2e&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=2b9fefef-324d-4843-b9ca-784278864f2e&nodeName=master&status=completed" > out.json
+
+```
 
 
+```bash
+curl -v -X POST -H "Cookie: $JWT" -data "{\"newCronString\": \"* /5 * * **\"}" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
 ```
 
 ## Database access
