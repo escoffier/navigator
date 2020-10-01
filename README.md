@@ -377,14 +377,14 @@ CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
 # Create cluster
 curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\", \"type\": 1}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f6c74c5eec5cb4d093a8b9c
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f75a5221b29c43e6838df66
 
 # Kube-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f6cc8aa1050cb43043c2f79
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66
 # Docker-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f6cc8aa1050cb43043c2f79
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66
 # Host-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f6cc8aa1050cb43043c2f79
+curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 

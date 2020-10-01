@@ -1,13 +1,5 @@
 # etcd configuration
 
-## Alerter
-
-ElastAlert config.yaml: /alerter/config.yaml
-
-ElastAlert rules: /alerter/rules/*
-
-Heartbeat: /alerter/heartbeat
-
 ## Scanner
 
 clair.yaml: /scanner/clair.yaml
