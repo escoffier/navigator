@@ -403,7 +403,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *Check, 
 				logging.GetLogger().Info().
 					Str("checkId", check.CheckUUID.String()).
 					Msg("All managed jobs accounted for, done watching for events")
-				break
+				return
 			}
 		}
 
