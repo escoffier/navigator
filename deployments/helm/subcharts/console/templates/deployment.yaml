@@ -26,8 +26,6 @@ spec:
         command: ["/vegeta-console"]
         args: [
           "--mongo-endpoint=vegeta-mongodb:27017",
-          "--etcd-endpoints=etcd-cluster-client:2379",
-          "--es-urls=elasticsearch-master:9200",
           "--vegeta-scanner-host=scanner",
           "--vegeta-scanner-port=8888",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",

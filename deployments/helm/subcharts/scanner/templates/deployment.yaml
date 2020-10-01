@@ -28,7 +28,6 @@ spec:
         command: ["/vegeta-scanner"]
         args: [
           "--mongo-endpoint=vegeta-mongodb:27017",
-          "--etcd-endpoints=etcd-cluster-client:2379",
           "--clair-remote-address=vegeta-clair",
           # clair-address and clair-port refer to Scanner Service address. Clair service needs to have access to layers published by Scanner service.
           # Path to them is sent in Scan request to Clair.
