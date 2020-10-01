@@ -32,8 +32,8 @@ type HTTPData struct {
 	PageIndex        int64                  `json:"pageIndex,omitempty"`
 	TotalPages       int64                  `json:"totalPages,omitempty"`
 	Items            interface{}            `json:"items,omitempty"`
-	Item             interface{}            `json:"item,omitempty"`
-	CustomFields     map[string]interface{} `json:"-"`
+	Item             interface{}            `json:"-"` // custom marshalling, see (HTTPData)MarshalJSON
+	CustomFields     map[string]interface{} `json:"-"` // custom marshalling, see (HTTPData)MarshalJSON
 }
 
 type HTTPSubError struct {
@@ -65,6 +65,8 @@ type HTTPDataAlias HTTPData
 
 // MarshalJSON is overriden to support custom fields
 func (e HTTPData) MarshalJSON() ([]byte, error) {
+	// This is kinda inefficient but I probably is good enough (we're IO bound I would think)
+
 	// obtain dict from base struct
 	// Note: this assumes that CustomFields is disabled using struct annotation `json:"-"`
 	jsoned, err := json.Marshal(HTTPDataAlias(e))
@@ -77,8 +79,24 @@ func (e HTTPData) MarshalJSON() ([]byte, error) {
 		return []byte{}, err
 	}
 
+	// obtain dict from internal "Item" field
+	// Note: this assumes that Item is disabled using struct annotation `json:"-"`
+	jsonedItem, err := json.Marshal(e.Item)
+	if err != nil {
+		return []byte{}, err
+	}
+	var itemFields map[string]interface{}
+	err = json.Unmarshal(jsonedItem, &itemFields)
+	if err != nil {
+		return []byte{}, err
+	}
+
 	// add any custom fields to dict
 	for k, v := range e.CustomFields {
+		baseFieldsDict[k] = v
+	}
+	// add fields from Item struct
+	for k, v := range itemFields {
 		baseFieldsDict[k] = v
 	}
 
