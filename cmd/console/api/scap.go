@@ -261,7 +261,9 @@ func (api *api) scapCheck() http.HandlerFunc {
 func (api *api) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
 
 	scheduledNodesCh := make(chan string, len(nodes.Items))
-	go api.asyncJobStatusUpdater(ctx, kubeClient, check, scheduledNodesCh, len(nodes.Items))
+	finishedNodesCh, listenerStopCh := api.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
+
+	go api.awaitAndUpdateJobsStatuses(ctx, check, scheduledNodesCh, finishedNodesCh, listenerStopCh)
 
 	for _, targetNode := range nodes.Items {
 		select {
@@ -274,6 +276,7 @@ func (api *api) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kube
 			// Note: I think it's safe to run this as goroutine for each job,
 			// but I don't know if we should spam kube api this way...
 			// I know kubeClient has some built in rate limiting so maybe it's ok?
+			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
 			err := api.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), targetNode.Name)
 			if err != nil {
@@ -440,14 +443,7 @@ func (api *api) mongoJobStatusToFailed(ctx context.Context, check *Check, nodeNa
 	}
 }
 
-func (api *api) asyncJobStatusUpdater(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, scheduledNodesCh chan string, maxNumJobs int) {
-
-	// TODO: if console restarts while job is running, that job's events won't be watched.
-	// TODO: rethink. Maybe we should have a listener thread all the time and utilize AddFunc
-	// to listen to newly created jobs and keep track that way?
-	// I think this design is kinda fragile... but I don't have any quick ideas.
-	// A better design would be to create a k8s custom resource with a custom controller to manage it.
-
+func (api *api) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, maxNumJobs int) (chan string, chan struct{}) {
 	finishedNodesCh := make(chan string, maxNumJobs)
 
 	kubeInformerFactory := informers.NewFilteredSharedInformerFactory(kubeClient, time.Second*30, check.Namespace, func(listOpts *v1.ListOptions) {
@@ -495,7 +491,7 @@ func (api *api) asyncJobStatusUpdater(ctx context.Context, kubeClient *kubernete
 				transTime := failedCondition.LastTransitionTime
 				msg := fmt.Sprintf("Message: %s; Reason: %s", failedCondition.Message, failedCondition.Reason)
 
-				mongoCtx, mongoCtxCancel := api.getTimeoutCtx(time.Second * 10)
+				mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 				api.mongoJobStatusToFailed(mongoCtx, check, thisNodeName, msg, transTime.Unix())
 				mongoCtxCancel()
 				return
@@ -506,36 +502,55 @@ func (api *api) asyncJobStatusUpdater(ctx context.Context, kubeClient *kubernete
 		},
 	})
 
-	stop := make(chan struct{})
-	defer close(stop)
+	stopCh := make(chan struct{})
 
 	logging.GetLogger().Info().
 		Str("checkId", check.CheckUUID.String()).
 		Msg("Starting to watch for job events")
-	kubeInformerFactory.Start(stop)
+	kubeInformerFactory.Start(stopCh)
 
-	// get a list of nodes on which we scheduled a job
+	return finishedNodesCh, stopCh
+}
+
+func (api *api) awaitAndUpdateJobsStatuses(ctx context.Context, check *Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
+	defer close(listenerStopCh)
+
+	// TODO: if console restarts while job is running, that job's events won't be watched.
+	// TODO: rethink. Maybe we should have a listener thread all the time and utilize AddFunc
+	// to listen to newly created jobs and keep track that way?
+	// I think this design is kinda fragile... but I don't have any quick ideas.
+	// A better design would be to create a k8s custom resource with a custom controller to manage it.
+
 	runningNodeNames := []string{}
-	for scheduledNodeName := range scheduledNodesCh {
-		runningNodeNames = append(runningNodeNames, scheduledNodeName)
-	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			logging.GetLogger().Error().Err(ctx.Err()).Msg("Ctx timeout while waiting for jobs to finish, will mark them as timed out")
-			// mark remaining runningJobs as timed out.
+			// mark remaining running jobs as timed out.
 			now := time.Now().Unix()
 			for _, runningNodeName := range runningNodeNames {
-				mongoCtx, mongoCtxCancel := api.getTimeoutCtx(time.Second * 10)
+				mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 				api.mongoJobStatusToFailed(mongoCtx, check, runningNodeName, fmt.Sprintf("Timed out: %s", ctx.Err()), now)
 				mongoCtxCancel()
 			}
 			return
 
-		case finishedJobName := <-finishedNodesCh:
-			runningNodeNames = removeElement(finishedJobName, runningNodeNames)
-			logging.GetLogger().Info().Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job finished")
+		case scheduledNodeName, ok := <-scheduledNodesCh:
+			if !ok {
+				scheduledNodesCh = nil
+				continue
+			}
+			runningNodeNames = append(runningNodeNames, scheduledNodeName)
+			logging.GetLogger().Info().Str("node-name", scheduledNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job scheduled")
+
+		case finishedNodeName, ok := <-finishedNodesCh:
+			if !ok {
+				finishedNodesCh = nil
+				continue
+			}
+			runningNodeNames = removeElement(finishedNodeName, runningNodeNames)
+			logging.GetLogger().Info().Str("node-name", finishedNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job finished")
 
 			if len(runningNodeNames) == 0 {
 				logging.GetLogger().Info().
@@ -543,6 +558,11 @@ func (api *api) asyncJobStatusUpdater(ctx context.Context, kubeClient *kubernete
 					Msg("All managed jobs accounted for, done watching for events")
 				break
 			}
+		}
+
+		if scheduledNodesCh == nil && finishedNodesCh == nil {
+			logging.GetLogger().Error().
+				Msg("Both chans are nil, this shouldln't happen")
 		}
 	}
 
