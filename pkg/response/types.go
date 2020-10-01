@@ -1,5 +1,7 @@
 package response
 
+import "encoding/json"
+
 // Implements modified Google JSON styleguide
 // https://google.github.io/styleguide/jsoncstyleguide.xml
 
@@ -18,19 +20,20 @@ type HTTPEnvelope struct {
 }
 
 type HTTPData struct {
-	Kind             string      `json:"kind,omitempty"`
-	Etag             string      `json:"etag,omitempty"`
-	Lang             string      `json:"lang,omitempty"`
-	Updated          string      `json:"updated,omitempty"`
-	Deleted          bool        `json:"deleted,omitempty"`
-	CurrentItemCount bool        `json:"currentItemCount,omitempty"`
-	ItemsPerPage     int64       `json:"itemsPerPage,omitempty"`
-	StartIndex       int64       `json:"startIndex,omitempty"`
-	TotalItems       int64       `json:"totalItems,omitempty"`
-	PageIndex        int64       `json:"pageIndex,omitempty"`
-	TotalPages       int64       `json:"totalPages,omitempty"`
-	Items            interface{} `json:"items,omitempty"`
-	Item             interface{} `json:"item,omitempty"`
+	Kind             string                 `json:"kind,omitempty"`
+	Etag             string                 `json:"etag,omitempty"`
+	Lang             string                 `json:"lang,omitempty"`
+	Updated          string                 `json:"updated,omitempty"`
+	Deleted          bool                   `json:"deleted,omitempty"`
+	CurrentItemCount bool                   `json:"currentItemCount,omitempty"`
+	ItemsPerPage     int64                  `json:"itemsPerPage,omitempty"`
+	StartIndex       int64                  `json:"startIndex,omitempty"`
+	TotalItems       int64                  `json:"totalItems,omitempty"`
+	PageIndex        int64                  `json:"pageIndex,omitempty"`
+	TotalPages       int64                  `json:"totalPages,omitempty"`
+	Items            interface{}            `json:"items,omitempty"`
+	Item             interface{}            `json:"item,omitempty"`
+	CustomFields     map[string]interface{} `json:"-"`
 }
 
 type HTTPSubError struct {
@@ -55,4 +58,29 @@ type HTTPError struct {
 type HTTPRedirectError struct {
 	HTTPError
 	Redirect string `json:"redirect"`
+}
+
+// HTTPDataAlias is used to avoid infinite recursion when calling json.Marshal in custom marshaller.
+type HTTPDataAlias HTTPData
+
+// MarshalJSON is overriden to support custom fields
+func (e HTTPData) MarshalJSON() ([]byte, error) {
+	// obtain dict from base struct
+	// Note: this assumes that CustomFields is disabled using struct annotation `json:"-"`
+	jsoned, err := json.Marshal(HTTPDataAlias(e))
+	if err != nil {
+		return []byte{}, err
+	}
+	var baseFieldsDict map[string]interface{}
+	err = json.Unmarshal(jsoned, &baseFieldsDict)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	// add any custom fields to dict
+	for k, v := range e.CustomFields {
+		baseFieldsDict[k] = v
+	}
+
+	return json.Marshal(baseFieldsDict)
 }

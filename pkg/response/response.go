@@ -64,6 +64,15 @@ func WithItem(item interface{}) ResponseDataOptionFunc {
 	}
 }
 
+func WithCustomField(key string, value interface{}) ResponseDataOptionFunc {
+	return func(ev *HTTPEnvelope) {
+		if ev.Data.CustomFields == nil {
+			ev.Data.CustomFields = make(map[string]interface{})
+		}
+		ev.Data.CustomFields[key] = value
+	}
+}
+
 func WithTotalItems(n int64) ResponseDataOptionFunc {
 	return func(ev *HTTPEnvelope) {
 		ev.Data.TotalItems = n
@@ -141,7 +150,6 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 	}
 
 	respond(w, code, resp)
-
 }
 
 func respond(w http.ResponseWriter, code int, payload interface{}) {
