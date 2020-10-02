@@ -205,7 +205,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
 			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 			return
 		}
@@ -362,7 +362,7 @@ func (api *api) getDockerHistoryEntries(checkMap map[string]*CheckHistoryEntry, 
 			for _, result := range test.Results {
 				if result.Result == "INFO" {
 					policiesInconclusive++
-				} else if result.Result == "WARN" {
+				} else if result.Result == "NOTE" {
 					policiesInconclusive++
 				} else if result.Result == "PASS" {
 					policiesPassed++
@@ -561,10 +561,10 @@ func (api *api) getDockerBreakdownEntries(checkMap map[string]*CheckBreakdown, n
 					}
 				}
 				testStatus := result.Result
-				if testStatus == "FAIL" {
+				if testStatus == "WARN" {
 					checkMap[testName].NumFailed++
-				} else if testStatus == "WARN" {
-					checkMap[testName].NumWarn++
+				} else if testStatus == "NOTE" {
+					checkMap[testName].NumInfo++
 				} else if testStatus == "PASS" {
 					checkMap[testName].NumSuccessful++
 				} else if testStatus == "INFO" {
@@ -703,7 +703,7 @@ func (api *api) getKubePolicyDetails(policyDetails *PolicyDetails, numWaiting *i
 
 func (api *api) getDockerPolicyDetails(policyDetails *PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
-		var complianceTest KubeJobEntry
+		var complianceTest DockerJobEntry
 		err := cursor.Decode(&complianceTest)
 		if err != nil {
 			return nil
@@ -729,12 +729,12 @@ func (api *api) getDockerPolicyDetails(policyDetails *PolicyDetails, numWaiting 
 						policyDetails.Remediation = test.Remediation
 						policyDetails.TestInfo = test.TestInfo
 						testStatus := test.Status
-						if testStatus == "FAIL" {
+						if testStatus == "WARN" {
 							policyDetails.NumFailed++
 							policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
-						} else if testStatus == "WARN" {
-							policyDetails.NumWarn++
-							policyDetails.WarnOn = append(policyDetails.WarnOn, complianceTest.NodeName)
+						} else if testStatus == "NOTE" {
+							policyDetails.NumInfo++
+							policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
 						} else if testStatus == "PASS" {
 							policyDetails.NumSuccessful++
 							policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
