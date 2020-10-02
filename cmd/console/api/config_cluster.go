@@ -34,8 +34,6 @@ const (
 // @Description Get single cluster information
 // @ID v1-config-cluster-get
 // @Produce json
-// @Success 200 {object} cluster
-// @Success 400 {string} string "clusterID is not provided"
 // @Param clusterID path string true "clusterID"
 // @Router /api/v1/config/cluster/{clusterID} [get]
 func (api *api) getCluster() http.HandlerFunc {
@@ -298,7 +296,6 @@ func (api *api) addCluster() http.HandlerFunc {
 // @ID v1-config-cluster-delete
 // @Produce json
 // @Param clusterID path string true "clusterID"
-// @Success 200 {string} string "MongoDB DeletedCount"
 // @Router /api/v1/config/cluster/{clusterID} [delete]
 func (api *api) delCluster() http.HandlerFunc {
 	type resp struct {
