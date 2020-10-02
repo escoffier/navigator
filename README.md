@@ -397,7 +397,7 @@ curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$C
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=2b9fefef-324d-4843-b9ca-784278864f2e&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=76b63e1f-06ac-4dd8-a78d-49d053933326&status=completed" > out.json
 
 ```
 
@@ -412,7 +412,8 @@ curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$C
 Some oneliners:
 
 ```bash
-mongo "mongodb://redstone:redstoneMongo123@10.152.183.63:27017/vegeta?authMechanism=SCRAM-SHA-1"
+mongo "mongodb://redstone:redstoneMongo123@10.105.109.22:27017/vegeta?authMechanism=SCRAM-SHA-1"
+mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["docker-bench-records"].find().toArray()' > out.json
 ```
 
 ```bash
@@ -424,7 +425,7 @@ ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get /agents/agentID/pods/sc
 ## Docker registry
 
 ```bash
-curl -X GET http://localhost:32000/v2/_catalog
+curl -X GET http://localhost:5000/v2/_catalog
 curl -X GET http://localhost:32000/v2/ubuntu/tags/list
 ```
 

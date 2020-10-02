@@ -26,18 +26,6 @@ definitions:
       username:
         type: string
     type: object
-  api.cluster:
-    properties:
-      config:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        description: Kubenetes 1, OpenShift 2, Docker 3
-        type: integer
-    type: object
   response.EmptyResponse:
     properties:
       status:
@@ -67,12 +55,6 @@ paths:
         required: true
         schema:
           type: string
-      - description: Kubenetes 1, OpenShift 2, Docker 3
-        in: body
-        name: type
-        required: true
-        schema:
-          type: integer
       produces:
       - application/json
       summary: Add new cluster
@@ -88,11 +70,6 @@ paths:
         type: string
       produces:
       - application/json
-      responses:
-        "200":
-          description: MongoDB DeletedCount
-          schema:
-            type: string
       summary: Delete a cluster
     get:
       description: Get single cluster information
@@ -105,15 +82,6 @@ paths:
         type: string
       produces:
       - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.cluster'
-        "400":
-          description: clusterID is not provided
-          schema:
-            type: string
       summary: Get single cluster information
     put:
       description: Update single cluster information
@@ -136,12 +104,6 @@ paths:
         required: true
         schema:
           type: string
-      - description: Kubenetes 1, OpenShift 2, Docker 3
-        in: body
-        name: type
-        required: true
-        schema:
-          type: integer
       produces:
       - application/json
       summary: Update single cluster information
@@ -263,6 +225,47 @@ paths:
       produces:
       - application/json
       summary: Run compliance check on specified cluster
+  /api/v1/scap/{checkType}/{clusterID}/cron:
+    get:
+      description: Get cron configured for this checkType and cluster
+      operationId: v1-scap-check
+      parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
+      - description: cluster ID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Get cron configured for this checkType and cluster
+    post:
+      description: Get cron configured for this checkType and cluster. To disable, send empty string.
+      operationId: v1-scap-check
+      parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
+      - description: cluster ID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      - description: new crontab string to assign; empty string to disable
+        in: body
+        name: newCronString
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      summary: Get cron configured for this checkType and cluster
   /api/v1/scap/{checkType}/{clusterID}/reports:
     get:
       description: Get scap report for cluster and filter criteria

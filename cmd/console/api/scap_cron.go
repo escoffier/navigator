@@ -19,7 +19,7 @@ import (
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param clusterID path string true "cluster ID"
-// @Router /api/v1/scap/{checkType}/{clusterID}/cron
+// @Router /api/v1/scap/{checkType}/{clusterID}/cron [get]
 func (api *api) getCron() http.HandlerFunc {
 	type respStruct struct {
 		CronString string `json:"cronString,omitempty"`
@@ -78,7 +78,7 @@ func (api *api) getCron() http.HandlerFunc {
 // @Param checkType path string true "kube/docker/host"
 // @Param clusterID path string true "cluster ID"
 // @Param newCronString body string true "new crontab string to assign; empty string to disable"
-// @Router /api/v1/scap/{checkType}/{clusterID}/cron
+// @Router /api/v1/scap/{checkType}/{clusterID}/cron [post]
 func (api *api) postCron() http.HandlerFunc {
 	type req struct {
 		NewCronString string `json:"newCronString"`
