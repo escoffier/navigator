@@ -300,6 +300,18 @@
                         "description": "returned data limit",
                         "name": "limit",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc/desc",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "policyNumber/name/numFailed/numSuccessful/numInfo/numWarn",
+                        "name": "sortBy",
+                        "in": "query"
                     }
                 ]
             }
@@ -375,6 +387,18 @@
                         "type": "integer",
                         "description": "returned data limit",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc/desc",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive",
+                        "name": "sortBy",
                         "in": "query"
                     }
                 ]

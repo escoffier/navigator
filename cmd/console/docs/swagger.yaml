@@ -325,6 +325,14 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: asc/desc
+        in: query
+        name: sortOrder
+        type: string
+      - description: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn
+        in: query
+        name: sortBy
+        type: string
       produces:
       - application/json
       summary: Get scap job breakdown
@@ -377,6 +385,14 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: asc/desc
+        in: query
+        name: sortOrder
+        type: string
+      - description: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive
+        in: query
+        name: sortBy
+        type: string
       produces:
       - application/json
       summary: Get scap history

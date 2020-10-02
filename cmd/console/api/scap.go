@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -32,16 +33,6 @@ func (api *api) scap() func(chi.Router) {
 	}
 }
 
-type CheckBreakdown struct {
-	PolicyNumber  string `json:"policyNumber"`
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	NumSuccessful int64  `json:"numSuccessful"`
-	NumFailed     int64  `json:"numFailed"`
-	NumInfo       int64  `json:"numInfo"`
-	NumWarn       int64  `json:"numWarn"`
-}
-
 type JobEntry struct {
 	ID         primitive.ObjectID     `json:"db_id,omitempty" bson:"_id,omitempty"`
 	CheckID    string                 `json:"check_id" bson:"checkId"`
@@ -51,6 +42,30 @@ type JobEntry struct {
 	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
 	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
+}
+
+type HostJobEntry struct {
+	ID         primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
+	CheckID    string             `json:"check_id" bson:"checkId"`
+	NodeName   string             `json:"node_name" bson:"nodeName"`
+	ClusterID  string             `json:"cluster_id" bson:"clusterId"`
+	Status     string             `json:"status" bson:"status,omitempty"`
+	CreatedAt  int64              `json:"created_at" bson:"createdAt,omitempty"`
+	FinishedAt int64              `json:"finished_at" bson:"finishedAt,omitempty"`
+	Report     HostReportResult   `json:"report" bson:"report,omitempty"`
+}
+
+type HostReportResult struct {
+	Profile string           `json:"profile" bson:"profile"`
+	Results []HostReportTest `json:"results" bson:"results"`
+}
+
+type HostReportTest struct {
+	Description string `json:"profile" bson:"profile"`
+	Rationale   string `json:"rationale" bson:"rationale"`
+	Result      string `json:"result" bson:"result"`
+	RuleID      string `json:"rule-id" bson:"rule-id"`
+	Title       string `json:"title" bson:"title"`
 }
 
 type DockerJobEntry struct {
@@ -118,18 +133,6 @@ type KubeSection struct {
 	Results     []KubeTestResult `json:"results" bson:"results"`
 }
 
-type CheckHistoryEntry struct {
-	CheckId         string `json:"checkId"`
-	ClusterId       string `json:"clusterId"`
-	CreatedAt       int64  `json:"createdAt"`
-	FinishedAt      int64  `json:"finishedAt,omitempty"`
-	NumSuccessful   int64  `json:"numSuccessful"`
-	NumFailed       int64  `json:"numFailed"`
-	NumError        int64  `json:"numError"`
-	NumWaiting      int64  `json:"numWaiting"`
-	NumInconclusive int64  `json:"numInconclusive"`
-}
-
 type KubeTestResult struct {
 	TestNumber      string   `json:"test_number" bson:"test_number"`
 	TestDescription string   `json:"test_desc" bson:"test_desc"`
@@ -141,6 +144,28 @@ type KubeTestResult struct {
 	IsMultiple      bool     `json:"IsMultiple" bson:"IsMultiple"`
 	ActualValue     string   `json:"actual_value" bson:"actual_value"`
 	Status          string   `json:"status" bson:"status"`
+}
+
+type CheckHistoryEntry struct {
+	CheckID         string `json:"checkId"`
+	ClusterID       string `json:"clusterId"`
+	CreatedAt       int64  `json:"createdAt"`
+	FinishedAt      int64  `json:"finishedAt,omitempty"`
+	NumSuccessful   int64  `json:"numSuccessful"`
+	NumFailed       int64  `json:"numFailed"`
+	NumError        int64  `json:"numError"`
+	NumWaiting      int64  `json:"numWaiting"`
+	NumInconclusive int64  `json:"numInconclusive"`
+}
+
+type CheckBreakdown struct {
+	PolicyNumber  string `json:"policyNumber"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	NumSuccessful int64  `json:"numSuccessful"`
+	NumFailed     int64  `json:"numFailed"`
+	NumInfo       int64  `json:"numInfo"`
+	NumWarn       int64  `json:"numWarn"`
 }
 
 type PolicyDetails struct {
@@ -170,6 +195,8 @@ type PolicyDetails struct {
 // @Param clusterID query string false "clusterID"
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
+// @Param sortOrder query string false "asc/desc"
+// @Param sortBy query string false "createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive"
 // @Router /api/v1/scap/{checkType}/history [get]
 func (api *api) getCheckHistory() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +228,26 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			return
 		}
 
+		sortBy := r.URL.Query().Get("sortBy")
+		if sortBy == "" {
+			sortBy = "createdAt"
+		}
+		if sortBy != "createdAt" && sortBy != "finishedAt" && sortBy != "checkID" && sortBy != "clusterID" && sortBy != "numSuccessful" && sortBy != "numFailed" && sortBy != "numError" && sortBy != "numWaiting" && sortBy != "numInconclusive" {
+			logging.GetLogger().Info().Msg("invalid sortBy param value (allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive)")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortBy", ""))
+			return
+		}
+
+		sortOrder := r.URL.Query().Get("sortOrder")
+		if sortOrder == "" {
+			sortOrder = "asc"
+		}
+		if sortOrder != "asc" && sortOrder != "desc" {
+			logging.GetLogger().Info().Msg("invalid sortOrder param value (allowed: asc/desc)")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortOrder", ""))
+			return
+		}
+
 		offset, limit := api.getOffsetAndLimit(r)
 
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
@@ -226,6 +273,13 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
+		} else if checkType == "host" {
+			err := api.getHostHistoryEntries(checkMap, cursor, ctx)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				return
+			}
 		}
 
 		err = cursor.Err()
@@ -246,9 +300,57 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			results = append(results, v)
 		}
 
-		// TODO: Add sortBy parameters in query
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].CreatedAt < results[j].CreatedAt
+			if sortBy == "createdAt" {
+				if sortOrder == "asc" {
+					return results[i].CreatedAt < results[j].CreatedAt
+				}
+				return results[i].CreatedAt > results[j].CreatedAt
+			} else if sortBy == "finishedAt" {
+				if sortOrder == "asc" {
+					return results[i].FinishedAt < results[j].FinishedAt
+				}
+				return results[i].FinishedAt > results[j].FinishedAt
+			} else if sortBy == "checkID" {
+				if sortOrder == "asc" {
+					return results[i].CheckID < results[j].CheckID
+				}
+				return results[i].CheckID > results[j].CheckID
+			} else if sortBy == "clusterID" {
+				if sortOrder == "asc" {
+					return results[i].ClusterID < results[j].ClusterID
+				}
+				return results[i].ClusterID > results[j].ClusterID
+			} else if sortBy == "numSuccessful" {
+				if sortOrder == "asc" {
+					return results[i].NumSuccessful < results[j].NumSuccessful
+				}
+				return results[i].NumSuccessful > results[j].NumSuccessful
+			} else if sortBy == "numFailed" {
+				if sortOrder == "asc" {
+					return results[i].NumFailed < results[j].NumFailed
+				}
+				return results[i].NumFailed > results[j].NumFailed
+			} else if sortBy == "numWaiting" {
+				if sortOrder == "asc" {
+					return results[i].NumWaiting < results[j].NumWaiting
+				}
+				return results[i].NumWaiting > results[j].NumWaiting
+			} else if sortBy == "numError" {
+				if sortOrder == "asc" {
+					return results[i].NumError < results[j].NumError
+				}
+				return results[i].NumError > results[j].NumError
+			} else if sortBy == "numInconclusive" {
+				if sortOrder == "asc" {
+					return results[i].NumInconclusive < results[j].NumInconclusive
+				}
+				return results[i].NumInconclusive > results[j].NumInconclusive
+			}
+			if sortOrder == "asc" {
+				return results[i].CreatedAt < results[j].CreatedAt
+			}
+			return results[i].CreatedAt > results[j].CreatedAt
 		})
 
 		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
@@ -268,14 +370,16 @@ func (api *api) getKubeHistoryEntries(checkMap map[string]*CheckHistoryEntry, cu
 		if err != nil {
 			return err
 		}
+		fmt.Println("A")
 		if _, ok := checkMap[complianceTest.CheckID]; !ok {
 			checkMap[complianceTest.CheckID] = &CheckHistoryEntry{
-				CheckId:   complianceTest.CheckID,
-				ClusterId: complianceTest.ClusterID,
+				CheckID:   complianceTest.CheckID,
+				ClusterID: complianceTest.ClusterID,
 				CreatedAt: complianceTest.CreatedAt,
 			}
 			// We already had a node that didn't finish yet
 		}
+		fmt.Printf("%+v\n", checkMap)
 		if complianceTest.CreatedAt < checkMap[complianceTest.CheckID].CreatedAt {
 			checkMap[complianceTest.CheckID].CreatedAt = complianceTest.CreatedAt
 		}
@@ -328,8 +432,8 @@ func (api *api) getDockerHistoryEntries(checkMap map[string]*CheckHistoryEntry, 
 		}
 		if _, ok := checkMap[complianceTest.CheckID]; !ok {
 			checkMap[complianceTest.CheckID] = &CheckHistoryEntry{
-				CheckId:   complianceTest.CheckID,
-				ClusterId: complianceTest.ClusterID,
+				CheckID:   complianceTest.CheckID,
+				ClusterID: complianceTest.ClusterID,
 				CreatedAt: complianceTest.CreatedAt,
 			}
 			// We already had a node that didn't finish yet
@@ -382,6 +486,65 @@ func (api *api) getDockerHistoryEntries(checkMap map[string]*CheckHistoryEntry, 
 	return nil
 }
 
+func (api *api) getHostHistoryEntries(checkMap map[string]*CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
+	for cursor.Next(ctx) {
+		var complianceTest HostJobEntry
+		err := cursor.Decode(&complianceTest)
+		if err != nil {
+			return err
+		}
+		if _, ok := checkMap[complianceTest.CheckID]; !ok {
+			checkMap[complianceTest.CheckID] = &CheckHistoryEntry{
+				CheckID:   complianceTest.CheckID,
+				ClusterID: complianceTest.ClusterID,
+				CreatedAt: complianceTest.CreatedAt,
+			}
+			// We already had a node that didn't finish yet
+		}
+		if complianceTest.CreatedAt < checkMap[complianceTest.CheckID].CreatedAt {
+			checkMap[complianceTest.CheckID].CreatedAt = complianceTest.CreatedAt
+		}
+		if checkMap[complianceTest.CheckID].FinishedAt != -1 {
+			if complianceTest.Status == "inprogress" {
+				// Set to -1 not to 0, because 0 is the starting value.
+				checkMap[complianceTest.CheckID].FinishedAt = -1
+			} else {
+				if checkMap[complianceTest.CheckID].FinishedAt < complianceTest.FinishedAt {
+					checkMap[complianceTest.CheckID].FinishedAt = complianceTest.FinishedAt
+				}
+			}
+		}
+		if complianceTest.Status == "inprogress" {
+			checkMap[complianceTest.CheckID].NumWaiting++
+			continue
+		}
+		if complianceTest.Status == "error" {
+			checkMap[complianceTest.CheckID].NumError++
+			continue
+		}
+		policiesFailed := int64(0)
+		policiesInconclusive := int64(0)
+		policiesPassed := int64(0)
+		for _, test := range complianceTest.Report.Results {
+			if test.Result == "notselected" {
+				policiesInconclusive++
+			} else if test.Result == "pass" {
+				policiesPassed++
+			} else if test.Result == "fail" {
+				policiesFailed++
+			}
+		}
+		if policiesFailed != 0 {
+			checkMap[complianceTest.CheckID].NumFailed++
+		} else if policiesInconclusive != 0 {
+			checkMap[complianceTest.CheckID].NumInconclusive++
+		} else {
+			checkMap[complianceTest.CheckID].NumSuccessful++
+		}
+	}
+	return nil
+}
+
 // @Summary Get scap job breakdown
 // @Description Get scap job breakdown
 // @ID v1-scap-job-breakdown
@@ -391,6 +554,8 @@ func (api *api) getDockerHistoryEntries(checkMap map[string]*CheckHistoryEntry, 
 // @Param policyNumber query string false "policy number"
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
+// @Param sortOrder query string false "asc/desc"
+// @Param sortBy query string false "policyNumber/name/numFailed/numSuccessful/numInfo/numWarn"
 // @Router /api/v1/scap/{checkType}/breakdown/{checkID} [get]
 func (api *api) getCheckBreakdown() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -416,6 +581,26 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
 			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			return
+		}
+
+		sortBy := r.URL.Query().Get("sortBy")
+		if sortBy == "" {
+			sortBy = "policyNumber"
+		}
+		if sortBy != "policyNumber" && sortBy != "name" && sortBy != "numFailed" && sortBy != "numSuccessful" && sortBy != "numInfo" && sortBy != "numWarn" {
+			logging.GetLogger().Info().Msg("invalid sortBy param value (allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn)")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortBy", ""))
+			return
+		}
+
+		sortOrder := r.URL.Query().Get("sortOrder")
+		if sortOrder == "" {
+			sortOrder = "asc"
+		}
+		if sortOrder != "asc" && sortOrder != "desc" {
+			logging.GetLogger().Info().Msg("invalid sortOrder param value (allowed: asc/desc)")
+			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortOrder", ""))
 			return
 		}
 
@@ -449,6 +634,13 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
 				return
 			}
+		} else if checkType == "host" {
+			err := api.getHostBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				return
+			}
 		}
 
 		var results []*CheckBreakdown
@@ -465,9 +657,42 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		docNum := int64(len(checkMap))
 
-		// TODO: Add sortBy parameters in query
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].PolicyNumber < results[j].PolicyNumber
+			if sortBy == "policyNumber" {
+				if sortOrder == "asc" {
+					return results[i].PolicyNumber < results[j].PolicyNumber
+				}
+				return results[i].PolicyNumber > results[j].PolicyNumber
+			} else if sortBy == "name" {
+				if sortOrder == "asc" {
+					return results[i].Name < results[j].Name
+				}
+				return results[i].Name > results[j].Name
+			} else if sortBy == "numFailed" {
+				if sortOrder == "asc" {
+					return results[i].NumFailed < results[j].NumFailed
+				}
+				return results[i].NumFailed > results[j].NumFailed
+			} else if sortBy == "numSuccessful" {
+				if sortOrder == "asc" {
+					return results[i].NumSuccessful < results[j].NumSuccessful
+				}
+				return results[i].NumSuccessful > results[j].NumSuccessful
+			} else if sortBy == "numInfo" {
+				if sortOrder == "asc" {
+					return results[i].NumInfo < results[j].NumInfo
+				}
+				return results[i].NumInfo > results[j].NumInfo
+			} else if sortBy == "numWarn" {
+				if sortOrder == "asc" {
+					return results[i].NumWarn < results[j].NumWarn
+				}
+				return results[i].NumWarn > results[j].NumWarn
+			}
+			if sortOrder == "asc" {
+				return results[i].PolicyNumber < results[j].PolicyNumber
+			}
+			return results[i].PolicyNumber > results[j].PolicyNumber
 		})
 
 		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
@@ -506,8 +731,8 @@ func (api *api) getKubeBreakdownEntries(checkMap map[string]*CheckBreakdown, num
 					if policyNumber != "" && policyNumber != testNumber {
 						continue
 					}
-					if _, ok := checkMap[testName]; !ok {
-						checkMap[testName] = &CheckBreakdown{
+					if _, ok := checkMap[testNumber]; !ok {
+						checkMap[testNumber] = &CheckBreakdown{
 							PolicyNumber: testNumber,
 							Name:         testName,
 							Description:  testDescription,
@@ -515,13 +740,13 @@ func (api *api) getKubeBreakdownEntries(checkMap map[string]*CheckBreakdown, num
 					}
 					testStatus := test.Status
 					if testStatus == "FAIL" {
-						checkMap[testName].NumFailed++
+						checkMap[testNumber].NumFailed++
 					} else if testStatus == "WARN" {
-						checkMap[testName].NumWarn++
+						checkMap[testNumber].NumWarn++
 					} else if testStatus == "PASS" {
-						checkMap[testName].NumSuccessful++
+						checkMap[testNumber].NumSuccessful++
 					} else if testStatus == "INFO" {
-						checkMap[testName].NumInfo++
+						checkMap[testNumber].NumInfo++
 					}
 				}
 			}
@@ -553,8 +778,8 @@ func (api *api) getDockerBreakdownEntries(checkMap map[string]*CheckBreakdown, n
 				if policyNumber != "" && policyNumber != testNumber {
 					continue
 				}
-				if _, ok := checkMap[testName]; !ok {
-					checkMap[testName] = &CheckBreakdown{
+				if _, ok := checkMap[testNumber]; !ok {
+					checkMap[testNumber] = &CheckBreakdown{
 						PolicyNumber: testNumber,
 						Name:         testName,
 						Description:  testDescription,
@@ -562,14 +787,56 @@ func (api *api) getDockerBreakdownEntries(checkMap map[string]*CheckBreakdown, n
 				}
 				testStatus := result.Result
 				if testStatus == "WARN" {
-					checkMap[testName].NumFailed++
+					checkMap[testNumber].NumFailed++
 				} else if testStatus == "NOTE" {
-					checkMap[testName].NumInfo++
+					checkMap[testNumber].NumInfo++
 				} else if testStatus == "PASS" {
-					checkMap[testName].NumSuccessful++
+					checkMap[testNumber].NumSuccessful++
 				} else if testStatus == "INFO" {
-					checkMap[testName].NumInfo++
+					checkMap[testNumber].NumInfo++
 				}
+			}
+		}
+	}
+	return nil
+}
+
+func (api *api) getHostBreakdownEntries(checkMap map[string]*CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+	for cursor.Next(ctx) {
+		var complianceTest HostJobEntry
+		err := cursor.Decode(&complianceTest)
+		if err != nil {
+			return err
+		}
+		if complianceTest.Status == "error" {
+			*numError++
+			continue
+		}
+		if complianceTest.Status == "inprogress" {
+			*numWaiting++
+			continue
+		}
+		for _, test := range complianceTest.Report.Results {
+			testDescription := test.Description
+			testNumber := test.RuleID
+			testName := test.Title
+			if policyNumber != "" && policyNumber != testNumber {
+				continue
+			}
+			if _, ok := checkMap[testNumber]; !ok {
+				checkMap[testNumber] = &CheckBreakdown{
+					PolicyNumber: testNumber,
+					Name:         testName,
+					Description:  testDescription,
+				}
+			}
+			testStatus := test.Result
+			if testStatus == "fail" {
+				checkMap[testNumber].NumFailed++
+			} else if testStatus == "notselected" {
+				checkMap[testNumber].NumInfo++
+			} else if testStatus == "pass" {
+				checkMap[testNumber].NumSuccessful++
 			}
 		}
 	}
@@ -639,6 +906,13 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			}
 		} else if checkType == "docker" {
 			err := api.getDockerPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
+				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				return
+			}
+		} else if checkType == "host" {
+			err := api.getHostPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
 				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
@@ -746,6 +1020,45 @@ func (api *api) getDockerPolicyDetails(policyDetails *PolicyDetails, numWaiting 
 						policyDetails.NumInfo++
 						policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
 					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (api *api) getHostPolicyDetails(policyDetails *PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+	for cursor.Next(ctx) {
+		var complianceTest HostJobEntry
+		err := cursor.Decode(&complianceTest)
+		if err != nil {
+			return nil
+		}
+		if complianceTest.Status == "error" {
+			*numError++
+			continue
+		}
+		if complianceTest.Status == "inprogress" {
+			*numWaiting++
+			continue
+		}
+
+		for _, test := range complianceTest.Report.Results {
+			if test.RuleID == policyNumber {
+				policyDetails.PolicyNumber = test.RuleID
+				policyDetails.Name = test.Title
+				policyDetails.Description = test.Description
+				// TODO: how to classify Host policy specific information?
+				testStatus := test.Result
+				if testStatus == "fail" {
+					policyDetails.NumFailed++
+					policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+				} else if testStatus == "notselected" {
+					policyDetails.NumInfo++
+					policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+				} else if testStatus == "pass" {
+					policyDetails.NumSuccessful++
+					policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
 				}
 			}
 		}
