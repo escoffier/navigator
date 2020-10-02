@@ -659,7 +659,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 func (api *api) getKubePolicyDetails(policyDetails *PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
-		var complianceTest DockerJobEntry
+		var complianceTest KubeJobEntry
 		err := cursor.Decode(&complianceTest)
 		if err != nil {
 			return nil
@@ -673,14 +673,21 @@ func (api *api) getKubePolicyDetails(policyDetails *PolicyDetails, numWaiting *i
 			continue
 		}
 
-		for _, test := range complianceTest.Report.Tests {
-			for _, result := range test.Results {
-				if result.ID == policyNumber {
-					policyDetails.PolicyNumber = result.ID
-					policyDetails.Name = result.ID
-					policyDetails.Description = result.Description
-					// How to classify details/items fields from docker checks?
-					testStatus := result.Result
+		for _, reportDetails := range complianceTest.Report {
+			for _, section := range reportDetails.Tests {
+				testName := section.Description
+				for _, test := range section.Results {
+					if policyNumber != test.TestNumber {
+						continue
+					}
+					policyDetails.PolicyNumber = test.TestNumber
+					policyDetails.Name = testName
+					policyDetails.Description = test.TestDescription
+					policyDetails.Audit = test.Audit
+					policyDetails.ExpectedResult = test.ExpectedResult
+					policyDetails.Remediation = test.Remediation
+					policyDetails.TestInfo = test.TestInfo
+					testStatus := test.Status
 					if testStatus == "FAIL" {
 						policyDetails.NumFailed++
 						policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
@@ -717,31 +724,27 @@ func (api *api) getDockerPolicyDetails(policyDetails *PolicyDetails, numWaiting 
 			continue
 		}
 
-		for _, reportDetails := range complianceTest.Report {
-			for _, section := range reportDetails.Tests {
-				for _, test := range section.Results {
-					if test.TestNumber == policyNumber {
-						policyDetails.PolicyNumber = test.TestNumber
-						policyDetails.Name = test.TestNumber
-						policyDetails.Description = test.TestDescription
-						policyDetails.Audit = test.Audit
-						policyDetails.ExpectedResult = test.ExpectedResult
-						policyDetails.Remediation = test.Remediation
-						policyDetails.TestInfo = test.TestInfo
-						testStatus := test.Status
-						if testStatus == "WARN" {
-							policyDetails.NumFailed++
-							policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
-						} else if testStatus == "NOTE" {
-							policyDetails.NumInfo++
-							policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
-						} else if testStatus == "PASS" {
-							policyDetails.NumSuccessful++
-							policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
-						} else if testStatus == "INFO" {
-							policyDetails.NumInfo++
-							policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
-						}
+		for _, test := range complianceTest.Report.Tests {
+			testName := test.Description
+			for _, result := range test.Results {
+				if result.ID == policyNumber {
+					policyDetails.PolicyNumber = result.ID
+					policyDetails.Name = testName
+					policyDetails.Description = result.Description
+					// TODO: how to classify Docker policy specific information?
+					testStatus := result.Result
+					if testStatus == "WARN" {
+						policyDetails.NumFailed++
+						policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+					} else if testStatus == "NOTE" {
+						policyDetails.NumInfo++
+						policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+					} else if testStatus == "PASS" {
+						policyDetails.NumSuccessful++
+						policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
+					} else if testStatus == "INFO" {
+						policyDetails.NumInfo++
+						policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
 					}
 				}
 			}
