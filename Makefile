@@ -70,7 +70,7 @@ console: generate 		## Build console binary
 	go build  -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
-	docker build -t $(REPOPREFIX)/vegeta-console:latest -f ./build/console/Dockerfile .
+	docker build -t $(REPOPREFIX)/tensorsec-console:latest -f ./build/console/Dockerfile .
 
 .PHONY: scanner
 scanner: generate		## Build scanner binary
@@ -78,15 +78,15 @@ scanner: generate		## Build scanner binary
 	go build -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
-	docker build -t $(REPOPREFIX)/vegeta-scanner:latest -f ./build/scanner/Dockerfile .
+	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: all
 all: scanner frontend scap-jobs console
 
 .PHONY: pushimages
 pushimages:
-	docker push $(REPOPREFIX)/vegeta-console:latest
-	docker push $(REPOPREFIX)/vegeta-scanner:latest
+	docker push $(REPOPREFIX)/tensorsec-console:latest
+	docker push $(REPOPREFIX)/tensorsec-scanner:latest
 	docker push $(REPOPREFIX)/kube-bench:latest
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
@@ -101,8 +101,8 @@ frontend:			## Build frontend
 
 .PHONY: retag
 retag:
-	docker tag $(REPOPREFIXOLD)/vegeta-console $(REPOPREFIX)/vegeta-console:latest
-	docker tag $(REPOPREFIXOLD)/vegeta-scanner $(REPOPREFIX)/vegeta-scanner:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-console $(REPOPREFIX)/tensorsec-console:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-scanner $(REPOPREFIX)/tensorsec-scanner:latest
 	docker tag $(REPOPREFIXOLD)/kube-bench $(REPOPREFIX)/kube-bench:latest
 	docker tag $(REPOPREFIXOLD)/docker-bench-security $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench $(REPOPREFIX)/host-bench:latest
@@ -115,8 +115,8 @@ redeploy:
 	# then run this target again.
 	@echo "+ $@"
 	cd deployments/helm; \
-		helm delete --purge vegeta; \
+		helm delete --purge tensorsec; \
 		rm -rf charts; \
 		helm dep up; \
-		helm install ./ --namespace vegeta --name vegeta; \
+		helm install ./ --namespace tensorsec --name tensorsec; \
 		cd -
