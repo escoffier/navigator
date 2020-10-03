@@ -38,7 +38,22 @@ info:
   title: Vegeta API
   version: "1.0"
 paths:
-  /api/v1/config/cluster:
+  /api/v1/config/clusters:
+    get:
+      description: Get all cluster information
+      operationId: v1-config-cluster-get-all
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: Get all clusters information
     post:
       description: Add new cluster
       operationId: v1-config-cluster-post
@@ -58,7 +73,7 @@ paths:
       produces:
       - application/json
       summary: Add new cluster
-  /api/v1/config/cluster/{clusterID}:
+  /api/v1/config/clusters/{clusterID}:
     delete:
       description: Delete a cluster by cluster ID
       operationId: v1-config-cluster-delete
@@ -107,22 +122,6 @@ paths:
       produces:
       - application/json
       summary: Update single cluster information
-  /api/v1/config/clusters:
-    get:
-      description: Get all cluster information
-      operationId: v1-config-cluster-get-all
-      parameters:
-      - description: from offset
-        in: query
-        name: offset
-        type: integer
-      - description: returned data limit
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      summary: Get all clusters information
   /api/v1/rest-auth/login:
     post:
       consumes:
@@ -243,8 +242,8 @@ paths:
       produces:
       - application/json
       summary: Get cron configured for this checkType and cluster
-    post:
-      description: Get cron configured for this checkType and cluster. To disable, send empty string.
+    put:
+      description: Update cron configured for this checkType and cluster. To disable, send empty string.
       operationId: v1-scap-check
       parameters:
       - description: kube/docker/host
@@ -265,7 +264,7 @@ paths:
           type: string
       produces:
       - application/json
-      summary: Get cron configured for this checkType and cluster
+      summary: Update cron configured for this checkType and cluster
   /api/v1/scap/{checkType}/{clusterID}/reports:
     get:
       description: Get scap report for cluster and filter criteria

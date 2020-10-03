@@ -367,7 +367,7 @@ Run scap job:
 # For dev: microk8s kubectl config shows that k8s API is at 127.0.0.1. Replace it with externally routable IP of the host so that the pod can access it.
 # Note: change 'enp3s0' depending on your system.
 # ACTUALKUBEAPIADDRESS=$(ip -4 addr show enp3s0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-# KUBECONFIG=$(kubectl config view --raw -o json | sed "s/127.0.0.1/$ACTUALKUBEAPIADDRESS/" | base64 | tr -d "\n ")
+# CFG=$(microk8s kubectl config view --raw -o json | sed "s/127.0.0.1/$ACTUALKUBEAPIADDRESS/" | base64 | tr -d "\n ")
 
 # if multinode
 CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
@@ -375,9 +375,9 @@ CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
 # CFG=$(ssh root@120.53.227.174 'kubectl config view --raw -o json  | base64 | tr -d "\n "')
 
 # Create cluster
-curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
+curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/clusters
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f75a5221b29c43e6838df66
+curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/clusters/5f75a5221b29c43e6838df66
 
 # Kube-bench
 curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66
@@ -403,7 +403,7 @@ curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$C
 
 
 ```bash
-curl -v -X POST -H "Cookie: $JWT" -data "{\"newCronString\": \"* /5 * * **\"}" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
+curl --request PUT 'http://127.0.0.1:8889/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron' --header "Cookie: $JWT" --header 'Content-Type: application/json' --data-raw '{ "newCronString": "*/5 * * * *" }'
 curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
 ```
 

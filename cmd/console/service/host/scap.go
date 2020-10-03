@@ -5,11 +5,11 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/host"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 )
 
-func GetHostHistoryEntries(checkMap map[string]*model.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -17,7 +17,7 @@ func GetHostHistoryEntries(checkMap map[string]*model.CheckHistoryEntry, cursor 
 			return err
 		}
 		if _, ok := checkMap[complianceTest.CheckID]; !ok {
-			checkMap[complianceTest.CheckID] = &model.CheckHistoryEntry{
+			checkMap[complianceTest.CheckID] = &scap.CheckHistoryEntry{
 				CheckID:   complianceTest.CheckID,
 				ClusterID: complianceTest.ClusterID,
 				CreatedAt: complianceTest.CreatedAt,
@@ -68,7 +68,7 @@ func GetHostHistoryEntries(checkMap map[string]*model.CheckHistoryEntry, cursor 
 	return nil
 }
 
-func GetHostBreakdownEntries(checkMap map[string]*model.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -91,7 +91,7 @@ func GetHostBreakdownEntries(checkMap map[string]*model.CheckBreakdown, numWaiti
 				continue
 			}
 			if _, ok := checkMap[testNumber]; !ok {
-				checkMap[testNumber] = &model.CheckBreakdown{
+				checkMap[testNumber] = &scap.CheckBreakdown{
 					PolicyNumber: testNumber,
 					Name:         testName,
 					Description:  testDescription,
@@ -110,7 +110,7 @@ func GetHostBreakdownEntries(checkMap map[string]*model.CheckBreakdown, numWaiti
 	return nil
 }
 
-func GetHostPolicyDetails(policyDetails *model.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)

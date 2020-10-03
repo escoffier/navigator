@@ -1,6 +1,10 @@
 package model
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Cluster struct {
 	ID          primitive.ObjectID   `json:"id" bson:"_id, omitempty"`
@@ -10,7 +14,14 @@ type Cluster struct {
 }
 
 type ComplianceCronConfig struct {
-	KubeBenchCronString   string `json:"kubeBenchCronString" bson:"kubeBenchCronString"`
-	DockerBenchCronString string `json:"dockerBenchCronString" bson:"dockerBenchCronString"`
-	HostBenchCronString   string `json:"hostBenchCronString" bson:"hostBenchCronString"`
+	KubeBenchCron   CronConfig `json:"kubeBenchCron" bson:"kubeBenchCron"`
+	DockerBenchCron CronConfig `json:"dockerBenchCron" bson:"dockerBenchCron"`
+	HostBenchCron   CronConfig `json:"hostBenchCron" bson:"hostBenchCron"`
+}
+
+type CronConfig struct {
+	CronString string     `json:"cronString" bson:"cronString"`
+	CronID     int        `json:"cronID" bson:"cronID"`
+	PrevRun    *time.Time `json:"prevRun" bson:"prevRun"`
+	NextRun    *time.Time `json:"nextRun" bson:"nextRun"`
 }
