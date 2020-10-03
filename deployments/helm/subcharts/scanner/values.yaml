@@ -1,8 +1,8 @@
 # imagePullSecrets:
 #   - name: vegeta-gitlab
 
-nameOverride: "scanner"
-fullnameOverride: "scanner"
+nameOverride: "tensorsec-scanner"
+fullnameOverride: "tensorsec-scanner"
 
 restartPolicy: Always
 

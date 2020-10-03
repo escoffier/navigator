@@ -37,8 +37,8 @@ resources:
     cpu: 100m
     memory: 500Mi
 config:
-  postgresServiceName: "vegeta-postgresql"
-  postgresURI: "postgres://postgres:password@vegeta-postgresql:5432/postgres?sslmode=disable"
+  postgresServiceName: "tensorsec-postgresql"
+  postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   paginationKey: "XxoPtCUzrUv4JV5dS+yQ+MdW7yLEJnRMwigVY/bpgtQ="
   updateInterval: 2h
   notificationWebhookEndpoint: https://example.com/notify/me
