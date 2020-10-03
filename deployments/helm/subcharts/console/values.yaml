@@ -1,8 +1,8 @@
 # imagePullSecrets:
 #   - name: vegeta-gitlab
 
-nameOverride: "tensorsec-console"
-#fullnameOverride: "tensorsec-console"
+nameOverride: "console"
+fullnameOverride: "tensorsec-console"
 
 restartPolicy: Always
 
