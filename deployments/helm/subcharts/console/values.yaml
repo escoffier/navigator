@@ -13,10 +13,10 @@ service:
 
 replicaCount: 1
 
-apiInstallLabel: "console.vegeta/install"
+apiInstallLabel: "console.tensorsec/install"
 
 image:
-  name: vegeta-console
+  name: tensorsec-console
   # repository: localhost:32000
   tag: latest
   pullPolicy: Always

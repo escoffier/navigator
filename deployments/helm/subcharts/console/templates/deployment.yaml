@@ -25,8 +25,8 @@ spec:
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         command: ["/vegeta-console"]
         args: [
-          "--mongo-endpoint=vegeta-mongodb:27017",
-          "--vegeta-scanner-host=scanner",
+          "--mongo-endpoint=tensorsec-mongodb:27017",
+          "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
           "-v"]

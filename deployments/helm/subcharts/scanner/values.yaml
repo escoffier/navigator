@@ -15,10 +15,10 @@ service:
 
 replicaCount: 1
 
-apiInstallLabel: "scanner.vegeta/install"
+apiInstallLabel: "scanner.tensorsec/install"
 
 image:
-  name: vegeta-scanner
+  name: tensorsec-scanner
   # repository: localhost:32000
   tag: latest
   pullPolicy: Always
