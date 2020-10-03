@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"net/http"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-chi/jwtauth"
@@ -58,4 +60,29 @@ func (api *api) getOffsetAndLimit(r *http.Request) (int64, int64) {
 		limit = 10000
 	}
 	return int64(offset), int64(limit)
+}
+
+func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sortOrder string) bool {
+	d1 := reflect.ValueOf(first).Elem()
+	d2 := reflect.ValueOf(second).Elem()
+	for i := 0; i < d1.NumField(); i++ {
+		typeField := d1.Type().Field(i).Name
+		if typeField == strings.Title(sortBy) {
+			val1 := d1.Field(i)
+			val2 := d2.Field(i)
+			switch val1.Kind() {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				if sortOrder == "asc" {
+					return val1.Int() < val2.Int()
+				}
+				return val1.Int() > val2.Int()
+			case reflect.String:
+				if sortOrder == "asc" {
+					return val1.String() < val2.String()
+				}
+				return val1.String() > val2.String()
+			}
+		}
+	}
+	return false
 }
