@@ -52,16 +52,19 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 export GO111MODULE=on
                 make frontend
                 make console
-                docker push registry.t-appagile.com/tensorsecurity/vegeta-console:latest
-                kubectl scale --replicas=0 deployment  console  -n vegeta
-                kubectl scale --replicas=1 deployment  console  -n vegeta
+                docker push registry.t-appagile.com/tensorsecurity/tensorsec-console:latest
+                kubectl scale --replicas=0 deployment tensorsec-console  -n tensorsec
+                kubectl scale --replicas=1 deployment tensorsec-console  -n tensorsec
                 '''
                 }
                 if("$moduleToDeploy".trim() == "all") {
                 sh '''
+                export GOPROXY=https://goproxy.cn
+                export GO111MODULE=on
                 make all
                 make pushimages
-                kubectl scale --replicas=0 deploy/console deploy/scanner deploy/alerter -n vegeta
+                kubectl scale --replicas=0 deploy/tensorsec-console deploy/tensorsec-scanner -n tensorsec
+                kubectl scale --replicas=1 deploy/tensorsec-console deploy/tensorsec-scanner -n tensorsec
                 '''
                 }
                 if("$moduleToDeploy".trim() == "scap-jobs") {
@@ -74,32 +77,14 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 docker push registry.t-appagile.com/tensorsecurity/host-bench:latest
                 '''
                 }
-                if("$moduleToDeploy".trim() == "alerter") {
-                sh '''
-                export GOPROXY=https://goproxy.cn
-                export GO111MODULE=on
-                make alerter
-                docker push registry.t-appagile.com/tensorsecurity/vegeta-alerter:latest
-                kubectl scale --replicas=0 deploy/vegeta-alerter -n vegeta
-                kubectl scale --replicas=1 deploy/vegeta-alerter -n vegeta
-                '''
-                }
-                if("$moduleToDeploy".trim() == "daemon") {
-                sh '''
-                export GOPROXY=https://goproxy.cn
-                export GO111MODULE=on
-                make daemon
-                docker push registry.t-appagile.com/tensorsecurity/vegeta-daemon:latest
-                '''
-                }
                 if("$moduleToDeploy".trim() == "scanner") {
                 sh '''
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
                 make scanner
-                docker push registry.t-appagile.com/tensorsecurity/vegeta-scanner:latest
-                kubectl scale --replicas=0 deploy/scanner -n vegeta
-                kubectl scale --replicas=1 deploy/scanner -n vegeta                
+                docker push registry.t-appagile.com/tensorsecurity/tensorsec-scanner:latest
+                kubectl scale --replicas=0 deploy/tensorsec-scanner -n tensorsec
+                kubectl scale --replicas=1 deploy/tensorsec-scanner -n tensorsec              
                 '''
                 }
             }
