@@ -260,15 +260,22 @@
                 ]
             }
         },
-        "/api/v1/scap/kube/breakdown/{checkID}": {
+        "/api/v1/scap/{checkType}/breakdown/{checkID}": {
             "get": {
-                "description": "Get kube scap job breakdown",
+                "description": "Get scap job breakdown",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get kube scap job breakdown",
-                "operationId": "v1-kube-job-breakdown",
+                "summary": "Get scap job breakdown",
+                "operationId": "v1-scap-job-breakdown",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "kube/docker/host",
+                        "name": "checkType",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "check ID",
@@ -281,19 +288,38 @@
                         "description": "policy number",
                         "name": "policyNumber",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ]
             }
         },
-        "/api/v1/scap/kube/breakdown/{checkID}/{policyNumber}/details": {
+        "/api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details": {
             "get": {
-                "description": "Get kube scap job policy",
+                "description": "Get scap job policy",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get kube scap job policy",
-                "operationId": "v1-kube-job-policy",
+                "summary": "Get scap job policy",
+                "operationId": "v1-scap-job-policy",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "kube/docker/host",
+                        "name": "checkType",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "check ID",
@@ -311,15 +337,22 @@
                 ]
             }
         },
-        "/api/v1/scap/kube/history": {
+        "/api/v1/scap/{checkType}/history": {
             "get": {
-                "description": "Get kube history",
+                "description": "Get scap history",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get kube history",
-                "operationId": "v1-kube-history",
+                "summary": "Get scap history",
+                "operationId": "v1-scap-history",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "kube/docker/host",
+                        "name": "checkType",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "checkID",
@@ -330,6 +363,18 @@
                         "type": "string",
                         "description": "clusterID",
                         "name": "clusterID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
                         "in": "query"
                     }
                 ]
@@ -473,6 +518,9 @@
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                },
+                "token": {
                     "type": "string"
                 },
                 "type": {

@@ -101,11 +101,11 @@ frontend:			## Build frontend
 
 .PHONY: retag
 retag:
-	docker tag $(REPOPREFIXOLD)/tensorsec-console $(REPOPREFIX)/tensorsec-console:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-scanner $(REPOPREFIX)/tensorsec-scanner:latest
-	docker tag $(REPOPREFIXOLD)/kube-bench $(REPOPREFIX)/kube-bench:latest
-	docker tag $(REPOPREFIXOLD)/docker-bench-security $(REPOPREFIX)/docker-bench-security:latest
-	docker tag $(REPOPREFIXOLD)/host-bench $(REPOPREFIX)/host-bench:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-scanner:latest $(REPOPREFIX)/tensorsec-scanner:latest
+	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:latest
+	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
+	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 
 
 .PHONY: redeploy

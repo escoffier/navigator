@@ -6,6 +6,8 @@ definitions:
         type: string
       status:
         type: string
+      token:
+        type: string
       type:
         type: string
     type: object
@@ -296,11 +298,16 @@ paths:
       produces:
       - application/json
       summary: Get scap reports
-  /api/v1/scap/kube/breakdown/{checkID}:
+  /api/v1/scap/{checkType}/breakdown/{checkID}:
     get:
-      description: Get kube scap job breakdown
-      operationId: v1-kube-job-breakdown
+      description: Get scap job breakdown
+      operationId: v1-scap-job-breakdown
       parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
       - description: check ID
         in: path
         name: checkID
@@ -310,14 +317,27 @@ paths:
         in: query
         name: policyNumber
         type: string
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
-      summary: Get kube scap job breakdown
-  /api/v1/scap/kube/breakdown/{checkID}/{policyNumber}/details:
+      summary: Get scap job breakdown
+  /api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details:
     get:
-      description: Get kube scap job policy
-      operationId: v1-kube-job-policy
+      description: Get scap job policy
+      operationId: v1-scap-job-policy
       parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
       - description: check ID
         in: path
         name: checkID
@@ -330,12 +350,17 @@ paths:
         type: string
       produces:
       - application/json
-      summary: Get kube scap job policy
-  /api/v1/scap/kube/history:
+      summary: Get scap job policy
+  /api/v1/scap/{checkType}/history:
     get:
-      description: Get kube history
-      operationId: v1-kube-history
+      description: Get scap history
+      operationId: v1-scap-history
       parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
       - description: checkID
         in: query
         name: checkID
@@ -344,7 +369,15 @@ paths:
         in: query
         name: clusterID
         type: string
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
-      summary: Get kube history
+      summary: Get scap history
 swagger: "2.0"
