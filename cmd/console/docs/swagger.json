@@ -9,7 +9,29 @@
     },
     "basePath": "/",
     "paths": {
-        "/api/v1/config/cluster": {
+        "/api/v1/config/clusters": {
+            "get": {
+                "description": "Get all cluster information",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get all clusters information",
+                "operationId": "v1-config-cluster-get-all",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ]
+            },
             "post": {
                 "description": "Add new cluster",
                 "produces": [
@@ -39,7 +61,7 @@
                 ]
             }
         },
-        "/api/v1/config/cluster/{clusterID}": {
+        "/api/v1/config/clusters/{clusterID}": {
             "get": {
                 "description": "Get single cluster information",
                 "produces": [
@@ -106,30 +128,6 @@
                         "name": "clusterID",
                         "in": "path",
                         "required": true
-                    }
-                ]
-            }
-        },
-        "/api/v1/config/clusters": {
-            "get": {
-                "description": "Get all cluster information",
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Get all clusters information",
-                "operationId": "v1-config-cluster-get-all",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "from offset",
-                        "name": "offset",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "returned data limit",
-                        "name": "limit",
-                        "in": "query"
                     }
                 ]
             }
@@ -455,12 +453,12 @@
                     }
                 ]
             },
-            "post": {
-                "description": "Get cron configured for this checkType and cluster. To disable, send empty string.",
+            "put": {
+                "description": "Update cron configured for this checkType and cluster. To disable, send empty string.",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get cron configured for this checkType and cluster",
+                "summary": "Update cron configured for this checkType and cluster",
                 "operationId": "v1-scap-check",
                 "parameters": [
                     {

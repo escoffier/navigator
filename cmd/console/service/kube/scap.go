@@ -5,11 +5,11 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 )
 
-func GetKubeHistoryEntries(checkMap map[string]*model.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -17,7 +17,7 @@ func GetKubeHistoryEntries(checkMap map[string]*model.CheckHistoryEntry, cursor 
 			return err
 		}
 		if _, ok := checkMap[complianceTest.CheckID]; !ok {
-			checkMap[complianceTest.CheckID] = &model.CheckHistoryEntry{
+			checkMap[complianceTest.CheckID] = &scap.CheckHistoryEntry{
 				CheckID:   complianceTest.CheckID,
 				ClusterID: complianceTest.ClusterID,
 				CreatedAt: complianceTest.CreatedAt,
@@ -67,7 +67,7 @@ func GetKubeHistoryEntries(checkMap map[string]*model.CheckHistoryEntry, cursor 
 	return nil
 }
 
-func GetKubeBreakdownEntries(checkMap map[string]*model.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -92,7 +92,7 @@ func GetKubeBreakdownEntries(checkMap map[string]*model.CheckBreakdown, numWaiti
 						continue
 					}
 					if _, ok := checkMap[testNumber]; !ok {
-						checkMap[testNumber] = &model.CheckBreakdown{
+						checkMap[testNumber] = &scap.CheckBreakdown{
 							PolicyNumber: testNumber,
 							Name:         testName,
 							Description:  testDescription,
@@ -115,7 +115,7 @@ func GetKubeBreakdownEntries(checkMap map[string]*model.CheckBreakdown, numWaiti
 	return nil
 }
 
-func GetKubePolicyDetails(policyDetails *model.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)

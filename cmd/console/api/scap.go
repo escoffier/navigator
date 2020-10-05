@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kube"
@@ -16,9 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
-	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (api *api) scap() func(chi.Router) {
@@ -30,19 +28,8 @@ func (api *api) scap() func(chi.Router) {
 		r.Get("/{checkType}/breakdown/{checkID}", api.getCheckBreakdown())
 		r.Get("/{checkType}/history", api.getCheckHistory())
 		r.Get("/{checkType}/{clusterID}/cron", api.getCron())
-		r.Post("/{checkType}/{clusterID}/cron", api.postCron())
+		r.Put("/{checkType}/{clusterID}/cron", api.putCron())
 	}
-}
-
-type JobEntry struct {
-	ID         primitive.ObjectID     `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CheckID    string                 `json:"check_id" bson:"checkId"`
-	NodeName   string                 `json:"node_name" bson:"nodeName"`
-	ClusterID  string                 `json:"cluster_id" bson:"clusterId"`
-	Status     string                 `json:"status" bson:"status,omitempty"`
-	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
-	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
-	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
 }
 
 // @Summary Get scap history
@@ -117,7 +104,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
-		checkMap := make(map[string]*model.CheckHistoryEntry)
+		checkMap := make(map[string]*scap.CheckHistoryEntry)
 		if checkType == "kube" {
 			err := kube.GetKubeHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
@@ -150,7 +137,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		docNum := int64(len(checkMap))
 
-		var results []*model.CheckHistoryEntry
+		var results []*scap.CheckHistoryEntry
 		for _, v := range checkMap {
 			// Convert -1 to 0 to omit the FinishedAt field
 			if v.FinishedAt == -1 {
@@ -204,8 +191,8 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			logging.GetLogger().Info().Msg("checkType param missing")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
 			return
-
 		}
+
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
 			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
@@ -246,7 +233,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		numWaiting := int64(0)
 		numError := int64(0)
-		checkMap := make(map[string]*model.CheckBreakdown)
+		checkMap := make(map[string]*scap.CheckBreakdown)
 
 		if checkType == "kube" {
 			err := kube.GetKubeBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
@@ -271,7 +258,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			}
 		}
 
-		var results []*model.CheckBreakdown
+		var results []*scap.CheckBreakdown
 		for _, v := range checkMap {
 			results = append(results, v)
 		}
@@ -351,7 +338,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
-		policyDetails := &model.PolicyDetails{}
+		policyDetails := &scap.PolicyDetails{}
 		numWaiting := int64(0)
 		numError := int64(0)
 
@@ -387,13 +374,6 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		response.Ok(w, response.WithCustomField("numWaiting", numWaiting), response.WithCustomField("numError", numError), response.WithItem(*policyDetails))
 	}
-}
-
-type Check struct {
-	CheckType string
-	CheckUUID uuid.UUID
-	ClusterID string
-	Namespace string
 }
 
 // @Summary Get scap reports
@@ -461,9 +441,9 @@ func (api *api) getScapReports() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
-		var results []JobEntry
+		var results []scap.JobEntry
 		for cursor.Next(ctx) {
-			var result JobEntry
+			var result scap.JobEntry
 			err := cursor.Decode(&result)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
@@ -517,7 +497,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		cluster, err := api.getClusterFromMongo(ctx, clusterObjectID)
+		cluster, err := api.clusterService.GetCluster(ctx, clusterObjectID)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Failed to get cluster from Mongo")
 			apperror.RespondWithSuggested(w, r, err)
@@ -528,7 +508,6 @@ func (api *api) scapCheck() http.HandlerFunc {
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Failed to run compliance check")
 			apperror.RespondWithSuggested(w, r, err)
-
 		}
 
 		type resp struct {
