@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -84,5 +85,8 @@ func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sor
 			}
 		}
 	}
-	return false
+	if sortOrder == "asc" {
+		return fmt.Sprintf("%v", first) < fmt.Sprintf("%v", second)
+	}
+	return fmt.Sprintf("%v", first) > fmt.Sprintf("%v", second)
 }
