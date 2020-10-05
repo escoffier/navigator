@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/chi"
@@ -32,6 +31,7 @@ type LoginResponse struct {
 	CurrentAuthority string `json:"currentAuthority"`
 	Status           string `json:"status"`
 	Type             string `json:"type"`
+	Token            string `json:"token"`
 }
 
 func (api *api) restAuth() func(chi.Router) {
@@ -99,13 +99,7 @@ func (api *api) login() http.HandlerFunc {
 		jwtmc := jwt.MapClaims{"username": creds.Username}
 		jwtauth.SetIssuedNow(jwtmc)
 		_, tokenString, _ := api.tokenAuth.Encode(jwtmc)
-		http.SetCookie(w, &http.Cookie{
-			Name:     "jwt",
-			Value:    tokenString,
-			Path:     "/",
-			Expires:  time.Now().Add(7 * 24 * time.Hour),
-			HttpOnly: true,
-		})
+
 		api.userCache.Set(
 			creds.Username,
 			&User{
@@ -124,6 +118,7 @@ func (api *api) login() http.HandlerFunc {
 			CurrentAuthority: "admin",
 			Status:           "ok",
 			Type:             "account",
+			Token:            tokenString,
 		}))
 	}
 }
@@ -146,14 +141,6 @@ func (api *api) logout() http.HandlerFunc {
 		username := claims["username"].(string)
 		api.userCache.Delete(username)
 
-		// invalidate the JWT in the cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:     "jwt",
-			Value:    "",
-			Path:     "/",
-			Expires:  time.Unix(0, 0),
-			HttpOnly: true,
-		})
 		response.Ok(w)
 	}
 }

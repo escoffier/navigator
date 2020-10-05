@@ -316,7 +316,7 @@ If you use single node setup, then go to this IP and port in browser. Default us
 Otherwise, you need to use port-forwarding and then in the browser connect to 127.0.0.1:8889 
 
 ```bash
-kubectl --namespace vegeta port-forward service/console 8889:8889
+k8 port-forward service/tensorsec-console 8889:8889 &
 ```
 
 ---
@@ -331,7 +331,7 @@ Login:
 
  ```bash
 # If multinode
-k8v port-forward service/console 8889:8889 &
+k8 port-forward service/tensorsec-console 8889:8889 &
 CONSOLEADDR=127.0.0.1:8889
 
 # if remote system
@@ -342,16 +342,15 @@ CONSOLEADDR=127.0.0.1:8889
 # SCANNERIP=$(k8v describe service scanner | grep IP: | awk '{print $2;}')
 
 # Login
-JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/rest-auth/login -v 2>&1 | grep Set-Cookie | awk '{print $3;}')
-
+JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/rest-auth/login  | jq -r '.data.token')
 ```
 
 Scan image:
 
 ```bash
-curl -v -X POST -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/scan
+curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/scan
 
-curl -v -X GET -H "Cookie: $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f6c6389ff52c0bd69c4d22b
+curl -v -X GET -H "Authorization: Bearer $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f6c6389ff52c0bd69c4d22b
 
 
 # Or directly to Scanner, bypassing JWT auth, hehe
@@ -375,36 +374,36 @@ CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
 # CFG=$(ssh root@120.53.227.174 'kubectl config view --raw -o json  | base64 | tr -d "\n "')
 
 # Create cluster
-curl -v -X POST -H "Cookie: $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
+curl -v -X POST -H "Authorization: Bearer $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f75a5221b29c43e6838df66
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f75a5221b29c43e6838df66
 
 # Kube-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66
 # Docker-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66
 # Host-bench
-curl -v -X POST -H "Cookie: $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/reports?checkId=ebb296ee-0ff7-4f70-9989-715a04796f04&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/reports?checkId=ebb296ee-0ff7-4f70-9989-715a04796f04&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=76b63e1f-06ac-4dd8-a78d-49d053933326&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=76b63e1f-06ac-4dd8-a78d-49d053933326&status=completed" > out.json
 
 ```
 
 
 ```bash
-curl -v -X POST -H "Cookie: $JWT" -data "{\"newCronString\": \"* /5 * * **\"}" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
-curl -v -X GET -H "Cookie: $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
+curl -v -X POST -H "Authorization: Bearer $JWT" -data "{\"newCronString\": \"* /5 * * **\"}" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
 ```
 
 ## Database access
