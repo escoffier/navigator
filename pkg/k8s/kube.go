@@ -4,14 +4,11 @@ package k8s
 import (
 	b64 "encoding/base64"
 	"fmt"
+	"os"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-)
-
-const (
-	nameSpace = "tensorsec"
 )
 
 // CreateK8sClientFromKubeConfig creates kubernetes.Clientset from kubeconfig byte array
@@ -38,11 +35,15 @@ func KubeClientFromB64KubeConfig(kubeConfig string) (*kubernetes.Clientset, erro
 }
 
 func CheckKubeClientConnection(kubeClient *kubernetes.Clientset) error {
-	_, err := kubeClient.CoreV1().Namespaces().Get(nameSpace, metav1.GetOptions{})
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "default"
+	}
+	_, err := kubeClient.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("Maybe namespace doesn't exist or no authorization?: %s", err)
 	}
-	_, err = kubeClient.CoreV1().Pods(nameSpace).List(metav1.ListOptions{})
+	_, err = kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("Maybe no pod view authorization?: %s", err)
 	}

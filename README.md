@@ -331,7 +331,7 @@ Login:
 
  ```bash
 # If multinode
-k8 port-forward service/tensorsec-console 8889:8889 &
+k8 port-forward -n tensorsec service/tensorsec-console 8889:8889 &
 CONSOLEADDR=127.0.0.1:8889
 
 # if remote system

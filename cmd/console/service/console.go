@@ -124,10 +124,7 @@ func (c *Console) Run() func() {
 		panic(err)
 	}
 
-	ctx, ctxCancel := context.WithTimeout(c.ctx, 600*time.Second)
-	defer ctxCancel()
-
-	err = c.cronService.StartCrons(ctx)
+	err = c.cronService.StartCrons(c.ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("error starting cron jobs")
 		panic(err)

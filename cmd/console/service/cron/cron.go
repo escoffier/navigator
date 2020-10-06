@@ -126,7 +126,9 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 	}
 	filter := bson.M{"_id": cluster.ID}
 	update := bson.M{"$set": cluster}
-	_, err := s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	_, err := s.mongodb.Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
 	if err != nil {
 		return err
 	}
@@ -140,9 +142,7 @@ func (s *CronService) StartCrons(ctx context.Context) error {
 	}
 	for _, cluster := range clusters {
 		for _, checkType := range []string{"kube", "docker", "host"} {
-			cronCtx, cronCtxCancel := context.WithTimeout(ctx, 60*time.Second)
-			defer cronCtxCancel()
-			err = s.startCron(cronCtx, &cluster, checkType)
+			err = s.startCron(ctx, &cluster, checkType)
 			if err != nil {
 				return err
 			}
@@ -163,7 +163,9 @@ func (s *CronService) idInCronEntries(ID int, cronEntries []cr.Entry) bool {
 
 func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType string, cronString string) error {
 	// get kube client for this cluster
-	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID)
+	mongoGetCtx, mongoGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoGetCtxCancel()
+	cluster, err := s.clusterService.GetCluster(mongoGetCtx, clusterObjectID)
 	if err != nil {
 		return err
 	}
@@ -187,14 +189,14 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 		return err
 	}
 
-	cluster, err = s.clusterService.GetCluster(ctx, clusterObjectID)
+	clusterGetCtx, clusterGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer clusterGetCtxCancel()
+	cluster, err = s.clusterService.GetCluster(clusterGetCtx, clusterObjectID)
 	if err != nil {
 		return err
 	}
 
-	newCtx, newCtxCancel := context.WithTimeout(ctx, time.Second*60)
-	defer newCtxCancel()
-	err = s.startCron(newCtx, cluster, checkType)
+	err = s.startCron(ctx, cluster, checkType)
 	if err != nil {
 		return err
 	}

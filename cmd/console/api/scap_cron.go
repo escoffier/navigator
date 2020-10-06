@@ -75,9 +75,6 @@ func (api *api) putCron() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 100)
-		defer cancel()
-
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
 			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
@@ -106,7 +103,7 @@ func (api *api) putCron() http.HandlerFunc {
 			return
 		}
 
-		err = api.cronService.UpdateCron(ctx, clusterObjectID, checkType, req.NewCronString)
+		err = api.cronService.UpdateCron(api.ctx, clusterObjectID, checkType, req.NewCronString)
 		if err != nil {
 			logging.GetLogger().Info().Err(err).Msg("Failed to update cron")
 			apperror.RespondWithSuggested(w, r, err)
