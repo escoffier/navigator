@@ -1,4 +1,4 @@
-package api
+package scapper
 
 import (
 	"bytes"
@@ -11,7 +11,10 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -39,12 +42,8 @@ type Scapper struct {
 	MongoDatabase      string
 }
 
-func (s *Scapper) StartCrons() {
-
-}
-
 func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType string) (uuid.UUID, error) {
-	kubeClient, err := kubeClientFromB64KubeConfig(cluster.KubeConfig)
+	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
 	if err != nil {
 		return uuid.Nil, apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Failed to create kube client"))
 	}
@@ -58,7 +57,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 		namespace = "default"
 	}
 
-	check := Check{
+	check := scapper.Check{
 		CheckType: checkType,
 		CheckUUID: checkUUID,
 		ClusterID: clusterObjectID.Hex(),
@@ -105,7 +104,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	return checkUUID, nil
 }
 
-func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
+func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
 
 	scheduledNodesCh := make(chan string, len(nodes.Items))
 	finishedNodesCh, listenerStopCh := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
@@ -151,7 +150,7 @@ func (s Scapper) GetMongoCollectionForCheckType(checkType string) string {
 	}
 }
 
-func (s Scapper) prepareJobObject(check *Check) (*batchv1.Job, error) {
+func (s Scapper) prepareJobObject(check *scapper.Check) (*batchv1.Job, error) {
 	jobObj, err := s.readJobObjFromYamlFile(check.CheckType)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
@@ -195,7 +194,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType string) (*batchv1.Job, error) 
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *Check, jobObj *batchv1.Job, targetNodeName string) error {
+func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, targetNodeName string) error {
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
@@ -253,10 +252,10 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *Check,
 	return nil
 }
 
-func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *Check, targetNodeName string) error {
+func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scapper.Check, targetNodeName string) error {
 	now := time.Now()
 	secs := now.Unix()
-	entry := JobEntry{
+	entry := scap.JobEntry{
 		ID:        primitive.NewObjectIDFromTimestamp(now),
 		CheckID:   check.CheckUUID.String(),
 		NodeName:  targetNodeName,
@@ -273,7 +272,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *Check,
 	return nil
 }
 
-func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *Check, nodeName, msg string, timeEpochSecs int64) {
+func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Check, nodeName, msg string, timeEpochSecs int64) {
 	filter := bson.M{"checkId": check.CheckUUID.String(), "nodeName": nodeName}
 	// TODO: is there better way to do this using struct annotations?
 	update := bson.M{"$set": bson.M{
@@ -290,7 +289,7 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *Check, node
 	}
 }
 
-func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *Check, maxNumJobs int) (chan string, chan struct{}) {
+func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, maxNumJobs int) (chan string, chan struct{}) {
 	finishedNodesCh := make(chan string, maxNumJobs)
 
 	kubeInformerFactory := informers.NewFilteredSharedInformerFactory(kubeClient, time.Second*30, check.Namespace, func(listOpts *v1.ListOptions) {
@@ -359,7 +358,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 	return finishedNodesCh, stopCh
 }
 
-func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
+func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper.Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
 	defer close(listenerStopCh)
 
 	// TODO: if console restarts while job is running, that job's events won't be watched.

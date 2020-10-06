@@ -7,10 +7,14 @@ import (
 	"sync"
 	"time"
 
+	cr "github.com/robfig/cron/v3"
+
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -29,6 +33,7 @@ type Console struct {
 	lifecycle.Service
 	server      *http.Server
 	mongoClient *mongo.Client
+	cronService *cron.CronService
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
@@ -50,8 +55,11 @@ func NewConsole(
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
+	// cluster service
+	clusterService := cluster.NewClusterService(mongodb)
+
 	// scap service
-	scapper := &api.Scapper{
+	scapper := &scapper.Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
 		MongoDB:            mongodb,
 		MongoEndpoint:      mongoOpts.Endpoint,
@@ -59,7 +67,11 @@ func NewConsole(
 		MongoPassword:      mongoOpts.Password,
 		MongoDatabase:      mongoOpts.Database,
 	}
-	scapper.StartCrons()
+
+	// cron service
+	c := cr.New()
+	c.Start()
+	cronService := cron.NewCronService(c, mongodb, scapper, clusterService)
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -73,9 +85,12 @@ func NewConsole(
 				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
+				cronService,
+				clusterService,
 			),
 		},
 		mongoClient: mongoClient,
+		cronService: cronService,
 		ctx:         mainCtx,
 		cancel:      mainCancel,
 	}, nil
@@ -106,6 +121,13 @@ func (c *Console) Run() func() {
 		log.Error().
 			Err(err).
 			Msg("error in connecting to the Mongo database")
+		panic(err)
+	}
+
+	err = c.cronService.StartCrons(c.ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("error starting cron jobs")
+		panic(err)
 	}
 
 	return func() {

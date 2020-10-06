@@ -2,42 +2,55 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+
+	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/gorilla/securecookie"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type api struct {
-	ctx        context.Context
-	userCache  *cache.Cache
-	tokenAuth  *jwtauth.JWTAuth
-	mongodb    *mongo.Database
-	scapper    *Scapper
-	scannerURL string
+	ctx            context.Context
+	userCache      *cache.Cache
+	tokenAuth      *jwtauth.JWTAuth
+	mongodb        *mongo.Database
+	scapper        *scapper.Scapper
+	scannerURL     string
+	cronService    *cron.CronService
+	clusterService *cluster.ClusterService
 }
 
 func newAPI(
 	ctx context.Context,
 	sessionExpiration time.Duration,
 	mongodb *mongo.Database,
-	scapper *Scapper,
+	scapper *scapper.Scapper,
 	scannerURL string,
+	cronService *cron.CronService,
+	clusterService *cluster.ClusterService,
 ) *api {
 	return &api{
-		ctx:        ctx,
-		userCache:  cache.New(sessionExpiration, time.Minute),
-		tokenAuth:  jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
-		mongodb:    mongodb,
-		scapper:    scapper,
-		scannerURL: scannerURL,
+		ctx:            ctx,
+		userCache:      cache.New(sessionExpiration, time.Minute),
+		tokenAuth:      jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
+		mongodb:        mongodb,
+		scapper:        scapper,
+		scannerURL:     scannerURL,
+		cronService:    cronService,
+		clusterService: clusterService,
 	}
 }
 
@@ -89,4 +102,12 @@ func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sor
 		return fmt.Sprintf("%v", first) < fmt.Sprintf("%v", second)
 	}
 	return fmt.Sprintf("%v", first) > fmt.Sprintf("%v", second)
+}
+
+func getClusterIDFromURL(r *http.Request) (primitive.ObjectID, error) {
+	clusterID := chi.URLParam(r, "clusterID")
+	if clusterID == "" {
+		return primitive.NilObjectID, errors.New("clusterID is not provided")
+	}
+	return primitive.ObjectIDFromHex(clusterID)
 }
