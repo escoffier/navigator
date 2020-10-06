@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	nameSpace = "vegeta"
+	nameSpace = "tensorsec"
 )
 
 // CreateK8sClientFromKubeConfig creates kubernetes.Clientset from kubeconfig byte array
