@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -80,9 +81,15 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
-			if err != nil || token == nil || !token.Valid {
-				response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidAuthToken, r)))
 
+			if err != nil {
+				response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidAuthToken, r)))
+				logging.GetLogger().Info().Err(err).Msg("Error when getting token & claims from context")
+				return
+			}
+			if token == nil || !token.Valid {
+				response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidAuthToken, r)))
+				logging.GetLogger().Info().Str("token", fmt.Sprintf("%v", token)).Msg("Token empty or invalid")
 				return
 			}
 
@@ -91,7 +98,7 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			userPtr, ok := userCache.Get(username)
 			if !ok {
 				response.Unauthorized(w, response.WithMessage(locale.Error(locale.SessionExpired, r)))
-
+				logging.GetLogger().Info().Str("username", username).Msg("User not in cache")
 				return
 			}
 

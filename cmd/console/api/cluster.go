@@ -17,8 +17,8 @@ import (
 func (api *api) config() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/clusters", api.listClusters())
-		r.Post("/clusters", api.addCluster())
-		r.Get("/clusters/{clusterID}", api.getCluster())
+		r.Post("/cluster", api.addCluster())
+		r.Get("/cluster/{clusterID}", api.getCluster())
 		r.Delete("/cluster/{clusterID}", api.delCluster())
 		r.Put("/cluster/{clusterID}", api.updateCluster())
 	}
@@ -160,6 +160,11 @@ func (api *api) addCluster() http.HandlerFunc {
 		}
 
 		id, err := api.clusterService.AddCluster(ctx, param.ClusterName, param.KubeConfig)
+		if err != nil {
+			logging.GetLogger().Info().Err(err).Msg("Couldn't add cluster")
+			apperror.RespondWithSuggested(w, r, err)
+			return
+		}
 
 		response.Ok(w, response.WithItem(resp{
 			ClusterID: fmt.Sprintf("%v", id.Hex()),
