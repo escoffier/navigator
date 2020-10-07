@@ -73,11 +73,20 @@ func (api *api) login() http.HandlerFunc {
 		}
 
 		if creds.Username == "" {
+			if creds.Password == "" {
+				// Handle case where both username and password are missing
+				// We probably should have some validation helper instead of nested
+				// ifs like this.
+				logging.GetLogger().Info().Err(err).Msg("Missing field 'password' and 'username'")
+				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)),
+					response.WithSuberror("username", ""),
+					response.WithSuberror("password", ""))
+				return
+			}
 			logging.GetLogger().Info().Err(err).Msg("Missing field 'username'")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("username", ""))
 			return
 		}
-
 		if creds.Password == "" {
 			logging.GetLogger().Info().Err(err).Msg("Missing field 'password'")
 			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("password", ""))
