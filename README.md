@@ -350,7 +350,7 @@ Scan image:
 ```bash
 curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/scan
 
-curl -v -X GET -H "Authorization: Bearer $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f6c6389ff52c0bd69c4d22b
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f7df28d0403ef8cdd1873f1
 
 
 # Or directly to Scanner, bypassing JWT auth, hehe
@@ -374,9 +374,9 @@ CFG=$(kubectl config view --raw -o json  | base64 | tr -d "\n ")
 # CFG=$(ssh root@120.53.227.174 'kubectl config view --raw -o json  | base64 | tr -d "\n "')
 
 # Create cluster
-curl -v -X POST -H "Authorization: Bearer $JWT" --data "{\"name\": \"testclust3\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/clusters
+curl -v -X POST -H "Authorization: Bearer $JWT" --data "{\"name\": \"alitest\", \"config\": \"$CFG\"}" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster
 # Get cluster (object ID from previuos request)
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/clusters/5f75a5221b29c43e6838df66
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f7d9fcd9ccfdee7b1b4f936
 
 # Kube-bench
 curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66

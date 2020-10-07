@@ -32,7 +32,7 @@ spec:
           # clair-address and clair-port refer to Scanner Service address. Clair service needs to have access to layers published by Scanner service.
           # Path to them is sent in Scan request to Clair.
           # TODO: maybe rename? I spent hours on this because I was confused.
-          "--clair-address=scanner",
+          "--clair-address=tensorsec-scanner",
           "--clair-port={{ .Values.service.LayerPort }}",
           "-v"]
 
