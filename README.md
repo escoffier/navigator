@@ -398,6 +398,13 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 # host-bench
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=76b63e1f-06ac-4dd8-a78d-49d053933326&status=completed" > out.json
 
+
+
+
+
+# Delete cluster
+curl -v -X DELETE "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f7d9fcd9ccfdee7b1b4f936
+
 ```
 
 

@@ -61,12 +61,14 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(newCluster.KubeConfig)
 	if err != nil {
-		return primitive.NewObjectID(), err
+		return primitive.NewObjectID(),
+			apperror.New(locale.KubernetesError, http.StatusBadRequest, fmt.Errorf("Failed to create kube client from config: %s", err),
+				apperror.NewSuberror("config", ""))
 	}
 
 	err = k8s.CheckKubeClientConnection(kubeClient)
 	if err != nil {
-		return primitive.NewObjectID(), err
+		return primitive.NilObjectID, apperror.New(locale.KubernetesError, http.StatusBadRequest, fmt.Errorf("Kube client connection check failed: %s", err))
 	}
 
 	collection := s.mongodb.Collection(clusterCol)
@@ -78,16 +80,16 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 	//if find the record then return
 	if queryResult.Err() == nil {
-		return primitive.NewObjectID(), apperror.New(locale.MongoError, http.StatusBadRequest, fmt.Errorf("Cluster already exists: %s", queryResult.Err()))
+		return primitive.NilObjectID, apperror.New(locale.MongoError, http.StatusBadRequest, fmt.Errorf("Cluster already exists: %s", queryResult.Err()))
 	}
 
 	insertResult, err := collection.InsertOne(ctx, newCluster)
 	if err != nil {
-		return primitive.NewObjectID(), err
+		return primitive.NilObjectID, err
 	}
 	id, ok := insertResult.InsertedID.(primitive.ObjectID)
 	if !ok {
-		return primitive.NewObjectID(), apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %s", queryResult.Err()))
+		return primitive.NilObjectID, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %s", queryResult.Err()))
 	}
 	return id, nil
 }
