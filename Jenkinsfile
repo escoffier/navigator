@@ -47,10 +47,8 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 '''
                 if("$moduleToDeploy".trim() == "console") {
                 sh '''
-                cd cmd/console/frontend/ && npm install && cd -
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
-                make frontend
                 make console
                 docker push registry.t-appagile.com/tensorsecurity/tensorsec-console:latest
                 kubectl scale --replicas=0 deployment tensorsec-console  -n tensorsec
