@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -40,14 +39,14 @@ func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primiti
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, apperror.New(locale.MongoError, http.StatusNotFound, fmt.Errorf("Document not found: %s", queryResult.Err()))
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
-		return nil, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %s", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
 
 	err := queryResult.Decode(&queryCluster)
 	if err != nil {
-		return nil, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %s", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
 	}
 	return &queryCluster, nil
 }
@@ -61,11 +60,11 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(newCluster.KubeConfig)
 	if err != nil {
-		return primitive.NewObjectID(), apperror.NewKubernetesError(fmt.Errorf("Failed to create kube client from config: %w", err), http.StatusBadRequest, apperror.Suberror{"config", ""})
+		return primitive.NilObjectID, NewKubernetesError(http.StatusBadRequest, fmt.Errorf("Failed to create kube client from config: %w", err), Suberror{"config", ""})
 	}
 	err = k8s.CheckKubeClientConnection(kubeClient)
 	if err != nil {
-		return primitive.NilObjectID, apperror.New(locale.KubernetesError, http.StatusBadRequest, fmt.Errorf("Kube client connection check failed: %s", err))
+		return primitive.NilObjectID, NewKubernetesError(http.StatusBadRequest, fmt.Errorf("Kube client connection check failed: %w", err))
 	}
 
 	collection := s.mongodb.Collection(clusterCol)
@@ -77,7 +76,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 	//if find the record then return
 	if queryResult.Err() == nil {
-		return primitive.NilObjectID, apperror.New(locale.MongoError, http.StatusBadRequest, fmt.Errorf("Cluster already exists: %s", queryResult.Err()))
+		return primitive.NilObjectID, NewClusterAlreadyExists(http.StatusBadRequest, fmt.Errorf("Cluster already exists: %w", queryResult.Err()))
 	}
 
 	insertResult, err := collection.InsertOne(ctx, newCluster)
@@ -86,7 +85,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 	}
 	id, ok := insertResult.InsertedID.(primitive.ObjectID)
 	if !ok {
-		return primitive.NilObjectID, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %s", queryResult.Err()))
+		return primitive.NilObjectID, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %w", queryResult.Err()))
 	}
 	return id, nil
 }
@@ -143,15 +142,15 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, apperror.New(locale.MongoError, http.StatusNotFound, fmt.Errorf("Document not found: %s", queryResult.Err()))
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
-		return nil, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %s", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
 
 	var queryCluster model.Cluster
 	err = queryResult.Decode(&queryCluster)
 	if err != nil {
-		return nil, apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %s", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
 	}
 	return &queryCluster, nil
 }

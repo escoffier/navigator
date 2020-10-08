@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -47,15 +48,18 @@ func (api *api) scanOne() http.HandlerFunc {
 		imageToScan := &image{}
 		err := util.DecodeJSONBody(w, r, imageToScan)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
 		task, err = component.NewTaskByNameTag(imageToScan.ImageName, imageToScan.ForceRescan)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't create new task name by name tag")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("image", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't create new task name by name tag"),
+					Suberror{"image", ""}))
 			return
 		}
 
@@ -67,7 +71,10 @@ func (api *api) scanOne() http.HandlerFunc {
 		_, err = api.mongodb.Collection(model.ScanTasksCollection).InsertOne(ctx, task)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't update cluster: %w", err)))
+
 			return
 		}
 

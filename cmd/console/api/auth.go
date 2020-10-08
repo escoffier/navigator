@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -10,8 +11,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/crypto/bcrypt"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -67,8 +67,9 @@ func (api *api) login() http.HandlerFunc {
 		creds := &credentials{}
 		err := json.NewDecoder(r.Body).Decode(creds)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
@@ -77,19 +78,23 @@ func (api *api) login() http.HandlerFunc {
 				// Handle case where both username and password are missing
 				// We probably should have some validation helper instead of nested
 				// ifs like this.
-				logging.GetLogger().Info().Err(err).Msg("Missing field 'password' and 'username'")
-				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)),
-					response.WithSuberror("username", ""),
-					response.WithSuberror("password", ""))
+				RespAndLog(w, r,
+					NewFieldError(http.StatusBadRequest,
+						fmt.Errorf("Missing field 'password' and 'username'"),
+						Suberror{"username", ""}, Suberror{"password", ""}))
 				return
 			}
-			logging.GetLogger().Info().Err(err).Msg("Missing field 'username'")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("username", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Missing field 'username'"),
+					Suberror{"username", ""}))
 			return
 		}
 		if creds.Password == "" {
-			logging.GetLogger().Info().Err(err).Msg("Missing field 'password'")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("password", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Missing field 'password'"),
+					Suberror{"password", ""}))
 			return
 		}
 
@@ -98,8 +103,9 @@ func (api *api) login() http.HandlerFunc {
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
 		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
 		if errUsername != nil || errPassword != nil {
-			logging.GetLogger().Info().Err(err).Msg("Invalid username or password")
-			response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidUsernameOrPasswordError, r)))
+			RespAndLog(w, r,
+				NewInvalidUsernameOrPasswordError(http.StatusUnauthorized,
+					fmt.Errorf("Invalid username or password'")))
 			return
 		}
 

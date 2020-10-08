@@ -16,7 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -77,13 +77,15 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			token, claims, err := jwtauth.FromContext(r.Context())
 
 			if err != nil {
-				response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidAuthToken, r)))
-				logging.GetLogger().Info().Err(err).Msg("Error when getting token & claims from context")
+				RespAndLog(w, r,
+					NewInvalidAuthToken(http.StatusUnauthorized,
+						fmt.Errorf("Error when getting token & claims from context: %w", err)))
 				return
 			}
 			if token == nil || !token.Valid {
-				response.Unauthorized(w, response.WithMessage(locale.Error(locale.InvalidAuthToken, r)))
-				logging.GetLogger().Info().Str("token", fmt.Sprintf("%v", token)).Msg("Token empty or invalid")
+				RespAndLog(w, r,
+					NewInvalidAuthToken(http.StatusUnauthorized,
+						fmt.Errorf("Token empty or invalid")))
 				return
 			}
 
@@ -91,8 +93,9 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			username := claims["username"].(string)
 			userPtr, ok := userCache.Get(username)
 			if !ok {
-				response.Unauthorized(w, response.WithMessage(locale.Error(locale.SessionExpired, r)))
-				logging.GetLogger().Info().Str("username", username).Msg("User not in cache")
+				RespAndLog(w, r,
+					NewSessionExpired(http.StatusUnauthorized,
+						fmt.Errorf("User not in cache")))
 				return
 			}
 

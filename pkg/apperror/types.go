@@ -14,10 +14,10 @@ type InvalidAuthToken struct{ detailedError }
 type SessionExpired struct{ detailedError }
 
 // Example usage:
-// return NewKubeError(err, http.StatusInternalServerError)
-// return NewKubeError(fmt.Errorf("Kubeclient failed: %w", internalErr), http.StatusInternalServerError)
-// return NewKubeError(fmt.Errorf("Kubeclient failed: %w", err), http.StatusInternalServerError, Suberror{"loc", "msg"}, Suberror{"loc2", "msg2"})
-func NewAnError(err error, httpCode int, suberrors ...Suberror) error {
+// return NewMongoError(err, http.StatusInternalServerError)
+// return NewMongoError(fmt.Errorf("Some error occured: %w", err), http.StatusInternalServerError)
+// return NewMongoError(fmt.Errorf("Some error occured: %w", err), http.StatusInternalServerError, Suberror{"loc", "msg"}, Suberror{"loc2", "msg2"})
+func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
 			err:       err,
@@ -29,7 +29,7 @@ func NewAnError(err error, httpCode int, suberrors ...Suberror) error {
 	}
 }
 
-func NewMongoError(err error, httpCode int, suberrors ...Suberror) error {
+func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
 	return MongoError{
 		detailedError{
 			err:       err,
@@ -41,7 +41,7 @@ func NewMongoError(err error, httpCode int, suberrors ...Suberror) error {
 	}
 }
 
-func NewKubernetesError(err error, httpCode int, suberrors ...Suberror) error {
+func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
 	return KubernetesError{
 		detailedError{
 			err:       err,
@@ -53,7 +53,7 @@ func NewKubernetesError(err error, httpCode int, suberrors ...Suberror) error {
 	}
 }
 
-func NewHTTPResponseError(err error, httpCode int, suberrors ...Suberror) error {
+func NewHTTPResponseError(httpCode int, err error, suberrors ...Suberror) error {
 	return HTTPResponseError{
 		detailedError{
 			err:       err,
@@ -65,7 +65,7 @@ func NewHTTPResponseError(err error, httpCode int, suberrors ...Suberror) error 
 	}
 }
 
-func NewConfigurationError(err error, httpCode int, suberrors ...Suberror) error {
+func NewConfigurationError(httpCode int, err error, suberrors ...Suberror) error {
 	return ConfigurationError{
 		detailedError{
 			err:       err,
@@ -77,7 +77,7 @@ func NewConfigurationError(err error, httpCode int, suberrors ...Suberror) error
 	}
 }
 
-func NewConnectionError(err error, httpCode int, suberrors ...Suberror) error {
+func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
 	return ConnectionError{
 		detailedError{
 			err:       err,
@@ -89,7 +89,7 @@ func NewConnectionError(err error, httpCode int, suberrors ...Suberror) error {
 	}
 }
 
-func NewMalformedRequestError(err error, httpCode int, suberrors ...Suberror) error {
+func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) error {
 	return MalformedRequestError{
 		detailedError{
 			err:       err,
@@ -101,7 +101,7 @@ func NewMalformedRequestError(err error, httpCode int, suberrors ...Suberror) er
 	}
 }
 
-func NewInvalidUsernameOrPasswordError(err error, httpCode int, suberrors ...Suberror) error {
+func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Suberror) error {
 	return InvalidUsernameOrPasswordError{
 		detailedError{
 			err:       err,
@@ -113,7 +113,7 @@ func NewInvalidUsernameOrPasswordError(err error, httpCode int, suberrors ...Sub
 	}
 }
 
-func NewFieldError(err error, httpCode int, suberrors ...Suberror) error {
+func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
 	return FieldError{
 		detailedError{
 			err:       err,
@@ -125,7 +125,7 @@ func NewFieldError(err error, httpCode int, suberrors ...Suberror) error {
 	}
 }
 
-func NewClusterAlreadyExists(err error, httpCode int, suberrors ...Suberror) error {
+func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) error {
 	return ClusterAlreadyExists{
 		detailedError{
 			err:       err,
@@ -137,7 +137,7 @@ func NewClusterAlreadyExists(err error, httpCode int, suberrors ...Suberror) err
 	}
 }
 
-func NewInvalidAuthToken(err error, httpCode int, suberrors ...Suberror) error {
+func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
 	return InvalidAuthToken{
 		detailedError{
 			err:       err,
@@ -149,7 +149,7 @@ func NewInvalidAuthToken(err error, httpCode int, suberrors ...Suberror) error {
 	}
 }
 
-func NewSessionExpired(err error, httpCode int, suberrors ...Suberror) error {
+func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
 	return SessionExpired{
 		detailedError{
 			err:       err,
