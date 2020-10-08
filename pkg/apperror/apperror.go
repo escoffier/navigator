@@ -1,6 +1,7 @@
 package apperror
 
 import (
+	"errors"
 	"net/http"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
@@ -39,6 +40,20 @@ func NewSuberror(location, message string) appSubError {
 }
 
 func RespondWithSuggested(w http.ResponseWriter, r *http.Request, err error) {
+
+	var det detailedError
+	if errors.As(err, &det) {
+		subfuncs := []response.ResponseErrorOptionFunc{}
+
+		subfuncs = append(subfuncs, response.WithMessage(det.LocalizedError(r)))
+		for _, v := range det.Suberrors {
+			subfuncs = append(subfuncs, response.WithSuberror(v.Location, v.Message))
+		}
+
+		response.RespError(w, det.HTTPCode, subfuncs...)
+		return
+	}
+
 	if ae, ok := err.(appError); ok {
 		subfuncs := []response.ResponseErrorOptionFunc{}
 		subfuncs = append(subfuncs, response.WithMessage(locale.Error(ae.suggestedUserFriendlyLocale, r)))

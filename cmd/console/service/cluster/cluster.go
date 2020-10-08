@@ -61,11 +61,8 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(newCluster.KubeConfig)
 	if err != nil {
-		return primitive.NewObjectID(),
-			apperror.New(locale.KubernetesError, http.StatusBadRequest, fmt.Errorf("Failed to create kube client from config: %s", err),
-				apperror.NewSuberror("config", ""))
+		return primitive.NewObjectID(), apperror.NewKubernetesError(fmt.Errorf("Failed to create kube client from config: %w", err), http.StatusBadRequest, apperror.Suberror{"config", ""})
 	}
-
 	err = k8s.CheckKubeClientConnection(kubeClient)
 	if err != nil {
 		return primitive.NilObjectID, apperror.New(locale.KubernetesError, http.StatusBadRequest, fmt.Errorf("Kube client connection check failed: %s", err))

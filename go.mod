@@ -21,7 +21,7 @@ require (
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
-	github.com/google/uuid v1.1.1
+	github.com/google/uuid v1.1.1 // indirect
 	github.com/googleapis/gnostic v0.3.0 // indirect
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/gorilla/securecookie v1.1.1
@@ -29,11 +29,9 @@ require (
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/oceanicdev/chi-param v1.1.0
-	github.com/olekukonko/tablewriter v0.0.4
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/robfig/cron v1.2.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.17.2
 	github.com/satori/go.uuid v1.2.0
@@ -44,7 +42,6 @@ require (
 	github.com/swaggo/swag v1.6.7
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
 	github.com/tidwall/pretty v1.0.0 // indirect
-	github.com/williballenthin/govt v0.0.0-20190415151500-3ca547fdfb87
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
 	go.etcd.io/etcd v3.3.17+incompatible
@@ -55,7 +52,7 @@ require (
 	golang.org/x/tools v0.0.0-20200904185747-39188db58858 // indirect
 	google.golang.org/appengine v1.5.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/yaml.v2 v2.3.0
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 	k8s.io/api v0.0.0-20190409021203-6e4e0e4f393b
 	k8s.io/apimachinery v0.0.0-20191004074956-01f8b7d1121a
 	k8s.io/client-go v11.0.0+incompatible
