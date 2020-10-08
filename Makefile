@@ -50,7 +50,6 @@ test: generate			## Run golint, staticcheck, and go test for all the sub-directo
 .PHONY: clean
 clean:				## Clean all artifacts
 	@echo "+ $@"
-	$(MAKE) -C cmd/console/frontend clean
 	rm -fr dist
 
 .PHONY: scap-jobs
@@ -64,7 +63,7 @@ scap-jobs:
 
 .PHONY: console
 console: generate 		## Build console binary
-	# This target depends on frontend and scap-jobs, but for optimisation, if we want to build only console, they won't be built.
+	# This target depends on scap-jobs, but for optimisation, if we want to build only console, they won't be built.
 	# To build all targets, use make all.
 	@echo "+ $@"
 	go build  -a \
@@ -81,7 +80,7 @@ scanner: generate		## Build scanner binary
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: all
-all: scanner frontend scap-jobs console
+all: scanner scap-jobs console
 
 .PHONY: pushimages
 pushimages:
@@ -90,14 +89,6 @@ pushimages:
 	docker push $(REPOPREFIX)/kube-bench:latest
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
-
-.PHONY: frontend
-frontend:			## Build frontend
-	@echo "+ $@"
-	$(MAKE) -C cmd/console/frontend build
-	rm -fr dist/ui
-	mkdir -p dist/ui
-	cp -r cmd/console/frontend/dist/* dist/ui/
 
 .PHONY: retag
 retag:

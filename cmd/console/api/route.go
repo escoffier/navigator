@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -50,7 +48,6 @@ func SetupRoutes(
 ) {
 	log.Debug().Msg("setting up routes...")
 
-	r.Get("/*", static())
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
@@ -111,10 +108,4 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-func static() http.HandlerFunc {
-	currentDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	filesDir := filepath.Join(currentDir, "ui")
-	return http.StripPrefix("/", http.FileServer(http.Dir(filesDir))).ServeHTTP
 }
