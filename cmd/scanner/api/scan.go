@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // ScanResultResponse is the response for scan result
@@ -44,7 +45,7 @@ func (api *api) scanOne() http.HandlerFunc {
 		var task model.ScanTask
 
 		imageToScan := &image{}
-		err := decodeJSONBody(w, r, imageToScan)
+		err := util.DecodeJSONBody(w, r, imageToScan)
 		if err != nil {
 			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
 			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))

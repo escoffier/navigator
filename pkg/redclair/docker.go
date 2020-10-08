@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -35,7 +36,7 @@ func SaveDockerImage(
 ) (imageID string, layerIds []string, err error) {
 	var imageNameStr = strings.Split(imageName, ":")
 
-	log.Info().Msgf("tmp path: %s", tmpPath)
+	log.Info().Str("fs-path", tmpPath).Str("image", imageName).Msgf("Pulling docker image")
 	if len(imageNameStr) != 2 {
 		err = errors.New("[DOCKER-PULL] image name format error")
 		return
@@ -49,7 +50,8 @@ func SaveDockerImage(
 		if err != nil {
 			log.Error().Msgf("%v", err)
 		} else {
-			_, err = io.Copy(os.Stdout, imagePull)
+			_, err = io.Copy(ioutil.Discard, imagePull)
+			// _, err = io.Copy(os.Stdout, imagePull)
 			if err != nil {
 				log.Fatal().Msgf("%v", err)
 				return
@@ -65,7 +67,7 @@ func SaveDockerImage(
 
 	defer imageReader.Close()
 
-	log.Info().Msgf("untar file in %s, %v", tmpPath, imageReader)
+	log.Info().Msgf("Untaring file in %s, %v", tmpPath, imageReader)
 	if err = untar(imageReader, tmpPath); err != nil {
 		log.Fatal().Msgf("Could not save Docker image: could not untar [%s]: %v", imageName, err)
 		return

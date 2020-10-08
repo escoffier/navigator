@@ -9,6 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // @Summary Get cron configured for this checkType and cluster
@@ -96,7 +97,7 @@ func (api *api) putCron() http.HandlerFunc {
 		}
 
 		var req req
-		err = decodeJSONBody(w, r, &req)
+		err = util.DecodeJSONBody(w, r, &req)
 		if err != nil {
 			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
 			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))

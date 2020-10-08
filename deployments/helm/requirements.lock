@@ -7,12 +7,12 @@ dependencies:
   version: 0.1.0
 - name: clair
   repository: file://./subcharts/clair
-  version: 0.1.2
+  version: 0.1.3
 - name: postgresql
   repository: https://kubernetes-charts.storage.googleapis.com
   version: 6.3.9
 - name: mongodb
   repository: https://kubernetes-charts.storage.googleapis.com
   version: 7.2.10
-digest: sha256:6f3594224bd8a51cda13b683676d206adfd047eecd7452efe6c5894946290393
-generated: "2020-10-01T10:53:29.595958891+02:00"
+digest: sha256:c7cfe617192cef8cafce17d9a27aa2c921307228822ab295e0cbd6e0f638a682
+generated: "2020-10-08T11:49:24.543322045+02:00"

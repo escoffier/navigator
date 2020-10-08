@@ -14,7 +14,7 @@ import (
 
 func setupChiRouter(
 	ctx context.Context,
-	redclair *component.RedClair,
+	redclair *component.RedClairService,
 	mongodb *mongo.Database,
 	httpLoggerDisabled bool,
 ) http.Handler {

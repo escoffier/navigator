@@ -5,21 +5,15 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
-
-	"gopkg.in/yaml.v2"
 )
 
 // FileSignature ...
@@ -128,65 +122,6 @@ func DistinctFileHash(src []FileSignature) (ret []FileSignature) {
 	return result
 }
 
-// QuickRequest ...
-func QuickRequest(
-	method string,
-	url string,
-	reqHeader map[string]string,
-	byteBody []byte,
-	prettyJSON bool,
-) (code int, result []byte, resHeader http.Header, reqErr error) {
-	var requestBody io.Reader
-	if byteBody != nil {
-		requestBody = bytes.NewBuffer(byteBody)
-	} else {
-		requestBody = nil
-	}
-	req, err := http.NewRequest(method, url, requestBody)
-	if err != nil {
-		return -1, []byte{}, nil, err
-	}
-	for k, v := range reqHeader {
-		req.Header.Add(k, v)
-	}
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return -1, []byte{}, nil, err
-	}
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			fmt.Printf("%v", err)
-			reqErr = err
-		}
-	}()
-	result, err = ioutil.ReadAll(res.Body)
-	if err != nil {
-		return res.StatusCode, []byte{}, res.Header, err
-	}
-	var resultPretty bytes.Buffer
-	if !prettyJSON {
-		return res.StatusCode, result, res.Header, nil
-	}
-	err = json.Indent(&resultPretty, result, "", "\t")
-	if err != nil {
-		return res.StatusCode, resultPretty.Bytes(), res.Header, nil
-	}
-	return res.StatusCode, result, res.Header, nil
-}
-
-const (
-	// InfoColor ...
-	InfoColor = "\033[1;34m%s\033[0m"
-	// NoticeColor ...
-	NoticeColor = "\033[1;36m%s\033[0m"
-	// WarningColor ...
-	WarningColor = "\033[1;33m%s\033[0m"
-	// ErrorColor ...
-	ErrorColor = "\033[1;31m%s\033[0m"
-	// DebugColor ...
-	DebugColor = "\033[0;36m%s\033[0m"
-)
-
 // SeverityMap Exported var used as mapping on CVE severity name to implied ranking
 var SeverityMap = map[string]int{
 	"Defcon1":    1,
@@ -198,48 +133,15 @@ var SeverityMap = map[string]int{
 	"Unknown":    7,
 }
 
-// ListenForSignal listens for interactions and executes the desired code when it happens
-func ListenForSignal(fn func(os.Signal)) {
-	signalChannel := make(chan os.Signal, 1)
-
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGQUIT)
-	for {
-		execute := <-signalChannel
-		fn(execute)
-	}
+func (r Redclair) CreateHTTPRootDir() (string, error) {
+	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
+	return rootPath, os.MkdirAll(rootPath, os.ModePerm)
 }
 
 // CreateTmpPath creates a temporary folder with a prefix
-func CreateTmpPath(tmpPrefix string) string {
-	tmpPath, err := ioutil.TempDir("", tmpPrefix)
-	if err != nil {
-		log.Warn().Msgf("[Scanner] Could not create temporary folder: %s", err)
-	}
-	return tmpPath
-}
-
-// ParseWhitelistFile reads the Whitelist file and parses it
-func ParseWhitelistFile(whitelistFile string) VulnerabilitiesWhitelist {
-	whitelistTmp := VulnerabilitiesWhitelist{}
-
-	whitelistBytes, err := ioutil.ReadFile(whitelistFile)
-	if err != nil {
-		log.Warn().Msgf("[Scanner] Could not parse Whitelist file, could not read file %v", err)
-	}
-	if err = yaml.Unmarshal(whitelistBytes, &whitelistTmp); err != nil {
-		log.Warn().Msgf("[Scanner] Could not parse Whitelist file, could not unmarshal %v", err)
-	}
-	return whitelistTmp
-}
-
-// ValidateThreshold validates that the given CVE severity threshold is a valid severity
-func ValidateThreshold(threshold string) {
-	for severity := range SeverityMap {
-		if threshold == severity {
-			return
-		}
-	}
-	log.Warn().Msgf("[Scanner] Invalid CVE severity threshold %s given", threshold)
+func (r Redclair) CreateTempImageDirIn(where string) (string, error) {
+	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
+	return ioutil.TempDir(rootPath, httpServerImageDirPrefix)
 }
 
 // untar uses a Reader that represents a tar to untar it on the fly to a target folder

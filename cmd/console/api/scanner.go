@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func (api *api) scanner() func(chi.Router) {
@@ -81,7 +82,7 @@ func (api *api) scan() http.HandlerFunc {
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var param param
-		err := decodeJSONBody(w, r, &param)
+		err := util.DecodeJSONBody(w, r, &param)
 		if err != nil {
 			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
 			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))

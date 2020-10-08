@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
-	"github.com/golang/gddo/httputil/header"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -120,29 +117,4 @@ func static() http.HandlerFunc {
 	currentDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	filesDir := filepath.Join(currentDir, "ui")
 	return http.StripPrefix("/", http.FileServer(http.Dir(filesDir))).ServeHTTP
-}
-
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
-	if r.Header.Get("Content-Type") != "" {
-		value, _ := header.ParseValueAndParams(r.Header, "Content-Type")
-		if value != "application/json" {
-			return errors.New("The http header is not application/json")
-		}
-	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
-
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
-	err := dec.Decode(&dst)
-	if err != nil {
-		return err
-	}
-
-	if dec.More() {
-		return errors.New("Request body must only contain a single JSON object")
-	}
-
-	return nil
 }

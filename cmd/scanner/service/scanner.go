@@ -30,7 +30,7 @@ type Scanner struct {
 	lifecycle.Service
 	server      *http.Server
 	etcd        *clientv3.Client
-	redclair    *component.RedClair
+	redclair    *component.RedClairService
 	mongoClient *mongo.Client
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -56,14 +56,17 @@ func NewScanner(
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	// redclair
-	redclair := component.NewRedClair(mainCtx, clairOpts, mongodb)
+	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Scanner{
 		server: &http.Server{
 			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, redclair, mongodb, httpOpts.HTTPLoggerDisabled),
+			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled),
 		},
-		redclair:    redclair,
+		redclair:    redclairSvc,
 		mongoClient: mongoClient,
 		ctx:         mainCtx,
 		cancel:      mainCancel,
