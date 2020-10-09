@@ -112,14 +112,6 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		var upCluster model.Cluster
 
-		err = util.DecodeJSONBody(w, r, &upCluster)
-		if err != nil {
-			RespAndLog(w, r,
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("Failed to decode json: %w", err)))
-			return
-		}
-
 		_, err = api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
 
 		if err != nil {

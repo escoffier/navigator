@@ -58,7 +58,13 @@ func WithItem(item interface{}) ResponseDataOptionFunc {
 		}
 	} else {
 		return func(ev *HTTPEnvelope) {
-			ev.Data.Item = item
+			// need to marshal since HTTPData.Item is of type json.RawMessage
+			marshalled, err := json.Marshal(item)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshall item to json: %v", err)
+			} else {
+				ev.Data.Item = marshalled
+			}
 		}
 	}
 }
@@ -113,7 +119,7 @@ func RespError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc)
 		return
 	}
 
-	respond(w, code, resp)
+	Respond(w, code, "application/json", resp)
 }
 
 func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
@@ -132,21 +138,23 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 		return
 	}
 
-	respond(w, code, resp)
+	Respond(w, code, "application/json", resp)
 }
 
-func respond(w http.ResponseWriter, code int, payload interface{}) {
+func Respond(w http.ResponseWriter, code int, contentType string, payload interface{}) {
 	response, err := json.Marshal(payload)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to marshall response")
 		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(code)
 	_, err = w.Write(response)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to write response")
 		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 	}
+
+	// logging.GetLogger().Info().Str("resp", fmt.Sprintf("%+v", string(response))).Msg("Resp sent")
 }

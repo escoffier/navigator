@@ -28,11 +28,6 @@ definitions:
       username:
         type: string
     type: object
-  response.EmptyResponse:
-    properties:
-      status:
-        type: string
-    type: object
 info:
   contact: {}
   description: This is the Vegeta central server - Console
@@ -157,11 +152,6 @@ paths:
       operationId: v1-rest-auth-logout
       produces:
       - application/json
-      responses:
-        "200":
-          description: Logout response
-          schema:
-            $ref: '#/definitions/response.EmptyResponse'
       summary: Logout API
   /api/v1/rest-auth/user:
     get:

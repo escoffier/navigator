@@ -48,25 +48,24 @@ func SetupRoutes(
 ) {
 	log.Debug().Msg("setting up routes...")
 
+	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService)
+
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
+	r.Route("/harbor/api/v1", api.harbor())
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/rest-auth", api.restAuth())
 
-	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService)
-	r.Route("/api", func(r chi.Router) {
-		r.Route("/v1", func(r chi.Router) {
-			r.Route("/rest-auth", api.restAuth())
+		// needs authentication
+		r.Group(func(r chi.Router) {
+			r.Use(jwtauth.Verifier(api.tokenAuth))
 
-			// needs authentication
-			r.Group(func(r chi.Router) {
-				r.Use(jwtauth.Verifier(api.tokenAuth))
+			// custom authenticator
+			r.Use(jwtAuthenticator(api.userCache))
 
-				// custom authenticator
-				r.Use(jwtAuthenticator(api.userCache))
-
-				r.Route("/config", api.config())
-				r.Route("/scanner", api.scanner())
-				r.Route("/scap", api.scap())
-			})
+			r.Route("/config", api.config())
+			r.Route("/scanner", api.scanner())
+			r.Route("/scap", api.scap())
 		})
 	})
 }
