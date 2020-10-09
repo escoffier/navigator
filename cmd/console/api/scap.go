@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -11,9 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kube"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -63,14 +62,18 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 
 		}
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -79,8 +82,10 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			sortBy = "createdAt"
 		}
 		if sortBy != "createdAt" && sortBy != "finishedAt" && sortBy != "checkID" && sortBy != "clusterID" && sortBy != "numSuccessful" && sortBy != "numFailed" && sortBy != "numError" && sortBy != "numWaiting" && sortBy != "numInconclusive" {
-			logging.GetLogger().Info().Msg("invalid sortBy param value (allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortBy", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid sortBy param value (allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive)"),
+					Suberror{"sortBy", "allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive"}))
 			return
 		}
 
@@ -89,8 +94,10 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			sortOrder = "asc"
 		}
 		if sortOrder != "asc" && sortOrder != "desc" {
-			logging.GetLogger().Info().Msg("invalid sortOrder param value (allowed: asc/desc)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortOrder", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
+					Suberror{"sortOrder", "allowed: asc/desc"}))
 			return
 		}
 
@@ -98,8 +105,10 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
+
 			return
 		}
 		defer cursor.Close(ctx)
@@ -108,30 +117,37 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		if checkType == "kube" {
 			err := kube.GetKubeHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get kube history entries: %w", err)))
+
 				return
 			}
 		} else if checkType == "docker" {
 			err := docker.GetDockerHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get docker history entries: %w", err)))
+
 				return
 			}
 		} else if checkType == "host" {
 			err := host.GetHostHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get host history entries: %w", err)))
+
 				return
 			}
 		}
 
 		err = cursor.Err()
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Cursor error: %w", err)))
 			return
 		}
 
@@ -179,8 +195,10 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			logging.GetLogger().Info().Msg("checkID param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkID param missing"),
+					Suberror{"checkID", ""}))
 			return
 		}
 
@@ -188,14 +206,18 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 		}
 
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -204,8 +226,10 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			sortBy = "policyNumber"
 		}
 		if sortBy != "policyNumber" && sortBy != "name" && sortBy != "numFailed" && sortBy != "numSuccessful" && sortBy != "numInfo" && sortBy != "numWarn" {
-			logging.GetLogger().Info().Msg("invalid sortBy param value (allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortBy", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid sortBy param value (allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn)"),
+					Suberror{"sortBy", "allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn"}))
 			return
 		}
 
@@ -214,8 +238,10 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			sortOrder = "asc"
 		}
 		if sortOrder != "asc" && sortOrder != "desc" {
-			logging.GetLogger().Info().Msg("invalid sortOrder param value (allowed: asc/desc)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("sortOrder", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
+					Suberror{"sortOrder", "allowed: asc/desc"}))
 			return
 		}
 
@@ -225,8 +251,10 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find documents: %w", err)))
+
 			return
 		}
 		defer cursor.Close(ctx)
@@ -238,22 +266,28 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		if checkType == "kube" {
 			err := kube.GetKubeBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
+
 				return
 			}
 		} else if checkType == "docker" {
 			err := docker.GetDockerBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
+
 				return
 			}
 		} else if checkType == "host" {
 			err := host.GetHostBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
+
 				return
 			}
 		}
@@ -265,8 +299,10 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Cursor error")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Cursor error: %w", err)))
+
 			return
 		}
 
@@ -303,28 +339,36 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			logging.GetLogger().Info().Msg("checkID param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkID param missing)"),
+					Suberror{"checkID", ""}))
 			return
 		}
 
 		policyNumber := chi.URLParam(r, "policyNumber")
 		if policyNumber == "" {
-			logging.GetLogger().Info().Msg("policyNumber param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("policyNumber", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("policyNumber param missing)"),
+					Suberror{"policyNumber", ""}))
 			return
 		}
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 
 		}
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -332,8 +376,10 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't update cluster: %w", err)))
+
 			return
 		}
 		defer cursor.Close(ctx)
@@ -345,30 +391,38 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		if checkType == "kube" {
 			err := kube.GetKubePolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get kube policy details: %w", err)))
+
 				return
 			}
 		} else if checkType == "docker" {
 			err := docker.GetDockerPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get docker policy details: %w", err)))
+
 				return
 			}
 		} else if checkType == "host" {
 			err := host.GetHostPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get host policy details: %w", err)))
+
 				return
 			}
 		}
 
 		err = cursor.Err()
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Cursor error")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Cursor error: %w", err)))
+
 			return
 		}
 
@@ -393,21 +447,27 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 
 		}
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -426,8 +486,10 @@ func (api *api) getScapReports() http.HandlerFunc {
 		status := r.URL.Query().Get("status")
 		if status != "" {
 			if status != "inprogress" && status != "error" && status != "completed" {
-				logging.GetLogger().Info().Msg("invalid status param value (allowed: inprogress/error/completed)")
-				response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("status", ""))
+				RespAndLog(w, r,
+					NewFieldError(http.StatusBadRequest,
+						fmt.Errorf("invalid status param value (allowed: inprogress/error/completed)"),
+						Suberror{"status", "allowed: inprogress/error/completed"}))
 				return
 			}
 			filter["status"] = status
@@ -435,8 +497,10 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		cursor, err := api.scapper.MongoDB.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't find documents")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find documents: %w", err)))
+
 			return
 		}
 		defer cursor.Close(ctx)
@@ -446,8 +510,10 @@ func (api *api) getScapReports() http.HandlerFunc {
 			var result scap.JobEntry
 			err := cursor.Decode(&result)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Couldn't decode document")
-				response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't decode document: %w", err)))
+
 				return
 			}
 			// TODO: pagination, maybe https://github.com/gobeam/mongo-go-pagination?
@@ -456,8 +522,10 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Cursor error")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Cursor error: %w", err)))
+
 			return
 		}
 
@@ -479,35 +547,40 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 		}
 
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
 		cluster, err := api.clusterService.GetCluster(ctx, clusterObjectID)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to get cluster from Mongo")
-			apperror.RespondWithSuggested(w, r, err)
+			RespAndLog(w, r, fmt.Errorf("Failed to get cluster from Mongo: %w", err))
 			return
 		}
 
 		checkUUID, err := api.scapper.RunComplianceCheck(ctx, api.ctx, clusterObjectID, cluster, checkType)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to run compliance check")
-			apperror.RespondWithSuggested(w, r, err)
+			RespAndLog(w, r, fmt.Errorf("Failed to run compliance check: %w", err))
+			return
 		}
 
 		type resp struct {

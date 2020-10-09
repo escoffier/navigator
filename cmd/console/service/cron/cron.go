@@ -10,8 +10,7 @@ import (
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
@@ -114,7 +113,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 		})
 		// TODO: maybe retry on error?
 		if err != nil {
-			return apperror.New(locale.FieldError, http.StatusBadRequest, fmt.Errorf("Couldn't schedule job: %s", err))
+			return NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't schedule job: %w", err))
 		}
 		if checkType == "kube" {
 			cluster.CronConfig.KubeBenchCron.CronID = int(newCronID)

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -91,22 +90,6 @@ func WithStartIndex(n int64) ResponseDataOptionFunc {
 	}
 }
 
-func Bad(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	RespError(w, http.StatusBadRequest, opts...)
-}
-
-func InternalError(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	RespError(w, http.StatusInternalServerError, opts...)
-}
-
-func Unauthorized(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	RespError(w, http.StatusUnauthorized, opts...)
-}
-
-func Conflict(w http.ResponseWriter, opts ...ResponseErrorOptionFunc) {
-	RespError(w, http.StatusConflict, opts...)
-}
-
 func Ok(w http.ResponseWriter, opts ...ResponseDataOptionFunc) {
 	RespData(w, http.StatusOK, opts...)
 }
@@ -126,7 +109,7 @@ func RespError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc)
 
 	if resp.EnvelopeError != "" {
 		logging.GetLogger().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
-		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
 
@@ -145,7 +128,7 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 
 	if resp.EnvelopeError != "" {
 		logging.GetLogger().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
-		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
 
@@ -156,7 +139,7 @@ func respond(w http.ResponseWriter, code int, payload interface{}) {
 	response, err := json.Marshal(payload)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to marshall response")
-		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -164,6 +147,6 @@ func respond(w http.ResponseWriter, code int, payload interface{}) {
 	_, err = w.Write(response)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to write response")
-		http.Error(w, locale.Error(locale.HTTPResponseError, nil), http.StatusInternalServerError)
+		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 	}
 }

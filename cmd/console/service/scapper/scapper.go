@@ -13,9 +13,8 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
@@ -45,7 +44,7 @@ type Scapper struct {
 func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType string) (uuid.UUID, error) {
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
 	if err != nil {
-		return uuid.Nil, apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Failed to create kube client"))
+		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to create kube client"))
 	}
 
 	// generate check uuid that will identify results of this run in database
@@ -74,7 +73,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Can't list nodes in this cluster")
-		return uuid.Nil, apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster"))
+		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster"))
 	}
 
 	// schedule jobs
@@ -127,7 +126,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 			err := s.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
-				s.mongoJobStatusToFailed(ctx, check, targetNode.Name, fmt.Sprintf("Failed to schedule job: %s", err), time.Now().Unix())
+				s.mongoJobStatusToFailed(ctx, check, targetNode.Name, fmt.Sprintf("Failed to schedule job: %w", err), time.Now().Unix())
 			} else {
 				scheduledNodesCh <- targetNode.Name
 			}
@@ -176,19 +175,19 @@ func (s Scapper) readJobObjFromYamlFile(checkType string) (*batchv1.Job, error) 
 	} else if checkType == "host" {
 		jobYamlPath = "/jobs/host-bench/job.yaml"
 	} else {
-		return nil, apperror.New(locale.AnError, http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))
+		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))
 	}
 
 	jobYaml, err := ioutil.ReadFile(jobYamlPath)
 	if err != nil {
-		return nil, apperror.New(locale.ConfigurationError, http.StatusInternalServerError, fmt.Errorf("Can't read job file: %s", err))
+		return nil, NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't read job file: %w", err))
 	}
 
 	jobObj := &batchv1.Job{}
 	decoder := k8Yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(jobYaml)), 1000)
 	err = decoder.Decode(&jobObj)
 	if err != nil {
-		return nil, apperror.New(locale.ConfigurationError, http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %s", err))
+		return nil, NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %w", err))
 
 	}
 	return jobObj, nil
@@ -232,14 +231,14 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 	if k8serrors.IsAlreadyExists(err) {
 		err = jobsClient.Delete(jobObj.Name, &metav1.DeleteOptions{})
 		if err != nil {
-			return apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Job already exists, so tried deleting, but: %s", err))
+			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Job already exists, so tried deleting, but: %w", err))
 		}
 
 		time.Sleep(time.Second * 10)
 		res, err = jobsClient.Create(jobObj)
 	}
 	if err != nil {
-		return apperror.New(locale.KubernetesError, http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %s", err))
+		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %w", err))
 	}
 
 	jobName := res.ObjectMeta.Name
@@ -266,7 +265,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 
 	_, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
 	if err != nil {
-		return apperror.New(locale.MongoError, http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %s", err))
+		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %w", err))
 	}
 
 	return nil

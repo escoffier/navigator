@@ -18,7 +18,7 @@ import (
 
 func setupTestServer(t *testing.T) *httptest.Server {
 	r := chi.NewRouter()
-	SetupRoutes(context.TODO(), r, 500*time.Millisecond, nil, nil, "")
+	SetupRoutes(context.TODO(), r, 500*time.Millisecond, nil, nil, "", nil, nil)
 	return httptest.NewServer(r)
 }
 

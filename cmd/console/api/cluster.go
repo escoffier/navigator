@@ -7,9 +7,7 @@ import (
 
 	"github.com/go-chi/chi"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -41,15 +39,16 @@ func (api *api) getCluster() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
 		queryCluster, err := api.clusterService.GetCluster(ctx, clusterObjectID)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't get cluster")
-			apperror.RespondWithSuggested(w, r, err)
+			RespAndLog(w, r, fmt.Errorf("Couldn't get cluster: %w", err))
 			return
 		}
 
@@ -74,8 +73,7 @@ func (api *api) listClusters() http.HandlerFunc {
 
 		clusters, docNum, err := api.clusterService.ListClusters(ctx, offset, limit)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't list clusters")
-			apperror.RespondWithSuggested(w, r, err)
+			RespAndLog(w, r, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
 		}
 
@@ -105,8 +103,10 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
@@ -114,16 +114,18 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		err = util.DecodeJSONBody(w, r, &upCluster)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
 		_, err = api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
 
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't update cluster")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't update cluster: %w", err)))
 			return
 		}
 		response.Ok(w, response.WithItem(resp{
@@ -155,15 +157,15 @@ func (api *api) addCluster() http.HandlerFunc {
 
 		err := util.DecodeJSONBody(w, r, &param)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
 		id, err := api.clusterService.AddCluster(ctx, param.ClusterName, param.KubeConfig)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't add cluster")
-			apperror.RespondWithSuggested(w, r, err)
+			RespAndLog(w, r, fmt.Errorf("Couldn't add cluster: %w", err))
 			return
 		}
 
@@ -186,8 +188,10 @@ func (api *api) delCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read clusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
@@ -196,8 +200,10 @@ func (api *api) delCluster() http.HandlerFunc {
 
 		delResult, err := api.clusterService.DeleteCluster(ctx, clusterObjectID)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't delete cluster")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't delete ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 

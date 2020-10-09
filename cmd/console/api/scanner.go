@@ -13,8 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -46,8 +45,10 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		// get ObjectID
 		taskObjectID, err := getTaskObjectIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read taskID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("taskID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Coudln't read taskID: %w", err),
+					Suberror{"taskID", ""}))
 			return
 		}
 
@@ -59,8 +60,9 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
 			ctx, bson.M{"_id": taskObjectID}).Decode(&result)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't find document")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
 			return
 		}
 
@@ -84,15 +86,17 @@ func (api *api) scan() http.HandlerFunc {
 		var param param
 		err := util.DecodeJSONBody(w, r, &param)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
 		jsonValue, err := json.Marshal(param)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to marshal json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to marshall json: %w", err)))
 			return
 		}
 
@@ -108,15 +112,17 @@ func (api *api) scan() http.HandlerFunc {
 			defer resp.Body.Close()
 		}
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("POST to Scanner failed")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.ConnectionError, r)))
+			RespAndLog(w, r,
+				NewConnectionError(http.StatusInternalServerError,
+					fmt.Errorf("POSt to Scanner failed: %w", err)))
 			return
 		}
 
 		_, err = io.Copy(w, resp.Body)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Couldn't respond with response from canner")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.HTTPResponseError, r)))
+			RespAndLog(w, r,
+				NewHTTPResponseError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't respond with response from Scanner: %w", err)))
 			return
 		}
 	}

@@ -1,13 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/locale"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -32,28 +31,35 @@ func (api *api) getCron() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 		}
 
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", checkType))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
 		cronConfig, err := api.cronService.GetCron(ctx, clusterObjectID, checkType)
 		if err != nil {
-			logging.GetLogger().Info().Msg("failed to get cron")
-			response.InternalError(w, response.WithMessage(locale.Error(locale.MongoError, r)))
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Failed to get cron: %w", err)))
 			return
 		}
 		resp.CronString = cronConfig
@@ -78,36 +84,42 @@ func (api *api) putCron() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Couldn't read ClusterID")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("clusterID", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read ClusterID: %w", err),
+					Suberror{"clusterID", ""}))
 			return
 		}
 
 		checkType := chi.URLParam(r, "checkType")
 		if checkType == "" {
-			logging.GetLogger().Info().Msg("checkType param missing")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
 			return
 		}
 
 		if checkType != "kube" && checkType != "docker" && checkType != "host" {
-			logging.GetLogger().Info().Msg("invalid checkType param value (allowed: kube/docker/host)")
-			response.Bad(w, response.WithMessage(locale.Error(locale.FieldError, r)), response.WithSuberror("checkType", ""))
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
 		var req req
 		err = util.DecodeJSONBody(w, r, &req)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to decode json")
-			response.Bad(w, response.WithMessage(locale.Error(locale.MalformedRequestError, r)))
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
 		err = api.cronService.UpdateCron(api.ctx, clusterObjectID, checkType, req.NewCronString)
 		if err != nil {
-			logging.GetLogger().Info().Err(err).Msg("Failed to update cron")
-			apperror.RespondWithSuggested(w, r, err)
+			RespAndLog(w, r, fmt.Errorf("Failed to update cron: %w", err))
 			return
 		}
 
