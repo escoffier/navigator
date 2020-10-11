@@ -33,6 +33,7 @@ Login:
 # If multinode
 k8 port-forward -n tensorsec service/tensorsec-console 8889:8889 &
 CONSOLEADDR=127.0.0.1:8889
+SCANNERADDR=127.0.0.1:8888
 
 # if remote system
 # CONSOLEADDR=console.tensorsecurity.cn:80
@@ -56,7 +57,7 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 # Or directly to Scanner, bypassing JWT auth, hehe
 # curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 
-curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"url": "asdf", "repository": "python"}' -H "Content-Type: application/json" http://$SCANNERIP:8888/api/v1/scan/one
+curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"url": "http://10.152.183.76:5000", "repository": "tensorsec-console", "tag": "latest"}' -H "Content-Type: application/json" http://$SCANNERADDR/api/v1/scan/one
 
 
 ```

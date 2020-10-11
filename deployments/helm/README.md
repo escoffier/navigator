@@ -48,9 +48,11 @@ You should get a response if it's working:
 
 `helm repo add elastic https://helm.elastic.co`
 
+`helm repo add dgraph https://charts.dgraph.io`
+
 `helm dep up`
 
-`helm install ./ --namespace vegeta --name vegeta`
+`helm install ./ --namespace tensorsec --name tensorsec`
 
 ### Shutdown
 

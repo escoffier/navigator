@@ -90,36 +90,30 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 	return nil
 }
 
-func (r Redclair) getVulnerabilities(ctx context.Context, imageName string, layerIDs []string) []VulnerabilityInfo {
+func (r Redclair) GetVulnerabilities(ctx context.Context, image string, digest string) []VulnerabilityInfo {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
 	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
-	//Last layer gives you all the vulnerabilities of all layers <-- that is not right now, 2019-11-28
-	//We scan all layer without parent, because schema 2 version 2 has no parent information
-	//So we need to fetch all layers and distinguish them
-	for _, layerID := range layerIDs {
-		rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, layerID)
-		if err != nil {
-			log.Warn().
-				Msgf("Could not fetch vulnerabilities: %s of %s", layerID, imageName)
-			continue
-		}
-		log.Info().Msgf("Fetched %s of %s", layerID, imageName)
+	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
+	if err != nil {
+		log.Warn().
+			Msgf("Could not fetch vulnerabilities: %s of %s", digest, image)
+	}
+	log.Info().Msgf("Fetched %s of %s", digest, image)
 
-		for _, feature := range rawVulnerabilities.Features {
-			if len(feature.Vulnerabilities) > 0 {
-				for _, vulnerability := range feature.Vulnerabilities {
-					vulnerability := VulnerabilityInfo{
-						feature.Name,
-						feature.Version,
-						vulnerability.Name,
-						vulnerability.NamespaceName,
-						vulnerability.Description,
-						vulnerability.Link,
-						vulnerability.Severity,
-						vulnerability.FixedBy,
-					}
-					vulnerabilitiesMap[vulnerability] = struct{}{}
+	for _, feature := range rawVulnerabilities.Features {
+		if len(feature.Vulnerabilities) > 0 {
+			for _, vulnerability := range feature.Vulnerabilities {
+				vulnerability := VulnerabilityInfo{
+					feature.Name,
+					feature.Version,
+					vulnerability.Name,
+					vulnerability.NamespaceName,
+					vulnerability.Description,
+					vulnerability.Link,
+					vulnerability.Severity,
+					vulnerability.FixedBy,
 				}
+				vulnerabilitiesMap[vulnerability] = struct{}{}
 			}
 		}
 	}

@@ -4,11 +4,15 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/heroku/docker-registry-client/registry"
+	dig "github.com/opencontainers/go-digest"
 )
 
 // VulnerabilitiesWhitelist ...
@@ -229,12 +233,11 @@ func parseBootstrap(data []byte) []Software {
 	}
 }
 
-// Scan orchestrates the scanning process of an image
-func (r *Redclair) Scan(ctx context.Context, config ScannerConfig) (*VulnerabilityReport, []FileSignature, []Software, error) {
-	pathToLayersInFS, err := r.CreateTempImageDirIn(r.httpRootDir)
+func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest string, parentDigest string, image string) ([]VulnerabilityInfo, []FileSignature, []Software, error) {
+	pathToLayersInFS, err := r.CreateTempLayerDigestDirIn(digest)
 	if err != nil {
 		log.Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
-		return &VulnerabilityReport{}, []FileSignature{}, []Software{}, err
+		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 	defer func() {
 		err := os.RemoveAll(pathToLayersInFS)
@@ -243,88 +246,89 @@ func (r *Redclair) Scan(ctx context.Context, config ScannerConfig) (*Vulnerabili
 		}
 	}()
 
-	imageID, LayerIDs, err := saveDockerImage(ctx, config.ImageName, pathToLayersInFS)
-	log.Info().Str("imageID", imageID).Str("layers", fmt.Sprintf("%v", LayerIDs)).Msgf("Docker image saved")
+	reader, err := hub.DownloadBlob(strings.Split(image, "/")[0], dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1]))
+	if reader != nil {
+		defer reader.Close()
+	}
+	if err != nil {
+		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+	}
+
+	outFile, err := os.Create(pathToLayersInFS + "/layer.tar")
+	defer outFile.Close()
+	_, err = io.Copy(outFile, reader)
+	if err != nil {
+		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+	}
+
+	log.Info().Str("image", image).Str("layerDigest", digest).Msgf("Docker image saved")
 	if err != nil {
 		log.Error().
 			Err(err).
 			Msg("[Scanner]")
-		return &VulnerabilityReport{}, []FileSignature{}, []Software{}, err
+		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
 	//Analyze the layers
-	pathToLayersInHTTP, err := filepath.Rel(r.httpRootDir, pathToLayersInFS)
+	pathToLayerInHTTP, err := filepath.Rel(r.httpRootDir, pathToLayersInFS)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("httpServerRootDir", httpServerRootDir).
-			Str("pathToLayersInFS", pathToLayersInFS).
+			Str("pathToLayersInFS", pathToLayerInHTTP).
 			Msg("Failed to get relative path")
-		return &VulnerabilityReport{}, []FileSignature{}, []Software{}, err
+		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
-	// TODO error handling here, wtf
-	err = r.analyzeLayers(ctx, pathToLayersInHTTP, config.ImageName, LayerIDs)
+	pathToLayer := fmt.Sprintf("http://%s:%d/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayerInHTTP)
+	err = r.analyzeLayer(ctx, pathToLayer, digest, parentDigest)
 	if err != nil {
-		return &VulnerabilityReport{}, []FileSignature{}, []Software{}, err
+		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
-
-	log.Info().Msgf("Generating file signature in %s ...", config.ImageName)
 	var imageFileSignature []FileSignature
 	var imageSoftware []Software
-	for _, v := range LayerIDs {
-		layerFileSignature, softwareFiles, err := generateTarHash(
-			filepath.Join(pathToLayersInFS, v, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp)
-		if err != nil {
-			// TODO shouldn't we err here?
-			log.Warn().Msgf("Fail to get layer signature : %s : %v",
-				filepath.Join(pathToLayersInFS, v, "layer.tar"), err)
-			continue
-		}
-		for _, f := range softwareFiles {
-			for re, parse := range r.softwareRegExpMap {
-				if re.String() == `(^|.*\/)bootstrap.sh$` && re.MatchString(f.Name) {
-					tmp := parse(f.HeadContent)
-					if tmp[0].Version != "" {
-						imageSoftware = append(imageSoftware, tmp[0])
-						tmp[1].Name = f.Name
-						log.Info().Msgf("%v", tmp[0])
-						imageSoftware = append(imageSoftware, tmp...)
-						log.Info().Msgf("Added npm bootstrap.sh")
-					} else {
-						log.Info().Msgf("Ignored other bootstrap.sh")
-					}
-					continue
-				}
-				if re.String() ==
-					`(^|.*\/)package.json$|(^|.*\/)package-lock.json$|(^|.*\/)yarn.lock$` &&
-					re.MatchString(f.Name) {
-					if nodeModuleRe.MatchString(f.Name) { // ignore files in node_module
-						continue
-					}
-					tmp := parse(f.HeadContent)
-					tmp[0].Name = f.Name
+	layerFileSignature, softwareFiles, err := generateTarHash(
+		filepath.Join(pathToLayersInFS, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp)
+	if err != nil {
+		log.Warn().Msgf("Fail to get layer signature : %s : %v",
+			filepath.Join(pathToLayersInFS, "layer.tar"), err)
+	}
+	for _, f := range softwareFiles {
+		for re, parse := range r.softwareRegExpMap {
+			if re.String() == `(^|.*\/)bootstrap.sh$` && re.MatchString(f.Name) {
+				tmp := parse(f.HeadContent)
+				if tmp[0].Version != "" {
+					imageSoftware = append(imageSoftware, tmp[0])
+					tmp[1].Name = f.Name
+					log.Info().Msgf("%v", tmp[0])
 					imageSoftware = append(imageSoftware, tmp...)
-					log.Info().Msgf("Added node package: %s", f.Name)
+					log.Info().Msgf("Added npm bootstrap.sh")
+				} else {
+					log.Info().Msgf("Ignored other bootstrap.sh")
+				}
+				continue
+			}
+			if re.String() ==
+				`(^|.*\/)package.json$|(^|.*\/)package-lock.json$|(^|.*\/)yarn.lock$` &&
+				re.MatchString(f.Name) {
+				if nodeModuleRe.MatchString(f.Name) { // ignore files in node_module
 					continue
 				}
-				if re.MatchString(f.Name) {
-					imageSoftware = append(imageSoftware, parse(f.HeadContent)...)
-				}
+				tmp := parse(f.HeadContent)
+				tmp[0].Name = f.Name
+				imageSoftware = append(imageSoftware, tmp...)
+				log.Info().Msgf("Added node package: %s", f.Name)
+				continue
+			}
+			if re.MatchString(f.Name) {
+				imageSoftware = append(imageSoftware, parse(f.HeadContent)...)
 			}
 		}
-		imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	}
-	log.Info().Msgf("Signed %s", config.ImageName)
+	imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	imageFileSignature = distinctFileHash(imageFileSignature)
 
-	vulnerabilities := r.getVulnerabilities(ctx, config.ImageName, LayerIDs)
+	vulnerabilities := r.GetVulnerabilities(ctx, image, digest)
 
-	return &VulnerabilityReport{
-		config.Repository,
-		config.ImageName,
-		imageID,
-		[]string{},
-		vulnerabilities,
-	}, imageFileSignature, imageSoftware, nil
+	return vulnerabilities, imageFileSignature, imageSoftware, nil
 }
