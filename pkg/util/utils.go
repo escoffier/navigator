@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 
 	"github.com/golang/gddo/httputil/header"
 )
 
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+	if reflect.ValueOf(dst).Kind() != reflect.Ptr {
+		return errors.New("Expected dst to be pointer")
+	}
+
 	if r.Header.Get("Content-Type") != "" {
 		value, _ := header.ParseValueAndParams(r.Header, "Content-Type")
 		if value != "application/json" {

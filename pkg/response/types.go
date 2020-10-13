@@ -2,6 +2,7 @@ package response
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // Implements modified Google JSON styleguide
@@ -145,4 +146,67 @@ func (e *HTTPData) UnmarshalJSON(input []byte) error {
 	e.TotalPages, _ = dataFields["totalPages"].(int64)
 
 	return nil
+}
+
+func (e HTTPData) String() string {
+
+	// Simplify values of Item and Items
+
+	// Potentially we could use reflection here.
+	type SimplifiedHTTPData struct {
+		Kind             string
+		Etag             string
+		Lang             string
+		Updated          string
+		Deleted          bool
+		CurrentItemCount int64
+		ItemsPerPage     int64
+		StartIndex       int64
+		TotalItems       int64
+		PageIndex        int64
+		TotalPages       int64
+		CustomFields     map[string]interface{}
+		Item             string
+		Items            string
+	}
+
+	itemOrNil := "<nil>"
+	if e.Item != nil {
+		itemOrNil = "<payload-bytes>"
+	}
+	itemsOrNil := "<nil>"
+	if e.Items != nil {
+		itemsOrNil = "<payload-bytes>"
+	}
+
+	simp := SimplifiedHTTPData{
+		Kind:             e.Kind,
+		Etag:             e.Etag,
+		Lang:             e.Lang,
+		Updated:          e.Updated,
+		Deleted:          e.Deleted,
+		CurrentItemCount: e.CurrentItemCount,
+		ItemsPerPage:     e.ItemsPerPage,
+		StartIndex:       e.StartIndex,
+		TotalItems:       e.TotalItems,
+		PageIndex:        e.PageIndex,
+		TotalPages:       e.TotalPages,
+		CustomFields:     e.CustomFields,
+		Item:             itemOrNil,
+		Items:            itemsOrNil,
+	}
+	return fmt.Sprintf("%+v", simp)
+}
+
+func (e HTTPEnvelope) String() string {
+	dataOrNil := "<nil>"
+	errOrNil := "<nil>"
+	if e.Data != nil {
+		dataOrNil = fmt.Sprintf("%+v", *e.Data)
+	}
+	if e.Error != nil {
+		errOrNil = fmt.Sprintf("%+v", *e.Error)
+	}
+
+	return fmt.Sprintf("{ApiVersion:%v Data:%v Error:%v}", e.ApiVersion, dataOrNil, errOrNil)
 }

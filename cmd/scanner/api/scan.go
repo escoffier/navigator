@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -33,15 +33,11 @@ func (api *api) scan() func(chi.Router) {
 // @Description Scan one image
 // @ID v1-scan-one-post
 // @Produce json
-// @Param image body string true "image name"
-// @Param rescan body bool true "force rescan the image"
 // @Router /api/v1/scan/one [post]
 func (api *api) scanOne() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var task model.ScanTask
-
 		var scanReq model.ScannerReq
-		err := util.DecodeJSONBody(w, r, scanReq)
+		err := util.DecodeJSONBody(w, r, &scanReq)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMalformedRequestError(http.StatusBadRequest,
@@ -49,15 +45,26 @@ func (api *api) scanOne() http.HandlerFunc {
 			return
 		}
 
-		imageName := scanReq.Repository + ":" + scanReq.Tag
-		// TODO @Przemek probably can refactor this step
-		task, err = component.NewTaskByNameTag(imageName, false, scanReq.Digest)
-		if err != nil {
-			RespAndLog(w, r,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't create new task name by name tag"),
-					Suberror{"image", ""}))
-			return
+		scanReqRedacted := scanReq
+		scanReqRedacted.Authorization = "<redacted>"
+		log.Info().Str("request", fmt.Sprintf("%+v", scanReqRedacted)).Msgf("Received scan request")
+
+		repoimage := strings.Split(scanReq.Repository, "/") // e.g. library/mongo
+		repository := ""
+		image := repoimage[len(repoimage)-1]
+		if len(repoimage) > 1 {
+			repository = repoimage[0]
+		}
+
+		task := model.ScanTask{
+			Status:     model.ScanStatusInProgress,
+			StartedAt:  time.Now().Unix(),
+			Image:      image,
+			Tag:        scanReq.Tag,
+			Repository: repository,
+			// ImageDigest: digestImage, // TODO not sure about handling this
+			ForceRescan: false, // TODO not sure if ForceRescan needed
+			// TODO potentially adjust fields of this struct
 		}
 
 		// persist the task to Mongo
@@ -71,7 +78,6 @@ func (api *api) scanOne() http.HandlerFunc {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't update cluster: %w", err)))
-
 			return
 		}
 

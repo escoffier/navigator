@@ -7,6 +7,7 @@ import (
 
 // VulnerabilityReport ...
 type VulnerabilityReport struct {
+	Repository      string              `json:"repository"`
 	Image           string              `json:"image"`
 	Hash            string              `json:"hash"`
 	Unapproved      []string            `json:"unapproved"`

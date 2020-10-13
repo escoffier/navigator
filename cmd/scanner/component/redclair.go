@@ -2,6 +2,7 @@ package component
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -11,6 +12,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+)
+
+const (
+	scanOneTimeout = time.Minute * 5
 )
 
 // RedClair ...
@@ -52,56 +57,89 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 	}
 	defer rcSvc.redclairEngine.StopImageHTTPServer()
 
-	// we can have multiple workers here
+	// TODO do we want some max num of workers?
 loop:
 	for {
 		select {
 		case scanTask := <-rcSvc.scanTasksChan:
-			// TODO: currently this is blocking...
-			rcSvc.processScanTask(scanTask)
+			go rcSvc.asyncProcessScanTask(ctx, scanTask)
 		case <-ctx.Done():
 			break loop
 		}
 	}
 }
 
-func (rcSvc *RedClairService) processScanTask(scanTask model.ScanTask) {
-	// If scanTask.ForceScan
+func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask model.ScanTask) {
+	scanCtx, scanCtxCancel := context.WithTimeout(ctx, scanOneTimeout)
+	defer scanCtxCancel()
 
-	// handle scanTask here
-	vulnReport, fileSignatures, software, err := rcSvc.redclairEngine.Scan(
-		redclair.ScannerConfig{
-			ImageName:          scanTask.GetNameTag(),
-			WhitelistThreshold: "Unknown",
-			ReportAll:          true,
-		},
-	)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("error in redclair.Scan()")
-	}
+	scanDoneCh := make(chan struct{})
+	go func() {
+		vulnReport, fileSignatures, software, err := rcSvc.redclairEngine.Scan(
+			scanCtx,
+			redclair.ScannerConfig{
+				Repository:         scanTask.Repository,
+				ImageName:          scanTask.GetNameTag(),
+				WhitelistThreshold: "Unknown",
+				ReportAll:          true,
+			},
+		)
 
-	scanTask.ScanReport = model.ScanReport{
-		Vulns:    *vulnReport,
-		Files:    fileSignatures,
-		Software: software,
-	}
+		if err != nil {
+			log.Error().Err(err).Msg("Redclair scan failed")
 
-	filter := bson.M{"_id": scanTask.ID}
-	update := bson.M{"$set": scanTask}
+			scanTask.FinishedAt = time.Now().Unix()
+			scanTask.Status = model.ScanStatusFailed
+			scanTask.Message = err.Error()
 
-	ctx, cancel := context.WithTimeout(rcSvc.ctx, 10*time.Second)
-	defer cancel()
-	_, err = rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateOne(ctx, filter, update)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("error in updating task in Mongo")
+			rcSvc.updateMongoStatus(ctx, scanTask)
+		} else {
+			scanTask.FinishedAt = time.Now().Unix()
+			scanTask.Status = model.ScanStatusSucceeded
+			scanTask.ScanReport = model.ScanReport{
+				Vulns:    *vulnReport,
+				Files:    fileSignatures,
+				Software: software,
+			}
+
+			rcSvc.updateMongoStatus(ctx, scanTask)
+		}
+
+		scanDoneCh <- struct{}{}
+	}()
+
+	select {
+	case <-scanDoneCh:
+		log.Info().Msg("Redclair scan succeeded")
+		break
+	case <-scanCtx.Done():
+		log.Error().Err(ctx.Err()).Msg("Redclair scan timeout")
+
+		scanTask.FinishedAt = time.Now().Unix()
+		scanTask.Status = model.ScanStatusFailed
+		scanTask.Message = ctx.Err().Error()
+
+		rcSvc.updateMongoStatus(ctx, scanTask)
 	}
 }
 
 // AddScanTask adds ScanTask to the internal channel
 func (rcSvc *RedClairService) AddScanTask(task model.ScanTask) {
 	rcSvc.scanTasksChan <- task
+}
+
+func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask model.ScanTask) {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	filter := bson.M{"_id": scanTask.ID}
+	update := bson.M{"$set": scanTask}
+
+	_, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateOne(mongoCtx, filter, update)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
+			Msg("error in updating task in Mongo")
+	}
 }

@@ -356,6 +356,8 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 # Or directly to Scanner, bypassing JWT auth, hehe
 # curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 
+curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"url": "asdf", "repository": "python"}' -H "Content-Type: application/json" http://$SCANNERIP:8888/api/v1/scan/one
+
 
 ```
 
@@ -419,7 +421,7 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 Some oneliners:
 
 ```bash
-mongo "mongodb://redstone:redstoneMongo123@10.105.109.22:27017/vegeta?authMechanism=SCRAM-SHA-1"
+mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.scantasks.find()[0]' > out.json
 mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["docker-bench-records"].find().toArray()' > out.json
 ```
 

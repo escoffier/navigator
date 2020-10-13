@@ -4,15 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+const (
+	// TODO: Potentially move this to config file or command line param
+	lastChanceTimeout = time.Minute * 10
 )
 
 func (api *api) harbor() func(chi.Router) {
@@ -23,38 +30,20 @@ func (api *api) harbor() func(chi.Router) {
 	}
 }
 
-type harborErrorInner struct {
-	Message string `json:"message"`
-}
-
-type harborError struct {
-	Inner harborErrorInner `json:"error"`
-}
-
 func (api *api) getHarborPluginManifest() http.HandlerFunc {
-	type Scanner struct {
-		Name    string `json:"name"`
-		Vendor  string `json:"vendor"`
-		Version string `json:"version"`
-	}
-	type Capability struct {
-		ConsumesMIMETypes []string `json:"consumes_mime_types"`
-		ProducesMIMETypes []string `json:"produces_mime_types"`
-	}
-	type Manifest struct {
-		Scanner      Scanner           `json:"scanner"`
-		Capabilities []Capability      `json:"capabilities"`
-		Properties   map[string]string `json:"properties"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
-		manifest := Manifest{
-			Scanner: Scanner{
+		_, cancel := api.getTimeoutCtx()
+		defer cancel()
+
+		dummyUpdatedAt := time.Now().Format(time.RFC3339)
+
+		manifest := harbor.Manifest{
+			Scanner: harbor.Scanner{
 				Name:    "TensorSecurity scanner",
 				Vendor:  "TensorSecurity",
 				Version: "0.0.1",
 			},
-			Capabilities: []Capability{
+			Capabilities: []harbor.Capability{
 				{
 					ConsumesMIMETypes: []string{
 						// Let's only support v2 for now.
@@ -71,45 +60,29 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 				},
 			},
 			Properties: map[string]string{
-				// "harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
+				"harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
+				// TODO obtain from scanner/clair and keep here: vulnerability-database-updated-at
 				// "harbor.scanner-adapter/vulnerability-database-updated-at": "2019-08-13T08:16:33.345Z",
-				"testproperty": "hello-world",
+				"harbor.scanner-adapter/vulnerability-database-updated-at": string(dummyUpdatedAt),
 			},
 		}
+
 		response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.metadata+json; version=1.0", manifest)
 
-		// TODO: should check for backend scanner health and return 500 with error schema if unhealthy
+		// TODO Harbor polls this endpoint very often to determine health of the scanner. Therefore
+		// we should check for backend scanner health and return 500 if unhealthy
 	}
 }
 
 func (api *api) postHarborPluginScan() http.HandlerFunc {
-
-	type Registry struct {
-		URL           string `json:"url"`
-		Authorization string `json:"authorization"`
-	}
-	type Artifact struct {
-		Repository string `json:"repository"`
-		Digest     string `json:"digest"`
-		Tag        string `json:"tag"`
-		MimeType   string `json:"mime_type"`
-	}
-	type ScanRequest struct {
-		Registry Registry `json:"registry"`
-		Artifact Artifact `json:"artifact"`
-	}
-
-	type ScanResponse struct {
-		ID string `json:"id"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
 
-		var harborScanReq ScanRequest
+		var harborScanReq harbor.ScanRequest
 		err := json.NewDecoder(r.Body).Decode(&harborScanReq)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to decode json received from harbor")
-			e := harborError{harborErrorInner{"Failed to decode json received from harbor"}}
+			e := harbor.NewHarborErrorAndLog(err, "Failed to decode json received from harbor")
 			response.Respond(w, http.StatusBadRequest, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
@@ -118,33 +91,36 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		harborScanReqRedacted.Registry.Authorization = "<redacted>"
 		logging.GetLogger().Info().Str("scanrequest", fmt.Sprintf("%+v", harborScanReqRedacted)).Msg("Received scan request from Harbor")
 
-		tensorsecScannerReq := model.ScannerReq{
+		tensorsecScannerReqPayload := model.ScannerReq{
 			URL:           harborScanReq.Registry.URL,
 			Authorization: harborScanReq.Registry.Authorization,
 			Repository:    harborScanReq.Artifact.Repository,
 			Digest:        harborScanReq.Artifact.Digest,
 			Tag:           harborScanReq.Artifact.Tag,
 		}
-		tensorsecScannerReqJSON, err := json.Marshal(tensorsecScannerReq)
+		tensorsecScannerReqPayloadBytes, err := json.Marshal(tensorsecScannerReqPayload)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to marshall request to tensorsec scanner")
-			e := harborError{harborErrorInner{"Failed to marshall request to tensorsec scanner"}}
+			e := harbor.NewHarborErrorAndLog(err, "Failed to marshal request to tensorsec scanner")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 
-		httpClient := http.Client{
-			// TODO: needs better timeouts
-			Timeout: 10 * time.Second,
-		}
-		tensorsecScannerResp, err := httpClient.Post(
+		tensorsecScannerReq, err := http.NewRequest(
+			"POST",
 			fmt.Sprintf("%s/api/v1/scan/one", api.scannerURL),
-			"application/json",
-			bytes.NewBuffer(tensorsecScannerReqJSON),
+			bytes.NewBuffer(tensorsecScannerReqPayloadBytes),
 		)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to send request to tensorsec scanner")
-			e := harborError{harborErrorInner{"Failed to send request to tensorsec scanner"}}
+			e := harbor.NewHarborErrorAndLog(err, "Failed to prepare request to tensorsec scanner")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
+		tensorsecScannerReq.Header.Add("Content-Type", "application/json")
+
+		httpClient := http.Client{}
+		tensorsecScannerResp, err := httpClient.Do(tensorsecScannerReq.WithContext(ctx))
+		if err != nil {
+			e := harbor.NewHarborErrorAndLog(err, "Failed to send request to tensorsec scanner")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
@@ -153,8 +129,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		var tensorsecScannerRespEnvelope response.HTTPEnvelope
 		err = json.NewDecoder(tensorsecScannerResp.Body).Decode(&tensorsecScannerRespEnvelope)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to decode response from tensorsec scanner")
-			e := harborError{harborErrorInner{"Failed to decode response from tensorsec scanner"}}
+			e := harbor.NewHarborErrorAndLog(err, "Failed to decode response from tensorsec scanner")
 			response.Respond(w, http.StatusBadRequest, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
@@ -164,13 +139,12 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		var scanTask model.ScanTask
 		json.Unmarshal(tensorsecScannerRespEnvelope.Data.Item, &scanTask)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to unmarshall scanTask in response from tensorsec scanner")
-			e := harborError{harborErrorInner{"Failed to unmarshall scanTask in response from tensorsec scanner"}}
+			e := harbor.NewHarborErrorAndLog(err, "Failed to unmarshal scanTask in response from tensorsec scanner")
 			response.Respond(w, http.StatusBadRequest, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 
-		harborScanResp := ScanResponse{
+		harborScanResp := harbor.ScanResponse{
 			ID: scanTask.ID.Hex(),
 		}
 		response.Respond(w, http.StatusAccepted, "application/vnd.scanner.adapter.scan.response+json; version=1.0", harborScanResp)
@@ -178,62 +152,52 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 }
 
 func (api *api) getHarborPluginReport() http.HandlerFunc {
-
-	type EmptyResponse struct {
-		// TODO we should have a nicer way of doing this
-	}
-
-	type VendorSpecificScanReport struct {
-		report model.ScanReport
-	}
-	type HarborSpecificScanReport struct {
-		// TODO transform data for harbor
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO contexts everywhere.
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
 
 		scanRequestID := chi.URLParam(r, "scan_request_id")
 		if scanRequestID == "" {
-			logging.GetLogger().Error().Msg("scan_request_id missing in URL")
-			e := harborError{harborErrorInner{"scan_request_id missing in URL"}}
+			e := harbor.NewHarborErrorAndLog(nil, "scan_request_id missing in URL")
 			response.Respond(w, http.StatusNotFound, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 
 		objectID, err := primitive.ObjectIDFromHex(scanRequestID)
 		if err != nil {
-			logging.GetLogger().Error().Msg("scan_request_id is in invalid format")
-			e := harborError{harborErrorInner{"scan_request_id is in invalid format"}}
+			e := harbor.NewHarborErrorAndLog(err, "scan_request_id is in invalid format")
 			response.Respond(w, http.StatusNotFound, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 
-		mongoCtx, mongoCtxCancel := api.getTimeoutCtx()
-		defer mongoCtxCancel()
-
-		// from mongo
 		var result model.ScanTask
-		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(mongoCtx, bson.M{"_id": objectID}).Decode(&result)
+		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, bson.M{"_id": objectID}).Decode(&result)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Coudln't find task with this identifier")
-			e := harborError{harborErrorInner{"Coudln't find task with this identifier"}}
+			e := harbor.NewHarborErrorAndLog(err, "Coudln't find task with this identifier")
 			response.Respond(w, http.StatusNotFound, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 
-		// TODO: checking if scan report is ready like this seems bad. Better have a status field.
-		if len(result.ScanReport.Files) > 0 {
-			vendorScanReport := VendorSpecificScanReport{
-				report: result.ScanReport,
-			}
-			response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.vuln.report.raw; version=1.0", vendorScanReport)
-		} else {
-			// TODO add some timeout where we just return 500, because maybe there's an error in tensorsec scanner.
-			// TODO also, if there is an error in scanner, it should set status in mongo to failed with error message or something, so we don't wait...
-
-			// Tell harbor to retry after 10 seconds
-			w.Header().Set("Refresh-After", "10")
+		if result.Status == model.ScanStatusSucceeded {
+			harborVulnReport := harbor.RedclairReportToHarborReport(result.ScanReport.Vulns)
+			response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0", harborVulnReport)
+			return
+		} else if result.Status == model.ScanStatusFailed {
+			e := harbor.NewHarborErrorAndLog(nil, "Scan failed in scanner")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		} else if time.Now().Unix()-result.StartedAt > int64(lastChanceTimeout) {
+			// Timeout in Console layer. There should also be a timeout in Scanner, but if Scanner misbehaves, we want to inform Harbor about it as well.
+			// The timeout itself is quite long since its purpose is to catch orphaned jobs.
+			// TODO: Add similar timeout in scanner that would set status in mongo to Failed
+			e := harbor.NewHarborErrorAndLog(nil, "Waited for scanner for too long")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		} else if result.Status == model.ScanStatusInProgress {
+			// Tell harbor to retry after 10+jitter seconds
+			// Is exponential backoff needed? Let's just add jitter for now.
+			refreshAfterSec := 10 + rand.Intn(10)
+			w.Header().Set("Refresh-After", string(refreshAfterSec))
 			// harbor expects 302 Found. By http spec, we must supply Location header.
 			w.Header().Set("Location", r.URL.Path)
 			w.WriteHeader(http.StatusFound)

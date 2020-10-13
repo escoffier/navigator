@@ -160,3 +160,27 @@ func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
 		},
 	}
 }
+
+func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Clair error has occured",
+			Zhongwen:  "Clair error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Docker error has occured",
+			Zhongwen:  "Docker error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}

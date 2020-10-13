@@ -2,6 +2,7 @@ package redclair
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,6 +41,7 @@ type ScannerConfig struct {
 	LayerID            string
 	LayerMetaData      string
 	LayerAll           bool
+	Repository         string
 	ImageName          string
 	WhitelistThreshold string
 	ReportAll          bool
@@ -228,10 +230,7 @@ func parseBootstrap(data []byte) []Software {
 }
 
 // Scan orchestrates the scanning process of an image
-func (r *Redclair) Scan(
-	config ScannerConfig,
-) (*VulnerabilityReport, []FileSignature, []Software, error) {
-
+func (r *Redclair) Scan(ctx context.Context, config ScannerConfig) (*VulnerabilityReport, []FileSignature, []Software, error) {
 	pathToLayersInFS, err := r.CreateTempImageDirIn(r.httpRootDir)
 	if err != nil {
 		log.Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
@@ -244,7 +243,7 @@ func (r *Redclair) Scan(
 		}
 	}()
 
-	imageID, LayerIDs, err := SaveDockerImage(config.ImageName, pathToLayersInFS)
+	imageID, LayerIDs, err := saveDockerImage(ctx, config.ImageName, pathToLayersInFS)
 	log.Info().Str("imageID", imageID).Str("layers", fmt.Sprintf("%v", LayerIDs)).Msgf("Docker image saved")
 	if err != nil {
 		log.Error().
@@ -265,15 +264,19 @@ func (r *Redclair) Scan(
 	}
 
 	// TODO error handling here, wtf
-	r.analyzeLayers(pathToLayersInHTTP, config.ImageName, LayerIDs)
+	err = r.analyzeLayers(ctx, pathToLayersInHTTP, config.ImageName, LayerIDs)
+	if err != nil {
+		return &VulnerabilityReport{}, []FileSignature{}, []Software{}, err
+	}
 
 	log.Info().Msgf("Generating file signature in %s ...", config.ImageName)
 	var imageFileSignature []FileSignature
 	var imageSoftware []Software
 	for _, v := range LayerIDs {
-		layerFileSignature, softwareFiles, err := GenerateTarHash(
+		layerFileSignature, softwareFiles, err := generateTarHash(
 			filepath.Join(pathToLayersInFS, v, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp)
 		if err != nil {
+			// TODO shouldn't we err here?
 			log.Warn().Msgf("Fail to get layer signature : %s : %v",
 				filepath.Join(pathToLayersInFS, v, "layer.tar"), err)
 			continue
@@ -313,75 +316,15 @@ func (r *Redclair) Scan(
 		imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	}
 	log.Info().Msgf("Signed %s", config.ImageName)
-	imageFileSignature = DistinctFileHash(imageFileSignature)
+	imageFileSignature = distinctFileHash(imageFileSignature)
 
-	vulnerabilities := r.GetVulnerabilities(config.ImageName, LayerIDs)
-
-	//Check vulnerabilities against Whitelist and report
-	// unapproved := CheckForUnapprovedVulnerabilities(
-	// 	config.ImageName, vulnerabilities, config.Whitelist, config.WhitelistThreshold)
+	vulnerabilities := r.getVulnerabilities(ctx, config.ImageName, LayerIDs)
 
 	return &VulnerabilityReport{
+		config.Repository,
 		config.ImageName,
 		imageID,
 		[]string{},
 		vulnerabilities,
 	}, imageFileSignature, imageSoftware, nil
-}
-
-// CheckForUnapprovedVulnerabilities checks if the found vulnerabilities are approved or not
-// in the Whitelist
-// func CheckForUnapprovedVulnerabilities(
-// 	imageName string,
-// 	vulnerabilities []VulnerabilityInfo,
-// 	whitelist VulnerabilitiesWhitelist,
-// 	whitelistThreshold string,
-// ) []string {
-// 	unapproved := []string{}
-// 	imageVulnerabilities := GetImageVulnerabilities(imageName, whitelist.Images)
-
-// 	for i := 0; i < len(vulnerabilities); i++ {
-// 		vulnerability := vulnerabilities[i].Vulnerability
-// 		severity := vulnerabilities[i].Severity
-// 		vulnerable := true
-
-// 		//Check if the vulnerability has a severity less than our threshold severity
-// 		if SeverityMap[severity] > SeverityMap[whitelistThreshold] {
-// 			vulnerable = false
-// 		}
-
-// 		//Check if the vulnerability exists in the GeneralWhitelist
-// 		if vulnerable {
-// 			if _, exists := whitelist.GeneralWhitelist[vulnerability]; exists {
-// 				vulnerable = false
-// 			}
-// 		}
-
-// 		//If not in GeneralWhitelist check if the vulnerability exists in the imageVulnerabilities
-// 		if vulnerable && len(imageVulnerabilities) > 0 {
-// 			if _, exists := imageVulnerabilities[vulnerability]; exists {
-// 				vulnerable = false
-// 			}
-// 		}
-// 		if vulnerable {
-// 			unapproved = append(unapproved, vulnerability)
-// 		}
-// 	}
-// 	return unapproved
-// }
-
-// GetImageVulnerabilities returns image specific Whitelist of vulnerabilities from
-// whitelistImageVulnerabilities
-func GetImageVulnerabilities(
-	imageName string,
-	whitelistImageVulnerabilities map[string]map[string]string,
-) map[string]string {
-	var imageVulnerabilities map[string]string
-	// TODO:
-	// there is a bug here if it is a private registry with a custom port registry:777/ubuntu:tag
-	imageWithoutVersion := strings.Split(imageName, ":")
-	if val, exists := whitelistImageVulnerabilities[imageWithoutVersion[0]]; exists {
-		imageVulnerabilities = val
-	}
-	return imageVulnerabilities
 }

@@ -48,8 +48,7 @@ func GetImageFileHash(file *tar.Reader, fileHeadSize int) (FileSignature, error)
 	}, nil
 }
 
-// GenerateTarHash ...
-func GenerateTarHash(
+func generateTarHash(
 	tarFileName string,
 	maxSize int64,
 	fileHeadSize int,
@@ -109,8 +108,7 @@ func GenerateTarHash(
 	return result, softwareFiles, nil
 }
 
-// DistinctFileHash ...
-func DistinctFileHash(src []FileSignature) (ret []FileSignature) {
+func distinctFileHash(src []FileSignature) (ret []FileSignature) {
 	var result []FileSignature
 	var hashSet = make(map[string]struct{})
 	for _, v := range src {

@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
 
 // Add support for older version of docker
@@ -21,19 +25,15 @@ type ManifestJSON struct {
 	Layers []string
 }
 
-func createDockerClient() client.APIClient {
+func createDockerClient() (client.APIClient, error) {
 	docker, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		log.Fatal().Msgf("Could not create a Docker client: %v", err)
+		return nil, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Failed to create new docker client: %w", err))
 	}
-	return docker
+	return docker, nil
 }
 
-// SaveDockerImage ...
-func SaveDockerImage(
-	imageName string,
-	tmpPath string,
-) (imageID string, layerIds []string, err error) {
+func saveDockerImage(ctx context.Context, imageName string, tmpPath string) (imageID string, layerIds []string, err error) {
 	var imageNameStr = strings.Split(imageName, ":")
 
 	log.Info().Str("fs-path", tmpPath).Str("image", imageName).Msgf("Pulling docker image")
@@ -42,53 +42,56 @@ func SaveDockerImage(
 		return
 	}
 
-	docker := createDockerClient()
-	imageReader, err := docker.ImageSave(context.Background(), []string{imageName})
+	docker, err := createDockerClient()
 	if err != nil {
-		var imagePull io.ReadCloser
-		imagePull, err = docker.ImagePull(context.Background(), imageName, types.ImagePullOptions{})
-		if err != nil {
-			log.Error().Msgf("%v", err)
-		} else {
-			_, err = io.Copy(ioutil.Discard, imagePull)
-			// _, err = io.Copy(os.Stdout, imagePull)
-			if err != nil {
-				log.Fatal().Msgf("%v", err)
-				return
-			}
-
-			imageReader, err = docker.ImageSave(context.Background(), []string{imageName})
-			if err != nil {
-				log.Fatal().Msgf("%v", err)
-				return
-			}
-		}
+		return "", []string{}, err
 	}
 
+	imageReader, err := docker.ImageSave(ctx, []string{imageName})
+	// TODO check for image not found error specifically, not just all errors:
+	if err != nil {
+		log.Info().Err(err).Msg("Error when trying to save image - trying to pull")
+
+		var imagePull io.ReadCloser
+		imagePull, err = docker.ImagePull(ctx, imageName, types.ImagePullOptions{})
+		if err != nil {
+			return "", []string{}, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Error during image pull: %w", err))
+		}
+
+		_, err = io.Copy(ioutil.Discard, imagePull)
+		// _, err = io.Copy(os.Stdout, imagePull)
+		if err != nil {
+			return "", []string{}, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Error during reading image pull stdout: %w", err))
+		}
+
+		imageReader, err = docker.ImageSave(ctx, []string{imageName})
+		if err != nil {
+			return "", []string{}, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Error when saving docker image: %w", err))
+		}
+
+	}
 	defer imageReader.Close()
 
-	log.Info().Msgf("Untaring file in %s, %v", tmpPath, imageReader)
 	if err = untar(imageReader, tmpPath); err != nil {
-		log.Fatal().Msgf("Could not save Docker image: could not untar [%s]: %v", imageName, err)
-		return
+		return "", []string{}, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Error when untaring docker image: %w", err))
 	}
 
-	layerIds = getImageLayerIds(tmpPath)
-	imageID, err = GetDockerImageDigest(imageName)
+	layerIds, err = getImageLayerIds(tmpPath)
 	if err != nil {
-		return
+		return "", []string{}, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Error when getting image layer ids: %w", err))
+	}
+
+	imageID, err = getDockerImageDigest(ctx, docker, imageName)
+	if err != nil {
+		return "", []string{}, NewDockerError(http.StatusInternalServerError, fmt.Errorf("Error when getting docker image digest: %w", err))
 	}
 
 	return
 }
 
-//GetDockerImageDigest get digest for the image given its name and tag
-func GetDockerImageDigest(imageName string) (string, error) {
-	docker := createDockerClient()
-
-	inspectInfo, _, err := docker.ImageInspectWithRaw(context.Background(), imageName)
+func getDockerImageDigest(ctx context.Context, docker client.APIClient, imageName string) (string, error) {
+	inspectInfo, _, err := docker.ImageInspectWithRaw(ctx, imageName)
 	if err != nil {
-		log.Fatal().Msgf("Cannot inspect image %s, %v", imageName, err)
 		return "", err
 	}
 
@@ -100,22 +103,25 @@ func GetDockerImageDigest(imageName string) (string, error) {
 }
 
 // getImageLayerIds reads LayerIDs from the manifest.json file
-func getImageLayerIds(path string) []string {
-	manifest := readManifestFile(path)
+func getImageLayerIds(path string) ([]string, error) {
+	manifest, err := readManifestFile(path)
+	if err != nil {
+		return []string{}, err
+	}
 
 	var layers []string
 	for _, layer := range manifest[0].Layers {
 		layers = append(layers, strings.TrimSuffix(layer, "/layer.tar"))
 	}
-	return layers
+	return layers, nil
 }
 
 // readManifestFile reads the local manifest.json
-func readManifestFile(path string) []ManifestJSON {
+func readManifestFile(path string) ([]ManifestJSON, error) {
 	manifestFile := path + "/manifest.json"
 	mf, err := os.Open(manifestFile)
 	if err != nil {
-		log.Fatal().Msgf("Could not read Docker image layers: could not open [%s]: %v", manifestFile, err)
+		return []ManifestJSON{}, err
 	}
 	defer mf.Close()
 
@@ -123,14 +129,14 @@ func readManifestFile(path string) []ManifestJSON {
 }
 
 // parseAndValidateManifestFile parses the manifest.json file and validates it
-func parseAndValidateManifestFile(manifestFile io.Reader) []ManifestJSON {
+func parseAndValidateManifestFile(manifestFile io.Reader) ([]ManifestJSON, error) {
 	var manifest []ManifestJSON
 	if err := json.NewDecoder(manifestFile).Decode(&manifest); err != nil {
-		log.Fatal().Msgf("Could not read Docker image layers: manifest.json is not json: %v", err)
+		return manifest, fmt.Errorf("Could not read Docker image layers: manifest.json is not json: %w", err)
 	} else if len(manifest) != 1 {
-		log.Fatal().Msgf("Could not read Docker image layers: manifest.json is not valid")
+		return manifest, errors.New("Could not read Docker image layers: manifest.json is not valid")
 	} else if len(manifest[0].Layers) == 0 {
-		log.Fatal().Msgf("Could not read Docker image layers: no layers can be found")
+		return manifest, errors.New("Could not read Docker image layers: no layers can be found")
 	}
-	return manifest
+	return manifest, nil
 }

@@ -11,6 +11,10 @@ import (
 const (
 	// ScanTasksCollection is the collection name for the scan tasks
 	ScanTasksCollection = "scantasks"
+
+	ScanStatusInProgress = "inprogress"
+	ScanStatusSucceeded  = "succeeded"
+	ScanStatusFailed     = "failed"
 )
 
 type ScannerReq struct {
@@ -24,8 +28,13 @@ type ScannerReq struct {
 // ScanTask ...
 type ScanTask struct {
 	ID          primitive.ObjectID `json:"dbId,omitempty" bson:"_id, omitempty" query:"DbId"`
+	Status      string             `json:"status" bson:"status"`
+	Message     string             `json:"message" bson:"message"`
+	StartedAt   int64              `json:"startedAt" bson:"startedAt"`
+	FinishedAt  int64              `json:"finishedAt" bson:"finishedAt"`
 	Image       string             `json:"name" form:"name" query:"name"`
 	Tag         string             `json:"tag" form:"tag" query:"tag"`
+	Repository  string             `json:"repository"`
 	ImageDigest string             `json:"digest,omitempty"`
 	ScanReport  ScanReport         `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
 	ForceRescan bool               `json:"-"`

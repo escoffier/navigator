@@ -2,10 +2,13 @@ package redclair
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
 
 const (
@@ -31,12 +34,7 @@ type VulnerabilityInfoOfLayer struct {
 	Vulnerabilities []VulnerabilityInfo
 }
 
-func (r *Redclair) analyzeLayers(
-	pathToLayer string,
-	imageName string,
-	layerIDs []string,
-) {
-
+func (r *Redclair) analyzeLayers(ctx context.Context, pathToLayer string, imageName string, layerIDs []string) error {
 	for _, layerID := range layerIDs {
 		pathToLayer := fmt.Sprintf("http://%s:%d/%s/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayer, layerID)
 		log.Info().Str("image", imageName).Str("layerID", layerID).Str("pathToLayer", pathToLayer).Msg("Sending for analysis")
@@ -45,11 +43,15 @@ func (r *Redclair) analyzeLayers(
 		// https://www.nearform.com/blog/static-analysis-of-docker-image-vulnerabilities-with-clair/
 		// ParentName – this field is optional and has to be used if we want to analyze a docker image with more than one layer. In such case we need to push these layers in the right order by referencing its parent layer; otherwise, Clair will not be able to provide us with results of the entire docker image.
 
-		r.analyzeLayer(pathToLayer, layerID, "")
+		err := r.analyzeLayer(ctx, pathToLayer, layerID, "")
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (r *Redclair) analyzeLayer(path, layerName, parentLayerName string) {
+func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLayerName string) error {
 	payload := NewerLayerEnvelope{
 		Layer: NewerLayer{
 			Name:       layerName,
@@ -60,46 +62,42 @@ func (r *Redclair) analyzeLayer(path, layerName, parentLayerName string) {
 	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
-		log.Warn().
-			Err(err).
-			Msg("Could not analyze layer: payload is not JSON")
+		return NewMalformedRequestError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal request to Clair: %w", err))
 	}
 
 	reqPath := fmt.Sprintf(postLayerURI, r.clairAddr, r.clairPort)
 	request, err := http.NewRequest("POST", reqPath, bytes.NewBuffer(jsonPayload))
 	if err != nil {
-		log.Warn().
-			Err(err).
-			Msg("Could not analyze layer: could not prepare request for Clair")
+		return NewMalformedRequestError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare request to Clair: %w", err))
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	response, err := client.Do(request.WithContext(ctx))
+	if err != nil {
+		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send request to Clair: %w", err))
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusCreated {
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
+		}
+		return NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
 	}
 
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		log.Warn().
-			Err(err).
-			Msg("Could not analyze layer: POST to Clair failed")
-	} else {
-		defer response.Body.Close()
-		if response.StatusCode != 201 {
-			body, _ := ioutil.ReadAll(response.Body)
-			log.Warn().
-				Msgf("Could not analyze layer: Clair responded with a failure: "+
-					"Got response %d with message %s", response.StatusCode, string(body))
-		}
-	}
+	return nil
 }
 
-// GetVulnerabilities fetches vulnerabilities from Clair and extracts the required information
-func (r Redclair) GetVulnerabilities(imageName string, layerIDs []string) []VulnerabilityInfo {
+func (r Redclair) getVulnerabilities(ctx context.Context, imageName string, layerIDs []string) []VulnerabilityInfo {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
 	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
 	//Last layer gives you all the vulnerabilities of all layers <-- that is not right now, 2019-11-28
 	//We scan all layer without parent, because schema 2 version 2 has no parent information
 	//So we need to fetch all layers and distinguish them
 	for _, layerID := range layerIDs {
-		rawVulnerabilities, err := r.FetchLayerVulnerabilities(layerID)
+		rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, layerID)
 		if err != nil {
 			log.Warn().
 				Msgf("Could not fetch vulnerabilities: %s of %s", layerID, imageName)
@@ -131,38 +129,35 @@ func (r Redclair) GetVulnerabilities(imageName string, layerIDs []string) []Vuln
 	return vulnerabilities
 }
 
-// FetchLayerVulnerabilities fetches vulnerabilities from Clair
-func (r Redclair) FetchLayerVulnerabilities(layerID string) (NewerLayer, error) {
+func (r Redclair) fetchLayerVulnerabilities(ctx context.Context, layerID string) (NewerLayer, error) {
 
-	url := fmt.Sprintf(getLayerFeaturesURI, r.clairAddr, r.clairPort, layerID)
-	response, err := http.Get(url)
+	reqPath := fmt.Sprintf(getLayerFeaturesURI, r.clairAddr, r.clairPort, layerID)
+	request, err := http.NewRequest("GET", reqPath, nil)
 	if err != nil {
-		log.Warn().
-			Err(err).
-			Msg("Fetch vulnerabilities, Clair responded with a failure")
-		return NewerLayer{}, err
+		return NewerLayer{}, NewMalformedRequestError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare request to Clair: %w", err))
+	}
+
+	client := &http.Client{}
+	response, err := client.Do(request.WithContext(ctx))
+	if err != nil {
+		return NewerLayer{}, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send request to Clair: %w", err))
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(response.Body)
-		log.Warn().
-			Msgf("Fetch vulnerabilities, Clair responded with a failure: "+
-				"Got response %d with message %s", response.StatusCode, string(body))
-		return NewerLayer{}, err
+	if response.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return NewerLayer{}, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
+		}
+		return NewerLayer{}, NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
 	}
 
 	var apiResponse NewerLayerEnvelope
 	if err = json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
-		log.Warn().
-			Err(err).
-			Msg("Fetch vulnerabilities, Could not decode response")
-		return NewerLayer{}, err
+		return NewerLayer{}, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode reponse from Clair: %w", err))
 	} else if apiResponse.Error != nil {
-		log.Warn().
-			Msgf("Fetch vulnerabilities, Response contains errors %s",
-				apiResponse.Error.Message)
-		return NewerLayer{}, err
+		return NewerLayer{}, NewClairError(http.StatusInternalServerError, fmt.Errorf("Clair responded with error: %v", apiResponse.Error.Message))
+
 	}
 
 	return apiResponse.Layer, nil
