@@ -37,16 +37,11 @@ func (api *api) scan() func(chi.Router) {
 // @Param rescan body bool true "force rescan the image"
 // @Router /api/v1/scan/one [post]
 func (api *api) scanOne() http.HandlerFunc {
-	type image struct {
-		ImageName   string `json:"image"`
-		ForceRescan bool   `json:"rescan"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		var task model.ScanTask
 
-		imageToScan := &image{}
-		err := util.DecodeJSONBody(w, r, imageToScan)
+		var scanReq model.ScannerReq
+		err := util.DecodeJSONBody(w, r, scanReq)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMalformedRequestError(http.StatusBadRequest,
@@ -54,7 +49,9 @@ func (api *api) scanOne() http.HandlerFunc {
 			return
 		}
 
-		task, err = component.NewTaskByNameTag(imageToScan.ImageName, imageToScan.ForceRescan)
+		imageName := scanReq.Repository + ":" + scanReq.Tag
+		// TODO @Przemek probably can refactor this step
+		task, err = component.NewTaskByNameTag(imageName, false, scanReq.Digest)
 		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,

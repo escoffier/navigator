@@ -13,6 +13,14 @@ const (
 	ScanTasksCollection = "scantasks"
 )
 
+type ScannerReq struct {
+	URL           string `json:"url"`
+	Authorization string `json:"authorization,omitempty"`
+	Repository    string `json:"repository"`
+	Digest        string `json:"digest,omitempty"`
+	Tag           string `json:"tag,omitempty"`
+}
+
 // ScanTask ...
 type ScanTask struct {
 	ID          primitive.ObjectID `json:"dbId,omitempty" bson:"_id, omitempty" query:"DbId"`
