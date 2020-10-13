@@ -6,6 +6,11 @@ import (
 
 // Implements modified Google JSON styleguide
 // https://google.github.io/styleguide/jsoncstyleguide.xml
+//
+// Modification is as follows:
+// If API returns a single object, put it under HTTPData.Item
+// If API returns multiple objects, put them under HTTPData.Items
+// If API returns additional meta-information, put it under CustomFields
 
 type HTTPEnvelope struct {
 	ApiVersion string     `json:"apiVersion"`
@@ -28,9 +33,9 @@ type HTTPData struct {
 	TotalItems       int64                  `json:"totalItems,omitempty"`
 	PageIndex        int64                  `json:"pageIndex,omitempty"`
 	TotalPages       int64                  `json:"totalPages,omitempty"`
-	Items            interface{}            `json:"items,omitempty"`
-	Item             json.RawMessage        `json:"-"` // custom marshalling and unmarshalling, see (HTTPData)(Un)MarshalJSON
-	CustomFields     map[string]interface{} `json:"-"` // custom marshalling and TODO:unmarshalling, see (HTTPData)(Un)MarshalJSON
+	Items            json.RawMessage        `json:"items,omitempty"`
+	Item             json.RawMessage        `json:"item,omitempty"`
+	CustomFields     map[string]interface{} `json:"-"` // custom marshalling and unmarshalling
 }
 
 type HTTPSubError struct {
@@ -56,7 +61,7 @@ type HTTPDataAlias HTTPData
 
 // MarshalJSON is overriden to support custom fields
 func (e HTTPData) MarshalJSON() ([]byte, error) {
-	// This is kinda inefficient but I probably is good enough (we're IO bound I would think)
+	// We want to add any CustomFields into the HTTPData structure
 
 	// obtain dict from base struct
 	// Note: this assumes that CustomFields is disabled using struct annotation `json:"-"`
@@ -70,33 +75,19 @@ func (e HTTPData) MarshalJSON() ([]byte, error) {
 		return []byte{}, err
 	}
 
-	// obtain dict from internal "Item" field
-	// Note: this assumes that Item is disabled using struct annotation `json:"-"`
-	jsonedItem, err := json.Marshal(e.Item)
-	if err != nil {
-		return []byte{}, err
-	}
-	var itemFields map[string]interface{}
-	err = json.Unmarshal(jsonedItem, &itemFields)
-	if err != nil {
-		return []byte{}, err
-	}
-
 	// add any custom fields to dict
 	for k, v := range e.CustomFields {
 		baseFieldsDict[k] = v
 	}
-	// add fields from Item struct
-	for k, v := range itemFields {
-		baseFieldsDict[k] = v
-	}
 
+	// return marshalled dict
 	return json.Marshal(baseFieldsDict)
 }
 
 func (e *HTTPData) UnmarshalJSON(input []byte) error {
-	// This is kinda cancer... It's really hard to handle JSON styleguide in golang or I'm an idiot.
-	// If somebody has a better idea here, I beg you, please fix this.
+	// We want to extract any CustomFields from HTTPData structure.
+	// We do this by finding the set difference between known HTTPData fields
+	// and the ones present in input.
 
 	// obtain all fields as dict
 	var allFields map[string]interface{}
@@ -123,23 +114,21 @@ func (e *HTTPData) UnmarshalJSON(input []byte) error {
 		return err
 	}
 
-	// obtain only fields of Item, which is a difference of dicts of all and only HTTPData fields
-	itemFields := make(map[string]interface{})
+	// obtain only Custom fields, which is a difference of dicts of all and only HTTPData fields
+	customFields := make(map[string]interface{})
 	for key, val := range allFields {
 		if _, ok := dataFields[key]; ok {
 			// key in both
 		} else {
 			// key belongs to Item
-			itemFields[key] = val
+			customFields[key] = val
 		}
 	}
+	e.CustomFields = customFields
 
-	// marshal the fields of Item, because it's RawMessage (user needs to unmarshal to specific struct they want)
-	onlyItemJSON, err := json.Marshal(itemFields)
-	if err != nil {
-		return err
-	}
-	e.Item = onlyItemJSON
+	// set Item and Items fields using raw json
+	e.Item = dataStructFields.Item
+	e.Items = dataStructFields.Items
 
 	// set all the fields of HTTPData struct based on dict values
 	// we don't check if key exists or if type is correct, but we probably should.

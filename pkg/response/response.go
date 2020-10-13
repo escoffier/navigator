@@ -41,10 +41,22 @@ func WithItems(items interface{}) ResponseDataOptionFunc {
 		return func(ev *HTTPEnvelope) {
 			if val.Len() == 0 {
 				// force return of empty array if `items` is empty.
-				// because if it's a slice, it's returned as `null`
-				ev.Data.Items = []int{}
+				// because if it's a slice, it's returned as `null`.
+				// Need to marshal since HTTPData.Items is of type json.RawMessage
+				marshalled, err := json.Marshal([]int{})
+				if err != nil {
+					ev.EnvelopeError = fmt.Sprintf("Failed to marshal empty items[] to json: %v", err)
+				} else {
+					ev.Data.Items = marshalled
+				}
 			} else {
-				ev.Data.Items = items
+				// need to marshal since HTTPData.Items is of type json.RawMessage
+				marshalled, err := json.Marshal(items)
+				if err != nil {
+					ev.EnvelopeError = fmt.Sprintf("Failed to marshal items[] to json: %v", err)
+				} else {
+					ev.Data.Items = marshalled
+				}
 			}
 		}
 	}
@@ -61,7 +73,7 @@ func WithItem(item interface{}) ResponseDataOptionFunc {
 			// need to marshal since HTTPData.Item is of type json.RawMessage
 			marshalled, err := json.Marshal(item)
 			if err != nil {
-				ev.EnvelopeError = fmt.Sprintf("Failed to marshall item to json: %v", err)
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
 			} else {
 				ev.Data.Item = marshalled
 			}
