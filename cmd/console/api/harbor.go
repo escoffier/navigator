@@ -103,11 +103,6 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		ID string `json:"id"`
 	}
 
-	type TensorsecScannerReq struct {
-		ImageName   string `json:"image"`
-		ForceRescan bool   `json:"rescan"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		var harborScanReq ScanRequest
@@ -119,13 +114,16 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			return
 		}
 
-		logging.GetLogger().Info().Str("scanrequest", fmt.Sprintf("%+v", harborScanReq)).Msg("Received scan request from Harbor")
+		harborScanReqRedacted := harborScanReq
+		harborScanReqRedacted.Registry.Authorization = "<redacted>"
+		logging.GetLogger().Info().Str("scanrequest", fmt.Sprintf("%+v", harborScanReqRedacted)).Msg("Received scan request from Harbor")
 
-		tensorsecScannerReq := TensorsecScannerReq{
-			ImageName: "nginx",
-			// TODO how to set tag
-			// TODO scanner needs to use auth mechanism passed from harbor
-			ForceRescan: false,
+		tensorsecScannerReq := model.ScannerReq{
+			URL:           harborScanReq.Registry.URL,
+			Authorization: harborScanReq.Registry.Authorization,
+			Repository:    harborScanReq.Artifact.Repository,
+			Digest:        harborScanReq.Artifact.Digest,
+			Tag:           harborScanReq.Artifact.Tag,
 		}
 		tensorsecScannerReqJSON, err := json.Marshal(tensorsecScannerReq)
 		if err != nil {
@@ -193,6 +191,8 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		// TODO contexts everywhere.
+
 		scanRequestID := chi.URLParam(r, "scan_request_id")
 		if scanRequestID == "" {
 			logging.GetLogger().Error().Msg("scan_request_id missing in URL")
