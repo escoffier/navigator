@@ -180,15 +180,7 @@
                     "application/json"
                 ],
                 "summary": "Logout API",
-                "operationId": "v1-rest-auth-logout",
-                "responses": {
-                    "200": {
-                        "description": "Logout response",
-                        "schema": {
-                            "$ref": "#/definitions/response.EmptyResponse"
-                        }
-                    }
-                }
+                "operationId": "v1-rest-auth-logout"
             }
         },
         "/api/v1/rest-auth/user": {
@@ -572,14 +564,6 @@
                     "type": "string"
                 },
                 "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "response.EmptyResponse": {
-            "type": "object",
-            "properties": {
-                "status": {
                     "type": "string"
                 }
             }

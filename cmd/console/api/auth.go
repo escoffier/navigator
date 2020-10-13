@@ -142,7 +142,6 @@ func (api *api) login() http.HandlerFunc {
 // @Description Logout
 // @ID v1-rest-auth-logout
 // @Produce json
-// @Success 200 {object} response.EmptyResponse "Logout response"
 // @Router /api/v1/rest-auth/logout [post]
 func (api *api) logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
