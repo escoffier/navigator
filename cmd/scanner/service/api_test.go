@@ -30,7 +30,6 @@ func setup(t *testing.T) (string, func(t *testing.T)) {
 		httpOpts,
 		flag.NewDefaultMongoOpts(),
 		flag.NewDefaultClairOpts(),
-		flag.NewDefaultDgraphOpts(),
 	)
 	require.NoError(t, err)
 

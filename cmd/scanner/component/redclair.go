@@ -99,22 +99,22 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	if version == "v1" {
 		manifest, err := hub.Manifest(scanTask.Image, scanTask.Tag)
 		if err != nil {
-			log.Error().Err(ctx.Err()).Msg("Could not read docker V1 manifest")
+			log.Error().Err(err).Msg("Could not read docker V1 manifest")
 
 			scanTask.FinishedAt = time.Now().Unix()
 			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = ctx.Err().Error()
+			scanTask.Message = err.Error()
 
 			rcSvc.updateMongoStatus(ctx, scanTask)
 			return
 		}
 		manifestDigest, err := hub.ManifestDigest(scanTask.Image, scanTask.Tag)
 		if err != nil {
-			log.Error().Err(ctx.Err()).Msg("Couldn't get docker V1 manifest digest")
+			log.Error().Err(err).Msg("Could not get docker V1 manifest digest")
 
 			scanTask.FinishedAt = time.Now().Unix()
 			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = ctx.Err().Error()
+			scanTask.Message = err.Error()
 
 			rcSvc.updateMongoStatus(ctx, scanTask)
 			return
@@ -146,22 +146,22 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	} else if version == "v2" {
 		manifest, err := hub.ManifestV2(scanTask.Image, scanTask.Tag)
 		if err != nil {
-			log.Error().Err(ctx.Err()).Msg("Could not read docker V2 manifest")
+			log.Error().Err(err).Msg("Could not read docker V2 manifest")
 
 			scanTask.FinishedAt = time.Now().Unix()
 			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = ctx.Err().Error()
+			scanTask.Message = err.Error()
 
 			rcSvc.updateMongoStatus(ctx, scanTask)
 			return
 		}
 		manifestDigest, err := hub.ManifestDigest(scanTask.Image, scanTask.Tag)
 		if err != nil {
-			log.Error().Err(ctx.Err()).Msg("Could not get docker V2 manifest digest")
+			log.Error().Err(err).Msg("Could not get docker V2 manifest digest")
 
 			scanTask.FinishedAt = time.Now().Unix()
 			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = ctx.Err().Error()
+			scanTask.Message = err.Error()
 
 			rcSvc.updateMongoStatus(ctx, scanTask)
 			return
