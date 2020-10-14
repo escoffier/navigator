@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -28,7 +29,7 @@ func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor
 			checkMap[complianceTest.CheckID].CreatedAt = complianceTest.CreatedAt
 		}
 		if checkMap[complianceTest.CheckID].FinishedAt != -1 {
-			if complianceTest.Status == "inprogress" {
+			if complianceTest.Status == model.ComplianceCheckStatusInProgress {
 				// Set to -1 not to 0, because 0 is the starting value.
 				checkMap[complianceTest.CheckID].FinishedAt = -1
 			} else {
@@ -37,11 +38,11 @@ func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor
 				}
 			}
 		}
-		if complianceTest.Status == "inprogress" {
+		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
 			checkMap[complianceTest.CheckID].NumWaiting++
 			continue
 		}
-		if complianceTest.Status == "error" {
+		if complianceTest.Status == model.ComplianceCheckStatusFailed {
 			checkMap[complianceTest.CheckID].NumError++
 			continue
 		}
@@ -79,11 +80,11 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWait
 		if err != nil {
 			return err
 		}
-		if complianceTest.Status == "error" {
+		if complianceTest.Status == model.ComplianceCheckStatusFailed {
 			*numError++
 			continue
 		}
-		if complianceTest.Status == "inprogress" {
+		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
 			*numWaiting++
 			continue
 		}
@@ -125,11 +126,11 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64
 		if err != nil {
 			return nil
 		}
-		if complianceTest.Status == "error" {
+		if complianceTest.Status == model.ComplianceCheckStatusFailed {
 			*numError++
 			continue
 		}
-		if complianceTest.Status == "inprogress" {
+		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
 			*numWaiting++
 			continue
 		}

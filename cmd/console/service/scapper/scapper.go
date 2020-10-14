@@ -41,7 +41,16 @@ type Scapper struct {
 	MongoDatabase      string
 }
 
+const (
+	checkTimeout = time.Minute * 10
+)
+
 func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType string) (uuid.UUID, error) {
+	// err := s.garbageCollectOrphanedInProgressJobs(ctx, checkType)
+	// if err != nil {
+	// 	return uuid.Nil, err
+	// }
+
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
 	if err != nil {
 		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to create kube client"))
@@ -97,11 +106,28 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	}
 
 	// async context is rooted in application context
-	asyncCtx, _ := context.WithTimeout(rootCtx, time.Minute*10)
+	asyncCtx, _ := context.WithTimeout(rootCtx, checkTimeout)
 	go s.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes)
 
 	return checkUUID, nil
 }
+
+// func (s *Scapper) garbageCollectOrphanedInProgressJobs(ctx context.Context, checkType string) error {
+// 	filter := bson.M{"status": model.ComplianceCheckStatusInProgress}
+// 	cursor, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+// 	if err != nil {
+// 		// RespAndLog(w, r,
+// 		// 	NewMongoError(http.StatusInternalServerError,
+// 		// 		fmt.Errorf("Couldn't find documents: %w", err)))
+// 		return
+// 	}
+// 	defer cursor.Close(ctx)
+
+// 	for cursor.Next(ctx) {
+// 		var result scap.JobEntry
+// 		err := cursor.Decode(&result)
+
+// }
 
 func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
 
@@ -259,7 +285,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		CheckID:   check.CheckUUID.String(),
 		NodeName:  targetNodeName,
 		ClusterID: check.ClusterID,
-		Status:    "inprogress",
+		Status:    model.ComplianceCheckStatusInProgress,
 		CreatedAt: secs,
 	}
 
@@ -275,7 +301,7 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 	filter := bson.M{"checkId": check.CheckUUID.String(), "nodeName": nodeName}
 	// TODO: is there better way to do this using struct annotations?
 	update := bson.M{"$set": bson.M{
-		"status":     "failed",
+		"status":     model.ComplianceCheckStatusFailed,
 		"finishedAt": timeEpochSecs,
 		"message":    msg,
 	}}

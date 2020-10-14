@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kube"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -20,7 +21,6 @@ import (
 
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/{checkType}/{clusterID}/reportsummaries", api.getScapReports())
 		r.Get("/{checkType}/{clusterID}/reports", api.getScapReports())
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
@@ -120,7 +120,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube history entries: %w", err)))
-
 				return
 			}
 		} else if checkType == "docker" {
@@ -129,7 +128,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker history entries: %w", err)))
-
 				return
 			}
 		} else if checkType == "host" {
@@ -138,7 +136,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host history entries: %w", err)))
-
 				return
 			}
 		}
@@ -485,7 +482,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		status := r.URL.Query().Get("status")
 		if status != "" {
-			if status != "inprogress" && status != "error" && status != "completed" {
+			if status != model.ComplianceCheckStatusSucceeded && status != model.ComplianceCheckStatusInProgress && status != model.ComplianceCheckStatusFailed {
 				RespAndLog(w, r,
 					NewFieldError(http.StatusBadRequest,
 						fmt.Errorf("invalid status param value (allowed: inprogress/error/completed)"),

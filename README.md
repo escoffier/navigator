@@ -381,7 +381,7 @@ curl -v -X POST -H "Authorization: Bearer $JWT" --data "{\"name\": \"alitest\", 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f7d9fcd9ccfdee7b1b4f936
 
 # Kube-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f7f4885a6ae36adb246b01a
 # Docker-bench
 curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66
 # Host-bench
@@ -400,6 +400,9 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 # host-bench
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f75a5221b29c43e6838df66/reports?checkId=76b63e1f-06ac-4dd8-a78d-49d053933326&status=completed" > out.json
 
+
+
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
 
 
 
@@ -422,7 +425,7 @@ Some oneliners:
 
 ```bash
 mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.scantasks.find()[0]' > out.json
-mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["docker-bench-records"].find().toArray()' > out.json
+mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["kube-bench-records"].find().toArray()' > out.json
 ```
 
 ```bash
