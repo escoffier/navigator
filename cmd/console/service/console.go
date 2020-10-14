@@ -98,8 +98,6 @@ func NewConsole(
 
 // Run is to run the service.
 func (c *Console) Run() func() {
-	log.Info().Msg("Vegeta Console started")
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -129,6 +127,8 @@ func (c *Console) Run() func() {
 		log.Error().Err(err).Msg("error starting cron jobs")
 		panic(err)
 	}
+
+	log.Info().Msg("Vegeta Console started")
 
 	return func() {
 		c.cancel()

@@ -46,10 +46,16 @@ const (
 )
 
 func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType string) (uuid.UUID, error) {
-	// err := s.garbageCollectOrphanedInProgressJobs(ctx, checkType)
-	// if err != nil {
-	// 	return uuid.Nil, err
-	// }
+	// get namespace of this pod - it will be used for scheduled jobs/pods
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	err := s.garbageCollectOrphanedInProgressJobs(ctx, checkType, namespace)
+	if err != nil {
+		return uuid.Nil, err
+	}
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
 	if err != nil {
@@ -58,12 +64,6 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 
 	// generate check uuid that will identify results of this run in database
 	checkUUID := uuid.NewV4()
-
-	// get namespace of this pod - it will be used for scheduled jobs/pods
-	namespace := os.Getenv("MY_POD_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
 
 	check := scapper.Check{
 		CheckType: checkType,
@@ -112,22 +112,54 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	return checkUUID, nil
 }
 
-// func (s *Scapper) garbageCollectOrphanedInProgressJobs(ctx context.Context, checkType string) error {
-// 	filter := bson.M{"status": model.ComplianceCheckStatusInProgress}
-// 	cursor, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
-// 	if err != nil {
-// 		// RespAndLog(w, r,
-// 		// 	NewMongoError(http.StatusInternalServerError,
-// 		// 		fmt.Errorf("Couldn't find documents: %w", err)))
-// 		return
-// 	}
-// 	defer cursor.Close(ctx)
+func (s *Scapper) garbageCollectOrphanedInProgressJobs(ctx context.Context, checkType, namespace string) error {
+	// find orhpaned in-progress jobs of this checkType and in this namespace
 
-// 	for cursor.Next(ctx) {
-// 		var result scap.JobEntry
-// 		err := cursor.Decode(&result)
+	filter := bson.M{"status": model.ComplianceCheckStatusInProgress}
+	cursor, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - can't list in-progress checks: %w", err))
+	}
+	defer cursor.Close(ctx)
 
-// }
+	for cursor.Next(ctx) {
+		var result model.ComplianceCheckEntryBase
+		err := cursor.Decode(&result)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - couldn't decode entry: %w", err))
+		}
+
+		if result.Status == model.ComplianceCheckStatusInProgress && time.Now().Unix()-result.CreatedAt > int64(checkTimeout.Seconds()) {
+			// this job's status should've been updated to something else already
+			// Set it to failed.
+
+			logging.GetLogger().Info().
+				Str("checkId", result.CheckID).
+				Str("nodeName", result.NodeName).
+				Msg("Found orphaned inprogress job, will set its status to failed")
+
+			checkUUID, err := uuid.FromString(result.CheckID)
+			if err != nil {
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - check UUID malformed: %w", err))
+			}
+
+			check := scapper.Check{
+				CheckType: checkType,
+				CheckUUID: checkUUID,
+				ClusterID: result.ClusterID,
+				Namespace: namespace,
+			}
+			s.mongoJobStatusToFailed(ctx, &check, result.NodeName, "Timed out (found during GC)", time.Now().Unix())
+		}
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
+	}
+
+	return nil
+}
 
 func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
 
