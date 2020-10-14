@@ -3,15 +3,17 @@ package scap
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 type CheckHistoryEntry struct {
-	CheckID         string `json:"checkId"`
-	ClusterID       string `json:"clusterId"`
-	CreatedAt       int64  `json:"createdAt"`
-	FinishedAt      int64  `json:"finishedAt,omitempty"`
-	NumSuccessful   int64  `json:"numSuccessful"`
-	NumFailed       int64  `json:"numFailed"`
-	NumError        int64  `json:"numError"`
-	NumWaiting      int64  `json:"numWaiting"`
-	NumInconclusive int64  `json:"numInconclusive"`
+	CheckID             string  `json:"checkId"`
+	ClusterID           string  `json:"clusterId"`
+	CreatedAt           int64   `json:"createdAt"`
+	FinishedAt          int64   `json:"finishedAt,omitempty"`
+	NumSuccessful       int64   `json:"numSuccessful"`
+	NumFailed           int64   `json:"numFailed"`
+	NumError            int64   `json:"numError"`
+	NumWaiting          int64   `json:"numWaiting"`
+	NumInconclusive     int64   `json:"numInconclusive"`
+	Score               float32 `json:"score"`
+	TotalPoliciesPassed int64   `json:"-"`
 }
 
 type CheckBreakdown struct {

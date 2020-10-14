@@ -449,7 +449,8 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 			// mark remaining running jobs as timed out.
 			now := time.Now().Unix()
 			for _, runningNodeName := range runningNodeNames {
-				mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+				// use context.Background instead of local ctx, because local ctx is already timed out so mongo operation would fail.
+				mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 				s.mongoJobStatusToFailed(mongoCtx, check, runningNodeName, fmt.Sprintf("Timed out: %s", ctx.Err()), now)
 				mongoCtxCancel()
 			}
