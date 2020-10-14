@@ -32,8 +32,6 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 git submodule update
                 go get -u github.com/swaggo/swag/cmd/swag
                 go get -u golang.org/x/lint/golint
-                npm conf set registry https://registry.npm.taobao.org
-                npm config set loglevel info
                 sed -i  's#GO111MODULE=on#GO111MODULE=on GOPROXY=https://goproxy.cn#g' configs/scap/jobs/kube-bench/Dockerfile
                 sed -i 's#alpine.global.ssl.fastly.net#mirrors.aliyun.com#g' configs/scap/jobs/docker-bench-security/Dockerfile
                 sed -i 's#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g' Makefile
@@ -42,8 +40,6 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 cp ~/.docker/config ~/.kube/config
                 cp ~/.docker/kubectl /bin/
                 chmod +755 /bin/kubectl
-                npm conf set registry https://registry.npm.taobao.org
-                npm config set loglevel info
                 '''
                 if("$moduleToDeploy".trim() == "console") {
                 sh '''
