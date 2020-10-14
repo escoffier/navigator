@@ -52,9 +52,13 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 		namespace = "default"
 	}
 
-	err := s.garbageCollectOrphanedInProgressJobs(ctx, checkType, namespace)
+	someJobStillInProgress, err := s.removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx, checkType, namespace)
 	if err != nil {
 		return uuid.Nil, err
+	}
+
+	if someJobStillInProgress {
+		return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusConflict, fmt.Errorf("Check of this type is already running"))
 	}
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
@@ -112,13 +116,21 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	return checkUUID, nil
 }
 
-func (s *Scapper) garbageCollectOrphanedInProgressJobs(ctx context.Context, checkType, namespace string) error {
+func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Context, checkType, namespace string) (bool, error) {
+
+	someJobStillInProgress := false
+
+	// There may be orphaned jobs stuck in 'in-progress' state. We need to
 	// find orhpaned in-progress jobs of this checkType and in this namespace
+	// and remove them first.
 
 	filter := bson.M{"status": model.ComplianceCheckStatusInProgress}
-	cursor, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	cursor, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(checkType)).Find(mongoCtx, filter)
 	if err != nil {
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - can't list in-progress checks: %w", err))
+		return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - can't list in-progress checks: %w", err))
 	}
 	defer cursor.Close(ctx)
 
@@ -126,39 +138,43 @@ func (s *Scapper) garbageCollectOrphanedInProgressJobs(ctx context.Context, chec
 		var result model.ComplianceCheckEntryBase
 		err := cursor.Decode(&result)
 		if err != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - couldn't decode entry: %w", err))
+			return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - couldn't decode entry: %w", err))
 		}
 
-		if result.Status == model.ComplianceCheckStatusInProgress && time.Now().Unix()-result.CreatedAt > int64(checkTimeout.Seconds()) {
-			// this job's status should've been updated to something else already
-			// Set it to failed.
+		if result.Status == model.ComplianceCheckStatusInProgress {
+			if time.Now().Unix()-result.CreatedAt > int64(checkTimeout.Seconds()) {
+				// This job's status should've been updated to something else already.
+				// Set it to failed.
 
-			logging.GetLogger().Info().
-				Str("checkId", result.CheckID).
-				Str("nodeName", result.NodeName).
-				Msg("Found orphaned inprogress job, will set its status to failed")
+				logging.GetLogger().Info().
+					Str("checkId", result.CheckID).
+					Str("nodeName", result.NodeName).
+					Msg("Found orphaned inprogress job, will set its status to failed")
 
-			checkUUID, err := uuid.FromString(result.CheckID)
-			if err != nil {
-				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - check UUID malformed: %w", err))
+				checkUUID, err := uuid.FromString(result.CheckID)
+				if err != nil {
+					return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - check UUID malformed: %w", err))
+				}
+
+				check := scapper.Check{
+					CheckType: checkType,
+					CheckUUID: checkUUID,
+					ClusterID: result.ClusterID,
+					Namespace: namespace,
+				}
+				s.mongoJobStatusToFailed(ctx, &check, result.NodeName, "Timed out (found during GC)", time.Now().Unix())
+			} else {
+				someJobStillInProgress = true
 			}
-
-			check := scapper.Check{
-				CheckType: checkType,
-				CheckUUID: checkUUID,
-				ClusterID: result.ClusterID,
-				Namespace: namespace,
-			}
-			s.mongoJobStatusToFailed(ctx, &check, result.NodeName, "Timed out (found during GC)", time.Now().Unix())
 		}
 	}
 
 	err = cursor.Err()
 	if err != nil {
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
+		return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
 	}
 
-	return nil
+	return someJobStillInProgress, nil
 }
 
 func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {

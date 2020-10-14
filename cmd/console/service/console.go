@@ -122,6 +122,9 @@ func (c *Console) Run() func() {
 		panic(err)
 	}
 
+	// POTENTIAL-FIX for `panic: server selection error: server selection timeout`
+	time.Sleep(time.Second * 5)
+
 	err = c.cronService.StartCrons(c.ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("error starting cron jobs")

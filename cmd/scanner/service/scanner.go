@@ -105,7 +105,11 @@ func (s *Scanner) Run() func() {
 		log.Error().
 			Err(err).
 			Msg("error in connecting to the Mongo database")
+		panic(err)
 	}
+
+	// POTENTIAL-FIX for `panic: server selection error: server selection timeout`
+	time.Sleep(time.Second * 5)
 
 	return func() {
 		s.cancel()
