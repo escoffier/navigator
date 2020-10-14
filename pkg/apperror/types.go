@@ -3,6 +3,7 @@ package apperror
 type AnError struct{ detailedError }
 type MongoError struct{ detailedError }
 type KubernetesError struct{ detailedError }
+type CheckAlreadyInProgressError struct{ detailedError }
 type HTTPResponseError struct{ detailedError }
 type ConfigurationError struct{ detailedError }
 type ConnectionError struct{ detailedError }
@@ -12,6 +13,8 @@ type FieldError struct{ detailedError }
 type ClusterAlreadyExists struct{ detailedError }
 type InvalidAuthToken struct{ detailedError }
 type SessionExpired struct{ detailedError }
+type ClairError struct{ detailedError }
+type DockerError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -47,6 +50,18 @@ func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Kubernetes error has occured",
 			Zhongwen:  "Kubernetes error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	return CheckAlreadyInProgressError{
+		detailedError{
+			err:       err,
+			English:   "Such compliance check is already in progress",
+			Zhongwen:  "Such compliance check is already in progress but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -162,7 +177,7 @@ func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
 }
 
 func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
-	return AnError{
+	return ClairError{
 		detailedError{
 			err:       err,
 			English:   "Clair error has occured",
@@ -174,7 +189,7 @@ func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
 }
 
 func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
-	return AnError{
+	return DockerError{
 		detailedError{
 			err:       err,
 			English:   "Docker error has occured",
