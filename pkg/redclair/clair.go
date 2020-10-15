@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
@@ -33,6 +34,8 @@ type VulnerabilityInfoOfLayer struct {
 	Layer           string `json:"layer"`
 	Vulnerabilities []VulnerabilityInfo
 }
+
+// https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
 
 func (r *Redclair) analyzeLayers(ctx context.Context, pathToLayer string, imageName string, layerIDs []string) error {
 	for _, layerID := range layerIDs {
@@ -83,6 +86,19 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 		body, err := ioutil.ReadAll(response.Body)
 		if err != nil {
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
+		}
+		type ClairResponseError struct {
+			Error map[string]string `json:"Error"`
+		}
+		if response.StatusCode == http.StatusBadRequest {
+			clairResponseError := &ClairResponseError{}
+			err := json.Unmarshal(body, clairResponseError)
+			if err != nil {
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to parse response body from Clair: %w", err))
+			}
+			if strings.Contains(clairResponseError.Error["Message"], "parent layer is unknown") {
+				return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
+			}
 		}
 		return NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
 	}

@@ -15,6 +15,7 @@ type InvalidAuthToken struct{ detailedError }
 type SessionExpired struct{ detailedError }
 type ClairError struct{ detailedError }
 type DockerError struct{ detailedError }
+type ClairMissingParentLayerError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -194,6 +195,18 @@ func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Docker error has occured",
 			Zhongwen:  "Docker error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suberror) error {
+	return ClairMissingParentLayerError{
+		detailedError{
+			err:       err,
+			English:   "Clair scanning error: missing parent layer",
+			Zhongwen:  "Clair scanning error: missing parent layer in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

@@ -142,8 +142,8 @@ func (r Redclair) CreateTempImageDirIn(where string) (string, error) {
 	return ioutil.TempDir(rootPath, httpServerImageDirPrefix)
 }
 
-// CreateTmpPath creates a temporary folder with a layer digest prefix
-func (r Redclair) CreateTempLayerDigestDirIn(layerDigest string) (string, error) {
+// CreateTempLayerDigestDir creates a temporary folder with a layer digest prefix
+func (r Redclair) CreateTempLayerDigestDir(layerDigest string) (string, error) {
 	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
 	return ioutil.TempDir(rootPath, layerDigest)
 }

@@ -57,13 +57,12 @@ func (api *api) scanOne() http.HandlerFunc {
 		}
 
 		task := model.ScanTask{
-			Status:        model.ScanStatusInProgress,
-			StartedAt:     time.Now().Unix(),
-			Image:         image,
-			Tag:           scanReq.Tag,
-			Repository:    repository,
-			URL:           scanReq.URL,
-			Authorization: scanReq.Authorization,
+			Status:     model.ScanStatusInProgress,
+			StartedAt:  time.Now().Unix(),
+			Image:      image,
+			Tag:        scanReq.Tag,
+			Repository: repository,
+			URL:        scanReq.URL,
 			// ImageDigest: digestImage, // TODO not sure about handling this
 			ForceRescan: false, // TODO not sure if ForceRescan needed
 			// TODO potentially adjust fields of this struct

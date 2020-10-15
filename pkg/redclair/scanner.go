@@ -234,7 +234,7 @@ func parseBootstrap(data []byte) []Software {
 }
 
 func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest string, parentDigest string, image string) ([]VulnerabilityInfo, []FileSignature, []Software, error) {
-	pathToLayersInFS, err := r.CreateTempLayerDigestDirIn(digest)
+	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
 		log.Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
 		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
@@ -245,8 +245,9 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 			log.Warn().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't remove image temp dir")
 		}
 	}()
-
-	reader, err := hub.DownloadBlob(strings.Split(image, "/")[0], dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1]))
+	d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
+	repository := strings.Split(image, "/")[0]
+	reader, err := hub.DownloadBlob(repository, d)
 	if reader != nil {
 		defer reader.Close()
 	}
