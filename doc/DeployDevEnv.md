@@ -1,0 +1,229 @@
+## Prepare environment
+
+Instructions for Ubuntu 2004.
+
+There are many ways to prepare a kubernetes cluster for development. More deployment options described in deployments/helm/README.md.
+
+I recommend usnig one of the following, since I (Michał) use them and may be able to answer questions in case there are problems:
+
+1. local, 1 node deployment using microk8s
+2. multinode, 2 node deployment using vagrant, behind NAT, using https://github.com/galexrt/k8s-vagrant-multi-node
+
+*Note: I tried microk8s multinode feature but it's new and I had problems configuring networking, so I gave up.*
+
+### Microk8s
+
+1. Install microk8s (I have v1.3.4), then to use as non-sudo: 
+
+```bash
+sudo gpasswd -a $USER microk8s
+newgrp microk8s
+sudo chown -f -R $USER ~/.kube
+```
+
+2. Install kubectl, then configure it to use microk8s cluster.
+
+```bash
+mk8 config view --raw > ~/.kube/microk8s-config
+```
+
+Note: This is needed, because SCAP jobs make assumptions about mounting kubectl inside the container.
+
+3. Prepare microk8s environment:
+
+```bash
+microk8s enable dashboard dns registry storage
+```
+
+4. Install docker (I have v19.03.11), then to use as non-sudo:
+
+```bash
+sudo setfacl -m user:$USER:rw /var/run/docker.sock
+sudo groupadd docker
+sudo gpasswd -a $USER docker
+```
+
+### k8s-vagrant-multi-node
+
+1. Clone https://github.com/galexrt/k8s-vagrant-multi-node and install prerequisites (I use provider 'Virtualbox')
+
+2. Deploy 2 node k8s centos8 cluster (1 worker, 1 master)
+
+```bash
+# Use: 
+NODE_COUNT=1 BOX_OS=centos8 DISK_COUNT=1 DISK_SIZE_GB=40 MASTER_MEMORY_SIZE_GB=4 NODE_MEMORY_SIZE_GB=4 make up -j 2
+```
+
+3. Our nodes have 40GB disk each, but they're not mounted. So let's mount them. Also, we must configure docker insecure registry. Run the following commands on every node.
+
+```bash
+# To ssh to a node use 
+make ssh-master
+# or
+# make ssh-node-1
+```
+
+On each node:
+
+```bash
+# Mount disks and prepare for discovery (according to https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner/blob/master/docs/operations.md#sharing-a-disk-filesystem-by-multiple-filesystem-pvs):
+
+############
+# Copy paste the following commands as one and run
+yes | sudo mkfs.ext4 -L sdb /dev/sdb
+DISK_UUID=$(sudo blkid -s UUID -o value /dev/sdb)
+echo $DISK_UUID
+sudo mkdir -p /mnt/$DISK_UUID
+sudo mount -t ext4 /dev/sdb /mnt/$DISK_UUID
+echo UUID=`sudo blkid -s UUID -o value /dev/sdb` /mnt/$DISK_UUID ext4 defaults 0 2 | sudo tee -a /etc/fstab
+
+for i in $(seq 1 10); do
+  sudo mkdir -p /mnt/${DISK_UUID}/vol${i} /mnt/disks/${DISK_UUID}_vol${i}
+  sudo mount --bind /mnt/${DISK_UUID}/vol${i} /mnt/disks/${DISK_UUID}_vol${i}
+done
+for i in $(seq 1 10); do
+  echo /mnt/${DISK_UUID}/vol${i} /mnt/disks/${DISK_UUID}_vol${i} none bind 0 0 | sudo tee -a /etc/fstab
+done
+# Note: make sure that DISK_UUIDs weren't null in above commands, there is some race condition (hence the sleep).
+# If it's null, use `df -h` and `umount` to unmount /dev/sdb. Also remove entries that were created in /etc/fstab.
+############
+
+# Configure insecure registry
+# Modify the line
+sudo vi /etc/docker/daemon.json
+# Add "insecure-registries" : [ "192.168.1.203:32000" ], # <- address of your docker registry
+sudo systemctl restart docker
+exit
+```
+
+4. We must enable `DefaultStorageClass` plugin on k8s cluster to easily provision Persistent Volumes. Do this on master node:
+
+```bash
+make ssh-master
+sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
+# modify the line 
+# - --enable-admission-plugins=NodeRestriction,DefaultStorageClass
+sudo systemctl restart kubelet.service
+```
+
+5. Add our cluster to kubeconfig:
+
+```bash
+# Make sure that previous ~/.kube/config doesn't exist - we don't want to merge them.
+rm ~/.kube/config
+make kubectl # This generates a new ~/.kube/config
+mv ~/.kube/config  ~/.kube/multi-config
+
+# Use this cluster:
+export KUBECONFIG=/home/michal/.kube/multi-config
+```
+
+6. Install and config helm 2
+
+```bash
+sudo snap install helm --channel=2.16/stable --classic
+
+cd deployments/helm
+helm init
+helm repo add stable https://kubernetes-charts.storage.googleapis.com
+helm repo add elastic https://helm.elastic.co
+cd -
+
+# Configure cluster role (https://stackoverflow.com/a/55098760)
+kubectl create serviceaccount --namespace kube-system tiller
+kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+kubectl patch deploy --namespace kube-system tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
+```
+
+7. To provision some persistent volumes - we will use https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner:
+
+```bash
+kubectl create serviceaccount storage-provisioner
+kubectl create clusterrolebinding storage-provisioner-role --clusterrole=cluster-admin --serviceaccount=default:storage-provisioner
+
+git clone https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner
+cd !$:t
+
+helm template ./helm/provisioner/ --values ../shiftleft-compliance/deployments/dev-multi-node/values.yaml > deployment/kubernetes/provi.yaml
+kubectl create -f deployment/kubernetes/provi.yaml
+
+kubectl get pv
+# Should get output like:
+# NAME                CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS    REASON   AGE
+# local-pv-1a3cbf29   39Gi       RWO            Retain           Available           local-storage            40s
+# local-pv-218adf71   39Gi       RWO            Retain           Available           local-storage            40s
+```
+
+8. Untaint master
+
+```bash
+kubectl taint nodes master node-role.kubernetes.io/master-
+```
+
+9. You're good to go! However, if you notice that many of your pods get evicted, check node status.
+
+```bash
+# e.g.
+kubectl describe node master
+```
+
+If you notice errors like "lack of ephemeral storage" you need to grow the root disk and partition on the node:
+
+```bash
+vagrant plugin install vagrant-disksize
+vi ./k8s-vagrant-multi-node/vagrantfiles/Vagrantfile
+# Add config.disksize.size = '20GB'
+
+# On each node:
+sudo cfdisk /dev/sda
+# Resize -> Write -> Quit
+sudo xfs_growfs /
+
+# Verify with
+df -h
+```
+
+
+## Deploy
+
+1. You can switch between microk8s and multi node cluster by changing KUBECONFIG env variable:
+
+```bash
+export KUBECONFIG=/home/michal/.kube/multi-config
+export KUBECONFIG=/home/michal/.kube/microk8s-config
+
+# Check with:
+#kubectl config view
+```
+
+2. Change `deployments/helm/values.yaml` to point to correct docker repo.
+```bash
+global:
+  # If you only have microk8s cluster, this can stay as
+  ourDockerRepo: 127.0.0.1:32000
+  # Otherwise, supply address of docker registry
+  # Note: notice, that microk8s already creates a docker registry for us
+  # IP is the IP of my development PC/laptop. 
+  #ourDockerRepo: 192.168.1.203:32000
+```
+
+3. After a while, ensure all pods are RUNNING:
+
+```bash
+microk8s kubectl get pod --namespace=vegeta
+```
+
+## Test
+
+
+Run unit tests.
+
+```bash
+make TAGS=--tags=ci test
+```
+
+Run all tests (includes intergration tests, which (seem to) require running deployment).
+
+```bash
+make test
+```
