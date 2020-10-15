@@ -62,6 +62,7 @@ func (api *api) scanOne() http.HandlerFunc {
 			Image:      image,
 			Tag:        scanReq.Tag,
 			Repository: repository,
+			URL:        scanReq.URL,
 			// ImageDigest: digestImage, // TODO not sure about handling this
 			ForceRescan: false, // TODO not sure if ForceRescan needed
 			// TODO potentially adjust fields of this struct

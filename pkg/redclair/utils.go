@@ -142,6 +142,12 @@ func (r Redclair) CreateTempImageDirIn(where string) (string, error) {
 	return ioutil.TempDir(rootPath, httpServerImageDirPrefix)
 }
 
+// CreateTempLayerDigestDir creates a temporary folder with a layer digest prefix
+func (r Redclair) CreateTempLayerDigestDir(layerDigest string) (string, error) {
+	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
+	return ioutil.TempDir(rootPath, layerDigest)
+}
+
 // untar uses a Reader that represents a tar to untar it on the fly to a target folder
 func untar(imageReader io.ReadCloser, target string) error {
 	tarReader := tar.NewReader(imageReader)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
@@ -33,6 +34,8 @@ type VulnerabilityInfoOfLayer struct {
 	Layer           string `json:"layer"`
 	Vulnerabilities []VulnerabilityInfo
 }
+
+// https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
 
 func (r *Redclair) analyzeLayers(ctx context.Context, pathToLayer string, imageName string, layerIDs []string) error {
 	for _, layerID := range layerIDs {
@@ -84,42 +87,46 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 		if err != nil {
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
 		}
+		if response.StatusCode == http.StatusBadRequest {
+			clairResponseError := &NewerLayerEnvelope{}
+			err := json.Unmarshal(body, clairResponseError)
+			if err != nil {
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to parse response body from Clair: %w", err))
+			}
+			if strings.Contains(clairResponseError.Error.Message, "parent layer is unknown") {
+				return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
+			}
+		}
 		return NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
 	}
 
 	return nil
 }
 
-func (r Redclair) getVulnerabilities(ctx context.Context, imageName string, layerIDs []string) []VulnerabilityInfo {
+func (r Redclair) GetVulnerabilities(ctx context.Context, image string, digest string) []VulnerabilityInfo {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
 	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
-	//Last layer gives you all the vulnerabilities of all layers <-- that is not right now, 2019-11-28
-	//We scan all layer without parent, because schema 2 version 2 has no parent information
-	//So we need to fetch all layers and distinguish them
-	for _, layerID := range layerIDs {
-		rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, layerID)
-		if err != nil {
-			log.Warn().
-				Msgf("Could not fetch vulnerabilities: %s of %s", layerID, imageName)
-			continue
-		}
-		log.Info().Msgf("Fetched %s of %s", layerID, imageName)
+	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
+	if err != nil {
+		log.Warn().
+			Msgf("Could not fetch vulnerabilities: %s of %s", digest, image)
+	}
+	log.Info().Msgf("Fetched %s of %s", digest, image)
 
-		for _, feature := range rawVulnerabilities.Features {
-			if len(feature.Vulnerabilities) > 0 {
-				for _, vulnerability := range feature.Vulnerabilities {
-					vulnerability := VulnerabilityInfo{
-						feature.Name,
-						feature.Version,
-						vulnerability.Name,
-						vulnerability.NamespaceName,
-						vulnerability.Description,
-						vulnerability.Link,
-						vulnerability.Severity,
-						vulnerability.FixedBy,
-					}
-					vulnerabilitiesMap[vulnerability] = struct{}{}
+	for _, feature := range rawVulnerabilities.Features {
+		if len(feature.Vulnerabilities) > 0 {
+			for _, vulnerability := range feature.Vulnerabilities {
+				vulnerability := VulnerabilityInfo{
+					feature.Name,
+					feature.Version,
+					vulnerability.Name,
+					vulnerability.NamespaceName,
+					vulnerability.Description,
+					vulnerability.Link,
+					vulnerability.Severity,
+					vulnerability.FixedBy,
 				}
+				vulnerabilitiesMap[vulnerability] = struct{}{}
 			}
 		}
 	}

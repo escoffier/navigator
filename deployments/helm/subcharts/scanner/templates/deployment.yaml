@@ -54,5 +54,3 @@ spec:
       - name: tmp
         hostPath:
           path: /tmp/
-
-
