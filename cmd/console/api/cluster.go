@@ -30,9 +30,6 @@ func (api *api) config() func(chi.Router) {
 // @Param clusterID path string true "clusterID"
 // @Router /api/v1/config/clusters/{clusterID} [get]
 func (api *api) getCluster() http.HandlerFunc {
-	type resp struct {
-		Cluster model.Cluster `json:"cluster"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
 		defer cancel()
@@ -52,9 +49,7 @@ func (api *api) getCluster() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItem(resp{
-			Cluster: *queryCluster,
-		}))
+		response.Ok(w, response.WithItem(*queryCluster))
 	}
 }
 
