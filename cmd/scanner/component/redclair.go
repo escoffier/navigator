@@ -98,13 +98,14 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	toResult := make([]string, 0)
 	toScan := make([]string, 0)
 	cacheTmp := make(map[string]*model.CachedLayer)
-	rcSvc.readManifest(ctx, version, hub, scanTask, toResult, cacheTmp, toScan)
+	rcSvc.readManifest(ctx, version, hub, scanTask, &toResult, &cacheTmp, &toScan)
+
 	scanDoneCh := make(chan struct{})
 	go func() {
 		for i := range toScan {
 			layersBench := make([]model.CachedLayer, 0)
 			var currLayer model.CachedLayer
-			if version == "v2" {
+			if version == "v1" {
 				currLayer = *cacheTmp[toScan[len(toScan)-i-1]]
 			} else {
 				currLayer = *cacheTmp[toScan[i]]
@@ -208,7 +209,7 @@ func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask mo
 	}
 }
 
-func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult []string, cacheTmp map[string]*model.CachedLayer, toScan []string) {
+func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult *[]string, cacheTmp *map[string]*model.CachedLayer, toScan *[]string) {
 	if version == "v1" {
 		manifest, err := hub.Manifest(scanTask.Image, scanTask.Tag)
 		if err != nil {
@@ -236,15 +237,15 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 		var prevDigest string
 		for _, layer := range manifest.Manifest.FSLayers {
 			layerDigest := layer.BlobSum
-			toResult = append(toResult, layerDigest.String())
+			*toResult = append(*toResult, layerDigest.String())
 			var currCache = cache
 			if _, exists := cache[layerDigest.String()]; !exists {
 				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
-				cacheTmp[layerDigest.String()] = &model.CachedLayer{
+				(*cacheTmp)[layerDigest.String()] = &model.CachedLayer{
 					Digest: layerDigest.String(),
 				}
-				currCache = cacheTmp
-				toScan = append(toScan, layerDigest.String())
+				currCache = *cacheTmp
+				*toScan = append(*toScan, layerDigest.String())
 			} else {
 				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
 			}
@@ -287,14 +288,14 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 		for _, layer := range manifest.Manifest.Layers {
 			currCache = cache
 			layerDigest := layer.Digest
-			toResult = append(toResult, layerDigest.String())
+			*toResult = append(*toResult, layerDigest.String())
 			if _, exists := cache[layerDigest.String()]; !exists {
 				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
-				cacheTmp[layerDigest.String()] = &model.CachedLayer{
+				(*cacheTmp)[layerDigest.String()] = &model.CachedLayer{
 					Digest: layerDigest.String(),
 				}
-				currCache = cacheTmp
-				toScan = append(toScan, layerDigest.String())
+				currCache = *cacheTmp
+				*toScan = append(*toScan, layerDigest.String())
 			} else {
 				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
 			}

@@ -201,7 +201,6 @@ paths:
   /api/v1/scap/{checkType}/{clusterID}:
     post:
       description: Run compliance check on specified cluster
-      operationId: v1-scap-check
       parameters:
       - description: kube/docker/host
         in: path
@@ -219,7 +218,6 @@ paths:
   /api/v1/scap/{checkType}/{clusterID}/cron:
     get:
       description: Get cron configured for this checkType and cluster
-      operationId: v1-scap-check
       parameters:
       - description: kube/docker/host
         in: path
@@ -236,7 +234,6 @@ paths:
       summary: Get cron configured for this checkType and cluster
     put:
       description: Update cron configured for this checkType and cluster. To disable, send empty string.
-      operationId: v1-scap-check
       parameters:
       - description: kube/docker/host
         in: path

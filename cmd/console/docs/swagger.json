@@ -401,7 +401,6 @@
                     "application/json"
                 ],
                 "summary": "Run compliance check on specified cluster",
-                "operationId": "v1-scap-check",
                 "parameters": [
                     {
                         "type": "string",
@@ -427,7 +426,6 @@
                     "application/json"
                 ],
                 "summary": "Get cron configured for this checkType and cluster",
-                "operationId": "v1-scap-check",
                 "parameters": [
                     {
                         "type": "string",
@@ -451,7 +449,6 @@
                     "application/json"
                 ],
                 "summary": "Update cron configured for this checkType and cluster",
-                "operationId": "v1-scap-check",
                 "parameters": [
                     {
                         "type": "string",

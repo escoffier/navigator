@@ -87,16 +87,13 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 		if err != nil {
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
 		}
-		type ClairResponseError struct {
-			Error map[string]string `json:"Error"`
-		}
 		if response.StatusCode == http.StatusBadRequest {
-			clairResponseError := &ClairResponseError{}
+			clairResponseError := &NewerLayerEnvelope{}
 			err := json.Unmarshal(body, clairResponseError)
 			if err != nil {
 				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to parse response body from Clair: %w", err))
 			}
-			if strings.Contains(clairResponseError.Error["Message"], "parent layer is unknown") {
+			if strings.Contains(clairResponseError.Error.Message, "parent layer is unknown") {
 				return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
 			}
 		}
