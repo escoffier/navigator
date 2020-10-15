@@ -1,3 +1,4 @@
+#test
 def label = "jenkins-slave-golang"
 def moduleToDeploy = "${env.MODULE}"
 
