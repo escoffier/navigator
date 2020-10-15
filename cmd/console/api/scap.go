@@ -532,7 +532,6 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 // @Summary Run compliance check on specified cluster
 // @Description Run compliance check on specified cluster
-// @ID v1-scap-check
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param clusterID path string true "cluster ID"
