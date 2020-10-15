@@ -13,7 +13,6 @@ import (
 
 // @Summary Get cron configured for this checkType and cluster
 // @Description Get cron configured for this checkType and cluster
-// @ID v1-scap-check
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param clusterID path string true "cluster ID"
@@ -70,7 +69,6 @@ func (api *api) getCron() http.HandlerFunc {
 
 // @Summary Update cron configured for this checkType and cluster
 // @Description Update cron configured for this checkType and cluster. To disable, send empty string.
-// @ID v1-scap-check
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param clusterID path string true "cluster ID"

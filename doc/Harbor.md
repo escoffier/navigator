@@ -37,6 +37,9 @@ k8 describe svc harbor | grep NodePort
 
 notice, that Endpoint address is the address of Tensorsec Console, with /harbor sub-path.
 
+If tensorsec-console is in a different namespace, but same kubernetes cluster as Harbor, use the following format:
+`http://tensorsec-console.tensorsec.svc.cluster.local:8889/harbor`
+
 3. Test Connection -> Save
 4. Select Tensorsec -> Set as default
 
