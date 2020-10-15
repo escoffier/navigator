@@ -123,7 +123,7 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 Some oneliners:
 
 ```bash
-mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.scantasks.find()[0]' > out.json
+mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.scantasks.find().toArray()' > out.json
 mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["kube-bench-records"].find().toArray()' > out.json
 ```
 
@@ -144,8 +144,8 @@ curl -X GET http://localhost:32000/v2/ubuntu/tags/list
 
 ```bash
 # Delete pods by pattern (dry run - uncomment last part of command to run for real)
-microk8s kubectl --namespace vegeta get pods --all-namespaces -o name | grep "-bench"  | xargs microk8s kubectl --namespace vegeta delete
+microk8s kubectl --namespace tensorsec get pods --all-namespaces -o name | grep "-bench"  | xargs microk8s kubectl --namespace tensorsec delete
 
 # Delete all scap jobs (will remove pods as well)
-kubectl --namespace vegeta get job --all-namespaces   | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace vegeta delete job
+kubectl --namespace tensorsec get job --all-namespaces   | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job
 ```

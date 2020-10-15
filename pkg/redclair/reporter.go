@@ -1,40 +1,14 @@
 package redclair
 
 import (
-	"encoding/json"
 	"sort"
 )
 
 // VulnerabilityReport ...
 type VulnerabilityReport struct {
 	Repository      string              `json:"repository"`
-	Image           string              `json:"image"`
-	Hash            string              `json:"hash"`
-	Unapproved      []string            `json:"unapproved"`
-	Vulnerabilities []VulnerabilityInfo `json:"vulnerabilities"`
-}
-
-// LayerCommand ...
-type LayerCommand struct {
-	Layer   string `json:"layer"`
-	Command string `json:"command"`
-}
-
-// VulnerabilityLayerReport ...
-type VulnerabilityLayerReport struct {
-	Layer           string              `json:"layer"`
-	Command         string              `json:"command"`
-	Vulnerabilities []VulnerabilityInfo `json:"vulnerabilities"`
-}
-
-// VulnerabilityLayerGroupReport ...
-type VulnerabilityLayerGroupReport []VulnerabilityLayerReport
-
-// VulnerabilityReportOfSingleLayer ...
-type VulnerabilityReportOfSingleLayer struct {
-	Layer           string              `json:"layer"`
-	Image           string              `json:"image"`
-	Hash            string              `json:"hash"`
+	Tag             string              `json:"tag"`
+	Digest          string              `json:"digest"`
 	Unapproved      []string            `json:"unapproved"`
 	Vulnerabilities []VulnerabilityInfo `json:"vulnerabilities"`
 }
@@ -90,48 +64,4 @@ func FilterApproved(
 		}
 	}
 	return vulns
-}
-
-// reportJSON ...
-func reportJSON(
-	imageName string,
-	vulnerabilities []VulnerabilityInfo,
-	unapproved []string,
-	hash string,
-) []byte {
-	report := &VulnerabilityReport{
-		Image:           imageName,
-		Hash:            hash,
-		Vulnerabilities: vulnerabilities,
-		Unapproved:      unapproved,
-	}
-	j, err := json.MarshalIndent(report, "", "    ")
-	if err != nil {
-		log.Warn().Msgf("Could not create a report: report is not proper JSON %v", err)
-		return nil
-	}
-	return j
-}
-
-// ReportJSONOfSingleLAyer ...
-func ReportJSONOfSingleLAyer(
-	layerID string,
-	imageName string,
-	vulnerabilities []VulnerabilityInfo,
-	unapproved []string,
-	hash string,
-) []byte {
-	report := &VulnerabilityReportOfSingleLayer{
-		Layer:           layerID,
-		Image:           imageName,
-		Hash:            hash,
-		Vulnerabilities: vulnerabilities,
-		Unapproved:      unapproved,
-	}
-	reportJSON, err := json.MarshalIndent(report, "", "    ")
-	if err != nil {
-		log.Warn().Msgf("Could not create a report: report is not proper JSON %v", err)
-		return nil
-	}
-	return reportJSON
 }

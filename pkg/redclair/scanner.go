@@ -233,7 +233,7 @@ func parseBootstrap(data []byte) []Software {
 	}
 }
 
-func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest string, parentDigest string, image string) ([]VulnerabilityInfo, []FileSignature, []Software, error) {
+func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) ([]VulnerabilityInfo, []FileSignature, []Software, error) {
 	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
 		log.Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
@@ -246,7 +246,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		}
 	}()
 	d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
-	repository := strings.Split(image, "/")[0]
+
 	reader, err := hub.DownloadBlob(repository, d)
 	if reader != nil {
 		defer reader.Close()
@@ -262,7 +262,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
-	log.Info().Str("image", image).Str("layerDigest", digest).Msgf("Docker image saved")
+	log.Info().Str("repository", repository).Str("layerDigest", digest).Msgf("Docker image saved")
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -329,7 +329,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	imageFileSignature = distinctFileHash(imageFileSignature)
 
-	vulnerabilities := r.GetVulnerabilities(ctx, image, digest)
+	vulnerabilities := r.getVulnerabilities(ctx, digest)
 
 	return vulnerabilities, imageFileSignature, imageSoftware, nil
 }

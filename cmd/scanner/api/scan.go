@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -49,23 +48,14 @@ func (api *api) scanOne() http.HandlerFunc {
 		scanReqRedacted.Authorization = "<redacted>"
 		log.Info().Str("request", fmt.Sprintf("%+v", scanReqRedacted)).Msgf("Received scan request")
 
-		repoimage := strings.Split(scanReq.Repository, "/") // e.g. library/mongo
-		repository := ""
-		image := repoimage[len(repoimage)-1]
-		if len(repoimage) > 1 {
-			repository = repoimage[0]
-		}
-
 		task := model.ScanTask{
-			Status:     model.ScanStatusInProgress,
-			StartedAt:  time.Now().Unix(),
-			Image:      image,
-			Tag:        scanReq.Tag,
-			Repository: repository,
-			URL:        scanReq.URL,
-			// ImageDigest: digestImage, // TODO not sure about handling this
-			ForceRescan: false, // TODO not sure if ForceRescan needed
-			// TODO potentially adjust fields of this struct
+			Status:        model.ScanStatusInProgress,
+			StartedAt:     time.Now().Unix(),
+			Repository:    scanReq.Repository,
+			Tag:           scanReq.Tag,
+			URL:           scanReq.URL,
+			Authorization: scanReq.Authorization,
+			ImageDigest:   scanReq.Digest,
 		}
 
 		// persist the task to Mongo

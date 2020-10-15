@@ -34,6 +34,7 @@ spec:
           # TODO: maybe rename? I spent hours on this because I was confused.
           "--clair-address=tensorsec-scanner",
           "--clair-port={{ .Values.service.LayerPort }}",
+          "--redclair-skipregistrytlsverify", # Insecure
           "-v"]
 
         ports:

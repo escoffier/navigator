@@ -11,7 +11,8 @@ helm repo add harbor https://helm.goharbor.io
 # Therefore, we will use expose.type=nodePort. 
 
 # !!!!!!!!!! This requires setting up port forwarding in Virtualbox! !!!!!!!
-helm install --name my-harbor --set expose.type=nodePort --set expose.tls.auto.commonName=someName --set persistence.resourcePolicy=dontkeep harbor/harbor
+# IP is external IP of our laptop
+helm install --name my-harbor --set expose.type=nodePort --set expose.tls.auto.commonName=someName --set persistence.resourcePolicy=dontkeep --set expose.ingress.hosts.core=192.168.1.203 --set externalURL=https://192.168.1.203:30003 harbor/harbor
 
 k8 describe svc harbor | grep NodePort
 # Type:                     NodePort
@@ -47,7 +48,8 @@ If tensorsec-console is in a different namespace, but same kubernetes cluster as
 
 How to add images from a local docker registry and scan them:
 
-1. Go to Administration -> Registries -> New Endpoint and add your local docker registry (must provide external IP address, e.g. http://192.168.1.203:5000)
+1. Go to Administration -> Registries -> New Endpoint and add your local docker registry (must set Provider to
+   Docker Regitsry and must provide external IP address, e.g. http://192.168.1.203:5000)
 2. Go to Replications -> New -> Pull based -> Provide source registry and MUST provide some arbitrary name for namespace.
 3. Repliaction -> Select your rule -> Replicate
 4. You can see logs by clicking on your replication rule -> click on "ID" number under executions table.
