@@ -62,6 +62,9 @@ func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor
 				}
 			}
 		}
+
+		checkMap[complianceTest.CheckID].TotalPoliciesPassed += policiesPassed
+
 		if policiesFailed != 0 {
 			checkMap[complianceTest.CheckID].NumFailed++
 		} else if policiesInconclusive != 0 {
@@ -70,6 +73,14 @@ func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor
 			checkMap[complianceTest.CheckID].NumSuccessful++
 		}
 	}
+
+	for _, ch := range checkMap {
+		finishedNodesNum := ch.NumFailed + ch.NumInconclusive + ch.NumSuccessful
+		if finishedNodesNum != 0 {
+			ch.Score = float32(ch.TotalPoliciesPassed) / float32(finishedNodesNum)
+		}
+	}
+
 	return nil
 }
 
