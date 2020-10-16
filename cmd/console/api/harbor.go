@@ -173,7 +173,7 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 		var result model.ScanTask
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, bson.M{"_id": objectID}).Decode(&result)
 		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Coudln't find task with this identifier")
+			e := harbor.NewHarborErrorAndLog(err, "Couldn't find task with this identifier")
 			response.Respond(w, http.StatusNotFound, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}

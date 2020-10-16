@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -20,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 
 	"github.com/heroku/docker-registry-client/registry"
+	"github.com/rs/zerolog"
 )
 
 // TODO: Temporary cache. Need something more robust
@@ -36,6 +38,7 @@ type RedClairService struct {
 	mongodb *mongo.Database
 
 	scanTasksChan chan model.ScanTask
+	numWorkers    int
 
 	redclairEngine *redclair.Redclair
 
@@ -52,6 +55,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		ctx:                   ctx,
 		mongodb:               db,
 		scanTasksChan:         make(chan model.ScanTask, 1000),
+		numWorkers:            clairOpts.NumWorkers,
 		redclairEngine:        redclairEng,
 		skipRegistryTLSVerify: clairOpts.SkipRegistryTLSVerify,
 	}, nil
@@ -72,16 +76,33 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 	}
 	defer rcSvc.redclairEngine.StopImageHTTPServer()
 
-	// TODO do we want some max num of workers?
+	var wg sync.WaitGroup
+	for i := 0; i < rcSvc.numWorkers; i++ {
+		wg.Add(1)
+		go rcSvc.WorkerRun(ctx, i, &wg)
+	}
+	log.Info().Msg("Started all Redclair workers")
+	wg.Wait()
+	log.Info().Msg("All Redclair workers finished")
+}
+
+func (rcSvc *RedClairService) WorkerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	workerSublogger := log.With().Int("worker-id", id).Logger()
+	ctx = workerSublogger.WithContext(ctx)
+
+	zerolog.Ctx(ctx).Info().Msg("Started Redclair worker")
 loop:
 	for {
 		select {
 		case scanTask := <-rcSvc.scanTasksChan:
-			go rcSvc.asyncProcessScanTask(ctx, scanTask)
+			rcSvc.asyncProcessScanTask(ctx, scanTask)
 		case <-ctx.Done():
 			break loop
 		}
 	}
+	zerolog.Ctx(ctx).Info().Msg("Shutting down Redclair worker")
 }
 
 func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask model.ScanTask) {
@@ -94,10 +115,10 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		var err error
 		username, password, err = rcSvc.decodeUsernamePassword(scanTask)
 		if err != nil {
-			log.Error().Err(err).Msg("Coudln't decode username and password")
+			zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't decode username and password")
 			scanTask.FinishedAt = time.Now().Unix()
 			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = fmt.Sprintf("Coudln't decode username and password: %s", err)
+			scanTask.Message = fmt.Sprintf("Couldn't decode username and password: %s", err)
 
 			rcSvc.updateMongoStatus(ctx, scanTask)
 			return
@@ -118,12 +139,12 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
 		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
 		if ok1 || ok2 || ok3 || ok4 {
-			log.Warn().Err(err).Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
 			hub, err = registry.NewInsecure(scanTask.URL, username, password)
 		}
 	}
 	if err != nil {
-		log.Error().Err(err).Msg("Couldn't initialize docker registry client")
+		zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't initialize docker registry client")
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
 		scanTask.Message = fmt.Sprintf("Couldn't initialize docker registry client: %s", err)
@@ -139,7 +160,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	cacheTmp := make(map[string]*model.CachedLayer)
 	err = rcSvc.readManifest(ctx, version, hub, scanTask, &toResult, &cacheTmp, &toScan)
 	if err != nil {
-		log.Error().Err(err).Msg("Couldn't read manifest")
+		zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't read manifest")
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
 		scanTask.Message = fmt.Sprintf("Couldn't read manifest: %s", err)
@@ -169,10 +190,10 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 				if err != nil {
 					switch err.(type) {
 					default:
-						log.Error().Err(err).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
+						zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
 						time.Sleep(retryInterval)
 					case ClairMissingParentLayerError:
-						log.Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
+						zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 						layersBench = append(layersBench, currLayer)
 						if _, exists := cache[currLayer.Parent]; exists {
 							currLayer = *cache[currLayer.Parent]
@@ -181,7 +202,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 						}
 					}
 				} else {
-					log.Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
+					zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
 					if _, exists := cache[currLayer.Digest]; !exists {
 						cache[currLayer.Digest] = cacheTmp[currLayer.Digest]
 					}
@@ -204,7 +225,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 
 	select {
 	case <-scanDoneCh:
-		log.Info().Msg("Redclair scan succeeded")
+		zerolog.Ctx(ctx).Info().Msg("Redclair scan succeeded")
 
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusSucceeded
@@ -226,7 +247,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		rcSvc.updateMongoStatus(scanCtx, scanTask)
 
 	case <-scanCtx.Done():
-		log.Error().Err(ctx.Err()).Msg("Redclair scan timeout")
+		zerolog.Ctx(ctx).Error().Err(ctx.Err()).Msg("Redclair scan timeout")
 
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
@@ -277,7 +298,7 @@ func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask mo
 
 	_, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateOne(mongoCtx, filter, update)
 	if err != nil {
-		log.Error().
+		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
 			Msg("error in updating task in Mongo")
@@ -302,14 +323,14 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 			*toResult = append(*toResult, layerDigest.String())
 			var currCache = cache
 			if _, exists := cache[layerDigest.String()]; !exists {
-				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
+				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
 				(*cacheTmp)[layerDigest.String()] = &model.CachedLayer{
 					Digest: layerDigest.String(),
 				}
 				currCache = *cacheTmp
 				*toScan = append(*toScan, layerDigest.String())
 			} else {
-				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
+				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
 			}
 			if first {
 				currCache[layerDigest.String()].ImageDigests = util.AppendIfMissing(currCache[layerDigest.String()].ImageDigests, manifestDigest.String())
@@ -338,14 +359,14 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 			layerDigest := layer.Digest
 			*toResult = append(*toResult, layerDigest.String())
 			if _, exists := cache[layerDigest.String()]; !exists {
-				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
+				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
 				(*cacheTmp)[layerDigest.String()] = &model.CachedLayer{
 					Digest: layerDigest.String(),
 				}
 				currCache = *cacheTmp
 				*toScan = append(*toScan, layerDigest.String())
 			} else {
-				log.Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
+				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
 			}
 			if first {
 				first = false

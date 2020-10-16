@@ -47,7 +47,7 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Coudln't read taskID: %w", err),
+					fmt.Errorf("Couldn't read taskID: %w", err),
 					Suberror{"taskID", ""}))
 			return
 		}
