@@ -29,14 +29,17 @@ func (api *api) scan() func(chi.Router) {
 	}
 }
 
-// @Summary Trigger scan of all images in Harbor
-// @Description Trigger scan of all images in Harbor
+// @Summary Trigger scan of all images in Harbor.
+// @Description Trigger scan of all images in Harbor. This API is exposed for testing purpose.
 // @Produce json
 // @Router /api/v1/scan/harborScanAll [post]
 func (api *api) harborScanAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
+
+		log.Warn().Msg("/api/v1/scan/harborScanAll is exposed for testing purpose. " +
+			"Consider removing or disabling it, as it uses Harbor admin credentials.")
 
 		err := api.harbor.ScanAll(ctx)
 		if err != nil {

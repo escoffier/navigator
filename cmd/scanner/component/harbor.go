@@ -37,8 +37,10 @@ type harborHTTPErrorResp struct {
 	Errors []harborHTTPSubError `json:"errors"`
 }
 
-// curl -X POST -u tensorsec:Tensorsec123 -H "Content-type: application/json" -k -i -d '{"schedule": {"type": "Manual"}}'  https://localhost:30003/api/v2.0/system/scanAll/schedule
 func (h HarborRESTClient) ScanAll(ctx context.Context) error {
+	// Example curl request:
+	// curl -X POST -u tensorsec:Tensorsec123 -H "Content-type: application/json" -k -i -d '{"schedule": {"type": "Manual"}}'  https://localhost:30003/api/v2.0/system/scanAll/schedule
+
 	type ScheduleType struct {
 		Type string `json:"type"`
 	}

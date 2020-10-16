@@ -31,6 +31,8 @@ k8 describe svc harbor | grep NodePort
 
 ## Add Tensorsec plugin in Harbor
 
+This is required so that Harbor uses Tensorsec Scanner as vulnerability scanner.
+
 1. Go to Administration -> Interrogation services -> New scanner
 2. Enter fields as follows
 
@@ -44,6 +46,19 @@ If tensorsec-console is in a different namespace, but same kubernetes cluster as
 3. Test Connection -> Save
 4. Select Tensorsec -> Set as default
 
+## Add Tensorsec user in Harbor
+
+This is required so that Tensorsec Scanner can retrigger full scans of images in Harbor based on events, e.g.
+critical update of Clair vulnerability database.
+
+1. (required) Define external Harbor URL `harbor.harborURL` in `deployments/helm/subcharts/scanner/values.yaml`
+2. (optional) Define `harbor.harborUsername` and `harbor.harborPassword` for Harbor API that Scanner will
+   use in `deployments/helm/subcharts/scanner/values.yaml`
+3. Go to Administration -> Users -> New user and create a new user (Note: for development,
+   I recommend setting the same username and password as in `deployments/helm/subcharts/scanner/values.yaml` - then,
+   you won't have to edit/redeploy the Scanner deployment).
+4. (required) Select the user -> Set as admin
+
 ## Manual testing
 
 How to add images from a local docker registry and scan them:
@@ -54,3 +69,11 @@ How to add images from a local docker registry and scan them:
 3. Repliaction -> Select your rule -> Replicate
 4. You can see logs by clicking on your replication rule -> click on "ID" number under executions table.
 5. Go to Projects -> your namespace -> one of images -> select it -> scan.
+
+How to manually trigger rescan of all images in Harbor via Scanner API:
+
+```bash
+k8 port-forward service/tensorsec-scanner 8888 &
+curl -X POST localhost:8888/api/v1/scan/harborScanAll
+# Expect 200 OK
+```
