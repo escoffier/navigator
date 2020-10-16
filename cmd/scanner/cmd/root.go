@@ -52,6 +52,7 @@ var rootCmd = &cobra.Command{
 			Str("clair-secretpattern", clairOpts.SecretPattern).
 			Str("clair-secretpattern", clairOpts.SecretPattern).
 			Bool("redclair-skipregistrytlsverify", clairOpts.SkipRegistryTLSVerify).
+			Int("redclair-numworkers", clairOpts.NumWorkers).
 			Msg("Clair options")
 
 		harborOpts := flag.GetHarborOpts(cmd)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
 
@@ -40,7 +41,7 @@ type VulnerabilityInfoOfLayer struct {
 func (r *Redclair) analyzeLayers(ctx context.Context, pathToLayer string, imageName string, layerIDs []string) error {
 	for _, layerID := range layerIDs {
 		pathToLayer := fmt.Sprintf("http://%s:%d/%s/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayer, layerID)
-		log.Info().Str("image", imageName).Str("layerID", layerID).Str("pathToLayer", pathToLayer).Msg("Sending for analysis")
+		zerolog.Ctx(ctx).Info().Str("image", imageName).Str("layerID", layerID).Str("pathToLayer", pathToLayer).Msg("Sending for analysis")
 
 		// TODO: we need to know what is the parent layer here:
 		// https://www.nearform.com/blog/static-analysis-of-docker-image-vulnerabilities-with-clair/
@@ -108,10 +109,10 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) []Vulne
 	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
 	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
 	if err != nil {
-		log.Warn().
+		zerolog.Ctx(ctx).Warn().
 			Msgf("Could not fetch vulnerabilities of %s", digest)
 	}
-	log.Info().Msgf("Fetched vulnerabilities of %s", digest)
+	zerolog.Ctx(ctx).Info().Msgf("Fetched vulnerabilities of %s", digest)
 
 	for _, feature := range rawVulnerabilities.Features {
 		if len(feature.Vulnerabilities) > 0 {

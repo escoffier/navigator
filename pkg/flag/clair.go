@@ -15,6 +15,7 @@ const (
 	clairCVEWhitelist             = "clair-cvewhite"
 	clairSecretPattern            = "clair-secretpattern"
 	redclairSkipRegistryTLSVerify = "redclair-skipregistrytlsverify"
+	redclairNumWorkers            = "redclair-numworkers"
 )
 
 // ClairOpts the clair options
@@ -28,6 +29,7 @@ type ClairOpts struct {
 	CVEWhitelist          string
 	SecretPattern         string
 	SkipRegistryTLSVerify bool
+	NumWorkers            int
 }
 
 // NewDefaultClairOpts the new default clair options.
@@ -52,6 +54,7 @@ func NewDefaultClairOpts() *ClairOpts {
 		CVEWhitelist:          string("configs/scanner/white_cve.json"),
 		SecretPattern:         string("configs/scanner/patterns.json"),
 		SkipRegistryTLSVerify: false,
+		NumWorkers:            4,
 	}
 }
 
@@ -67,6 +70,7 @@ func GetClairOpts(cmd *cobra.Command) *ClairOpts {
 		CVEWhitelist:          viper.GetString(clairCVEWhitelist),
 		SecretPattern:         viper.GetString(clairSecretPattern),
 		SkipRegistryTLSVerify: viper.GetBool(redclairSkipRegistryTLSVerify),
+		NumWorkers:            viper.GetInt(redclairNumWorkers),
 	}
 }
 
@@ -84,6 +88,7 @@ func AddClairFlags(cmd *cobra.Command) {
 	cmd.Flags().String(clairCVEWhitelist, defaultOps.CVEWhitelist, "clair cve white list file")
 	cmd.Flags().String(clairSecretPattern, defaultOps.SecretPattern, "clair secret pattern file")
 	cmd.Flags().Bool(redclairSkipRegistryTLSVerify, defaultOps.SkipRegistryTLSVerify, "skip TLS cert verification step for remote docker registries")
+	cmd.Flags().Int(redclairNumWorkers, defaultOps.NumWorkers, "num scanner workers")
 
 	for _, flag := range []string{
 		clairEndpointAddress,
@@ -95,6 +100,7 @@ func AddClairFlags(cmd *cobra.Command) {
 		clairSecretPattern,
 		clairCVEWhitelist,
 		redclairSkipRegistryTLSVerify,
+		redclairNumWorkers,
 	} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {

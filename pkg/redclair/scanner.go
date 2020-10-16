@@ -13,6 +13,7 @@ import (
 
 	"github.com/heroku/docker-registry-client/registry"
 	dig "github.com/opencontainers/go-digest"
+	"github.com/rs/zerolog"
 )
 
 // VulnerabilitiesWhitelist ...
@@ -236,13 +237,13 @@ func parseBootstrap(data []byte) []Software {
 func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) ([]VulnerabilityInfo, []FileSignature, []Software, error) {
 	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
-		log.Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
+		zerolog.Ctx(ctx).Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
 		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 	defer func() {
 		err := os.RemoveAll(pathToLayersInFS)
 		if err != nil {
-			log.Warn().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't remove image temp dir")
+			zerolog.Ctx(ctx).Warn().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't remove image temp dir")
 		}
 	}()
 	d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
@@ -262,9 +263,9 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
-	log.Info().Str("repository", repository).Str("layerDigest", digest).Msg("Layer saved locally")
+	zerolog.Ctx(ctx).Info().Str("repository", repository).Str("layerDigest", digest).Msg("Layer saved locally")
 	if err != nil {
-		log.Error().
+		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Msg("[Scanner]")
 		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
@@ -273,7 +274,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	//Analyze the layers
 	pathToLayerInHTTP, err := filepath.Rel(r.httpRootDir, pathToLayersInFS)
 	if err != nil {
-		log.Error().
+		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Str("httpServerRootDir", httpServerRootDir).
 			Str("pathToLayersInFS", pathToLayerInHTTP).
@@ -291,7 +292,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	layerFileSignature, softwareFiles, err := generateTarHash(
 		filepath.Join(pathToLayersInFS, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp)
 	if err != nil {
-		log.Warn().Msgf("Fail to get layer signature : %s : %v",
+		zerolog.Ctx(ctx).Warn().Msgf("Fail to get layer signature : %s : %v",
 			filepath.Join(pathToLayersInFS, "layer.tar"), err)
 	}
 	for _, f := range softwareFiles {
@@ -301,11 +302,11 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 				if tmp[0].Version != "" {
 					imageSoftware = append(imageSoftware, tmp[0])
 					tmp[1].Name = f.Name
-					log.Info().Msgf("%v", tmp[0])
+					zerolog.Ctx(ctx).Info().Msgf("%v", tmp[0])
 					imageSoftware = append(imageSoftware, tmp...)
-					log.Info().Msgf("Added npm bootstrap.sh")
+					zerolog.Ctx(ctx).Info().Msgf("Added npm bootstrap.sh")
 				} else {
-					log.Info().Msgf("Ignored other bootstrap.sh")
+					zerolog.Ctx(ctx).Info().Msgf("Ignored other bootstrap.sh")
 				}
 				continue
 			}
@@ -318,7 +319,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 				tmp := parse(f.HeadContent)
 				tmp[0].Name = f.Name
 				imageSoftware = append(imageSoftware, tmp...)
-				log.Info().Msgf("Added node package: %s", f.Name)
+				zerolog.Ctx(ctx).Info().Msgf("Added node package: %s", f.Name)
 				continue
 			}
 			if re.MatchString(f.Name) {
