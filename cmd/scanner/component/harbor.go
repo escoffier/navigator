@@ -8,23 +8,33 @@ import (
 	"fmt"
 	"net/http"
 
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 )
 
 type HarborRESTClient struct {
-	address               string // like "https://localhost:30003"
-	username              string
-	password              string
-	skipRegistryTLSVerify bool
+	address       string // like "https://localhost:30003"
+	username      string
+	password      string
+	skipTLSVerify bool
 }
 
 func NewHarborRESTClient(harborOpts *flag.HarborOpts) *HarborRESTClient {
 	return &HarborRESTClient{
-		address:               harborOpts.URL,
-		username:              harborOpts.Username,
-		password:              harborOpts.Password,
-		skipRegistryTLSVerify: harborOpts.SkipRegistryTLSVerify,
+		address:       harborOpts.URL,
+		username:      harborOpts.Username,
+		password:      harborOpts.Password,
+		skipTLSVerify: harborOpts.SkipTLSVerify,
 	}
+}
+
+type harborHTTPSubError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type harborHTTPErrorResp struct {
+	Errors []harborHTTPSubError `json:"errors"`
 }
 
 // curl -X POST -u tensorsec:Tensorsec123 -H "Content-type: application/json" -k -i -d '{"schedule": {"type": "Manual"}}'  https://localhost:30003/api/v2.0/system/scanAll/schedule
@@ -42,19 +52,19 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	payload := ScheduleReq{Schedule: ScheduleType{Type: "Manual"}}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal scan all request to Harbor: %w", err)
+		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal scan all request to Harbor: %w", err))
 	}
 
 	url := fmt.Sprintf("%s/api/v2.0/system/scanAll/schedule", h.address)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return fmt.Errorf("Failed to prepare scan all request to Harbor: %w", err)
+		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare scan all request to Harbor: %w", err))
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
 	httpClient := http.Client{}
-	if h.skipRegistryTLSVerify {
+	if h.skipTLSVerify {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
@@ -63,31 +73,32 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 
 	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
-		return fmt.Errorf("Failed to send scan all request to Harbor: %w", err)
+		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send scan all request to Harbor: %w", err))
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
-		// Harbor's API doc doesn't mention 201 return code, but it is returned
-		// to Harbor portal upon pressing "Scan all" button.
+	// Harbor's API doc doesn't mention 201 return code, but it is returned
+	// to Harbor portal upon pressing "Scan all" button.
+	// Just in case, we assume both 200 and 201 status codes are OK.
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 
-		// TODO handle other error codes better
-		// 	'200':
-		// 	description: Updated scan_all's schedule successfully.
-		//   '400':
-		// 	description: Invalid schedule type.
-		//   '401':
-		// 	description: User need to log in first.
-		//   '403':
-		// 	description: User does not have permission of admin role.
-		//   '409':
-		// 	description: There is a "scanall" job in progress, so the request cannot be served.
-		//   '500':
-		// 	description: Unexpected internal errors.
-		//   '503':
-		// 	description: Harbor is not deployed with scanners.
+		var errorResp harborHTTPErrorResp
+		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+		}
 
-		return fmt.Errorf("Failed to schedule scan all in Harbor: %w", err)
+		if resp.StatusCode == http.StatusUnauthorized {
+			return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusForbidden {
+			return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusConflict {
+			return NewHarborScanAllInProgressError(resp.StatusCode, fmt.Errorf("Harbor scan already in progress: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusServiceUnavailable {
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor error, potentially no scanners detected: %+v", errorResp))
+		} else {
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor error: %+v", errorResp))
+		}
 	}
 
 	return nil

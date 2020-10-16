@@ -59,7 +59,7 @@ var rootCmd = &cobra.Command{
 			Str("harbor-url", harborOpts.URL).
 			Str("harbor-username", harborOpts.Username).
 			Str("harbor-password", "***").
-			Bool("harbor-skipregistrytlsverify", harborOpts.SkipRegistryTLSVerify).
+			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
 			Msg("Harbor REST client options")
 
 		logging.GetLogger().Info().

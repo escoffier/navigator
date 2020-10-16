@@ -40,12 +40,11 @@ func (api *api) harborScanAll() http.HandlerFunc {
 
 		err := api.harbor.ScanAll(ctx)
 		if err != nil {
-			RespAndLog(w, r,
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("Scanall: %w", err)))
+			RespAndLog(w, r, fmt.Errorf("Failed to trigger full scan in Harbor: %w", err))
 			return
 		}
-		log.Info().Msg("Scan all OK")
+
+		log.Info().Msg("Successfully triggered full scan in Harbor")
 		response.Ok(w)
 	}
 }
