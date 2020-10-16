@@ -11,17 +11,20 @@ import (
 type api struct {
 	ctx      context.Context
 	redclair *component.RedClairService
+	harbor   *component.HarborRESTClient
 	mongodb  *mongo.Database
 }
 
 func newAPI(
 	ctx context.Context,
 	redclair *component.RedClairService,
+	harbor *component.HarborRESTClient,
 	mongodb *mongo.Database,
 ) *api {
 	return &api{
 		ctx:      ctx,
 		redclair: redclair,
+		harbor:   harbor,
 		mongodb:  mongodb,
 	}
 }

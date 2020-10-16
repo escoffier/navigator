@@ -79,4 +79,6 @@ func init() {
 	flag.AddMongoFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)
+
+	flag.ConfigViper()
 }

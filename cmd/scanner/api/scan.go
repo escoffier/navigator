@@ -25,6 +25,28 @@ type ScanResultResponse struct {
 func (api *api) scan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/one", api.scanOne())
+		r.Post("/harborScanAll", api.harborScanAll())
+	}
+}
+
+// @Summary Trigger scan of all images in Harbor
+// @Description Trigger scan of all images in Harbor
+// @Produce json
+// @Router /api/v1/scan/harborScanAll [post]
+func (api *api) harborScanAll() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		err := api.harbor.ScanAll(ctx)
+		if err != nil {
+			RespAndLog(w, r,
+				NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("Scanall: %w", err)))
+			return
+		}
+		log.Info().Msg("Scan all OK")
+		response.Ok(w)
 	}
 }
 

@@ -54,12 +54,20 @@ var rootCmd = &cobra.Command{
 			Bool("redclair-skipregistrytlsverify", clairOpts.SkipRegistryTLSVerify).
 			Msg("Clair options")
 
+		harborOpts := flag.GetHarborOpts(cmd)
+		logging.GetLogger().Info().
+			Str("harbor-url", harborOpts.URL).
+			Str("harbor-username", harborOpts.Username).
+			Str("harbor-password", "***").
+			Bool("harbor-skipregistrytlsverify", harborOpts.SkipRegistryTLSVerify).
+			Msg("Harbor REST client options")
+
 		logging.GetLogger().Info().
 			Str("version", Version).
 			Msg("starting Vegeta Scanner")
 
 		scanner, err := service.NewScanner(
-			httpOpts, mongoOpts, clairOpts)
+			httpOpts, mongoOpts, clairOpts, harborOpts)
 		if err != nil {
 			return err
 		}
@@ -83,7 +91,11 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
+
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddMongoFlags(rootCmd)
 	flag.AddClairFlags(rootCmd)
+	flag.AddHarborFlags(rootCmd)
+
+	flag.ConfigViper()
 }

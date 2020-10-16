@@ -35,7 +35,17 @@ spec:
           "--clair-address=tensorsec-scanner",
           "--clair-port={{ .Values.service.LayerPort }}",
           "--redclair-skipregistrytlsverify", # Insecure
+          "--harbor-username={{ .Values.harbor.harborUsername }}",
+          "--harbor-url={{ .Values.harbor.harborURL }}",
+          "--harbor-skipregistrytlsverify", # Insecure
           "-v"]
+
+        env:
+          - name: TENSORSEC_HARBOR_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.harbor.harborSecretName }}
+                key: password
 
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
