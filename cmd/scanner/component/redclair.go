@@ -289,11 +289,11 @@ func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask mo
 func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult *[]string, cacheTmp *map[string]*model.CachedLayer, toScan *[]string) error {
 
 	if version == "v1" {
-		manifest, err := hub.Manifest(scanTask.Repository, scanTask.Tag)
+		manifest, err := hub.Manifest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
 			return fmt.Errorf("Could not read docker V1 manifest: %w", err)
 		}
-		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.Tag)
+		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
 			return fmt.Errorf("Could not get docker V1 manifest digest: %w", err)
 		}
@@ -324,11 +324,11 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 			prevDigest = layerDigest.String()
 		}
 	} else if version == "v2" {
-		manifest, err := hub.ManifestV2(scanTask.Repository, scanTask.Tag)
+		manifest, err := hub.ManifestV2(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
 			return fmt.Errorf("Could not read docker V2 manifest: %w", err)
 		}
-		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.Tag)
+		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
 			return fmt.Errorf("Could not get docker V2 manifest digest: %w", err)
 		}
