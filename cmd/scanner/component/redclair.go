@@ -2,8 +2,12 @@ package component
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -34,6 +38,8 @@ type RedClairService struct {
 	scanTasksChan chan model.ScanTask
 
 	redclairEngine *redclair.Redclair
+
+	skipRegistryTLSVerify bool
 }
 
 // NewRedClair creates the instance of RedClair
@@ -43,10 +49,11 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		return nil, err
 	}
 	return &RedClairService{
-		ctx:            ctx,
-		mongodb:        db,
-		scanTasksChan:  make(chan model.ScanTask, 1000),
-		redclairEngine: redclairEng,
+		ctx:                   ctx,
+		mongodb:               db,
+		scanTasksChan:         make(chan model.ScanTask, 1000),
+		redclairEngine:        redclairEng,
+		skipRegistryTLSVerify: clairOpts.SkipRegistryTLSVerify,
 	}, nil
 }
 
@@ -81,13 +88,41 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	scanCtx, scanCtxCancel := context.WithTimeout(ctx, scanOneTimeout)
 	defer scanCtxCancel()
 
-	// TODO: Parse authorization from Harbor if needed
-	hub, err := registry.New(scanTask.URL, "", "")
+	username := ""
+	password := ""
+	if scanTask.Authorization != "" {
+		var err error
+		username, password, err = rcSvc.decodeUsernamePassword(scanTask)
+		if err != nil {
+			log.Error().Err(err).Msg("Coudln't decode username and password")
+			scanTask.FinishedAt = time.Now().Unix()
+			scanTask.Status = model.ScanStatusFailed
+			scanTask.Message = fmt.Sprintf("Coudln't decode username and password: %s", err)
+
+			rcSvc.updateMongoStatus(ctx, scanTask)
+			return
+		}
+	}
+
+	hub, err := registry.New(scanTask.URL, username, password)
+	if err != nil && rcSvc.skipRegistryTLSVerify {
+		// 'x509: cannot validate certificate for 1.2.3.4 because it doesn't contain any IP SANs'
+
+		// seems like error Golang's x509 package doesn't support error wrapping API yet:
+		// https://github.com/golang/go/issues/30322
+		//var hostnameErr *x509.HostnameError
+		//if errors.As(err, &hostnameErr) { ... }
+		// Therefore we must unwrap the error from HTTP package manually and try to cast
+		if _, ok := errors.Unwrap(err).(x509.HostnameError); ok {
+			log.Warn().Err(err).Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
+			hub, err = registry.NewInsecure(scanTask.URL, username, password)
+		}
+	}
 	if err != nil {
 		log.Error().Err(err).Msg("Couldn't initialize docker registry client")
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = err.Error()
+		scanTask.Message = fmt.Sprintf("Couldn't initialize docker registry client: %s", err)
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 		return
@@ -98,7 +133,22 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	toResult := make([]string, 0)
 	toScan := make([]string, 0)
 	cacheTmp := make(map[string]*model.CachedLayer)
-	rcSvc.readManifest(ctx, version, hub, scanTask, &toResult, &cacheTmp, &toScan)
+	err = rcSvc.readManifest(ctx, version, hub, scanTask, &toResult, &cacheTmp, &toScan)
+	if err != nil {
+		log.Error().Err(err).Msg("Couldn't read manifest")
+		scanTask.FinishedAt = time.Now().Unix()
+		scanTask.Status = model.ScanStatusFailed
+		scanTask.Message = fmt.Sprintf("Couldn't read manifest: %s", err)
+
+		rcSvc.updateMongoStatus(ctx, scanTask)
+		return
+	}
+
+	log.Info().
+		Str("toResult", fmt.Sprintf("%+v", toResult)).
+		Str("toScan", fmt.Sprintf("%+v", toScan)).
+		Str("cacheTmp", fmt.Sprintf("%+v", cacheTmp)).
+		Msg("DBG")
 
 	scanDoneCh := make(chan struct{})
 	go func() {
@@ -116,7 +166,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 					hub,
 					currLayer.Digest,
 					currLayer.Parent,
-					scanTask.Image+"/"+scanTask.Tag,
+					scanTask.Repository,
 				)
 				if err != nil {
 					switch err.(type) {
@@ -168,11 +218,11 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			report.Software = append(report.Software, cache[digest].ScanReport.Software...)
 		}
 		report.Vulns = redclair.VulnerabilityReport{
-			scanTask.Repository,
-			scanTask.Image,
-			scanTask.ImageDigest,
-			[]string{},
-			vulns,
+			Repository:      scanTask.Repository,
+			Tag:             scanTask.Tag,
+			Digest:          scanTask.ImageDigest,
+			Unapproved:      []string{},
+			Vulnerabilities: vulns,
 		}
 		scanTask.ScanReport = *report
 		rcSvc.updateMongoStatus(scanCtx, scanTask)
@@ -186,6 +236,33 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 	}
+}
+
+func (rcSvc *RedClairService) decodeUsernamePassword(scanTask model.ScanTask) (string, string, error) {
+	// scanTask.Authorization == Basic cm9ib3QkdHMt...
+
+	headerSplit := strings.Split(scanTask.Authorization, " ")
+	if len(headerSplit) != 2 {
+		return "", "", fmt.Errorf("Expected 'Basic ASDF' format, but got different")
+	}
+	b64Encoded := headerSplit[1]
+
+	decodedHeader, err := base64.StdEncoding.DecodeString(b64Encoded)
+	if err != nil {
+		return "", "", fmt.Errorf("Couldn't decode auth string: %w", err)
+	}
+
+	// decodedHeader == robot$ts-cdffae66-0edd-11eb-91a9-4e1d0aed31d4:eyJhbGciOiJSUzI1...
+
+	usernamePasswordArr := strings.Split(string(decodedHeader), ":")
+	if len(usernamePasswordArr) != 2 {
+		return "", "", fmt.Errorf("Expected 'username:password' format, but got different")
+	}
+
+	username := usernamePasswordArr[0]
+	password := usernamePasswordArr[1]
+
+	return username, password, nil
 }
 
 // AddScanTask adds ScanTask to the internal channel
@@ -209,29 +286,16 @@ func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask mo
 	}
 }
 
-func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult *[]string, cacheTmp *map[string]*model.CachedLayer, toScan *[]string) {
+func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult *[]string, cacheTmp *map[string]*model.CachedLayer, toScan *[]string) error {
+
 	if version == "v1" {
-		manifest, err := hub.Manifest(scanTask.Image, scanTask.Tag)
+		manifest, err := hub.Manifest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			log.Error().Err(err).Msg("Could not read docker V1 manifest")
-
-			scanTask.FinishedAt = time.Now().Unix()
-			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = err.Error()
-
-			rcSvc.updateMongoStatus(ctx, scanTask)
-			return
+			return fmt.Errorf("Could not read docker V1 manifest: %w", err)
 		}
-		manifestDigest, err := hub.ManifestDigest(scanTask.Image, scanTask.Tag)
+		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			log.Error().Err(err).Msg("Could not get docker V1 manifest digest")
-
-			scanTask.FinishedAt = time.Now().Unix()
-			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = err.Error()
-
-			rcSvc.updateMongoStatus(ctx, scanTask)
-			return
+			return fmt.Errorf("Could not get docker V1 manifest digest: %w", err)
 		}
 		first := true
 		var prevDigest string
@@ -251,7 +315,7 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 			}
 			if first {
 				currCache[layerDigest.String()].ImageDigests = util.AppendIfMissing(currCache[layerDigest.String()].ImageDigests, manifestDigest.String())
-				currCache[layerDigest.String()].Images = util.AppendIfMissing(currCache[layerDigest.String()].Images, scanTask.Image)
+				currCache[layerDigest.String()].Repositories = util.AppendIfMissing(currCache[layerDigest.String()].Repositories, scanTask.Repository)
 				currCache[layerDigest.String()].Tags = util.AppendIfMissing(currCache[layerDigest.String()].Tags, scanTask.Tag)
 				first = false
 			} else {
@@ -260,27 +324,13 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 			prevDigest = layerDigest.String()
 		}
 	} else if version == "v2" {
-		manifest, err := hub.ManifestV2(scanTask.Image, scanTask.Tag)
+		manifest, err := hub.ManifestV2(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			log.Error().Err(err).Msg("Could not read docker V2 manifest")
-
-			scanTask.FinishedAt = time.Now().Unix()
-			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = err.Error()
-
-			rcSvc.updateMongoStatus(ctx, scanTask)
-			return
+			return fmt.Errorf("Could not read docker V2 manifest: %w", err)
 		}
-		manifestDigest, err := hub.ManifestDigest(scanTask.Image, scanTask.Tag)
+		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			log.Error().Err(err).Msg("Could not get docker V2 manifest digest")
-
-			scanTask.FinishedAt = time.Now().Unix()
-			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = err.Error()
-
-			rcSvc.updateMongoStatus(ctx, scanTask)
-			return
+			return fmt.Errorf("Could not get docker V2 manifest digest: %w", err)
 		}
 		var prevDigest string
 		first := true
@@ -307,7 +357,8 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 			prevDigest = layerDigest.String()
 		}
 		currCache[prevDigest].ImageDigests = util.AppendIfMissing(currCache[prevDigest].ImageDigests, manifestDigest.String())
-		currCache[prevDigest].Images = util.AppendIfMissing(currCache[prevDigest].Images, scanTask.Image)
+		currCache[prevDigest].Repositories = util.AppendIfMissing(currCache[prevDigest].Repositories, scanTask.Repository)
 		currCache[prevDigest].Tags = util.AppendIfMissing(currCache[prevDigest].Tags, scanTask.Tag)
 	}
+	return nil
 }

@@ -103,28 +103,28 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 	return nil
 }
 
-func (r Redclair) GetVulnerabilities(ctx context.Context, image string, digest string) []VulnerabilityInfo {
+func (r Redclair) getVulnerabilities(ctx context.Context, digest string) []VulnerabilityInfo {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
 	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
 	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
 	if err != nil {
 		log.Warn().
-			Msgf("Could not fetch vulnerabilities: %s of %s", digest, image)
+			Msgf("Could not fetch vulnerabilities of %s", digest)
 	}
-	log.Info().Msgf("Fetched %s of %s", digest, image)
+	log.Info().Msgf("Fetched vulnerabilities of %s", digest)
 
 	for _, feature := range rawVulnerabilities.Features {
 		if len(feature.Vulnerabilities) > 0 {
 			for _, vulnerability := range feature.Vulnerabilities {
 				vulnerability := VulnerabilityInfo{
-					feature.Name,
-					feature.Version,
-					vulnerability.Name,
-					vulnerability.NamespaceName,
-					vulnerability.Description,
-					vulnerability.Link,
-					vulnerability.Severity,
-					vulnerability.FixedBy,
+					FeatureName:    feature.Name,
+					FeatureVersion: feature.Version,
+					Vulnerability:  vulnerability.Name,
+					Namespace:      vulnerability.NamespaceName,
+					Description:    vulnerability.Description,
+					Link:           vulnerability.Link,
+					Severity:       vulnerability.Severity,
+					FixedBy:        vulnerability.FixedBy,
 				}
 				vulnerabilitiesMap[vulnerability] = struct{}{}
 			}

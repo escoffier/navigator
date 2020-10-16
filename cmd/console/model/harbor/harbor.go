@@ -119,18 +119,6 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 		}
 	}
 
-	// redclairReport.Image == nginx:latest
-	imagetag := strings.Split(redclairReport.Image, ":")
-	image := imagetag[0]
-	tag := imagetag[1]
-
-	// harborReport.Repository == library/mongo
-	repository := redclairReport.Repository + "/" + image
-
-	// redclairReport.Hash == nginx@sha256:fc66cdef5ca33809823182c9c5d72ea86fd2cef7713cf3363e1a0b12a5d77500
-	imagedigest := strings.Split(redclairReport.Hash, "@")
-	digest := imagedigest[1]
-
 	harborReport := HarborVulnerabilityReport{
 		Registry: Registry{
 			// Not sure why this is in the API definition in the first place but oh well...
@@ -138,9 +126,9 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 			URL:           "<not needed>",
 		},
 		Artifact: Artifact{
-			Repository: repository,
-			Digest:     digest,
-			Tag:        tag,
+			Repository: redclairReport.Repository,
+			Digest:     redclairReport.Digest,
+			Tag:        redclairReport.Tag,
 			// Potentially modify here when we support more MIME types
 			MimeType: "application/vnd.docker.distribution.manifest.v2+json",
 		},

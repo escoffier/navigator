@@ -50,6 +50,8 @@ var rootCmd = &cobra.Command{
 			Str("clair-ignorepackage", clairOpts.IgnorePackageList).
 			Str("clair-cvewhite", clairOpts.CVEWhitelist).
 			Str("clair-secretpattern", clairOpts.SecretPattern).
+			Str("clair-secretpattern", clairOpts.SecretPattern).
+			Bool("redclair-skipregistrytlsverify", clairOpts.SkipRegistryTLSVerify).
 			Msg("Clair options")
 
 		logging.GetLogger().Info().
