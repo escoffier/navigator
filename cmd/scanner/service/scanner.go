@@ -31,6 +31,7 @@ type Scanner struct {
 	server      *http.Server
 	etcd        *clientv3.Client
 	redclair    *component.RedClairService
+	harbor      *component.HarborRESTClient
 	mongoClient *mongo.Client
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -41,6 +42,7 @@ func NewScanner(
 	httpOpts *flag.HTTPOpts,
 	mongoOpts *flag.MongoOpts,
 	clairOpts *flag.ClairOpts,
+	harborOpts *flag.HarborOpts,
 ) (*Scanner, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -61,12 +63,15 @@ func NewScanner(
 		return nil, err
 	}
 
+	harbor := component.NewHarborRESTClient(harborOpts)
+
 	return &Scanner{
 		server: &http.Server{
 			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled),
+			Handler: setupChiRouter(mainCtx, redclairSvc, harbor, mongodb, httpOpts.HTTPLoggerDisabled),
 		},
 		redclair:    redclairSvc,
+		harbor:      harbor,
 		mongoClient: mongoClient,
 		ctx:         mainCtx,
 		cancel:      mainCancel,
@@ -107,9 +112,6 @@ func (s *Scanner) Run() func() {
 			Msg("error in connecting to the Mongo database")
 		panic(err)
 	}
-
-	// POTENTIAL-FIX for `panic: server selection error: server selection timeout`
-	time.Sleep(time.Second * 5)
 
 	return func() {
 		s.cancel()

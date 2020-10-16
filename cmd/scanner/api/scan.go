@@ -25,6 +25,30 @@ type ScanResultResponse struct {
 func (api *api) scan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/one", api.scanOne())
+		r.Post("/harborScanAll", api.harborScanAll())
+	}
+}
+
+// @Summary Trigger scan of all images in Harbor.
+// @Description Trigger scan of all images in Harbor. This API is exposed for testing purpose.
+// @Produce json
+// @Router /api/v1/scan/harborScanAll [post]
+func (api *api) harborScanAll() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		log.Warn().Msg("/api/v1/scan/harborScanAll is exposed for testing purpose. " +
+			"Consider removing or disabling it, as it uses Harbor admin credentials.")
+
+		err := api.harbor.ScanAll(ctx)
+		if err != nil {
+			RespAndLog(w, r, fmt.Errorf("Failed to trigger full scan in Harbor: %w", err))
+			return
+		}
+
+		log.Info().Msg("Successfully triggered full scan in Harbor")
+		response.Ok(w)
 	}
 }
 

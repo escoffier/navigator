@@ -5,6 +5,15 @@
         "license": {}
     },
     "paths": {
+        "/api/v1/scan/harborScanAll": {
+            "post": {
+                "description": "Trigger scan of all images in Harbor. This API is exposed for testing purpose.",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Trigger scan of all images in Harbor."
+            }
+        },
         "/api/v1/scan/one": {
             "post": {
                 "description": "Scan one image",

@@ -262,7 +262,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
-	log.Info().Str("repository", repository).Str("layerDigest", digest).Msgf("Docker image saved")
+	log.Info().Str("repository", repository).Str("layerDigest", digest).Msg("Layer saved locally")
 	if err != nil {
 		log.Error().
 			Err(err).

@@ -15,6 +15,7 @@ import (
 func setupChiRouter(
 	ctx context.Context,
 	redclair *component.RedClairService,
+	harbor *component.HarborRESTClient,
 	mongodb *mongo.Database,
 	httpLoggerDisabled bool,
 ) http.Handler {
@@ -29,7 +30,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, redclair, mongodb)
+	api.SetupRoutes(ctx, r, redclair, harbor, mongodb)
 
 	return r
 }

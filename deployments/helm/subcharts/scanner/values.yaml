@@ -22,3 +22,9 @@ image:
   # repository: localhost:32000
   tag: latest
   pullPolicy: Always
+
+harbor:
+  harborURL: https://192.168.1.203:30003
+  harborUsername: tensorsec
+  harborPassword: Tensorsec123!
+  harborSecretName: harbor-api-tensorsec

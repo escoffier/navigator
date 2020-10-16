@@ -16,6 +16,10 @@ type SessionExpired struct{ detailedError }
 type ClairError struct{ detailedError }
 type DockerError struct{ detailedError }
 type ClairMissingParentLayerError struct{ detailedError }
+type HarborError struct{ detailedError }
+type HarborUnauthorizedError struct{ detailedError }
+type HarborForbiddenError struct{ detailedError }
+type HarborScanAllInProgressError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -207,6 +211,54 @@ func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suber
 			err:       err,
 			English:   "Clair scanning error: missing parent layer",
 			Zhongwen:  "Clair scanning error: missing parent layer in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewHarborError(httpCode int, err error, suberrors ...Suberror) error {
+	return HarborError{
+		detailedError{
+			err:       err,
+			English:   "Harbor error has occured",
+			Zhongwen:  "Harbor error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewHarborUnauthorizedError(httpCode int, err error, suberrors ...Suberror) error {
+	return HarborUnauthorizedError{
+		detailedError{
+			err:       err,
+			English:   "Harbor returned error 'Unauthorized', please check Harbor username/password",
+			Zhongwen:  "Harbor returned error 'Unauthorized', please check Harbor username/password but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewHarborForbiddenError(httpCode int, err error, suberrors ...Suberror) error {
+	return HarborForbiddenError{
+		detailedError{
+			err:       err,
+			English:   "Harbor returned error 'Forbidden', please check if user has Administrator privileges",
+			Zhongwen:  "Harbor returned error 'Forbidden', please check if user has Administrator privileges but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	return HarborScanAllInProgressError{
+		detailedError{
+			err:       err,
+			English:   "Harbor full scan is already in progress, please wait",
+			Zhongwen:  "Harbor full scan is already in progress, please wait but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
