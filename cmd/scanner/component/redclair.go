@@ -106,14 +106,18 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 
 	hub, err := registry.New(scanTask.URL, username, password)
 	if err != nil && rcSvc.skipRegistryTLSVerify {
-		// 'x509: cannot validate certificate for 1.2.3.4 because it doesn't contain any IP SANs'
-
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:
 		// https://github.com/golang/go/issues/30322
 		//var hostnameErr *x509.HostnameError
 		//if errors.As(err, &hostnameErr) { ... }
 		// Therefore we must unwrap the error from HTTP package manually and try to cast
-		if _, ok := errors.Unwrap(err).(x509.HostnameError); ok {
+
+		// Check for any type of error defined in x509 package.
+		_, ok1 := errors.Unwrap(err).(x509.SystemRootsError)
+		_, ok2 := errors.Unwrap(err).(x509.CertificateInvalidError)
+		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
+		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
+		if ok1 || ok2 || ok3 || ok4 {
 			log.Warn().Err(err).Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
 			hub, err = registry.NewInsecure(scanTask.URL, username, password)
 		}
@@ -143,12 +147,6 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		rcSvc.updateMongoStatus(ctx, scanTask)
 		return
 	}
-
-	log.Info().
-		Str("toResult", fmt.Sprintf("%+v", toResult)).
-		Str("toScan", fmt.Sprintf("%+v", toScan)).
-		Str("cacheTmp", fmt.Sprintf("%+v", cacheTmp)).
-		Msg("DBG")
 
 	scanDoneCh := make(chan struct{})
 	go func() {
