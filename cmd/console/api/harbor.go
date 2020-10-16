@@ -186,7 +186,7 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 			e := harbor.NewHarborErrorAndLog(nil, "Scan failed in scanner")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
-		} else if time.Now().Unix()-result.StartedAt > int64(lastChanceTimeout) {
+		} else if time.Now().Unix()-result.StartedAt > int64(lastChanceTimeout.Seconds()) {
 			// Timeout in Console layer. There should also be a timeout in Scanner, but if Scanner misbehaves, we want to inform Harbor about it as well.
 			// The timeout itself is quite long since its purpose is to catch orphaned jobs.
 			// TODO: Add similar timeout in scanner that would set status in mongo to Failed
