@@ -36,3 +36,4 @@ spec:
         - name: mnt-root
           hostPath:
             path: "/"
+  backoffLimit: 3

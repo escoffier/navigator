@@ -26,11 +26,21 @@ spec:
         command: ["/vegeta-console"]
         args: [
           "--mongo-endpoint=tensorsec-mongodb:27017",
+          "--mongo-database={{ .Values.mongo.mongoDatabase }}",
+          "--mongo-username={{ .Values.mongo.mongoUsername }}",
+          "--mongo-k8secretname={{ .Values.mongo.mongoSecretName }}",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
           "-v"]
-    
+
+        env:
+        - name: TENSORSEC_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mongo.mongoSecretName }}
+              key: password
+
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}

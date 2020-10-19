@@ -37,6 +37,8 @@ var rootCmd = &cobra.Command{
 		logging.GetLogger().Info().
 			Str("endpoint", mongoOpts.Endpoint).
 			Str("username", mongoOpts.Username).
+			Str("secretname", mongoOpts.SecretName).
+			Str("database", mongoOpts.Database).
 			Msg("Mongo options")
 
 		scannerOpts := flag.GetVegetaScannerOpts(cmd)

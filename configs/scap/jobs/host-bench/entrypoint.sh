@@ -67,7 +67,7 @@ if [ $retVal -ne 0 ]; then
 fi
 
 echo "Importing record to mongo"
-mongoimport record.json --uri $MONGO_STRING --collection "host-bench-records" --mode=merge --upsertFields=checkId,nodeName
+mongoimport record.json --uri $(eval echo $MONGO_STRING) --collection "host-bench-records" --mode=merge --upsertFields=checkId,nodeName
 retVal=$?
 if [ $retVal -ne 0 ]; then
   exit $retVal
