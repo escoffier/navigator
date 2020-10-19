@@ -28,6 +28,7 @@ spec:
           "--mongo-endpoint=tensorsec-mongodb:27017",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
+          "--redis-endpoint=tensorsec-redis-master:6379",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
           "-v"]
     

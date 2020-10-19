@@ -22,11 +22,12 @@ type NewerLayerFeature struct {
 
 // NewerLayer New Layer of image
 type NewerLayer struct {
-	Name       string
-	Path       string
-	ParentName string
-	Format     string
-	Features   []NewerLayerFeature
+	Name          string
+	Path          string
+	ParentName    string
+	Format        string
+	NamespaceName string
+	Features      []NewerLayerFeature
 }
 
 // NewerLayerEnvelopeError Envelop error

@@ -234,11 +234,11 @@ func parseBootstrap(data []byte) []Software {
 	}
 }
 
-func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) ([]VulnerabilityInfo, []FileSignature, []Software, error) {
+func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []VulnerabilityInfo, []FileSignature, []Software, error) {
 	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
-		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 	defer func() {
 		err := os.RemoveAll(pathToLayersInFS)
@@ -253,14 +253,14 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		defer reader.Close()
 	}
 	if err != nil {
-		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
 	outFile, err := os.Create(pathToLayersInFS + "/layer.tar")
 	defer outFile.Close()
 	_, err = io.Copy(outFile, reader)
 	if err != nil {
-		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
 	zerolog.Ctx(ctx).Info().Str("repository", repository).Str("layerDigest", digest).Msg("Layer saved locally")
@@ -268,7 +268,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Msg("[Scanner]")
-		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
 	//Analyze the layers
@@ -279,13 +279,13 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 			Str("httpServerRootDir", httpServerRootDir).
 			Str("pathToLayersInFS", pathToLayerInHTTP).
 			Msg("Failed to get relative path")
-		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 
 	pathToLayer := fmt.Sprintf("http://%s:%d/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayerInHTTP)
 	err = r.analyzeLayer(ctx, pathToLayer, digest, parentDigest)
 	if err != nil {
-		return []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
 	}
 	var imageFileSignature []FileSignature
 	var imageSoftware []Software
@@ -330,7 +330,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	imageFileSignature = distinctFileHash(imageFileSignature)
 
-	vulnerabilities := r.getVulnerabilities(ctx, digest)
+	namespaceName, vulnerabilities := r.getVulnerabilities(ctx, digest)
 
-	return vulnerabilities, imageFileSignature, imageSoftware, nil
+	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, nil
 }

@@ -34,12 +34,13 @@ spec:
           # TODO: maybe rename? I spent hours on this because I was confused.
           "--clair-address=tensorsec-scanner",
           "--clair-port={{ .Values.service.LayerPort }}",
+          "--clair-postgresconnectionstring={{ .Values.clair.postgresURI }}",
           "--redclair-skipregistrytlsverify", # Insecure
           "--harbor-username={{ .Values.harbor.harborUsername }}",
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
+          "--redis-endpoint=tensorsec-redis-master:6379",
           "-v"]
-
         env:
           - name: TENSORSEC_HARBOR_PASSWORD
             valueFrom:

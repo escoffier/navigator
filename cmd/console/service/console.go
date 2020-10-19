@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -44,6 +45,7 @@ func NewConsole(
 	mongoOpts *flag.MongoOpts,
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
+	redisOpts *flag.RedisOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -54,6 +56,13 @@ func NewConsole(
 	}
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
+
+	// Redis DB client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     redisOpts.Endpoint,
+		Password: "", // TODO: Add authorization
+		DB:       0,  // TODO: Add DB
+	})
 
 	// cluster service
 	clusterService := cluster.NewClusterService(mongodb)
@@ -87,6 +96,7 @@ func NewConsole(
 				httpOpts.HTTPLoggerDisabled,
 				cronService,
 				clusterService,
+				redisClient,
 			),
 		},
 		mongoClient: mongoClient,

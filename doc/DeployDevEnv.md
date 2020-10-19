@@ -127,6 +127,7 @@ cd deployments/helm
 helm init
 helm repo add stable https://kubernetes-charts.storage.googleapis.com
 helm repo add elastic https://helm.elastic.co
+helm repo add bitnami https://charts.bitnami.com/bitnami
 cd -
 
 # Configure cluster role (https://stackoverflow.com/a/55098760)

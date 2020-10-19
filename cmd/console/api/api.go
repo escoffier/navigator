@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/patrickmn/go-cache"
@@ -31,6 +32,7 @@ type api struct {
 	scannerURL     string
 	cronService    *cron.CronService
 	clusterService *cluster.ClusterService
+	redisClient    *redis.Client
 }
 
 func newAPI(
@@ -41,6 +43,7 @@ func newAPI(
 	scannerURL string,
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
+	redisClient *redis.Client,
 ) *api {
 	return &api{
 		ctx:            ctx,
@@ -51,6 +54,7 @@ func newAPI(
 		scannerURL:     scannerURL,
 		cronService:    cronService,
 		clusterService: clusterService,
+		redisClient:    redisClient,
 	}
 }
 

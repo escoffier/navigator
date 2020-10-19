@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,22 +22,30 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 
+	"database/sql"
+
+	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/rs/zerolog"
+
+	_ "github.com/lib/pq"
 )
 
-// TODO: Temporary cache. Need something more robust
-var cache = make(map[string]*model.CachedLayer)
-
 const (
-	scanOneTimeout = time.Minute * 5
-	retryInterval  = time.Second * 5
+	scanOneTimeout           = time.Minute * 5
+	retryInterval            = time.Second * 5
+	mongoTimeout             = time.Second * 10
+	redisTimeout             = time.Second * 10
+	redisCleanupTimeout      = time.Minute * 1
+	cacheInvalidatorInterval = time.Hour * 3
+	maxLayerScanRetires      = 10
 )
 
 // RedClair ...
 type RedClairService struct {
-	ctx     context.Context
-	mongodb *mongo.Database
+	ctx         context.Context
+	mongodb     *mongo.Database
+	redisClient *redis.Client
 
 	scanTasksChan chan model.ScanTask
 	numWorkers    int
@@ -43,21 +53,25 @@ type RedClairService struct {
 	redclairEngine *redclair.Redclair
 
 	skipRegistryTLSVerify bool
+
+	clairDBConnectionString string
 }
 
 // NewRedClair creates the instance of RedClair
-func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database) (*RedClairService, error) {
+func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, rc *redis.Client) (*RedClairService, error) {
 	redclairEng, err := redclair.NewRedclair(clairOpts)
 	if err != nil {
 		return nil, err
 	}
 	return &RedClairService{
-		ctx:                   ctx,
-		mongodb:               db,
-		scanTasksChan:         make(chan model.ScanTask, 1000),
-		numWorkers:            clairOpts.NumWorkers,
-		redclairEngine:        redclairEng,
-		skipRegistryTLSVerify: clairOpts.SkipRegistryTLSVerify,
+		ctx:                     ctx,
+		mongodb:                 db,
+		redisClient:             rc,
+		scanTasksChan:           make(chan model.ScanTask, 1000),
+		numWorkers:              clairOpts.NumWorkers,
+		redclairEngine:          redclairEng,
+		skipRegistryTLSVerify:   clairOpts.SkipRegistryTLSVerify,
+		clairDBConnectionString: clairOpts.PostgresConnectionString,
 	}, nil
 }
 
@@ -77,6 +91,10 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 	defer rcSvc.redclairEngine.StopImageHTTPServer()
 
 	var wg sync.WaitGroup
+	wg.Add(1)
+	go rcSvc.CacheInvalidatorRun(ctx, &wg)
+	log.Info().Msg("Started cache invalidator")
+
 	for i := 0; i < rcSvc.numWorkers; i++ {
 		wg.Add(1)
 		go rcSvc.WorkerRun(ctx, i, &wg)
@@ -84,6 +102,25 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 	log.Info().Msg("Started all Redclair workers")
 	wg.Wait()
 	log.Info().Msg("All Redclair workers finished")
+}
+
+func (rcSvc *RedClairService) CacheInvalidatorRun(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	cacheInvalidatorSublogger := log.With().Int("cacheinvalidator-id", 0).Logger()
+	ctx = cacheInvalidatorSublogger.WithContext(ctx)
+	zerolog.Ctx(ctx).Info().Msg("Started Redclair cache invalidator service")
+	rcSvc.updateLayerCache(ctx)
+	ticker := time.NewTicker(cacheInvalidatorInterval)
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			rcSvc.updateLayerCache(ctx)
+		case <-ctx.Done():
+			break loop
+		}
+	}
+	zerolog.Ctx(ctx).Info().Msg("Shutting down Redclair worker")
 }
 
 func (rcSvc *RedClairService) WorkerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
@@ -103,6 +140,136 @@ loop:
 		}
 	}
 	zerolog.Ctx(ctx).Info().Msg("Shutting down Redclair worker")
+}
+
+func (rcSvc *RedClairService) getUpdatedAt(ctx context.Context) int64 {
+	lastUpdateTime := int64(0)
+	lastUpdateTimeStr, err := rcSvc.redisClient.Get(ctx, "DBupdate").Result()
+	if err == redis.Nil {
+		zerolog.Ctx(ctx).Info().Msg("Haven't cached DB last update yet")
+	} else if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Error getting DB update time from cache")
+	} else {
+		lastUpdateTime, err = strconv.ParseInt(lastUpdateTimeStr, 10, 64)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Error converting DBupdateTime from cache to int64")
+		}
+	}
+	return lastUpdateTime
+}
+
+func (rcSvc *RedClairService) getVulnerabilityUpdatedAt(ctx context.Context) string {
+	lastUpdateVulnerability, err := rcSvc.redisClient.Get(ctx, "lastUpdateVulnerability").Result()
+	if err == redis.Nil {
+		zerolog.Ctx(ctx).Info().Msg("Haven't cached DB vulnerability last update yet")
+	} else if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Error getting DB vulnerability update time from cache")
+	} else {
+		return lastUpdateVulnerability
+	}
+	return ""
+}
+
+func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) {
+	zerolog.Ctx(ctx).Info().Msg("Started cache invalidator worker")
+	db, err := sql.Open("postgres", rcSvc.clairDBConnectionString)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to open Clair DB connection")
+	}
+	defer db.Close()
+
+	var lastUpdate model.DBUpdateTime
+	lastUpdateQuery := "SELECT value FROM keyvalue WHERE key='updater/last'"
+	err = db.QueryRow(lastUpdateQuery).Scan(&lastUpdate.Value)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to execute query")
+		return
+	}
+
+	lastUpdatedTime := rcSvc.getUpdatedAt(ctx)
+	if lastUpdatedTime < lastUpdate.Value {
+		_, err := rcSvc.redisClient.Set(ctx, "DBupdate", strconv.FormatInt(lastUpdate.Value, 10), redis.KeepTTL).Result()
+		if err != nil {
+			zerolog.Ctx(ctx).Error().Err(err).Msg("Cannot persist DB update time to cache.")
+		}
+		zerolog.Ctx(ctx).Info().Msg("DB update time successfully persisted in cache")
+	}
+
+	namespacesToRemove := make([]string, 0)
+
+	lastUpdateVulnerability := rcSvc.getVulnerabilityUpdatedAt(ctx)
+
+	if lastUpdateVulnerability != "" {
+		newVulnerabilitiesQuery := fmt.Sprintf("select a.name, c.name as namespace from (select distinct name, namespace_id from vulnerability where created_at > timestamp '%s') as a left join (select distinct name, namespace_id from vulnerability where created_at <= timestamp '%s') as b on a.name = b.name and a.namespace_id = b.namespace_id left join namespace c on a.namespace_id = c.id where b.name is null;", lastUpdateVulnerability, lastUpdateVulnerability)
+		vulnerabilityEntry := model.DBVulnerabilityEntry{}
+		rows, err := db.Query(newVulnerabilitiesQuery)
+		defer rows.Close()
+		for rows.Next() {
+			err := rows.Scan(&vulnerabilityEntry.Name, &vulnerabilityEntry.NameSpace)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to get new vulnerability entry")
+			} else {
+				namespacesToRemove = util.AppendIfMissing(namespacesToRemove, vulnerabilityEntry.NameSpace)
+			}
+		}
+		err = rows.Err()
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get new vulnerability entries")
+		}
+	}
+
+	// TODO: Below is not tested
+	if lastUpdateVulnerability != "" {
+		removedVulnerabilitiesQuery := fmt.Sprintf("select a.name, c.name as namespace from (select name, namespace_id, max(CASE WHEN deleted_at IS NULL THEN timestamp '9999-01-01 00:00:00.000000+00' ELSE deleted_at END) as deleted_at from vulnerability where created_at > timestamp '%s' group by namespace_id, name) as a left join (select name, namespace_id, max(CASE WHEN deleted_at IS NULL THEN timestamp '9999-01-01 00:00:00.000000+00' ELSE deleted_at END) as deleted_at from vulnerability where created_at <= timestamp '%s' group by namespace_id, name) as b on a.name=b.name and a.namespace_id=b.namespace_id left join namespace c on a.namespace_id=c.id where b.deleted_at = timestamp '9999-01-01 00:00:00.000000+00' and a.deleted_at != timestamp '9999-01-01 00:00:00.000000+00';", lastUpdateVulnerability, lastUpdateVulnerability)
+
+		vulnerabilityEntry := model.DBVulnerabilityEntry{}
+		rows, err := db.Query(removedVulnerabilitiesQuery)
+		defer rows.Close()
+		for rows.Next() {
+			err := rows.Scan(&vulnerabilityEntry.Name, &vulnerabilityEntry.NameSpace)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to get removed vulnerability entry")
+			} else {
+				namespacesToRemove = util.AppendIfMissing(namespacesToRemove, vulnerabilityEntry.NameSpace)
+			}
+		}
+		err = rows.Err()
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get removed vulnerability entries")
+		}
+	}
+
+	if lastUpdateVulnerability == "" || len(namespacesToRemove) > 0 {
+		var dbVulnerabilityUpdateTime model.DBVulnerabilityUpdateTime
+		lastUpdateVulnerabilityQuery := "SELECT max(created_at) from vulnerability"
+		err = db.QueryRow(lastUpdateVulnerabilityQuery).Scan(&dbVulnerabilityUpdateTime.MaxCreatedAt)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get vulnerability update time")
+		}
+		_, err := rcSvc.redisClient.Set(ctx, "lastUpdateVulnerability", dbVulnerabilityUpdateTime.MaxCreatedAt, redis.KeepTTL).Result()
+		if err != nil {
+			zerolog.Ctx(ctx).Error().Err(err).Msg("Cannot persist DB vulnerability update time to cache.")
+		}
+		zerolog.Ctx(ctx).Info().Msg("DB vulnerability update time successfully persisted in cache")
+	}
+
+	redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisCleanupTimeout)
+	defer redisCtxCancel()
+	for _, namespacesToRemove := range namespacesToRemove {
+		iter := rcSvc.redisClient.Scan(redisCtx, 0, namespacesToRemove+"*", 0).Iterator()
+		for iter.Next(redisCtx) {
+			layerToRemove := iter.Val()
+			err := rcSvc.redisClient.Del(redisCtx, layerToRemove).Err()
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Str("digest", layerToRemove).Msg("Failed to remove layer from cache")
+			} else {
+				zerolog.Ctx(ctx).Info().Str("digest", layerToRemove).Msg("Successfully removed from cache")
+			}
+		}
+		if err := iter.Err(); err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to iterate over cache entries")
+		}
+	}
 }
 
 func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask model.ScanTask) {
@@ -158,7 +325,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	toResult := make([]string, 0)
 	toScan := make([]string, 0)
 	cacheTmp := make(map[string]*model.CachedLayer)
-	err = rcSvc.readManifest(ctx, version, hub, scanTask, &toResult, &cacheTmp, &toScan)
+	namespace, err := rcSvc.readManifest(ctx, version, hub, scanTask, &toResult, &cacheTmp, &toScan)
 	if err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't read manifest")
 		scanTask.FinishedAt = time.Now().Unix()
@@ -168,8 +335,12 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		rcSvc.updateMongoStatus(ctx, scanTask)
 		return
 	}
+	if namespace == "" {
+		namespace = "anonymous"
+	}
 
 	scanDoneCh := make(chan struct{})
+	scanErrorCh := make(chan struct{})
 	go func() {
 		for i := range toScan {
 			layersBench := make([]model.CachedLayer, 0)
@@ -179,8 +350,9 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			} else {
 				currLayer = *cacheTmp[toScan[i]]
 			}
-			for {
-				vulnInfo, fileSignatures, software, err := rcSvc.redclairEngine.ScanLayer(
+			retryCounter := 0
+			for retryCounter <= maxLayerScanRetires {
+				layerNamespace, vulnInfo, fileSignatures, software, err := rcSvc.redclairEngine.ScanLayer(
 					scanCtx,
 					hub,
 					currLayer.Digest,
@@ -190,26 +362,72 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 				if err != nil {
 					switch err.(type) {
 					default:
-						zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
+						zerolog.Ctx(ctx).Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
 						time.Sleep(retryInterval)
+						retryCounter++
 					case ClairMissingParentLayerError:
 						zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 						layersBench = append(layersBench, currLayer)
-						if _, exists := cache[currLayer.Parent]; exists {
-							currLayer = *cache[currLayer.Parent]
+						parentLayerDigest := currLayer.Parent
+						cachedLayer := &model.CachedLayer{
+							Digest: parentLayerDigest,
+						}
+						iter := rcSvc.redisClient.Scan(ctx, 0, "*"+parentLayerDigest, 0).Iterator()
+						if iter.Next(ctx) {
+							v := iter.Val()
+							namespace = strings.Split(v, "_")[0]
+							cacheEntry, err := rcSvc.redisClient.Get(ctx, v).Result()
+							if err == redis.Nil {
+								zerolog.Ctx(ctx).Info().Str("layerDigest", parentLayerDigest).Msg("Weird...")
+								currLayer = *cacheTmp[currLayer.Parent]
+							} else if err != nil {
+								zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayerDigest).Msg("Error getting layer from cache")
+								currLayer = *cacheTmp[currLayer.Parent]
+							} else {
+								err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
+								if err != nil {
+									zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayerDigest).Msg("Layer could not be unmarshaled.")
+									currLayer = *cacheTmp[currLayer.Parent]
+								} else {
+									currLayer = *cachedLayer
+								}
+							}
 						} else {
+							zerolog.Ctx(ctx).Info().Str("layerDigest", parentLayerDigest).Msg("Parent layer not cached")
+							currLayer = *cacheTmp[currLayer.Parent]
+						}
+						if err := iter.Err(); err != nil {
+							zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayerDigest).Msg("Failed to iterate over cache entries")
 							currLayer = *cacheTmp[currLayer.Parent]
 						}
 					}
 				} else {
 					zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
-					if _, exists := cache[currLayer.Digest]; !exists {
-						cache[currLayer.Digest] = cacheTmp[currLayer.Digest]
-					}
-					cache[currLayer.Digest].ScanReport = &model.ScanWorkerReport{
+					cacheTmp[currLayer.Digest].ScanReport = &model.ScanWorkerReport{
 						Vulns:    vulnInfo,
 						Files:    fileSignatures,
 						Software: software,
+					}
+					cacheTmp[currLayer.Digest].NameSpace = namespace
+					_, err := rcSvc.redisClient.Get(ctx, layerNamespace+"_"+currLayer.Digest).Result()
+					if err == redis.Nil {
+						zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Persisting in cache")
+						cacheEntry, err := json.Marshal(cacheTmp[currLayer.Digest])
+						if err != nil {
+							zerolog.Ctx(ctx).Err(err).Str("layerDigest", currLayer.Digest).Msg("Layer could not be marshaled.")
+						} else {
+							redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
+							defer redisCtxCancel()
+							_, err := rcSvc.redisClient.Set(redisCtx, layerNamespace+"_"+currLayer.Digest, cacheEntry, redis.KeepTTL).Result()
+							if err != nil {
+								zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", currLayer.Digest).Msg("Layer could not be cached.")
+							}
+							zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Layer successfully cached")
+						}
+					} else if err != nil {
+						zerolog.Ctx(ctx).Err(err).Str("layerDigest", currLayer.Digest).Msg("Error getting layer from cache. Not persisting")
+					} else {
+						zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Another worker recently scanned this layer. No need to persist")
 					}
 					if len(layersBench) > 0 {
 						currLayer = layersBench[len(layersBench)-1]
@@ -219,11 +437,24 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 					}
 				}
 			}
+			if retryCounter > maxLayerScanRetires {
+				scanErrorCh <- struct{}{}
+			}
+
 		}
 		scanDoneCh <- struct{}{}
 	}()
 
 	select {
+	case <-scanErrorCh:
+		zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
+		scanTask.FinishedAt = time.Now().Unix()
+		scanTask.Status = model.ScanStatusFailed
+		scanTask.Message = fmt.Sprintf("Couldn't read manifest: %s", err)
+
+		rcSvc.updateMongoStatus(ctx, scanTask)
+		return
+
 	case <-scanDoneCh:
 		zerolog.Ctx(ctx).Info().Msg("Redclair scan succeeded")
 
@@ -232,9 +463,44 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		report := &model.ScanReport{}
 		vulns := make([]redclair.VulnerabilityInfo, 0)
 		for _, digest := range toResult {
-			vulns = append(vulns, cache[digest].ScanReport.Vulns...)
-			report.Files = append(report.Files, cache[digest].ScanReport.Files...)
-			report.Software = append(report.Software, cache[digest].ScanReport.Software...)
+			cachedLayer := &model.CachedLayer{
+				Digest: digest,
+			}
+			iter := rcSvc.redisClient.Scan(ctx, 0, "*"+digest, 0).Iterator()
+			if iter.Next(ctx) {
+				v := iter.Val()
+				cacheEntry, err := rcSvc.redisClient.Get(ctx, v).Result()
+				if err == redis.Nil {
+					// Such situation could happen, if in the meantime the cache cleaning process has removed
+					// this entry (because the clair database has updated for tree containing this layer).
+					// In such case return the local cache result.
+					zerolog.Ctx(ctx).Info().Str("layerDigest", digest).Msg("Cached entry cleared during scanning the image. Taking the local cache entry")
+					cachedLayer = cacheTmp[digest]
+				} else if err != nil {
+					zerolog.Ctx(ctx).Err(err).Str("layerDigest", digest).Msg("Error getting layer from cache")
+					cachedLayer = cacheTmp[digest]
+				} else {
+					err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
+					if err != nil {
+						zerolog.Ctx(ctx).Err(err).Str("layerDigest", digest).Msg("Layer could not be unmarshaled.")
+						cachedLayer = cacheTmp[digest]
+					}
+				}
+				vulns = append(vulns, cachedLayer.ScanReport.Vulns...)
+				report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
+				report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
+
+			} else {
+				// Such situation could happen, if in the meantime the cache cleaning process has removed
+				// this entry (because the clair database has updated for tree containing this layer).
+				// In such case return the local cache result.
+				zerolog.Ctx(ctx).Info().Str("layerDigest", digest).Msg("Cached entry cleared during scanning the image. Taking the local cache entry")
+				cachedLayer = cacheTmp[digest]
+			}
+			if err := iter.Err(); err != nil {
+				zerolog.Ctx(ctx).Err(err).Str("layerDigest", digest).Msg("Failed to iterate over cache entries")
+				cachedLayer = cacheTmp[digest]
+			}
 		}
 		report.Vulns = redclair.VulnerabilityReport{
 			Repository:      scanTask.Repository,
@@ -290,7 +556,7 @@ func (rcSvc *RedClairService) AddScanTask(task model.ScanTask) {
 }
 
 func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask model.ScanTask) {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
 	defer mongoCtxCancel()
 
 	filter := bson.M{"_id": scanTask.ID}
@@ -305,79 +571,122 @@ func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask mo
 	}
 }
 
-func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult *[]string, cacheTmp *map[string]*model.CachedLayer, toScan *[]string) error {
-
+func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask, toResult *[]string, cacheTmp *map[string]*model.CachedLayer, toScan *[]string) (string, error) {
+	// TODO: fix getting namespae of V1 manifests
+	namespace := ""
 	if version == "v1" {
 		manifest, err := hub.Manifest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			return fmt.Errorf("Could not read docker V1 manifest: %w", err)
+			return "", fmt.Errorf("Could not read docker V1 manifest: %w", err)
 		}
 		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			return fmt.Errorf("Could not get docker V1 manifest digest: %w", err)
+			return "", fmt.Errorf("Could not get docker V1 manifest digest: %w", err)
 		}
 		first := true
-		var prevDigest string
+		var prevLayer *model.CachedLayer
 		for _, layer := range manifest.Manifest.FSLayers {
-			layerDigest := layer.BlobSum
-			*toResult = append(*toResult, layerDigest.String())
-			var currCache = cache
-			if _, exists := cache[layerDigest.String()]; !exists {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
-				(*cacheTmp)[layerDigest.String()] = &model.CachedLayer{
-					Digest: layerDigest.String(),
-				}
-				currCache = *cacheTmp
-				*toScan = append(*toScan, layerDigest.String())
+			layerDigest := layer.BlobSum.String()
+			*toResult = append(*toResult, layerDigest)
+			cachedLayer := &model.CachedLayer{
+				Digest: layerDigest,
+			}
+			cacheEntry, err := rcSvc.redisClient.Get(ctx, layerDigest).Result()
+			if err == redis.Nil {
+				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest).Msg("Layer not cached. Need to scan")
+				cachedLayer.Digest = layerDigest
+				(*cacheTmp)[layerDigest] = cachedLayer
+				*toScan = append(*toScan, layerDigest)
+			} else if err != nil {
+				zerolog.Ctx(ctx).Err(err).Str("layerDigest", layerDigest).Msg("Error getting layer from cache")
+				cachedLayer.Digest = layerDigest
+				(*cacheTmp)[layerDigest] = cachedLayer
+				*toScan = append(*toScan, layerDigest)
 			} else {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
+				err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
+				if err != nil {
+					zerolog.Ctx(ctx).Err(err).Str("layerDigest", layerDigest).Msg("Layer could not be unmarshaled.")
+					*toScan = append(*toScan, layerDigest)
+				} else {
+					zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest).Msg("Layer cached. No need to scan")
+				}
+				(*cacheTmp)[layerDigest] = cachedLayer
 			}
 			if first {
-				currCache[layerDigest.String()].ImageDigests = util.AppendIfMissing(currCache[layerDigest.String()].ImageDigests, manifestDigest.String())
-				currCache[layerDigest.String()].Repositories = util.AppendIfMissing(currCache[layerDigest.String()].Repositories, scanTask.Repository)
-				currCache[layerDigest.String()].Tags = util.AppendIfMissing(currCache[layerDigest.String()].Tags, scanTask.Tag)
+				cachedLayer.ImageDigests = util.AppendIfMissing(cachedLayer.ImageDigests, manifestDigest.String())
+				cachedLayer.Repositories = util.AppendIfMissing(cachedLayer.Repositories, scanTask.Repository)
+				cachedLayer.Tags = util.AppendIfMissing(cachedLayer.Tags, scanTask.Tag)
 				first = false
 			} else {
-				currCache[prevDigest].Parent = layerDigest.String()
+				(*cacheTmp)[prevLayer.Digest].Parent = layerDigest
 			}
-			prevDigest = layerDigest.String()
+			prevLayer = cachedLayer
+		}
+		for key := range *cacheTmp {
+			(*cacheTmp)[key] = (*cacheTmp)[key]
+			delete((*cacheTmp), key)
 		}
 	} else if version == "v2" {
 		manifest, err := hub.ManifestV2(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			return fmt.Errorf("Could not read docker V2 manifest: %w", err)
+			return "", fmt.Errorf("Could not read docker V2 manifest: %w", err)
 		}
 		manifestDigest, err := hub.ManifestDigest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
-			return fmt.Errorf("Could not get docker V2 manifest digest: %w", err)
+			return "", fmt.Errorf("Could not get docker V2 manifest digest: %w", err)
 		}
-		var prevDigest string
+		var prevLayer *model.CachedLayer
+		var cachedLayer *model.CachedLayer
 		first := true
-		var currCache = cache
 		for _, layer := range manifest.Manifest.Layers {
-			currCache = cache
-			layerDigest := layer.Digest
-			*toResult = append(*toResult, layerDigest.String())
-			if _, exists := cache[layerDigest.String()]; !exists {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer not cached. Need to scan")
-				(*cacheTmp)[layerDigest.String()] = &model.CachedLayer{
-					Digest: layerDigest.String(),
+			layerDigest := layer.Digest.String()
+			*toResult = append(*toResult, layerDigest)
+			cachedLayer = &model.CachedLayer{
+				Digest: layerDigest,
+			}
+			iter := rcSvc.redisClient.Scan(ctx, 0, "*"+layerDigest, 0).Iterator()
+			if iter.Next(ctx) {
+				v := iter.Val()
+				namespace = strings.Split(v, "_")[0]
+				cacheEntry, err := rcSvc.redisClient.Get(ctx, v).Result()
+				if err == redis.Nil {
+					zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest).Msg("Really weird...")
+					(*cacheTmp)[layerDigest] = cachedLayer
+					*toScan = append(*toScan, layerDigest)
+				} else if err != nil {
+					zerolog.Ctx(ctx).Err(err).Str("layerDigest", layerDigest).Msg("Error getting layer from cache")
+					(*cacheTmp)[layerDigest] = cachedLayer
+					*toScan = append(*toScan, layerDigest)
+				} else {
+					err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
+					if err != nil {
+						zerolog.Ctx(ctx).Err(err).Str("layerDigest", layerDigest).Msg("Layer could not be unmarshaled.")
+						*toScan = append(*toScan, layerDigest)
+					} else {
+						zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest).Msg("Layer cached. No need to scan")
+					}
+					(*cacheTmp)[layerDigest] = cachedLayer
 				}
-				currCache = *cacheTmp
-				*toScan = append(*toScan, layerDigest.String())
 			} else {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest.String()).Msg("Layer cached. No need to scan")
+				zerolog.Ctx(ctx).Info().Str("layerDigest", layerDigest).Msg("Layer not cached. Need to scan")
+				(*cacheTmp)[layerDigest] = cachedLayer
+				*toScan = append(*toScan, layerDigest)
+			}
+			if err := iter.Err(); err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to iterate over cache entries")
+				(*cacheTmp)[layerDigest] = cachedLayer
+				*toScan = append(*toScan, layerDigest)
 			}
 			if first {
 				first = false
 			} else {
-				currCache[layerDigest.String()].Parent = prevDigest
+				(*cacheTmp)[layerDigest].Parent = prevLayer.Digest
 			}
-			prevDigest = layerDigest.String()
+			prevLayer = cachedLayer
 		}
-		currCache[prevDigest].ImageDigests = util.AppendIfMissing(currCache[prevDigest].ImageDigests, manifestDigest.String())
-		currCache[prevDigest].Repositories = util.AppendIfMissing(currCache[prevDigest].Repositories, scanTask.Repository)
-		currCache[prevDigest].Tags = util.AppendIfMissing(currCache[prevDigest].Tags, scanTask.Tag)
+		cachedLayer.ImageDigests = util.AppendIfMissing(cachedLayer.ImageDigests, manifestDigest.String())
+		cachedLayer.Repositories = util.AppendIfMissing(cachedLayer.Repositories, scanTask.Repository)
+		cachedLayer.Tags = util.AppendIfMissing(cachedLayer.Tags, scanTask.Tag)
 	}
-	return nil
+	return namespace, nil
 }

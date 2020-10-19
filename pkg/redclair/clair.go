@@ -104,7 +104,7 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 	return nil
 }
 
-func (r Redclair) getVulnerabilities(ctx context.Context, digest string) []VulnerabilityInfo {
+func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string, []VulnerabilityInfo) {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
 	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
 	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
@@ -134,7 +134,7 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) []Vulne
 	for vulnerability := range vulnerabilitiesMap {
 		vulnerabilities = append(vulnerabilities, vulnerability)
 	}
-	return vulnerabilities
+	return rawVulnerabilities.NamespaceName, vulnerabilities
 }
 
 func (r Redclair) fetchLayerVulnerabilities(ctx context.Context, layerID string) (NewerLayer, error) {
