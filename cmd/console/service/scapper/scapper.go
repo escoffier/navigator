@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,7 +43,10 @@ type Scapper struct {
 }
 
 const (
-	checkTimeout = time.Minute * 10
+	// Potentially move to config file.
+
+	checkTimeout           = time.Minute * 10
+	historicalChecksToKeep = 3
 )
 
 func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType string) (uuid.UUID, error) {
@@ -63,7 +67,12 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
 	if err != nil {
-		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to create kube client"))
+		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to create kube client: %w", err))
+	}
+
+	err = s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
+	if err != nil {
+		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %w", err))
 	}
 
 	// generate check uuid that will identify results of this run in database
@@ -78,15 +87,13 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 
 	jobObj, err := s.prepareJobObject(&check)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to prepare job object")
 		return uuid.Nil, err
 	}
 
 	// find nodes to schedule check jobs on
 	nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Can't list nodes in this cluster")
-		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster"))
+		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %w", err))
 	}
 
 	// schedule jobs
@@ -104,7 +111,6 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 
 		err := s.mongoAddJobStatusInProgress(ctx, &check, targetNode.Name)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Failed to add job to mongo")
 			return uuid.Nil, err
 		}
 	}
@@ -177,6 +183,87 @@ func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Cont
 	return someJobStillInProgress, nil
 }
 
+func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *kubernetes.Clientset, checkType, namespace string) error {
+	labelSelector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"TENSORSEC": "true",
+		},
+	}
+	listOpts := metav1.ListOptions{}
+	listOpts.LabelSelector = labels.Set(labelSelector.MatchLabels).String()
+
+	jobs, err := kubeClient.BatchV1().Jobs(namespace).List(listOpts)
+	if err != nil {
+		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list jobs in this cluster: %w", err))
+	}
+
+	// Find the start time of the earliest job in each check
+	startTimesOfChecks := make(map[string]time.Time)
+	for _, job := range jobs.Items {
+		checkID, ok := job.Labels["CHECK_ID"]
+		if !ok {
+			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Expected CHECK_ID label to be present"))
+		}
+		thisJobStartTime := job.Status.StartTime.Time
+
+		earliestJobStartTimeSoFar, ok := startTimesOfChecks[checkID]
+		if !ok {
+			startTimesOfChecks[checkID] = thisJobStartTime
+		} else {
+			if earliestJobStartTimeSoFar.After(thisJobStartTime) {
+				startTimesOfChecks[checkID] = thisJobStartTime
+			}
+		}
+	}
+
+	// We will be scheduling an additional check, so to keep historicalChecksToKeep, we must remove an additional one.
+	// E.g. if there are 10 checks in history, and we have historicalChecksToKeep==3, we must remove 8,
+	// so that there are 2 historical left. Because in a second, a new one will be scheduled (for a total of 3 historical).
+	actualHistoricalChecksToKeep := historicalChecksToKeep - 1
+
+	// check if there are enough historical checks to warrant further deletion steps.
+	if len(startTimesOfChecks) <= actualHistoricalChecksToKeep {
+		return nil
+	}
+
+	// Sort by start time
+	type tempSortKeyValStruct struct {
+		CheckID   string
+		StartTime time.Time
+	}
+	var checksByStartTime []tempSortKeyValStruct
+	for k, v := range startTimesOfChecks {
+		checksByStartTime = append(checksByStartTime, tempSortKeyValStruct{k, v})
+	}
+	sort.Slice(checksByStartTime, func(i, j int) bool {
+		return checksByStartTime[i].StartTime.Before(checksByStartTime[j].StartTime)
+	})
+
+	// Pop newest checks
+	// note: we already checked boundary condition (array too short) before.
+	checksByStartTime = checksByStartTime[:len(checksByStartTime)-actualHistoricalChecksToKeep]
+
+	// Delete the job objects of remaining checks
+	for _, job := range jobs.Items {
+		// already validated that this label exists
+		checkID, _ := job.Labels["CHECK_ID"]
+
+		for _, toDelete := range checksByStartTime {
+			if checkID == toDelete.CheckID {
+
+				err := s.deleteJobAndPods(kubeClient, namespace, &job)
+				if err != nil {
+					return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to cleanup historical job: %w", err))
+				}
+				logging.GetLogger().Info().Str("job-name", job.Name).Msg("Cleaned up historical job")
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
 
 	scheduledNodesCh := make(chan string, len(nodes.Items))
@@ -200,7 +287,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 			err := s.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
-				s.mongoJobStatusToFailed(ctx, check, targetNode.Name, fmt.Sprintf("Failed to schedule job: %w", err), time.Now().Unix())
+				s.mongoJobStatusToFailed(ctx, check, targetNode.Name, fmt.Sprintf("Failed to schedule job: %s", err), time.Now().Unix())
 			} else {
 				scheduledNodesCh <- targetNode.Name
 			}
@@ -274,6 +361,8 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 		jobObj.Labels = make(map[string]string)
 	}
 	jobObj.Labels["CHECK_ID"] = check.CheckUUID.String()
+	jobObj.Labels["TENSORSEC"] = "true"
+
 	jobObj.Name = fmt.Sprintf("%s-%s", check.CheckUUID.String()[:8], jobObj.Name)
 
 	checkEnv := corev1.EnvVar{
@@ -503,6 +592,22 @@ func (s Scapper) isJobFailed(job *batchv1.Job) (bool, *batchv1.JobCondition) {
 	} else {
 		return false, nil
 	}
+}
+
+func (s *Scapper) deleteJobAndPods(kubeClient *kubernetes.Clientset, namespace string, job *batchv1.Job) error {
+	err := kubeClient.BatchV1().Jobs(namespace).Delete(job.Name, &metav1.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to delete job: %w", err)
+	}
+
+	listOpts := metav1.ListOptions{
+		LabelSelector: labels.Set(job.Spec.Selector.MatchLabels).String(),
+	}
+	err = kubeClient.CoreV1().Pods(namespace).DeleteCollection(&metav1.DeleteOptions{}, listOpts)
+	if err != nil {
+		return fmt.Errorf("Failed to delete job's pods: %w", err)
+	}
+	return nil
 }
 
 func removeAtIdx(s []string, index int) []string {
