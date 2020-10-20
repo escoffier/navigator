@@ -496,12 +496,24 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		}
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusSucceeded
+
+		// Deduplicate vulns (may be duplicates from many layers)
+		// TODO: this may be a bug from the way we fetch results...
+		kvs := make(map[string]redclair.VulnerabilityInfo)
+		for _, v := range vulns {
+			kvs[v.Vulnerability] = v
+		}
+		vulnsDedup := []redclair.VulnerabilityInfo{}
+		for _, v := range kvs {
+			vulnsDedup = append(vulnsDedup, v)
+		}
+
 		report.Vulns = redclair.VulnerabilityReport{
 			Repository:      scanTask.Repository,
 			Tag:             scanTask.Tag,
 			Digest:          scanTask.ImageDigest,
 			Unapproved:      []string{},
-			Vulnerabilities: vulns,
+			Vulnerabilities: vulnsDedup,
 		}
 		scanTask.ScanReport = *report
 		rcSvc.updateMongoStatus(scanCtx, scanTask)

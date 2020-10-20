@@ -29,7 +29,7 @@ func NewDefaultMongoOpts() *MongoOpts {
 		Username:   "redstone",
 		Password:   "redstoneMongo123",
 		Database:   "vegeta",
-		SecretName: "mongo-tensorsec",
+		SecretName: "tensorsec-mongodb",
 	}
 }
 

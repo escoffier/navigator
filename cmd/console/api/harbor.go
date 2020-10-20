@@ -140,7 +140,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		err = json.NewDecoder(tensorsecScannerResp.Body).Decode(&tensorsecScannerRespEnvelope)
 		if err != nil {
 			e := harbor.NewHarborErrorAndLog(err, "Failed to decode response from tensorsec scanner")
-			response.Respond(w, http.StatusBadRequest, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 
@@ -150,7 +150,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		json.Unmarshal(tensorsecScannerRespEnvelope.Data.Item, &scanTask)
 		if err != nil {
 			e := harbor.NewHarborErrorAndLog(err, "Failed to unmarshal scanTask in response from tensorsec scanner")
-			response.Respond(w, http.StatusBadRequest, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
 

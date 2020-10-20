@@ -61,6 +61,11 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"url": "http://192.168.0.123:32000/", "repository": "tensorsec-console", "digest": "latest"}' -H "Content-Type: application/json" http://$SCANNERADDR/api/v1/scan/one
 
 
+
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scanner/reports 
+
+
+
 ```
 
 Run scap job:
