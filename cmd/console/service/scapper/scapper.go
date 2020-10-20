@@ -304,7 +304,7 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: s.MongoSecretName,
 				},
-				Key: "password",
+				Key: "mongodb-password",
 			},
 		},
 	}

@@ -39,7 +39,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ .Values.mongo.mongoSecretName }}
-              key: password
+              key: mongodb-password
 
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:

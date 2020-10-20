@@ -28,6 +28,8 @@ spec:
         command: ["/vegeta-scanner"]
         args: [
           "--mongo-endpoint=tensorsec-mongodb:27017",
+          "--mongo-database={{ .Values.mongo.mongoDatabase }}",
+          "--mongo-username={{ .Values.mongo.mongoUsername }}",
           "--clair-remote-address=tensorsec-clair",
           # clair-address and clair-port refer to Scanner Service address. Clair service needs to have access to layers published by Scanner service.
           # Path to them is sent in Scan request to Clair.
@@ -46,6 +48,12 @@ spec:
               secretKeyRef:
                 name: {{ .Values.harbor.harborSecretName }}
                 key: password
+          - name: TENSORSEC_MONGO_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.mongo.mongoSecretName }}
+                key: mongodb-password
+          
 
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}

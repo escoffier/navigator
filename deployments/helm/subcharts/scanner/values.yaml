@@ -28,3 +28,8 @@ harbor:
   harborUsername: tensorsec
   harborPassword: Tensorsec123!
   harborSecretName: harbor-api-tensorsec
+
+mongo:
+  mongoUsername: redstone
+  mongoDatabase: vegeta
+  mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
