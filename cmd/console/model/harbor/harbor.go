@@ -126,6 +126,20 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 		}
 	}
 
+	for _, sensitiveFile := range redclairReport.Sensitives {
+		harborVuln := VulnerabilityItem{
+			ID:          sensitiveFile.Name,
+			Package:     "-",
+			Version:     "-",
+			FixVersion:  "-",
+			Severity:    "High",
+			Description: sensitiveFile.Description,
+			Links:       []string{},
+		}
+
+		harborVulns = append(harborVulns, harborVuln)
+	}
+
 	harborReport := HarborVulnerabilityReport{
 		Registry: Registry{
 			// Not sure why this is in the API definition in the first place but oh well...

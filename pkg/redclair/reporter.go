@@ -11,6 +11,7 @@ type VulnerabilityReport struct {
 	Digest          string              `json:"digest"`
 	Unapproved      []string            `json:"unapproved"`
 	Vulnerabilities []VulnerabilityInfo `json:"vulnerabilities"`
+	Sensitives      []Sensitive         `json:"sensitives"`
 }
 
 // SortBySeverity ...

@@ -54,7 +54,8 @@ func generateTarHash(
 	fileHeadSize int,
 	ignoreRegExp *regexp.Regexp,
 	softwareRegExp *regexp.Regexp,
-) ([]FileSignature, []FileSignature, error) {
+	sensitiveRegExp *regexp.Regexp,
+) ([]FileSignature, []FileSignature, []FileSignature, error) {
 	// Only return file of 0 < size < [maxSize]
 	// Filename should not matched with [ignoreRegExp], it is a list
 	// Head [fileHeadSize] bytes of file will return
@@ -64,27 +65,36 @@ func generateTarHash(
 
 	rawFileReader, err := os.Open(tarFileName)
 	if err != nil {
-		return []FileSignature{}, []FileSignature{}, err
+		return []FileSignature{}, []FileSignature{}, []FileSignature{}, err
 	}
 	if rawFileReader == nil {
-		return []FileSignature{}, []FileSignature{}, err
+		return []FileSignature{}, []FileSignature{}, []FileSignature{}, err
 	}
 	fileReader, err := dockerarchive.DecompressStream(rawFileReader)
 	if err != nil {
-		return []FileSignature{}, []FileSignature{}, err
+		return []FileSignature{}, []FileSignature{}, []FileSignature{}, err
 	}
 	if fileReader == nil {
-		return []FileSignature{}, []FileSignature{}, err
+		return []FileSignature{}, []FileSignature{}, []FileSignature{}, err
 	}
 	tarReader := tar.NewReader(fileReader)
 	var result []FileSignature
 	var softwareFiles []FileSignature
+	var sensitiveFiles []FileSignature
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return []FileSignature{}, []FileSignature{}, err
+			return []FileSignature{}, []FileSignature{}, []FileSignature{}, err
+		}
+		if sensitiveRegExp.FindString(header.Name) != "" {
+			fileSignature, err := GetImageFileHash(tarReader, -1)
+			fileSignature.Name = header.Name
+			fileSignature.Size = header.Size
+			if err == nil {
+				sensitiveFiles = append(sensitiveFiles, fileSignature)
+			}
 		}
 		if softwareRegExp.FindString(header.Name) != "" {
 			fileSignature, err := GetImageFileHash(tarReader, -1)
@@ -105,7 +115,7 @@ func generateTarHash(
 			}
 		}
 	}
-	return result, softwareFiles, nil
+	return result, softwareFiles, sensitiveFiles, nil
 }
 
 func distinctFileHash(src []FileSignature) (ret []FileSignature) {
