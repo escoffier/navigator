@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -38,7 +39,12 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 		newCtx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		updatedAtInt := api.getUpdatedAt(newCtx)
+		updatedAtInt, err := api.getUpdatedAt(newCtx)
+		if err != nil {
+			e := harbor.NewHarborErrorAndLog(err, "Failed to get vulnerability database last update time")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
 		updatedAt := time.Unix(updatedAtInt, 0).Format(time.RFC3339)
 
 		manifest := harbor.Manifest{
@@ -209,20 +215,18 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 	}
 }
 
-func (api *api) getUpdatedAt(ctx context.Context) int64 {
+func (api *api) getUpdatedAt(ctx context.Context) (int64, error) {
 	lastUpdateTime := int64(0)
 	lastUpdateTimeStr, err := api.redisClient.Get(ctx, "DBupdate").Result()
-	fmt.Println(lastUpdateTimeStr)
 	if err == redis.Nil {
-		harbor.NewHarborErrorAndLog(err, "Clair DB update time hasn't been cached yet")
+		return 0, errors.New("Clair DB update time hasn't been cached yet")
 	} else if err != nil {
-		harbor.NewHarborErrorAndLog(err, "Failed to get Clair DB update time")
+		return 0, err
 	} else {
 		lastUpdateTime, err = strconv.ParseInt(lastUpdateTimeStr, 10, 64)
 		if err != nil {
-			harbor.NewHarborErrorAndLog(err, "Failed to parse Clair DB update time")
+			return 0, err
 		}
 	}
-	fmt.Println(lastUpdateTime)
-	return lastUpdateTime
+	return lastUpdateTime, nil
 }

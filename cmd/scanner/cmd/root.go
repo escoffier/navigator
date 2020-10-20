@@ -53,7 +53,6 @@ var rootCmd = &cobra.Command{
 			Str("clair-secretpattern", clairOpts.SecretPattern).
 			Bool("redclair-skipregistrytlsverify", clairOpts.SkipRegistryTLSVerify).
 			Int("redclair-numworkers", clairOpts.NumWorkers).
-			Str("clair-postgresconnectionstring", clairOpts.PostgresConnectionString).
 			Msg("Clair options")
 
 		harborOpts := flag.GetHarborOpts(cmd)
