@@ -2,13 +2,17 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -32,10 +36,16 @@ func (api *api) harbor() func(chi.Router) {
 
 func (api *api) getHarborPluginManifest() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, cancel := api.getTimeoutCtx()
+		newCtx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		dummyUpdatedAt := time.Now().Format(time.RFC3339)
+		updatedAtInt, err := api.getUpdatedAt(newCtx)
+		if err != nil {
+			e := harbor.NewHarborErrorAndLog(err, "Failed to get vulnerability database last update time")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
+		updatedAt := time.Unix(updatedAtInt, 0).Format(time.RFC3339)
 
 		manifest := harbor.Manifest{
 			Scanner: harbor.Scanner{
@@ -63,7 +73,7 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 				"harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
 				// TODO obtain from scanner/clair and keep here: vulnerability-database-updated-at
 				// "harbor.scanner-adapter/vulnerability-database-updated-at": "2019-08-13T08:16:33.345Z",
-				"harbor.scanner-adapter/vulnerability-database-updated-at": string(dummyUpdatedAt),
+				"harbor.scanner-adapter/vulnerability-database-updated-at": string(updatedAt),
 			},
 		}
 
@@ -203,4 +213,20 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 			w.WriteHeader(http.StatusFound)
 		}
 	}
+}
+
+func (api *api) getUpdatedAt(ctx context.Context) (int64, error) {
+	lastUpdateTime := int64(0)
+	lastUpdateTimeStr, err := api.redisClient.Get(ctx, "DBupdate").Result()
+	if err == redis.Nil {
+		return 0, errors.New("Clair DB update time hasn't been cached yet")
+	} else if err != nil {
+		return 0, err
+	} else {
+		lastUpdateTime, err = strconv.ParseInt(lastUpdateTimeStr, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return lastUpdateTime, nil
 }

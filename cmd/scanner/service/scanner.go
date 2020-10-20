@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -43,6 +44,7 @@ func NewScanner(
 	mongoOpts *flag.MongoOpts,
 	clairOpts *flag.ClairOpts,
 	harborOpts *flag.HarborOpts,
+	redisOpts *flag.RedisOpts,
 ) (*Scanner, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -54,11 +56,18 @@ func NewScanner(
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
+	// Redis DB client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     redisOpts.Endpoint,
+		Password: "", // TODO: Add authorization
+		DB:       0,  // TODO: Add DB
+	})
+
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	// redclair
-	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb)
+	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, redisClient)
 	if err != nil {
 		return nil, err
 	}

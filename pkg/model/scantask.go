@@ -59,5 +59,19 @@ type CachedLayer struct {
 	Repositories []string          `json:"repositories,omitempty"`
 	Tags         []string          `json:"tag,omitempty"`
 	ImageDigests []string          `json:"image_digest,omitempty"`
+	NameSpace    string            `json:"namespace,omitempty"`
 	ScanReport   *ScanWorkerReport `json:"scan_report,omitempty"`
+}
+
+type DBUpdateTime struct {
+	Value int64 `json:"value"`
+}
+
+type DBVulnerabilityUpdateTime struct {
+	MaxCreatedAt string `json:"maxcreatedat"`
+}
+
+type DBVulnerabilityEntry struct {
+	Name      string `json:"name"`
+	NameSpace string `json:"namespace"`
 }

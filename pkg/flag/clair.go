@@ -16,20 +16,22 @@ const (
 	clairSecretPattern            = "clair-secretpattern"
 	redclairSkipRegistryTLSVerify = "redclair-skipregistrytlsverify"
 	redclairNumWorkers            = "redclair-numworkers"
+	postgresConnectionString      = "clair-postgresconnectionstring"
 )
 
 // ClairOpts the clair options
 type ClairOpts struct {
-	EndpointAddress       string
-	EndpointClairPort     int
-	RemoteClairAddress    string
-	RemoteClairPort       int
-	IgnoreFileList        string
-	IgnorePackageList     string
-	CVEWhitelist          string
-	SecretPattern         string
-	SkipRegistryTLSVerify bool
-	NumWorkers            int
+	EndpointAddress          string
+	EndpointClairPort        int
+	RemoteClairAddress       string
+	RemoteClairPort          int
+	IgnoreFileList           string
+	IgnorePackageList        string
+	CVEWhitelist             string
+	SecretPattern            string
+	SkipRegistryTLSVerify    bool
+	NumWorkers               int
+	PostgresConnectionString string
 }
 
 // NewDefaultClairOpts the new default clair options.
@@ -47,30 +49,32 @@ func NewDefaultClairOpts() *ClairOpts {
 		EndpointAddress:   "localhost",
 		EndpointClairPort: 9278,
 		// Address of Clair service.
-		RemoteClairAddress:    "localhost",
-		RemoteClairPort:       6060,
-		IgnoreFileList:        string("configs/scanner/ignore_files.json"),
-		IgnorePackageList:     string("configs/scanner/ignore_packages.json"),
-		CVEWhitelist:          string("configs/scanner/white_cve.json"),
-		SecretPattern:         string("configs/scanner/patterns.json"),
-		SkipRegistryTLSVerify: false,
-		NumWorkers:            4,
+		RemoteClairAddress:       "localhost",
+		RemoteClairPort:          6060,
+		IgnoreFileList:           string("configs/scanner/ignore_files.json"),
+		IgnorePackageList:        string("configs/scanner/ignore_packages.json"),
+		CVEWhitelist:             string("configs/scanner/white_cve.json"),
+		SecretPattern:            string("configs/scanner/patterns.json"),
+		SkipRegistryTLSVerify:    false,
+		NumWorkers:               4,
+		PostgresConnectionString: "postgres://postgres:postgres@localhost:5432/postgres",
 	}
 }
 
 // GetClairOpts parses the cobra.Command and returns the EtcdOpts.
 func GetClairOpts(cmd *cobra.Command) *ClairOpts {
 	return &ClairOpts{
-		EndpointAddress:       viper.GetString(clairEndpointAddress),
-		EndpointClairPort:     viper.GetInt(clairEndpointPort),
-		RemoteClairAddress:    viper.GetString(clairRemoteAddress),
-		RemoteClairPort:       viper.GetInt(clairRemotePort),
-		IgnoreFileList:        viper.GetString(clairIgnoreFileName),
-		IgnorePackageList:     viper.GetString(clairIgnorePackage),
-		CVEWhitelist:          viper.GetString(clairCVEWhitelist),
-		SecretPattern:         viper.GetString(clairSecretPattern),
-		SkipRegistryTLSVerify: viper.GetBool(redclairSkipRegistryTLSVerify),
-		NumWorkers:            viper.GetInt(redclairNumWorkers),
+		EndpointAddress:          viper.GetString(clairEndpointAddress),
+		EndpointClairPort:        viper.GetInt(clairEndpointPort),
+		RemoteClairAddress:       viper.GetString(clairRemoteAddress),
+		RemoteClairPort:          viper.GetInt(clairRemotePort),
+		IgnoreFileList:           viper.GetString(clairIgnoreFileName),
+		IgnorePackageList:        viper.GetString(clairIgnorePackage),
+		CVEWhitelist:             viper.GetString(clairCVEWhitelist),
+		SecretPattern:            viper.GetString(clairSecretPattern),
+		SkipRegistryTLSVerify:    viper.GetBool(redclairSkipRegistryTLSVerify),
+		NumWorkers:               viper.GetInt(redclairNumWorkers),
+		PostgresConnectionString: viper.GetString(postgresConnectionString),
 	}
 }
 
@@ -89,6 +93,7 @@ func AddClairFlags(cmd *cobra.Command) {
 	cmd.Flags().String(clairSecretPattern, defaultOps.SecretPattern, "clair secret pattern file")
 	cmd.Flags().Bool(redclairSkipRegistryTLSVerify, defaultOps.SkipRegistryTLSVerify, "skip TLS cert verification step for remote docker registries")
 	cmd.Flags().Int(redclairNumWorkers, defaultOps.NumWorkers, "num scanner workers")
+	cmd.Flags().String(postgresConnectionString, defaultOps.PostgresConnectionString, "clair DB connection string")
 
 	for _, flag := range []string{
 		clairEndpointAddress,
@@ -101,6 +106,7 @@ func AddClairFlags(cmd *cobra.Command) {
 		clairCVEWhitelist,
 		redclairSkipRegistryTLSVerify,
 		redclairNumWorkers,
+		postgresConnectionString,
 	} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -45,10 +46,11 @@ func SetupRoutes(
 	scannerURL string,
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
+	redisClient *redis.Client,
 ) {
 	log.Debug().Msg("setting up routes...")
 
-	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService)
+	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient)
 
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))

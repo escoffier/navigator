@@ -20,6 +20,7 @@ require (
 	github.com/go-chi/jwtauth v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.9 // indirect
 	github.com/go-openapi/swag v0.19.9 // indirect
+	github.com/go-redis/redis/v8 v8.3.2
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
@@ -29,6 +30,7 @@ require (
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/imdario/mergo v0.3.5 // indirect
+	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/oceanicdev/chi-param v1.1.0
@@ -41,7 +43,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.5.0
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.6.1
 	github.com/swaggo/http-swagger v0.0.0-20190614090009-c2865af9083e
 	github.com/swaggo/swag v1.6.7
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
@@ -51,7 +53,6 @@ require (
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.3
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200904194848-62affa334b73 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/tools v0.0.0-20200904185747-39188db58858 // indirect
 	google.golang.org/appengine v1.5.0 // indirect

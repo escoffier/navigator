@@ -30,6 +30,8 @@ func setup(t *testing.T) (string, func(t *testing.T)) {
 		httpOpts,
 		flag.NewDefaultMongoOpts(),
 		flag.NewDefaultClairOpts(),
+		flag.NewDefaultHarborOpts(),
+		flag.NewDefaultRedisOpts(),
 	)
 	require.NoError(t, err)
 

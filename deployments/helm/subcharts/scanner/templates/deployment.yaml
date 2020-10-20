@@ -20,6 +20,14 @@ spec:
     #   imagePullSecrets:
     #     {{- toYaml . | nindent 8 }}
     # {{- end }}
+      initContainers:
+      - name: "postgres-listener"
+        image: "alpine"
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"
+        ]
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
@@ -34,12 +42,13 @@ spec:
           # TODO: maybe rename? I spent hours on this because I was confused.
           "--clair-address=tensorsec-scanner",
           "--clair-port={{ .Values.service.LayerPort }}",
+          "--clair-postgresconnectionstring={{ .Values.clair.postgresURI }}",
           "--redclair-skipregistrytlsverify", # Insecure
           "--harbor-username={{ .Values.harbor.harborUsername }}",
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
+          "--redis-endpoint=tensorsec-redis-master:6379",
           "-v"]
-
         env:
           - name: TENSORSEC_HARBOR_PASSWORD
             valueFrom:

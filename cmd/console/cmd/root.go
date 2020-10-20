@@ -50,7 +50,12 @@ var rootCmd = &cobra.Command{
 			Str("scap-job-repo", scapOpts.HostPort).
 			Msg("Scap options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts)
+		redisOpts := flag.GetRedisOpts(cmd)
+		logging.GetLogger().Info().
+			Str("endpoint", redisOpts.Endpoint).
+			Msg("Redis options")
+
+		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts)
 		if err != nil {
 			return err
 		}
@@ -79,6 +84,7 @@ func init() {
 	flag.AddMongoFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)
+	flag.AddRedisFlags(rootCmd)
 
 	flag.ConfigViper()
 }

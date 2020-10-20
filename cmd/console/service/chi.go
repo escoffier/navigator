@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-redis/redis/v8"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
@@ -23,6 +24,7 @@ func setupChiRouter(
 	httpLoggerDisabled bool,
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
+	redisClient *redis.Client,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -36,7 +38,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, 24*time.Hour, mongodb, scapper, scannerURL, cronService, clusterService)
+	api.SetupRoutes(ctx, r, 24*time.Hour, mongodb, scapper, scannerURL, cronService, clusterService, redisClient)
 
 	return r
 }
