@@ -55,7 +55,7 @@ clean:				## Clean all artifacts
 .PHONY: scap-jobs
 scap-jobs:
 	cd configs/scap/jobs/kube-bench && \
-		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX) VERSION=latest build-docker 
+		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX)/ VERSION=latest build-docker 
 	cd configs/scap/jobs/docker-bench-security && \
 		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
 	cd configs/scap/jobs/host-bench && \

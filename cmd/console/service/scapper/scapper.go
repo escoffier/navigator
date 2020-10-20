@@ -40,6 +40,7 @@ type Scapper struct {
 	MongoUsername      string
 	MongoPassword      string
 	MongoDatabase      string
+	MongoSecretName    string
 }
 
 const (
@@ -377,14 +378,26 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 	}
 	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, nodeNameEnv)
 
-	// TODO: This should be a secret. There's probably a better way to do this anyways.
-	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/%s?authSource=%s",
-		s.MongoUsername, s.MongoPassword, s.MongoEndpoint, s.MongoDatabase, s.MongoDatabase)
+	mongoString := fmt.Sprintf("mongodb://%s:$TENSORSEC_MONGO_PASSWORD@%s/%s?authSource=%s",
+		s.MongoUsername, s.MongoEndpoint, s.MongoDatabase, s.MongoDatabase)
 	mongoStringEnv := corev1.EnvVar{
 		Name:  "MONGO_STRING",
 		Value: mongoString,
 	}
 	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, mongoStringEnv)
+
+	mongoSecretEnv := corev1.EnvVar{
+		Name: "TENSORSEC_MONGO_PASSWORD",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: s.MongoSecretName,
+				},
+				Key: "mongodb-password",
+			},
+		},
+	}
+	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, mongoSecretEnv)
 
 	jobObj.Name = fmt.Sprintf("%s-%s", jobObj.Name, targetNodeName)
 

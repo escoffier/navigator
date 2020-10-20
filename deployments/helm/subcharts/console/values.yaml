@@ -20,3 +20,8 @@ image:
   # repository: localhost:32000
   tag: latest
   pullPolicy: Always
+
+mongo:
+  mongoUsername: redstone
+  mongoDatabase: vegeta
+  mongoSecretName: tensorsec-mongodb # needs keey mongodb-password

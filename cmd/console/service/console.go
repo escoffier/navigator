@@ -75,6 +75,7 @@ func NewConsole(
 		MongoUsername:      mongoOpts.Username,
 		MongoPassword:      mongoOpts.Password,
 		MongoDatabase:      mongoOpts.Database,
+		MongoSecretName:    mongoOpts.SecretName,
 	}
 
 	// cron service
