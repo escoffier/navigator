@@ -83,21 +83,26 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 		if err != nil {
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
 		}
-		if response.StatusCode == http.StatusBadRequest {
+
+		if response.StatusCode >= 300 {
 			clairResponseError := &NewerLayerEnvelope{}
 			err := json.Unmarshal(body, clairResponseError)
 			if err != nil {
 				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to parse response body from Clair: %w", err))
 			}
+
+			if response.StatusCode == http.StatusBadRequest {
+				if strings.Contains(clairResponseError.Error.Message, "parent layer is unknown") {
+					return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
+				}
+			}
+
 			if response.StatusCode == http.StatusUnprocessableEntity {
 				// Possible cause: "worker: OS and/or package manager are not supported"
 				return NewClairUnprocessableLayerError(http.StatusBadRequest, fmt.Errorf("Clair reports that layer is unprocessable: %s", clairResponseError.Error.Message))
 			}
-			// TODO: check status code here instead of strings
-			if strings.Contains(clairResponseError.Error.Message, "parent layer is unknown") {
-				return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
-			}
 		}
+
 		return NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
 	}
 
