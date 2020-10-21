@@ -22,6 +22,7 @@ image:
   # repository: localhost:32000
   tag: latest
   pullPolicy: Always
+  pullSecret: harbor-admin-secret
 
 harbor:
   harborURL: https://192.168.1.203:30003
