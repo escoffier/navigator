@@ -498,7 +498,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		report := &model.ScanReport{}
 		vulns := make([]redclair.VulnerabilityInfo, 0)
 		for _, digest := range layers {
-			cachedLayer, err := rcSvc.getCachedEntry(ctx, digest, currentlyCachedLayers)
+			cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 			if err != nil {
 				zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
 				scanTask.FinishedAt = time.Now().Unix()
@@ -537,11 +537,11 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		rcSvc.updateMongoStatus(scanCtx, scanTask)
 
 	case <-scanCtx.Done():
-		zerolog.Ctx(ctx).Error().Err(ctx.Err()).Msg("Redclair scan timeout")
+		zerolog.Ctx(ctx).Error().Err(scanCtx.Err()).Msg("Redclair scan timeout")
 
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = ctx.Err().Error()
+		scanTask.Message = scanCtx.Err().Error()
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 	}
