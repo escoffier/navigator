@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -60,7 +61,8 @@ type Redclair struct {
 	httpRootDir string
 	server      *http.Server
 
-	mongodb *mongo.Database
+	mongodb                *mongo.Database
+	cve2cnnvdCollectionMux sync.Mutex
 
 	softwareRegExp    *regexp.Regexp
 	softwareRegExpMap map[*regexp.Regexp]func([]byte) []Software
