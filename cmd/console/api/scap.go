@@ -26,6 +26,7 @@ func (api *api) scap() func(chi.Router) {
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
 		r.Get("/{checkType}/breakdown/{checkID}", api.getCheckBreakdown())
 		r.Get("/{checkType}/history", api.getCheckHistory())
+		r.Get("/crons", api.listAllCrons())
 		r.Get("/{checkType}/{clusterID}/cron", api.getCron())
 		r.Put("/{checkType}/{clusterID}/cron", api.putCron())
 	}
