@@ -201,6 +201,41 @@
                 }
             }
         },
+        "/api/v1/scanner/reportsBySeverity": {
+            "get": {
+                "description": "List reports by severity",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List reports by severity",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc/desc",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "absolute time (in unix epoch seconds) from which to return results (default is 1 week ago)",
+                        "name": "from",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
         "/api/v1/scanner/scan": {
             "post": {
                 "description": "Tell scanner to scan an image",

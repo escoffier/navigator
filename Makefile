@@ -102,7 +102,7 @@ retag:
 .PHONY: redeploy
 redeploy:
 	# Note, if you get:
-	# Error: release vegeta failed: object is being deleted: persistentvolumeclaims "vegeta-mongodb" already exists
+	# Error: release tensorsec failed: object is being deleted: persistentvolumeclaims "tensorsec-mongodb" already exists
 	# then run this target again.
 	@echo "+ $@"
 	cd deployments/helm; \

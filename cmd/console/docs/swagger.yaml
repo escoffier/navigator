@@ -165,6 +165,29 @@ paths:
           schema:
             $ref: '#/definitions/api.User'
       summary: User API
+  /api/v1/scanner/reportsBySeverity:
+    get:
+      description: List reports by severity
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      - description: asc/desc
+        in: query
+        name: sortOrder
+        type: string
+      - description: absolute time (in unix epoch seconds) from which to return results (default is 1 week ago)
+        in: query
+        name: from
+        type: integer
+      produces:
+      - application/json
+      summary: List reports by severity
   /api/v1/scanner/scan:
     post:
       description: Tell scanner to scan an image
