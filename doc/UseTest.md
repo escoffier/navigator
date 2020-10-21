@@ -44,7 +44,7 @@ SCANNERADDR=127.0.0.1:8888
 # SCANNERIP=$(k8v describe service scanner | grep IP: | awk '{print $2;}')
 
 # Login
-JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/rest-auth/login  | jq -r '.data.item.token')
+JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/auth/login  | jq -r '.data.item.token')
 ```
 
 Scan image:

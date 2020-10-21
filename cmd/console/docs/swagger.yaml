@@ -35,6 +35,52 @@ info:
   title: Vegeta API
   version: "1.0"
 paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login by username/password
+      operationId: v1-auth-login
+      parameters:
+      - description: Username
+        in: body
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: Password
+        in: body
+        name: password
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login response
+          schema:
+            $ref: '#/definitions/api.LoginResponse'
+      summary: Login API
+  /api/v1/auth/logout:
+    post:
+      description: Logout
+      operationId: v1-auth-logout
+      produces:
+      - application/json
+      summary: Logout API
+  /api/v1/auth/user:
+    get:
+      description: Get current user
+      operationId: v1-auth-user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Current user
+          schema:
+            $ref: '#/definitions/api.User'
+      summary: User API
   /api/v1/config/clusters:
     get:
       description: Get all cluster information
@@ -119,52 +165,6 @@ paths:
       produces:
       - application/json
       summary: Update single cluster information
-  /api/v1/rest-auth/login:
-    post:
-      consumes:
-      - application/json
-      description: Login by username/password
-      operationId: v1-rest-auth-login
-      parameters:
-      - description: Username
-        in: body
-        name: username
-        required: true
-        schema:
-          type: string
-      - description: Password
-        in: body
-        name: password
-        required: true
-        schema:
-          type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Login response
-          schema:
-            $ref: '#/definitions/api.LoginResponse'
-      summary: Login API
-  /api/v1/rest-auth/logout:
-    post:
-      description: Logout
-      operationId: v1-rest-auth-logout
-      produces:
-      - application/json
-      summary: Logout API
-  /api/v1/rest-auth/user:
-    get:
-      description: Get current user
-      operationId: v1-rest-auth-user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Current user
-          schema:
-            $ref: '#/definitions/api.User'
-      summary: User API
   /api/v1/scanner/reportsBySeverity:
     get:
       description: List reports by severity

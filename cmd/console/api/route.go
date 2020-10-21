@@ -56,7 +56,7 @@ func SetupRoutes(
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 	r.Route("/harbor/api/v1", api.harbor())
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Route("/rest-auth", api.restAuth())
+		r.Route("/auth", api.restAuth())
 
 		// needs authentication
 		r.Group(func(r chi.Router) {
