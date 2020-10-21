@@ -470,7 +470,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = fmt.Sprintf("Error occured while scanning layers")
+		scanTask.Message = fmt.Sprintf("Error occurred while scanning layers")
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 		return
