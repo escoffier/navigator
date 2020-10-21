@@ -16,6 +16,7 @@ type InvalidAuthToken struct{ detailedError }
 type SessionExpired struct{ detailedError }
 type ClairError struct{ detailedError }
 type DockerError struct{ detailedError }
+type ClairUnprocessableLayerError struct{ detailedError }
 type ClairMissingParentLayerError struct{ detailedError }
 type HarborError struct{ detailedError }
 type HarborUnauthorizedError struct{ detailedError }
@@ -213,6 +214,18 @@ func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Docker error has occured",
 			Zhongwen:  "Docker error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suberror) error {
+	return ClairUnprocessableLayerError{
+		detailedError{
+			err:       err,
+			English:   "Clair scanning error: layer unprocessable",
+			Zhongwen:  "Clair扫描错误：不可处理的图层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
