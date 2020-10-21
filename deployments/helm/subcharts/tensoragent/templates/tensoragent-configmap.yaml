@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "tensoragent.fullname" . }}-config
+data:
+  example.yaml: |-
+{{ .Files.Get "example.yaml" | indent 4}}

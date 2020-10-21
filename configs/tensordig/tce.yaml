@@ -1,0 +1,110 @@
+producers:
+  syscalls:
+  - syscallExecve:
+    name: execve
+    # filters:
+    # - procFilter:
+    #   field: procName
+    #   operation: inArray
+    #   values:
+    #   - v: nc
+    #   - v: bash
+  - syscallOpenat:
+    name: openat
+    filters:
+    - procFilter:
+      id: f1
+      field: filename
+      operation: startsWithArray
+      values: 
+      - v: /etc
+      - v: /cmd/line
+      - v: /bin
+      - v: /sbin
+      - v: /usr/bin
+      - v: /usr/local/bin
+      - v: /lib
+      - v: /usr/lib
+      - v: /root/.k5login
+      - v: /lib32
+      - v: /lib64
+    - flagsFilter:
+      id: f2
+      field: flags
+      operation: andIs
+      values:
+      - v: 1
+      - v: 1
+    - flagsFilter:
+      id: f3
+      field: flags
+      operation: andIs
+      values:
+      - v: 2
+      - v: 2
+    logic: f1&&(f2||f3)
+  - syscallOpen:
+    name: open
+    filters:
+    - fnFilter:
+      id: f1
+      field: filename
+      operation: startsWithArray
+      values: 
+      - v: /etc
+      - v: /cmd/line
+      - v: /bin
+      - v: /sbin
+      - v: /usr/bin
+      - v: /usr/local/bin
+      - v: /lib
+      - v: /usr/lib
+      - v: /root/.k5login
+      - v: /lib32
+      - v: /lib64
+    - flagsFilter:
+      id: f2
+      field: flags
+      operation: andIs
+      values:
+      - v: 1
+      - v: 1
+    - flagsFilter:
+      id: f3
+      field: flags
+      operation: andIs
+      values:
+      - v: 2
+      - v: 2
+    logic: f1&&(f2||f3)
+  # The close must be used to clear the in-kernel cache.
+  - syscallClose:
+    name: close
+  - syscallDup:
+    name: dup2
+  # - syscallRead:
+  #   name: read
+  - syscallWrite:
+    name: write
+  # make pipe 
+  - syscallMknod:
+    name: mknod
+    filters:
+    - modeFilter:
+      id: f1
+      field: mode
+      operation: equalTo
+      values:
+      - v: 4534
+  - syscallMemfdCreate:
+    name: memfd_create
+  nets:
+  - netsInetBind:
+    name: inet_bind
+  - netsInetListen:
+    name: inet_listen
+consumers:
+  - Databus
+  # - Collect
+  # - Print
+  # - Count

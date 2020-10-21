@@ -1,0 +1,94 @@
+producers:
+  syscalls:
+#  - syscallFchmodat:
+#    name: fchmodat
+#  - syscallExecve:
+#    name: execve
+#  - syscallBrk:
+#    name: brk
+#  - syscallAccess:
+#    name: access
+#  - syscallRead:
+#    name: read
+#    filters:
+#    - ppidFilter:
+#      id: f1
+#      field: ptid
+#      operation: equalTo
+#      values:
+#      - v: 31379
+  - syscallOpenat:
+    name: openat
+    filters:
+      - fnFilter:
+        id: f1
+        field: filename
+        operation: equalTo
+        values:
+          - v: /etc/hosts
+#    filters:
+#    - ppidFilter:
+#      id: f1
+#      field: ptid
+#      operation: equalTo
+#      values:
+#      - v: 31379
+  # - syscallOpen:
+    # name: open
+#  - syscallFstat:
+#    name: fstat
+#  - syscallMmap:
+#    name: mmap
+#  - syscallClose:
+#    name: close
+#  - syscallRead:
+#    name: read
+#  - syscallWrite:
+#    name: write
+#  - syscallMprotect:
+#    name: mprotect
+#  - syscallSettidaddress:
+#    name: set_tid_address
+#  - syscallArchprctl:
+#    name: arch_prctl
+#  - syscallMunmap:
+#    name: munmap
+#  - syscallSetrobustlist:
+#    name: set_robust_list
+#  - syscallRtsigaction:
+#    name: rt_sigaction
+#  - syscallRtsigprocmask:
+#    name: rt_sigprocmask
+##  - syscallFutex:
+##    name: futex
+#  - syscallGetrandom:
+#    name: getrandom
+##  - syscallStat:
+##    name: stat
+#  - syscallPipe:
+#    name: pipe
+#  - syscallSocket:
+#    name: socket
+#  - syscallSetsockopt:
+#    name: setsockopt
+#  - syscallFcntl:
+#    name: fcntl
+#  - syscallConnect:
+#    name: connect
+##  - syscallPoll:
+##    name: poll
+#  - syscallGetsockopt:
+#    name: getsockopt
+#  - syscallExitgroup:
+#    name: exit_group
+#  - syscallRecvfrom:
+#    name: recvfrom
+#  - syscallSendto:
+#    name: sendto
+#  - syscallGetsockname:
+#    name: getsockname
+#  - syscallGetpeername:
+#    name: getpeername
+
+consumers:
+  - Socket

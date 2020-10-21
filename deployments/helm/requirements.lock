@@ -17,5 +17,14 @@ dependencies:
 - name: redis
   repository: https://charts.bitnami.com/bitnami
   version: 11.2.1
-digest: sha256:5b70df1c3296d495769483a7d9d885d1218a20c57c38c27a6acbbfc2383d6577
-generated: "2020-10-20T16:40:37.994806621+02:00"
+- name: tensoragent
+  repository: file://./subcharts/tensoragent
+  version: 0.1.0
+- name: kibana
+  repository: https://helm.elastic.co
+  version: 7.9.1
+- name: elasticsearch
+  repository: https://helm.elastic.co
+  version: 7.9.1
+digest: sha256:7e83653bc91f2a8de5a0b0adfbb1039e68951d1025c6d2c5d7bd6f3ce57d543d
+generated: "2020-10-22T01:31:42.658100849+02:00"

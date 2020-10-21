@@ -29,3 +29,18 @@ dependencies:
     version: 11.2.1
     repository: https://charts.bitnami.com/bitnami
     condition: redis.enabled
+
+  - name: tensoragent
+    version: 0.1.0
+    repository: "file://./subcharts/tensoragent"
+    condition: tensoragent.enabled
+
+  - name: kibana
+    version: 7.9.1
+    repository: https://helm.elastic.co
+    condition: kibana.enabled 
+ 
+  - name: elasticsearch
+    version: 7.9.1
+    repository: https://helm.elastic.co
+    condition: elasticsearch.enabled

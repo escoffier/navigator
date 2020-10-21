@@ -1,0 +1,20 @@
+producers:
+ nets:
+ - netsInetBind:
+   name: inet_bind
+ - netsInetListen:
+   name: inet_listen
+ - netsInetShutdown:
+   name: inet_shutdown
+ - netsInetAccept:
+   name: inet_accept
+ - netsInetCreate:
+   name: inet_create
+ - netsTCPV4Connect:
+   name: tcp_v4_connect 
+ - netsTCPV6Connect:
+   name: tcp_v6_connect 
+ - netsUdpSendmsg:
+   name: udp_sendmsg
+consumers:
+  - Print

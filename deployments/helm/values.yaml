@@ -23,6 +23,14 @@ redis:
   master:
     disableCommands: []
 
+kibana:
+  enabled: true
+
+elasticsearch:
+  enabled: true
+  minimumMasterNodes: 1
+  replicas: 1
+
 postgresql:
   # Note for maintainers:
   # Some confusion may appear here because we use docker image created from "official" dockerhub base image postgresql 
