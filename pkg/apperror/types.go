@@ -20,6 +20,7 @@ type HarborError struct{ detailedError }
 type HarborUnauthorizedError struct{ detailedError }
 type HarborForbiddenError struct{ detailedError }
 type HarborScanAllInProgressError struct{ detailedError }
+type RedisError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -259,6 +260,18 @@ func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suber
 			err:       err,
 			English:   "Harbor full scan is already in progress, please wait",
 			Zhongwen:  "Harbor full scan is already in progress, please wait but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
+	return RedisError{
+		detailedError{
+			err:       err,
+			English:   "Redis error has occured",
+			Zhongwen:  "Redis error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

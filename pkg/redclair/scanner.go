@@ -337,5 +337,10 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 
 	namespaceName, vulnerabilities := r.getVulnerabilities(ctx, digest)
 
+	err = r.enrichWithCNNVD(ctx, vulnerabilities)
+	if err != nil {
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, fmt.Errorf("Failed to enrich vuln info with CNNVD")
+	}
+
 	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, nil
 }

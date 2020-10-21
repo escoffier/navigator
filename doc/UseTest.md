@@ -50,21 +50,23 @@ JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "a
 Scan image:
 
 ```bash
+# Old scan API
 curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/scan
 
+# Get task details
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f7df28d0403ef8cdd1873f1
-
 
 # Or directly to Scanner, bypassing JWT auth, hehe
 # curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 
-curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"url": "http://192.168.0.123:32000/", "repository": "tensorsec-console", "digest": "latest"}' -H "Content-Type: application/json" http://$SCANNERADDR/api/v1/scan/one
+# Invalidate scanner cache
+curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/forceInvalidateCache
 
+# Retrigger harbor full scan
+curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/harborScanAll
 
-
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scanner/reports 
-
-
+# Obtain results ordered by severity from some timestamp
+curl -v  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scanner/reportsBySeverity?from=1603222793" > out.json
 
 ```
 

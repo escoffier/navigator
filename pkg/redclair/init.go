@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
@@ -59,14 +60,18 @@ type Redclair struct {
 	httpRootDir string
 	server      *http.Server
 
+	mongodb *mongo.Database
+
 	softwareRegExp    *regexp.Regexp
 	softwareRegExpMap map[*regexp.Regexp]func([]byte) []Software
 	ignoreRegExp      *regexp.Regexp
 	cveWhitelist      map[string]struct{}
 }
 
-func NewRedclair(opts *flag.ClairOpts) (*Redclair, error) {
-	rc := &Redclair{}
+func NewRedclair(opts *flag.ClairOpts, mongodb *mongo.Database) (*Redclair, error) {
+	rc := &Redclair{
+		mongodb: mongodb,
+	}
 	rc.initFlags(opts)
 	if err := rc.initConfigFiles(opts); err != nil {
 		return nil, err

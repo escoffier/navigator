@@ -2,6 +2,12 @@ info:
   contact: {}
   license: {}
 paths:
+  /api/v1/scan/forceInvalidateCache:
+    post:
+      description: Force layer cache invalidation. Then reinitialize it.
+      produces:
+      - application/json
+      summary: Force layer cache invalidation.
   /api/v1/scan/harborScanAll:
     post:
       description: Trigger scan of all images in Harbor. This API is exposed for testing purpose.
