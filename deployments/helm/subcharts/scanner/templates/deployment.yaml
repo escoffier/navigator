@@ -75,6 +75,8 @@ spec:
             mountPath: "/var/run/docker.sock"
           - name: tmp
             mountPath: "/tmp/"
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
       volumes:
       - name: dockersock
         hostPath:
