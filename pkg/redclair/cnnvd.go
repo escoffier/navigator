@@ -31,6 +31,10 @@ type cve2cnnvdMapping struct {
 }
 
 func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInfo) error {
+	// TODO: Inefficient use of lock, can be improved. Maybe we can use upsert instead of mutex altogether.
+	r.cve2cnnvdCollectionMux.Lock()
+	defer r.cve2cnnvdCollectionMux.Unlock()
+
 	for i := range vulns {
 		select {
 		case <-ctx.Done():
