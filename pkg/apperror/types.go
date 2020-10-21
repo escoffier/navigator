@@ -11,6 +11,7 @@ type MalformedRequestError struct{ detailedError }
 type InvalidUsernameOrPasswordError struct{ detailedError }
 type FieldError struct{ detailedError }
 type ClusterAlreadyExists struct{ detailedError }
+type MaxNumberOfClustersReached struct{ detailedError }
 type InvalidAuthToken struct{ detailedError }
 type SessionExpired struct{ detailedError }
 type ClairError struct{ detailedError }
@@ -152,6 +153,18 @@ func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) err
 			err:       err,
 			English:   "Cluster with this name already exists",
 			Zhongwen:  "Cluster with this name already exists but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberror) error {
+	return MaxNumberOfClustersReached{
+		detailedError{
+			err:       err,
+			English:   "Maximum number of clusters reached",
+			Zhongwen:  "达到最大群集数",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

@@ -150,6 +150,19 @@ func (api *api) addCluster() http.HandlerFunc {
 			return
 		}
 
+		// For now, cap at 1 cluster max:
+		_, numClusters, err := api.clusterService.ListClusters(ctx, 0, 9999999)
+		if err != nil {
+			RespAndLog(w, r, fmt.Errorf("Couldn't list clusters: %w", err))
+			return
+		}
+		if numClusters >= 1 {
+			RespAndLog(w, r,
+				NewMaxNumberOfClustersReached(http.StatusConflict,
+					fmt.Errorf("Max num of clusters reached")))
+			return
+		}
+
 		id, err := api.clusterService.AddCluster(ctx, param.ClusterName, param.KubeConfig)
 		if err != nil {
 			RespAndLog(w, r, fmt.Errorf("Couldn't add cluster: %w", err))
