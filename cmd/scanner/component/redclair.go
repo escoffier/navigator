@@ -39,7 +39,7 @@ const (
 	redisTimeout             = time.Second * 10
 	redisCleanupTimeout      = time.Minute * 1
 	cacheInvalidatorInterval = time.Hour * 2
-	maxLayerScanRetires      = 10
+	maxLayerScanRetires      = 3
 )
 
 // RedClair ...
@@ -472,38 +472,38 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	}
 
 	scanDoneCh := make(chan struct{})
-	scanErrorCh := make(chan struct{})
+	scanErrorCh := make(chan error)
 	go func() {
 		for i := range toScan {
 			err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
 			if err != nil {
-				scanErrorCh <- struct{}{}
+				scanErrorCh <- err
 			}
 		}
 		scanDoneCh <- struct{}{}
 	}()
 
 	select {
-	case <-scanErrorCh:
-		zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
+	case err := <-scanErrorCh:
+		zerolog.Ctx(ctx).Error().Err(err).Msg("Error occured while scanning layers")
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = fmt.Sprintf("Error occured while scanning layers")
+		scanTask.Message = fmt.Sprintf("Error occured while scanning layers: %s", err)
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 		return
 
 	case <-scanDoneCh:
-		zerolog.Ctx(ctx).Info().Msg("Redclair scan succeeded")
+		zerolog.Ctx(ctx).Info().Msg("Redclair scan finished")
 		report := &model.ScanReport{}
 		vulns := make([]redclair.VulnerabilityInfo, 0)
 		for _, digest := range layers {
 			cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 			if err != nil {
-				zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
+				zerolog.Ctx(ctx).Error().Err(err).Msg("Failed to get entries from cache from just-finished scan")
 				scanTask.FinishedAt = time.Now().Unix()
 				scanTask.Status = model.ScanStatusFailed
-				scanTask.Message = fmt.Sprintf("Couldn't prepare scanning results report: %s", err)
+				scanTask.Message = fmt.Sprintf("Failed to get entries from cache from just-finished scan: %s", err)
 
 				rcSvc.updateMongoStatus(ctx, scanTask)
 				return
@@ -561,11 +561,14 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			scanTask.Repository,
 		)
 		if err != nil {
+			// TODO: bug prone if we add more error wrapping in the future. Prefer to use errors.As().
 			switch err.(type) {
 			default:
 				zerolog.Ctx(ctx).Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
 				time.Sleep(retryInterval)
 				retryCounter++
+			case ClairUnprocessableLayerError:
+				return err
 			case ClairMissingParentLayerError:
 				zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 				layersBench = append(layersBench, currLayer)
