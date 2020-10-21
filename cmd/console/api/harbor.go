@@ -186,30 +186,53 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 		}
 
 		if result.Status == model.ScanStatusSucceeded {
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			harborVulnReport := harbor.RedclairReportToHarborReport(result.ScanReport.Vulns)
 			response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0", harborVulnReport)
 			return
 		} else if result.Status == model.ScanStatusFailed {
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			e := harbor.NewHarborErrorAndLog(nil, "Scan failed in scanner")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if time.Now().Unix()-result.StartedAt > int64(lastChanceTimeout.Seconds()) {
-			// Timeout in Console layer. There should also be a timeout in Scanner, but if Scanner misbehaves, we want to inform Harbor about it as well.
+			// Timeout in Console layer. There is also a timeout in Scanner, but if Scanner misbehaves, we want to inform Harbor about it as well.
 			// The timeout itself is quite long since its purpose is to catch orphaned jobs.
-			// TODO: Add similar timeout in scanner that would set status in mongo to Failed
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			e := harbor.NewHarborErrorAndLog(nil, "Waited for scanner for too long")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if result.Status == model.ScanStatusInProgress {
-			// Tell harbor to retry after 10+jitter seconds
-			// Is exponential backoff needed? Let's just add jitter for now.
-			refreshAfterSec := 10 + rand.Intn(10)
+			refreshAfterSec := api.scanResultExponentialBackoffWithJitter(result.ID.Hex())
 			w.Header().Set("Refresh-After", string(refreshAfterSec))
 			// harbor expects 302 Found. By http spec, we must supply Location header.
 			w.Header().Set("Location", r.URL.Path)
 			w.WriteHeader(http.StatusFound)
 		}
 	}
+}
+
+func (api *api) scanResultExponentialBackoffWithJitter(id string) int {
+	nextWaitTimeSec, ok := api.scanResultLocalBackoffCache[id]
+	if !ok {
+		nextWaitTimeSec = 1
+	} else {
+		nextWaitTimeSec := 2 * nextWaitTimeSec
+		if nextWaitTimeSec > 20 {
+			nextWaitTimeSec = 20
+		}
+	}
+
+	api.scanResultLocalBackoffCache[id] = nextWaitTimeSec
+
+	jitterSec := rand.Intn(nextWaitTimeSec) // jitter shall be smaller than base
+	jitterSec = jitterSec - nextWaitTimeSec/2
+
+	return nextWaitTimeSec + jitterSec
+}
+
+func (api *api) removeFromScanResultExponentialBackoffCache(id string) {
+	delete(api.scanResultLocalBackoffCache, id) // if key doesn't exist, noop
 }
 
 func (api *api) getUpdatedAt(ctx context.Context) (int64, error) {
