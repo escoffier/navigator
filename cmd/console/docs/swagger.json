@@ -9,6 +9,75 @@
     },
     "basePath": "/",
     "paths": {
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "Login by username/password",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Login API",
+                "operationId": "v1-auth-login",
+                "parameters": [
+                    {
+                        "description": "Username",
+                        "name": "username",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Password",
+                        "name": "password",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Login response",
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "description": "Logout",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Logout API",
+                "operationId": "v1-auth-logout"
+            }
+        },
+        "/api/v1/auth/user": {
+            "get": {
+                "description": "Get current user",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "User API",
+                "operationId": "v1-auth-user",
+                "responses": {
+                    "200": {
+                        "description": "Current user",
+                        "schema": {
+                            "$ref": "#/definitions/api.User"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/config/clusters": {
             "get": {
                 "description": "Get all cluster information",
@@ -130,75 +199,6 @@
                         "required": true
                     }
                 ]
-            }
-        },
-        "/api/v1/rest-auth/login": {
-            "post": {
-                "description": "Login by username/password",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Login API",
-                "operationId": "v1-rest-auth-login",
-                "parameters": [
-                    {
-                        "description": "Username",
-                        "name": "username",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Password",
-                        "name": "password",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Login response",
-                        "schema": {
-                            "$ref": "#/definitions/api.LoginResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/rest-auth/logout": {
-            "post": {
-                "description": "Logout",
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Logout API",
-                "operationId": "v1-rest-auth-logout"
-            }
-        },
-        "/api/v1/rest-auth/user": {
-            "get": {
-                "description": "Get current user",
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "User API",
-                "operationId": "v1-rest-auth-user",
-                "responses": {
-                    "200": {
-                        "description": "Current user",
-                        "schema": {
-                            "$ref": "#/definitions/api.User"
-                        }
-                    }
-                }
             }
         },
         "/api/v1/scanner/reportsBySeverity": {
