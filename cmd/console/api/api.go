@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
@@ -24,16 +25,17 @@ import (
 )
 
 type api struct {
-	ctx                         context.Context
-	userCache                   *cache.Cache
-	tokenAuth                   *jwtauth.JWTAuth
-	mongodb                     *mongo.Database
-	scapper                     *scapper.Scapper
-	scannerURL                  string
-	cronService                 *cron.CronService
-	clusterService              *cluster.ClusterService
-	redisClient                 *redis.Client
-	scanResultLocalBackoffCache map[string]int // maps scantask ID to last backoff in secs
+	ctx                            context.Context
+	userCache                      *cache.Cache
+	tokenAuth                      *jwtauth.JWTAuth
+	mongodb                        *mongo.Database
+	scapper                        *scapper.Scapper
+	scannerURL                     string
+	cronService                    *cron.CronService
+	clusterService                 *cluster.ClusterService
+	redisClient                    *redis.Client
+	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
+	scanResultLocalBackoffCacheMux sync.Mutex
 }
 
 func newAPI(

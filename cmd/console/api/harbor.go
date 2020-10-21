@@ -203,7 +203,7 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if result.Status == model.ScanStatusInProgress {
-			refreshAfterSec := api.scanResultExponentialBackoffWithJitter(result.ID.Hex())
+			refreshAfterSec := api.scanResultExponentialBackoffWithJitter(objectID.Hex())
 			logging.GetLogger().Info().Int("refreshAfterSec", refreshAfterSec).Msg("Refresh after header")
 
 			w.Header().Set("Refresh-After", fmt.Sprint(refreshAfterSec))
@@ -215,11 +215,14 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 }
 
 func (api *api) scanResultExponentialBackoffWithJitter(id string) int {
+	api.scanResultLocalBackoffCacheMux.Lock()
+	defer api.scanResultLocalBackoffCacheMux.Unlock()
+
 	nextWaitTimeSec, ok := api.scanResultLocalBackoffCache[id]
 	if !ok {
 		nextWaitTimeSec = 1
 	} else {
-		nextWaitTimeSec := 2 * nextWaitTimeSec
+		nextWaitTimeSec = 2 * nextWaitTimeSec
 		if nextWaitTimeSec > 20 {
 			nextWaitTimeSec = 20
 		}
