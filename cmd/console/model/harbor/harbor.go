@@ -1,6 +1,7 @@
 package harbor
 
 import (
+	"fmt"
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -102,14 +103,20 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 	highestSeveritySoFar := "Unknown"
 
 	for _, redVuln := range redclairReport.Vulnerabilities {
+
+		id := redVuln.CVE
+		if redVuln.CNNVD != "" {
+			id = fmt.Sprintf("%s (%s)", id, redVuln.CNNVD)
+		}
+
 		harborVuln := VulnerabilityItem{
-			ID:          redVuln.Vulnerability,
+			ID:          id,
 			Package:     redVuln.FeatureName,
 			Version:     redVuln.FeatureVersion,
 			FixVersion:  redVuln.FixedBy, // Not sure about this field
 			Severity:    redVuln.Severity,
 			Description: redVuln.Description,
-			Links:       []string{redVuln.Link},
+			Links:       redVuln.Links,
 		}
 
 		harborVulns = append(harborVulns, harborVuln)

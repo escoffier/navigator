@@ -39,14 +39,6 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 		newCtx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		updatedAtInt, err := api.getUpdatedAt(newCtx)
-		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to get vulnerability database last update time")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
-		updatedAt := time.Unix(updatedAtInt, 0).Format(time.RFC3339)
-
 		manifest := harbor.Manifest{
 			Scanner: harbor.Scanner{
 				Name:    "TensorSecurity scanner",
@@ -71,10 +63,15 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 			},
 			Properties: map[string]string{
 				"harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
-				// TODO obtain from scanner/clair and keep here: vulnerability-database-updated-at
-				// "harbor.scanner-adapter/vulnerability-database-updated-at": "2019-08-13T08:16:33.345Z",
-				"harbor.scanner-adapter/vulnerability-database-updated-at": string(updatedAt),
 			},
+		}
+
+		updatedAtInt, err := api.getUpdatedAt(newCtx)
+		if err == nil {
+			updatedAt := time.Unix(updatedAtInt, 0).Format(time.RFC3339)
+			manifest.Properties["harbor.scanner-adapter/vulnerability-database-updated-at"] = string(updatedAt)
+		} else {
+			logging.GetLogger().Warn().Err(err).Msg("Failed to obtain vulnerability DB update time")
 		}
 
 		response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.metadata+json; version=1.0", manifest)

@@ -20,20 +20,15 @@ const (
 
 // VulnerabilityInfo ...
 type VulnerabilityInfo struct {
-	FeatureName    string `json:"featurename"`
-	FeatureVersion string `json:"featureversion"`
-	Vulnerability  string `json:"vulnerability"`
-	Namespace      string `json:"namespace"`
-	Description    string `json:"description"`
-	Link           string `json:"link"`
-	Severity       string `json:"severity"`
-	FixedBy        string `json:"fixedby"`
-}
-
-// VulnerabilityInfoOfLayer ...
-type VulnerabilityInfoOfLayer struct {
-	Layer           string `json:"layer"`
-	Vulnerabilities []VulnerabilityInfo
+	FeatureName    string   `json:"featurename"`
+	FeatureVersion string   `json:"featureversion"`
+	CVE            string   `json:"cve"`
+	CNNVD          string   `json:"cnnvd"`
+	Namespace      string   `json:"namespace"`
+	Description    string   `json:"description"`
+	Links          []string `json:"links"`
+	Severity       string   `json:"severity"`
+	FixedBy        string   `json:"fixedby"`
 }
 
 // https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
@@ -106,7 +101,7 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 
 func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string, []VulnerabilityInfo) {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
-	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
+	var vulnerabilitiesMap = make(map[string]VulnerabilityInfo)
 	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
 	if err != nil {
 		zerolog.Ctx(ctx).Warn().
@@ -117,21 +112,22 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 	for _, feature := range rawVulnerabilities.Features {
 		if len(feature.Vulnerabilities) > 0 {
 			for _, vulnerability := range feature.Vulnerabilities {
+				links := []string{vulnerability.Link}
 				vulnerability := VulnerabilityInfo{
 					FeatureName:    feature.Name,
 					FeatureVersion: feature.Version,
-					Vulnerability:  vulnerability.Name,
+					CVE:            vulnerability.Name,
 					Namespace:      vulnerability.NamespaceName,
 					Description:    vulnerability.Description,
-					Link:           vulnerability.Link,
+					Links:          links,
 					Severity:       vulnerability.Severity,
 					FixedBy:        vulnerability.FixedBy,
 				}
-				vulnerabilitiesMap[vulnerability] = struct{}{}
+				vulnerabilitiesMap[vulnerability.CVE] = vulnerability
 			}
 		}
 	}
-	for vulnerability := range vulnerabilitiesMap {
+	for _, vulnerability := range vulnerabilitiesMap {
 		vulnerabilities = append(vulnerabilities, vulnerability)
 	}
 	return rawVulnerabilities.NamespaceName, vulnerabilities

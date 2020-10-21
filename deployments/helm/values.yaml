@@ -20,6 +20,8 @@ redis:
   usePassword: false
   cluster:
     slaveCount: 1
+  master:
+    disableCommands: []
 
 postgresql:
   # Note for maintainers:
