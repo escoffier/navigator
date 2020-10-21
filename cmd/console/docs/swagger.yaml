@@ -405,4 +405,10 @@ paths:
       produces:
       - application/json
       summary: Get scap history
+  /api/v1/scap/crons:
+    get:
+      description: List all crons (for all check types and clusters)
+      produces:
+      - application/json
+      summary: List all crons
 swagger: "2.0"

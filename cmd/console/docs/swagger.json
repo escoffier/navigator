@@ -285,6 +285,15 @@
                 ]
             }
         },
+        "/api/v1/scap/crons": {
+            "get": {
+                "description": "List all crons (for all check types and clusters)",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List all crons"
+            }
+        },
         "/api/v1/scap/{checkType}/breakdown/{checkID}": {
             "get": {
                 "description": "Get scap job breakdown",
