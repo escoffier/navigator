@@ -247,6 +247,22 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
+		count, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		if err != nil {
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
+
+			return
+		}
+		if count == 0 {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkID not existing"),
+					Suberror{"checkID", checkID}))
+			return
+		}
+
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r,
@@ -339,7 +355,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		if checkID == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("checkID param missing)"),
+					fmt.Errorf("checkID param missing"),
 					Suberror{"checkID", ""}))
 			return
 		}
@@ -348,7 +364,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		if policyNumber == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("policyNumber param missing)"),
+					fmt.Errorf("policyNumber param missing"),
 					Suberror{"policyNumber", ""}))
 			return
 		}
@@ -371,6 +387,22 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		}
 
 		filter := bson.M{"checkId": checkID}
+
+		count, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		if err != nil {
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
+
+			return
+		}
+		if count == 0 {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkID not existing"),
+					Suberror{"checkID", checkID}))
+			return
+		}
 
 		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
