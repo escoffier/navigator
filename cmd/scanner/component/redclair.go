@@ -497,6 +497,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		zerolog.Ctx(ctx).Info().Msg("Redclair scan finished")
 		report := &model.ScanReport{}
 		vulns := make([]redclair.VulnerabilityInfo, 0)
+		sensitives := make([]redclair.Sensitive, 0)
 		for _, digest := range layers {
 			cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 			if err != nil {
@@ -511,6 +512,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			vulns = append(vulns, cachedLayer.ScanReport.Vulns...)
 			report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
 			report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
+			sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
 		}
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusSucceeded
@@ -532,6 +534,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			Digest:          scanTask.ImageDigest,
 			Unapproved:      []string{},
 			Vulnerabilities: vulnsDedup,
+			Sensitives:      sensitives,
 		}
 		scanTask.ScanReport = *report
 		rcSvc.updateMongoStatus(scanCtx, scanTask)
@@ -553,7 +556,7 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	retryCounter := 0
 	currentMaxScanRetries := maxLayerScanRetires
 	for retryCounter <= currentMaxScanRetries {
-		layerNamespace, vulnInfo, fileSignatures, software, err := rcSvc.redclairEngine.ScanLayer(
+		layerNamespace, vulnInfo, fileSignatures, software, sensitive, err := rcSvc.redclairEngine.ScanLayer(
 			ctx,
 			hub,
 			currLayer.Digest,
@@ -583,9 +586,10 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 		} else {
 			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
 			scanWorkerResult := &model.ScanWorkerReport{
-				Vulns:    vulnInfo,
-				Files:    fileSignatures,
-				Software: software,
+				Vulns:     vulnInfo,
+				Files:     fileSignatures,
+				Software:  software,
+				Sensitive: sensitive,
 			}
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if len(layersBench) > 0 {

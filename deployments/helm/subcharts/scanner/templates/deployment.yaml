@@ -45,6 +45,7 @@ spec:
           "--clair-address=tensorsec-scanner",
           "--clair-port={{ .Values.service.LayerPort }}",
           "--clair-postgresconnectionstring={{ .Values.clair.postgresURI }}",
+          "--clair-secretpattern=/config/patterns.json",
           "--redclair-skipregistrytlsverify", # Insecure
           "--harbor-username={{ .Values.harbor.harborUsername }}",
           "--harbor-url={{ .Values.harbor.harborURL }}",
@@ -71,6 +72,8 @@ spec:
             name: {{ include "scanner.name" . }}-layer
 
         volumeMounts:
+          - name: scannerfiles
+            mountPath: "/config"
           - name: dockersock
             mountPath: "/var/run/docker.sock"
           - name: tmp
@@ -84,3 +87,6 @@ spec:
       - name: tmp
         hostPath:
           path: /tmp/
+      - name: scannerfiles
+        configMap:
+          name: {{ template "scanner.fullname" . }}-configmap
