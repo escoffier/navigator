@@ -300,7 +300,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	}
 	var imageFileSignature []FileSignature
 	var imageSoftware []Software
-	layerFileSignature, softwareFiles, sensitiveFiles, err := generateTarHash(
+	layerFileSignature, softwareFiles, sensitiveFiles, err := walkTarFiles(
 		filepath.Join(pathToLayersInFS, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp, r.sensitiveFilenameRegExp)
 	if err != nil {
 		zerolog.Ctx(ctx).Warn().Msgf("Fail to get layer signature : %s : %v",
@@ -338,17 +338,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 			}
 		}
 	}
-	var imageSensitiveFiles []Sensitive
-	for _, f := range sensitiveFiles {
-		for re, description := range r.sensitiveFilenameRegExpMap {
-			if re.MatchString(f.Name) {
-				imageSensitiveFiles = append(imageSensitiveFiles, Sensitive{
-					Name:        f.Name,
-					Description: description,
-				})
-			}
-		}
-	}
+	var imageSensitiveFiles = r.getSensitiveFiles(sensitiveFiles)
 
 	imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	imageFileSignature = distinctFileHash(imageFileSignature)
@@ -361,4 +351,19 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	}
 
 	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, imageSensitiveFiles, nil
+}
+
+func (r *Redclair) getSensitiveFiles(sensitiveFiles []FileSignature) []Sensitive {
+	imageSensitiveFiles := make([]Sensitive, 0)
+	for _, f := range sensitiveFiles {
+		for re, description := range r.sensitiveFilenameRegExpMap {
+			if re.MatchString(f.Name) {
+				imageSensitiveFiles = append(imageSensitiveFiles, Sensitive{
+					Name:        f.Name,
+					Description: description,
+				})
+			}
+		}
+	}
+	return imageSensitiveFiles
 }

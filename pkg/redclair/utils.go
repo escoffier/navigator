@@ -48,7 +48,7 @@ func GetImageFileHash(file *tar.Reader, fileHeadSize int) (FileSignature, error)
 	}, nil
 }
 
-func generateTarHash(
+func walkTarFiles(
 	tarFileName string,
 	maxSize int64,
 	fileHeadSize int,

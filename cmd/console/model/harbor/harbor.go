@@ -128,7 +128,7 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 
 	for _, sensitiveFile := range redclairReport.Sensitives {
 		harborVuln := VulnerabilityItem{
-			ID:          sensitiveFile.Name,
+			ID:          fmt.Sprintf("Potential leak of sensitive file: %s", sensitiveFile.Name),
 			Package:     "-",
 			Version:     "-",
 			FixVersion:  "-",
