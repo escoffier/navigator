@@ -109,7 +109,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
-
 			return
 		}
 		defer cursor.Close(ctx)
