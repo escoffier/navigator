@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -38,7 +39,7 @@ const (
 	redisTimeout             = time.Second * 10
 	redisCleanupTimeout      = time.Minute * 1
 	cacheInvalidatorInterval = time.Hour * 2
-	maxLayerScanRetires      = 10
+	maxLayerScanRetires      = 3
 )
 
 // RedClair ...
@@ -59,7 +60,7 @@ type RedClairService struct {
 
 // NewRedClair creates the instance of RedClair
 func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, rc *redis.Client) (*RedClairService, error) {
-	redclairEng, err := redclair.NewRedclair(clairOpts)
+	redclairEng, err := redclair.NewRedclair(clairOpts, db)
 	if err != nil {
 		return nil, err
 	}
@@ -92,36 +93,64 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go rcSvc.CacheInvalidatorRun(ctx, &wg)
-	log.Info().Msg("Started cache invalidator")
+	go rcSvc.cacheInvalidatorRun(ctx, &wg)
 
 	for i := 0; i < rcSvc.numWorkers; i++ {
 		wg.Add(1)
-		go rcSvc.WorkerRun(ctx, i, &wg)
+		go rcSvc.workerRun(ctx, i, &wg)
 	}
-	log.Info().Msg("Started all Redclair workers")
 	wg.Wait()
 	log.Info().Msg("All Redclair workers finished")
 }
 
-func (rcSvc *RedClairService) CacheInvalidatorRun(ctx context.Context, wg *sync.WaitGroup) {
+// AddScanTask adds ScanTask to the internal channel
+func (rcSvc *RedClairService) AddScanTask(task model.ScanTask) {
+	rcSvc.scanTasksChan <- task
+}
+
+// ForceInvalidateCache flushes redis cache and reinitializes it
+func (rcSvc *RedClairService) ForceInvalidateCache(ctx context.Context) error {
+	_, err := rcSvc.redisClient.FlushAll(ctx).Result()
+	if err != nil {
+		// https://stackoverflow.com/a/59189742
+		// Redis official Helm chart by default disables FLUSHDB and FLUSHALL commands
+		// In this case, it is not specified in any of the redis.conf inside the containers, so you need to specify it in your Redis YAML:
+		// 	master:
+		// 	  disableCommands: []
+		return NewRedisError(http.StatusInternalServerError, fmt.Errorf("Failed to flush redis "+
+			"(if using redis official helm chart, check master.disableCommands): %w", err))
+	}
+
+	err = rcSvc.updateLayerCache(ctx)
+	if err != nil {
+		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to recreate cache after invalidation: %w", err))
+	}
+
+	return nil
+}
+
+func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.WaitGroup) {
+	log.Info().Msg("Started cache invalidator worker")
+
 	defer wg.Done()
-	log.Info().Msg("Started Redclair cache invalidator service")
 	rcSvc.updateLayerCache(ctx)
 	ticker := time.NewTicker(cacheInvalidatorInterval)
 loop:
 	for {
 		select {
 		case <-ticker.C:
-			rcSvc.updateLayerCache(ctx)
+			err := rcSvc.updateLayerCache(ctx)
+			if err != nil {
+				log.Error().Err(err).Msg("Cache invalidator worker - updateLayerCache failed")
+			}
 		case <-ctx.Done():
 			break loop
 		}
 	}
-	log.Info().Msg("Shutting down Redclair cache invalidator")
+	log.Info().Msg("Shutting down Redclair cache invalidator worker")
 }
 
-func (rcSvc *RedClairService) WorkerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
+func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	workerSublogger := log.With().Int("worker-id", id).Logger()
@@ -147,14 +176,12 @@ func (rcSvc *RedClairService) getUpdatedAt(ctx context.Context) (int64, error) {
 		return int64(0), nil
 	} else if err != nil {
 		return int64(0), fmt.Errorf("Error getting DB update time from cache: %w", err)
-	} else {
-		lastUpdateTime, err := strconv.ParseInt(lastUpdateTimeStr, 10, 64)
-		if err != nil {
-			return int64(0), fmt.Errorf("Error converting DBupdateTime from cache to int64: %w", err)
-		}
-		return lastUpdateTime, nil
 	}
-	return int64(0), nil
+	lastUpdateTime, err := strconv.ParseInt(lastUpdateTimeStr, 10, 64)
+	if err != nil {
+		return int64(0), fmt.Errorf("Error converting DBupdateTime from cache to int64: %w", err)
+	}
+	return lastUpdateTime, nil
 }
 
 func (rcSvc *RedClairService) getVulnerabilityUpdatedAt(ctx context.Context) (string, error) {
@@ -164,18 +191,15 @@ func (rcSvc *RedClairService) getVulnerabilityUpdatedAt(ctx context.Context) (st
 		return "", nil
 	} else if err != nil {
 		return "", fmt.Errorf("Error getting DB vulnerability update time from cache: %w", err)
-	} else {
-		return lastUpdateVulnerability, nil
 	}
-	return "", nil
+	return lastUpdateVulnerability, nil
 }
 
-func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) {
-	log.Info().Msg("Started cache invalidator worker")
+func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) error {
+	log.Info().Msg("Updating layer cache")
 	db, err := sql.Open("postgres", rcSvc.clairDBConnectionString)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to open Clair DB connection")
-		return
+		return fmt.Errorf("Failed to open Clair DB connection: %w", err)
 	}
 	defer db.Close()
 
@@ -183,21 +207,18 @@ func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) {
 	lastUpdateQuery := "SELECT value FROM keyvalue WHERE key='updater/last'"
 	err = db.QueryRow(lastUpdateQuery).Scan(&lastUpdate.Value)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get last update time from DB")
-		return
+		return fmt.Errorf("Failed to get last update time from DB: %w", err)
 	}
 
 	lastUpdatedTime, err := rcSvc.getUpdatedAt(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get last DB update time from cache")
-		return
+		return fmt.Errorf("Failed to get last DB update time from cache: %w", err)
 	}
 
 	if lastUpdatedTime < lastUpdate.Value {
 		_, err := rcSvc.redisClient.Set(ctx, "DBupdate", strconv.FormatInt(lastUpdate.Value, 10), redis.KeepTTL).Result()
 		if err != nil {
-			log.Error().Err(err).Msg("Cannot persist DB update time to cache.")
-			return
+			return fmt.Errorf("Cannot persist DB update time to cache: %w", err)
 		}
 		log.Info().Msg("DB update time successfully persisted in cache")
 	}
@@ -206,14 +227,12 @@ func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) {
 
 	timeStrLastVulnerabilityUpdate, err := rcSvc.getVulnerabilityUpdatedAt(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get last DB vulnerability update time from cache")
-		return
+		return fmt.Errorf("Failed to get last DB vulnerability update time from cache: %w", err)
 	}
 	if timeStrLastVulnerabilityUpdate != "" {
 		err = rcSvc.appendNewVulnerabilities(ctx, db, timeStrLastVulnerabilityUpdate, &namespacesToRemoveFromCache)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to get new vulnerabilities from DB")
-			return
+			return fmt.Errorf("Failed to get new vulnerabilities from DB: %w", err)
 		}
 	}
 
@@ -221,22 +240,21 @@ func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) {
 		// TODO: Below is not tested
 		err = rcSvc.appendRemovedVulnerabilities(ctx, db, timeStrLastVulnerabilityUpdate, &namespacesToRemoveFromCache)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to get fixed vulnerabilities from DB")
-			return
+			return fmt.Errorf("Failed to get fixed vulnerabilities from DB: %w", err)
 		}
 	}
 
 	err = rcSvc.cacheLastVulnerabilityUpdateTime(ctx, db)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to persist last vulnerability update time in cache")
-		return
+		return fmt.Errorf("Failed to persist last vulnerability update time in cache: %w", err)
 	}
 
 	err = rcSvc.invalidateCacheEntries(ctx, namespacesToRemoveFromCache)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to invalidate cache entries")
-		return
+		return fmt.Errorf("Failed to invalidate cache entries: %w", err)
 	}
+
+	return nil
 }
 
 func (rcSvc *RedClairService) invalidateCacheEntries(ctx context.Context, namespacesToRemoveFromCache []string) error {
@@ -454,38 +472,39 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	}
 
 	scanDoneCh := make(chan struct{})
-	scanErrorCh := make(chan struct{})
+	scanErrorCh := make(chan error)
 	go func() {
 		for i := range toScan {
 			err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
 			if err != nil {
-				scanErrorCh <- struct{}{}
+				scanErrorCh <- err
 			}
 		}
 		scanDoneCh <- struct{}{}
 	}()
 
 	select {
-	case <-scanErrorCh:
-		zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
+	case err := <-scanErrorCh:
+		zerolog.Ctx(ctx).Error().Err(err).Msg("Error occured while scanning layers")
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = fmt.Sprintf("Error occurred while scanning layers")
+		scanTask.Message = fmt.Sprintf("Error occured while scanning layers: %s", err)
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 		return
 
 	case <-scanDoneCh:
-		zerolog.Ctx(ctx).Info().Msg("Redclair scan succeeded")
+		zerolog.Ctx(ctx).Info().Msg("Redclair scan finished")
 		report := &model.ScanReport{}
 		vulns := make([]redclair.VulnerabilityInfo, 0)
+		sensitives := make([]redclair.Sensitive, 0)
 		for _, digest := range layers {
-			cachedLayer, err := rcSvc.getCachedEntry(ctx, digest, currentlyCachedLayers)
+			cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 			if err != nil {
-				zerolog.Ctx(ctx).Error().Msg("Redclair scan failed")
+				zerolog.Ctx(ctx).Error().Err(err).Msg("Failed to get entries from cache from just-finished scan")
 				scanTask.FinishedAt = time.Now().Unix()
 				scanTask.Status = model.ScanStatusFailed
-				scanTask.Message = fmt.Sprintf("Couldn't prepare scanning results report: %s", err)
+				scanTask.Message = fmt.Sprintf("Failed to get entries from cache from just-finished scan: %s", err)
 
 				rcSvc.updateMongoStatus(ctx, scanTask)
 				return
@@ -493,6 +512,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			vulns = append(vulns, cachedLayer.ScanReport.Vulns...)
 			report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
 			report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
+			sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
 		}
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusSucceeded
@@ -501,7 +521,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		// TODO: this may be a bug from the way we fetch results...
 		kvs := make(map[string]redclair.VulnerabilityInfo)
 		for _, v := range vulns {
-			kvs[v.Vulnerability] = v
+			kvs[v.CVE] = v
 		}
 		vulnsDedup := []redclair.VulnerabilityInfo{}
 		for _, v := range kvs {
@@ -514,16 +534,17 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			Digest:          scanTask.ImageDigest,
 			Unapproved:      []string{},
 			Vulnerabilities: vulnsDedup,
+			Sensitives:      sensitives,
 		}
 		scanTask.ScanReport = *report
 		rcSvc.updateMongoStatus(scanCtx, scanTask)
 
 	case <-scanCtx.Done():
-		zerolog.Ctx(ctx).Error().Err(ctx.Err()).Msg("Redclair scan timeout")
+		zerolog.Ctx(ctx).Error().Err(scanCtx.Err()).Msg("Redclair scan timeout")
 
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = ctx.Err().Error()
+		scanTask.Message = scanCtx.Err().Error()
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
 	}
@@ -535,7 +556,7 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	retryCounter := 0
 	currentMaxScanRetries := maxLayerScanRetires
 	for retryCounter <= currentMaxScanRetries {
-		layerNamespace, vulnInfo, fileSignatures, software, err := rcSvc.redclairEngine.ScanLayer(
+		layerNamespace, vulnInfo, fileSignatures, software, sensitive, err := rcSvc.redclairEngine.ScanLayer(
 			ctx,
 			hub,
 			currLayer.Digest,
@@ -543,11 +564,14 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			scanTask.Repository,
 		)
 		if err != nil {
+			// TODO: bug prone if we add more error wrapping in the future. Prefer to use errors.As().
 			switch err.(type) {
 			default:
 				zerolog.Ctx(ctx).Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
 				time.Sleep(retryInterval)
 				retryCounter++
+			case ClairUnprocessableLayerError:
+				return err
 			case ClairMissingParentLayerError:
 				zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 				layersBench = append(layersBench, currLayer)
@@ -562,9 +586,10 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 		} else {
 			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
 			scanWorkerResult := &model.ScanWorkerReport{
-				Vulns:    vulnInfo,
-				Files:    fileSignatures,
-				Software: software,
+				Vulns:     vulnInfo,
+				Files:     fileSignatures,
+				Software:  software,
+				Sensitive: sensitive,
 			}
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if len(layersBench) > 0 {
@@ -660,10 +685,9 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 	} else if err != nil {
 		zerolog.Ctx(ctx).Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
 		return nil
-	} else {
-		zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Another worker recently scanned this layer. No need to persist")
-		return nil
 	}
+
+	zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Another worker recently scanned this layer. No need to persist")
 	return nil
 }
 
@@ -740,11 +764,6 @@ func (rcSvc *RedClairService) decodeUsernamePassword(scanTask model.ScanTask) (s
 	password := usernamePasswordArr[1]
 
 	return username, password, nil
-}
-
-// AddScanTask adds ScanTask to the internal channel
-func (rcSvc *RedClairService) AddScanTask(task model.ScanTask) {
-	rcSvc.scanTasksChan <- task
 }
 
 func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask model.ScanTask) {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
@@ -24,15 +25,17 @@ import (
 )
 
 type api struct {
-	ctx            context.Context
-	userCache      *cache.Cache
-	tokenAuth      *jwtauth.JWTAuth
-	mongodb        *mongo.Database
-	scapper        *scapper.Scapper
-	scannerURL     string
-	cronService    *cron.CronService
-	clusterService *cluster.ClusterService
-	redisClient    *redis.Client
+	ctx                            context.Context
+	userCache                      *cache.Cache
+	tokenAuth                      *jwtauth.JWTAuth
+	mongodb                        *mongo.Database
+	scapper                        *scapper.Scapper
+	scannerURL                     string
+	cronService                    *cron.CronService
+	clusterService                 *cluster.ClusterService
+	redisClient                    *redis.Client
+	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
+	scanResultLocalBackoffCacheMux sync.Mutex
 }
 
 func newAPI(
@@ -46,15 +49,16 @@ func newAPI(
 	redisClient *redis.Client,
 ) *api {
 	return &api{
-		ctx:            ctx,
-		userCache:      cache.New(sessionExpiration, time.Minute),
-		tokenAuth:      jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
-		mongodb:        mongodb,
-		scapper:        scapper,
-		scannerURL:     scannerURL,
-		cronService:    cronService,
-		clusterService: clusterService,
-		redisClient:    redisClient,
+		ctx:                         ctx,
+		userCache:                   cache.New(sessionExpiration, time.Minute),
+		tokenAuth:                   jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
+		mongodb:                     mongodb,
+		scapper:                     scapper,
+		scannerURL:                  scannerURL,
+		cronService:                 cronService,
+		clusterService:              clusterService,
+		redisClient:                 redisClient,
+		scanResultLocalBackoffCache: make(map[string]int),
 	}
 }
 

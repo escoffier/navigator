@@ -100,9 +100,9 @@ func stableSortByCVE(vulnerabilities []vulnInfoEx, asc bool) {
 	// Intended to be used after SortBySeverity
 	sort.SliceStable(vulnerabilities, func(i, j int) bool {
 		if asc {
-			return redclair.SeverityMap[vulnerabilities[i].Vulnerability] < redclair.SeverityMap[vulnerabilities[j].Vulnerability]
+			return redclair.SeverityMap[vulnerabilities[i].CVE] < redclair.SeverityMap[vulnerabilities[j].CVE]
 		} else {
-			return redclair.SeverityMap[vulnerabilities[i].Vulnerability] > redclair.SeverityMap[vulnerabilities[j].Vulnerability]
+			return redclair.SeverityMap[vulnerabilities[i].CVE] > redclair.SeverityMap[vulnerabilities[j].CVE]
 		}
 	})
 }

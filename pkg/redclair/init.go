@@ -7,9 +7,11 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
@@ -37,13 +39,12 @@ type CveWhite struct {
 	CVE string `json:"name"`
 }
 
-// // SecretPattern ...
-// type SecretPattern struct {
-// 	Description string `json:"description"`
-// 	Type        string `json:"secret_type"`
-// 	Value       string `json:"value"`
-// 	Regex       *regexp.Regexp
-// }
+// SecretPattern ...
+type SecretPattern struct {
+	Description string `json:"description"`
+	Type        string `json:"secret_type"`
+	Value       string `json:"value"`
+}
 
 type Redclair struct {
 	// External addr:port is address of tensorsec-scanner visible from clair instance
@@ -59,14 +60,21 @@ type Redclair struct {
 	httpRootDir string
 	server      *http.Server
 
-	softwareRegExp    *regexp.Regexp
-	softwareRegExpMap map[*regexp.Regexp]func([]byte) []Software
-	ignoreRegExp      *regexp.Regexp
-	cveWhitelist      map[string]struct{}
+	mongodb                *mongo.Database
+	cve2cnnvdCollectionMux sync.Mutex
+
+	sensitiveFilenameRegExpMap map[*regexp.Regexp]string
+	sensitiveFilenameRegExp    *regexp.Regexp
+	softwareRegExp             *regexp.Regexp
+	softwareRegExpMap          map[*regexp.Regexp]func([]byte) []Software
+	ignoreRegExp               *regexp.Regexp
+	cveWhitelist               map[string]struct{}
 }
 
-func NewRedclair(opts *flag.ClairOpts) (*Redclair, error) {
-	rc := &Redclair{}
+func NewRedclair(opts *flag.ClairOpts, mongodb *mongo.Database) (*Redclair, error) {
+	rc := &Redclair{
+		mongodb: mongodb,
+	}
 	rc.initFlags(opts)
 	if err := rc.initConfigFiles(opts); err != nil {
 		return nil, err
@@ -98,9 +106,20 @@ func (r *Redclair) initConfigFiles(opts *flag.ClairOpts) error {
 	// if err := readJSONFile(opts.IgnorePackageList, &meta.IgnorePackages); err != nil {
 	// 	return err
 	// }
-	// if err := readJSONFile(opts.SecretPattern, &meta.SecretPatternList); err != nil {
-	// 	return err
-	// }
+	r.sensitiveFilenameRegExpMap = make(map[*regexp.Regexp]string)
+	secretPatterns := []SecretPattern{}
+	if err := r.readJSONFile(opts.SecretPattern, &secretPatterns); err != nil {
+		return err
+	} else {
+		var sensitiveFilenameRegExpStrList []string
+		for _, item := range secretPatterns {
+			if item.Type == "Filename" {
+				r.sensitiveFilenameRegExpMap[regexp.MustCompile(item.Value)] = item.Description
+				sensitiveFilenameRegExpStrList = append(sensitiveFilenameRegExpStrList, item.Value)
+			}
+		}
+		r.sensitiveFilenameRegExp = regexp.MustCompile(strings.Join(sensitiveFilenameRegExpStrList, "|"))
+	}
 
 	cveWhites := []CveWhite{}
 	if err := r.readJSONFile(opts.CVEWhitelist, &cveWhites); err != nil {

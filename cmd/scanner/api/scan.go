@@ -26,6 +26,29 @@ func (api *api) scan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/one", api.scanOne())
 		r.Post("/harborScanAll", api.harborScanAll())
+		r.Post("/forceInvalidateCache", api.forceInvalidateCache())
+	}
+}
+
+// @Summary Force layer cache invalidation.
+// @Description Force layer cache invalidation. Then reinitialize it.
+// @Produce json
+// @Router /api/v1/scan/forceInvalidateCache [post]
+func (api *api) forceInvalidateCache() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		log.Warn().Msg("/api/v1/scan/forceInvalidateCache is exposed for development purpose.")
+
+		err := api.redclair.ForceInvalidateCache(ctx)
+		if err != nil {
+			RespAndLog(w, r, fmt.Errorf("Failed to force cache invalidation: %w", err))
+			return
+		}
+
+		log.Info().Msg("Successfully invalidated cache")
+		response.Ok(w)
 	}
 }
 

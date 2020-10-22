@@ -39,14 +39,6 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 		newCtx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		updatedAtInt, err := api.getUpdatedAt(newCtx)
-		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to get vulnerability database last update time")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
-		updatedAt := time.Unix(updatedAtInt, 0).Format(time.RFC3339)
-
 		manifest := harbor.Manifest{
 			Scanner: harbor.Scanner{
 				Name:    "TensorSecurity scanner",
@@ -71,10 +63,15 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 			},
 			Properties: map[string]string{
 				"harbor.scanner-adapter/scanner-type": "os-package-vulnerability",
-				// TODO obtain from scanner/clair and keep here: vulnerability-database-updated-at
-				// "harbor.scanner-adapter/vulnerability-database-updated-at": "2019-08-13T08:16:33.345Z",
-				"harbor.scanner-adapter/vulnerability-database-updated-at": string(updatedAt),
 			},
+		}
+
+		updatedAtInt, err := api.getUpdatedAt(newCtx)
+		if err == nil {
+			updatedAt := time.Unix(updatedAtInt, 0).Format(time.RFC3339)
+			manifest.Properties["harbor.scanner-adapter/vulnerability-database-updated-at"] = string(updatedAt)
+		} else {
+			logging.GetLogger().Warn().Err(err).Msg("Failed to obtain vulnerability DB update time")
 		}
 
 		response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.metadata+json; version=1.0", manifest)
@@ -189,30 +186,58 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 		}
 
 		if result.Status == model.ScanStatusSucceeded {
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			harborVulnReport := harbor.RedclairReportToHarborReport(result.ScanReport.Vulns)
 			response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0", harborVulnReport)
 			return
 		} else if result.Status == model.ScanStatusFailed {
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			e := harbor.NewHarborErrorAndLog(nil, "Scan failed in scanner")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if time.Now().Unix()-result.StartedAt > int64(lastChanceTimeout.Seconds()) {
-			// Timeout in Console layer. There should also be a timeout in Scanner, but if Scanner misbehaves, we want to inform Harbor about it as well.
+			// Timeout in Console layer. There is also a timeout in Scanner, but if Scanner misbehaves, we want to inform Harbor about it as well.
 			// The timeout itself is quite long since its purpose is to catch orphaned jobs.
-			// TODO: Add similar timeout in scanner that would set status in mongo to Failed
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			e := harbor.NewHarborErrorAndLog(nil, "Waited for scanner for too long")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if result.Status == model.ScanStatusInProgress {
-			// Tell harbor to retry after 10+jitter seconds
-			// Is exponential backoff needed? Let's just add jitter for now.
-			refreshAfterSec := 10 + rand.Intn(10)
-			w.Header().Set("Refresh-After", string(refreshAfterSec))
+			refreshAfterSec := api.scanResultExponentialBackoffWithJitter(objectID.Hex())
+			logging.GetLogger().Info().Int("refreshAfterSec", refreshAfterSec).Msg("Refresh after header")
+
+			w.Header().Set("Refresh-After", fmt.Sprint(refreshAfterSec))
 			// harbor expects 302 Found. By http spec, we must supply Location header.
 			w.Header().Set("Location", r.URL.Path)
 			w.WriteHeader(http.StatusFound)
 		}
 	}
+}
+
+func (api *api) scanResultExponentialBackoffWithJitter(id string) int {
+	api.scanResultLocalBackoffCacheMux.Lock()
+	defer api.scanResultLocalBackoffCacheMux.Unlock()
+
+	nextWaitTimeSec, ok := api.scanResultLocalBackoffCache[id]
+	if !ok {
+		nextWaitTimeSec = 1
+	} else {
+		nextWaitTimeSec = 2 * nextWaitTimeSec
+		if nextWaitTimeSec > 20 {
+			nextWaitTimeSec = 20
+		}
+	}
+
+	api.scanResultLocalBackoffCache[id] = nextWaitTimeSec
+
+	jitterSec := rand.Intn(nextWaitTimeSec) // jitter shall be smaller than base
+	jitterSec = jitterSec - nextWaitTimeSec/2
+
+	return nextWaitTimeSec + jitterSec
+}
+
+func (api *api) removeFromScanResultExponentialBackoffCache(id string) {
+	delete(api.scanResultLocalBackoffCache, id) // if key doesn't exist, noop
 }
 
 func (api *api) getUpdatedAt(ctx context.Context) (int64, error) {

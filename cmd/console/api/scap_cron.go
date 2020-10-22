@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,6 +11,54 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
+
+// @Summary List all crons
+// @Description List all crons (for all check types and clusters)
+// @Produce json
+// @Router /api/v1/scap/crons [get]
+func (api *api) listAllCrons() http.HandlerFunc {
+	type RespItem struct {
+		CronType    string `json:"cronType"`
+		CronString  string `json:"cronString"`
+		ClusterID   string `json:"clusterId"`
+		ClusterName string `json:"clusterName"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		clusters, _, err := api.clusterService.ListClusters(ctx, 0, 9999999)
+		if err != nil {
+			RespAndLog(w, r, fmt.Errorf("Couldn't list clusters: %w", err))
+			return
+		}
+
+		respItems := []RespItem{}
+		for _, clust := range clusters {
+			respItems = append(respItems, RespItem{
+				ClusterID:   clust.ID.Hex(),
+				ClusterName: clust.ClusterName,
+				CronType:    "docker",
+				CronString:  clust.CronConfig.DockerBenchCron.CronString,
+			})
+			respItems = append(respItems, RespItem{
+				ClusterID:   clust.ID.Hex(),
+				ClusterName: clust.ClusterName,
+				CronType:    "host",
+				CronString:  clust.CronConfig.HostBenchCron.CronString,
+			})
+			respItems = append(respItems, RespItem{
+				ClusterID:   clust.ID.Hex(),
+				ClusterName: clust.ClusterName,
+				CronType:    "kubernetes",
+				CronString:  clust.CronConfig.KubeBenchCron.CronString,
+			})
+		}
+
+		response.Ok(w,
+			response.WithItems(respItems))
+	}
+}
 
 // @Summary Get cron configured for this checkType and cluster
 // @Description Get cron configured for this checkType and cluster

@@ -51,13 +51,13 @@ func (api *api) restAuth() func(chi.Router) {
 
 // @Summary Login API
 // @Description Login by username/password
-// @ID v1-rest-auth-login
+// @ID v1-auth-login
 // @Accept json
 // @Produce json
 // @Param username body string true "Username"
 // @Param password body string true "Password"
 // @Success 200 {object} api.LoginResponse "Login response"
-// @Router /api/v1/rest-auth/login [post]
+// @Router /api/v1/auth/login [post]
 func (api *api) login() http.HandlerFunc {
 	type credentials struct {
 		Username string `json:"username"`
@@ -140,9 +140,9 @@ func (api *api) login() http.HandlerFunc {
 
 // @Summary Logout API
 // @Description Logout
-// @ID v1-rest-auth-logout
+// @ID v1-auth-logout
 // @Produce json
-// @Router /api/v1/rest-auth/logout [post]
+// @Router /api/v1/auth/logout [post]
 func (api *api) logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, claims, err := jwtauth.FromContext(r.Context())
@@ -161,10 +161,10 @@ func (api *api) logout() http.HandlerFunc {
 
 // @Summary User API
 // @Description Get current user
-// @ID v1-rest-auth-user
+// @ID v1-auth-user
 // @Produce json
 // @Success 200 {object} api.User "Current user"
-// @Router /api/v1/rest-auth/user [get]
+// @Router /api/v1/auth/user [get]
 func user(w http.ResponseWriter, r *http.Request) {
 	u := r.Context().Value(userKey).(*User)
 	response.Ok(w, response.WithItem(*u))

@@ -24,7 +24,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 
 func TestAPIUnauthenticated(t *testing.T) {
 	ts := setupTestServer(t)
-	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/rest-auth/user", nil)
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/auth/user", nil)
 	resp, _ := http.DefaultClient.Do(req)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
@@ -33,7 +33,7 @@ func TestLoginError(t *testing.T) {
 	ts := setupTestServer(t)
 	req, _ := http.NewRequest(
 		"POST",
-		ts.URL+"/api/v1/rest-auth/login",
+		ts.URL+"/api/v1/auth/login",
 		strings.NewReader(`{"username":"admin","password":"wrong"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
@@ -45,7 +45,7 @@ func TestLoginAndExpired(t *testing.T) {
 	ts := setupTestServer(t)
 	req, _ := http.NewRequest(
 		"POST",
-		ts.URL+"/api/v1/rest-auth/login",
+		ts.URL+"/api/v1/auth/login",
 		strings.NewReader(`{"username":"admin","password":"admin"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
@@ -55,13 +55,13 @@ func TestLoginAndExpired(t *testing.T) {
 
 	jwtToken := resp.Cookies()[0].Value
 
-	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/rest-auth/user", nil)
+	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/auth/user", nil)
 	req.Header.Set("Authorization", fmt.Sprintf("BEARER %s", jwtToken))
 	resp, _ = http.DefaultClient.Do(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	time.Sleep(750 * time.Millisecond)
-	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/rest-auth/user", nil)
+	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/auth/user", nil)
 	resp, _ = http.DefaultClient.Do(req)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
@@ -70,7 +70,7 @@ func TestLogout(t *testing.T) {
 	ts := setupTestServer(t)
 	req, _ := http.NewRequest(
 		"POST",
-		ts.URL+"/api/v1/rest-auth/login",
+		ts.URL+"/api/v1/auth/login",
 		strings.NewReader(`{"username":"admin","password":"admin"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
@@ -80,12 +80,12 @@ func TestLogout(t *testing.T) {
 
 	jwtToken := resp.Cookies()[0].Value
 
-	req, _ = http.NewRequest("POST", ts.URL+"/api/v1/rest-auth/logout", nil)
+	req, _ = http.NewRequest("POST", ts.URL+"/api/v1/auth/logout", nil)
 	req.Header.Set("Authorization", fmt.Sprintf("BEARER %s", jwtToken))
 	resp, _ = http.DefaultClient.Do(req)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/rest-auth/user", nil)
+	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/auth/user", nil)
 	resp, _ = http.DefaultClient.Do(req)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }

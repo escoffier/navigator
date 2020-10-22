@@ -103,6 +103,12 @@ type Software struct {
 	Type          SoftwareType `json:"type"`
 }
 
+// Sensitive ...
+type Sensitive struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 var softwareRegExpRawMap = map[string]func([]byte) []Software{
 	"^var/lib/dpkg/status": parseDpkgList,
 	`(^|.*\/)package.json$|(^|.*\/)package-lock.json$|(^|.*\/)yarn.lock$`: parseNode,
@@ -234,11 +240,11 @@ func parseBootstrap(data []byte) []Software {
 	}
 }
 
-func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []VulnerabilityInfo, []FileSignature, []Software, error) {
+func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []VulnerabilityInfo, []FileSignature, []Software, []Sensitive, error) {
 	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 	defer func() {
 		err := os.RemoveAll(pathToLayersInFS)
@@ -253,19 +259,19 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		defer reader.Close()
 	}
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 
 	outFile, err := os.Create(pathToLayersInFS + "/layer.tar")
 	defer outFile.Close()
 	_, err = io.Copy(outFile, reader)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 
 	info, err := os.Stat(pathToLayersInFS + "/layer.tar")
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 
 	zerolog.Ctx(ctx).Info().Str("repository", repository).Str("layerDigest", digest).Int64("size", info.Size()).Str("path", pathToLayersInFS+"/layer.tar").Msg("Layer saved locally")
@@ -273,7 +279,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Msg("[Scanner]")
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 
 	//Analyze the layers
@@ -284,18 +290,18 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 			Str("httpServerRootDir", httpServerRootDir).
 			Str("pathToLayersInFS", pathToLayerInHTTP).
 			Msg("Failed to get relative path")
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 
 	pathToLayer := fmt.Sprintf("http://%s:%d/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayerInHTTP)
 	err = r.analyzeLayer(ctx, pathToLayer, digest, parentDigest)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, err
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 	var imageFileSignature []FileSignature
 	var imageSoftware []Software
-	layerFileSignature, softwareFiles, err := generateTarHash(
-		filepath.Join(pathToLayersInFS, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp)
+	layerFileSignature, softwareFiles, sensitiveFiles, err := walkTarFiles(
+		filepath.Join(pathToLayersInFS, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp, r.sensitiveFilenameRegExp)
 	if err != nil {
 		zerolog.Ctx(ctx).Warn().Msgf("Fail to get layer signature : %s : %v",
 			filepath.Join(pathToLayersInFS, "layer.tar"), err)
@@ -332,10 +338,32 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 			}
 		}
 	}
+	var imageSensitiveFiles = r.getSensitiveFiles(sensitiveFiles)
+
 	imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	imageFileSignature = distinctFileHash(imageFileSignature)
 
 	namespaceName, vulnerabilities := r.getVulnerabilities(ctx, digest)
 
-	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, nil
+	err = r.enrichWithCNNVD(ctx, vulnerabilities)
+	if err != nil {
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD")
+	}
+
+	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, imageSensitiveFiles, nil
+}
+
+func (r *Redclair) getSensitiveFiles(sensitiveFiles []FileSignature) []Sensitive {
+	imageSensitiveFiles := make([]Sensitive, 0)
+	for _, f := range sensitiveFiles {
+		for re, description := range r.sensitiveFilenameRegExpMap {
+			if re.MatchString(f.Name) {
+				imageSensitiveFiles = append(imageSensitiveFiles, Sensitive{
+					Name:        f.Name,
+					Description: description,
+				})
+			}
+		}
+	}
+	return imageSensitiveFiles
 }

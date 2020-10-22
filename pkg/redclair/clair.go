@@ -20,20 +20,15 @@ const (
 
 // VulnerabilityInfo ...
 type VulnerabilityInfo struct {
-	FeatureName    string `json:"featurename"`
-	FeatureVersion string `json:"featureversion"`
-	Vulnerability  string `json:"vulnerability"`
-	Namespace      string `json:"namespace"`
-	Description    string `json:"description"`
-	Link           string `json:"link"`
-	Severity       string `json:"severity"`
-	FixedBy        string `json:"fixedby"`
-}
-
-// VulnerabilityInfoOfLayer ...
-type VulnerabilityInfoOfLayer struct {
-	Layer           string `json:"layer"`
-	Vulnerabilities []VulnerabilityInfo
+	FeatureName    string   `json:"featurename"`
+	FeatureVersion string   `json:"featureversion"`
+	CVE            string   `json:"cve"`
+	CNNVD          string   `json:"cnnvd"`
+	Namespace      string   `json:"namespace"`
+	Description    string   `json:"description"`
+	Links          []string `json:"links"`
+	Severity       string   `json:"severity"`
+	FixedBy        string   `json:"fixedby"`
 }
 
 // https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
@@ -88,16 +83,26 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 		if err != nil {
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
 		}
-		if response.StatusCode == http.StatusBadRequest {
+
+		if response.StatusCode >= 300 {
 			clairResponseError := &NewerLayerEnvelope{}
 			err := json.Unmarshal(body, clairResponseError)
 			if err != nil {
 				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to parse response body from Clair: %w", err))
 			}
-			if strings.Contains(clairResponseError.Error.Message, "parent layer is unknown") {
-				return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
+
+			if response.StatusCode == http.StatusBadRequest {
+				if strings.Contains(clairResponseError.Error.Message, "parent layer is unknown") {
+					return NewClairMissingParentLayerError(http.StatusBadRequest, fmt.Errorf("Provided parent layer name %s does not exist in Clair", parentLayerName))
+				}
+			}
+
+			if response.StatusCode == http.StatusUnprocessableEntity {
+				// Possible cause: "worker: OS and/or package manager are not supported"
+				return NewClairUnprocessableLayerError(http.StatusBadRequest, fmt.Errorf("Clair reports that layer is unprocessable: %s", clairResponseError.Error.Message))
 			}
 		}
+
 		return NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
 	}
 
@@ -106,7 +111,7 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 
 func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string, []VulnerabilityInfo) {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
-	var vulnerabilitiesMap = make(map[VulnerabilityInfo]struct{})
+	var vulnerabilitiesMap = make(map[string]VulnerabilityInfo)
 	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
 	if err != nil {
 		zerolog.Ctx(ctx).Warn().
@@ -117,21 +122,22 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 	for _, feature := range rawVulnerabilities.Features {
 		if len(feature.Vulnerabilities) > 0 {
 			for _, vulnerability := range feature.Vulnerabilities {
+				links := []string{vulnerability.Link}
 				vulnerability := VulnerabilityInfo{
 					FeatureName:    feature.Name,
 					FeatureVersion: feature.Version,
-					Vulnerability:  vulnerability.Name,
+					CVE:            vulnerability.Name,
 					Namespace:      vulnerability.NamespaceName,
 					Description:    vulnerability.Description,
-					Link:           vulnerability.Link,
+					Links:          links,
 					Severity:       vulnerability.Severity,
 					FixedBy:        vulnerability.FixedBy,
 				}
-				vulnerabilitiesMap[vulnerability] = struct{}{}
+				vulnerabilitiesMap[vulnerability.CVE] = vulnerability
 			}
 		}
 	}
-	for vulnerability := range vulnerabilitiesMap {
+	for _, vulnerability := range vulnerabilitiesMap {
 		vulnerabilities = append(vulnerabilities, vulnerability)
 	}
 	return rawVulnerabilities.NamespaceName, vulnerabilities

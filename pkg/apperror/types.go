@@ -11,15 +11,18 @@ type MalformedRequestError struct{ detailedError }
 type InvalidUsernameOrPasswordError struct{ detailedError }
 type FieldError struct{ detailedError }
 type ClusterAlreadyExists struct{ detailedError }
+type MaxNumberOfClustersReached struct{ detailedError }
 type InvalidAuthToken struct{ detailedError }
 type SessionExpired struct{ detailedError }
 type ClairError struct{ detailedError }
 type DockerError struct{ detailedError }
+type ClairUnprocessableLayerError struct{ detailedError }
 type ClairMissingParentLayerError struct{ detailedError }
 type HarborError struct{ detailedError }
 type HarborUnauthorizedError struct{ detailedError }
 type HarborForbiddenError struct{ detailedError }
 type HarborScanAllInProgressError struct{ detailedError }
+type RedisError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -157,6 +160,18 @@ func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) err
 	}
 }
 
+func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberror) error {
+	return MaxNumberOfClustersReached{
+		detailedError{
+			err:       err,
+			English:   "Maximum number of clusters reached",
+			Zhongwen:  "达到最大群集数",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
 	return InvalidAuthToken{
 		detailedError{
@@ -199,6 +214,18 @@ func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Docker error has occurred",
 			Zhongwen:  "发生Docker错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suberror) error {
+	return ClairUnprocessableLayerError{
+		detailedError{
+			err:       err,
+			English:   "Clair scanning error: layer unprocessable",
+			Zhongwen:  "Clair扫描错误：不可处理的图层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -259,6 +286,18 @@ func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suber
 			err:       err,
 			English:   "Harbor full scan is already in progress, please wait",
 			Zhongwen:  "Harbor全面扫描已在进行中, 请稍候",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
+	return RedisError{
+		detailedError{
+			err:       err,
+			English:   "Redis error has occured",
+			Zhongwen:  "Redis error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
