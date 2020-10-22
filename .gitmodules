@@ -9,3 +9,6 @@
 [submodule "configs/scap/jobs/host-bench/xccdfparser"]
 	path = configs/scap/jobs/host-bench/xccdfparser
 	url = git@gitlab.com:tensorsecurity-rd/xccdfparser.git
+[submodule "tensordig/k8s/elastalertdocker"]
+	path = tensordig/k8s/elastalertdocker
+	url = https://github.com/bitsensor/elastalert.git

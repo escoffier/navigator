@@ -1,0 +1,40 @@
+producers:
+  syscalls:
+    - syscallExecve:
+      name: execve
+      filters:
+        - uidFilter:
+          id: f2
+          field: uid
+          operation: notEqualTo
+          values:
+            - v: 0
+        - eUidFilter:
+          id: f3
+          field: euid
+          operation: equalTo
+          values:
+            - v: 0
+      logic: f2&&f3
+  nets:
+    - netsInetBind:
+      name: inet_bind
+    - netsTCPV4Connect:
+      name: inet_listen
+      filters:
+        - uidFilter:
+          id: f2
+          field: uid
+          operation: notEqualTo
+          values:
+          - v: 0
+        - eUidFilter:
+          id: f3
+          field: euid
+          operation: equalTo
+          values:
+            - v: 0
+      logic: f2&&f3
+
+consumers:
+  - Print

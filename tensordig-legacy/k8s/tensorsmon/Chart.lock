@@ -1,0 +1,12 @@
+dependencies:
+- name: filebeat
+  repository: file://../filebeat
+  version: 8.0.0-SNAPSHOT
+- name: kibana
+  repository: https://helm.elastic.co
+  version: 7.9.1
+- name: elasticsearch
+  repository: https://helm.elastic.co
+  version: 7.9.1
+digest: sha256:31776b061ec40e9c759645bcbb02a7a97dd08420c6dfe3616af4d0a149d18092
+generated: "2020-09-22T07:01:42.11666496+02:00"

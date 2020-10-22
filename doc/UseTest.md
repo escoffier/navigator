@@ -125,6 +125,22 @@ curl --request PUT 'http://127.0.0.1:8889/api/v1/scap/kube/5f75a5221b29c43e6838d
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
 ```
 
+## Runtime detection
+```bash
+kubectl port-forward -n tensorsec elasticsearch-master-0 9200:9200 &
+
+curl -X GET "localhost:9200/filebeat-*/_search?pretty" -H 'Content-Type: application/json' -d'
+{
+  "query": { 
+    "bool": { 
+      "must": [
+        { "match": { "open__filename":   "/etc/hosts"        }}
+      ]
+    }
+  }
+}
+'
+```
 
 ## Database access
 

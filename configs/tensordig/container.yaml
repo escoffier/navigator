@@ -1,0 +1,19 @@
+producers:
+  syscalls:
+    - syscallClose:
+      name: close
+      filters:
+        - fnFilter:
+          field: pid
+          operation: inArray
+          values:
+            - v: 1577488
+            - v: 1838520
+            - v: 1838521
+            - v: 1838522
+            - v: 1838523
+            - v: 1838524
+            - v: 1838525
+            - v: 2710684
+consumers:
+  - Print

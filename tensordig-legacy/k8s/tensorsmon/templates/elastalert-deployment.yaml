@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elastalert
+spec:
+  selector:
+    matchLabels:
+      app: elastalert
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: elastalert
+    spec:
+      containers:
+      - name: elastalert
+        image: localhost:5000/elastalert:registry
+        ports:
+        - containerPort: 3030

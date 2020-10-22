@@ -79,8 +79,24 @@ scanner: generate		## Build scanner binary
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
+.PHONY: tensoragent
+tensoragent: tensoragent		## Build tensoragent binary
+	@echo "+ $@"
+	go build -v -a \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensoragent/cmd.Version=$(VERSION)" \
+		-o dist/tensoragent gitlab.com/piccolo_su/vegeta/cmd/tensoragent
+	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile .
+
+.PHONY: tensordig
+tensordig: tensordig		## Build tensordig binary
+	@echo "+ $@"
+	go build -v -a \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$(VERSION)" \
+		-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
+	docker build -t $(REPOPREFIX)/tensordig:latest -f ./build/tensordig/Dockerfile .
+
 .PHONY: all
-all: scanner scap-jobs console
+all: scanner scap-jobs console tensoragent tensordig
 
 .PHONY: pushimages
 pushimages:
@@ -89,6 +105,8 @@ pushimages:
 	docker push $(REPOPREFIX)/kube-bench:latest
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
+	docker push $(REPOPREFIX)/tensoragent:latest
+	docker push $(REPOPREFIX)/tensordig:latest
 
 .PHONY: retag
 retag:
@@ -97,7 +115,8 @@ retag:
 	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:latest
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
-
+	docker tag $(REPOPREFIXOLD)/tensoragent:latest $(REPOPREFIX)/tensoragent:latest
+	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
 
 .PHONY: redeploy
 redeploy:
