@@ -13,7 +13,9 @@ type CheckHistoryEntry struct {
 	NumWaiting          int64   `json:"numWaiting"`
 	NumInconclusive     int64   `json:"numInconclusive"`
 	Score               float32 `json:"score"`
+	MaxScore            float32 `json:"maxScore"`
 	TotalPoliciesPassed int64   `json:"-"`
+	TotalPoliciesTried  int64   `json:"-"`
 }
 
 type CheckBreakdown struct {
