@@ -121,7 +121,7 @@ curl -v -X DELETE "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 
 ```bash
 
-curl --request PUT 'http://127.0.0.1:8889/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron' -H "Authorization: Bearer $JWT" --header 'Content-Type: application/json' --data-raw '{ "newCronString": "*/5 * * * *" }'
+curl --request PUT 'http://127.0.0.1:8889/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron' -H "Authorization: Bearer $JWT" --header 'Content-Type: application/json' --data-raw '{ "cronString": "*/5 * * * *" }'
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
 ```
 

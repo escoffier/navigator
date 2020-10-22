@@ -510,7 +510,7 @@
                     },
                     {
                         "description": "new crontab string to assign; empty string to disable",
-                        "name": "newCronString",
+                        "name": "cronString",
                         "in": "body",
                         "required": true,
                         "schema": {
