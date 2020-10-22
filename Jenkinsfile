@@ -20,7 +20,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
         )
         stage('git clone'){
             container('golang') {
-            git credentialsId: 'ab33d484-a7a7-4ba8-acfe-5c3d5e695f64', url: 'https://gitlab.com/tensorsecurity-rd/tensornavigator.git'
+            git changelog: false, credentialsId: '35006a79-98ed-4b4e-8afa-1bc3e60a621c', poll: false, url: 'http://10.77.107.13/root/tensornavigator.git'
         }
         }
         stage('build all'){
@@ -49,6 +49,14 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 docker push registry.t-appagile.com/tensorsecurity/tensorsec-console:latest
                 kubectl scale --replicas=0 deployment tensorsec-console  -n tensorsec
                 kubectl scale --replicas=1 deployment tensorsec-console  -n tensorsec
+                '''
+                }
+                if("$moduleToDeploy".trim() == "redeploy") {
+                sh '''
+                cp ~/.docker/helm /bin/
+                sed -i 's#ourDockerRepo: 192.168.1.203:5000#ourDockerRepo: registry.t-appagile.com/tensorsecurity#g' deployments/helm/values.yaml
+                
+                make redeploy
                 '''
                 }
                 if("$moduleToDeploy".trim() == "all") {
