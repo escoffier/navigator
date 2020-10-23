@@ -22,7 +22,7 @@ case $NAME in
     # PROFILE="xccdf_org.ssgproject.content_profile_standard"
 
     echo "DSPATH=$DSPATH"
-    ecoh "TAILORINGPATH=$TAILORINGPATH"
+    echo "TAILORINGPATH=$TAILORINGPATH"
 
     echo "Running oscap-chroot"
     oscap-chroot /mnt/root/ xccdf eval --tailoring-file $TAILORINGPATH --report=report.html --results=results.xccdf --profile xccdf_org.tensorsecurity.content_profile_unselect_memory_intensive_from_standard $DSPATH

@@ -41,7 +41,6 @@ postgresql:
     tag: latest
   # Use the same PGDATA as the travis job that builds arminc/clair-db
   # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
-  # TODO: this should be a persistent volume mount
   postgresqlDataDir: /var/lib/postgresql/clair
   postgresqlUsername: postgres
   postgresqlPassword: password

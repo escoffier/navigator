@@ -80,7 +80,7 @@ scanner: generate		## Build scanner binary
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: tensoragent
-tensoragent: tensoragent		## Build tensoragent binary
+tensoragent: generate ## Build tensoragent binary
 	@echo "+ $@"
 	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensoragent/cmd.Version=$(VERSION)" \
@@ -88,12 +88,9 @@ tensoragent: tensoragent		## Build tensoragent binary
 	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile .
 
 .PHONY: tensordig
-tensordig: tensordig		## Build tensordig binary
+tensordig: generate ## Build tensordig binary
 	@echo "+ $@"
-	go build -v -a \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$(VERSION)" \
-		-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
-	docker build -t $(REPOPREFIX)/tensordig:latest -f ./build/tensordig/Dockerfile .
+	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) .
 
 .PHONY: all
 all: scanner scap-jobs console tensoragent tensordig

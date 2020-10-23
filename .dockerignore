@@ -1,8 +1,7 @@
 build/
-cmd/
-# configs/ <- used
+# cmd/
+# configs/
 deployments/
-pkg/
-# testdata/ <- used by console build
-
+# pkg/
+dist/
 .git/
