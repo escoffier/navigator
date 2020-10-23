@@ -201,6 +201,92 @@
                 ]
             }
         },
+        "/api/v1/runtime/detection/alerts": {
+            "get": {
+                "description": "List runtime detection alerts",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List runtime detection alerts",
+                "operationId": "v1-runtime-detection-alerts-get",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
+        "/api/v1/runtime/detection/rule/{ruleID}/off": {
+            "post": {
+                "description": "Disable single rule",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Disable single rule",
+                "operationId": "v1-runtime-detection-rule-disable",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ruleID",
+                        "name": "ruleID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/api/v1/runtime/detection/rule/{ruleID}/on": {
+            "post": {
+                "description": "Enable single rule",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Enable single rule",
+                "operationId": "v1-runtime-detection-rule-enable",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ruleID",
+                        "name": "ruleID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/api/v1/runtime/detection/rules": {
+            "get": {
+                "description": "List runtime detection rules",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List runtime detection rules",
+                "operationId": "v1-runtime-detection-rules-get",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
         "/api/v1/scanner/reportsBySeverity": {
             "get": {
                 "description": "List reports by severity",

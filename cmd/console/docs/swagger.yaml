@@ -165,6 +165,64 @@ paths:
       produces:
       - application/json
       summary: Update single cluster information
+  /api/v1/runtime/detection/alerts:
+    get:
+      description: List runtime detection alerts
+      operationId: v1-runtime-detection-alerts-get
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: List runtime detection alerts
+  /api/v1/runtime/detection/rule/{ruleID}/off:
+    post:
+      description: Disable single rule
+      operationId: v1-runtime-detection-rule-disable
+      parameters:
+      - description: ruleID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Disable single rule
+  /api/v1/runtime/detection/rule/{ruleID}/on:
+    post:
+      description: Enable single rule
+      operationId: v1-runtime-detection-rule-enable
+      parameters:
+      - description: ruleID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Enable single rule
+  /api/v1/runtime/detection/rules:
+    get:
+      description: List runtime detection rules
+      operationId: v1-runtime-detection-rules-get
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: List runtime detection rules
   /api/v1/scanner/reportsBySeverity:
     get:
       description: List reports by severity

@@ -56,7 +56,20 @@ var rootCmd = &cobra.Command{
 			Str("endpoint", redisOpts.Endpoint).
 			Msg("Redis options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts)
+		elasticOpts := flag.GetElasticOpts(cmd)
+		logging.GetLogger().Info().
+			Str("host", elasticOpts.Host).
+			Str("port", elasticOpts.Port).
+			Str("index", elasticOpts.Index).
+			Msg("Elastic options")
+
+		elastalertOpts := flag.GetElastalertOpts(cmd)
+		logging.GetLogger().Info().
+			Str("available-rules-folder", elastalertOpts.AvailableRulesFolder).
+			Str("applied-rules-folder", elastalertOpts.AppliedRulesFolder).
+			Msg("Elastalert options")
+	
+		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, elastalertOpts)
 		if err != nil {
 			return err
 		}
@@ -86,6 +99,8 @@ func init() {
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
+	flag.AddElasticFlags(rootCmd)
+	flag.AddElastalertFlags(rootCmd)
 
 	flag.ConfigViper()
 }

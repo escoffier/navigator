@@ -11,8 +11,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 )
 
@@ -25,6 +27,8 @@ func setupChiRouter(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
+	ruleService *rule.RuleService,
+	alertService *alert.AlertService,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -38,7 +42,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, 24*time.Hour, mongodb, scapper, scannerURL, cronService, clusterService, redisClient)
+	api.SetupRoutes(ctx, r, 24*time.Hour, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService)
 
 	return r
 }
