@@ -15,20 +15,14 @@ source /mnt/root/etc/os-release
 
 
 case $NAME in 
-  *Ubuntu*)
-    echo "Unsupported OS: $NAME"
-    exit 1
-    # DSPATH="/usr/share/xml/scap/ssg/content/ssg-ubuntu${VERSION_ID}04-ds.xml"
-
-    # We get:
-    # WARNING: Datastream component 'scap_org.open-scap_cref_-ubuntu-security-oval-com.ubuntu.xenial.cve.oval.xml' points out to the remote 'https://people.canonical.com/~ubuntu-security/oval/com.ubuntu.xenial.cve.oval.xml'. Use '--fetch-remote-resources' option to download it.
-    # We have to prefetch offline resource in dockerfile, similar to centos.
-  ;;
   *CentOS*)
     # Use offline ds (use resources prefetched during dockerfile build)
-    DSPATH="./ssg-rhel8-offline-ds.xml"
-    TAILORINGPATH="./tailoring/tailoring-file-centos8.xml"
+    DSPATH="./ssg-rhel$VERSION_ID-offline-ds.xml"
+    TAILORINGPATH="./tailoring/tailoring-file-centos.xml"
     # PROFILE="xccdf_org.ssgproject.content_profile_standard"
+
+    echo "DSPATH=$DSPATH"
+    ecoh "TAILORINGPATH=$TAILORINGPATH"
 
     echo "Running oscap-chroot"
     oscap-chroot /mnt/root/ xccdf eval --tailoring-file $TAILORINGPATH --report=report.html --results=results.xccdf --profile xccdf_org.tensorsecurity.content_profile_unselect_memory_intensive_from_standard $DSPATH

@@ -4,7 +4,7 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 
 const (
 	ComplianceCheckStatusInProgress = "inprogress"
-	ComplianceCheckStatusSucceeded  = "succeeded"
+	ComplianceCheckStatusCompleted  = "completed"
 	ComplianceCheckStatusFailed     = "failed"
 )
 
