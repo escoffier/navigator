@@ -3,5 +3,5 @@ build/
 # configs/
 deployments/
 # pkg/
-dist/
+# dist/
 .git/
