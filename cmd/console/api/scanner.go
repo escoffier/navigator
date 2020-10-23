@@ -10,7 +10,6 @@ import (
 	"math"
 	"net/http"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -134,27 +133,49 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		weekBefore := time.Now().Add(-1 * time.Hour * 24 * 7).Unix()
-		fromDateUnix := weekBefore
+		fromDateUnix := time.Now().Add(-1 * time.Hour * 24 * 7).Unix()
+		toDateUnix := time.Now().Unix()
+
 		filterFrom := r.URL.Query().Get("from")
+		filterTo := r.URL.Query().Get("to")
 		if filterFrom != "" {
-			filterFromInt, err := strconv.Atoi(filterFrom)
+			fromTimestamp, err := time.Parse(time.RFC3339, filterFrom)
 			if err != nil {
 				RespAndLog(w, r,
 					NewFieldError(http.StatusBadRequest,
-						fmt.Errorf("invalid filterFrom param value (allowed: int64)", err),
-						Suberror{"filterFrom", "allowed: int64"}))
+						fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
+						Suberror{"from", "allowed: RFC3339 timestamp format"}))
 				return
 			}
-			fromDateUnix = int64(filterFromInt)
+			fromDateUnix = fromTimestamp.Unix()
+		}
+		if filterTo != "" {
+			toTimestamp, err := time.Parse(time.RFC3339, filterTo)
+			if err != nil {
+				RespAndLog(w, r,
+					NewFieldError(http.StatusBadRequest,
+						fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
+						Suberror{"to", "allowed: RFC3339 timestamp format"}))
+				return
+			}
+			toDateUnix = toTimestamp.Unix()
 		}
 
 		filter := bson.M{
-			"finishedAt": bson.M{"$gt": fromDateUnix},
+			"finishedAt": bson.M{"$gt": fromDateUnix, "$lt": toDateUnix},
+		}
+		if filterTo == "" {
+			filter = bson.M{
+				"finishedAt": bson.M{"$gt": fromDateUnix},
+			}
 		}
 
 		findOptions := options.Find()
 		// sorted by date ascending, so that newer scans of the same digest are on top ("last scan wins")
+		// NOTE: need index on finishedAt ascending on this collection for this to work, otherwise
+		// may get errors like:
+		//  (OperationFailed) Executor error during find command :: caused by ::
+		//  Sort operation used more than the maximum 33554432 bytes of RAM. Add an index, or specify a smaller limit."
 		findOptions.SetSort(bson.D{{"finishedAt", 1}})
 
 		cursor, err := api.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter, findOptions)
