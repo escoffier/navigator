@@ -66,8 +66,10 @@ curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/
 curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/harborScanAll
 
 # Obtain results ordered by severity from some timestamp
-curl -v  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scanner/reportsBySeverity?from=1603222793" > out.json
-
+# Note: RFC3339 timestamp helper, see https://www.unixtimestamp.com/ (CTRL+F "RFC 3339")
+# Remember to replace + with %2B
+curl -v  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scanner/reportsBySeverity?from=2020-10-21T00:00:00%2B01:00" > out.json
+curl -v  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scanner/reportsBySeverity?from=2020-10-21T00:00:00%2B01:00&to=2020-10-22T00:00:00%2B01:00" > out.json
 ```
 
 Run scap job:
