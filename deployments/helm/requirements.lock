@@ -8,6 +8,9 @@ dependencies:
 - name: clair
   repository: file://./subcharts/clair
   version: 0.1.3
+- name: daemon
+  repository: file://./subcharts/daemon
+  version: 0.1.0
 - name: postgresql
   repository: https://kubernetes-charts.storage.googleapis.com
   version: 6.3.9
@@ -17,14 +20,8 @@ dependencies:
 - name: redis
   repository: https://charts.bitnami.com/bitnami
   version: 11.2.1
-- name: tensoragent
-  repository: file://./subcharts/tensoragent
-  version: 0.1.0
-- name: kibana
-  repository: https://helm.elastic.co
-  version: 7.9.1
 - name: elasticsearch
   repository: https://helm.elastic.co
   version: 7.9.1
-digest: sha256:cec799200c2efbe098e036c7d22fc7508732a3de2bbcaff69494cc18fb1255d8
-generated: "2020-10-23T19:06:05.607755521+02:00"
+digest: sha256:9343d9776f030abf6becc04ebe145df1bf90a42690ee184928a6071d30316d26
+generated: "2020-10-23T20:09:45.456544374+02:00"

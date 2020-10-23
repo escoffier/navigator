@@ -174,4 +174,8 @@ microk8s kubectl --namespace tensorsec get pods --all-namespaces -o name | grep 
 
 # Delete all scap jobs (will remove pods as well)
 kubectl --namespace tensorsec get job --all-namespaces   | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job
+
+# scale down some deployments by grep
+k8 get deployment | grep harbor | awk '{print $1}' | xargs kubectl -n tensorsec scale --replicas 0 deployment {} 
+
 ```

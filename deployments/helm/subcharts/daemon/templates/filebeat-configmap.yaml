@@ -5,7 +5,7 @@ kind: ConfigMap
 metadata:
   name: filebeat-config
   labels:
-    app: "{{ template "tensoragent.fullname" . }}"
+    app: "{{ template "daemon.fullname" . }}"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     heritage: {{ .Release.Service | quote }}
     release: {{ .Release.Name | quote }}

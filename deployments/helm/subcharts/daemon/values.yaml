@@ -138,8 +138,12 @@ updateStrategy: RollingUpdate
 
 # Override various naming aspects of this chart
 # Only edit these if you know what you're doing
-nameOverride: ""
-fullnameOverride: ""
+# nameOverride: ""
+# fullnameOverride: ""
+
+nameOverride: "daemon"
+fullnameOverride: "tensorsec-daemon"
+
 
 tensoragent:
   image:
