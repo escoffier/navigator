@@ -10,7 +10,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -20,7 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 var (
@@ -58,11 +56,6 @@ func NewConsole(
 	}
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
-
-	err = createMongoIndices(mongodb)
-	if err != nil {
-		return nil, fmt.Errorf("When creating mongo indices: %w", err)
-	}
 
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
@@ -162,32 +155,4 @@ func (c *Console) Run() func() {
 
 		log.Info().Msg("Vegeta Console stopped")
 	}
-}
-
-func createMongoIndices(mongodb *mongo.Database) error {
-
-	// Index for model.ScanTasksCollection
-
-	indexModels := []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"finishedAt": 1, // index in ascending order
-			}, Options: nil,
-		},
-	}
-	indexOpts := options.CreateIndexes().SetMaxTime(10 * time.Second)
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
-
-	col := mongodb.Collection(model.ScanTasksCollection)
-
-	// This operation is idempotent
-	_, err := col.Indexes().CreateMany(ctx, indexModels, indexOpts)
-
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if err != nil {
-		return err
-	}
-	return nil
 }
