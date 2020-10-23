@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -514,11 +515,12 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		status := r.URL.Query().Get("status")
 		if status != "" {
-			if status != model.ComplianceCheckStatusSucceeded && status != model.ComplianceCheckStatusInProgress && status != model.ComplianceCheckStatusFailed {
+			if status != model.ComplianceCheckStatusCompleted && status != model.ComplianceCheckStatusInProgress && status != model.ComplianceCheckStatusFailed {
+				allowed := strings.Join([]string{model.ComplianceCheckStatusCompleted, model.ComplianceCheckStatusInProgress, model.ComplianceCheckStatusFailed}, "/")
 				RespAndLog(w, r,
 					NewFieldError(http.StatusBadRequest,
-						fmt.Errorf("invalid status param value (allowed: inprogress/error/completed)"),
-						Suberror{"status", "allowed: inprogress/error/completed"}))
+						fmt.Errorf("invalid status param value (allowed: %s)", allowed),
+						Suberror{"status", fmt.Sprintf("allowed: %s", allowed)}))
 				return
 			}
 			filter["status"] = status
