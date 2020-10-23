@@ -217,6 +217,29 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 				}
 				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
 			}
+			for _, sens := range task.ScanReport.Vulns.Sensitives {
+				// "dumb" convert of sensitive file info to vulnerability info.
+				// Consider a different way to return this maybe?
+				vi := redclair.VulnerabilityInfo{
+					Description:    sens.Description,
+					FeatureName:    sens.Name,
+					Severity:       "High",
+					CVE:            "-",
+					CNNVD:          "-",
+					Namespace:      "-",
+					Links:          []string{},
+					FeatureVersion: "-",
+					FixedBy:        "-",
+				}
+				vex := vulnInfoEx{
+					VulnerabilityInfo:  vi,
+					AffectedRepository: task.Repository,
+					AffectedTag:        task.Tag,
+					AffectedDigest:     task.ImageDigest,
+					FinishedAt:         task.FinishedAt,
+				}
+				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
+			}
 		}
 
 		err = cursor.Err()
