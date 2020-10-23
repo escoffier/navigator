@@ -10,6 +10,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -19,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 var (
@@ -34,6 +36,7 @@ type Console struct {
 	lifecycle.Service
 	server      *http.Server
 	mongoClient *mongo.Client
+	mongodb     *mongo.Database
 	cronService *cron.CronService
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -101,6 +104,7 @@ func NewConsole(
 			),
 		},
 		mongoClient: mongoClient,
+		mongodb:     mongodb,
 		cronService: cronService,
 		ctx:         mainCtx,
 		cancel:      mainCancel,
@@ -133,6 +137,14 @@ func (c *Console) Run() func() {
 		panic(err)
 	}
 
+	err = createMongoIndices(c.mongodb)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When creating mongo indices")
+		panic(fmt.Errorf("When creating mongo indices: %w", err))
+	}
+
 	err = c.cronService.StartCrons(c.ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("error starting cron jobs")
@@ -155,4 +167,37 @@ func (c *Console) Run() func() {
 
 		log.Info().Msg("Vegeta Console stopped")
 	}
+}
+
+func createMongoIndices(mongodb *mongo.Database) error {
+
+	// Index for model.ScanTasksCollection
+
+	indexModels := []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"finishedAt": 1, // index in ascending order
+			}, Options: nil,
+		},
+	}
+	indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
+
+	col := mongodb.Collection(model.ScanTasksCollection)
+
+	logging.GetLogger().Info().Msg("Ensuring mongo indices")
+
+	// This operation is idempotent
+	out, err := col.Indexes().CreateMany(ctx, indexModels, indexOpts)
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil {
+		return err
+	}
+
+	log.Info().Str("created-indices", fmt.Sprintf("%+v", out)).Msg("Created mongo indices")
+
+	return nil
 }
