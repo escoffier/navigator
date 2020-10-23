@@ -1,6 +1,10 @@
+ARG VERSION
+ARG LDFLAGS
+
 FROM ubuntu:eoan
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends libelf1 libtinfo5
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends \
+        libelf1 libtinfo5 golang-1.13 ca-certificates build-essential
 
 WORKDIR /bcc
 # aquasec/bcc-builder is built from the upstream bcc dockerfile using:
@@ -9,7 +13,10 @@ WORKDIR /bcc
 COPY --from=aquasec/bcc-builder:latest /root/bcc/libbcc_*.deb /bcc/
 RUN DEBIAN_FRONTEND=noninteractive dpkg -i libbcc_*.deb && rm -rf /bcc
 
-WORKDIR /
-ADD dist/tensordig /
+WORKDIR /go/src/app
+COPY . .
+RUN PATH=$PATH:/usr/lib/go-1.13/bin GO111MODULE=on go build -v -a \
+		--ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \
+		-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
 
-CMD /tensordig
+CMD dist/tensordig
