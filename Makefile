@@ -103,7 +103,7 @@ pushimages:
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
 	docker push $(REPOPREFIX)/tensoragent:latest
-	# docker push $(REPOPREFIX)/tensordig:latest
+	docker push $(REPOPREFIX)/tensordig:latest
 
 .PHONY: retag
 retag:
@@ -113,7 +113,7 @@ retag:
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	docker tag $(REPOPREFIXOLD)/tensoragent:latest $(REPOPREFIX)/tensoragent:latest
-	# docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
+	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
 
 .PHONY: redeploy
 redeploy:

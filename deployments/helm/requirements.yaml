@@ -14,6 +14,11 @@ dependencies:
     repository: "file://./subcharts/clair"
     condition: clair.enabled
 
+  - name: daemon
+    version: 0.1.0
+    repository: "file://./subcharts/daemon"
+    condition: daemon.enabled
+ 
   - name: postgresql
     version: "6.3.9"
     condition: postgresql.enabled
@@ -30,16 +35,7 @@ dependencies:
     repository: https://charts.bitnami.com/bitnami
     condition: redis.enabled
 
-  - name: tensoragent
-    version: 0.1.0
-    repository: "file://./subcharts/tensoragent"
-    condition: tensoragent.enabled
 
-  - name: kibana
-    version: 7.9.1
-    repository: https://helm.elastic.co
-    condition: kibana.enabled 
- 
   - name: elasticsearch
     version: 7.9.1
     repository: https://helm.elastic.co

@@ -2,9 +2,9 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ template "tensoragent.fullname" . }}
+  name: {{ template "daemon.fullname" . }}
   labels:
-    app: "{{ template "tensoragent.fullname" . }}"
+    app: "{{ template "daemon.fullname" . }}"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     heritage: {{ .Release.Service | quote }}
     release: {{ .Release.Name | quote }}
@@ -14,7 +14,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: "{{ template "tensoragent.fullname" . }}"
+      app: "{{ template "daemon.fullname" . }}"
       release: {{ .Release.Name | quote }}
   updateStrategy:
     type: {{ .Values.updateStrategy }}
@@ -28,9 +28,9 @@ spec:
         {{- if .Values.filebeatConfig }}
         configChecksum: {{ include (print .Template.BasePath "/filebeat-configmap.yaml") . | sha256sum | trunc 63 }}
         {{- end }}
-      name: "{{ template "tensoragent.fullname" . }}"
+      name: "{{ template "daemon.fullname" . }}"
       labels:
-        app: "{{ template "tensoragent.fullname" . }}"
+        app: "{{ template "daemon.fullname" . }}"
         chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         heritage: {{ .Release.Service | quote }}
         release: {{ .Release.Name | quote }}
@@ -50,7 +50,7 @@ spec:
       {{- with .Values.affinity }}
       affinity: {{ toYaml . | nindent 8 -}}
       {{- end }}
-      serviceAccountName: {{ template "tensoragent.serviceAccount" . }}
+      serviceAccountName: {{ template "daemon.serviceAccount" . }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriod }}
       {{- if .Values.hostNetworking }}
       hostNetwork: true
@@ -82,7 +82,7 @@ spec:
       {{- if .Values.filebeatConfig }}
       - name: socketconfig
         configMap:
-          name: {{ template "tensoragent.fullname" . }}-config
+          name: {{ template "daemon.fullname" . }}-config
           defaultMode: 0600
       - name: filebeat-config
         configMap:
@@ -91,7 +91,7 @@ spec:
       {{- end }}
       - name: data
         hostPath:
-          path: {{ .Values.hostPathRoot }}/{{ template "tensoragent.fullname" . }}-{{ .Release.Namespace }}-data
+          path: {{ .Values.hostPathRoot }}/{{ template "daemon.fullname" . }}-{{ .Release.Namespace }}-data
           type: DirectoryOrCreate
       - name: varlibdockercontainers
         hostPath:
@@ -124,7 +124,7 @@ spec:
       {{- end }}
       {{- end }}
       containers:
-      - name: tensordig-client
+      - name: tensoragent
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.tensoragent.image.name }}:{{ .Values.tensoragent.image.tag }}"
         imagePullPolicy: {{ .Values.tensoragent.image.pullPolicy }}
         command: ["/tensoragent"]
@@ -149,7 +149,7 @@ spec:
           privileged: true
           runAsUser: 0
           hostPID: true
-        command: ["/tensordig"]
+        command: ["/go/src/app/dist/tensordig"]
         args: ["--config", "/config/example.yaml"]
         resources:
           limits:
@@ -166,7 +166,7 @@ spec:
             mountPath: /lib/modules
             readOnly: true
           - name: usr
-            mountPath: /usr/src    
+            mountPath: /usr/src
             readOnly: true
           - name: sys
             mountPath: /sys

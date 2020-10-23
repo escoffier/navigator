@@ -2,7 +2,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "tensoragent.name" -}}
+{{- define "daemon.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
@@ -10,7 +10,7 @@ Expand the name of the chart.
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
-{{- define "tensoragent.fullname" -}}
+{{- define "daemon.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -22,7 +22,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{/*
 Use the fullname if the serviceAccount value is not set
 */}}
-{{- define "tensoragent.serviceAccount" -}}
+{{- define "daemon.serviceAccount" -}}
 {{- if .Values.serviceAccount }}
 {{- .Values.serviceAccount -}}
 {{- else }}
