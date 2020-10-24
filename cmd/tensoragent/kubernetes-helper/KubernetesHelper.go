@@ -141,7 +141,7 @@ func (ku KubernetesUtil) LookupDockerContainerID(dockerPID int, pid int) (string
 		line := scanner.Text()
 		parts := dockerPattern.FindStringSubmatch(line)
 		if parts != nil {
-			return parts[1], parts[2], nil
+			return parts[2], parts[1], nil
 		}
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
