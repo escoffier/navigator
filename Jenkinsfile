@@ -60,6 +60,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 }
                 if("$moduleToDeploy".trim() == "all") {
                 sh '''
+                echo "test"
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
                 USEMIRROR=true make all
