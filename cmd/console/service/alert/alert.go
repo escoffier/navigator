@@ -7,36 +7,24 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/alert"
-
 	"github.com/elastic/go-elasticsearch/v8"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/alert"
 )
 
 type AlertService struct {
-	ElasticHost  string
-	ElasticPort  string
-	ElasticIndex string
+	ElasticIndex  string
+	ElasticClient *elasticsearch.Client
 }
 
-func NewAlertService(elasticHost string, elasticPort string, elasticIndex string) *AlertService {
+func NewAlertService(es *elasticsearch.Client, elasticIndex string) *AlertService {
 	return &AlertService{
-		ElasticHost:  elasticHost,
-		ElasticPort:  elasticPort,
-		ElasticIndex: elasticIndex,
+		ElasticIndex:  elasticIndex,
+		ElasticClient: es,
 	}
 }
 
 func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64) ([]alert.Alert, int64, error) {
-	cfg := elasticsearch.Config{
-		Addresses: []string{
-			fmt.Sprintf("http://%s:%s", s.ElasticHost, s.ElasticPort),
-		},
-	}
-	es, err := elasticsearch.NewClient(cfg)
-	if err != nil {
-		return []alert.Alert{}, 0, err
-	}
-
 	var mapResp map[string]interface{}
 	var buf bytes.Buffer
 
@@ -50,12 +38,12 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 		return []alert.Alert{}, 0, err
 	}
 
-	res, err := es.Search(
-		es.Search.WithContext(ctx),
-		es.Search.WithIndex(s.ElasticIndex),
-		es.Search.WithBody(read),
-		es.Search.WithTrackTotalHits(true),
-		es.Search.WithPretty(),
+	res, err := s.ElasticClient.Search(
+		s.ElasticClient.Search.WithContext(ctx),
+		s.ElasticClient.Search.WithIndex(s.ElasticIndex),
+		s.ElasticClient.Search.WithBody(read),
+		s.ElasticClient.Search.WithTrackTotalHits(true),
+		s.ElasticClient.Search.WithPretty(),
 	)
 	if err != nil {
 		return []alert.Alert{}, 0, err

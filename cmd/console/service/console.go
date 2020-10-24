@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/elastic/go-elasticsearch/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
@@ -95,7 +96,17 @@ func NewConsole(
 
 	ruleService := rule.NewRuleService(elastalertOpts.AvailableRulesFolder, elastalertOpts.AppliedRulesFolder)
 
-	alertService := alert.NewAlertService(elasticOpts.Host, elasticOpts.Port, elasticOpts.Index)
+	cfg := elasticsearch.Config{
+		Addresses: []string{
+			fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port),
+		},
+	}
+	es, err := elasticsearch.NewClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	alertService := alert.NewAlertService(es, elasticOpts.Index)
 
 	return &Console{
 		server: &http.Server{

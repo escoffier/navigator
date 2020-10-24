@@ -23,6 +23,11 @@ type HarborUnauthorizedError struct{ detailedError }
 type HarborForbiddenError struct{ detailedError }
 type HarborScanAllInProgressError struct{ detailedError }
 type RedisError struct{ detailedError }
+type RulesError struct{ detailedError }
+type ElasticError struct{ detailedError }
+type RuleDoesntExistError struct{ detailedError }
+type RuleAlreadyAppliedError struct{ detailedError }
+type RuleNotAppliedError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -58,6 +63,54 @@ func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Kubernetes error has occured",
 			Zhongwen:  "发生Kubernetes错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewRulesError(httpCode int, err error, suberrors ...Suberror) error {
+	return RulesError{
+		detailedError{
+			err:       err,
+			English:   "Runtime detection rules error has occured",
+			Zhongwen:  "Runtime detection rules error has occured, but in Chinese",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewRuleNotAppliedError(httpCode int, err error, suberrors ...Suberror) error {
+	return RuleNotAppliedError{
+		detailedError{
+			err:       err,
+			English:   "Runtime detection rule is not applied",
+			Zhongwen:  "Runtime detection rule is not applied, but in Chinese",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewRuleAlreadyAppliedError(httpCode int, err error, suberrors ...Suberror) error {
+	return RuleAlreadyAppliedError{
+		detailedError{
+			err:       err,
+			English:   "Runtime detection rule already applied",
+			Zhongwen:  "Runtime detection rule already applied, but in Chinese",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewRuleDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
+	return RuleDoesntExistError{
+		detailedError{
+			err:       err,
+			English:   "Runtime detection rule doesn't exist",
+			Zhongwen:  "Runtime detection rule doesn't exist, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -106,6 +159,18 @@ func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "A connection error occurred",
 			Zhongwen:  "发生连接错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewElasticError(httpCode int, err error, suberrors ...Suberror) error {
+	return ElasticError{
+		detailedError{
+			err:       err,
+			English:   "Elasticsearch error",
+			Zhongwen:  "Elasticsearch error, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
