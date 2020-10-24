@@ -35,7 +35,6 @@ dependencies:
     repository: https://charts.bitnami.com/bitnami
     condition: redis.enabled
 
-
   - name: elasticsearch
     version: 7.9.1
     repository: https://helm.elastic.co

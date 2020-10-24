@@ -43,6 +43,15 @@ sudo groupadd docker
 sudo gpasswd -a $USER docker
 ```
 
+5. Ensure kernel headers are installed:
+
+```bash
+# Centos
+yum install kernel-headers
+# Ubuntu/Debian
+sudo apt install linux-headers-$(uname -r)
+```
+
 ### k8s-vagrant-multi-node
 
 1. Clone https://github.com/galexrt/k8s-vagrant-multi-node and install prerequisites (I use provider 'Virtualbox')
@@ -184,6 +193,21 @@ sudo xfs_growfs /
 df -h
 ```
 
+10. Install kernel-headers on every host:
+
+```bash
+make ssh-master
+sudo su
+yum install kernel-headers
+exit
+exit
+
+make ssh-node-1
+sudo su
+yum install kernel-headers
+exit
+exit
+```
 
 ## Deploy
 
@@ -211,7 +235,7 @@ global:
 3. After a while, ensure all pods are RUNNING:
 
 ```bash
-microk8s kubectl get pod --namespace=vegeta
+microk8s kubectl get pod --namespace=tensorsec
 ```
 
 ## Test
