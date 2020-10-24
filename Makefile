@@ -93,7 +93,8 @@ tensordig: generate ## Build tensordig binary
 	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) .
 
 .PHONY: all
-all: scanner scap-jobs console tensoragent tensordig
+all: tensoragent tensordig
+# all: scanner scap-jobs console tensoragent tensordig
 
 .PHONY: pushimages
 pushimages:
