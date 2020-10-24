@@ -98,22 +98,22 @@ tensoragent: generate ## Build tensoragent binary
 	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensoragent/cmd.Version=$(VERSION)" \
 		-o dist/tensoragent gitlab.com/piccolo_su/vegeta/cmd/tensoragent
-ifeq ($(USEMIRROR),true)
-	@echo "tensoragent will use mirror"
-	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
-else
-	@echo "tensoragent will use mirror"
 	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile .
-endif
 
 .PHONY: tensordig
 tensordig: generate ## Build tensordig binary
 	@echo "+ $@"
+ifeq ($(USEMIRROR),true)
+	@echo "tensordig will use mirror"
+	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "tensordig will not use mirror"
 	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) .
+endif
+
 
 .PHONY: all
-all: tensoragent tensordig
-# all: scanner scap-jobs console tensoragent tensordig
+all: scanner scap-jobs console tensoragent tensordig
 
 .PHONY: pushimages
 pushimages:
