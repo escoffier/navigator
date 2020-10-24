@@ -1,7 +1,9 @@
-ARG VERSION
-ARG LDFLAGS
+
 
 FROM ubuntu:eoan
+
+ARG MIRROR=archive.ubuntu.com
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends \
         libelf1 libtinfo5 golang-1.13 ca-certificates build-essential
@@ -15,6 +17,9 @@ RUN DEBIAN_FRONTEND=noninteractive dpkg -i libbcc_*.deb && rm -rf /bcc
 
 WORKDIR /go/src/app
 COPY . .
+
+ARG VERSION
+ARG LDFLAGS
 RUN PATH=$PATH:/usr/lib/go-1.13/bin GO111MODULE=on go build -v -a \
 		--ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \
 		-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig

@@ -8,6 +8,8 @@ endif
 REPOPREFIX?=localhost:32000
 REPOPREFIXOLD?=localhost:32000
 
+USEMIRROR?=
+
 .PHONY: help
 help:
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -54,12 +56,23 @@ clean:				## Clean all artifacts
 
 .PHONY: scap-jobs
 scap-jobs:
+ifeq ($(USEMIRROR),true)
+	@echo "scap-jobs will use mirror"
+	cd configs/scap/jobs/kube-bench && \
+		docker build -t $(REPOPREFIX)/kube-bench:latest --build-arg MIRROR=mirrors.aliyun.com .
+	cd configs/scap/jobs/docker-bench-security && \
+		docker build -t $(REPOPREFIX)/docker-bench-security:latest --build-arg MIRROR=mirrors.aliyun.com .
+	cd configs/scap/jobs/host-bench && \
+		docker build -t $(REPOPREFIX)/host-bench:latest --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "scap-jobs will not use mirror"
 	cd configs/scap/jobs/kube-bench && \
 		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX)/ VERSION=latest build-docker 
 	cd configs/scap/jobs/docker-bench-security && \
 		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
 	cd configs/scap/jobs/host-bench && \
 		docker build -t $(REPOPREFIX)/host-bench:latest .
+endif
 
 .PHONY: console
 console: generate 		## Build console binary
@@ -85,7 +98,13 @@ tensoragent: generate ## Build tensoragent binary
 	go build -v -a \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensoragent/cmd.Version=$(VERSION)" \
 		-o dist/tensoragent gitlab.com/piccolo_su/vegeta/cmd/tensoragent
+ifeq ($(USEMIRROR),true)
+	@echo "tensoragent will use mirror"
+	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "tensoragent will use mirror"
 	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile .
+endif
 
 .PHONY: tensordig
 tensordig: generate ## Build tensordig binary
