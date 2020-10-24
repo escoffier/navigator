@@ -132,9 +132,6 @@ spec:
         resources:
           limits:
             memory: 200Mi
-          requests:
-            cpu: 100m
-            memory: 200Mi
         volumeMounts:
         - name: host
           mountPath: /host
@@ -153,9 +150,6 @@ spec:
         args: ["--config", "/config/example.yaml"]
         resources:
           limits:
-            memory: 200Mi
-          requests:
-            cpu: 100m
             memory: 200Mi
         volumeMounts:
           - name: socketconfig
