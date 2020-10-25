@@ -113,11 +113,6 @@ else
 	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile .
 endif
 
-.PHONY: elastalert
-elastalert:     ## Build elastalert binary
-	@echo "+ $@" 		
-	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile .
-
 .PHONY: faulty
 faulty:     ## Build faulty docker to test CVEs
 	@echo "+ $@" 		
