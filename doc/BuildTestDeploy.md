@@ -23,6 +23,8 @@ Build bins and npm and put under dist/. Then creates docker images.
 
 ```bash
 make all
+# In China set USEMIRROR=true for make build commands
+# USEMIRROR=true make all
 ```
 
 *Note: all docker image tags are prefixed with REPOPREFIX, see Makefile. By default, this variable points to local repo managed by microk8s.*

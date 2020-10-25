@@ -198,13 +198,13 @@ df -h
 ```bash
 make ssh-master
 sudo su
-yum install kernel-headers
+yum install kernel-headers kernel-devel
 exit
 exit
 
 make ssh-node-1
 sudo su
-yum install kernel-headers
+yum install kernel-headers kernel-devel
 exit
 exit
 ```
