@@ -54,7 +54,14 @@ static int socket_handle(
 	evt->event_info.pid = pid_tgid >> 32;
 	evt->event_info.tid = pid_tgid;
 	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
+
+	// [#146] Not sure about specific version here. I just know that it doesn't work on 3.10.0
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
+	evt->event_info.nsid = 0;
+#else
 	evt->event_info.nsid = (u64)ts->nsproxy->pid_ns_for_children->ns.inum;
+#endif
+
 	bpf_get_current_comm(&evt->event_info.procname, sizeof(evt->event_info.procname));
 
 	// Get gid uid
@@ -87,9 +94,16 @@ static int socket_handle(
 
 	// Get network namespace id, if kernel supports it
 #ifdef CONFIG_NET_NS
-	evt->event_info.netns = sk->__sk_common.skc_net.net->ns.inum;
-#else
+
+// [#146] Not sure about specific version here. I just know that it doesn't work on 3.10.0
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
 	evt->event_info.netns = 0;
+#else
+	evt->event_info.netns = sk->__sk_common.skc_net.net->ns.inum;
+#endif
+
+#else
+	evt->event_info.netns = 0
 #endif
 
 	// Get IP
