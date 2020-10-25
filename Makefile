@@ -117,8 +117,10 @@ endif
 faulty:     ## Build faulty docker to test CVEs
 	@echo "+ $@" 		
 ifeq ($(USEMIRROR),true)
+	@echo "faulty will use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
 else
+	@echo "faulty will not use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile .
 endif
 
