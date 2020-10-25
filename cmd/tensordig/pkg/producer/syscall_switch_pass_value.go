@@ -25,7 +25,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.TimeTloc = event.Tloc
-		 
+
 	case "migrate_pages":
 		var event constant.MigratePagesData
 
@@ -40,7 +40,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MigratePagesMaxnode = event.Maxnode
 		data.MigratePagesOldNodes = event.OldNodes
 		data.MigratePagesNewNodes = event.NewNodes
-		 
+
 	case "lsetxattr":
 		var event constant.LsetxattrData
 
@@ -56,7 +56,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LsetxattrValue = event.Value
 		data.LsetxattrSize = event.Size
 		data.LsetxattrFlags = event.Flags
-		 
+
 	case "clock_getres":
 		var event constant.ClockGetresData
 
@@ -69,7 +69,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ClockGetresWhichClock = event.WhichClock
 		data.ClockGetresTp = event.Tp
-		 
+
 	case "set_tid_address":
 		var event constant.SetTidAddressData
 
@@ -81,7 +81,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SetTidAddressTidptr = event.Tidptr
-		 
+
 	case "pipe2":
 		var event constant.Pipe2Data
 
@@ -96,7 +96,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Pipe2Flags = event.Flags
 		data.Pipe2Readfd = event.ReadFd
 		data.Pipe2Writefd = event.WriteFd
-		 
+
 	case "sethostname":
 		var event constant.SethostnameData
 
@@ -109,7 +109,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SethostnameName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
 		data.SethostnameLen = event.Len
-		 
+
 	case "dup3":
 		var event constant.Dup3Data
 
@@ -123,7 +123,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Dup3Oldfd = event.Oldfd
 		data.Dup3Newfd = event.Newfd
 		data.Dup3Flags = event.Flags
-		 
+
 	case "umask":
 		var event constant.UmaskData
 
@@ -135,7 +135,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.UmaskMask = event.Mask
-		 
+
 	case "exit_group":
 		var event constant.ExitGroupData
 
@@ -147,7 +147,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.ExitGroupErrorCode = event.ErrorCode
-		 
+
 	case "set_robust_list":
 		var event constant.SetRobustListData
 
@@ -160,7 +160,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetRobustListHead = event.Head
 		data.SetRobustListLen = event.Len
-		 
+
 	case "iopl":
 		var event constant.IoplData
 
@@ -172,7 +172,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.IoplLevel = event.Level
-		 
+
 	case "lgetxattr":
 		var event constant.LgetxattrData
 
@@ -187,7 +187,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LgetxattrName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
 		data.LgetxattrValue = event.Value
 		data.LgetxattrSize = event.Size
-		 
+
 	case "kill":
 		var event constant.KillData
 
@@ -200,7 +200,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.KillPid = event.Pid
 		data.KillSig = event.Sig
-		 
+
 	case "pread64":
 		var event constant.Pread64Data
 
@@ -215,7 +215,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Pread64Buf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.Pread64Count = event.Count
 		data.Pread64Pos = event.Pos
-		 
+
 	case "newfstatat":
 		var event constant.NewfstatatData
 
@@ -230,7 +230,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.NewfstatatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.NewfstatatStatbuf = event.Statbuf
 		data.NewfstatatFlag = event.Flag
-		 
+
 	case "newlstat":
 		var event constant.NewlstatData
 
@@ -243,7 +243,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.NewlstatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.NewlstatStatbuf = event.Statbuf
-		 
+
 	case "write":
 		var event constant.WriteData
 
@@ -257,7 +257,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.WriteFd = event.Fd
 		data.WriteBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.WriteCount = event.Count
-		 
+
 	case "setregid":
 		var event constant.SetregidData
 
@@ -270,7 +270,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetregidRgid = event.Rgid
 		data.SetregidEgid = event.Egid
-		 
+
 	case "ustat":
 		var event constant.UstatData
 
@@ -283,7 +283,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.UstatDev = event.Dev
 		data.UstatUbuf = event.Ubuf
-		 
+
 	case "pause":
 		var event constant.PauseData
 
@@ -294,7 +294,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "getrlimit":
 		var event constant.GetrlimitData
 
@@ -307,7 +307,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GetrlimitResource = event.Resource
 		data.GetrlimitRlim = event.Rlim
-		 
+
 	case "tkill":
 		var event constant.TkillData
 
@@ -320,7 +320,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.TkillPid = event.Pid
 		data.TkillSig = event.Sig
-		 
+
 	case "dup2":
 		var event constant.Dup2Data
 
@@ -333,7 +333,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.Dup2Oldfd = event.Oldfd
 		data.Dup2Newfd = event.Newfd
-		 
+
 	case "clock_adjtime":
 		var event constant.ClockAdjtimeData
 
@@ -346,7 +346,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ClockAdjtimeWhichClock = event.WhichClock
 		data.ClockAdjtimeUtx = event.Utx
-		 
+
 	case "rt_sigqueueinfo":
 		var event constant.RtSigqueueinfoData
 
@@ -360,7 +360,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RtSigqueueinfoPid = event.Pid
 		data.RtSigqueueinfoSig = event.Sig
 		data.RtSigqueueinfoUinfo = event.Uinfo
-		 
+
 	case "utime":
 		var event constant.UtimeData
 
@@ -373,7 +373,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.UtimeFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.UtimeTimes = event.Times
-		 
+
 	case "setxattr":
 		var event constant.SetxattrData
 
@@ -389,7 +389,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetxattrValue = event.Value
 		data.SetxattrSize = event.Size
 		data.SetxattrFlags = event.Flags
-		 
+
 	case "membarrier":
 		var event constant.MembarrierData
 
@@ -402,7 +402,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MembarrierCmd = event.Cmd
 		data.MembarrierFlags = event.Flags
-		 
+
 	case "getegid":
 		var event constant.GetegidData
 
@@ -413,7 +413,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "mlock":
 		var event constant.MlockData
 
@@ -426,7 +426,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MlockStart = event.Start
 		data.MlockLen = event.Len
-		 
+
 	case "tee":
 		var event constant.TeeData
 
@@ -441,7 +441,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.TeeFdout = event.Fdout
 		data.TeeLen = event.Len
 		data.TeeFlags = event.Flags
-		 
+
 	case "setpgid":
 		var event constant.SetpgidData
 
@@ -454,7 +454,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetpgidPid = event.Pid
 		data.SetpgidPgid = event.Pgid
-		 
+
 	case "utimes":
 		var event constant.UtimesData
 
@@ -467,7 +467,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.UtimesFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.UtimesUtimes = event.Utimes
-		 
+
 	case "lremovexattr":
 		var event constant.LremovexattrData
 
@@ -480,7 +480,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.LremovexattrPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.LremovexattrName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
-		 
+
 	case "link":
 		var event constant.LinkData
 
@@ -493,7 +493,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.LinkOldname = C.GoString((*C.char)(unsafe.Pointer(&event.Oldname)))
 		data.LinkNewname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
-		 
+
 	case "readv":
 		var event constant.ReadvData
 
@@ -507,7 +507,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ReadvFd = event.Fd
 		data.ReadvVec = event.Vec
 		data.ReadvVlen = event.Vlen
-		 
+
 	case "futex":
 		var event constant.FutexData
 
@@ -524,7 +524,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FutexUtime = event.Utime
 		data.FutexUaddr2 = event.Uaddr2
 		data.FutexVal3 = event.Val3
-		 
+
 	case "getxattr":
 		var event constant.GetxattrData
 
@@ -539,7 +539,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetxattrName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
 		data.GetxattrValue = event.Value
 		data.GetxattrSize = event.Size
-		 
+
 	case "sched_get_priority_max":
 		var event constant.SchedGetPriorityMaxData
 
@@ -551,7 +551,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SchedGetPriorityMaxPolicy = event.Policy
-		 
+
 	case "preadv2":
 		var event constant.Preadv2Data
 
@@ -568,7 +568,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Preadv2PosL = event.PosL
 		data.Preadv2PosH = event.PosH
 		data.Preadv2Flags = event.Flags
-		 
+
 	case "readlinkat":
 		var event constant.ReadlinkatData
 
@@ -583,7 +583,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ReadlinkatPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.ReadlinkatBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.ReadlinkatBufsiz = event.Bufsiz
-		 
+
 	case "prctl":
 		var event constant.PrctlData
 
@@ -599,7 +599,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PrctlArg3 = event.Arg3
 		data.PrctlArg4 = event.Arg4
 		data.PrctlArg5 = event.Arg5
-		 
+
 	case "renameat":
 		var event constant.RenameatData
 
@@ -614,7 +614,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RenameatOldname = C.GoString((*C.char)(unsafe.Pointer(&event.Oldname)))
 		data.RenameatNewdfd = event.Newdfd
 		data.RenameatNewname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
-		 
+
 	case "renameat2":
 		var event constant.Renameat2Data
 
@@ -630,7 +630,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Renameat2Newdfd = event.Newdfd
 		data.Renameat2Newname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
 		data.Renameat2Flags = event.Flags
-		 
+
 	case "sendmmsg":
 		var event constant.SendmmsgData
 
@@ -645,7 +645,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SendmmsgMmsg = event.Mmsg
 		data.SendmmsgVlen = event.Vlen
 		data.SendmmsgFlags = event.Flags
-		 
+
 	case "modify_ldt":
 		var event constant.ModifyLdtData
 
@@ -659,7 +659,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ModifyLdtFunc = event.Func
 		data.ModifyLdtPtr = event.Ptr
 		data.ModifyLdtBytecount = event.Bytecount
-		 
+
 	case "close":
 		var event constant.CloseData
 
@@ -671,7 +671,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.CloseFd = event.Fd
-		 
+
 	case "ioprio_get":
 		var event constant.IoprioGetData
 
@@ -684,7 +684,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.IoprioGetWhich = event.Which
 		data.IoprioGetWho = event.Who
-		 
+
 	case "setreuid":
 		var event constant.SetreuidData
 
@@ -697,7 +697,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetreuidRuid = event.Ruid
 		data.SetreuidEuid = event.Euid
-		 
+
 	case "sendfile64":
 		var event constant.Sendfile64Data
 
@@ -712,7 +712,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Sendfile64InFd = event.InFd
 		data.Sendfile64Offset = event.Offset
 		data.Sendfile64Count = event.Count
-		 
+
 	case "statfs":
 		var event constant.StatfsData
 
@@ -725,7 +725,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.StatfsPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.StatfsBuf = event.Buf
-		 
+
 	case "getpriority":
 		var event constant.GetpriorityData
 
@@ -738,7 +738,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GetpriorityWhich = event.Which
 		data.GetpriorityWho = event.Who
-		 
+
 	case "truncate":
 		var event constant.TruncateData
 
@@ -751,7 +751,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.TruncatePath = C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
 		data.TruncateLength = event.Length
-		 
+
 	case "getcpu":
 		var event constant.GetcpuData
 
@@ -765,7 +765,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetcpuCpup = event.Cpup
 		data.GetcpuNodep = event.Nodep
 		data.GetcpuUnused = event.Unused
-		 
+
 	case "shmat":
 		var event constant.ShmatData
 
@@ -779,7 +779,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ShmatShmid = event.Shmid
 		data.ShmatShmaddr = C.GoString((*C.char)(unsafe.Pointer(&event.Shmaddr)))
 		data.ShmatShmflg = event.Shmflg
-		 
+
 	case "swapon":
 		var event constant.SwaponData
 
@@ -792,7 +792,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SwaponSpecialfile = C.GoString((*C.char)(unsafe.Pointer(&event.Specialfile)))
 		data.SwaponSwapFlags = event.SwapFlags
-		 
+
 	case "waitid":
 		var event constant.WaitidData
 
@@ -808,7 +808,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.WaitidInfop = event.Infop
 		data.WaitidOptions = event.Options
 		data.WaitidRu = event.Ru
-		 
+
 	case "sync_file_range":
 		var event constant.SyncFileRangeData
 
@@ -823,7 +823,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SyncFileRangeOffset = event.Offset
 		data.SyncFileRangeNbytes = event.Nbytes
 		data.SyncFileRangeFlags = event.Flags
-		 
+
 	case "sched_rr_get_interval":
 		var event constant.SchedRrGetIntervalData
 
@@ -836,7 +836,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SchedRrGetIntervalPid = event.Pid
 		data.SchedRrGetIntervalInterval = event.Interval
-		 
+
 	case "sched_getscheduler":
 		var event constant.SchedGetschedulerData
 
@@ -848,7 +848,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SchedGetschedulerPid = event.Pid
-		 
+
 	case "signalfd":
 		var event constant.SignalfdData
 
@@ -862,7 +862,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SignalfdUfd = event.Ufd
 		data.SignalfdUserMask = event.UserMask
 		data.SignalfdSizemask = event.Sizemask
-		 
+
 	case "accept4":
 		var event constant.Accept4Data
 
@@ -877,7 +877,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Accept4UpeerSockaddr = event.UpeerSockaddr
 		data.Accept4UpeerAddrlen = event.UpeerAddrlen
 		data.Accept4Flags = event.Flags
-		 
+
 	case "io_destroy":
 		var event constant.IoDestroyData
 
@@ -889,7 +889,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.IoDestroyCtx = event.Ctx
-		 
+
 	case "shutdown":
 		var event constant.ShutdownData
 
@@ -902,7 +902,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ShutdownFd = event.Fd
 		data.ShutdownHow = event.How
-		 
+
 	case "execveat":
 		var event constant.ExecveatData
 
@@ -920,7 +920,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ExecveatArgv3 = C.GoString((*C.char)(unsafe.Pointer(&event.Argv3)))
 		data.ExecveatEnvp = event.Envp
 		data.ExecveatFlags = event.Flags
-		 
+
 	case "readahead":
 		var event constant.ReadaheadData
 
@@ -934,7 +934,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ReadaheadFd = event.Fd
 		data.ReadaheadOffset = event.Offset
 		data.ReadaheadCount = event.Count
-		 
+
 	case "msgrcv":
 		var event constant.MsgrcvData
 
@@ -950,7 +950,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MsgrcvMsgsz = event.Msgsz
 		data.MsgrcvMsgtyp = event.Msgtyp
 		data.MsgrcvMsgflg = event.Msgflg
-		 
+
 	case "removexattr":
 		var event constant.RemovexattrData
 
@@ -963,7 +963,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.RemovexattrPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.RemovexattrName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
-		 
+
 	case "shmctl":
 		var event constant.ShmctlData
 
@@ -977,7 +977,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ShmctlShmid = event.Shmid
 		data.ShmctlCmd = event.Cmd
 		data.ShmctlBuf = event.Buf
-		 
+
 	case "sendmsg":
 		var event constant.SendmsgData
 
@@ -991,7 +991,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SendmsgFd = event.Fd
 		data.SendmsgMsg = event.Msg
 		data.SendmsgFlags = event.Flags
-		 
+
 	case "setrlimit":
 		var event constant.SetrlimitData
 
@@ -1004,7 +1004,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetrlimitResource = event.Resource
 		data.SetrlimitRlim = event.Rlim
-		 
+
 	case "munmap":
 		var event constant.MunmapData
 
@@ -1017,7 +1017,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MunmapAddr = event.Addr
 		data.MunmapLen = event.Len
-		 
+
 	case "exit":
 		var event constant.ExitData
 
@@ -1029,7 +1029,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.ExitErrorCode = event.ErrorCode
-		 
+
 	case "io_getevents":
 		var event constant.IoGeteventsData
 
@@ -1045,7 +1045,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IoGeteventsNr = event.Nr
 		data.IoGeteventsEvents = event.Events
 		data.IoGeteventsTimeout = event.Timeout
-		 
+
 	case "symlink":
 		var event constant.SymlinkData
 
@@ -1058,7 +1058,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SymlinkOldname = C.GoString((*C.char)(unsafe.Pointer(&event.Oldname)))
 		data.SymlinkNewname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
-		 
+
 	case "rt_sigpending":
 		var event constant.RtSigpendingData
 
@@ -1071,7 +1071,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.RtSigpendingUset = event.Uset
 		data.RtSigpendingSigsetsize = event.Sigsetsize
-		 
+
 	case "fanotify_init":
 		var event constant.FanotifyInitData
 
@@ -1084,7 +1084,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.FanotifyInitFlags = event.Flags
 		data.FanotifyInitEventFFlags = event.EventFFlags
-		 
+
 	case "geteuid":
 		var event constant.GeteuidData
 
@@ -1095,7 +1095,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "getpeername":
 		var event constant.GetpeernameData
 
@@ -1109,7 +1109,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetpeernameFd = event.Fd
 		data.GetpeernameUsockaddr = event.Usockaddr
 		data.GetpeernameUsockaddrLen = event.UsockaddrLen
-		 
+
 	case "fsetxattr":
 		var event constant.FsetxattrData
 
@@ -1125,7 +1125,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FsetxattrValue = event.Value
 		data.FsetxattrSize = event.Size
 		data.FsetxattrFlags = event.Flags
-		 
+
 	case "acct":
 		var event constant.AcctData
 
@@ -1137,7 +1137,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.AcctName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
-		 
+
 	case "times":
 		var event constant.TimesData
 
@@ -1149,7 +1149,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.TimesTbuf = event.Tbuf
-		 
+
 	case "msgget":
 		var event constant.MsggetData
 
@@ -1162,7 +1162,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MsggetKey = event.Key
 		data.MsggetMsgflg = event.Msgflg
-		 
+
 	case "inotify_add_watch":
 		var event constant.InotifyAddWatchData
 
@@ -1176,7 +1176,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.InotifyAddWatchFd = event.Fd
 		data.InotifyAddWatchPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.InotifyAddWatchMask = event.Mask
-		 
+
 	case "timerfd_gettime":
 		var event constant.TimerfdGettimeData
 
@@ -1189,7 +1189,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.TimerfdGettimeUfd = event.Ufd
 		data.TimerfdGettimeOtmr = event.Otmr
-		 
+
 	case "rt_tgsigqueueinfo":
 		var event constant.RtTgsigqueueinfoData
 
@@ -1204,7 +1204,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RtTgsigqueueinfoPid = event.Pid
 		data.RtTgsigqueueinfoSig = event.Sig
 		data.RtTgsigqueueinfoUinfo = event.Uinfo
-		 
+
 	case "timer_delete":
 		var event constant.TimerDeleteData
 
@@ -1216,7 +1216,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.TimerDeleteTimerId = event.TimerId
-		 
+
 	case "pkey_alloc":
 		var event constant.PkeyAllocData
 
@@ -1229,7 +1229,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.PkeyAllocFlags = event.Flags
 		data.PkeyAllocInitVal = event.InitVal
-		 
+
 	case "setfsgid":
 		var event constant.SetfsgidData
 
@@ -1241,7 +1241,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SetfsgidGid = event.Gid
-		 
+
 	case "tgkill":
 		var event constant.TgkillData
 
@@ -1255,7 +1255,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.TgkillTgid = event.Tgid
 		data.TgkillPid = event.Pid
 		data.TgkillSig = event.Sig
-		 
+
 	case "setgid":
 		var event constant.SetgidData
 
@@ -1267,7 +1267,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SetgidGid = event.Gid
-		 
+
 	case "adjtimex":
 		var event constant.AdjtimexData
 
@@ -1279,7 +1279,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.AdjtimexTxcP = event.TxcP
-		 
+
 	case "fgetxattr":
 		var event constant.FgetxattrData
 
@@ -1294,7 +1294,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FgetxattrName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
 		data.FgetxattrValue = event.Value
 		data.FgetxattrSize = event.Size
-		 
+
 	case "pkey_mprotect":
 		var event constant.PkeyMprotectData
 
@@ -1309,7 +1309,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PkeyMprotectLen = event.Len
 		data.PkeyMprotectProt = event.Prot
 		data.PkeyMprotectPkey = event.Pkey
-		 
+
 	case "sched_setscheduler":
 		var event constant.SchedSetschedulerData
 
@@ -1323,7 +1323,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SchedSetschedulerPid = event.Pid
 		data.SchedSetschedulerPolicy = event.Policy
 		data.SchedSetschedulerParam = event.Param
-		 
+
 	case "mq_notify":
 		var event constant.MqNotifyData
 
@@ -1336,7 +1336,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MqNotifyMqdes = event.Mqdes
 		data.MqNotifyUNotification = event.UNotification
-		 
+
 	case "epoll_pwait":
 		var event constant.EpollPwaitData
 
@@ -1353,7 +1353,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EpollPwaitTimeout = event.Timeout
 		data.EpollPwaitSigmask = event.Sigmask
 		data.EpollPwaitSigsetsize = event.Sigsetsize
-		 
+
 	case "syncfs":
 		var event constant.SyncfsData
 
@@ -1365,7 +1365,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SyncfsFd = event.Fd
-		 
+
 	case "getrandom":
 		var event constant.GetrandomData
 
@@ -1379,7 +1379,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetrandomBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.GetrandomCount = event.Count
 		data.GetrandomFlags = event.Flags
-		 
+
 	case "creat":
 		var event constant.CreatData
 
@@ -1392,7 +1392,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.CreatPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.CreatMode = event.Mode
-		 
+
 	case "ppoll":
 		var event constant.PpollData
 
@@ -1408,7 +1408,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PpollTsp = event.Tsp
 		data.PpollSigmask = event.Sigmask
 		data.PpollSigsetsize = event.Sigsetsize
-		 
+
 	case "sync":
 		var event constant.SyncData
 
@@ -1419,7 +1419,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "futimesat":
 		var event constant.FutimesatData
 
@@ -1433,7 +1433,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FutimesatDfd = event.Dfd
 		data.FutimesatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.FutimesatUtimes = event.Utimes
-		 
+
 	case "getuid":
 		var event constant.GetuidData
 
@@ -1444,7 +1444,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "kexec_load":
 		var event constant.KexecLoadData
 
@@ -1459,7 +1459,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.KexecLoadNrSegments = event.NrSegments
 		data.KexecLoadSegments = event.Segments
 		data.KexecLoadFlags = event.Flags
-		 
+
 	case "fanotify_mark":
 		var event constant.FanotifyMarkData
 
@@ -1475,7 +1475,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FanotifyMarkMask = event.Mask
 		data.FanotifyMarkDfd = event.Dfd
 		data.FanotifyMarkPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
-		 
+
 	case "chroot":
 		var event constant.ChrootData
 
@@ -1487,7 +1487,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.ChrootFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
-		 
+
 	case "select":
 		var event constant.SelectData
 
@@ -1503,7 +1503,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SelectOutp = event.Outp
 		data.SelectExp = event.Exp
 		data.SelectTvp = event.Tvp
-		 
+
 	case "getrusage":
 		var event constant.GetrusageData
 
@@ -1516,7 +1516,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GetrusageWho = event.Who
 		data.GetrusageRu = event.Ru
-		 
+
 	case "pwritev":
 		var event constant.PwritevData
 
@@ -1532,7 +1532,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PwritevVlen = event.Vlen
 		data.PwritevPosL = event.PosL
 		data.PwritevPosH = event.PosH
-		 
+
 	case "getsockopt":
 		var event constant.GetsockoptData
 
@@ -1548,7 +1548,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetsockoptOptname = event.Optname
 		data.GetsockoptOptval = C.GoString((*C.char)(unsafe.Pointer(&event.Optval)))
 		data.GetsockoptOptlen = event.Optlen
-		 
+
 	case "rename":
 		var event constant.RenameData
 
@@ -1561,7 +1561,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.RenameOldname = C.GoString((*C.char)(unsafe.Pointer(&event.Oldname)))
 		data.RenameNewname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
-		 
+
 	case "fstatfs":
 		var event constant.FstatfsData
 
@@ -1574,7 +1574,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.FstatfsFd = event.Fd
 		data.FstatfsBuf = event.Buf
-		 
+
 	case "sysfs":
 		var event constant.SysfsData
 
@@ -1588,7 +1588,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SysfsOption = event.Option
 		data.SysfsArg1 = event.Arg1
 		data.SysfsArg2 = event.Arg2
-		 
+
 	case "mincore":
 		var event constant.MincoreData
 
@@ -1602,7 +1602,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MincoreStart = event.Start
 		data.MincoreLen = event.Len
 		data.MincoreVec = event.Vec
-		 
+
 	case "copy_file_range":
 		var event constant.CopyFileRangeData
 
@@ -1619,7 +1619,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.CopyFileRangeOffOut = event.OffOut
 		data.CopyFileRangeLen = event.Len
 		data.CopyFileRangeFlags = event.Flags
-		 
+
 	case "splice":
 		var event constant.SpliceData
 
@@ -1636,7 +1636,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SpliceOffOut = event.OffOut
 		data.SpliceLen = event.Len
 		data.SpliceFlags = event.Flags
-		 
+
 	case "newstat":
 		var event constant.NewstatData
 
@@ -1649,7 +1649,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.NewstatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.NewstatStatbuf = event.Statbuf
-		 
+
 	case "process_vm_writev":
 		var event constant.ProcessVmWritevData
 
@@ -1666,7 +1666,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ProcessVmWritevRvec = event.Rvec
 		data.ProcessVmWritevRiovcnt = event.Riovcnt
 		data.ProcessVmWritevFlags = event.Flags
-		 
+
 	case "timer_gettime":
 		var event constant.TimerGettimeData
 
@@ -1679,7 +1679,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.TimerGettimeTimerId = event.TimerId
 		data.TimerGettimeSetting = event.Setting
-		 
+
 	case "pivot_root":
 		var event constant.PivotRootData
 
@@ -1692,7 +1692,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.PivotRootNewRoot = C.GoString((*C.char)(unsafe.Pointer(&event.NewRoot)))
 		data.PivotRootPutOld = C.GoString((*C.char)(unsafe.Pointer(&event.PutOld)))
-		 
+
 	case "name_to_handle_at":
 		var event constant.NameToHandleAtData
 
@@ -1708,7 +1708,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.NameToHandleAtHandle = event.Handle
 		data.NameToHandleAtMntId = event.MntId
 		data.NameToHandleAtFlag = event.Flag
-		 
+
 	case "bind":
 		var event constant.BindData
 
@@ -1722,7 +1722,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.BindFd = event.Fd
 		data.BindUmyaddr = event.Umyaddr
 		data.BindAddrlen = event.Addrlen
-		 
+
 	case "readlink":
 		var event constant.ReadlinkData
 
@@ -1736,7 +1736,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ReadlinkPath = C.GoString((*C.char)(unsafe.Pointer(&event.Path)))
 		data.ReadlinkBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.ReadlinkBufsiz = event.Bufsiz
-		 
+
 	case "getppid":
 		var event constant.GetppidData
 
@@ -1747,7 +1747,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "setuid":
 		var event constant.SetuidData
 
@@ -1759,7 +1759,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SetuidUid = event.Uid
-		 
+
 	case "mremap":
 		var event constant.MremapData
 
@@ -1775,7 +1775,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MremapNewLen = event.NewLen
 		data.MremapFlags = event.Flags
 		data.MremapNewAddr = event.NewAddr
-		 
+
 	case "keyctl":
 		var event constant.KeyctlData
 
@@ -1791,7 +1791,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.KeyctlArg3 = event.Arg3
 		data.KeyctlArg4 = event.Arg4
 		data.KeyctlArg5 = event.Arg5
-		 
+
 	case "pselect6":
 		var event constant.Pselect6Data
 
@@ -1808,7 +1808,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Pselect6Exp = event.Exp
 		data.Pselect6Tsp = event.Tsp
 		data.Pselect6Sig = event.Sig
-		 
+
 	case "delete_module":
 		var event constant.DeleteModuleData
 
@@ -1821,7 +1821,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.DeleteModuleNameUser = C.GoString((*C.char)(unsafe.Pointer(&event.NameUser)))
 		data.DeleteModuleFlags = event.Flags
-		 
+
 	case "utimensat":
 		var event constant.UtimensatData
 
@@ -1836,7 +1836,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.UtimensatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.UtimensatUtimes = event.Utimes
 		data.UtimensatFlags = event.Flags
-		 
+
 	case "get_mempolicy":
 		var event constant.GetMempolicyData
 
@@ -1852,7 +1852,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetMempolicyMaxnode = event.Maxnode
 		data.GetMempolicyAddr = event.Addr
 		data.GetMempolicyFlags = event.Flags
-		 
+
 	case "dup":
 		var event constant.DupData
 
@@ -1864,7 +1864,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.DupFildes = event.Fildes
-		 
+
 	case "eventfd":
 		var event constant.EventfdData
 
@@ -1876,7 +1876,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.EventfdCount = event.Count
-		 
+
 	case "recvfrom":
 		var event constant.RecvfromData
 
@@ -1893,7 +1893,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RecvfromFlags = event.Flags
 		data.RecvfromAddr = event.Addr
 		data.RecvfromAddrLen = event.AddrLen
-		 
+
 	case "statx":
 		var event constant.StatxData
 
@@ -1909,7 +1909,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.StatxFlags = event.Flags
 		data.StatxMask = event.Mask
 		data.StatxBuffer = event.Buffer
-		 
+
 	case "rt_sigaction":
 		var event constant.RtSigactionData
 
@@ -1924,7 +1924,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RtSigactionAct = event.Act
 		data.RtSigactionOact = event.Oact
 		data.RtSigactionSigsetsize = event.Sigsetsize
-		 
+
 	case "munlockall":
 		var event constant.MunlockallData
 
@@ -1935,7 +1935,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "getdents":
 		var event constant.GetdentsData
 
@@ -1949,7 +1949,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetdentsFd = event.Fd
 		data.GetdentsDirent = event.Dirent
 		data.GetdentsCount = event.Count
-		 
+
 	case "epoll_create1":
 		var event constant.EpollCreate1Data
 
@@ -1961,7 +1961,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.EpollCreate1Flags = event.Flags
-		 
+
 	case "wait4":
 		var event constant.Wait4Data
 
@@ -1976,7 +1976,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Wait4StatAddr = event.StatAddr
 		data.Wait4Options = event.Options
 		data.Wait4Ru = event.Ru
-		 
+
 	case "sched_yield":
 		var event constant.SchedYieldData
 
@@ -1987,7 +1987,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "mlockall":
 		var event constant.MlockallData
 
@@ -1999,7 +1999,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.MlockallFlags = event.Flags
-		 
+
 	case "sched_getattr":
 		var event constant.SchedGetattrData
 
@@ -2014,7 +2014,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SchedGetattrUattr = event.Uattr
 		data.SchedGetattrSize = event.Size
 		data.SchedGetattrFlags = event.Flags
-		 
+
 	case "setpriority":
 		var event constant.SetpriorityData
 
@@ -2028,7 +2028,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetpriorityWhich = event.Which
 		data.SetpriorityWho = event.Who
 		data.SetpriorityNiceval = event.Niceval
-		 
+
 	case "socket":
 		var event constant.SocketData
 
@@ -2042,7 +2042,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SocketFamily = event.Family
 		data.SocketType = event.Type
 		data.SocketProtocol = event.Protocol
-		 
+
 	case "semtimedop":
 		var event constant.SemtimedopData
 
@@ -2057,7 +2057,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SemtimedopTsops = event.Tsops
 		data.SemtimedopNsops = event.Nsops
 		data.SemtimedopTimeout = event.Timeout
-		 
+
 	case "setfsuid":
 		var event constant.SetfsuidData
 
@@ -2069,7 +2069,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SetfsuidUid = event.Uid
-		 
+
 	case "epoll_create":
 		var event constant.EpollCreateData
 
@@ -2081,7 +2081,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.EpollCreateSize = event.Size
-		 
+
 	case "semop":
 		var event constant.SemopData
 
@@ -2095,7 +2095,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SemopSemid = event.Semid
 		data.SemopTsops = event.Tsops
 		data.SemopNsops = event.Nsops
-		 
+
 	case "open":
 		var event constant.OpenData
 
@@ -2109,7 +2109,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.OpenFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.OpenFlags = event.Flags
 		data.OpenMode = event.Mode
-		 
+
 	case "openat":
 		var event constant.OpenatData
 
@@ -2124,7 +2124,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.OpenatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.OpenatFlags = event.Flags
 		data.OpenatMode = event.Mode
-		 
+
 	case "fremovexattr":
 		var event constant.FremovexattrData
 
@@ -2137,7 +2137,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.FremovexattrFd = event.Fd
 		data.FremovexattrName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
-		 
+
 	case "faccessat":
 		var event constant.FaccessatData
 
@@ -2151,7 +2151,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FaccessatDfd = event.Dfd
 		data.FaccessatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.FaccessatMode = event.Mode
-		 
+
 	case "ftruncate":
 		var event constant.FtruncateData
 
@@ -2164,7 +2164,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.FtruncateFd = event.Fd
 		data.FtruncateLength = event.Length
-		 
+
 	case "sched_get_priority_min":
 		var event constant.SchedGetPriorityMinData
 
@@ -2176,7 +2176,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SchedGetPriorityMinPolicy = event.Policy
-		 
+
 	case "move_pages":
 		var event constant.MovePagesData
 
@@ -2193,7 +2193,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MovePagesNodes = event.Nodes
 		data.MovePagesStatus = event.Status
 		data.MovePagesFlags = event.Flags
-		 
+
 	case "lseek":
 		var event constant.LseekData
 
@@ -2207,7 +2207,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LseekFd = event.Fd
 		data.LseekOffset = event.Offset
 		data.LseekWhence = event.Whence
-		 
+
 	case "poll":
 		var event constant.PollData
 
@@ -2221,7 +2221,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PollUfds = event.Ufds
 		data.PollNfds = event.Nfds
 		data.PollTimeoutMsecs = event.TimeoutMsecs
-		 
+
 	case "fdatasync":
 		var event constant.FdatasyncData
 
@@ -2233,7 +2233,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.FdatasyncFd = event.Fd
-		 
+
 	case "fsync":
 		var event constant.FsyncData
 
@@ -2245,7 +2245,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.FsyncFd = event.Fd
-		 
+
 	case "setsockopt":
 		var event constant.SetsockoptData
 
@@ -2261,7 +2261,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetsockoptOptname = event.Optname
 		data.SetsockoptOptval = C.GoString((*C.char)(unsafe.Pointer(&event.Optval)))
 		data.SetsockoptOptlen = event.Optlen
-		 
+
 	case "timer_getoverrun":
 		var event constant.TimerGetoverrunData
 
@@ -2273,7 +2273,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.TimerGetoverrunTimerId = event.TimerId
-		 
+
 	case "getgid":
 		var event constant.GetgidData
 
@@ -2284,7 +2284,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "capset":
 		var event constant.CapsetData
 
@@ -2297,7 +2297,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.CapsetHeader = event.Header
 		data.CapsetData = event.Data
-		 
+
 	case "semget":
 		var event constant.SemgetData
 
@@ -2311,7 +2311,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SemgetKey = event.Key
 		data.SemgetNsems = event.Nsems
 		data.SemgetSemflg = event.Semflg
-		 
+
 	case "prlimit64":
 		var event constant.Prlimit64Data
 
@@ -2326,7 +2326,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Prlimit64Resource = event.Resource
 		data.Prlimit64NewRlim = event.NewRlim
 		data.Prlimit64OldRlim = event.OldRlim
-		 
+
 	case "mq_unlink":
 		var event constant.MqUnlinkData
 
@@ -2338,7 +2338,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.MqUnlinkUName = C.GoString((*C.char)(unsafe.Pointer(&event.UName)))
-		 
+
 	case "clock_settime":
 		var event constant.ClockSettimeData
 
@@ -2351,7 +2351,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ClockSettimeWhichClock = event.WhichClock
 		data.ClockSettimeTp = event.Tp
-		 
+
 	case "rt_sigtimedwait":
 		var event constant.RtSigtimedwaitData
 
@@ -2366,7 +2366,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RtSigtimedwaitUinfo = event.Uinfo
 		data.RtSigtimedwaitUts = event.Uts
 		data.RtSigtimedwaitSigsetsize = event.Sigsetsize
-		 
+
 	case "sigaltstack":
 		var event constant.SigaltstackData
 
@@ -2379,7 +2379,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SigaltstackUss = event.Uss
 		data.SigaltstackUoss = event.Uoss
-		 
+
 	case "shmget":
 		var event constant.ShmgetData
 
@@ -2393,7 +2393,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ShmgetKey = event.Key
 		data.ShmgetSize = event.Size
 		data.ShmgetShmflg = event.Shmflg
-		 
+
 	case "writev":
 		var event constant.WritevData
 
@@ -2407,7 +2407,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.WritevFd = event.Fd
 		data.WritevVec = event.Vec
 		data.WritevVlen = event.Vlen
-		 
+
 	case "mprotect":
 		var event constant.MprotectData
 
@@ -2421,7 +2421,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MprotectStart = event.Start
 		data.MprotectLen = event.Len
 		data.MprotectProt = event.Prot
-		 
+
 	case "setitimer":
 		var event constant.SetitimerData
 
@@ -2435,7 +2435,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetitimerWhich = event.Which
 		data.SetitimerValue = event.Value
 		data.SetitimerOvalue = event.Ovalue
-		 
+
 	case "remap_file_pages":
 		var event constant.RemapFilePagesData
 
@@ -2451,7 +2451,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RemapFilePagesProt = event.Prot
 		data.RemapFilePagesPgoff = event.Pgoff
 		data.RemapFilePagesFlags = event.Flags
-		 
+
 	case "getresgid":
 		var event constant.GetresgidData
 
@@ -2465,7 +2465,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetresgidRgidp = event.Rgidp
 		data.GetresgidEgidp = event.Egidp
 		data.GetresgidSgidp = event.Sgidp
-		 
+
 	case "seccomp":
 		var event constant.SeccompData
 
@@ -2479,7 +2479,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SeccompOp = event.Op
 		data.SeccompFlags = event.Flags
 		data.SeccompUargs = C.GoString((*C.char)(unsafe.Pointer(&event.Uargs)))
-		 
+
 	case "gettimeofday":
 		var event constant.GettimeofdayData
 
@@ -2492,7 +2492,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GettimeofdayTv = event.Tv
 		data.GettimeofdayTz = event.Tz
-		 
+
 	case "getsockname":
 		var event constant.GetsocknameData
 
@@ -2506,7 +2506,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetsocknameFd = event.Fd
 		data.GetsocknameUsockaddr = event.Usockaddr
 		data.GetsocknameUsockaddrLen = event.UsockaddrLen
-		 
+
 	case "symlinkat":
 		var event constant.SymlinkatData
 
@@ -2520,7 +2520,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SymlinkatOldname = C.GoString((*C.char)(unsafe.Pointer(&event.Oldname)))
 		data.SymlinkatNewdfd = event.Newdfd
 		data.SymlinkatNewname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
-		 
+
 	case "getpid":
 		var event constant.GetpidData
 
@@ -2531,7 +2531,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "vfork":
 		var event constant.VforkData
 
@@ -2542,7 +2542,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "fork":
 		var event constant.ForkData
 
@@ -2553,7 +2553,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "getpgrp":
 		var event constant.GetpgrpData
 
@@ -2564,7 +2564,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "timer_create":
 		var event constant.TimerCreateData
 
@@ -2578,7 +2578,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.TimerCreateWhichClock = event.WhichClock
 		data.TimerCreateTimerEventSpec = event.TimerEventSpec
 		data.TimerCreateCreatedTimerId = event.CreatedTimerId
-		 
+
 	case "listxattr":
 		var event constant.ListxattrData
 
@@ -2592,7 +2592,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ListxattrPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.ListxattrList = C.GoString((*C.char)(unsafe.Pointer(&event.List)))
 		data.ListxattrSize = event.Size
-		 
+
 	case "kexec_file_load":
 		var event constant.KexecFileLoadData
 
@@ -2608,7 +2608,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.KexecFileLoadCmdlineLen = event.CmdlineLen
 		data.KexecFileLoadCmdlinePtr = C.GoString((*C.char)(unsafe.Pointer(&event.CmdlinePtr)))
 		data.KexecFileLoadFlags = event.Flags
-		 
+
 	case "msgsnd":
 		var event constant.MsgsndData
 
@@ -2623,7 +2623,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MsgsndMsgp = event.Msgp
 		data.MsgsndMsgsz = event.Msgsz
 		data.MsgsndMsgflg = event.Msgflg
-		 
+
 	case "unlinkat":
 		var event constant.UnlinkatData
 
@@ -2637,7 +2637,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.UnlinkatDfd = event.Dfd
 		data.UnlinkatPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.UnlinkatFlag = event.Flag
-		 
+
 	case "gettid":
 		var event constant.GettidData
 
@@ -2648,7 +2648,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "execve":
 		var event constant.ExecveData
 
@@ -2664,7 +2664,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ExecveArgv2 = C.GoString((*C.char)(unsafe.Pointer(&event.Argv2)))
 		data.ExecveArgv3 = C.GoString((*C.char)(unsafe.Pointer(&event.Argv3)))
 		data.ExecveEnvp = event.Envp
-		 
+
 	case "clone":
 		var event constant.CloneData
 
@@ -2680,7 +2680,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.CloneParentTidptr = event.ParentTidptr
 		data.CloneChildTidptr = event.ChildTidptr
 		data.CloneTls = event.Tls
-		 
+
 	case "rseq":
 		var event constant.RseqData
 
@@ -2695,7 +2695,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RseqRseqLen = event.RseqLen
 		data.RseqFlags = event.Flags
 		data.RseqSig = event.Sig
-		 
+
 	case "rt_sigreturn":
 		var event constant.RtSigreturnData
 
@@ -2706,7 +2706,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "finit_module":
 		var event constant.FinitModuleData
 
@@ -2720,7 +2720,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FinitModuleFd = event.Fd
 		data.FinitModuleUargs = C.GoString((*C.char)(unsafe.Pointer(&event.Uargs)))
 		data.FinitModuleFlags = event.Flags
-		 
+
 	case "pkey_free":
 		var event constant.PkeyFreeData
 
@@ -2732,7 +2732,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.PkeyFreePkey = event.Pkey
-		 
+
 	case "brk":
 		var event constant.BrkData
 
@@ -2744,7 +2744,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.BrkBrk = event.Brk
-		 
+
 	case "setresuid":
 		var event constant.SetresuidData
 
@@ -2758,7 +2758,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetresuidRuid = event.Ruid
 		data.SetresuidEuid = event.Euid
 		data.SetresuidSuid = event.Suid
-		 
+
 	case "rt_sigsuspend":
 		var event constant.RtSigsuspendData
 
@@ -2771,7 +2771,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.RtSigsuspendUnewset = event.Unewset
 		data.RtSigsuspendSigsetsize = event.Sigsetsize
-		 
+
 	case "lchown":
 		var event constant.LchownData
 
@@ -2785,7 +2785,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LchownFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.LchownUser = event.User
 		data.LchownGroup = event.Group
-		 
+
 	case "fallocate":
 		var event constant.FallocateData
 
@@ -2800,7 +2800,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FallocateMode = event.Mode
 		data.FallocateOffset = event.Offset
 		data.FallocateLen = event.Len
-		 
+
 	case "ioprio_set":
 		var event constant.IoprioSetData
 
@@ -2814,7 +2814,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IoprioSetWhich = event.Which
 		data.IoprioSetWho = event.Who
 		data.IoprioSetIoprio = event.Ioprio
-		 
+
 	case "mknodat":
 		var event constant.MknodatData
 
@@ -2829,7 +2829,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MknodatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.MknodatMode = event.Mode
 		data.MknodatDev = event.Dev
-		 
+
 	case "pipe":
 		var event constant.PipeData
 
@@ -2843,7 +2843,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PipeFildes = event.Fildes
 		data.PipeReadfd = event.ReadFd
 		data.PipeWritefd = event.WriteFd
-		 
+
 	case "reboot":
 		var event constant.RebootData
 
@@ -2858,7 +2858,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RebootMagic2 = event.Magic2
 		data.RebootCmd = event.Cmd
 		data.RebootArg = event.Arg
-		 
+
 	case "eventfd2":
 		var event constant.Eventfd2Data
 
@@ -2871,7 +2871,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.Eventfd2Count = event.Count
 		data.Eventfd2Flags = event.Flags
-		 
+
 	case "unlink":
 		var event constant.UnlinkData
 
@@ -2883,7 +2883,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.UnlinkPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
-		 
+
 	case "recvmmsg":
 		var event constant.RecvmmsgData
 
@@ -2899,7 +2899,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RecvmmsgVlen = event.Vlen
 		data.RecvmmsgFlags = event.Flags
 		data.RecvmmsgTimeout = event.Timeout
-		 
+
 	case "msync":
 		var event constant.MsyncData
 
@@ -2913,7 +2913,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MsyncStart = event.Start
 		data.MsyncLen = event.Len
 		data.MsyncFlags = event.Flags
-		 
+
 	case "access":
 		var event constant.AccessData
 
@@ -2926,7 +2926,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.AccessFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.AccessMode = event.Mode
-		 
+
 	case "signalfd4":
 		var event constant.Signalfd4Data
 
@@ -2941,7 +2941,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Signalfd4UserMask = event.UserMask
 		data.Signalfd4Sizemask = event.Sizemask
 		data.Signalfd4Flags = event.Flags
-		 
+
 	case "mbind":
 		var event constant.MbindData
 
@@ -2958,7 +2958,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MbindNmask = event.Nmask
 		data.MbindMaxnode = event.Maxnode
 		data.MbindFlags = event.Flags
-		 
+
 	case "mknod":
 		var event constant.MknodData
 
@@ -2972,7 +2972,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MknodFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.MknodMode = event.Mode
 		data.MknodDev = event.Dev
-		 
+
 	case "munlock":
 		var event constant.MunlockData
 
@@ -2985,7 +2985,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MunlockStart = event.Start
 		data.MunlockLen = event.Len
-		 
+
 	case "getpgid":
 		var event constant.GetpgidData
 
@@ -2997,7 +2997,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.GetpgidPid = event.Pid
-		 
+
 	case "getresuid":
 		var event constant.GetresuidData
 
@@ -3011,7 +3011,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetresuidRuidp = event.Ruidp
 		data.GetresuidEuidp = event.Euidp
 		data.GetresuidSuidp = event.Suidp
-		 
+
 	case "fchownat":
 		var event constant.FchownatData
 
@@ -3027,7 +3027,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FchownatUser = event.User
 		data.FchownatGroup = event.Group
 		data.FchownatFlag = event.Flag
-		 
+
 	case "perf_event_open":
 		var event constant.PerfEventOpenData
 
@@ -3043,7 +3043,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PerfEventOpenCpu = event.Cpu
 		data.PerfEventOpenGroupFd = event.GroupFd
 		data.PerfEventOpenFlags = event.Flags
-		 
+
 	case "newuname":
 		var event constant.NewunameData
 
@@ -3055,7 +3055,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.NewunameName = event.Name
-		 
+
 	case "timerfd_create":
 		var event constant.TimerfdCreateData
 
@@ -3068,7 +3068,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.TimerfdCreateClockid = event.Clockid
 		data.TimerfdCreateFlags = event.Flags
-		 
+
 	case "shmdt":
 		var event constant.ShmdtData
 
@@ -3080,7 +3080,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.ShmdtShmaddr = C.GoString((*C.char)(unsafe.Pointer(&event.Shmaddr)))
-		 
+
 	case "rmdir":
 		var event constant.RmdirData
 
@@ -3092,7 +3092,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.RmdirPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
-		 
+
 	case "open_by_handle_at":
 		var event constant.OpenByHandleAtData
 
@@ -3106,7 +3106,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.OpenByHandleAtMountdirfd = event.Mountdirfd
 		data.OpenByHandleAtHandle = event.Handle
 		data.OpenByHandleAtFlags = event.Flags
-		 
+
 	case "socketpair":
 		var event constant.SocketpairData
 
@@ -3121,7 +3121,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SocketpairType = event.Type
 		data.SocketpairProtocol = event.Protocol
 		data.SocketpairUsockvec = event.Usockvec
-		 
+
 	case "setresgid":
 		var event constant.SetresgidData
 
@@ -3135,7 +3135,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetresgidRgid = event.Rgid
 		data.SetresgidEgid = event.Egid
 		data.SetresgidSgid = event.Sgid
-		 
+
 	case "getitimer":
 		var event constant.GetitimerData
 
@@ -3148,7 +3148,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GetitimerWhich = event.Which
 		data.GetitimerValue = event.Value
-		 
+
 	case "mq_getsetattr":
 		var event constant.MqGetsetattrData
 
@@ -3162,7 +3162,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MqGetsetattrMqdes = event.Mqdes
 		data.MqGetsetattrUMqstat = event.UMqstat
 		data.MqGetsetattrUOmqstat = event.UOmqstat
-		 
+
 	case "chdir":
 		var event constant.ChdirData
 
@@ -3174,7 +3174,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.ChdirFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
-		 
+
 	case "fchdir":
 		var event constant.FchdirData
 
@@ -3186,7 +3186,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.FchdirFd = event.Fd
-		 
+
 	case "mmap":
 		var event constant.MmapData
 
@@ -3203,7 +3203,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MmapFlags = event.Flags
 		data.MmapFd = event.Fd
 		data.MmapOff = event.Off
-		 
+
 	case "lookup_dcookie":
 		var event constant.LookupDcookieData
 
@@ -3217,7 +3217,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LookupDcookieCookie64 = event.Cookie64
 		data.LookupDcookieBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.LookupDcookieLen = event.Len
-		 
+
 	case "syslog":
 		var event constant.SyslogData
 
@@ -3231,7 +3231,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SyslogType = event.Type
 		data.SyslogBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.SyslogLen = event.Len
-		 
+
 	case "accept":
 		var event constant.AcceptData
 
@@ -3245,7 +3245,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.AcceptFd = event.Fd
 		data.AcceptUpeerSockaddr = event.UpeerSockaddr
 		data.AcceptUpeerAddrlen = event.UpeerAddrlen
-		 
+
 	case "set_mempolicy":
 		var event constant.SetMempolicyData
 
@@ -3259,7 +3259,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SetMempolicyMode = event.Mode
 		data.SetMempolicyNmask = event.Nmask
 		data.SetMempolicyMaxnode = event.Maxnode
-		 
+
 	case "mkdirat":
 		var event constant.MkdiratData
 
@@ -3273,7 +3273,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MkdiratDfd = event.Dfd
 		data.MkdiratPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.MkdiratMode = event.Mode
-		 
+
 	case "fchmodat":
 		var event constant.FchmodatData
 
@@ -3287,7 +3287,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FchmodatDfd = event.Dfd
 		data.FchmodatFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.FchmodatMode = event.Mode
-		 
+
 	case "mkdir":
 		var event constant.MkdirData
 
@@ -3300,7 +3300,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MkdirPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.MkdirMode = event.Mode
-		 
+
 	case "mount":
 		var event constant.MountData
 
@@ -3316,7 +3316,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MountType = C.GoString((*C.char)(unsafe.Pointer(&event.Type)))
 		data.MountFlags = event.Flags
 		data.MountData = event.Data
-		 
+
 	case "sched_setaffinity":
 		var event constant.SchedSetaffinityData
 
@@ -3330,7 +3330,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SchedSetaffinityPid = event.Pid
 		data.SchedSetaffinityLen = event.Len
 		data.SchedSetaffinityUserMaskPtr = event.UserMaskPtr
-		 
+
 	case "mq_timedreceive":
 		var event constant.MqTimedreceiveData
 
@@ -3346,7 +3346,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MqTimedreceiveMsgLen = event.MsgLen
 		data.MqTimedreceiveUMsgPrio = event.UMsgPrio
 		data.MqTimedreceiveUAbsTimeout = event.UAbsTimeout
-		 
+
 	case "getsid":
 		var event constant.GetsidData
 
@@ -3358,7 +3358,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.GetsidPid = event.Pid
-		 
+
 	case "unshare":
 		var event constant.UnshareData
 
@@ -3370,7 +3370,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.UnshareUnshareFlags = event.UnshareFlags
-		 
+
 	case "capget":
 		var event constant.CapgetData
 
@@ -3383,7 +3383,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.CapgetHeader = event.Header
 		data.CapgetDataptr = event.Dataptr
-		 
+
 	case "linkat":
 		var event constant.LinkatData
 
@@ -3399,7 +3399,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LinkatNewdfd = event.Newdfd
 		data.LinkatNewname = C.GoString((*C.char)(unsafe.Pointer(&event.Newname)))
 		data.LinkatFlags = event.Flags
-		 
+
 	case "alarm":
 		var event constant.AlarmData
 
@@ -3411,7 +3411,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.AlarmSeconds = event.Seconds
-		 
+
 	case "io_setup":
 		var event constant.IoSetupData
 
@@ -3424,7 +3424,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.IoSetupNrEvents = event.NrEvents
 		data.IoSetupCtxp = event.Ctxp
-		 
+
 	case "mq_timedsend":
 		var event constant.MqTimedsendData
 
@@ -3440,7 +3440,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MqTimedsendMsgLen = event.MsgLen
 		data.MqTimedsendMsgPrio = event.MsgPrio
 		data.MqTimedsendUAbsTimeout = event.UAbsTimeout
-		 
+
 	case "getcwd":
 		var event constant.GetcwdData
 
@@ -3453,7 +3453,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GetcwdBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.GetcwdSize = event.Size
-		 
+
 	case "epoll_wait":
 		var event constant.EpollWaitData
 
@@ -3468,7 +3468,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EpollWaitEvents = event.Events
 		data.EpollWaitMaxevents = event.Maxevents
 		data.EpollWaitTimeout = event.Timeout
-		 
+
 	case "ioperm":
 		var event constant.IopermData
 
@@ -3482,7 +3482,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IopermFrom = event.From
 		data.IopermNum = event.Num
 		data.IopermTurnOn = event.TurnOn
-		 
+
 	case "flock":
 		var event constant.FlockData
 
@@ -3495,7 +3495,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.FlockFd = event.Fd
 		data.FlockCmd = event.Cmd
-		 
+
 	case "epoll_ctl":
 		var event constant.EpollCtlData
 
@@ -3510,7 +3510,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EpollCtlOp = event.Op
 		data.EpollCtlFd = event.Fd
 		data.EpollCtlEvent = event.Event
-		 
+
 	case "clock_gettime":
 		var event constant.ClockGettimeData
 
@@ -3523,7 +3523,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ClockGettimeWhichClock = event.WhichClock
 		data.ClockGettimeTp = event.Tp
-		 
+
 	case "semctl":
 		var event constant.SemctlData
 
@@ -3538,7 +3538,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SemctlSemnum = event.Semnum
 		data.SemctlCmd = event.Cmd
 		data.SemctlArg = event.Arg
-		 
+
 	case "rt_sigprocmask":
 		var event constant.RtSigprocmaskData
 
@@ -3553,7 +3553,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RtSigprocmaskNset = event.Nset
 		data.RtSigprocmaskOset = event.Oset
 		data.RtSigprocmaskSigsetsize = event.Sigsetsize
-		 
+
 	case "personality":
 		var event constant.PersonalityData
 
@@ -3565,7 +3565,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.PersonalityPersonality = event.Personality
-		 
+
 	case "llistxattr":
 		var event constant.LlistxattrData
 
@@ -3579,7 +3579,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.LlistxattrPathname = C.GoString((*C.char)(unsafe.Pointer(&event.Pathname)))
 		data.LlistxattrList = C.GoString((*C.char)(unsafe.Pointer(&event.List)))
 		data.LlistxattrSize = event.Size
-		 
+
 	case "ptrace":
 		var event constant.PtraceData
 
@@ -3594,7 +3594,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PtracePid = event.Pid
 		data.PtraceAddr = event.Addr
 		data.PtraceData = event.Data
-		 
+
 	case "setdomainname":
 		var event constant.SetdomainnameData
 
@@ -3607,7 +3607,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetdomainnameName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
 		data.SetdomainnameLen = event.Len
-		 
+
 	case "process_vm_readv":
 		var event constant.ProcessVmReadvData
 
@@ -3624,7 +3624,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ProcessVmReadvRvec = event.Rvec
 		data.ProcessVmReadvRiovcnt = event.Riovcnt
 		data.ProcessVmReadvFlags = event.Flags
-		 
+
 	case "vhangup":
 		var event constant.VhangupData
 
@@ -3635,7 +3635,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "arch_prctl":
 		var event constant.ArchPrctlData
 
@@ -3648,7 +3648,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ArchPrctlOption = event.Option
 		data.ArchPrctlArg2 = event.Arg2
-		 
+
 	case "recvmsg":
 		var event constant.RecvmsgData
 
@@ -3662,7 +3662,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RecvmsgFd = event.Fd
 		data.RecvmsgMsg = event.Msg
 		data.RecvmsgFlags = event.Flags
-		 
+
 	case "nanosleep":
 		var event constant.NanosleepData
 
@@ -3675,7 +3675,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.NanosleepRqtp = event.Rqtp
 		data.NanosleepRmtp = event.Rmtp
-		 
+
 	case "fcntl":
 		var event constant.FcntlData
 
@@ -3689,7 +3689,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FcntlFd = event.Fd
 		data.FcntlCmd = event.Cmd
 		data.FcntlArg = event.Arg
-		 
+
 	case "io_cancel":
 		var event constant.IoCancelData
 
@@ -3703,7 +3703,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IoCancelCtxId = event.CtxId
 		data.IoCancelIocb = event.Iocb
 		data.IoCancelResult = event.Result
-		 
+
 	case "getdents64":
 		var event constant.Getdents64Data
 
@@ -3717,7 +3717,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Getdents64Fd = event.Fd
 		data.Getdents64Dirent = event.Dirent
 		data.Getdents64Count = event.Count
-		 
+
 	case "inotify_rm_watch":
 		var event constant.InotifyRmWatchData
 
@@ -3730,7 +3730,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.InotifyRmWatchFd = event.Fd
 		data.InotifyRmWatchWd = event.Wd
-		 
+
 	case "flistxattr":
 		var event constant.FlistxattrData
 
@@ -3744,7 +3744,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FlistxattrFd = event.Fd
 		data.FlistxattrList = C.GoString((*C.char)(unsafe.Pointer(&event.List)))
 		data.FlistxattrSize = event.Size
-		 
+
 	case "read":
 		var event constant.ReadData
 
@@ -3758,7 +3758,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ReadFd = event.Fd
 		data.ReadBuf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.ReadCount = event.Count
-		 
+
 	case "clock_nanosleep":
 		var event constant.ClockNanosleepData
 
@@ -3773,7 +3773,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ClockNanosleepFlags = event.Flags
 		data.ClockNanosleepRqtp = event.Rqtp
 		data.ClockNanosleepRmtp = event.Rmtp
-		 
+
 	case "sysctl":
 		var event constant.SysctlData
 
@@ -3785,7 +3785,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SysctlArgs = event.Args
-		 
+
 	case "chown":
 		var event constant.ChownData
 
@@ -3799,7 +3799,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ChownFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.ChownUser = event.User
 		data.ChownGroup = event.Group
-		 
+
 	case "setgroups":
 		var event constant.SetgroupsData
 
@@ -3812,7 +3812,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetgroupsGidsetsize = event.Gidsetsize
 		data.SetgroupsGrouplist = event.Grouplist
-		 
+
 	case "newfstat":
 		var event constant.NewfstatData
 
@@ -3825,7 +3825,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.NewfstatFd = event.Fd
 		data.NewfstatStatbuf = event.Statbuf
-		 
+
 	case "madvise":
 		var event constant.MadviseData
 
@@ -3839,7 +3839,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MadviseStart = event.Start
 		data.MadviseLenIn = event.LenIn
 		data.MadviseBehavior = event.Behavior
-		 
+
 	case "fchown":
 		var event constant.FchownData
 
@@ -3853,7 +3853,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.FchownFd = event.Fd
 		data.FchownUser = event.User
 		data.FchownGroup = event.Group
-		 
+
 	case "inotify_init1":
 		var event constant.InotifyInit1Data
 
@@ -3865,7 +3865,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.InotifyInit1Flags = event.Flags
-		 
+
 	case "add_key":
 		var event constant.AddKeyData
 
@@ -3881,7 +3881,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.AddKeyPayload = event.Payload
 		data.AddKeyPlen = event.Plen
 		data.AddKeyRingid = event.Ringid
-		 
+
 	case "memfd_create":
 		var event constant.MemfdCreateData
 
@@ -3894,7 +3894,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.MemfdCreateUname = C.GoString((*C.char)(unsafe.Pointer(&event.Uname)))
 		data.MemfdCreateFlags = event.Flags
-		 
+
 	case "mq_open":
 		var event constant.MqOpenData
 
@@ -3909,7 +3909,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MqOpenOflag = event.Oflag
 		data.MqOpenMode = event.Mode
 		data.MqOpenUAttr = event.UAttr
-		 
+
 	case "init_module":
 		var event constant.InitModuleData
 
@@ -3923,7 +3923,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.InitModuleUmod = event.Umod
 		data.InitModuleLen = event.Len
 		data.InitModuleUargs = C.GoString((*C.char)(unsafe.Pointer(&event.Uargs)))
-		 
+
 	case "sched_setattr":
 		var event constant.SchedSetattrData
 
@@ -3937,7 +3937,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SchedSetattrPid = event.Pid
 		data.SchedSetattrUattr = event.Uattr
 		data.SchedSetattrFlags = event.Flags
-		 
+
 	case "restart_syscall":
 		var event constant.RestartSyscallData
 
@@ -3948,7 +3948,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "ioctl":
 		var event constant.IoctlData
 
@@ -3962,7 +3962,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IoctlFd = event.Fd
 		data.IoctlCmd = event.Cmd
 		data.IoctlArg = event.Arg
-		 
+
 	case "request_key":
 		var event constant.RequestKeyData
 
@@ -3977,7 +3977,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.RequestKeyDescription = C.GoString((*C.char)(unsafe.Pointer(&event.Description)))
 		data.RequestKeyCalloutInfo = C.GoString((*C.char)(unsafe.Pointer(&event.CalloutInfo)))
 		data.RequestKeyDestringid = event.Destringid
-		 
+
 	case "inotify_init":
 		var event constant.InotifyInitData
 
@@ -3988,7 +3988,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "umount":
 		var event constant.UmountData
 
@@ -4001,7 +4001,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.UmountName = C.GoString((*C.char)(unsafe.Pointer(&event.Name)))
 		data.UmountFlags = event.Flags
-		 
+
 	case "preadv":
 		var event constant.PreadvData
 
@@ -4017,7 +4017,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.PreadvVlen = event.Vlen
 		data.PreadvPosL = event.PosL
 		data.PreadvPosH = event.PosH
-		 
+
 	case "vmsplice":
 		var event constant.VmspliceData
 
@@ -4032,7 +4032,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.VmspliceUiov = event.Uiov
 		data.VmspliceNrSegs = event.NrSegs
 		data.VmspliceFlags = event.Flags
-		 
+
 	case "sysinfo":
 		var event constant.SysinfoData
 
@@ -4044,7 +4044,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SysinfoInfo = event.Info
-		 
+
 	case "timer_settime":
 		var event constant.TimerSettimeData
 
@@ -4059,7 +4059,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.TimerSettimeFlags = event.Flags
 		data.TimerSettimeNewSetting = event.NewSetting
 		data.TimerSettimeOldSetting = event.OldSetting
-		 
+
 	case "quotactl":
 		var event constant.QuotactlData
 
@@ -4074,7 +4074,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.QuotactlSpecial = C.GoString((*C.char)(unsafe.Pointer(&event.Special)))
 		data.QuotactlId = event.Id
 		data.QuotactlAddr = event.Addr
-		 
+
 	case "getgroups":
 		var event constant.GetgroupsData
 
@@ -4087,7 +4087,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.GetgroupsGidsetsize = event.Gidsetsize
 		data.GetgroupsGrouplist = event.Grouplist
-		 
+
 	case "fchmod":
 		var event constant.FchmodData
 
@@ -4100,7 +4100,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.FchmodFd = event.Fd
 		data.FchmodMode = event.Mode
-		 
+
 	case "fadvise64":
 		var event constant.Fadvise64Data
 
@@ -4115,7 +4115,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Fadvise64Offset = event.Offset
 		data.Fadvise64Len = event.Len
 		data.Fadvise64Advice = event.Advice
-		 
+
 	case "io_submit":
 		var event constant.IoSubmitData
 
@@ -4129,7 +4129,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IoSubmitCtxId = event.CtxId
 		data.IoSubmitNr = event.Nr
 		data.IoSubmitIocbpp = event.Iocbpp
-		 
+
 	case "chmod":
 		var event constant.ChmodData
 
@@ -4142,7 +4142,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ChmodFilename = C.GoString((*C.char)(unsafe.Pointer(&event.Filename)))
 		data.ChmodMode = event.Mode
-		 
+
 	case "pwrite64":
 		var event constant.Pwrite64Data
 
@@ -4157,7 +4157,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Pwrite64Buf = C.GoString((*C.char)(unsafe.Pointer(&event.Buf)))
 		data.Pwrite64Count = event.Count
 		data.Pwrite64Pos = event.Pos
-		 
+
 	case "settimeofday":
 		var event constant.SettimeofdayData
 
@@ -4170,7 +4170,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SettimeofdayTv = event.Tv
 		data.SettimeofdayTz = event.Tz
-		 
+
 	case "sched_getparam":
 		var event constant.SchedGetparamData
 
@@ -4183,7 +4183,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SchedGetparamPid = event.Pid
 		data.SchedGetparamParam = event.Param
-		 
+
 	case "sched_getaffinity":
 		var event constant.SchedGetaffinityData
 
@@ -4197,7 +4197,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SchedGetaffinityPid = event.Pid
 		data.SchedGetaffinityLen = event.Len
 		data.SchedGetaffinityUserMaskPtr = event.UserMaskPtr
-		 
+
 	case "msgctl":
 		var event constant.MsgctlData
 
@@ -4211,7 +4211,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.MsgctlMsqid = event.Msqid
 		data.MsgctlCmd = event.Cmd
 		data.MsgctlBuf = event.Buf
-		 
+
 	case "timerfd_settime":
 		var event constant.TimerfdSettimeData
 
@@ -4226,7 +4226,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.TimerfdSettimeFlags = event.Flags
 		data.TimerfdSettimeUtmr = event.Utmr
 		data.TimerfdSettimeOtmr = event.Otmr
-		 
+
 	case "setsid":
 		var event constant.SetsidData
 
@@ -4237,7 +4237,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		}
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
-		 
+
 	case "connect":
 		var event constant.ConnectData
 
@@ -4251,7 +4251,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.ConnectFd = event.Fd
 		data.ConnectUservaddr = event.Uservaddr
 		data.ConnectAddrlen = event.Addrlen
-		 
+
 	case "sendto":
 		var event constant.SendtoData
 
@@ -4268,7 +4268,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.SendtoFlags = event.Flags
 		data.SendtoAddr = event.Addr
 		data.SendtoAddrLen = event.AddrLen
-		 
+
 	case "bpf":
 		var event constant.BpfData
 
@@ -4282,7 +4282,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.BpfCmd = event.Cmd
 		data.BpfUattr = event.Uattr
 		data.BpfSize = event.Size
-		 
+
 	case "kcmp":
 		var event constant.KcmpData
 
@@ -4298,7 +4298,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.KcmpType = event.Type
 		data.KcmpIdx1 = event.Idx1
 		data.KcmpIdx2 = event.Idx2
-		 
+
 	case "mlock2":
 		var event constant.Mlock2Data
 
@@ -4312,7 +4312,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Mlock2Start = event.Start
 		data.Mlock2Len = event.Len
 		data.Mlock2Flags = event.Flags
-		 
+
 	case "pwritev2":
 		var event constant.Pwritev2Data
 
@@ -4329,7 +4329,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.Pwritev2PosL = event.PosL
 		data.Pwritev2PosH = event.PosH
 		data.Pwritev2Flags = event.Flags
-		 
+
 	case "sched_setparam":
 		var event constant.SchedSetparamData
 
@@ -4342,7 +4342,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SchedSetparamPid = event.Pid
 		data.SchedSetparamParam = event.Param
-		 
+
 	case "swapoff":
 		var event constant.SwapoffData
 
@@ -4354,7 +4354,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.SwapoffSpecialfile = C.GoString((*C.char)(unsafe.Pointer(&event.Specialfile)))
-		 
+
 	case "userfaultfd":
 		var event constant.UserfaultfdData
 
@@ -4366,7 +4366,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.EventInfo = event.EventInfo
 		data.IsSyscall = true
 		data.UserfaultfdFlags = event.Flags
-		 
+
 	case "io_pgetevents":
 		var event constant.IoPgeteventsData
 
@@ -4383,7 +4383,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IoPgeteventsEvents = event.Events
 		data.IoPgeteventsTimeout = event.Timeout
 		data.IoPgeteventsUsig = event.Usig
-		 
+
 	case "listen":
 		var event constant.ListenData
 
@@ -4396,7 +4396,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.ListenFd = event.Fd
 		data.ListenBacklog = event.Backlog
-		 
+
 	case "get_robust_list":
 		var event constant.GetRobustListData
 
@@ -4410,7 +4410,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.GetRobustListPid = event.Pid
 		data.GetRobustListHeadPtr = event.HeadPtr
 		data.GetRobustListLenPtr = event.LenPtr
-		 
+
 	case "setns":
 		var event constant.SetnsData
 
@@ -4423,7 +4423,7 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.IsSyscall = true
 		data.SetnsFd = event.Fd
 		data.SetnsNstype = event.Nstype
-		 
+
 	}
 	return &data, nil
 }

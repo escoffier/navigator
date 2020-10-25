@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"C"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"unsafe"
@@ -12,7 +11,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
 )
-import "fmt"
+import (
+	"fmt"
+)
 
 type JsonConsumer struct {
 	dataChan chan constant.Data
@@ -53,11 +54,7 @@ func (cc *JsonConsumer) Consume(_ *utils.NsMap) {
 				}
 			}
 			jsondata := Logentry{event.EventInfo, ExtraInfo}
-			jsonstr, err := json.Marshal(jsondata)
-			if err != nil {
-				log.Println(err)
-			}
-			fmt.Println(jsonstr)
+			fmt.Println(jsondata)
 		default:
 			log.Warn("JsonConsumer data type should be one of listed type.")
 		}

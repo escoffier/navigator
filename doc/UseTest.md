@@ -132,27 +132,18 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 ```bash
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules"
 
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules/CVE_TEST/on"
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules/{some_previous_rule}/on"
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/alerts"
 ```
 
-After enabling rule - directly from elasticsearch
+After enabling rule - you can simulate syscalls from a special pod, which has
+to be started manually.
 
 ```bash
-kubectl port-forward -n tensorsec elasticsearch-master-0 9200:9200 &
+cd test
 
-curl -X GET "localhost:9200/filebeat-*/_search?pretty" -H 'Content-Type: application/json' -d'
-{
-  "query": { 
-    "bool": { 
-      "must": [
-        { "match": { "openat__filename":   "/etc/hosts"        }}
-      ]
-    }
-  }
-}
-'
+kubectl run tensorsec-faulty --image=localhost:32000/faulty:latest -i --tty --rm
 ```
 
 ## Database access

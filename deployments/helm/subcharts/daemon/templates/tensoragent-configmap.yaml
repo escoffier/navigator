@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: {{ template "daemon.fullname" . }}-config
 data:
-  example.yaml: |-
-{{ .Files.Get "example.yaml" | indent 4}}
+  detection.yaml: |-
+{{ .Files.Get "detection.yaml" | indent 4}}

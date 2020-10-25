@@ -113,6 +113,19 @@ else
 	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile .
 endif
 
+.PHONY: elastalert
+elastalert:     ## Build elastalert binary
+	@echo "+ $@" 		
+	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile .
+
+.PHONY: faulty
+faulty:     ## Build faulty docker to test CVEs
+	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+else
+	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile .
+endif
 
 .PHONY: elastalert
 elastalert:     ## Build elastalert binary
@@ -126,7 +139,7 @@ else
 endif
 
 .PHONY: all
-all: tensoragent tensordig scanner scap-jobs console elastalert
+all: tensoragent tensordig scanner scap-jobs console elastalert faulty
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -139,6 +152,7 @@ pushimages:
 	docker push $(REPOPREFIX)/tensoragent:latest
 	docker push $(REPOPREFIX)/tensordig:latest
 	docker push $(REPOPREFIX)/elastalert:latest
+	docker push $(REPOPREFIX)/faulty:latest
 
 .PHONY: retag
 retag:
@@ -150,6 +164,7 @@ retag:
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
 	docker tag $(REPOPREFIXOLD)/tensoragent:latest $(REPOPREFIX)/tensoragent:latest
 	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:latest
+	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
 
 .PHONY: redeploy
 redeploy:
