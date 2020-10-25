@@ -8,7 +8,7 @@ endif
 REPOPREFIX?=localhost:32000
 REPOPREFIXOLD?=localhost:32000
 
-USEMIRROR?=
+USEMIRROR?=true
 
 .PHONY: help
 help:
@@ -56,6 +56,7 @@ clean:				## Clean all artifacts
 
 .PHONY: scap-jobs
 scap-jobs:
+	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "scap-jobs will use mirror"
 	cd configs/scap/jobs/kube-bench && \
@@ -105,15 +106,18 @@ tensordig: generate ## Build tensordig binary
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "tensordig will use mirror"
-	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) --build-arg MIRROR=mirrors.aliyun.com .
+	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile \
+		--build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "tensordig will not use mirror"
-	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) .
+	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile \
+		--build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) .
 endif
 
 
 .PHONY: all
-all: scanner scap-jobs console tensoragent tensordig
+all: tensoragent tensordig scanner scap-jobs console 
+	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
 pushimages:

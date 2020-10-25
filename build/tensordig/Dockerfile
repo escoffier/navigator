@@ -2,6 +2,9 @@
 
 FROM ubuntu:eoan
 
+ARG GOPROXY=
+RUN export GOPROXY=$GOPROXY
+
 ARG MIRROR=archive.ubuntu.com
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
 
