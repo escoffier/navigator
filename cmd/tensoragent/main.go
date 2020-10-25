@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 
@@ -110,12 +111,24 @@ func readSyscall(conn *net.UnixConn, f *os.File) {
 					for key, element := range s.EventInfo {
 						out[key] = element
 					}
+					if s.ExtraInfo["syscall"] == "openat" {
+						out["openat__write"] = false
+						if uint64(s.ExtraInfo["openat__mode"].(float64))&syscall.O_WRONLY > 0 {
+							out["openat__write"] = true
+						}
+					}
+					if s.ExtraInfo["syscall"] == "open" {
+						out["open__write"] = false
+						if uint64(s.ExtraInfo["open__mode"].(float64))&syscall.O_WRONLY > 0 {
+							out["open__write"] = true
+						}
+					}
 
 					jsonStr, _ := json.Marshal(out)
 					if _, err := f.WriteString(string(jsonStr) + "\n"); err != nil {
 						log.Println(err)
 					}
-					log.Printf("Relevant information: %+v", out)
+					log.Printf("Relevant information: %+v\n", out)
 				}
 			}
 		} else if pid == 0 {

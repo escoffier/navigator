@@ -147,7 +147,7 @@ spec:
           runAsUser: 0
           hostPID: true
         command: ["/go/src/app/dist/tensordig"]
-        args: ["--config", "/config/example.yaml"]
+        args: ["--config", "/config/detection.yaml"]
         resources:
           limits:
             memory: 200Mi
