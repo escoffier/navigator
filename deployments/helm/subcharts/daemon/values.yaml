@@ -54,8 +54,9 @@ hostNetworking: false
 image: "docker.elastic.co/beats/filebeat"
 imageTag: "8.0.0-SNAPSHOT"
 imagePullPolicy: "IfNotPresent"
-imagePullSecrets: []
-
+imagePullSecrets:
+- name: "harbor-admin-secret"
+  
 livenessProbe:
   exec:
     command:
