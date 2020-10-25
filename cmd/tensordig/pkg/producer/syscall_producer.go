@@ -224,12 +224,19 @@ const syscallTemplate string = `
 		struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
 		bpf_probe_read(&d.event_info.procname, sizeof(d.event_info.procname), (void *)ts->comm);
 		bpf_probe_read(&d.event_info.event_name, sizeof(d.event_info.event_name), (void *)name);
+
+		// [#146] Not sure about specific version here. I just know that it doesn't work on 3.10.0
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
+		d.event_info.nsid = 0;
+#else
 		u64 curpidns = (u64)ts->nsproxy->pid_ns_for_children->ns.inum;
+		d.event_info.nsid = curpidns;
+#endif
+
 		d.event_info.ts = bpf_ktime_get_ns();
 		u64 gid_uid = bpf_get_current_uid_gid();
 		d.event_info.pid = pid >> 32;
 		d.event_info.tid = pid;
-		d.event_info.nsid = curpidns;
 		d.event_info.gid = gid_uid >> 32;
 		d.event_info.uid = gid_uid;
 		d.event_info.ptid = ts->real_parent->pid;
