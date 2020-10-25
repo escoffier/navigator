@@ -41,8 +41,23 @@ producers:
             field: filename
             operation: startsWithArray
             values: 
-              - v: /proc/self/exed
-            # - v: /proc/self/fd
+              - v: /proc/self/exe
+              - v: /proc/self/fd
+          - modeFilter:
+            id: f2
+            field: mode
+            operation: andIs
+            values:
+            - v: 1
+            - v: 1
+          - modeFilter:
+            id: f3
+            field: mode
+            operation: andIs
+            values:
+            - v: 2
+            - v: 2
+        logic: f1&&(f2||f3)
       - syscallOpenat:
         name: openat
         filters:
@@ -51,7 +66,22 @@ producers:
             field: filename
             operation: startsWithArray
             values: 
-              - v: /proc/self/exed
-            # - v: /proc/self/fd
+              - v: /proc/self/exe
+              - v: /proc/self/fd
+          - modeFilter:
+            id: f2
+            field: mode
+            operation: andIs
+            values:
+            - v: 1
+            - v: 1
+          - modeFilter:
+            id: f3
+            field: mode
+            operation: andIs
+            values:
+            - v: 2
+            - v: 2
+        logic: f1&&(f2||f3)
 consumers:
   - Json

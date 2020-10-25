@@ -6,9 +6,17 @@ import (
 	"os"
 	"regexp"
 
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+)
+
+var (
+	// 	kubePattern   = regexp.MustCompile(`\d+:.+:/kubepods/[^/]+/pod[^/]+/([0-9a-f]{64})`)
+	// 	dockerPattern = regexp.MustCompile(`\d+:.+:/docker/pod[^/]+/([0-9a-f]{64})`)
+	kubePattern   = regexp.MustCompile(`/kubepods/[^/]+/pod([^/]+)/([0-9a-f]{64})`)
+	dockerPattern = regexp.MustCompile(`/docker/pod([^/]+)/([0-9a-f]{64})`)
 )
 
 type KubernetesUtil struct {
@@ -25,7 +33,7 @@ func (cu KubernetesUtil) Init() error {
 	return cu.containerCache.Init()
 }
 
-type ID struct {
+type SyscallContext struct {
 	Namespace     string
 	PodName       string
 	PodUID        string
@@ -37,16 +45,14 @@ type ID struct {
 	Syscall       string
 }
 
-func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*ID, error) {
-	cid, kid, err := ku.LookupDockerContainerID(dockerPID, pid)
-	fmt.Println(cid)
-	fmt.Println(kid)
+func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*SyscallContext, error) {
+	cid, kid, err := ku.LookupDockerPodID(dockerPID, pid)
 	if err != nil {
 		return nil, err
 	}
 
 	if cid == "" && kid == "" {
-		return &ID{
+		return &SyscallContext{
 			Namespace:     "",
 			PodName:       "",
 			PodUID:        "",
@@ -77,22 +83,26 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*ID,
 	for _, item := range pods.Items {
 		if kid != "" {
 			if kid == string(item.ObjectMeta.UID) {
-				return &ID{
-					Namespace:     item.ObjectMeta.Namespace,
-					PodName:       item.ObjectMeta.Name,
-					PodUID:        string(item.ObjectMeta.UID),
-					PodLabels:     item.ObjectMeta.Labels,
-					ContainerID:   cid,
-					ContainerName: "",
-					DockerPID:     dockerPID,
-					ProcessPID:    pid,
-					Syscall:       syscall,
-				}, nil
+				for _, status := range item.Status.ContainerStatuses {
+					if status.ContainerID == "docker://"+cid {
+						return &SyscallContext{
+							Namespace:     item.ObjectMeta.Namespace,
+							PodName:       item.ObjectMeta.Name,
+							PodUID:        string(item.ObjectMeta.UID),
+							PodLabels:     item.ObjectMeta.Labels,
+							ContainerID:   cid,
+							ContainerName: status.Name,
+							DockerPID:     dockerPID,
+							ProcessPID:    pid,
+							Syscall:       syscall,
+						}, nil
+					}
+				}
 			}
 		}
 		for _, status := range item.Status.ContainerStatuses {
 			if status.ContainerID == "docker://"+cid {
-				return &ID{
+				return &SyscallContext{
 					Namespace:     item.ObjectMeta.Namespace,
 					PodName:       item.ObjectMeta.Name,
 					PodUID:        string(item.ObjectMeta.UID),
@@ -106,7 +116,8 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*ID,
 			}
 		}
 	}
-	return &ID{
+	log.Infof("Cached pod %s and container %s don't exist in the cluster anymore\n", kid, cid)
+	return &SyscallContext{
 		Namespace:     "",
 		PodName:       "",
 		PodUID:        "",
@@ -119,41 +130,36 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*ID,
 	}, nil
 }
 
-func (ku KubernetesUtil) LookupDockerContainerID(dockerPID int, pid int) (string, string, error) {
+func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, string, error) {
 	cid, kid, err := ku.containerCache.Get(dockerPID)
-	fmt.Println("ERROR")
-	fmt.Println(err)
-	fmt.Println(cid)
-	fmt.Println(kid)
 	if err == nil {
 		return cid, kid, nil
 	}
 
 	f, err := os.Open(fmt.Sprintf("/host/proc/%d/cpuset", pid))
 	if err != nil {
-		// this is normal, it just means the PID no longer exists
-		return "", "", nil
+		return "", "", fmt.Errorf("Process %d no longer exists", pid)
 	}
 	defer f.Close()
 
+	log.Infof("Scanning %d cpuset", pid)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
+		log.Infof("Currently scanned line: %s", line)
 		parts := dockerPattern.FindStringSubmatch(line)
 		if parts != nil {
+			log.Infof("Found match for %d against %s", pid, dockerPattern)
 			return parts[2], parts[1], nil
 		}
+		log.Infof("Match not for against %s", dockerPattern)
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
+			log.Infof("Found match for %d against %s", pid, kubePattern)
 			return parts[2], parts[1], nil
 		}
+		log.Infof("Match not for against %s", kubePattern)
 	}
+	log.Infof("No match for %d in its cpuset", pid)
 	return "", "", nil
 }
-
-var (
-	// 	kubePattern   = regexp.MustCompile(`\d+:.+:/kubepods/[^/]+/pod[^/]+/([0-9a-f]{64})`)
-	// 	dockerPattern = regexp.MustCompile(`\d+:.+:/docker/pod[^/]+/([0-9a-f]{64})`)
-	kubePattern   = regexp.MustCompile(`/kubepods/[^/]+/pod([^/]+)/([0-9a-f]{64})`)
-	dockerPattern = regexp.MustCompile(`/docker/pod([^/]+)/([0-9a-f]{64})`)
-)
