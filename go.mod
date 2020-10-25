@@ -16,6 +16,7 @@ require (
 	github.com/docker/docker v0.7.3-0.20190813234819-fade624f1696
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7
+	github.com/elastic/go-elasticsearch/v8 v8.0.0-20201022194115-1af099fb3eca
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-chi/jwtauth v4.0.3+incompatible

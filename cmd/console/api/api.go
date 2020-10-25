@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 
 	"github.com/go-chi/chi"
@@ -36,6 +38,8 @@ type api struct {
 	redisClient                    *redis.Client
 	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
 	scanResultLocalBackoffCacheMux sync.Mutex
+	ruleService                    *rule.RuleService
+	alertService                   *alert.AlertService
 }
 
 func newAPI(
@@ -47,6 +51,8 @@ func newAPI(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
+	ruleService *rule.RuleService,
+	alertService *alert.AlertService,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -59,6 +65,8 @@ func newAPI(
 		clusterService:              clusterService,
 		redisClient:                 redisClient,
 		scanResultLocalBackoffCache: make(map[string]int),
+		ruleService:                 ruleService,
+		alertService:                alertService,
 	}
 }
 

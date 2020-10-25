@@ -114,8 +114,19 @@ else
 endif
 
 
+.PHONY: elastalert
+elastalert:     ## Build elastalert binary
+	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	@echo "elastalert will use mirror"
+	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "elastalert will not use mirror"
+	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile .
+endif
+
 .PHONY: all
-all: tensoragent tensordig scanner scap-jobs console 
+all: tensoragent tensordig scanner scap-jobs console elastalert
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -127,6 +138,7 @@ pushimages:
 	docker push $(REPOPREFIX)/host-bench:latest
 	docker push $(REPOPREFIX)/tensoragent:latest
 	docker push $(REPOPREFIX)/tensordig:latest
+	docker push $(REPOPREFIX)/elastalert:latest
 
 .PHONY: retag
 retag:
@@ -135,8 +147,9 @@ retag:
 	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:latest
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
-	docker tag $(REPOPREFIXOLD)/tensoragent:latest $(REPOPREFIX)/tensoragent:latest
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
+	docker tag $(REPOPREFIXOLD)/tensoragent:latest $(REPOPREFIX)/tensoragent:latest
+	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:latest
 
 .PHONY: redeploy
 redeploy:

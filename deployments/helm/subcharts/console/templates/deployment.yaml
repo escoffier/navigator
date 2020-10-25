@@ -20,7 +20,33 @@ spec:
     #   imagePullSecrets:
     #     {{- toYaml . | nindent 8 }}
     # {{- end }}
+      initContainers:
+      - name: "elasticsearch-listener"
+        image: "alpine"
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
+        ]    
       containers:
+      - name: elastalert
+        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.elastalert.image.name }}:{{ .Values.elastalert.image.tag }}"
+        imagePullPolicy: {{ .Values.elastalert.image.pullPolicy }}
+        command:
+          - "/bin/sh"
+          - "-c"
+          - "elastalert-create-index --index {{ .Values.elastalert.elastic.index }} --host {{ .Values.elastalert.elastic.host }} --port {{ .Values.elastalert.elastic.port }} --no-ssl --no-auth --url-prefix '' --alias {{ .Values.elastalert.elastic.alias }} --old-index '' && elastalert --config /config/example.yaml "
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+          - name: elastalert-volume
+            mountPath: "/config"
+          - name: rules-volume
+            mountPath: "/rules"
       - name: {{ .Chart.Name }}
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         command: ["/vegeta-console"]
@@ -33,8 +59,19 @@ spec:
           "--vegeta-scanner-port=8888",
           "--redis-endpoint=tensorsec-redis-master:6379",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
+          "--elastalert-available=/available-rules",
+          "--elastalert-applied=/rules",
+          "--elastic-host={{ .Values.elastalert.elastic.host }}",
+          "--elastic-port={{ .Values.elastalert.elastic.port }}",
+          "--elastic-index={{ .Values.elastalert.elastic.index }}",
           "-v"]
 
+        volumeMounts:
+          - name: available-rules-volume
+            mountPath: "/available-rules"
+          - name: rules-volume
+            mountPath: "/rules"
+  
         env:
         - name: TENSORSEC_MONGO_PASSWORD
           valueFrom:
@@ -61,3 +98,14 @@ spec:
       - name: tmp
         hostPath:
           path: /tmp/
+      - name: elastalert-volume
+        configMap:
+          name: elastalert-config
+          defaultMode: 0600
+      - name: rules-volume
+        emptyDir: {}
+      - name: available-rules-volume
+        configMap:
+          name: available-rules-config
+          defaultMode: 0600
+  

@@ -14,8 +14,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/elastic/go-elasticsearch/v8"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -49,6 +52,8 @@ func NewConsole(
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
 	redisOpts *flag.RedisOpts,
+	elasticOpts *flag.ElasticOpts,
+	elastalertOpts *flag.ElastalertOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -89,6 +94,20 @@ func NewConsole(
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
+	ruleService := rule.NewRuleService(elastalertOpts.AvailableRulesFolder, elastalertOpts.AppliedRulesFolder)
+
+	cfg := elasticsearch.Config{
+		Addresses: []string{
+			fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port),
+		},
+	}
+	es, err := elasticsearch.NewClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	alertService := alert.NewAlertService(es, elasticOpts.Index)
+
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -101,6 +120,8 @@ func NewConsole(
 				cronService,
 				clusterService,
 				redisClient,
+				ruleService,
+				alertService,
 			),
 		},
 		mongoClient: mongoClient,

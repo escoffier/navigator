@@ -128,6 +128,17 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 ```
 
 ## Runtime detection
+
+```bash
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules"
+
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules/CVE_TEST/on"
+
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/alerts"
+```
+
+After enabling rule - directly from elasticsearch
+
 ```bash
 kubectl port-forward -n tensorsec elasticsearch-master-0 9200:9200 &
 
@@ -136,7 +147,7 @@ curl -X GET "localhost:9200/filebeat-*/_search?pretty" -H 'Content-Type: applica
   "query": { 
     "bool": { 
       "must": [
-        { "match": { "open__filename":   "/etc/hosts"        }}
+        { "match": { "openat__filename":   "/etc/hosts"        }}
       ]
     }
   }
