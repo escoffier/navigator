@@ -117,11 +117,16 @@ endif
 .PHONY: elastalert
 elastalert:     ## Build elastalert binary
 	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	@echo "elastalert will use mirror"
+	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "elastalert will not use mirror"
 	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile .
-
+endif
 
 .PHONY: all
-all: tensoragent tensordig scanner scap-jobs console 
+all: tensoragent tensordig scanner scap-jobs console elastalert
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
