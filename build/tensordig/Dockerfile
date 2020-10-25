@@ -1,5 +1,3 @@
-
-
 FROM ubuntu:eoan
 
 ARG GOPROXY=
@@ -21,10 +19,11 @@ RUN DEBIAN_FRONTEND=noninteractive dpkg -i libbcc_*.deb && rm -rf /bcc
 WORKDIR /go/src/app
 COPY . .
 
-ARG VERSION
-ARG LDFLAGS
+
 RUN PATH=$PATH:/usr/lib/go-1.13/bin GO111MODULE=on go build -v -a \
-		--ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \
 		-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
+		# Be careful when adding LDFLAGS because they conflict with CGO
+		# Remove them for now.
+		# --ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \ 
 
 CMD dist/tensordig

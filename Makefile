@@ -107,11 +107,10 @@ tensordig: generate ## Build tensordig binary
 ifeq ($(USEMIRROR),true)
 	@echo "tensordig will use mirror"
 	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile \
-		--build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "tensordig will not use mirror"
-	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile \
-		--build-arg LDFLAGS=$(LDFLAGS) --build-arg VERSION=$(VERSION) .
+	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile .
 endif
 
 
