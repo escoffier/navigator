@@ -1,10 +1,10 @@
 package scheduler
 
 import (
+	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/consumer"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/producer"
-	log "github.com/sirupsen/logrus"
 )
 
 type CombineSchedule struct {
@@ -29,16 +29,10 @@ func (cs *CombineSchedule) newConumsers(consumersInfo []string) error {
 	for _, v := range consumersInfo {
 		var c consumer.Consumer
 		switch v {
-		case "Print":
-			c = consumer.NewPrintConsumer()
-		case "Count":
-			c = consumer.NewCountConsumer()
-		case "Collect":
-			c = consumer.NewCollectConsumer()
-        case "Json":
-            c = consumer.NewJsonConsumer ()
-        case "Socket":
-            c = consumer.NewSocketConsumer ()
+		case "Json":
+			c = consumer.NewJsonConsumer()
+		case "File":
+			c = consumer.NewFileConsumer()
 		}
 
 		// consumer init at "Schedule" method using "consumer.Init(cs.combinedChan[i])"
@@ -86,6 +80,6 @@ func (cs *CombineSchedule) Schedule() {
 
 	// Start Producer
 	cs.Manager.Init()
-// 	cs.Manager.Start()
+	// 	cs.Manager.Start()
 	cs.Manager.StartChronologicalPoll()
 }

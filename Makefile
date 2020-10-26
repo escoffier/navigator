@@ -93,14 +93,6 @@ scanner: generate		## Build scanner binary
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
-.PHONY: tensoragent
-tensoragent: generate ## Build tensoragent binary
-	@echo "+ $@"
-	go build -v -a \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/tensoragent/cmd.Version=$(VERSION)" \
-		-o dist/tensoragent gitlab.com/piccolo_su/vegeta/cmd/tensoragent
-	docker build -t $(REPOPREFIX)/tensoragent:latest -f ./build/tensoragent/Dockerfile .
-
 .PHONY: tensordig
 tensordig: generate ## Build tensordig binary
 	@echo "+ $@"
@@ -136,7 +128,7 @@ else
 endif
 
 .PHONY: all
-all: tensoragent tensordig scanner scap-jobs console elastalert faulty
+all: tensordig scanner scap-jobs console elastalert faulty
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -146,7 +138,6 @@ pushimages:
 	docker push $(REPOPREFIX)/kube-bench:latest
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
-	docker push $(REPOPREFIX)/tensoragent:latest
 	docker push $(REPOPREFIX)/tensordig:latest
 	docker push $(REPOPREFIX)/elastalert:latest
 	docker push $(REPOPREFIX)/faulty:latest
@@ -159,7 +150,6 @@ retag:
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
-	docker tag $(REPOPREFIXOLD)/tensoragent:latest $(REPOPREFIX)/tensoragent:latest
 	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
 

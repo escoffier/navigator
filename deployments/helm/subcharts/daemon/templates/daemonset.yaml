@@ -70,8 +70,6 @@ spec:
       - name: host
         hostPath:
           path: /
-      - name: tensordig-socket
-        emptyDir: {}
       - name: syscall-data
         emptyDir: { }
       {{- range .Values.secretMounts }}
@@ -80,7 +78,7 @@ spec:
           secretName: {{ .secretName }}
       {{- end }}
       {{- if .Values.filebeatConfig }}
-      - name: socketconfig
+      - name: digconfig
         configMap:
           name: {{ template "daemon.fullname" . }}-config
           defaultMode: 0600
@@ -124,21 +122,6 @@ spec:
       {{- end }}
       {{- end }}
       containers:
-      - name: tensoragent
-        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.tensoragent.image.name }}:{{ .Values.tensoragent.image.tag }}"
-        imagePullPolicy: {{ .Values.tensoragent.image.pullPolicy }}
-        command: ["/tensoragent"]
-        args: ["/conf/syscall.sock"]
-        resources:
-          limits:
-            memory: 200Mi
-        volumeMounts:
-        - name: host
-          mountPath: /host
-        - name: tensordig-socket
-          mountPath: /conf
-        - name: syscall-data
-          mountPath: /data
       - name: tensordig
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.tensordig.image.name }}:{{ .Values.tensordig.image.tag }}"
         imagePullPolicy: {{ .Values.tensordig.image.pullPolicy }}
@@ -152,10 +135,8 @@ spec:
           limits:
             memory: 200Mi
         volumeMounts:
-          - name: socketconfig
+          - name: digconfig
             mountPath: "/config"
-          - name: tensordig-socket
-            mountPath: /data
           - name: modules
             mountPath: /lib/modules
             readOnly: true
@@ -165,6 +146,10 @@ spec:
           - name: sys
             mountPath: /sys
             readOnly: true
+          - name: host
+            mountPath: /host
+          - name: syscall-data
+            mountPath: /data
       - name: "filebeat"
         image: "{{ .Values.image }}:{{ .Values.imageTag }}"
         imagePullPolicy: "{{ .Values.imagePullPolicy }}"

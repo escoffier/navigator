@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	ps "gitlab.com/piccolo_su/vegeta/cmd/tensoragent/go-ps"
+	ps "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/go-ps"
 )
 
 // NewPidCache instantiates a default password store
@@ -16,6 +16,7 @@ func NewPidCache() PidCache {
 	}
 }
 
+// PidCahe is for pid-dockerpid cache.
 type PidCache struct {
 	lock     *sync.RWMutex
 	pidCache map[int]int
@@ -23,7 +24,7 @@ type PidCache struct {
 
 //cleanupLoop that keeps calling cleanupCache() in a loop every scheduled interval
 func (pc PidCache) cleanupLoop() {
-	//Hardcoded to run once a minute. Will make this configurable
+	//Hardcoded to run once a minute. TODO: make this configurable
 	for range time.Tick(time.Minute * 1) {
 		pc.cleanupCache()
 	}
@@ -59,11 +60,11 @@ func (pc PidCache) Get(pid int) (int, error) {
 
 	if ok {
 		return cid, nil
-	} else {
-		return -1, errors.New("PID not found in cache")
 	}
+	return 0, errors.New("PID not found in cache")
 }
 
+// Delete removes cache pid.
 func (pc PidCache) Delete(pid int) error {
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
@@ -71,6 +72,7 @@ func (pc PidCache) Delete(pid int) error {
 	return nil
 }
 
+// Init initializes the cache.
 func (pc PidCache) Init() error {
 	//Launch a seperate cleanup job thread
 	go pc.cleanupLoop()

@@ -8,8 +8,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
 
-	// 	"os"
-
 	bpf "github.com/iovisor/gobpf/bcc"
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
