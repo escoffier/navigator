@@ -85,24 +85,38 @@ type vulnInfoEx struct {
 	FinishedAt                 int64  `json:"finishedAt"`
 }
 
-func sortBySeverity(vulnerabilities []vulnInfoEx, asc bool) {
+func sortVulns(vulnerabilities []vulnInfoEx, asc bool) {
 	sort.Slice(vulnerabilities, func(i, j int) bool {
-		if asc {
-			return redclair.SeverityMap[vulnerabilities[i].Severity] < redclair.SeverityMap[vulnerabilities[j].Severity]
-		} else {
-			return redclair.SeverityMap[vulnerabilities[i].Severity] > redclair.SeverityMap[vulnerabilities[j].Severity]
+		if !asc {
+			i, j = j, i
 		}
-	})
-}
 
-func stableSortByCVE(vulnerabilities []vulnInfoEx, asc bool) {
-	// Intended to be used after SortBySeverity
-	sort.SliceStable(vulnerabilities, func(i, j int) bool {
-		if asc {
-			return redclair.SeverityMap[vulnerabilities[i].CVE] < redclair.SeverityMap[vulnerabilities[j].CVE]
-		} else {
-			return redclair.SeverityMap[vulnerabilities[i].CVE] > redclair.SeverityMap[vulnerabilities[j].CVE]
+		if redclair.SeverityMap[vulnerabilities[i].Severity] < redclair.SeverityMap[vulnerabilities[j].Severity] {
+			return true
+		} else if redclair.SeverityMap[vulnerabilities[i].Severity] > redclair.SeverityMap[vulnerabilities[j].Severity] {
+			return false
 		}
+		// else Severity equal
+
+		if vulnerabilities[i].CVE < vulnerabilities[j].CVE {
+			return true
+		} else if vulnerabilities[i].CVE > vulnerabilities[j].CVE {
+			return false
+		}
+		// else Same CVE
+
+		if vulnerabilities[i].AffectedDigest < vulnerabilities[j].AffectedDigest {
+			return true
+		} else if vulnerabilities[i].AffectedDigest > vulnerabilities[j].AffectedDigest {
+			return false
+		}
+		// else AffectedDigest equal (happens if same digest has multiple sensitive filename vulns)
+
+		// In this case FeatureName == filename
+		if vulnerabilities[i].FeatureName < vulnerabilities[j].FeatureName {
+			return true
+		}
+		return false
 	})
 }
 
@@ -255,8 +269,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		for _, vulnsOfDigest := range digestToVulns {
 			vulns = append(vulns, vulnsOfDigest...)
 		}
-		sortBySeverity(vulns, sortOrder == "asc")
-		stableSortByCVE(vulns, sortOrder == "asc")
+		sortVulns(vulns, sortOrder == "asc")
 
 		// TODO: if many images are vulnerable to the same CVE, this CVE will appear multiple times in output
 		// (albeit with different `affectedImage`).
