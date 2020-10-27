@@ -206,7 +206,6 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 			refreshAfterSec := api.scanResultExponentialBackoffWithJitter(objectID.Hex())
 			logging.GetLogger().Info().Int("refreshAfterSec", refreshAfterSec).Msg("Refresh after header")
 
-			w.Header().Set("Refresh-After", fmt.Sprint(refreshAfterSec))
 			// harbor expects 302 Found. By http spec, we must supply Location header.
 			w.Header().Set("Location", r.URL.Path)
 			w.WriteHeader(http.StatusFound)
