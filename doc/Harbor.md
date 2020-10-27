@@ -12,7 +12,17 @@ helm repo add harbor https://helm.goharbor.io
 
 # !!!!!!!!!! This requires setting up port forwarding in Virtualbox! !!!!!!!
 # IP is external IP of our laptop
-helm install --name my-harbor --set expose.type=nodePort --set expose.tls.auto.commonName=someName --set persistence.resourcePolicy=dontkeep --set expose.ingress.hosts.core=192.168.1.203 --set externalURL=https://192.168.1.203:30003 harbor/harbor
+helm install --name my-harbor \
+   --set expose.type=nodePort \
+   --set expose.tls.auto.commonName=someName \
+   --set persistence.resourcePolicy=dontkeep \
+   --set expose.ingress.hosts.core=192.168.1.203 \
+   --set externalURL=https://192.168.1.203:30003 \
+   --set trivy.enabled=false \
+   --set notary.enabled=false \
+   --set chartmuseum.enabled=false \
+   --set clair.enabled=true\
+   harbor/harbor
 
 k8 describe svc harbor | grep NodePort
 # Type:                     NodePort

@@ -63,20 +63,27 @@ git clone https://github.com/kubernetes-sigs/sig-storage-local-static-provisione
 ./deployments/dev-multi-node/allinone.sh 
 ```
 
+Increasing size of /dev/sda must be done manually for now:
+
+```bash
+# For both nodes:
+#make ssh-master
+#make ssh-node-1
+
+sudo cfdisk /dev/sda
+# Resize -> Write -> Quit
+sudo xfs_growfs /
+
+# Verify /dev/sda is 20GB with
+df -h
+```
+
+
 
 ## Deploy
 
-1. You can switch between microk8s and multi node cluster by changing KUBECONFIG env variable:
 
-```bash
-export KUBECONFIG=/home/michal/.kube/multi-config
-export KUBECONFIG=/home/michal/.kube/microk8s-config
-
-# Check with:
-#kubectl config view
-```
-
-2. Change `deployments/helm/values.yaml` to point to correct docker repo.
+1. Change `deployments/helm/values.yaml` to point to correct docker repo.
 ```bash
 global:
   # If you only have microk8s cluster, this can stay as
@@ -87,10 +94,33 @@ global:
   #ourDockerRepo: 192.168.1.203:32000
 ```
 
+2. Redeploy tensorsec:
+
+```bash
+make redeploy
+```
+
 3. After a while, ensure all pods are RUNNING:
 
 ```bash
 microk8s kubectl get pod --namespace=tensorsec
+```
+
+### Troubleshooting
+
+* tensorsec-console won't start and elasticsearch has the following log:
+
+```
+{"type": "server", "timestamp": "2020-10-27T11:19:47,290Z", "level": "INFO", "component": "o.e.c.r.a.AllocationService", "cluster.name": "elasticsearch", "node.name": "elasticsearch-master-0", "message": "Cluster health status changed from [RED] to [YELLOW] (reason: [shards started [[elastalert_status][0]]]).", "cluster.uuid": "0ewzd_a2TASKU1VOgGGRjg", "node.id": "cxOgmYMGShS0QO73boe3dg"  }
+```
+
+Then we need to redeploy after removing elasticsearch persistent volume claim:
+
+```bash
+helm delete --purge tensorsec
+kubectl -n tensorsec get pvc
+kubectl -n tensorsec delete pvc elasticsearch-master-elasticsearch-master-0
+make redeploy
 ```
 
 ## Test
