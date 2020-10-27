@@ -57,16 +57,20 @@ func (cs *CombineSchedule) Stop() {
 }
 
 func (cs *CombineSchedule) Schedule() {
-	log.Error("Scheduler started.")
+	log.Info("Scheduler started.")
 	// go func() {
 	// 	cs.Manager.NsMap.RefreshNsMapBackground(1 * time.Second)
 	// }()
 
 	// Start Consumer fisrt
 	for i, consumer := range cs.consumers {
-		consumer.Init(cs.combinedChan[i])
+		err := consumer.Init(cs.combinedChan[i])
+		if err != nil {
+			panic(err)
+		}
 		go consumer.Consume(cs.Manager.NsMap)
 	}
+	log.Info("Consumers started.")
 
 	// Schedule
 	go func() {
@@ -80,6 +84,9 @@ func (cs *CombineSchedule) Schedule() {
 
 	// Start Producer
 	cs.Manager.Init()
+	log.Info("Manager started.")
+
 	// 	cs.Manager.Start()
-	cs.Manager.StartChronologicalPoll()
+	cs.Manager.Start()
+	log.Info("Regular poll started.")
 }

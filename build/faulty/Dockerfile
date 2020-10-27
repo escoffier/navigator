@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     sudo \
     golang-1.10 \
     vim \
+    netcat \
     net-tools \
     software-properties-common \
     python3.6 \

@@ -58,6 +58,9 @@ func (p *ExitProducer) Init(module *bpf.Module) {
 		log.Fatalf("Could not load tracepoint: process_exit Error: %s\n", err)
 	}
 	err = module.AttachTracepoint("sched:sched_process_exit", fd)
+	if err != nil {
+		log.Fatalf("Could not attach tracepoint: process_exit Error: %s\n", err)
+	}
 }
 
 func (p *ExitProducer) GetName() *string {

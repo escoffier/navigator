@@ -26,4 +26,4 @@ RUN PATH=$PATH:/usr/lib/go-1.13/bin GO111MODULE=on go build -v -a \
 		# Remove them for now.
 		# --ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \ 
 
-CMD dist/tensordig
+CMD configs/tensordig/entrypoint.sh

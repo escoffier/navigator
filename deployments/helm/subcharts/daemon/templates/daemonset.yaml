@@ -58,9 +58,18 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
       volumes:
-      - name: sys
+      - name: syskerneldebug
         hostPath:
-          path: /sys
+          path: /sys/kernel/debug
+      - name: sysfscgroup
+        hostPath:
+          path: /sys/fs/cgroup
+      - name: sysfsbpf
+        hostPath:
+          path: /sys/fs/bpf
+      - name: time
+        hostPath:
+        path: /etc/localtime
       - name: modules
         hostPath:
           path: /lib/modules
@@ -128,9 +137,10 @@ spec:
         securityContext:
           privileged: true
           runAsUser: 0
-          hostPID: true
-        command: ["/go/src/app/dist/tensordig"]
-        args: ["--config", "/config/detection.yaml"]
+        command:
+          - /bin/bash
+          - -c
+          - "/go/src/app/configs/tensordig/entrypoint.sh"
         resources:
           limits:
             memory: 200Mi
@@ -143,9 +153,14 @@ spec:
           - name: usr
             mountPath: /usr/src
             readOnly: true
-          - name: sys
-            mountPath: /sys
-            readOnly: true
+          - name: time
+            mountPath: /etc/localtime
+          - name: syskerneldebug
+            mountPath: /sys/kernel/debug
+          - name: sysfsbpf
+            mountPath: /sys/fs/bpf
+          - name: sysfscgroup
+            mountPath: /sys/fs/cgroup            
           - name: host
             mountPath: /host
           - name: syscall-data
