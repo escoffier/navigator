@@ -8,7 +8,7 @@ endif
 REPOPREFIX?=localhost:32000
 REPOPREFIXOLD?=localhost:32000
 
-USEMIRROR?=true
+USEMIRROR?=definitelynottrue
 
 .PHONY: help
 help:
@@ -80,7 +80,7 @@ console: generate 		## Build console binary
 	# This target depends on scap-jobs, but for optimisation, if we want to build only console, they won't be built.
 	# To build all targets, use make all.
 	@echo "+ $@"
-	go build  -a \
+	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
 	docker build -t $(REPOPREFIX)/tensorsec-console:latest -f ./build/console/Dockerfile .
@@ -88,7 +88,7 @@ console: generate 		## Build console binary
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
-	go build -a \
+	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
@@ -162,6 +162,7 @@ redeploy:
 	cd deployments/helm; \
 		helm delete --purge tensorsec; \
 		rm -rf charts; \
+		kubectl -n tensorsec delete pvc elasticsearch-master-elasticsearch-master-0; \
 		helm dep up; \
 		helm install ./ --namespace tensorsec --name tensorsec; \
 		cd -

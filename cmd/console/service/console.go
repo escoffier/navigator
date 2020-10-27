@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -18,9 +20,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -37,12 +41,14 @@ func init() {
 // Console represents the Vegeta Console server.
 type Console struct {
 	lifecycle.Service
-	server      *http.Server
-	mongoClient *mongo.Client
-	mongodb     *mongo.Database
-	cronService *cron.CronService
-	ctx         context.Context
-	cancel      context.CancelFunc
+	server             *http.Server
+	mongoClient        *mongo.Client
+	mongodb            *mongo.Database
+	cronService        *cron.CronService
+	clusterService     *cluster.ClusterService
+	onlineVulnsService *onlinevulns.OnlineVulnsService
+	ctx                context.Context
+	cancel             context.CancelFunc
 }
 
 // NewConsole is to create a new Console struct.
@@ -72,8 +78,10 @@ func NewConsole(
 		DB:       0,  // TODO: Add DB
 	})
 
+	onlineVulnsSvc := onlinevulns.NewOnlineVulnsService(mongodb)
+
 	// cluster service
-	clusterService := cluster.NewClusterService(mongodb)
+	clusterService := cluster.NewClusterService(mongodb, onlineVulnsSvc)
 
 	// scap service
 	scapper := &scapper.Scapper{
@@ -122,13 +130,16 @@ func NewConsole(
 				redisClient,
 				ruleService,
 				alertService,
+				onlineVulnsSvc,
 			),
 		},
-		mongoClient: mongoClient,
-		mongodb:     mongodb,
-		cronService: cronService,
-		ctx:         mainCtx,
-		cancel:      mainCancel,
+		mongoClient:        mongoClient,
+		mongodb:            mongodb,
+		cronService:        cronService,
+		ctx:                mainCtx,
+		cancel:             mainCancel,
+		clusterService:     clusterService,
+		onlineVulnsService: onlineVulnsSvc,
 	}, nil
 }
 
@@ -147,18 +158,20 @@ func (c *Console) Run() func() {
 		}
 	}()
 
+	// ctx for initialization steps
+	ctx, cancel := context.WithTimeout(c.ctx, 60*time.Second)
+
 	// connect the mongo client
-	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
 	defer cancel()
 	err := c.mongoClient.Connect(ctx)
 	if err != nil {
 		log.Error().
 			Err(err).
-			Msg("error in connecting to the Mongo database")
-		panic(err)
+			Msg("When in connecting to Mongo database")
+		panic(fmt.Errorf("When connecting to Mongo database: %w", err))
 	}
 
-	err = createMongoIndices(c.mongodb)
+	err = createMongoIndices(ctx, c.mongodb)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -166,10 +179,18 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
-	err = c.cronService.StartCrons(c.ctx)
+	err = initializeOnlineVulnsWatch(ctx, c.clusterService, c.OnlineVulnsService)
 	if err != nil {
-		log.Error().Err(err).Msg("error starting cron jobs")
-		panic(err)
+		log.Error().
+			Err(err).
+			Msg("When initializing online vulns watch")
+		panic(fmt.Errorf("When initializing online vulns watch: %w", err))
+	}
+
+	err = c.cronService.StartCrons(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("When starting cron jobs")
+		panic(fmt.Errorf("When starting cron jobs: %w", err))
 	}
 
 	log.Info().Msg("Vegeta Console started")
@@ -182,7 +203,7 @@ func (c *Console) Run() func() {
 		if err := c.server.Shutdown(ctx); err != nil {
 			log.Error().
 				Err(err).
-				Msg("error in shutting down HTTP server")
+				Msg("Error in shutting down HTTP server")
 		}
 		wg.Wait()
 
@@ -190,35 +211,106 @@ func (c *Console) Run() func() {
 	}
 }
 
-func createMongoIndices(mongodb *mongo.Database) error {
+func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 
-	// Index for model.ScanTasksCollection
-
-	indexModels := []mongo.IndexModel{
+	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
+	neededIndexesPerCollection[model.ScanTasksCollection] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"finishedAt": 1, // index in ascending order
 			}, Options: nil,
 		},
 	}
-	indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
-
-	col := mongodb.Collection(model.ScanTasksCollection)
-
-	logging.GetLogger().Info().Msg("Ensuring mongo indices")
-
-	// This operation is idempotent
-	out, err := col.Indexes().CreateMany(ctx, indexModels, indexOpts)
-
-	if ctx.Err() != nil {
-		return ctx.Err()
+	neededIndexesPerCollection[model.AssetsContainerCollection] = []mongo.IndexModel{
+		// so many indexes on one collection smells...
+		{
+			Keys: bson.M{
+				"lastUpdateTime": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podName": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podOwnerKind": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podOwnerName": 1,
+			}, Options: nil,
+		},
 	}
+
+	for collectionName, indexModel := range neededIndexesPerCollection {
+		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
+
+		col := mongodb.Collection(collectionName)
+
+		logging.GetLogger().Info().Str("collectionName", collectionName).Msg("Ensuring mongo indices")
+
+		// This operation is idempotent
+		out, err := col.Indexes().CreateMany(ctx, indexModel, indexOpts)
+
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err != nil {
+			return err
+		}
+
+		log.Info().Str("created-indices", fmt.Sprintf("%+v", out)).Str("collectionName", collectionName).Msg("Created mongo indices")
+	}
+
+	return nil
+}
+
+func initializeOnlineVulnsWatch(ctx context.Context, clusterSvc *cluster.ClusterService, onlineVulnsSvc *onlinevulns.OnlineVulnsService) error {
+	// TODO: to do this properly, this should be a method of OnlineVulns
+	// however, ClusterService already has dependency on OnlineVulns, so this leads to
+	// 1. spaghetti
+	// 2. import (dependency) loop
+	// Ideally, ClusterService doesn't have dependency on OnlineVulns, and instead
+	// has dependency on some Hook interface.
+	// However, I will leave this implementation and design when we know more about alerting hooks etc,
+	// since it will greatly impact the design of the hook thingy.
+
+	clusters, _, err := clusterSvc.ListClusters(ctx, 0, math.MaxInt64)
 	if err != nil {
 		return err
 	}
+	if len(clusters) == 0 {
+		return nil
+	}
+	if len(clusters) != 1 {
+		return errors.New("Expected at most 1 cluster at startup")
+	}
 
-	log.Info().Str("created-indices", fmt.Sprintf("%+v", out)).Msg("Created mongo indices")
+	// TODO when support multiple clusters, just loop?
+	firstCluster := clusters[0]
+
+	kubeClient, err := k8s.KubeClientFromB64KubeConfig(firstCluster.KubeConfig)
+	if err != nil {
+		return fmt.Errorf("Failed to create kube client from config: %w", err)
+	}
+	err = k8s.CheckKubeClientConnection(kubeClient)
+	if err != nil {
+		return fmt.Errorf("Kube client connection check failed: %w", err)
+	}
+
+	err = onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
+	if err != nil {
+		return fmt.Errorf("Failed OnKubeConfigUpdate: %w", err)
+	}
 
 	return nil
+
 }

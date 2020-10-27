@@ -10,6 +10,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -21,14 +23,17 @@ const (
 )
 
 type ClusterService struct {
-	mongodb *mongo.Database
+	mongodb        *mongo.Database
+	onlineVulnsSvc *onlinevulns.OnlineVulnsService
 }
 
 func NewClusterService(
 	mongodb *mongo.Database,
+	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 ) *ClusterService {
 	return &ClusterService{
-		mongodb: mongodb,
+		mongodb:        mongodb,
+		onlineVulnsSvc: onlineVulnsSvc,
 	}
 }
 
@@ -81,12 +86,20 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 	insertResult, err := collection.InsertOne(ctx, newCluster)
 	if err != nil {
-		return primitive.NilObjectID, err
+		return primitive.NilObjectID, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
 	}
 	id, ok := insertResult.InsertedID.(primitive.ObjectID)
 	if !ok {
-		return primitive.NilObjectID, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %w", queryResult.Err()))
+		return primitive.NilObjectID, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't parse document ID: %v", id))
 	}
+
+	// TODO: maybe a hook mechanism so cluster service doesn't depend on onlinevulns service?
+	// TODO: doesn't support multiple clusters yet.
+	err = s.onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
 	return id, nil
 }
 
@@ -152,6 +165,12 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
 	}
+
+	err = s.onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
+	if err != nil {
+		return nil, err
+	}
+
 	return &queryCluster, nil
 }
 
@@ -162,5 +181,11 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 	if err != nil {
 		return nil, err
 	}
+
+	err = s.onlineVulnsSvc.OnKubeConfigUpdate(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return res, nil
 }

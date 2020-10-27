@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -268,7 +269,11 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
 
 	scheduledNodesCh := make(chan string, len(nodes.Items))
-	finishedNodesCh, listenerStopCh := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
+	finishedNodesCh, listenerStopCh, cacheSynced := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
+
+	if !cacheSynced {
+		logging.GetLogger().Warn().Msg("Informer cache failed to sync, not sure how to handle this. Ignoring.")
+	}
 
 	go s.awaitAndUpdateJobsStatuses(ctx, check, scheduledNodesCh, finishedNodesCh, listenerStopCh)
 
@@ -464,7 +469,7 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 	}
 }
 
-func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, maxNumJobs int) (chan string, chan struct{}) {
+func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, maxNumJobs int) (chan string, chan struct{}, bool) {
 	finishedNodesCh := make(chan string, maxNumJobs)
 
 	kubeInformerFactory := informers.NewFilteredSharedInformerFactory(kubeClient, time.Second*30, check.Namespace, func(listOpts *v1.ListOptions) {
@@ -484,7 +489,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 			job, ok := newObj.(*batchv1.Job)
 			if !ok {
 				logging.GetLogger().Error().
-					Str("job-name", fmt.Sprintf("%s", job.Name)).
+					Str("obj-type", fmt.Sprintf("%T", newObj)).
 					Msg("Failed to cast to *batchv1.Job")
 				return
 			}
@@ -530,7 +535,10 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 		Msg("Starting to watch for job events")
 	kubeInformerFactory.Start(stopCh)
 
-	return finishedNodesCh, stopCh
+	var jobType *batchv1.Job
+	cacheSynced := kubeInformerFactory.WaitForCacheSync(stopCh)[reflect.TypeOf(jobType)]
+
+	return finishedNodesCh, stopCh, cacheSynced
 }
 
 func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper.Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {

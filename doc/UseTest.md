@@ -27,7 +27,7 @@ k8 port-forward -n tensorsec service/tensorsec-console 8889:8889 &
 
 Obtain JWT token by logging into dashboard and inspecting subsequent HTTP request cookie header. 
 
-Login:
+### Login:
 
  ```bash
 # If multinode
@@ -46,6 +46,8 @@ SCANNERADDR=127.0.0.1:8888
 # Login
 JWT=$(curl -X POST --data '{"username": "admin", "password": "admin", "type": "account"}' -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/auth/login  | jq -r '.data.item.token')
 ```
+
+### Scanning
 
 Scan image:
 
@@ -72,7 +74,8 @@ curl -v  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "h
 curl -v  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scanner/reportsBySeverity?from=2020-10-21T00:00:00%2B01:00&to=2020-10-22T00:00:00%2B01:00" > out.json
 ```
 
-Run scap job:
+### Clusters
+
 
 ```bash
 # if singlenode using microk8s
@@ -91,6 +94,13 @@ curl -v -X POST -H "Authorization: Bearer $JWT" --data "{\"name\": \"alitest\", 
 # Get cluster (object ID from previuos request)
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f7d9fcd9ccfdee7b1b4f936
 
+# Delete cluster
+curl -v -X DELETE -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f99bd6640565eb2ac723254
+```
+
+### Compliance
+
+```bash
 # Kube-bench
 curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f8d86d0841e561ca4e81cc9
 # Docker-bench
@@ -113,21 +123,30 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
-
-
-# Delete cluster
-curl -v -X DELETE "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/config/cluster/5f7d9fcd9ccfdee7b1b4f936
-
 ```
 
+Cronjobs:
 
 ```bash
-
 curl --request PUT 'http://127.0.0.1:8889/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron' -H "Authorization: Bearer $JWT" --header 'Content-Type: application/json' --data-raw '{ "cronString": "*/5 * * * *" }'
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/cron"
 ```
 
-## Runtime detection
+### Online vulnerabilities
+
+```bash
+# Get current list of online vulnerabilities:
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/onlineVulnerabilities/current" > out.json
+
+# Get details of some pod without owner:
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/onlineVulnerabilities/details/NoOwner/ubuntuthing3" > single.json
+
+# Get details of some online vulnerability, e.g. based on Replicaset:
+k8 get replicaset
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/onlineVulnerabilities/details/ReplicaSet/tensorsec-scanner-6f658948d4"
+```
+
+### Runtime detection
 
 ```bash
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules"
@@ -163,7 +182,7 @@ ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get /agents/agentID/pods/sc
 
 ```bash
 curl -X GET http://localhost:5000/v2/_catalog
-curl -X GET http://localhost:32000/v2/ubuntu/tags/list
+curl -X GET http://localhost:32000/v2/tensorsec-console/tags/list
 ```
 
 ## K8s

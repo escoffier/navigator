@@ -30,10 +30,6 @@ elasticsearch:
   enabled: true
   minimumMasterNodes: 1
   replicas: 1
-  resources:
-    requests:
-      cpu: "25m"
-      memory: "256Mi"
 
 postgresql:
   # Note for maintainers:

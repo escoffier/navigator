@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -50,10 +51,11 @@ func SetupRoutes(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
+	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
-	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService)
+	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc)
 
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
@@ -72,6 +74,7 @@ func SetupRoutes(
 			r.Route("/scanner", api.scanner())
 			r.Route("/scap", api.scap())
 			r.Route("/runtime/detection", api.runtimeDetection())
+			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
 		})
 	})
 }

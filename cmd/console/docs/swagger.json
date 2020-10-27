@@ -201,6 +201,52 @@
                 ]
             }
         },
+        "/api/v1/onlineVulnerabilities/current": {
+            "get": {
+                "description": "List current online vulnerabilities",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List current online vulnerabilities",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
+        "/api/v1/onlineVulnerabilities/details/{resourceKind}/{resourceName}": {
+            "get": {
+                "description": "Get details of online vulnerabiilty",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get details of online vulnerabiilty",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "case-sensitive resource kind",
+                        "name": "resourceKind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "case-sensitive resource name",
+                        "name": "resourceName",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
         "/api/v1/runtime/detection/alerts": {
             "get": {
                 "description": "List runtime detection alerts",

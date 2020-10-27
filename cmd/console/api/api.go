@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 
@@ -40,6 +41,7 @@ type api struct {
 	scanResultLocalBackoffCacheMux sync.Mutex
 	ruleService                    *rule.RuleService
 	alertService                   *alert.AlertService
+	onlineVulnsSvc                 *onlinevulns.OnlineVulnsService
 }
 
 func newAPI(
@@ -53,6 +55,7 @@ func newAPI(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
+	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -67,6 +70,7 @@ func newAPI(
 		scanResultLocalBackoffCache: make(map[string]int),
 		ruleService:                 ruleService,
 		alertService:                alertService,
+		onlineVulnsSvc:              onlineVulnsSvc,
 	}
 }
 
