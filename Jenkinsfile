@@ -33,7 +33,6 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 go get -u github.com/swaggo/swag/cmd/swag
                 go get -u golang.org/x/lint/golint
                 sed -i  's#GO111MODULE=on#GO111MODULE=on GOPROXY=https://goproxy.cn#g' configs/scap/jobs/kube-bench/Dockerfile
-                sed -i 's#alpine.global.ssl.fastly.net#mirrors.aliyun.com#g' configs/scap/jobs/docker-bench-security/Dockerfile
                 sed -i 's#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g' Makefile
                 sed -i 's#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g' Makefile
                 mkdir ~/.kube/
@@ -61,9 +60,10 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 }
                 if("$moduleToDeploy".trim() == "all") {
                 sh '''
+                echo "test"
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
-                make all
+                USEMIRROR=true make all
                 make pushimages
                 kubectl scale --replicas=0 deploy/tensorsec-console deploy/tensorsec-scanner -n tensorsec
                 kubectl scale --replicas=1 deploy/tensorsec-console deploy/tensorsec-scanner -n tensorsec
@@ -73,7 +73,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sh '''
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
-                make scap-jobs
+                USEMIRROR=true scap-jobs
                 docker push registry.t-appagile.com/tensorsecurity/docker-bench-security:latest
                 docker push registry.t-appagile.com/tensorsecurity/kube-bench:latest
                 docker push registry.t-appagile.com/tensorsecurity/host-bench:latest
