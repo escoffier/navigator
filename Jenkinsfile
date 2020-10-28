@@ -26,9 +26,11 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
         stage('build all'){
             container('golang') {
                 sh '''
-                sleep 40000000
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
+                sed -i s#gitlab.com:tensorsecurity-rd/docker-bench-security#10.77.107.13:root/docker-bench-security#g .gitmodules
+                sed -i s#gitlab.com:tensorsecurity-rd/kube-bench#10.77.107.13:root/kube-bench#g .gitmodules
+                sed -i s#gitlab.com:tensorsecurity-rd/xccdfparser#10.77.107.13:root/xccdfparser#g .gitmodules
                 git submodule init
                 git submodule update
                 go get -u github.com/swaggo/swag/cmd/swag
