@@ -129,6 +129,21 @@ spec:
       {{- end }}
       {{- end }}
       containers:
+      - name: logrotate
+        image: blacklabelops/logrotate:latest
+        imagePullPolicy: Always
+        env:
+          - name: LOGS_DIRECTORIES
+            value: /data
+          - name: LOGROTATE_INTERVAL
+            value: hourly 
+          - name: LOG_FILE_ENDINGS
+            value: json 
+          - name: LOGROTATE_SIZE
+            value: 10M
+        volumeMounts:
+          - name: syscall-data
+            mountPath: /data    
       - name: tensordig
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.tensordig.image.name }}:{{ .Values.tensordig.image.tag }}"
         imagePullPolicy: {{ .Values.tensordig.image.pullPolicy }}
