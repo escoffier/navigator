@@ -419,14 +419,17 @@ func (m *Manager) Init() {
 }
 
 func (m *Manager) Start() {
-	log.Info("Manager started")
 	go func() {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		if len(m.SyscallProducers) > 0 {
 			go func() {
 				for byteData := range m.byteChan {
-					m.Deserialize(byteData)
+					d, err := m.Deserialize(byteData)
+					if err != nil {
+						log.Fatalf("Deserialize failed. Impossible.")
+					}
+					m.process(d)
 				}
 				wg.Done()
 			}()
@@ -449,7 +452,6 @@ func (m *Manager) Start() {
 }
 
 func (m *Manager) StartChronologicalPoll() {
-	log.Info("Manager started")
 	if len(m.SyscallProducers) > 0 {
 		go func() {
 			m.ChronologicalPoll()
@@ -465,6 +467,7 @@ func (m *Manager) PollOnce(buffer SortBuffer) SortBuffer {
 		for {
 			select {
 			case <-stopChan:
+				log.Info("Requst to stop polling")
 				wg.Done()
 				return
 			case byteData := <-m.byteChan:
@@ -473,10 +476,8 @@ func (m *Manager) PollOnce(buffer SortBuffer) SortBuffer {
 					log.Fatalf("Deserialize failed. Impossible.")
 				}
 				buffer = append(buffer, d)
-				if len(buffer) > bufferRemain {
-					wg.Done()
-					return
-				}
+				wg.Done()
+				return
 			}
 		}
 	}()
@@ -486,7 +487,7 @@ func (m *Manager) PollOnce(buffer SortBuffer) SortBuffer {
 }
 
 func (m *Manager) ChronologicalPoll() {
-	log.Errorf("ChronologicalPoll started")
+	log.Info("ChronologicalPoll started")
 	buffer := make(SortBuffer, 0, 1000)
 	m.PerfMap.Start()
 	for {
@@ -509,7 +510,7 @@ func (m *Manager) ChronologicalPoll() {
 }
 
 func (m *Manager) Stop() {
-	log.Error("Stop Manager.")
+	log.Info("Stop Manager.")
 	if len(m.SyscallProducers) > 0 {
 		m.StopChan <- struct{}{}
 		<-m.QuitChan

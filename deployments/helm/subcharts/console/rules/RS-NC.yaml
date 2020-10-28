@@ -1,0 +1,20 @@
+name: CVE-2019-14287
+
+type: any
+
+index: filebeat-*
+
+terms_window_size:
+  days: 90
+
+filter:
+  - query:
+      query_string:
+          query: "execve__filename: /bin/nc OR execve__filename: /usr/bin/ncat"
+  
+    
+alert:
+- "email"
+
+email:
+- "elastalert@example.com"

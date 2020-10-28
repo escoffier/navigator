@@ -141,8 +141,6 @@ After enabling rule - you can simulate syscalls from a special pod, which has
 to be started manually.
 
 ```bash
-cd test
-
 kubectl run tensorsec-faulty --image=localhost:32000/faulty:latest -i --tty --rm
 ```
 

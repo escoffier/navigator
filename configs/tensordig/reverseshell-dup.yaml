@@ -1,0 +1,17 @@
+producers:
+    syscalls:
+      - syscallDup2:
+        name: dup2
+        filters:
+          - newfdFilter:
+            id: f1
+            field: newfd
+            operation: inArray
+            values:
+            - v: 0
+            - v: 1
+            - v: 2
+      - syscallSocket:
+        name: socket
+consumers:
+  - Json
