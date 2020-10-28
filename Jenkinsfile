@@ -26,6 +26,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
         stage('build all'){
             container('golang') {
                 sh '''
+                sleep 40000000
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
                 git submodule init
