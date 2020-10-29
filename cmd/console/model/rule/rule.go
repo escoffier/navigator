@@ -1,6 +1,10 @@
 package rule
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 type Rule struct {
-	Name    string `json:"name"`
-	Enabled bool   `json:"enabled"`
+	ID          primitive.ObjectID `json:"id" bson:"_id, omitempty"`
+	Description string             `json:"description"`
+	Name        string             `json:"name"`
+	Enabled     bool               `json:"enabled"`
 }

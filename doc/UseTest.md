@@ -149,11 +149,11 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 ### Runtime detection
 
 ```bash
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules"
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtimeDetectionConfig/rules"
 
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/rules/{some_previous_rule}/on"
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtimeDetectionConfig/rules/5f9aefa3ebe361737055d6c9/enable"
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtime/detection/alerts"
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/alerts"
 ```
 
 After enabling rule - you can simulate syscalls from a special pod, which has

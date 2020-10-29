@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
+	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
 
@@ -24,12 +27,14 @@ type FileConsumer struct {
 	dataChan chan constant.Data
 	quitChan chan struct{}
 	file     string
+	cache    *cache.Cache
 }
 
 func (cc *FileConsumer) Init(dataChan chan constant.Data) error {
 	cc.dataChan = dataChan
 	cc.quitChan = make(chan struct{}, 1)
 	cc.file = "/data/syscall.json"
+	cc.cache = cache.New(10*time.Second, 10*time.Second)
 	return nil
 }
 
@@ -115,6 +120,24 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 						for i := 0; i < v.NumField(); i++ {
 							out[typeOfS.Field(i).Name] = v.Field(i).Interface()
 						}
+						if info.Syscall == "socket" {
+							cc.cache.Set(info.ContainerID+" "+strconv.FormatInt(event.EventInfo.Ret, 10), true, cache.DefaultExpiration)
+							// For now AF_INET is only bound to reverse shell with dup2, so we don't want to spam elasticsearch with this data
+							if ExtraInfo["socket__family"].(uint64) == 2 {
+								continue
+							}
+							// Other socket detections are to be sent for alerting
+						} else if info.Syscall == "dup2" {
+							_, found := cc.cache.Get(info.ContainerID + " " + strconv.FormatUint(ExtraInfo["dup2__oldfd"].(uint64), 10))
+							if found {
+								log.Info("Reverse shell attempt with socket/dup2 detected")
+								out["reverse_shell_socket_dup2"] = "true"
+							} else {
+								// If there is no match with a socket fd in the same pod, we don't want to track this dup2 syscall
+								continue
+							}
+						}
+						log.Info(out)
 						jsonStr, _ := json.Marshal(out)
 						if _, err := f.WriteString(string(jsonStr) + "\n"); err != nil {
 							log.Error("Error writing json to file", err)

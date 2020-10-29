@@ -34,15 +34,15 @@ func (cu KubernetesUtil) Init() error {
 }
 
 type SyscallContext struct {
-	Namespace     string
-	PodName       string
-	PodUID        string
-	PodLabels     map[string]string
-	ContainerID   string
-	ContainerName string
-	ProcessPID    int
-	DockerPID     int
-	Syscall       string
+	Namespace     string            `json:"namespace"`
+	PodName       string            `json:"podName"`
+	PodUID        string            `json:"podUID"`
+	PodLabels     map[string]string `json:"podLabels"`
+	ContainerID   string            `json:"containerId"`
+	ContainerName string            `json:"containerName"`
+	ProcessPID    int               `json:"processPid"`
+	DockerPID     int               `json:"dockerPid"`
+	Syscall       string            `json:"syscall"`
 }
 
 func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*SyscallContext, error) {
@@ -86,7 +86,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 		if kid != "" {
 			if kid == string(item.ObjectMeta.UID) {
 				for _, status := range item.Status.ContainerStatuses {
-					if status.ContainerID == "docker://"+cid {
+					if status.ContainerID == "docker://"+cid || status.ContainerID == "containerd://"+cid {
 						return &SyscallContext{
 							Namespace:     item.ObjectMeta.Namespace,
 							PodName:       item.ObjectMeta.Name,
@@ -103,7 +103,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 			}
 		}
 		for _, status := range item.Status.ContainerStatuses {
-			if status.ContainerID == "docker://"+cid {
+			if status.ContainerID == "docker://"+cid || status.ContainerID == "containerd://"+cid {
 				return &SyscallContext{
 					Namespace:     item.ObjectMeta.Namespace,
 					PodName:       item.ObjectMeta.Name,

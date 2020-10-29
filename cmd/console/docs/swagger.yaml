@@ -35,6 +35,35 @@ info:
   title: Vegeta API
   version: "1.0"
 paths:
+  /api/v1/alerts/:
+    get:
+      description: List  alerts
+      operationId: v1-alerts-get
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: List  alerts
+  /api/v1/alerts/{alertID}/acknowledge:
+    post:
+      description: Acknowledge alert
+      operationId: v1-alert-acknowledge-post
+      parameters:
+      - description: alertID
+        in: path
+        name: clusterID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Acknowledge alert
   /api/v1/auth/login:
     post:
       consumes:
@@ -195,23 +224,7 @@ paths:
       produces:
       - application/json
       summary: Get details of online vulnerabiilty
-  /api/v1/runtime/detection/alerts:
-    get:
-      description: List runtime detection alerts
-      operationId: v1-runtime-detection-alerts-get
-      parameters:
-      - description: from offset
-        in: query
-        name: offset
-        type: integer
-      - description: returned data limit
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      summary: List runtime detection alerts
-  /api/v1/runtime/detection/rule/{ruleID}/off:
+  /api/v1/runtimeDetectionConfig/rule/{ruleID}/disable:
     post:
       description: Disable single rule
       operationId: v1-runtime-detection-rule-disable
@@ -224,7 +237,7 @@ paths:
       produces:
       - application/json
       summary: Disable single rule
-  /api/v1/runtime/detection/rule/{ruleID}/on:
+  /api/v1/runtimeDetectionConfig/rule/{ruleID}/enable:
     post:
       description: Enable single rule
       operationId: v1-runtime-detection-rule-enable
@@ -237,7 +250,7 @@ paths:
       produces:
       - application/json
       summary: Enable single rule
-  /api/v1/runtime/detection/rules:
+  /api/v1/runtimeDetectionConfig/rules:
     get:
       description: List runtime detection rules
       operationId: v1-runtime-detection-rules-get

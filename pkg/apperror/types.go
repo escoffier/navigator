@@ -28,6 +28,7 @@ type ElasticError struct{ detailedError }
 type RuleDoesntExistError struct{ detailedError }
 type RuleAlreadyAppliedError struct{ detailedError }
 type RuleNotAppliedError struct{ detailedError }
+type AlertAlreadyAcknowledged struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -363,6 +364,18 @@ func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Redis error has occured",
 			Zhongwen:  "Redis error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Suberror) error {
+	return RedisError{
+		detailedError{
+			err:       err,
+			English:   "Alert already acknowledged",
+			Zhongwen:  "Alert already acknowledged but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
