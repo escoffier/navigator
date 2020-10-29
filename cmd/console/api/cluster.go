@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -93,7 +94,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 		Message string `json:"message"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*120) // long timeout because onlineVulnerabilities need sync
 		defer cancel()
 
 		clusterObjectID, err := getClusterIDFromURL(r)
@@ -139,7 +140,7 @@ func (api *api) addCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var param param
 
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*120) // long timeout because onlineVulnerabilities need sync
 		defer cancel()
 
 		err := util.DecodeJSONBody(w, r, &param)
@@ -186,6 +187,9 @@ func (api *api) delCluster() http.HandlerFunc {
 		Message string `json:"message"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*120) // long timeout because onlineVulnerabilities need sync
+		defer cancel()
+
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
 			RespAndLog(w, r,
@@ -194,9 +198,6 @@ func (api *api) delCluster() http.HandlerFunc {
 					Suberror{"clusterID", ""}))
 			return
 		}
-
-		ctx, cancel := api.getTimeoutCtx()
-		defer cancel()
 
 		delResult, err := api.clusterService.DeleteCluster(ctx, clusterObjectID)
 		if err != nil {

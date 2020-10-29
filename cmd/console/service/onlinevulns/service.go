@@ -27,42 +27,39 @@ import (
 )
 
 type OnlineVulnsService struct {
-	guard sync.Mutex
-
 	mongodb *mongo.Database
 
-	relistNow chan *kubernetes.Clientset
-	relistErr chan error
+	freshEntriesFromGuard sync.Mutex
+	freshEntriesFrom      time.Time
 
-	kubeClient     *kubernetes.Clientset
-	discoveredFrom time.Time
-	stopCh         chan struct{}
+	stopCh chan struct{}
 }
 
 func NewOnlineVulnsService(mongodb *mongo.Database) *OnlineVulnsService {
 	res := &OnlineVulnsService{
-		mongodb:   mongodb,
-		relistNow: make(chan *kubernetes.Clientset),
-		relistErr: make(chan error),
-		stopCh:    make(chan struct{}),
+		mongodb:          mongodb,
+		stopCh:           make(chan struct{}),
+		freshEntriesFrom: time.Now().Add(-1 * time.Hour * 24 * 7), // 1 week back by default, this will be changed fast if we have informer running
 	}
-	go res.informerRoutine()
 	return res
 }
 
 // OnKubeConfigUpdate should be called e.g. when cluster modified or added
+// When cluster deleted, set newClient to nil to stop any active informers.
 func (r *OnlineVulnsService) OnKubeConfigUpdate(ctx context.Context, newClient *kubernetes.Clientset) error {
-	r.relistNow <- newClient
-	err := <-r.relistErr
-	return err
+	return r.refreshInformer(ctx, newClient)
 }
 
 func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Context, offset, limit int64) ([]onlineVulnListItem, error) {
+	r.freshEntriesFromGuard.Lock()
+	freshEntriesFromCp := r.freshEntriesFrom.Unix()
+	r.freshEntriesFromGuard.Unlock()
 
-	// we only consider events that we witnessed. Ignore previous events.
-	// This is OK because when we start watcher, it sends events for all current pods.
 	filter := bson.M{
-		"lastUpdateTime": bson.M{"$gt": r.discoveredFrom.Unix()},
+		"$and": []bson.M{
+			{"isDeleted": false},
+			{"lastUpdateTime": bson.M{"$gt": freshEntriesFromCp}},
+		},
 	}
 
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
@@ -177,6 +174,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 
 	filter := bson.M{
 		"$and": []bson.M{
+			{"isDeleted": false},
 			{"podOwnerKind": resourceKind},
 			{"podOwnerName": resourceName},
 		},
@@ -340,104 +338,119 @@ func (r *OnlineVulnsService) sortVulnListItemByOverallSeverity(onlineVulnsList [
 	})
 }
 
-func (r *OnlineVulnsService) informerRoutine() error {
-	for {
-		func() {
-			select {
-			case newClient := <-r.relistNow:
-				r.kubeClient = newClient
-				logging.GetLogger().Info().Msg("Restarting informer because of new kubeClient")
-			case <-time.After(time.Minute * 10):
-				logging.GetLogger().Info().Msg("Restarting informer to refresh resource list")
-			}
+func (r *OnlineVulnsService) refreshInformer(ctx context.Context, newClient *kubernetes.Clientset) error {
 
-			r.guard.Lock()
-			defer r.guard.Unlock()
+	logging.GetLogger().Info().Msg("Refreshing informer")
 
-			if r.kubeClient == nil {
-				logging.GetLogger().Info().Msg("Kubeclient nil, nothing to watch")
-				r.relistErr <- nil
-				return
-			}
-
-			logging.GetLogger().Info().Msg("Stopping current kubernetes informer")
-			close(r.stopCh)
-
-			// To consider: maybe it's better to watch StatefulSets, Deployments, ReplicaSets, Jobs, etc
-			// instead of watching pods?
-			// statefulsetInformer := informerFactory.Apps().V1().StatefulSets()
-			informerFactory := informers.NewSharedInformerFactory(r.kubeClient, time.Second*30)
-			podInformer := informerFactory.Core().V1().Pods().Informer()
-
-			podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) {
-					pod, ok := obj.(*corev1.Pod)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
-						return
-					}
-
-					// logging.GetLogger().Info().
-					// 	Str("pod", fmt.Sprintf("%+v", pod)).
-					// 	Msg("Add event.")
-
-					r.onPodEvent(pod)
-				},
-				DeleteFunc: func(obj interface{}) {
-					pod, ok := obj.(*corev1.Pod)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
-						return
-					}
-
-					// logging.GetLogger().Info().
-					// 	Str("pod", fmt.Sprintf("%+v", pod)).
-					// 	Msg("Delete event.")
-
-					r.onPodEvent(pod)
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					pod, ok := newObj.(*corev1.Pod)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
-						return
-					}
-
-					// logging.GetLogger().Info().
-					// 	Str("pod", fmt.Sprintf("%+v", pod)).
-					// 	Msg("Update event.")
-
-					r.onPodEvent(pod)
-				},
-			})
-
-			logging.GetLogger().Info().Msg("Starting kubernetes informer")
-
-			r.discoveredFrom = time.Now()
-
-			r.stopCh = make(chan struct{})
-			informerFactory.Start(r.stopCh)
-
-			logging.GetLogger().Info().Msg("Waiting for kubernetes informer cache sync")
-
-			var podType *corev1.Pod
-
-			// TODO add timeout for this.
-
-			cacheSynced := informerFactory.WaitForCacheSync(r.stopCh)[reflect.TypeOf(podType)]
-			if !cacheSynced {
-				logging.GetLogger().Error().Msg("Failed to sync cache")
-				r.relistErr <- NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to sync relister informer cache"))
-				return
-			}
-
-			logging.GetLogger().Info().Int64("r.discoveredFrom", r.discoveredFrom.Unix()).Msg("Kubernetes informer cache synced")
-			r.relistErr <- nil
-		}()
+	if newClient == nil {
+		logging.GetLogger().Info().Msg("Kubeclient nil, nothing to watch")
+		return nil
 	}
+
+	logging.GetLogger().Info().Msg("Stopping current kubernetes informer")
+	close(r.stopCh)
+
+	// To consider: maybe it's better to watch StatefulSets, Deployments, ReplicaSets, Jobs, etc
+	// instead of watching pods?
+	// statefulsetInformer := informerFactory.Apps().V1().StatefulSets()
+	informerFactory := informers.NewSharedInformerFactory(newClient, time.Minute*2)
+	podInformer := informerFactory.Core().V1().Pods().Informer()
+
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
+				return
+			}
+
+			r.onPodEvent(pod, false)
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
+				return
+			}
+
+			r.onPodEvent(pod, true)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			pod, ok := newObj.(*corev1.Pod)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
+				return
+			}
+
+			r.onPodEvent(pod, false)
+		},
+	})
+
+	logging.GetLogger().Info().Msg("Starting kubernetes informer")
+
+	// this must be done before startnig informer factory,
+	// otherwise we may race with event when invalidating old entries.
+	// This is because we will invalidate all entries with updatedAt before freshEntriesFrom.
+	// New events will have updatedAt after freshEntriesFrom.
+	r.freshEntriesFromGuard.Lock()
+	r.freshEntriesFrom = time.Now()
+	freshEntriesFromCp := r.freshEntriesFrom
+	r.freshEntriesFromGuard.Unlock()
+
+	// wait 1 more second before starting event gathering so I don't need to think about
+	// whether mongo $lt and $gt are inclusive
+	time.Sleep(time.Second * 1)
+
+	r.stopCh = make(chan struct{})
+	informerFactory.Start(r.stopCh)
+
+	logging.GetLogger().Info().Msg("Waiting for kubernetes informer cache sync")
+
+	var podType *corev1.Pod
+
+	cacheSyncedCh := make(chan bool)
+	go func() {
+		cacheSynced := informerFactory.WaitForCacheSync(r.stopCh)[reflect.TypeOf(podType)]
+		if !cacheSynced {
+			logging.GetLogger().Error().Msg("Failed to sync cache")
+			cacheSyncedCh <- false
+		} else {
+			cacheSyncedCh <- true
+		}
+	}()
+
+	select {
+	case syncedOk := <-cacheSyncedCh:
+		if !syncedOk {
+			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to sync informer cache"))
+		}
+	case <-time.After(time.Second * 120): // 2 minutes timeout for cache sync
+		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Informer cache resync timeout"))
+	}
+
+	go func() {
+		for {
+			if r.areAllFreshContainerEntriesAccountedFor(&podInformer) {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*120)
+				defer cancel()
+				numMarked, err := r.markStaleContainerEntriesAsDeleted(ctx, freshEntriesFromCp)
+				if err != nil {
+					logging.GetLogger().Warn().Err(err).Int("numMarked", numMarked).Msg("Failed to mark all old container entries as deleted. " +
+						"This will lead to stale entries appearing upon service restart. This will be retried on next informer refresh. Ignoring for now.")
+				} else {
+					logging.GetLogger().Info().Int("numMarked", numMarked).Msg("Marked all old container entries as deleted.")
+				}
+				break
+			}
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
+	logging.GetLogger().Info().Int64("freshEntriesFromCp", freshEntriesFromCp.Unix()).Msg("Kubernetes informer cache synced")
+	return nil
 }
 
-func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod) {
+func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 	owner := metav1.GetControllerOf(pod)
 
 	// TODO: Do we care about InitContainer statuses?
@@ -468,6 +481,7 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod) {
 		}
 
 		assetContainer := model.AssetContainer{
+			IsDeleted:           isDeleteEvent,
 			PodName:             pod.Name,
 			Name:                container.Name,
 			Repository:          repository,
@@ -503,7 +517,72 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod) {
 		defer mongoCtxCancel()
 		_, err := r.mongodb.Collection(model.AssetsContainerCollection).UpdateOne(mongoCtx, filter, update, opts)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to insert assetContainer to mongo")
+			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
 		}
 	}
+}
+
+func (r *OnlineVulnsService) areAllFreshContainerEntriesAccountedFor(informer *cache.SharedIndexInformer) bool {
+	return (*informer).GetController().HasSynced() // Returns true once this controller has completed an initial resource listing
+}
+
+func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Context, upTo time.Time) (int, error) {
+	numMarked := 0
+
+	// mark all entries that we didn't witness at the start of watcher as deleted.
+	filter := bson.M{
+		"lastUpdateTime": bson.M{"$lt": upTo.Unix()},
+	}
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter)
+	if err != nil {
+		return numMarked, NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't get containers: %w", err))
+	}
+	defer func() {
+		if err := cursor.Close(ctx); err != nil {
+			logging.GetLogger().Error().Err(err).Msg("When closing cursor, but ignoring.")
+		}
+	}()
+
+	for cursor.Next(ctx) {
+		var container model.AssetContainer
+		err := cursor.Decode(&container)
+		if err != nil {
+			return numMarked, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't decode document: %w", err))
+		}
+
+		filter := bson.M{
+			"$and": []bson.M{
+				{"podName": container.PodName},
+				{"name": container.Name},
+			},
+		}
+
+		container.IsDeleted = true
+
+		update := bson.M{"$set": container}
+		opts := options.Update().SetUpsert(true)
+
+		mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+		defer mongoCtxCancel()
+		_, err = r.mongodb.Collection(model.AssetsContainerCollection).UpdateOne(mongoCtx, filter, update, opts)
+		if err != nil {
+			return numMarked, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to upsert assetContainer to mongo: %w", err))
+		}
+
+		numMarked++
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return numMarked, NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Cursor error: %w", err))
+	}
+
+	return numMarked, nil
 }

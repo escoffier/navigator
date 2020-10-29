@@ -14,6 +14,8 @@ type AssetContainer struct {
 	PodOwnerName string `json:"podOwnerName" bson:"podOwnerName"` // ind
 	PodOwnerKind string `json:"podOwnerKind" bson:"podOwnerKind"` // ind
 
+	IsDeleted bool `json:"isDeleted" bson:"isDeleted"` // ind
+
 	Repository  string `json:"repository" bson:"repository"`
 	Tag         string `json:"tag" bson:"tag"`
 	Digest      string `json:"digest" bson:"digest"`
