@@ -76,10 +76,34 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sh '''
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
-                USEMIRROR=true scap-jobs
+                USEMIRROR=true make scap-jobs
                 docker push registry.t-appagile.com/tensorsecurity/docker-bench-security:latest
                 docker push registry.t-appagile.com/tensorsecurity/kube-bench:latest
                 docker push registry.t-appagile.com/tensorsecurity/host-bench:latest
+                '''
+                }
+                if("$moduleToDeploy".trim() == "tensordig") {
+                sh '''
+                export GOPROXY=https://goproxy.cn
+                export GO111MODULE=on
+                USEMIRROR=true make tensordig
+                docker push registry.t-appagile.com/tensorsecurity/tensordig:latest
+                '''
+                }
+                if("$moduleToDeploy".trim() == "faulty") {
+                sh '''
+                export GOPROXY=https://goproxy.cn
+                export GO111MODULE=on
+                USEMIRROR=true faulty
+                docker push registry.t-appagile.com/tensorsecurity/faulty:latest
+                '''
+                }
+                if("$moduleToDeploy".trim() == "elastalert") {
+                sh '''
+                export GOPROXY=https://goproxy.cn
+                export GO111MODULE=on
+                USEMIRROR=true elastalert
+                docker push registry.t-appagile.com/tensorsecurity/elastalert:latest
                 '''
                 }
                 if("$moduleToDeploy".trim() == "scanner") {
