@@ -1,0 +1,92 @@
+package api
+
+import (
+	"fmt"
+	"math"
+	"net/http"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+
+	"github.com/go-chi/chi"
+)
+
+func (api *api) onlineVulnerabilities() func(chi.Router) {
+	return func(r chi.Router) {
+		r.Get("/current", api.getCurrentOnlineVulnerabilities())
+		r.Get("/details/{resourceKind}/{resourceName}", api.getOnlineVulnerabilityDetails())
+	}
+}
+
+// @Summary List current online vulnerabilities
+// @Description List current online vulnerabilities
+// @Produce json
+// @Router /api/v1/onlineVulnerabilities/current [get]
+// @Param offset query int false "from offset"
+// @Param limit query int false "returned data limit"
+func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
+
+		offset, limit := api.getOffsetAndLimit(r)
+
+		vulns, err := api.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, offset, limit)
+		if err != nil {
+			RespAndLog(w, r,
+				NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("Failed to list vulns: %w", err)))
+			return
+		}
+
+		docNum := int64(len(vulns))
+		actualOffset := int(math.Min(float64(offset), float64(len(vulns))))
+		actualLimit := int(math.Min(float64(offset+limit), float64(len(vulns))))
+		response.Ok(w,
+			response.WithItems(vulns[actualOffset:actualLimit]),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
+	}
+}
+
+// @Summary Get details of online vulnerabiilty
+// @Description Get details of online vulnerabiilty
+// @Produce json
+// @Router /api/v1/onlineVulnerabilities/details/{resourceKind}/{resourceName} [get]
+// @Param resourceKind query string false "case-sensitive resource kind"
+// @Param resourceName query string false "case-sensitive resource name"
+func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
+
+		resourceName := chi.URLParam(r, "resourceName")
+		if resourceName == "" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Missing param 'resourceName'"),
+					Suberror{"resourceName", ""}))
+			return
+		}
+
+		resourceKind := chi.URLParam(r, "resourceKind")
+		if resourceKind == "" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Missing param 'resourceKind'"),
+					Suberror{"resourceKind", ""}))
+			return
+		}
+
+		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, resourceKind, resourceName)
+		if err != nil {
+			RespAndLog(w, r,
+				NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("Failed to get vulnerability details: %w", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(*vulnDetails))
+	}
+}

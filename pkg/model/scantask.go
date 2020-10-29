@@ -34,7 +34,7 @@ type ScanTask struct {
 	FinishedAt    int64              `json:"finishedAt" bson:"finishedAt"`
 	Tag           string             `json:"tag" form:"tag" query:"tag"`
 	Repository    string             `json:"repository" bson:"repository"`
-	ImageDigest   string             `json:"digest,omitempty" bson:"digest,omitempty"`
+	ImageDigest   string             `json:"digest,omitempty" bson:"digest,omitempty"` // sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
 	ScanReport    ScanReport         `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
 }
 

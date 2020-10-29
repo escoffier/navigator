@@ -75,6 +75,8 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 		return nil, err
 	}
 
+	// TODO: filter by namespace?
+	// TODO: use https://kubernetes.io/docs/reference/using-api/api-concepts/#retrieving-large-results-sets-in-chunks and watch?
 	pods, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
