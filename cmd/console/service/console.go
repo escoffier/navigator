@@ -176,7 +176,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
-	err = initializeOnlineVulnsWatch(ctx, c.clusterService, c.OnlineVulnsService)
+	err = initializeOnlineVulnsWatch(ctx, c.clusterService, c.onlineVulnsService)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -245,6 +245,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 				"podOwnerName": 1,
 			}, Options: nil,
 		},
+		{
+			Keys: bson.M{
+				"isDeleted": 1,
+			}, Options: nil,
+		},
 	}
 
 	for collectionName, indexModel := range neededIndexesPerCollection {
@@ -303,6 +308,7 @@ func initializeOnlineVulnsWatch(ctx context.Context, clusterSvc *cluster.Cluster
 		return fmt.Errorf("Kube client connection check failed: %w", err)
 	}
 
+	// to get things started, call OnKubeConfigUpdate
 	err = onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
 	if err != nil {
 		return fmt.Errorf("Failed OnKubeConfigUpdate: %w", err)

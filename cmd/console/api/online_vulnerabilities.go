@@ -33,9 +33,7 @@ func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 
 		vulns, err := api.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, offset, limit)
 		if err != nil {
-			RespAndLog(w, r,
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to list vulns: %w", err)))
+			RespAndLog(w, r, err)
 			return
 		}
 
@@ -81,9 +79,7 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 
 		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, resourceKind, resourceName)
 		if err != nil {
-			RespAndLog(w, r,
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to get vulnerability details: %w", err)))
+			RespAndLog(w, r, err)
 			return
 		}
 
