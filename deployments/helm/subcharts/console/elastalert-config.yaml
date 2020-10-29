@@ -5,12 +5,12 @@ rules_folder: /rules
 # How often ElastAlert will query Elasticsearch
 # The unit can be anything from weeks to seconds
 run_every:
-  minutes: 1
+  seconds: 5
 
 # ElastAlert will buffer results from the most recent
 # period of time, in case some log sources are not in real time
 buffer_time:
-  minutes: 15
+  seconds: 10
 
 # The Elasticsearch hostname for metadata writeback
 # Note that every rule can have its own Elasticsearch host

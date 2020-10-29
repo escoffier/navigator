@@ -120,6 +120,7 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 					queryAlert.PodName = elasticAlert.Matched.PodName
 					queryAlert.PodUID = elasticAlert.Matched.PodUID
 					queryAlert.RuleName = elasticAlert.RuleName
+					queryAlert.Timestamp = elasticAlert.Timestamp
 					insertResult, err := s.mongodb.Collection(alertCol).InsertOne(ctx, queryAlert)
 					if err != nil {
 						return []alert.Alert{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document with elasticID %s: %w", queryAlert.ElasticID, err))

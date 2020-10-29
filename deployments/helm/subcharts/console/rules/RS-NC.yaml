@@ -10,10 +10,10 @@ terms_window_size:
 filter:
   - query:
       query_string:
-          query: "execve__filename: /bin/nc OR execve__filename: /usr/bin/ncat"
-  
+          query: 'execve__filename:"/bin/nc" OR execve__filename:"/usr/bin/ncat"'
     
 alert:
   - command
 command: ["echo", "Reverse shell (Netcat)"]
           
+alert_text: "Reverse Shell (Netcat)"

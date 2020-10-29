@@ -14,3 +14,5 @@ filter:
 alert:
   - command
 command: ["echo", "Reverse shell (Socket + Dup2)"]
+
+alert_text: "Reverse Shell (Socket + Dup2)"
