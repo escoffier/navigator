@@ -1,5 +1,16 @@
 producers:
     syscalls:
+      - syscallDup2:
+        name: dup2
+        filters:
+          - newfdFilter:
+            id: f1
+            field: newfd
+            operation: inArray
+            values:
+            - v: 0
+            - v: 1
+            - v: 2
       - syscallSocket:
         name: socket
         filters:
@@ -12,9 +23,10 @@ producers:
           - familyFilter:
             id: f2
             field: family
-            operation: equalTo
+            operation: inArray
             values:
             - v: 17 #AF_PACKET
+            - v: 2 #AF_INET             
         logic: f1||f2
       - syscallExecve:
         name: execve

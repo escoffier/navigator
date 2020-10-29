@@ -1,4 +1,4 @@
-name: CVE-2019-14287
+name: Reverse shell (Netcat)
 
 type: any
 
@@ -14,7 +14,6 @@ filter:
   
     
 alert:
-- "email"
-
-email:
-- "elastalert@example.com"
+  - command
+command: ["echo", "Reverse shell (Netcat)"]
+          

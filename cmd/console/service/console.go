@@ -16,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
@@ -102,19 +102,16 @@ func NewConsole(
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
-	ruleService := rule.NewRuleService(elastalertOpts.AvailableRulesFolder, elastalertOpts.AppliedRulesFolder)
+	ruleService := rule.NewRuleService(elastalertOpts.AvailableRulesFolder, elastalertOpts.AppliedRulesFolder, mongodb)
 
-	cfg := elasticsearch.Config{
-		Addresses: []string{
-			fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port),
-		},
-	}
-	es, err := elasticsearch.NewClient(cfg)
+	es, err := elastic.NewClient(
+		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	alertService := alert.NewAlertService(es, elasticOpts.Index)
+	alertService := alert.NewAlertService(es, elasticOpts.Index, mongodb)
 
 	return &Console{
 		server: &http.Server{

@@ -1,51 +1,22 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-func (api *api) runtimeDetection() func(chi.Router) {
+func (api *api) runtimeDetectionConfig() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/rules", api.listRules())
-		r.Post("/rules/{ruleID}/on", api.enableRule())
-		r.Post("/rules/{ruleID}/off", api.disableRule())
-		r.Get("/alerts", api.listAlerts())
-	}
-}
-
-// @Summary List runtime detection alerts
-// @Description List runtime detection alerts
-// @ID v1-runtime-detection-alerts-get
-// @Produce json
-// @Param offset query int false "from offset"
-// @Param limit query int false "returned data limit"
-// @Router /api/v1/runtime/detection/alerts [get]
-func (api *api) listAlerts() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
-		defer cancel()
-
-		offset, limit := api.getOffsetAndLimit(r)
-
-		alerts, docNum, err := api.alertService.ListAlerts(ctx, offset, limit)
-		if err != nil {
-			RespAndLog(w, r,
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to list alerts: %w", err)))
-			return
-		}
-
-		response.Ok(w,
-			response.WithItems(alerts),
-			response.WithTotalItems(docNum),
-			response.WithItemsPerPage(limit),
-			response.WithStartIndex(offset))
+		r.Post("/rules/{ruleID}/enable", api.enableRule())
+		r.Post("/rules/{ruleID}/disable", api.disableRule())
 	}
 }
 
@@ -55,7 +26,7 @@ func (api *api) listAlerts() http.HandlerFunc {
 // @Produce json
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
-// @Router /api/v1/runtime/detection/rules [get]
+// @Router /api/v1/runtimeDetectionConfig/rules [get]
 func (api *api) listRules() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
@@ -84,14 +55,14 @@ func (api *api) listRules() http.HandlerFunc {
 // @ID v1-runtime-detection-rule-enable
 // @Produce json
 // @Param ruleID path string true "ruleID"
-// @Router /api/v1/runtime/detection/rule/{ruleID}/on [post]
+// @Router /api/v1/runtimeDetectionConfig/rule/{ruleID}/enable [post]
 func (api *api) enableRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		ruleID := chi.URLParam(r, "ruleID")
-		if ruleID == "" {
+		ruleID, err := getRuleIDFromURL(r)
+		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("ruleID param missing"),
@@ -99,7 +70,7 @@ func (api *api) enableRule() http.HandlerFunc {
 			return
 		}
 
-		err := api.ruleService.EnableRule(ctx, ruleID)
+		queryRule, err := api.ruleService.EnableRule(ctx, ruleID)
 		if err != nil {
 			RespAndLog(w, r,
 				NewAnError(http.StatusInternalServerError,
@@ -107,7 +78,7 @@ func (api *api) enableRule() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w)
+		response.Ok(w, response.WithItem(*queryRule))
 	}
 }
 
@@ -116,14 +87,14 @@ func (api *api) enableRule() http.HandlerFunc {
 // @ID v1-runtime-detection-rule-disable
 // @Produce json
 // @Param ruleID path string true "ruleID"
-// @Router /api/v1/runtime/detection/rule/{ruleID}/off [post]
+// @Router /api/v1/runtimeDetectionConfig/rule/{ruleID}/disable [post]
 func (api *api) disableRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
 		defer cancel()
 
-		ruleID := chi.URLParam(r, "ruleID")
-		if ruleID == "" {
+		ruleID, err := getRuleIDFromURL(r)
+		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("ruleID param missing"),
@@ -131,7 +102,7 @@ func (api *api) disableRule() http.HandlerFunc {
 			return
 		}
 
-		err := api.ruleService.DisableRule(ctx, ruleID)
+		queryRule, err := api.ruleService.DisableRule(ctx, ruleID)
 		if err != nil {
 			RespAndLog(w, r,
 				NewAnError(http.StatusInternalServerError,
@@ -139,6 +110,14 @@ func (api *api) disableRule() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w)
+		response.Ok(w, response.WithItem(*queryRule))
 	}
+}
+
+func getRuleIDFromURL(r *http.Request) (primitive.ObjectID, error) {
+	ruleID := chi.URLParam(r, "ruleID")
+	if ruleID == "" {
+		return primitive.NilObjectID, errors.New("ruleID is not provided")
+	}
+	return primitive.ObjectIDFromHex(ruleID)
 }

@@ -7,6 +7,7 @@ require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/PuerkitoBio/goquery v1.6.0
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+	github.com/apex/log v1.9.0
 	github.com/containerd/containerd v1.3.1 // indirect
 	github.com/containerd/continuity v0.0.0-20191214063359-1097c8bae83b // indirect
 	github.com/coreos/etcd v3.3.17+incompatible // indirect
@@ -16,6 +17,7 @@ require (
 	github.com/docker/docker v0.7.3-0.20190813234819-fade624f1696
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7
+	github.com/elastic/go-elasticsearch v0.0.0
 	github.com/elastic/go-elasticsearch/v8 v8.0.0-20201022194115-1af099fb3eca
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/go-chi/chi v4.0.2+incompatible
@@ -39,6 +41,7 @@ require (
 	github.com/mitchellh/go-ps v0.0.0-20170309133038-4fdf99ab2936
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/oceanicdev/chi-param v1.1.0
+	github.com/olivere/elastic/v7 v7.0.21
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect

@@ -13,5 +13,12 @@ producers:
             - v: 2
       - syscallSocket:
         name: socket
+        filters:
+          - familyFilter:
+            id: f1
+            field: family
+            operation: equalTo
+            values:
+            - v: 2 #AF_PACKET
 consumers:
-  - Json
+  - File

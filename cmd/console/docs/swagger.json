@@ -9,6 +9,49 @@
     },
     "basePath": "/",
     "paths": {
+        "/api/v1/alerts/": {
+            "get": {
+                "description": "List  alerts",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List  alerts",
+                "operationId": "v1-alerts-get",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
+        "/api/v1/alerts/{alertID}/acknowledge": {
+            "post": {
+                "description": "Acknowledge alert",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Acknowledge alert",
+                "operationId": "v1-alert-acknowledge-post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "alertID",
+                        "name": "clusterID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
         "/api/v1/auth/login": {
             "post": {
                 "description": "Login by username/password",
@@ -247,31 +290,7 @@
                 ]
             }
         },
-        "/api/v1/runtime/detection/alerts": {
-            "get": {
-                "description": "List runtime detection alerts",
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "List runtime detection alerts",
-                "operationId": "v1-runtime-detection-alerts-get",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "from offset",
-                        "name": "offset",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "returned data limit",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ]
-            }
-        },
-        "/api/v1/runtime/detection/rule/{ruleID}/off": {
+        "/api/v1/runtimeDetectionConfig/rule/{ruleID}/disable": {
             "post": {
                 "description": "Disable single rule",
                 "produces": [
@@ -290,7 +309,7 @@
                 ]
             }
         },
-        "/api/v1/runtime/detection/rule/{ruleID}/on": {
+        "/api/v1/runtimeDetectionConfig/rule/{ruleID}/enable": {
             "post": {
                 "description": "Enable single rule",
                 "produces": [
@@ -309,7 +328,7 @@
                 ]
             }
         },
-        "/api/v1/runtime/detection/rules": {
+        "/api/v1/runtimeDetectionConfig/rules": {
             "get": {
                 "description": "List runtime detection rules",
                 "produces": [

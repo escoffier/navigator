@@ -73,8 +73,9 @@ func SetupRoutes(
 			r.Route("/config", api.config())
 			r.Route("/scanner", api.scanner())
 			r.Route("/scap", api.scap())
-			r.Route("/runtime/detection", api.runtimeDetection())
 			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
+			r.Route("/runtimeDetectionConfig", api.runtimeDetectionConfig())
+			r.Route("/alerts", api.alert())
 		})
 	})
 }
