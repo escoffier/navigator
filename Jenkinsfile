@@ -94,7 +94,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sh '''
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
-                USEMIRROR=true faulty
+                USEMIRROR=true make faulty
                 docker push registry.t-appagile.com/tensorsecurity/faulty:latest
                 '''
                 }
@@ -102,7 +102,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sh '''
                 export GOPROXY=https://goproxy.cn
                 export GO111MODULE=on
-                USEMIRROR=true elastalert
+                USEMIRROR=true make elastalert
                 docker push registry.t-appagile.com/tensorsecurity/elastalert:latest
                 '''
                 }
