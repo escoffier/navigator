@@ -76,15 +76,6 @@ func (api *api) getScannerTask() http.HandlerFunc {
 	}
 }
 
-type vulnInfoEx struct {
-	// Helper struct that creates one to one mapping between vulnerability and affected image.
-	redclair.VulnerabilityInfo `json:"vulnInfo"`
-	AffectedRepository         string `json:"affectedRepository"`
-	AffectedTag                string `json:"affectedTag"`
-	AffectedDigest             string `json:"affectedDigest"`
-	FinishedAt                 int64  `json:"finishedAt"`
-}
-
 func sortVulns(vulnerabilities []scanReportListItem, asc bool) {
 	sort.Slice(vulnerabilities, func(i, j int) bool {
 		if !asc {
@@ -203,6 +194,16 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
+		type vulnInfoEx struct {
+			// Helper struct that creates one to one mapping between vulnerability and affected image.
+			redclair.VulnerabilityInfo
+			AffectedRepository string
+			AffectedTag        string
+			AffectedDigest     string
+			AffectedHarborURL  string
+			FinishedAt         int64
+		}
+
 		digestToVulns := make(map[string][]vulnInfoEx)
 		for cursor.Next(ctx) {
 			var task model.ScanTask
@@ -229,6 +230,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					AffectedRepository: task.Repository,
 					AffectedTag:        task.Tag,
 					AffectedDigest:     task.ImageDigest,
+					AffectedHarborURL:  task.HarborURL,
 					FinishedAt:         task.FinishedAt,
 				}
 				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
@@ -252,6 +254,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					AffectedRepository: task.Repository,
 					AffectedTag:        task.Tag,
 					AffectedDigest:     task.ImageDigest,
+					AffectedHarborURL:  task.HarborURL,
 					FinishedAt:         task.FinishedAt,
 				}
 				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
@@ -270,8 +273,14 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		for _, vulns := range digestToVulns {
 
 			for _, vuln := range vulns {
-				if _, ok := listItemsSet[vuln.CVE]; !ok {
-					listItemsSet[vuln.CVE] = scanReportListItem{
+				key := vuln.CVE
+				if key == "-" {
+					// handle sensitive filename
+					key = vuln.FeatureName
+				}
+
+				if _, ok := listItemsSet[key]; !ok {
+					listItemsSet[key] = scanReportListItem{
 						VulnInfo:       vuln.VulnerabilityInfo,
 						AffectedImages: &[]scanReportAffectedImage{},
 					}
@@ -281,11 +290,11 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					Repository: vuln.AffectedRepository,
 					Tag:        vuln.AffectedTag,
 					Digest:     vuln.AffectedDigest,
-					HarborURL:  "TODO",
+					HarborURL:  vuln.AffectedHarborURL,
 					FinishedAt: vuln.FinishedAt,
 				}
 
-				*listItemsSet[vuln.CVE].AffectedImages = append(*listItemsSet[vuln.CVE].AffectedImages, af)
+				*listItemsSet[key].AffectedImages = append(*listItemsSet[key].AffectedImages, af)
 			}
 		}
 
