@@ -172,5 +172,11 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 		}
 	}
 
+	log.Error().
+		Str("respItems", fmt.Sprintf("%+v", respItems)).
+		Str("projectName", fmt.Sprintf("%+v", projectName)).
+		Str("repoName", fmt.Sprintf("%+v", repoName)).
+		Msgf("Didn't match project")
+
 	return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Didn't find such project in Harbor"))
 }
