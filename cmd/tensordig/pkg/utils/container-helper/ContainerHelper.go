@@ -1,10 +1,6 @@
 package containerhelper
 
 import (
-	"fmt"
-
-	log "github.com/sirupsen/logrus"
-
 	ps "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/go-ps"
 )
 
@@ -24,17 +20,17 @@ func (cu ContainerUtil) Init() error {
 }
 
 func (cu ContainerUtil) GetContainerPid(pid int) (int, error) {
-	log.Info("Checking container cache")
+	// log.Info("Checking container cache")
 	dockerPID, err := cu.pidCache.Get(pid)
 
 	if err == nil {
-		log.Infof("Found docker pid %d in cache for %d process", dockerPID, pid)
+		// log.Infof("Found docker pid %d in cache for %d process", dockerPID, pid)
 		return dockerPID, nil
 	}
 
 	p, err := ps.FindProcess(pid)
 	if err != nil || p == nil {
-		log.Error(fmt.Sprintf("Could not find process information for %d. Probably vanished", pid), err)
+		// log.Error(fmt.Sprintf("Could not find process information for %d. Probably vanished", pid), err)
 		return 0, err
 	}
 
@@ -42,25 +38,25 @@ func (cu ContainerUtil) GetContainerPid(pid int) (int, error) {
 	for notInit {
 		if p.Executable() == "containerd-shim" {
 			dockerPID = p.Pid()
-			log.Infof("Current checked PID %d is containerd-shim. Persist it as docker pid for %d\n", dockerPID, pid)
+			// log.Infof("Current checked PID %d is containerd-shim. Persist it as docker pid for %d\n", dockerPID, pid)
 			cu.pidCache.Set(pid, dockerPID)
 			return dockerPID, nil
 		}
 
 		p, err = ps.FindProcess(p.PPid())
 		if p == nil || err != nil {
-			log.Error(fmt.Sprintf("Could not find process information for %d. Probably vanished", pid), err)
+			// log.Error(fmt.Sprintf("Could not find process information for %d. Probably vanished", pid), err)
 			return 0, nil
 		}
-		log.Infof("Searching for parent process information %d of %d\n", p.PPid(), p.Pid())
+		// log.Infof("Searching for parent process information %d of %d\n", p.PPid(), p.Pid())
 
 		if 1 == p.Pid() {
-			log.Info("Reached init process ID")
+			// log.Info("Reached init process ID")
 			notInit = false
 		}
 	}
 
-	log.Info("Reached init process ID. Persisting")
+	// log.Info("Reached init process ID. Persisting")
 	cu.pidCache.Set(pid, 1)
 	return 1, nil
 }

@@ -48,6 +48,10 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: only not acknowledged alerts
+        in: query
+        name: onlyNotAcknowledged
+        type: boolean
       produces:
       - application/json
       summary: List  alerts

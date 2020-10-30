@@ -51,6 +51,7 @@ spec:
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-master:6379",
+          "--redis-password={{ .Values.redis.password }}",
           "-v"]
         env:
           - name: TENSORSEC_HARBOR_PASSWORD

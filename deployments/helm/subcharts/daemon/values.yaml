@@ -12,6 +12,8 @@ filebeatConfig:
     output.elasticsearch:
       host: '${NODE_NAME}'
       hosts: '${ELASTICSEARCH_HOSTS:elasticsearch-master:9200}'
+      username: 'elasticsearch' 
+      password: 'Elastic12345'
 
 # Extra environment variables to append to the DaemonSet pod spec.
 # This will be appended to the current 'env:' key. You can use any of the kubernetes env

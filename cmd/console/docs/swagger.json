@@ -29,6 +29,12 @@
                         "description": "returned data limit",
                         "name": "limit",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "only not acknowledged alerts",
+                        "name": "onlyNotAcknowledged",
+                        "in": "query"
                     }
                 ]
             }

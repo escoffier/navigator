@@ -9,10 +9,20 @@ clair:
   
 scanner:
   enabled: true
+  # TODO: reference below variables from the original setting (maybe Helm enables it?) 
+  redis:
+    password: Redis12345
   clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
 
 console:
+  # TODO: reference below variables from the original setting (maybe Helm enables it?) 
+  elasticsearch:
+    extraEnvs:
+      - name: ELASTIC_PASSWORD
+        value: Elastic12345
+      - name: ELASTIC_USERNAME
+        value: elasticsearch
   enabled: true
 
 daemon:
@@ -20,7 +30,8 @@ daemon:
 
 redis:
   enabled: true
-  usePassword: false
+  password: Redis12345
+  usePassword: true
   cluster:
     slaveCount: 1
   master:
@@ -30,6 +41,11 @@ elasticsearch:
   enabled: true
   minimumMasterNodes: 1
   replicas: 1
+  extraEnvs:
+    - name: ELASTIC_PASSWORD
+      value: Elastic12345
+    - name: ELASTIC_USERNAME
+      value: elasticsearch
 
 postgresql:
   # Note for maintainers:

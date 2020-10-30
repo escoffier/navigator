@@ -59,7 +59,7 @@ func NewConsole(
 	scapOpts *flag.ScapOpts,
 	redisOpts *flag.RedisOpts,
 	elasticOpts *flag.ElasticOpts,
-	elastalertOpts *flag.ElastalertOpts,
+	rulesOpts *flag.RulesOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -102,16 +102,17 @@ func NewConsole(
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
-	ruleService := rule.NewRuleService(elastalertOpts.AvailableRulesFolder, elastalertOpts.AppliedRulesFolder, mongodb)
+	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
+		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	alertService := alert.NewAlertService(es, elasticOpts.Index, mongodb)
+	alertService := alert.NewAlertService(mainCtx, ruleService, es, elasticOpts.Index, mongodb)
 
 	return &Console{
 		server: &http.Server{

@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: elastalert-config
-data:
-  example.yaml: |-
-{{ .Files.Get "elastalert-config.yaml" | indent 4}}

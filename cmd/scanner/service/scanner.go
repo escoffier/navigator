@@ -59,8 +59,8 @@ func NewScanner(
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisOpts.Endpoint,
-		Password: "", // TODO: Add authorization
-		DB:       0,  // TODO: Add DB
+		Password: redisOpts.Password,
+		DB:       0, // TODO: Add DB
 	})
 
 	// main function context
