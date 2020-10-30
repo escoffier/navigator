@@ -85,39 +85,41 @@ type vulnInfoEx struct {
 	FinishedAt                 int64  `json:"finishedAt"`
 }
 
-func sortVulns(vulnerabilities []vulnInfoEx, asc bool) {
+func sortVulns(vulnerabilities []scanReportListItem, asc bool) {
 	sort.Slice(vulnerabilities, func(i, j int) bool {
 		if !asc {
 			i, j = j, i
 		}
 
-		if redclair.SeverityMap[vulnerabilities[i].Severity] < redclair.SeverityMap[vulnerabilities[j].Severity] {
+		if redclair.SeverityMap[vulnerabilities[i].VulnInfo.Severity] < redclair.SeverityMap[vulnerabilities[j].VulnInfo.Severity] {
 			return true
-		} else if redclair.SeverityMap[vulnerabilities[i].Severity] > redclair.SeverityMap[vulnerabilities[j].Severity] {
+		} else if redclair.SeverityMap[vulnerabilities[i].VulnInfo.Severity] > redclair.SeverityMap[vulnerabilities[j].VulnInfo.Severity] {
 			return false
 		}
 		// else Severity equal
 
-		if vulnerabilities[i].CVE < vulnerabilities[j].CVE {
+		if vulnerabilities[i].VulnInfo.CVE < vulnerabilities[j].VulnInfo.CVE {
 			return true
-		} else if vulnerabilities[i].CVE > vulnerabilities[j].CVE {
+		} else if vulnerabilities[i].VulnInfo.CVE > vulnerabilities[j].VulnInfo.CVE {
 			return false
 		}
 		// else Same CVE
 
-		if vulnerabilities[i].AffectedDigest < vulnerabilities[j].AffectedDigest {
-			return true
-		} else if vulnerabilities[i].AffectedDigest > vulnerabilities[j].AffectedDigest {
-			return false
-		}
-		// else AffectedDigest equal (happens if same digest has multiple sensitive filename vulns)
-
-		// In this case FeatureName == filename
-		if vulnerabilities[i].FeatureName < vulnerabilities[j].FeatureName {
-			return true
-		}
 		return false
 	})
+}
+
+type scanReportAffectedImage struct {
+	Repository string `json:"repository"`
+	Tag        string `json:"tag"`
+	Digest     string `json:"digest"`
+	HarborURL  string `json:"harborURL"`
+	FinishedAt int64  `json:"finishedAt"`
+}
+
+type scanReportListItem struct {
+	VulnInfo       redclair.VulnerabilityInfo `json:"vulnInfo"`
+	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
 }
 
 // @Summary List reports by severity
@@ -235,7 +237,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 				// "dumb" convert of sensitive file info to vulnerability info.
 				// Consider a different way to return this maybe?
 				vi := redclair.VulnerabilityInfo{
-					Description:    sens.Description,
+					Description:    fmt.Sprintf("Potential file leak: %s", sens.Description),
 					FeatureName:    sens.Name,
 					Severity:       "High",
 					CVE:            "-",
@@ -264,12 +266,43 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			return
 		}
 
-		// convert to list in order to sort easier
-		vulns := []vulnInfoEx{}
-		for _, vulnsOfDigest := range digestToVulns {
-			vulns = append(vulns, vulnsOfDigest...)
+		listItemsSet := make(map[string]scanReportListItem)
+		for _, vulns := range digestToVulns {
+
+			for _, vuln := range vulns {
+				if _, ok := listItemsSet[vuln.CVE]; !ok {
+					listItemsSet[vuln.CVE] = scanReportListItem{
+						VulnInfo:       vuln.VulnerabilityInfo,
+						AffectedImages: &[]scanReportAffectedImage{},
+					}
+				}
+
+				af := scanReportAffectedImage{
+					Repository: vuln.AffectedRepository,
+					Tag:        vuln.AffectedTag,
+					Digest:     vuln.AffectedDigest,
+					HarborURL:  "TODO",
+					FinishedAt: vuln.FinishedAt,
+				}
+
+				*listItemsSet[vuln.CVE].AffectedImages = append(*listItemsSet[vuln.CVE].AffectedImages, af)
+			}
 		}
-		sortVulns(vulns, sortOrder == "asc")
+
+		// convert to list in order to sort easier
+		listItems := make([]scanReportListItem, len(listItemsSet))
+		i := 0
+		for _, item := range listItemsSet {
+			listItems[i] = item
+			i++
+		}
+
+		sortVulns(listItems, sortOrder == "asc")
+
+		// for _, vulnsOfDigest := range digestToVulns {
+		// 	vulns = append(vulns, vulnsOfDigest...)
+		// }
+		// sortVulns(vulns, sortOrder == "asc")
 
 		// TODO: if many images are vulnerable to the same CVE, this CVE will appear multiple times in output
 		// (albeit with different `affectedImage`).
@@ -278,11 +311,11 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		// How to merge fixVersion?, etc...
 		// Potentially something to consider the future.
 
-		docNum := int64(len(vulns))
-		actualOffset := int(math.Min(float64(offset), float64(len(vulns))))
-		actualLimit := int(math.Min(float64(offset+limit), float64(len(vulns))))
+		docNum := int64(len(listItems))
+		actualOffset := int(math.Min(float64(offset), float64(len(listItems))))
+		actualLimit := int(math.Min(float64(offset+limit), float64(len(listItems))))
 		response.Ok(w,
-			response.WithItems(vulns[actualOffset:actualLimit]),
+			response.WithItems(listItems[actualOffset:actualLimit]),
 			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
