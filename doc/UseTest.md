@@ -58,14 +58,22 @@ curl -v -X POST -H "Authorization: Bearer $JWT" --data '{"image": "python", "res
 # Get task details
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/task/5f7df28d0403ef8cdd1873f1
 
+# Retrigger full scan in harbor
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/harbor/scanAllNow
+
+# Redirect to harbor scan configuration screen
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" http://$CONSOLEADDR/api/v1/scanner/harbor/scanConfig
+
+
+
 # Or directly to Scanner, bypassing JWT auth, hehe
 # curl -v -X POST --data '{"image": "python", "rescan": false}' -H "Content-Type: application/json"  http://$SCANNERIP:8888/api/v1/scan/one
 
 # Invalidate scanner cache
-curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/forceInvalidateCache
+curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/dev/forceInvalidateCache
 
 # Retrigger harbor full scan
-curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/harborScanAll
+curl -v -X POST -H "Content-Type: application/json"  http://$SCANNERADDR/api/v1/scan/harbor/ScanAll
 
 # Obtain results ordered by severity from some timestamp
 # Note: RFC3339 timestamp helper, see https://www.unixtimestamp.com/ (CTRL+F "RFC 3339")

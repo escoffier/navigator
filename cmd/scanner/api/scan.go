@@ -25,15 +25,16 @@ type ScanResultResponse struct {
 func (api *api) scan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/one", api.scanOne())
-		r.Post("/harborScanAll", api.harborScanAll())
-		r.Post("/forceInvalidateCache", api.forceInvalidateCache())
+		r.Post("/harbor/scanAll", api.harborScanAll())
+		r.Get("/harbor/scanConfigURL", api.harborGetScanConfigURL())
+		r.Post("/dev/forceInvalidateCache", api.forceInvalidateCache())
 	}
 }
 
 // @Summary Force layer cache invalidation.
 // @Description Force layer cache invalidation. Then reinitialize it.
 // @Produce json
-// @Router /api/v1/scan/forceInvalidateCache [post]
+// @Router /api/v1/scan/dev/forceInvalidateCache [post]
 func (api *api) forceInvalidateCache() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
@@ -54,15 +55,11 @@ func (api *api) forceInvalidateCache() http.HandlerFunc {
 
 // @Summary Trigger scan of all images in Harbor.
 // @Description Trigger scan of all images in Harbor. This API is exposed for testing purpose.
-// @Produce json
-// @Router /api/v1/scan/harborScanAll [post]
+// @Router /api/v1/scan/harbor/scanAll [post]
 func (api *api) harborScanAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
-
-		log.Warn().Msg("/api/v1/scan/harborScanAll is exposed for testing purpose. " +
-			"Consider removing or disabling it, as it uses Harbor admin credentials.")
 
 		err := api.harbor.ScanAll(ctx)
 		if err != nil {
@@ -72,6 +69,27 @@ func (api *api) harborScanAll() http.HandlerFunc {
 
 		log.Info().Msg("Successfully triggered full scan in Harbor")
 		response.Ok(w)
+	}
+}
+
+// @Summary Get link to scan configuration screen in Harbor.
+// @Description Get link to scan configuration screen in Harbor.
+// @Router /api/v1/scan/harbor/scanConfigURL [get]
+func (api *api) harborGetScanConfigURL() http.HandlerFunc {
+	type respT struct {
+		Href string `json:"href"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		scanConfigLink := api.harbor.GetHarborFullScanConfigURL()
+
+		resp := respT{
+			Href: scanConfigLink,
+		}
+
+		response.Ok(w, response.WithItem(resp))
 	}
 }
 

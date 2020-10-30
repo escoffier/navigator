@@ -5,7 +5,7 @@
         "license": {}
     },
     "paths": {
-        "/api/v1/scan/forceInvalidateCache": {
+        "/api/v1/scan/dev/forceInvalidateCache": {
             "post": {
                 "description": "Force layer cache invalidation. Then reinitialize it.",
                 "produces": [
@@ -14,13 +14,16 @@
                 "summary": "Force layer cache invalidation."
             }
         },
-        "/api/v1/scan/harborScanAll": {
+        "/api/v1/scan/harbor/scanAll": {
             "post": {
                 "description": "Trigger scan of all images in Harbor. This API is exposed for testing purpose.",
-                "produces": [
-                    "application/json"
-                ],
                 "summary": "Trigger scan of all images in Harbor."
+            }
+        },
+        "/api/v1/scan/harbor/scanConfigURL": {
+            "get": {
+                "description": "Get link to scan configuration screen in Harbor.",
+                "summary": "Get link to scan configuration screen in Harbor."
             }
         },
         "/api/v1/scan/one": {

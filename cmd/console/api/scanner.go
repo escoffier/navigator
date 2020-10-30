@@ -18,6 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -29,6 +30,9 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/task/{taskID}", api.getScannerTask())
 		r.Get("/reportsBySeverity", api.listScanReportsBySeverity())
 		r.Post("/scan", api.scan())
+
+		r.Post("/harbor/scanAllNow", api.harborScanAllNow())
+		r.Get("/harbor/scanConfig", api.harborScanConfig())
 	}
 }
 
@@ -387,4 +391,86 @@ func (api *api) scan() http.HandlerFunc {
 			return
 		}
 	}
+}
+
+// @Summary Trigger scan of all images in Harbor.
+// @Description Trigger scan of all images in Harbor.
+// @Router /api/v1/scanner/harbor/scanAllNow [post]
+func (api *api) harborScanAllNow() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		type respT struct{}
+		var resp respT
+		err := api.quickReqToScanner(ctx, "POST", fmt.Sprintf("%s/api/v1/scan/harbor/scanAll", api.scannerURL), &resp)
+		if err != nil {
+			RespAndLog(w, r, err)
+			return
+		}
+
+		response.Ok(w)
+	}
+}
+
+// @Summary Redirect to scan config screen in Harbor.
+// @Description Redirect to scan config screen in Harbor.
+// @Router /api/v1/scanner/harbor/scanConfig [get]
+func (api *api) harborScanConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		type respT struct {
+			Href string `json:"href"`
+		}
+		var resp respT
+		err := api.quickReqToScanner(ctx, "GET", fmt.Sprintf("%s/api/v1/scan/harbor/scanConfigURL", api.scannerURL), &resp)
+		if err != nil {
+			RespAndLog(w, r, err)
+			return
+		}
+
+		w.Header().Set("Location", resp.Href)
+		w.WriteHeader(http.StatusFound)
+	}
+}
+
+func (api *api) quickReqToScanner(ctx context.Context, method, url string, outData interface{}) error {
+	tensorsecScannerReq, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return NewAnError(http.StatusInternalServerError,
+			fmt.Errorf("Failed to prepare request to tensorsec scanner: %w", err))
+	}
+
+	httpClient := http.Client{}
+	tensorsecScannerResp, err := httpClient.Do(tensorsecScannerReq.WithContext(ctx))
+	if err != nil {
+		return NewAnError(http.StatusInternalServerError,
+			fmt.Errorf("Failed to send request to tensorsec scanner: %w", err))
+	}
+	defer tensorsecScannerResp.Body.Close()
+
+	if tensorsecScannerResp.StatusCode != http.StatusOK {
+		// Should we return tensorsecScannerResp.StatusCode here?
+		return NewAnError(tensorsecScannerResp.StatusCode,
+			fmt.Errorf("Failed schedule harbor full scan via tensorsec scanner: %w", err))
+	}
+
+	var tensorsecScannerRespEnvelope response.HTTPEnvelope
+	err = json.NewDecoder(tensorsecScannerResp.Body).Decode(&tensorsecScannerRespEnvelope)
+	if err != nil {
+		return NewAnError(http.StatusInternalServerError,
+			fmt.Errorf("Failed to decode response from tensorsec scanner: %w", err))
+	}
+
+	logging.GetLogger().Info().Str("tensorsecScannerResp", fmt.Sprintf("%+v", tensorsecScannerRespEnvelope)).Msg("Received response from tensorsec scanner")
+
+	json.Unmarshal(tensorsecScannerRespEnvelope.Data.Item, outData)
+	if err != nil {
+		return NewAnError(http.StatusInternalServerError,
+			fmt.Errorf("Failed to unmarshal from tensorsec scanner: %w", err))
+	}
+
+	return nil
 }

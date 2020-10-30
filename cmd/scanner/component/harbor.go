@@ -180,3 +180,7 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 
 	return "", NewHarborForbiddenError(http.StatusForbidden, fmt.Errorf("Didn't find such project in Harbor, make sure user has Admin pemissions"))
 }
+
+func (h HarborRESTClient) GetHarborFullScanConfigURL() string {
+	return fmt.Sprintf("%s/harbor/interrogation-services/vulnerability", h.address)
+}

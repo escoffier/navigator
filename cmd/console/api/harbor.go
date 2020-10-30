@@ -133,6 +133,12 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		}
 		defer tensorsecScannerResp.Body.Close()
 
+		if tensorsecScannerResp.StatusCode != http.StatusOK {
+			e := harbor.NewHarborErrorAndLog(err, "Failed to schedule scan")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
+
 		var tensorsecScannerRespEnvelope response.HTTPEnvelope
 		err = json.NewDecoder(tensorsecScannerResp.Body).Decode(&tensorsecScannerRespEnvelope)
 		if err != nil {

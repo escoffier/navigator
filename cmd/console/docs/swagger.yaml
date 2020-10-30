@@ -266,6 +266,14 @@ paths:
       produces:
       - application/json
       summary: List runtime detection rules
+  /api/v1/scanner/harbor/scanAllNow:
+    post:
+      description: Trigger scan of all images in Harbor.
+      summary: Trigger scan of all images in Harbor.
+  /api/v1/scanner/harbor/scanConfig:
+    get:
+      description: Redirect to scan config screen in Harbor.
+      summary: Redirect to scan config screen in Harbor.
   /api/v1/scanner/reportsBySeverity:
     get:
       description: List reports by severity
