@@ -178,5 +178,5 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 		Str("repoName", fmt.Sprintf("%+v", repoName)).
 		Msgf("Didn't match project")
 
-	return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Didn't find such project in Harbor"))
+	return "", NewHarborForbiddenError(http.StatusForbidden, fmt.Errorf("Didn't find such project in Harbor, make sure user has Admin pemissions"))
 }
