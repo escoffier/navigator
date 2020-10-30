@@ -55,7 +55,10 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			zerolog.Ctx(ctx).Info().Str("cve", cve).Msg("CVE to CNNVD mapping not found in database, will get from cnnvd.org")
 
+			r.cve2cnnvdCollectionMux.Unlock()
+			// This sometimes takes > 2 minutes (!!!) (usually below a second), but let's not starve other goroutines
 			cnnvd, link, err := r.getFromCNNVDdotOrg(ctx, cve)
+			r.cve2cnnvdCollectionMux.Lock()
 			if err != nil {
 				return fmt.Errorf("Failed to get CNNVD from cnnvd.org: %w", err)
 			}
@@ -88,7 +91,10 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 		if cve2cnnvd.UpdatedAt < staleEntryTime {
 			zerolog.Ctx(ctx).Info().Str("cve", cve).Msg("CVE to CNNVD mapping is stale, will get from cnnvd.org")
 
+			r.cve2cnnvdCollectionMux.Unlock()
+			// This sometimes takes > 2 minutes (!!!) (usually below a second), but let's not starve other goroutines
 			cnnvd, link, err := r.getFromCNNVDdotOrg(ctx, cve)
+			r.cve2cnnvdCollectionMux.Lock()
 			if err != nil {
 				return fmt.Errorf("Failed to get CNNVD from cnnvd.org: %w", err)
 			}
