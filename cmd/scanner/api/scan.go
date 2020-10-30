@@ -82,6 +82,9 @@ func (api *api) harborScanAll() http.HandlerFunc {
 // @Router /api/v1/scan/one [post]
 func (api *api) scanOne() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
 		var scanReq model.ScannerReq
 		err := util.DecodeJSONBody(w, r, &scanReq)
 		if err != nil {
@@ -95,22 +98,29 @@ func (api *api) scanOne() http.HandlerFunc {
 		scanReqRedacted.Authorization = "<redacted>"
 		log.Info().Str("request", fmt.Sprintf("%+v", scanReqRedacted)).Msgf("Received scan request")
 
+		harborResultsLink, err := api.harbor.GetHarborScanResultsLink(ctx, scanReq.Repository, scanReq.Digest)
+		if err != nil {
+			RespAndLog(w, r, fmt.Errorf("Failed to obtain harbor results link: %w", err))
+			return
+		}
+
 		task := model.ScanTask{
 			Status:        model.ScanStatusInProgress,
 			StartedAt:     time.Now().Unix(),
 			Repository:    scanReq.Repository,
 			Tag:           scanReq.Tag,
 			URL:           scanReq.URL,
+			HarborURL:     harborResultsLink,
 			Authorization: scanReq.Authorization,
 			ImageDigest:   scanReq.Digest,
 		}
 
 		// persist the task to Mongo
-		ctx, cancel := context.WithTimeout(api.ctx, 10*time.Second)
-		defer cancel()
+		mongoCtx, mongoCancel := context.WithTimeout(ctx, 10*time.Second)
+		defer mongoCancel()
 
 		task.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-		_, err = api.mongodb.Collection(model.ScanTasksCollection).InsertOne(ctx, task)
+		_, err = api.mongodb.Collection(model.ScanTasksCollection).InsertOne(mongoCtx, task)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
 			RespAndLog(w, r,

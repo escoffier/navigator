@@ -105,11 +105,13 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 		}
 
 		// TODO do we care about sensitive filenames in this
-		vulns, _, _, err := r.getVulnsAndSensitivesByDigest(ctx, container.Digest)
+		scanTask, _, err := r.getScanTaskByDigest(ctx, container.Digest)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Couldn't get vulnerability and sensitive filenames: %w", err))
+				fmt.Errorf("Couldn't get scan task by digest: %w", err))
 		}
+
+		vulns := scanTask.ScanReport.Vulns.Vulnerabilities
 
 		containerNameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
 		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
@@ -213,11 +215,14 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 		nameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
 
 		if _, ok := ovDetails.Containers[nameDigest]; !ok {
-			vulns, sensitives, wasScanned, err := r.getVulnsAndSensitivesByDigest(ctx, container.Digest)
+			scanTask, wasScanned, err := r.getScanTaskByDigest(ctx, container.Digest)
 			if err != nil {
 				return nil, NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't get vulnerability and sensitive filenames: %w", err))
+					fmt.Errorf("Couldn't get scan task by digest: %w", err))
 			}
+
+			vulns := scanTask.ScanReport.Vulns.Vulnerabilities
+			sensitives := scanTask.ScanReport.Vulns.Sensitives
 
 			if !wasScanned && (len(vulns) > 0 || len(sensitives) > 0) {
 				logging.GetLogger().Warn().Msg("We report that image wasn't scanned, but scan results are not empty. " +
@@ -238,6 +243,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 				Vulnerabilities:     vulns,
 				SensitiveFiles:      sensitives,
 				WasScanned:          wasScanned,
+				HarborURL:           scanTask.HarborURL,
 			}
 
 			ovDetails.Namespace = container.Namespace // all containers share namespace
@@ -271,7 +277,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 	return &ovDetails, nil
 }
 
-func (r *OnlineVulnsService) getVulnsAndSensitivesByDigest(ctx context.Context, digest string) ([]redclair.VulnerabilityInfo, []redclair.Sensitive, bool, error) {
+func (r *OnlineVulnsService) getScanTaskByDigest(ctx context.Context, digest string) (model.ScanTask, bool, error) {
 	filter := bson.M{
 		"digest": digest,
 	}
@@ -288,11 +294,11 @@ func (r *OnlineVulnsService) getVulnsAndSensitivesByDigest(ctx context.Context, 
 	singleResult := r.mongodb.Collection(model.ScanTasksCollection).FindOne(mongoCtx, filter, findOptions)
 	if singleResult.Err() == mongo.ErrNoDocuments {
 		// Maybe we haven't scanned this image yet, return no results, but indicate that we don't know
-		return []redclair.VulnerabilityInfo{}, []redclair.Sensitive{}, wasScanned, nil
+		return model.ScanTask{}, wasScanned, nil
 	}
 
 	if singleResult.Err() != nil {
-		return []redclair.VulnerabilityInfo{}, []redclair.Sensitive{}, wasScanned,
+		return model.ScanTask{}, wasScanned,
 			NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find freshest scan: %w", singleResult.Err()))
 	}
 
@@ -301,11 +307,11 @@ func (r *OnlineVulnsService) getVulnsAndSensitivesByDigest(ctx context.Context, 
 	var scanTask model.ScanTask
 	err := singleResult.Decode(&scanTask)
 	if err != nil {
-		return []redclair.VulnerabilityInfo{}, []redclair.Sensitive{}, wasScanned,
+		return model.ScanTask{}, wasScanned,
 			NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode scan task: %w", err))
 	}
 
-	return scanTask.ScanReport.Vulns.Vulnerabilities, scanTask.ScanReport.Vulns.Sensitives, wasScanned, nil
+	return scanTask, wasScanned, nil
 }
 
 func (r *OnlineVulnsService) sortVulnsBySeverityAndStuff(vulnerabilities []redclair.VulnerabilityInfo, asc bool) {

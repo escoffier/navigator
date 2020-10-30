@@ -32,6 +32,7 @@ type onlineVulnDetailsContainer struct {
 	Vulnerabilities     []redclair.VulnerabilityInfo          `json:"vulnerabilities"`
 	SensitiveFiles      []redclair.Sensitive                  `json:"sensitiveFiles"`
 	WasScanned          bool                                  `json:"wasScanned"`
+	HarborURL           string                                `json:"harborURL"`
 }
 
 type onlineVulnDetails struct {

@@ -36,6 +36,7 @@ type ScanTask struct {
 	Repository    string             `json:"repository" bson:"repository"`
 	ImageDigest   string             `json:"digest,omitempty" bson:"digest,omitempty"` // sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
 	ScanReport    ScanReport         `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
+	HarborURL     string             `json:"harborURL,omitempty" bson:"harborURL,omitempty"`
 }
 
 // ScanWorkerReport ...

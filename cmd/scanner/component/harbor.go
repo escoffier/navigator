@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -97,11 +98,79 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 		} else if resp.StatusCode == http.StatusConflict {
 			return NewHarborScanAllInProgressError(resp.StatusCode, fmt.Errorf("Harbor scan already in progress: %+v", errorResp))
 		} else if resp.StatusCode == http.StatusServiceUnavailable {
-			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor error, potentially no scanners detected: %+v", errorResp))
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error, potentially no scanners detected: %+v", errorResp))
 		} else {
-			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor error: %+v", errorResp))
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
 		}
 	}
 
 	return nil
+}
+
+func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepoName, shaDigest string) (string, error) {
+
+	projectNameRepoName := strings.Split(fullRepoName, "/") // e.g. tensorsecns/tensorsec-console
+	if len(projectNameRepoName) != 2 {
+		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Unexpected number of elements after splitting fullRepoName"))
+	}
+	projectName := projectNameRepoName[0]
+	repoName := projectNameRepoName[1]
+
+	url := fmt.Sprintf("%s/api/v2.0/projects", h.address)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
+	}
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp harborHTTPErrorResp
+		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		if err != nil {
+			return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+		}
+
+		return "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+	}
+
+	// Relevant response bit:
+	// [
+	//   {
+	//     "name": "library",
+	//     "project_id": 1,
+	//   },
+	// ]
+	type respItemT struct {
+		Name      string `json:"name"`
+		ProjectID int    `json:"project_id"`
+	}
+
+	var respItems []respItemT
+	err = json.NewDecoder(resp.Body).Decode(&respItems)
+	if err != nil {
+		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+	}
+
+	for _, item := range respItems {
+		if item.Name == projectName {
+			// https://localhost:30003/harbor/projects/2/repositories/tensorsec-console/artifacts/sha256:ebf90b1ae8550ec6962e070344c857cf4a510477eadaf83988bae043156c4465
+			return fmt.Sprintf("%s/harbor/projects/%d/repositories/%s/artifacts/%s", h.address, item.ProjectID, repoName, shaDigest), nil
+		}
+	}
+
+	return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Didn't find such project in Harbor"))
 }
