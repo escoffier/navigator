@@ -16,6 +16,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/sync/semaphore"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -56,6 +57,8 @@ type RedClairService struct {
 	skipRegistryTLSVerify bool
 
 	clairDBConnectionString string
+
+	syncSemaphore *semaphore.Weighted
 }
 
 // NewRedClair creates the instance of RedClair
@@ -64,6 +67,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 	if err != nil {
 		return nil, err
 	}
+	s := semaphore.NewWeighted(int64(clairOpts.NumWorkers))
 	return &RedClairService{
 		ctx:                     ctx,
 		mongodb:                 db,
@@ -73,6 +77,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		redclairEngine:          redclairEng,
 		skipRegistryTLSVerify:   clairOpts.SkipRegistryTLSVerify,
 		clairDBConnectionString: clairOpts.PostgresConnectionString,
+		syncSemaphore:           s,
 	}, nil
 }
 
@@ -91,13 +96,20 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 	}
 	defer rcSvc.redclairEngine.StopImageHTTPServer()
 
+	cRun := make([]chan interface{}, rcSvc.numWorkers)
+	cStop := make([]chan interface{}, rcSvc.numWorkers)
+	for i := 0; i < rcSvc.numWorkers; i++ {
+		cRun[i] = make(chan interface{}, 1)
+		cStop[i] = make(chan interface{}, 1)
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go rcSvc.cacheInvalidatorRun(ctx, &wg)
+	go rcSvc.cacheInvalidatorRun(ctx, cRun, cStop, &wg)
 
 	for i := 0; i < rcSvc.numWorkers; i++ {
 		wg.Add(1)
-		go rcSvc.workerRun(ctx, i, &wg)
+		go rcSvc.workerRun(ctx, cRun[i], cStop[i], i, &wg)
 	}
 	wg.Wait()
 	log.Info().Msg("All Redclair workers finished")
@@ -129,7 +141,7 @@ func (rcSvc *RedClairService) ForceInvalidateCache(ctx context.Context) error {
 	return nil
 }
 
-func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.WaitGroup) {
+func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, cRun []chan interface{}, cStop []chan interface{}, wg *sync.WaitGroup) {
 	log.Info().Msg("Started cache invalidator worker")
 
 	defer wg.Done()
@@ -139,9 +151,30 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
+			log.Info().Msg("Sending request to workers to finish work and wait until update finished")
+			for i, workerC := range cStop {
+				select {
+				case <-workerC:
+					log.Info().Int("worker", i).Msg("Worker hasn't run inbetween clair updates. Refreshing lock")
+					select {
+					case <-cRun[i]:
+					default:
+					}
+				default:
+				}
+				workerC <- struct{}{}
+			}
+			log.Info().Msg("Waiting until workers finish their work before clair update")
+			rcSvc.syncSemaphore.Acquire(ctx, int64(rcSvc.numWorkers))
+			log.Info().Msg("Updating layer cache")
 			err := rcSvc.updateLayerCache(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("Cache invalidator worker - updateLayerCache failed")
+			}
+			log.Info().Msg("Resuming workers after clair update")
+			rcSvc.syncSemaphore.Release(int64(rcSvc.numWorkers))
+			for _, workerC := range cRun {
+				workerC <- struct{}{}
 			}
 		case <-ctx.Done():
 			break loop
@@ -150,7 +183,7 @@ loop:
 	log.Info().Msg("Shutting down Redclair cache invalidator worker")
 }
 
-func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
+func (rcSvc *RedClairService) workerRun(ctx context.Context, cRun chan interface{}, cStop chan interface{}, id int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	workerSublogger := log.With().Int("worker-id", id).Logger()
@@ -160,8 +193,22 @@ func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.Wa
 loop:
 	for {
 		select {
+		case <-cStop:
+			zerolog.Ctx(ctx).Info().Msg("Waiting until global lock is released")
+			<-cRun
+			zerolog.Ctx(ctx).Info().Msg("Global lock released")
+		default:
+		}
+		select {
 		case scanTask := <-rcSvc.scanTasksChan:
+			zerolog.Ctx(ctx).Info().Msg("Trying to acquire scanning lock")
+			rcSvc.syncSemaphore.Acquire(ctx, 1)
+			zerolog.Ctx(ctx).Info().Msg("Starting image scanning")
+			time.Sleep(time.Second * 30)
 			rcSvc.asyncProcessScanTask(ctx, scanTask)
+			zerolog.Ctx(ctx).Info().Msg("Finished image scanning")
+			rcSvc.syncSemaphore.Release(1)
+			zerolog.Ctx(ctx).Info().Msg("Scanning lock released")
 		case <-ctx.Done():
 			break loop
 		}
@@ -196,7 +243,6 @@ func (rcSvc *RedClairService) getVulnerabilityUpdatedAt(ctx context.Context) (st
 }
 
 func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) error {
-	log.Info().Msg("Updating layer cache")
 	db, err := sql.Open("postgres", rcSvc.clairDBConnectionString)
 	if err != nil {
 		return fmt.Errorf("Failed to open Clair DB connection: %w", err)

@@ -60,6 +60,7 @@ require (
 	go.mongodb.org/mongo-driver v1.1.3
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/tools v0.0.0-20200904185747-39188db58858 // indirect
 	google.golang.org/appengine v1.5.0 // indirect
 	google.golang.org/grpc v1.23.0
