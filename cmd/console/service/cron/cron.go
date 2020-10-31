@@ -74,6 +74,8 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 }
 
 func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, checkType string) error {
+	logging.GetLogger().Info().Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Registering compliance cron")
+
 	var cronID int
 	var cronString string
 	if checkType == "kube" {
@@ -100,12 +102,17 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 	}
 	if cronString != "" {
 		newCronID, err := s.cron.AddFunc(cronString, func() {
-			newCtx, newCtxCancel := context.WithTimeout(ctx, time.Second*60)
+			logging.GetLogger().Info().Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Starting compliance cron job now")
+
+			newCtx, newCtxCancel := context.WithTimeout(ctx, time.Minute*10)
 			defer newCtxCancel()
 			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Failed to run compliance check")
+				logging.GetLogger().Error().Err(err).Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Failed to run compliance check")
+			} else {
+				logging.GetLogger().Info().Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Compliance cron job finished successfully")
 			}
+
 			// TODO: I though that here next and prev times can be updated via channels to spawned goroutines
 			// responsible for updating times in DB. Problem is, that those fields in cron.Entry
 			// are updated after the job is run, so there might be a race condition here
@@ -113,7 +120,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 		})
 		// TODO: maybe retry on error?
 		if err != nil {
-			return NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't schedule job: %w", err))
+			return NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't schedule job: %w", err), Suberror{"cronString", err.Error()})
 		}
 		if checkType == "kube" {
 			cluster.CronConfig.KubeBenchCron.CronID = int(newCronID)

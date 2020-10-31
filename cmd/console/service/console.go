@@ -190,7 +190,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When starting cron jobs: %w", err))
 	}
 
-	log.Info().Msg("Vegeta Console started")
+	log.Info().Msg("TensorNavigator started")
 
 	return func() {
 		c.cancel()
@@ -204,7 +204,7 @@ func (c *Console) Run() func() {
 		}
 		wg.Wait()
 
-		log.Info().Msg("Vegeta Console stopped")
+		log.Info().Msg("TensorNavigator stopped")
 	}
 }
 
