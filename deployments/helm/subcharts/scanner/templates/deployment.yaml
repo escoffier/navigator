@@ -51,7 +51,6 @@ spec:
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-master:6379",
-          "--redis-password={{ .Values.redis.password }}",
           "-v"]
         env:
           - name: TENSORSEC_HARBOR_PASSWORD
@@ -64,7 +63,12 @@ spec:
               secretKeyRef:
                 name: {{ .Values.mongo.mongoSecretName }}
                 key: mongodb-password
-          
+          - name: TENSORSEC_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.redis.redisSecretName }}
+                key: password
+              
 
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}

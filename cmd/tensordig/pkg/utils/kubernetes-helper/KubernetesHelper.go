@@ -6,6 +6,8 @@ import (
 	"os"
 	"regexp"
 
+	log "github.com/sirupsen/logrus"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -117,7 +119,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 			}
 		}
 	}
-	// log.Infof("Cached pod %s and container %s don't exist in the cluster anymore\n", kid, cid)
+	log.Infof("Cached pod %s and container %s don't exist in the cluster anymore\n", kid, cid)
 	return &SyscallContext{
 		Namespace:     "",
 		PodName:       "",
@@ -143,24 +145,24 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 	}
 	defer f.Close()
 
-	// log.Infof("Scanning %d cpuset", pid)
+	log.Infof("Scanning %d cpuset", pid)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// log.Infof("Currently scanned line: %s", line)
+		log.Infof("Currently scanned line: %s", line)
 		parts := dockerPattern.FindStringSubmatch(line)
 		if parts != nil {
-			// log.Infof("Found match for %d against %s", pid, dockerPattern)
+			log.Infof("Found match for %d against %s", pid, dockerPattern)
 			return parts[2], parts[1], nil
 		}
-		// log.Infof("Match not for against %s", dockerPattern)
+		log.Infof("Match not for against %s", dockerPattern)
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
-			// log.Infof("Found match for %d against %s", pid, kubePattern)
+			log.Infof("Found match for %d against %s", pid, kubePattern)
 			return parts[2], parts[1], nil
 		}
-		// log.Infof("Match not for against %s", kubePattern)
+		log.Infof("Match not for against %s", kubePattern)
 	}
-	// log.Infof("No match for %d in its cpuset", pid)
+	log.Infof("No match for %d in its cpuset", pid)
 	return "", "", nil
 }

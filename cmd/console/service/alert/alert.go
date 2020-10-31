@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	alertCol          = "alert"
 	alertPollInterval = time.Second * 30
 	alertPollTimeout  = time.Second * 15
 )
@@ -34,7 +33,7 @@ type AlertService struct {
 	elasticClient     *elastic.Client
 	rs                *rule.RuleService
 	mongodb           *mongo.Database
-	lastPollTimestamp string
+	lastPollTimestamp time.Time
 	ctx               context.Context
 }
 
@@ -44,7 +43,7 @@ func NewAlertService(ctx context.Context, rs *rule.RuleService, es *elastic.Clie
 		elasticClient:     es,
 		rs:                rs,
 		mongodb:           mongodb,
-		lastPollTimestamp: time.Now().Format(time.RFC3339),
+		lastPollTimestamp: time.Now(),
 		ctx:               ctx,
 	}
 	go alertService.alertPoller()
@@ -76,10 +75,10 @@ loop:
 }
 
 func (s *AlertService) pollAlerts(ctx context.Context) error {
-	lastPollTimestampFrom := s.lastPollTimestamp
-	lastPollTimestampTo := time.Now().Format(time.RFC3339)
+	lastPollTimestampFrom := s.lastPollTimestamp.Add(time.Duration(-5) * time.Minute)
+	lastPollTimestampTo := time.Now()
 
-	logging.GetLogger().Info().Str("fromTimestamp", lastPollTimestampFrom).Str("timetsampTo", lastPollTimestampTo).Msg("Searching for new detections")
+	logging.GetLogger().Info().Str("fromTimestamp", lastPollTimestampFrom.Format(time.RFC3339)).Str("timetsampTo", lastPollTimestampTo.Format(time.RFC3339)).Msg("Searching for new detections")
 	var buf bytes.Buffer
 	query := fmt.Sprintf(
 		`{
@@ -91,7 +90,7 @@ func (s *AlertService) pollAlerts(ctx context.Context) error {
 					}
 				}
 			}
-		}`, lastPollTimestampFrom, lastPollTimestampTo)
+		}`, lastPollTimestampFrom.Format(time.RFC3339), lastPollTimestampTo.Format(time.RFC3339))
 
 	var b strings.Builder
 	b.WriteString(query)
@@ -129,88 +128,94 @@ func (s *AlertService) pollAlerts(ctx context.Context) error {
 	if searchResult.Hits.TotalHits.Value > 0 {
 		for _, hit := range searchResult.Hits.Hits {
 			var queryAlert alert.Alert
-			elasticID := hit.Uid
+			elasticID := hit.Id
 			var elasticAlert map[string]interface{}
 			err := json.Unmarshal(hit.Source, &elasticAlert)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Failed to parse elasticsearch result")
+				logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to parse elasticsearch result")
+				continue
 			}
 			filter := bson.M{"elasticId": elasticID}
-			queryResult := s.mongodb.Collection(alertCol).FindOne(ctx, filter)
-			if queryResult.Err() != nil {
-				if queryResult.Err() == mongo.ErrNoDocuments {
-					vulnerability := ""
-					if val, ok := elasticAlert["socket__protocol"]; ok {
-						if int(val.(float64)) == 132 {
-							vulnerability = "CVE-2019-3874"
-						}
+			queryResult := s.mongodb.Collection(alert.AlertCollection).FindOne(ctx, filter)
+			if queryResult.Err() == mongo.ErrNoDocuments {
+				vulnerability := ""
+				if val, ok := elasticAlert["socket__protocol"]; ok {
+					if int(val.(float64)) == 132 {
+						vulnerability = "CVE-2019-3874"
 					}
-					if val, ok := elasticAlert["socket__family"]; ok {
-						if int(val.(float64)) == 17 {
-							vulnerability = "CVE-2020-14386"
-						}
-					}
-					if _, ok := elasticAlert["reverse_shell_socket_dup2"]; ok {
-						vulnerability = "RS_SOCKET_DUP2"
-					}
-					if val, ok := elasticAlert["openat__filename"]; ok {
-						if val.(string) == "/proc/self/exe" {
-							vulnerability = "CVE-2019-5736"
-						}
-					}
-					if val, ok := elasticAlert["open__filename"]; ok {
-						if val.(string) == "/proc/self/exe" {
-							vulnerability = "CVE-2019-5736"
-						}
-					}
-					if val, ok := elasticAlert["execve__filename"]; ok {
-						if val.(string) == "/usr/bin/sudo" {
-							vulnerability = "CVE-2019-14287"
-						} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
-							vulnerability = "RS-NC"
-						}
-					}
-					if val, ok := elasticAlert["exec__filename"]; ok {
-						if val.(string) == "/usr/bin/sudo" {
-							vulnerability = "CVE-2019-14287"
-						} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
-							vulnerability = "RS-NC"
-						}
-					}
-
-					logging.GetLogger().Info().Str("vulnerability", vulnerability).Msg("Checking if vulnerability supported")
-					for _, enabledRule := range enabledRules {
-						if enabledRule.Name == vulnerability {
-							logging.GetLogger().Info().Str("vulnerability", vulnerability).Msg("Vulnerability supported")
-
-							queryAlert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-							queryAlert.Acknowledged = false
-							queryAlert.ContainerID = elasticAlert["ContainerID"].(string)
-							queryAlert.ElasticID = elasticID
-							queryAlert.PodName = elasticAlert["PodName"].(string)
-							queryAlert.PodUID = elasticAlert["PodUID"].(string)
-							queryAlert.RuleName = enabledRule.Name
-							queryAlert.Cvss3Score = enabledRule.Cvss3Score
-							queryAlert.Cvss3Vector = enabledRule.Cvss3Vector
-							elasticTimestampLayout := "2006-01-02T15:04:05.000Z"
-							t, err := time.Parse(elasticTimestampLayout, elasticAlert["@timestamp"].(string))
-							if err != nil {
-								logging.GetLogger().Error().Err(err).Str("timestamp", elasticAlert["@timestamp"].(string)).Str("elasticID", elasticID).Msg("Failed to parse timestamp")
-							}
-							queryAlert.Timestamp = t
-							_, err = s.mongodb.Collection(alertCol).InsertOne(ctx, queryAlert)
-							if err != nil {
-								logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to insert alert from elastic to mongo")
-							}
-						}
-					}
-				} else {
-					logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to check if alert is already recognized by the system")
 				}
+				if val, ok := elasticAlert["socket__family"]; ok {
+					if int(val.(float64)) == 17 {
+						vulnerability = "CVE-2020-14386"
+					}
+				}
+				if _, ok := elasticAlert["reverse_shell_socket_dup2"]; ok {
+					vulnerability = "RS-SOCKET_DUP2"
+				}
+				if val, ok := elasticAlert["openat__filename"]; ok {
+					if val.(string) == "/proc/self/exe" {
+						vulnerability = "CVE-2019-5736"
+					}
+				}
+				if val, ok := elasticAlert["open__filename"]; ok {
+					if val.(string) == "/proc/self/exe" {
+						vulnerability = "CVE-2019-5736"
+					}
+				}
+				if val, ok := elasticAlert["execve__filename"]; ok {
+					if val.(string) == "/usr/bin/sudo" {
+						vulnerability = "CVE-2019-14287"
+					} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
+						vulnerability = "RS-NC"
+					}
+				}
+				if val, ok := elasticAlert["exec__filename"]; ok {
+					if val.(string) == "/usr/bin/sudo" {
+						vulnerability = "CVE-2019-14287"
+					} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
+						vulnerability = "RS-NC"
+					}
+				}
+
+				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Checking if vulnerability supported")
+				isEnabled := false
+				for _, enabledRule := range enabledRules {
+					if enabledRule.Name == vulnerability {
+						logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
+
+						isEnabled = true
+						queryAlert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+						queryAlert.Acknowledged = false
+						queryAlert.ContainerID = elasticAlert["ContainerID"].(string)
+						queryAlert.ElasticID = elasticID
+						queryAlert.PodName = elasticAlert["PodName"].(string)
+						queryAlert.PodUID = elasticAlert["PodUID"].(string)
+						queryAlert.RuleName = enabledRule.Name
+						queryAlert.Cvss3Score = enabledRule.Cvss3Score
+						queryAlert.Cvss3Vector = enabledRule.Cvss3Vector
+						t, err := time.Parse(time.RFC3339, elasticAlert["@timestamp"].(string))
+						if err != nil {
+							logging.GetLogger().Error().Err(err).Str("timestamp", elasticAlert["@timestamp"].(string)).Str("elasticID", elasticID).Msg("Failed to parse timestamp")
+							continue
+						}
+						queryAlert.Timestamp = t
+						_, err = s.mongodb.Collection(alert.AlertCollection).InsertOne(ctx, queryAlert)
+						if err != nil {
+							logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to insert alert from elastic to mongo")
+							continue
+						}
+					}
+				}
+				if !isEnabled {
+					continue
+				}
+				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Polled alert not recognized by the platform")
+				results = append(results, queryAlert)
+			} else if queryResult.Err() != nil {
+				logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to check if alert is already recognized by the system")
 			} else {
-				logging.GetLogger().Error().Err(err).Msg("Polled alert that is already recognized by the platform")
+				logging.GetLogger().Info().Str("elasticID", elasticID).Msg("Polled alert that is already recognized by the platform")
 			}
-			results = append(results, queryAlert)
 		}
 	}
 	fmt.Printf("Upserting %+v to mongo\n", results)
@@ -222,7 +227,7 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 	var queryAlert alert.Alert
 	filter := bson.M{"_id": alertObjectID}
 
-	queryResult := s.mongodb.Collection(alertCol).FindOne(ctx, filter)
+	queryResult := s.mongodb.Collection(alert.AlertCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -242,9 +247,9 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 	queryAlert.ID = alertObjectID
 	update := bson.M{"$set": queryAlert}
 
-	_, err = s.mongodb.Collection(alertCol).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Collection(alert.AlertCollection).UpdateOne(ctx, filter, update)
 
-	queryResult = s.mongodb.Collection(alertCol).FindOne(ctx, filter)
+	queryResult = s.mongodb.Collection(alert.AlertCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -271,7 +276,7 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 	opts.SetSkip(offset)
 	opts.SetLimit(limit)
 	opts.SetSort(bson.D{{"cvss3Score", -1}, {"timestamp", -1}})
-	coll := s.mongodb.Collection(alertCol)
+	coll := s.mongodb.Collection(alert.AlertCollection)
 
 	cur, err := coll.Find(ctx, filter, opts)
 	if err != nil {

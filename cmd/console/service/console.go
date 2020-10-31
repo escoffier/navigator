@@ -17,6 +17,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/olivere/elastic/v7"
+	alertModel "gitlab.com/piccolo_su/vegeta/cmd/console/model/alert"
+	ruleModel "gitlab.com/piccolo_su/vegeta/cmd/console/model/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
@@ -252,7 +254,25 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-
+	neededIndexesPerCollection[alertModel.AlertCollection] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"timestamp": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"cvss3Score": 1,
+			}, Options: nil,
+		},
+	}
+	neededIndexesPerCollection[ruleModel.RuleCollection] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+	}
 	for collectionName, indexModel := range neededIndexesPerCollection {
 		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
 

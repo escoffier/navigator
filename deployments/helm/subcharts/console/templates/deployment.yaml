@@ -46,7 +46,6 @@ spec:
           "--elastic-port={{ .Values.elastic.port }}",
           "--elastic-index={{ .Values.elastic.index }}",
           "--elastic-username={{ (index .Values.elasticsearch.extraEnvs 0).value }}",
-          "--elastic-password={{ (index .Values.elasticsearch.extraEnvs 1).value }}",
           "-v"]
 
         volumeMounts:
@@ -59,7 +58,12 @@ spec:
             secretKeyRef:
               name: {{ .Values.mongo.mongoSecretName }}
               key: mongodb-password
-
+        - name: TENSORSEC_ELASTIC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.elasticsearch.elasticSecretName }}
+              key: elastic-password
+      
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}

@@ -75,35 +75,35 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 			ptid := int(event.EventInfo.Ptgid)
 			containerPID, err := cu.GetContainerPid(pid)
 			if err != nil {
-				// log.Error("Problem getting container ID", err)
+				log.Error("Problem getting container ID", err)
 				continue
 			}
 			if containerPID == 1 {
-				// log.Infof("Checking if parent %d of %d still has docker context\n", pid, ptid)
+				log.Infof("Checking if parent %d of %d still has docker context\n", pid, ptid)
 				containerPID, err = cu.GetContainerPid(ptid)
 				if err != nil {
-					// log.Error("Problem getting container ID", err)
+					log.Error("Problem getting container ID", err)
 					continue
 				}
 			}
 			if containerPID == 1 {
-				// log.Infof("Host process: %d", pid)
+				log.Infof("Host process: %d", pid)
 				continue
 			}
 			if pid > 0 {
 				info, err := ku.LookupPod(containerPID, pid, ExtraInfo["syscall"].(string))
 				if err != nil {
-					// log.Error("Problem getting pod ID", err)
+					log.Error("Problem getting pod ID", err)
 				} else {
 					if info.DockerPID <= 0 {
 						info, err = ku.LookupPod(containerPID, ptid, ExtraInfo["syscall"].(string))
 						if err != nil {
-							// log.Error("Problem getting pod ID", err)
+							log.Error("Problem getting pod ID", err)
 							continue
 						}
 					}
 					if info.DockerPID <= 0 {
-						// log.Infof("Host process: %d", pid)
+						log.Infof("Host process: %d", pid)
 						continue
 					} else {
 						out := map[string]interface{}{}
@@ -130,7 +130,7 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 						} else if info.Syscall == "dup2" {
 							_, found := cc.cache.Get(info.ContainerID + " " + strconv.FormatUint(ExtraInfo["dup2__oldfd"].(uint64), 10))
 							if found {
-								// log.Info("Reverse shell attempt with socket/dup2 detected")
+								log.Info("Reverse shell attempt with socket/dup2 detected")
 								out["reverse_shell_socket_dup2"] = "true"
 							} else {
 								// If there is no match with a socket fd in the same pod, we don't want to track this dup2 syscall
@@ -140,7 +140,7 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 						log.Info(out)
 						jsonStr, _ := json.Marshal(out)
 						if _, err := f.WriteString(string(jsonStr) + "\n"); err != nil {
-							// log.Error("Error writing json to file", err)
+							log.Error("Error writing json to file", err)
 							continue
 						}
 						log.Info("Successfully saved to file")

@@ -6,6 +6,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	AlertCollection = "alerts"
+)
+
 type Alert struct {
 	ID           primitive.ObjectID `json:"id" bson:"_id, omitempty"`
 	Acknowledged bool               `json:"acknowledged" bson:"acknowledged"`

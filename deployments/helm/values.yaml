@@ -12,12 +12,14 @@ scanner:
   # TODO: reference below variables from the original setting (maybe Helm enables it?) 
   redis:
     password: Redis12345
+    redisSecretName: redis-secret
   clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
 
 console:
   # TODO: reference below variables from the original setting (maybe Helm enables it?) 
   elasticsearch:
+    elasticSecretName: elastic-secret
     extraEnvs:
       - name: ELASTIC_PASSWORD
         value: Elastic12345
