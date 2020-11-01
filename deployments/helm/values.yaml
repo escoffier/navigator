@@ -38,7 +38,7 @@ postgresql:
   enabled: true
   image:
     repository: arminc/clair-db # Custom image with prefilled vulnerabilities info
-    tag: latest
+    tag: "2020-10-29" # Use specific tag for now until we fix TEN-31
   # Use the same PGDATA as the travis job that builds arminc/clair-db
   # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
   postgresqlDataDir: /var/lib/postgresql/clair
