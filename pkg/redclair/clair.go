@@ -20,15 +20,21 @@ const (
 
 // VulnerabilityInfo ...
 type VulnerabilityInfo struct {
-	FeatureName    string   `json:"featurename"`
-	FeatureVersion string   `json:"featureversion"`
-	CVE            string   `json:"cve"`
-	CNNVD          string   `json:"cnnvd"`
-	Namespace      string   `json:"namespace"`
-	Description    string   `json:"description"`
-	Links          []string `json:"links"`
-	Severity       string   `json:"severity"`
-	FixedBy        string   `json:"fixedby"`
+	FeatureName               string   `json:"featurename" bson:"featurename"`
+	FeatureVersion            string   `json:"featureversion" bson:"featureversion"`
+	CVE                       string   `json:"cve" bson:"cve"` // technically, this doesn't have to be CVE. This could be for example ELSA...
+	CNNVD                     string   `json:"cnnvd" bson:"cnnvd"`
+	Namespace                 string   `json:"namespace" bson:"namespace"`
+	Description               string   `json:"description" bson:"description"`
+	Links                     []string `json:"links" bson:"links"`
+	Severity                  string   `json:"severity" bson:"severity"`
+	FixedBy                   string   `json:"fixedby" bson:"fixedby"`
+	CVSSv2Score               string   `json:"cvssv2score" bson:"cvssv2score"`
+	CVSSv2Vector              string   `json:"cvssv2vector" bson:"cvssv2vector"`
+	CVSSv3Score               string   `json:"cvssv3score" bson:"cvssv3score"`
+	CVSSv3ExploitabilityScore string   `json:"cvssv3exploitabilityScore" bson:"cvssv3exploitabilityScore"`
+	CVSSv3ImpactScore         string   `json:"cvssv3impactScore" bson:"cvssv3impactScore"`
+	CVSSv3Vector              string   `json:"cvssv3vector" bson:"cvssv3vector"`
 }
 
 // https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
@@ -122,18 +128,34 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 	for _, feature := range rawVulnerabilities.Features {
 		if len(feature.Vulnerabilities) > 0 {
 			for _, vulnerability := range feature.Vulnerabilities {
-				links := []string{vulnerability.Link}
-				vulnerability := VulnerabilityInfo{
-					FeatureName:    feature.Name,
-					FeatureVersion: feature.Version,
-					CVE:            vulnerability.Name,
-					Namespace:      vulnerability.NamespaceName,
-					Description:    vulnerability.Description,
-					Links:          links,
-					Severity:       vulnerability.Severity,
-					FixedBy:        vulnerability.FixedBy,
+
+				var meta metadataT
+				json.Unmarshal([]byte(vulnerability.Metadata), &meta)
+				if err != nil {
+					zerolog.Ctx(ctx).Warn().Err(err).
+						Str("raw", fmt.Sprintf("%+v", vulnerability.Metadata)).
+						Msgf("Failed to unmarshall metadata of %s", digest)
 				}
-				vulnerabilitiesMap[vulnerability.CVE] = vulnerability
+
+				links := []string{vulnerability.Link}
+				newVuln := VulnerabilityInfo{
+					FeatureName:               feature.Name,
+					FeatureVersion:            feature.Version,
+					CVE:                       vulnerability.Name,
+					Namespace:                 vulnerability.NamespaceName,
+					Description:               vulnerability.Description,
+					Links:                     links,
+					Severity:                  vulnerability.Severity,
+					FixedBy:                   vulnerability.FixedBy,
+					CVSSv2Vector:              meta.NVD.CVSSv2.Vectors,
+					CVSSv2Score:               meta.NVD.CVSSv2.Score.String(),
+					CVSSv3Vector:              meta.NVD.CVSSv3.Vectors,
+					CVSSv3Score:               meta.NVD.CVSSv3.Score.String(),
+					CVSSv3ImpactScore:         meta.NVD.CVSSv3.ImpactScore.String(),
+					CVSSv3ExploitabilityScore: meta.NVD.CVSSv3.ExploitabilityScore.String(),
+				}
+
+				vulnerabilitiesMap[newVuln.CVE] = newVuln
 			}
 		}
 	}
@@ -163,15 +185,15 @@ func (r Redclair) fetchLayerVulnerabilities(ctx context.Context, layerID string)
 		if err != nil {
 			return NewerLayer{}, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to read response from Clair: %w", err))
 		}
-		return NewerLayer{}, NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 201, got: %v, body: %v", response.StatusCode, string(body)))
+		return NewerLayer{}, NewClairError(http.StatusInternalServerError, fmt.Errorf("Expected Clair to return status 200, got: %v, body: %v", response.StatusCode, string(body)))
 	}
 
 	var apiResponse NewerLayerEnvelope
 	if err = json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
 		return NewerLayer{}, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode reponse from Clair: %w", err))
-	} else if apiResponse.Error != nil {
+	}
+	if apiResponse.Error != nil {
 		return NewerLayer{}, NewClairError(http.StatusInternalServerError, fmt.Errorf("Clair responded with error: %v", apiResponse.Error.Message))
-
 	}
 
 	return apiResponse.Layer, nil

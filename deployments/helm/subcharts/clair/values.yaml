@@ -7,8 +7,7 @@ insecureTls: false
 image:
   name: coreos/clair
   repository: quay.io
-  # name: arminc/clair-local-scan
-  tag: v2.1.4
+  tag: v2.1.6
   pullPolicy: Always
 service:
   type: ClusterIP
@@ -40,7 +39,7 @@ config:
   postgresServiceName: "tensorsec-postgresql"
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   paginationKey: "XxoPtCUzrUv4JV5dS+yQ+MdW7yLEJnRMwigVY/bpgtQ="
-  updateInterval: 2h
+  updateInterval: 0 # 0 disables - disable updates for now until we fix TEN-31
   # notificationWebhookEndpoint: https://example.com/notify/me
   enabledUpdaters:
   - debian
