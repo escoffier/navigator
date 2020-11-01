@@ -41,10 +41,12 @@ type ScanTask struct {
 
 // ScanWorkerReport ...
 type ScanWorkerReport struct {
-	Vulns     []redclair.VulnerabilityInfo `json:"vulnerability" bson:"vulnerability"`
-	Files     []redclair.FileSignature     `json:"files" bson:"files"`
-	Software  []redclair.Software          `json:"software" bson:"software"`
-	Sensitive []redclair.Sensitive         `json:"sensitive" bson:"sensitive"`
+	Vulns        []redclair.VulnerabilityInfo `json:"vulnerability" bson:"vulnerability"`
+	VulnsAdded   []redclair.VulnerabilityInfo `json:"vulnerabilityAdded" bson:"vulnerabilityAdded"`
+	VulnsRemoved []redclair.VulnerabilityInfo `json:"vulnerabilityRemoved" bson:"vulnerabilityRemoved"`
+	Files        []redclair.FileSignature     `json:"files" bson:"files"`
+	Software     []redclair.Software          `json:"software" bson:"software"`
+	Sensitive    []redclair.Sensitive         `json:"sensitive" bson:"sensitive"`
 }
 
 // ScanReport ...

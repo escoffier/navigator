@@ -13,6 +13,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -141,7 +142,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 			i = i + 1
 		}
 
-		r.sortVulnsBySeverityAndStuff(vulns, true)
+		util.SortVulnsBySeverityAndStuff(vulns, true)
 
 		topVulnsNum := len(vulns)
 		if len(vulns) >= 5 {
@@ -230,7 +231,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 				wasScanned = true
 			}
 
-			r.sortVulnsBySeverityAndStuff(vulns, true)
+			util.SortVulnsBySeverityAndStuff(vulns, true)
 
 			ovDetails.Containers[nameDigest] = onlineVulnDetailsContainer{
 				Name:                container.Name,
@@ -312,27 +313,6 @@ func (r *OnlineVulnsService) getScanTaskByDigest(ctx context.Context, digest str
 	}
 
 	return scanTask, wasScanned, nil
-}
-
-func (r *OnlineVulnsService) sortVulnsBySeverityAndStuff(vulnerabilities []redclair.VulnerabilityInfo, asc bool) {
-	sort.Slice(vulnerabilities, func(i, j int) bool {
-		if !asc {
-			i, j = j, i
-		}
-
-		if redclair.SeverityMap[vulnerabilities[i].Severity] < redclair.SeverityMap[vulnerabilities[j].Severity] {
-			return true
-		} else if redclair.SeverityMap[vulnerabilities[i].Severity] > redclair.SeverityMap[vulnerabilities[j].Severity] {
-			return false
-		}
-
-		if vulnerabilities[i].CVE < vulnerabilities[j].CVE {
-			return true
-		} else if vulnerabilities[i].CVE > vulnerabilities[j].CVE {
-			return false
-		}
-		return false
-	})
 }
 
 func (r *OnlineVulnsService) sortVulnListItemByOverallSeverity(onlineVulnsList []onlineVulnListItem, asc bool) {

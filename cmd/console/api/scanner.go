@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	s "gitlab.com/piccolo_su/vegeta/cmd/console/model/scanner"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -29,6 +30,8 @@ func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/task/{taskID}", api.getScannerTask())
 		r.Get("/reportsBySeverity", api.listScanReportsBySeverity())
+		r.Get("/reportsByImage", api.listScannerImageVulnerabilities())
+		r.Get("/report/{taskID}", api.getScannerImageVulnerabilities())
 		r.Post("/scan", api.scan())
 
 		r.Post("/harbor/scanAllNow", api.harborScanAllNow())
@@ -42,6 +45,150 @@ func getTaskObjectIDFromURL(r *http.Request) (primitive.ObjectID, error) {
 		return primitive.NilObjectID, errors.New("taskID is not provided")
 	}
 	return primitive.ObjectIDFromHex(taskID)
+}
+
+// @Summary List images and their vulnerabilities
+// @Description List images and their vulnerabilities
+// @Produce json
+// @Param taskID path string true "scan task ID"
+// @Router /api/v1/scanner/report/{taskID} [get]
+func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// get ObjectID
+		taskObjectID, err := getTaskObjectIDFromURL(r)
+		if err != nil {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Couldn't read taskID: %w", err),
+					Suberror{"taskID", ""}))
+			return
+		}
+
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
+
+		// from mongo
+		var scanTask model.ScanTask
+		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
+			ctx, bson.M{"_id": taskObjectID}).Decode(&scanTask)
+		if err != nil {
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
+			return
+		}
+
+		result := &s.ImageScanResult{}
+		report := scanTask.ScanReport.Vulns
+		util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, true)
+
+		topVulnsNum := len(report.Vulnerabilities)
+		if len(report.Vulnerabilities) >= 5 {
+			topVulnsNum = 5
+		}
+		result.TopVulns = report.Vulnerabilities[:topVulnsNum]
+
+		if len(result.TopVulns) >= 1 {
+			result.OverallSeverity = report.Vulnerabilities[0].Severity
+		} else {
+			result.OverallSeverity = "Unknown"
+		}
+
+		result.Repository = report.Repository
+		result.Tag = report.Tag
+		result.Digest = report.Digest
+		result.PerLayerReport = report.PerLayerReport
+		result.TaskID = scanTask.ID
+
+		response.Ok(w, response.WithItem(result))
+	}
+}
+
+// @Summary List images and their vulnerabilities
+// @Description List images and their vulnerabilities
+// @Produce json
+// @Param offset query int false "from offset"
+// @Param limit query int false "returned data limit"
+// @Router /api/v1/scanner/reportsByImage [get]
+func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx()
+		defer cancel()
+
+		offset, limit := api.getOffsetAndLimit(r)
+
+		filter := bson.M{}
+		findOptions := options.Find()
+		findOptions.SetSort(bson.D{{"finishedAt", 1}})
+
+		cursor, err := api.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter, findOptions)
+		if err != nil {
+			RespAndLog(w, r,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
+			return
+		}
+		defer cursor.Close(ctx)
+
+		scanTasksMap := make(map[string]model.ScanTask)
+		for cursor.Next(ctx) {
+			var task model.ScanTask
+			err := cursor.Decode(&task)
+			if err != nil {
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't decode document: %w", err)))
+				return
+			}
+
+			if task.Status != model.ScanStatusSucceeded {
+				continue
+			}
+
+			scanTasksMap[task.ImageDigest] = task
+		}
+		scanTasks := make([]model.ScanTask, 0, len(scanTasksMap))
+
+		for _, scanTask := range scanTasksMap {
+			scanTasks = append(scanTasks, scanTask)
+		}
+
+		actualOffset := int(math.Min(float64(offset), float64(len(scanTasks))))
+		actualLimit := int(math.Min(float64(offset+limit), float64(len(scanTasks))))
+
+		scanTasks = scanTasks[actualOffset:actualLimit]
+		items := make([]s.ImageScanResult, len(scanTasks))
+		for _, scanTask := range scanTasks {
+			imageScanResult := &s.ImageScanResult{}
+			report := scanTask.ScanReport.Vulns
+			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, true)
+
+			topVulnsNum := len(report.Vulnerabilities)
+			if len(report.Vulnerabilities) >= 5 {
+				topVulnsNum = 5
+			}
+			imageScanResult.TopVulns = report.Vulnerabilities[:topVulnsNum]
+
+			if len(imageScanResult.TopVulns) >= 1 {
+				imageScanResult.OverallSeverity = report.Vulnerabilities[0].Severity
+			} else {
+				imageScanResult.OverallSeverity = "Unknown"
+			}
+
+			imageScanResult.Repository = report.Repository
+			imageScanResult.Tag = report.Tag
+			imageScanResult.Digest = report.Digest
+			imageScanResult.PerLayerReport = report.PerLayerReport
+			imageScanResult.TaskID = scanTask.ID
+			items = append(items, *imageScanResult)
+		}
+		docNum := int64(len(items))
+		response.Ok(w,
+			response.WithItems(items),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
+	}
 }
 
 // @Summary Get a scan task by scantask ID
@@ -105,11 +252,12 @@ func sortVulns(vulnerabilities []scanReportListItem, asc bool) {
 }
 
 type scanReportAffectedImage struct {
-	Repository string `json:"repository"`
-	Tag        string `json:"tag"`
-	Digest     string `json:"digest"`
-	HarborURL  string `json:"harborURL"`
-	FinishedAt int64  `json:"finishedAt"`
+	Repository string             `json:"repository"`
+	Tag        string             `json:"tag"`
+	Digest     string             `json:"digest"`
+	HarborURL  string             `json:"harborURL"`
+	FinishedAt int64              `json:"finishedAt"`
+	TaskID     primitive.ObjectID `json:"taskID"`
 }
 
 type scanReportListItem struct {
@@ -206,6 +354,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			AffectedDigest     string
 			AffectedHarborURL  string
 			FinishedAt         int64
+			TaskID             primitive.ObjectID
 		}
 
 		digestToVulns := make(map[string][]vulnInfoEx)
@@ -236,6 +385,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					AffectedDigest:     task.ImageDigest,
 					AffectedHarborURL:  task.HarborURL,
 					FinishedAt:         task.FinishedAt,
+					TaskID:             task.ID,
 				}
 				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
 			}
@@ -260,6 +410,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					AffectedDigest:     task.ImageDigest,
 					AffectedHarborURL:  task.HarborURL,
 					FinishedAt:         task.FinishedAt,
+					TaskID:             task.ID,
 				}
 				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
 			}
@@ -296,6 +447,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					Digest:     vuln.AffectedDigest,
 					HarborURL:  vuln.AffectedHarborURL,
 					FinishedAt: vuln.FinishedAt,
+					TaskID:     vuln.TaskID,
 				}
 
 				*listItemsSet[key].AffectedImages = append(*listItemsSet[key].AffectedImages, af)

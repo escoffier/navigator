@@ -364,6 +364,47 @@
                 "summary": "Redirect to scan config screen in Harbor."
             }
         },
+        "/api/v1/scanner/report/{taskID}": {
+            "get": {
+                "description": "List images and their vulnerabilities",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List images and their vulnerabilities",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "scan task ID",
+                        "name": "taskID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/api/v1/scanner/reportsByImage": {
+            "get": {
+                "description": "List images and their vulnerabilities",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List images and their vulnerabilities",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "from offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "returned data limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ]
+            }
+        },
         "/api/v1/scanner/reportsBySeverity": {
             "get": {
                 "description": "List reports by severity",
