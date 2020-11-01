@@ -7,17 +7,20 @@ import (
 
 const (
 	redisEndpoint = "redis-endpoint"
+	redisPassword = "redis-password"
 )
 
 // RedisOpts the Redis options.
 type RedisOpts struct {
 	Endpoint string
+	Password string
 }
 
 // NewDefaultRedisOpts returns a new default redis options.
 func NewDefaultRedisOpts() *RedisOpts {
 	return &RedisOpts{
 		Endpoint: "localhost:6379",
+		Password: "12345",
 	}
 }
 
@@ -25,6 +28,7 @@ func NewDefaultRedisOpts() *RedisOpts {
 func GetRedisOpts(cmd *cobra.Command) *RedisOpts {
 	return &RedisOpts{
 		Endpoint: viper.GetString(redisEndpoint),
+		Password: viper.GetString(redisPassword),
 	}
 }
 
@@ -32,7 +36,8 @@ func GetRedisOpts(cmd *cobra.Command) *RedisOpts {
 func AddRedisFlags(cmd *cobra.Command) {
 	defaultOpts := NewDefaultRedisOpts()
 	cmd.PersistentFlags().String(redisEndpoint, defaultOpts.Endpoint, "Redis endpoint")
-	for _, flag := range []string{redisEndpoint} {
+	cmd.PersistentFlags().String(redisPassword, defaultOpts.Password, "Redis password")
+	for _, flag := range []string{redisEndpoint, redisPassword} {
 		err := viper.BindPFlag(flag, cmd.PersistentFlags().Lookup(flag))
 		if err != nil {
 			panic(err)

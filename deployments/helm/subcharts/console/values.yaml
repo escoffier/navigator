@@ -15,16 +15,10 @@ replicaCount: 1
 
 apiInstallLabel: "console.tensorsec/install"
 
-elastalert:
-  elastic:
-    host: elasticsearch-master
-    port: 9200
-    index: elastalert_status
-    alias: elastalert_alerts
-  image:
-    name: elastalert
-    tag: latest
-    pullPolicy: Always
+elastic:
+  host: elasticsearch-master
+  port: 9200
+  index: filebeat-*
 
 image:
   name: tensorsec-console

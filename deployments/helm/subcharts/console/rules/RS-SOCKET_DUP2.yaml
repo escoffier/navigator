@@ -1,16 +1,4 @@
-name: Reverse shell (Socket + Dup2)
-
-type: any
-
-index: filebeat-*
-
-terms_window_size:
-  days: 90
-
-filter:
-- term:
-    reverse_shell_socket_dup2: "true"
-    
-alert:
-  - command
-command: ["echo", "Reverse shell (Socket + Dup2)"]
+name: RS-SOCKET_DUP2
+description: "Reverse Shell (Socket + Dup2)"
+cvss_3_vector: ""
+cvss_3_score: 0.0

@@ -17,6 +17,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/olivere/elastic/v7"
+	alertModel "gitlab.com/piccolo_su/vegeta/cmd/console/model/alert"
+	ruleModel "gitlab.com/piccolo_su/vegeta/cmd/console/model/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
@@ -59,7 +61,7 @@ func NewConsole(
 	scapOpts *flag.ScapOpts,
 	redisOpts *flag.RedisOpts,
 	elasticOpts *flag.ElasticOpts,
-	elastalertOpts *flag.ElastalertOpts,
+	rulesOpts *flag.RulesOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -102,16 +104,17 @@ func NewConsole(
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
-	ruleService := rule.NewRuleService(elastalertOpts.AvailableRulesFolder, elastalertOpts.AppliedRulesFolder, mongodb)
+	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
+		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	alertService := alert.NewAlertService(es, elasticOpts.Index, mongodb)
+	alertService := alert.NewAlertService(mainCtx, ruleService, es, elasticOpts.Index, mongodb)
 
 	return &Console{
 		server: &http.Server{
@@ -273,7 +276,25 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-
+	neededIndexesPerCollection[alertModel.AlertCollection] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"timestamp": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"cvss3Score": 1,
+			}, Options: nil,
+		},
+	}
+	neededIndexesPerCollection[ruleModel.RuleCollection] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+	}
 	for collectionName, indexModel := range neededIndexesPerCollection {
 		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
 

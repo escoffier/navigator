@@ -61,15 +61,15 @@ var rootCmd = &cobra.Command{
 			Str("host", elasticOpts.Host).
 			Str("port", elasticOpts.Port).
 			Str("index", elasticOpts.Index).
+			Str("username", elasticOpts.Username).
 			Msg("Elastic options")
 
-		elastalertOpts := flag.GetElastalertOpts(cmd)
+		rulesOpts := flag.GetRulesOpts(cmd)
 		logging.GetLogger().Info().
-			Str("available-rules-folder", elastalertOpts.AvailableRulesFolder).
-			Str("applied-rules-folder", elastalertOpts.AppliedRulesFolder).
-			Msg("Elastalert options")
-	
-		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, elastalertOpts)
+			Str("available-rules-folder", rulesOpts.AvailableRulesFolder).
+			Msg("Rules options")
+
+		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts)
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func init() {
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
 	flag.AddElasticFlags(rootCmd)
-	flag.AddElastalertFlags(rootCmd)
+	flag.AddRulesFlags(rootCmd)
 
 	flag.ConfigViper()
 }

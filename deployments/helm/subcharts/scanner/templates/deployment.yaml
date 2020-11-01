@@ -63,7 +63,12 @@ spec:
               secretKeyRef:
                 name: {{ .Values.mongo.mongoSecretName }}
                 key: mongodb-password
-          
+          - name: TENSORSEC_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.redis.redisSecretName }}
+                key: password
+              
 
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
