@@ -88,7 +88,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 
 		// only care about Running containers in this view
 		if container.State != "Running" {
-			logging.GetLogger().Info().Str("container", fmt.Sprintf("%s@%s", container.Name, container.Digest)).Msg("Not running.")
+			logging.GetLogger().Debug().Str("container", fmt.Sprintf("%s@%s", container.Name, container.Digest)).Msg("Not running.")
 			continue
 		}
 
@@ -142,7 +142,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 			i = i + 1
 		}
 
-		util.SortVulnsBySeverityAndStuff(vulns, true)
+		util.SortVulnsBySeverityAndStuff(vulns, false)
 
 		topVulnsNum := len(vulns)
 		if len(vulns) >= 5 {
@@ -231,7 +231,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 				wasScanned = true
 			}
 
-			util.SortVulnsBySeverityAndStuff(vulns, true)
+			util.SortVulnsBySeverityAndStuff(vulns, false)
 
 			ovDetails.Containers[nameDigest] = onlineVulnDetailsContainer{
 				Name:                container.Name,

@@ -80,7 +80,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 
 		result := &s.ImageScanResult{}
 		report := scanTask.ScanReport.Vulns
-		util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, true)
+		util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
 
 		topVulnsNum := len(report.Vulnerabilities)
 		if len(report.Vulnerabilities) >= 5 {
@@ -161,7 +161,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 		for _, scanTask := range scanTasks {
 			imageScanResult := &s.ImageScanResult{}
 			report := scanTask.ScanReport.Vulns
-			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, true)
+			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
 
 			topVulnsNum := len(report.Vulnerabilities)
 			if len(report.Vulnerabilities) >= 5 {
@@ -227,30 +227,6 @@ func (api *api) getScannerTask() http.HandlerFunc {
 	}
 }
 
-func sortVulns(vulnerabilities []scanReportListItem, asc bool) {
-	sort.Slice(vulnerabilities, func(i, j int) bool {
-		if !asc {
-			i, j = j, i
-		}
-
-		if redclair.SeverityMap[vulnerabilities[i].VulnInfo.Severity] < redclair.SeverityMap[vulnerabilities[j].VulnInfo.Severity] {
-			return true
-		} else if redclair.SeverityMap[vulnerabilities[i].VulnInfo.Severity] > redclair.SeverityMap[vulnerabilities[j].VulnInfo.Severity] {
-			return false
-		}
-		// else Severity equal
-
-		if vulnerabilities[i].VulnInfo.CVE < vulnerabilities[j].VulnInfo.CVE {
-			return true
-		} else if vulnerabilities[i].VulnInfo.CVE > vulnerabilities[j].VulnInfo.CVE {
-			return false
-		}
-		// else Same CVE
-
-		return false
-	})
-}
-
 type scanReportAffectedImage struct {
 	Repository string             `json:"repository"`
 	Tag        string             `json:"tag"`
@@ -280,7 +256,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		sortOrder := r.URL.Query().Get("sortOrder")
 		if sortOrder == "" {
-			sortOrder = "asc"
+			sortOrder = "desc"
 		}
 		if sortOrder != "asc" && sortOrder != "desc" {
 			RespAndLog(w, r,
@@ -462,12 +438,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			i++
 		}
 
-		sortVulns(listItems, sortOrder == "asc")
-
-		// for _, vulnsOfDigest := range digestToVulns {
-		// 	vulns = append(vulns, vulnsOfDigest...)
-		// }
-		// sortVulns(vulns, sortOrder == "asc")
+		sortListItemsBySeverityAndStuff(listItems, sortOrder == "asc")
 
 		// TODO: if many images are vulnerable to the same CVE, this CVE will appear multiple times in output
 		// (albeit with different `affectedImage`).
@@ -485,6 +456,16 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
 	}
+}
+
+func sortListItemsBySeverityAndStuff(vulnerabilities []scanReportListItem, asc bool) {
+	sort.Slice(vulnerabilities, func(i, j int) bool {
+		if !asc {
+			i, j = j, i
+		}
+
+		return redclair.CompareVulnerabilities(vulnerabilities[i].VulnInfo, vulnerabilities[j].VulnInfo)
+	})
 }
 
 // @Summary Tell scanner to scan an image

@@ -1,0 +1,567 @@
+{
+    "apiVersion": "1.0",
+    "data": {
+        "items": [
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201707-370",
+                    "cve": "CVE-2017-11164",
+                    "cvssv2score": "7.8",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:N/I:N/A:C",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "7.5",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "description": "In PCRE 8.41, the OP_KETRMAX feature in the match function in pcre_exec.c allows stack exhaustion (uncontrolled recursion) when processing a crafted regular expression.",
+                    "featurename": "pcre3",
+                    "featureversion": "2:8.39-12build1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2017-11164",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201707-370"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Negligible"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-202006-148",
+                    "cve": "CVE-2020-10878",
+                    "cvssv2score": "7.5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:P/I:P/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "4.7",
+                    "cvssv3score": "8.6",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:H",
+                    "description": "Perl before 5.30.3 has an integer overflow related to mishandling of a \"PL_regkind[OP(n)] == NOTHING\" situation. A crafted regular expression could lead to malformed bytecode with a possibility of instruction injection.  An application written in Perl would only be vulnerable to this flaw if it evaluates regular expressions supplied by the attacker. Evaluating regular expressions in this fashion is known to be dangerous since the regular expression engine does not protect against denial of service attacks in this usage scenario.]",
+                    "featurename": "perl",
+                    "featureversion": "5.30.0-9build1",
+                    "fixedby": "5.30.0-9ubuntu0.2",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2020-10878",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-202006-148"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201704-1452",
+                    "cve": "CVE-2017-8283",
+                    "cvssv2score": "7.5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:P/I:P/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "5.9",
+                    "cvssv3score": "9.8",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                    "description": "dpkg-source in dpkg 1.3.0 through 1.18.23 is able to use a non-GNU patch program and does not offer a protection mechanism for blank-indented diff hunks, which allows remote attackers to conduct directory traversal attacks via a crafted Debian source package, as demonstrated by use of dpkg-source on NetBSD.",
+                    "featurename": "dpkg",
+                    "featureversion": "1.19.7ubuntu3",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2017-8283",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201704-1452"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Negligible"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201911-1471",
+                    "cve": "CVE-2019-18276",
+                    "cvssv2score": "7.2",
+                    "cvssv2vector": "AV:L/AC:L/Au:N/C:C/I:C/A:C",
+                    "cvssv3exploitabilityScore": "1.8",
+                    "cvssv3impactScore": "5.9",
+                    "cvssv3score": "7.8",
+                    "cvssv3vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+                    "description": "An issue was discovered in disable_priv_mode in shell.c in GNU Bash through 5.0 patch 11. By default, if Bash is run with its effective UID not equal to its real UID, it will drop privileges by setting its effective UID to its real UID. However, it does so incorrectly. On Linux and other systems that support \"saved UID\" functionality, the saved UID is not dropped. An attacker with command execution in the shell can use \"enable -f\" for runtime loading of a new builtin, which can be a shared object that calls setuid() and therefore regains privileges. However, binaries running with an effective UID of 0 are unaffected.",
+                    "featurename": "bash",
+                    "featureversion": "5.0-6ubuntu1.1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2019-18276",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201911-1471"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201808-603",
+                    "cve": "CVE-2018-1000654",
+                    "cvssv2score": "7.1",
+                    "cvssv2vector": "AV:N/AC:M/Au:N/C:N/I:N/A:C",
+                    "cvssv3exploitabilityScore": "1.8",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "5.5",
+                    "cvssv3vector": "CVSS:3.0/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H",
+                    "description": "GNU Libtasn1-4.13 libtasn1-4.13 version libtasn1-4.13, libtasn1-4.12 contains a DoS, specifically CPU usage will reach 100% when running asn1Paser against the POC due to an issue in _asn1_expand_object_id(p_tree), after a long time, the program will be killed. This attack appears to be exploitable via parsing a crafted file.",
+                    "featurename": "libtasn1-6",
+                    "featureversion": "4.16.0-2",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2018-1000654",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201808-603"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Negligible"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-202004-056",
+                    "cve": "CVE-2020-6096",
+                    "cvssv2score": "6.8",
+                    "cvssv2vector": "AV:N/AC:M/Au:N/C:P/I:P/A:P",
+                    "cvssv3exploitabilityScore": "2.2",
+                    "cvssv3impactScore": "5.9",
+                    "cvssv3score": "8.1",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                    "description": "An exploitable signed comparison vulnerability exists in the ARMv7 memcpy() implementation of GNU glibc 2.30.9000. Calling memcpy() (on ARMv7 targets that utilize the GNU glibc implementation) with a negative value for the 'num' parameter results in a signed comparison vulnerability. If an attacker underflows the 'num' parameter to memcpy(), this vulnerability could lead to undefined behavior such as writing to out-of-bounds memory and potentially remote code execution. Furthermore, this memcpy() implementation allows for program execution to continue in scenarios where a segmentation fault or crash should have occurred. The dangers occur in that subsequent execution and iterations of this code will be executed with this corrupted data.",
+                    "featurename": "glibc",
+                    "featureversion": "2.31-0ubuntu9.1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2020-6096",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-202004-056"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-202006-145",
+                    "cve": "CVE-2020-10543",
+                    "cvssv2score": "6.4",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:N/I:P/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "4.2",
+                    "cvssv3score": "8.2",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:H",
+                    "description": "Perl before 5.30.3 on 32-bit platforms allows a heap-based buffer overflow because nested regular expression quantifiers have an integer overflow.  An application written in Perl would only be vulnerable to this flaw if it evaluates regular expressions supplied by the attacker. Evaluating regular expressions in this fashion is known to be dangerous since the regular expression engine does not protect against denial of service attacks in this usage scenario.  Additionally, the target system needs a sufficient amount of memory to allocate partial expansions of the nested quantifiers prior to the overflow occurring. This requirement is unlikely to be met on 64bit systems.]",
+                    "featurename": "perl",
+                    "featureversion": "5.30.0-9build1",
+                    "fixedby": "5.30.0-9ubuntu0.2",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2020-10543",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-202006-145"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201905-732",
+                    "cve": "CVE-2018-20839",
+                    "cvssv2score": "5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:P/I:N/A:N",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "5.9",
+                    "cvssv3score": "9.8",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                    "description": "systemd 242 changes the VT1 mode upon a logout, which allows attackers to read cleartext passwords in certain circumstances, such as watching a shutdown, or using Ctrl-Alt-F1 and Ctrl-Alt-F2. This occurs because the KDGKBMODE (aka current keyboard mode) check is mishandled.",
+                    "featurename": "systemd",
+                    "featureversion": "245.4-4ubuntu3.2",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2018-20839",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201905-732"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Medium"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-202006-146",
+                    "cve": "CVE-2020-12723",
+                    "cvssv2score": "5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:N/I:N/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "7.5",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "description": "regcomp.c in Perl before 5.30.3 allows a buffer overflow via a crafted regular expression because of recursive S_study_chunk calls.  An application written in Perl would only be vulnerable to this flaw if it evaluates regular expressions supplied by the attacker. Evaluating regular expressions in this fashion is known to be dangerous since the regular expression engine does not protect against denial of service attacks in this usage scenario.]",
+                    "featurename": "perl",
+                    "featureversion": "5.30.0-9build1",
+                    "fixedby": "5.30.0-9ubuntu0.2",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2020-12723",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-202006-146"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201903-853",
+                    "cve": "CVE-2019-9923",
+                    "cvssv2score": "5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:N/I:N/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "7.5",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "description": "pax_decode_header in sparse.c in GNU Tar before 1.32 had a NULL pointer dereference when parsing certain archives that have malformed extended headers.",
+                    "featurename": "tar",
+                    "featureversion": "1.30+dfsg-7",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2019-9923",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201903-853"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201906-1136",
+                    "cve": "CVE-2019-13050",
+                    "cvssv2score": "5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:N/I:N/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "7.5",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "description": "Interaction between the sks-keyserver code through 1.2.0 of the SKS keyserver network, and GnuPG through 2.2.16, makes it risky to have a GnuPG keyserver configuration line referring to a host on the SKS keyserver network. Retrieving data from this network may cause a persistent denial of service, because of a Certificate Spamming Attack.",
+                    "featurename": "gnupg2",
+                    "featureversion": "2.2.19-3ubuntu2",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2019-13050",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201906-1136"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201802-899",
+                    "cve": "CVE-2018-7169",
+                    "cvssv2score": "5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:P/I:N/A:N",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "1.4",
+                    "cvssv3score": "5.3",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+                    "description": "An issue was discovered in shadow 4.5. newgidmap (in shadow-utils) is setuid and allows an unprivileged user to be placed in a user namespace where setgroups(2) is permitted. This allows an attacker to remove themselves from a supplementary group, which may allow access to certain filesystem paths if the administrator has used \"group blacklisting\" (e.g., chmod g-rwx) to restrict access to paths. This flaw effectively reverts a security feature in the kernel (in particular, the /proc/self/setgroups knob) to prevent this sort of privilege escalation.",
+                    "featurename": "shadow",
+                    "featureversion": "1:4.8.1-1ubuntu5.20.04",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2018-7169",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201802-899"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-202006-1036",
+                    "cve": "CVE-2020-14155",
+                    "cvssv2score": "5",
+                    "cvssv2vector": "AV:N/AC:L/Au:N/C:N/I:N/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "1.4",
+                    "cvssv3score": "5.3",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+                    "description": "libpcre in PCRE before 8.44 allows an integer overflow via a large number after a (?C substring.",
+                    "featurename": "pcre3",
+                    "featureversion": "2:8.39-12build1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2020-14155",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-202006-1036"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Negligible"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-202006-1028",
+                    "cve": "CVE-2019-20838",
+                    "cvssv2score": "4.3",
+                    "cvssv2vector": "AV:N/AC:M/Au:N/C:N/I:N/A:P",
+                    "cvssv3exploitabilityScore": "3.9",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "7.5",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "description": "libpcre in PCRE before 8.43 allows a subject buffer over-read in JIT when UTF is disabled, and \\X or \\R has more than one fixed quantifier, a related issue to CVE-2019-20454.",
+                    "featurename": "pcre3",
+                    "featureversion": "2:8.39-12build1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2019-20838",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-202006-1028"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201906-784",
+                    "cve": "CVE-2019-12904",
+                    "cvssv2score": "4.3",
+                    "cvssv2vector": "AV:N/AC:M/Au:N/C:P/I:N/A:N",
+                    "cvssv3exploitabilityScore": "2.2",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "5.9",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+                    "description": "In Libgcrypt 1.8.4, the C implementation of AES is vulnerable to a flush-and-reload side-channel attack because physical addresses are available to other processes. (The C implementation is used on platforms where an assembly-language implementation is unavailable.)",
+                    "featurename": "libgcrypt20",
+                    "featureversion": "1.8.5-5ubuntu1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2019-12904",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201906-784"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201703-077",
+                    "cve": "CVE-2016-10228",
+                    "cvssv2score": "4.3",
+                    "cvssv2vector": "AV:N/AC:M/Au:N/C:N/I:N/A:P",
+                    "cvssv3exploitabilityScore": "2.2",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "5.9",
+                    "cvssv3vector": "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "description": "The iconv program in the GNU C Library (aka glibc or libc6) 2.31 and earlier, when invoked with multiple suffixes in the destination encoding (TRANSLATE or IGNORE) along with the -c option, enters an infinite loop when processing invalid multi-byte input sequences, leading to a denial of service.",
+                    "featurename": "glibc",
+                    "featureversion": "2.31-0ubuntu9.1",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2016-10228",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201703-077"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Negligible"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201912-122",
+                    "cve": "CVE-2013-4235",
+                    "cvssv2score": "3.3",
+                    "cvssv2vector": "AV:L/AC:M/Au:N/C:N/I:P/A:P",
+                    "cvssv3exploitabilityScore": "1",
+                    "cvssv3impactScore": "3.6",
+                    "cvssv3score": "4.7",
+                    "cvssv3vector": "CVSS:3.0/AV:L/AC:H/PR:L/UI:N/S:U/C:N/I:H/A:N",
+                    "description": "shadow: TOCTOU (time-of-check time-of-use) race condition when copying and removing directory trees",
+                    "featurename": "shadow",
+                    "featureversion": "1:4.8.1-1ubuntu5.20.04",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2013-4235",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201912-122"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            },
+            {
+                "affectedImages": [
+                    {
+                        "digest": "sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "finishedAt": 1604244613,
+                        "harborURL": "https://192.168.1.203:30003/harbor/projects/2/repositories/ubuntu/artifacts/sha256:2e70e9c81838224b5311970dbf7ed16802fbfe19e7a70b3cbfa3d7522aa285b4",
+                        "repository": "tensorsecns/ubuntu",
+                        "tag": ""
+                    }
+                ],
+                "vulnInfo": {
+                    "cnnvd": "CNNVD-201607-343",
+                    "cve": "CVE-2016-2781",
+                    "cvssv2score": "2.1",
+                    "cvssv2vector": "AV:L/AC:L/Au:N/C:N/I:P/A:N",
+                    "cvssv3exploitabilityScore": "2",
+                    "cvssv3impactScore": "4",
+                    "cvssv3score": "6.5",
+                    "cvssv3vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:C/C:N/I:H/A:N",
+                    "description": "chroot in GNU coreutils, when used with --userspec, allows local users to escape to the parent session via a crafted TIOCSTI ioctl call, which pushes characters to the terminal's input buffer.",
+                    "featurename": "coreutils",
+                    "featureversion": "8.30-3ubuntu2",
+                    "fixedby": "",
+                    "links": [
+                        "http://people.ubuntu.com/~ubuntu-security/cve/CVE-2016-2781",
+                        "http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=CNNVD-201607-343"
+                    ],
+                    "namespace": "ubuntu:20.04",
+                    "severity": "Low"
+                }
+            }
+        ],
+        "itemsPerPage": 500,
+        "totalItems": 18
+    }
+}
