@@ -43,6 +43,11 @@ const (
 	maxLayerScanRetires      = 3
 )
 
+var (
+	numRunning    = 0
+	wantsToUpdate = false
+)
+
 // RedClair ...
 type RedClairService struct {
 	ctx         context.Context
@@ -57,6 +62,8 @@ type RedClairService struct {
 	skipRegistryTLSVerify bool
 
 	clairDBConnectionString string
+
+	cond *sync.Cond
 }
 
 // NewRedClair creates the instance of RedClair
@@ -65,6 +72,8 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 	if err != nil {
 		return nil, err
 	}
+	m := sync.Mutex{}
+	c := sync.NewCond(&m)
 	return &RedClairService{
 		ctx:                     ctx,
 		mongodb:                 db,
@@ -74,6 +83,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		redclairEngine:          redclairEng,
 		skipRegistryTLSVerify:   clairOpts.SkipRegistryTLSVerify,
 		clairDBConnectionString: clairOpts.PostgresConnectionString,
+		cond:                    c,
 	}, nil
 }
 
@@ -140,10 +150,20 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
+			rcSvc.cond.L.Lock()
+			for numRunning > 0 {
+				wantsToUpdate = true
+				rcSvc.cond.Wait()
+			}
+			log.Info().Msg("Updating layer cache")
 			err := rcSvc.updateLayerCache(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("Cache invalidator worker - updateLayerCache failed")
 			}
+			log.Info().Msg("Resuming workers after clair update")
+			wantsToUpdate = false
+			rcSvc.cond.L.Unlock()
+			rcSvc.cond.Broadcast()
 		case <-ctx.Done():
 			break loop
 		}
@@ -162,7 +182,23 @@ loop:
 	for {
 		select {
 		case scanTask := <-rcSvc.scanTasksChan:
+			zerolog.Ctx(ctx).Info().Msg("Trying to acquire scanning lock")
+			rcSvc.cond.L.Lock()
+			for wantsToUpdate {
+				rcSvc.cond.Wait()
+			}
+			numRunning++
+			rcSvc.cond.L.Unlock()
+
+			zerolog.Ctx(ctx).Info().Msg("Starting image scanning")
 			rcSvc.asyncProcessScanTask(ctx, scanTask)
+
+			zerolog.Ctx(ctx).Info().Msg("Finished image scanning")
+			rcSvc.cond.L.Lock()
+			numRunning--
+			rcSvc.cond.L.Unlock()
+			zerolog.Ctx(ctx).Info().Msg("Scanning lock released")
+			rcSvc.cond.Signal()
 		case <-ctx.Done():
 			break loop
 		}
@@ -197,7 +233,6 @@ func (rcSvc *RedClairService) getVulnerabilityUpdatedAt(ctx context.Context) (st
 }
 
 func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) error {
-	log.Info().Msg("Updating layer cache")
 	db, err := sql.Open("postgres", rcSvc.clairDBConnectionString)
 	if err != nil {
 		return fmt.Errorf("Failed to open Clair DB connection: %w", err)
