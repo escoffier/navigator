@@ -218,6 +218,28 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
+	for _, col := range []string{model.ComplianceCheckKubeRecordsCollection,
+		model.ComplianceCheckDockerRecordsCollection,
+		model.ComplianceCheckHostRecordsCollection} {
+
+		neededIndexesPerCollection[col] = []mongo.IndexModel{
+			{
+				Keys: bson.M{
+					"checkId": 1,
+				}, Options: nil,
+			},
+			{
+				Keys: bson.M{
+					"nodeName": 1,
+				}, Options: nil,
+			},
+			{
+				Keys: bson.M{
+					"status": 1,
+				}, Options: nil,
+			},
+		}
+	}
 	neededIndexesPerCollection[model.AssetsContainerCollection] = []mongo.IndexModel{
 		// so many indexes on one collection smells...
 		{

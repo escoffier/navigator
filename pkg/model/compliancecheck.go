@@ -6,6 +6,14 @@ const (
 	ComplianceCheckStatusInProgress = "inprogress"
 	ComplianceCheckStatusCompleted  = "completed"
 	ComplianceCheckStatusFailed     = "failed"
+
+	ComplianceCheckKubeRecordsCollection   = "kube-bench-records"
+	ComplianceCheckDockerRecordsCollection = "docker-bench-records"
+	ComplianceCheckHostRecordsCollection   = "host-bench-records"
+
+	ComplianceCheckTargetTypeKube   = "kube"
+	ComplianceCheckTargetTypeDocker = "docker"
+	ComplianceCheckTargetTypeHost   = "host"
 )
 
 type ComplianceCheckEntryBase struct {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -38,13 +39,13 @@ func (api *api) listAllCrons() http.HandlerFunc {
 			respItems = append(respItems, RespItem{
 				ClusterID:   clust.ID.Hex(),
 				ClusterName: clust.ClusterName,
-				CronType:    "docker",
+				CronType:    model.ComplianceCheckTargetTypeDocker,
 				CronString:  clust.CronConfig.DockerBenchCron.CronString,
 			})
 			respItems = append(respItems, RespItem{
 				ClusterID:   clust.ID.Hex(),
 				ClusterName: clust.ClusterName,
-				CronType:    "host",
+				CronType:    model.ComplianceCheckTargetTypeHost,
 				CronString:  clust.CronConfig.HostBenchCron.CronString,
 			})
 			respItems = append(respItems, RespItem{
@@ -95,7 +96,9 @@ func (api *api) getCron() http.HandlerFunc {
 			return
 		}
 
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -147,7 +150,9 @@ func (api *api) putCron() http.HandlerFunc {
 			return
 		}
 
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
