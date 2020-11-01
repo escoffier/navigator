@@ -305,12 +305,12 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 }
 
 func (s Scapper) GetMongoCollectionForCheckType(checkType string) string {
-	if checkType == "kube" {
-		return "kube-bench-records"
-	} else if checkType == "docker" {
-		return "docker-bench-records"
-	} else if checkType == "host" {
-		return "host-bench-records"
+	if checkType == model.ComplianceCheckTargetTypeKube {
+		return model.ComplianceCheckKubeRecordsCollection
+	} else if checkType == model.ComplianceCheckTargetTypeDocker {
+		return model.ComplianceCheckDockerRecordsCollection
+	} else if checkType == model.ComplianceCheckTargetTypeHost {
+		return model.ComplianceCheckHostRecordsCollection
 	} else {
 		return ""
 	}
@@ -335,11 +335,11 @@ func (s Scapper) prepareJobObject(check *scapper.Check) (*batchv1.Job, error) {
 
 func (s Scapper) readJobObjFromYamlFile(checkType string) (*batchv1.Job, error) {
 	jobYamlPath := ""
-	if checkType == "kube" {
+	if checkType == model.ComplianceCheckTargetTypeKube {
 		jobYamlPath = "/jobs/kube-bench/job.yaml"
-	} else if checkType == "docker" {
+	} else if checkType == model.ComplianceCheckTargetTypeDocker {
 		jobYamlPath = "/jobs/docker-bench-security/job.yaml"
-	} else if checkType == "host" {
+	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		jobYamlPath = "/jobs/host-bench/job.yaml"
 	} else {
 		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))

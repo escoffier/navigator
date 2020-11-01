@@ -49,13 +49,13 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 		return err
 	}
 
-	if checkType == "kube" {
+	if checkType == model.ComplianceCheckTargetTypeKube {
 		cluster.CronConfig.KubeBenchCron.NextRun = next
 		cluster.CronConfig.KubeBenchCron.PrevRun = prev
-	} else if checkType == "docker" {
+	} else if checkType == model.ComplianceCheckTargetTypeDocker {
 		cluster.CronConfig.DockerBenchCron.NextRun = next
 		cluster.CronConfig.DockerBenchCron.PrevRun = prev
-	} else if checkType == "host" {
+	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		cluster.CronConfig.HostBenchCron.NextRun = next
 		cluster.CronConfig.HostBenchCron.PrevRun = prev
 	}
@@ -74,17 +74,20 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 }
 
 func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, checkType string) error {
-	logging.GetLogger().Info().Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Registering compliance cron")
+	logging.GetLogger().Info().
+		Str("cluster", fmt.Sprintf("%+v", cluster)).
+		Str("checkType", checkType).
+		Msg("Registering compliance cron")
 
 	var cronID int
 	var cronString string
-	if checkType == "kube" {
+	if checkType == model.ComplianceCheckTargetTypeKube {
 		cronID = cluster.CronConfig.KubeBenchCron.CronID
 		cronString = cluster.CronConfig.KubeBenchCron.CronString
-	} else if checkType == "docker" {
+	} else if checkType == model.ComplianceCheckTargetTypeDocker {
 		cronID = cluster.CronConfig.DockerBenchCron.CronID
 		cronString = cluster.CronConfig.DockerBenchCron.CronString
-	} else if checkType == "host" {
+	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		cronID = cluster.CronConfig.HostBenchCron.CronID
 		cronString = cluster.CronConfig.HostBenchCron.CronString
 	}
@@ -92,25 +95,34 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 		if s.idInCronEntries(cronID, s.cron.Entries()) {
 			s.cron.Remove(cr.EntryID(cronID))
 		}
-		if checkType == "kube" {
+		if checkType == model.ComplianceCheckTargetTypeKube {
 			cluster.CronConfig.KubeBenchCron.CronID = 0
-		} else if checkType == "docker" {
+		} else if checkType == model.ComplianceCheckTargetTypeDocker {
 			cluster.CronConfig.DockerBenchCron.CronID = 0
-		} else if checkType == "host" {
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			cluster.CronConfig.HostBenchCron.CronID = 0
 		}
 	}
 	if cronString != "" {
 		newCronID, err := s.cron.AddFunc(cronString, func() {
-			logging.GetLogger().Info().Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Starting compliance cron job now")
+			logging.GetLogger().Info().
+				Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
+				Str("checkType", checkType).
+				Msg("Starting compliance cron job now")
 
 			newCtx, newCtxCancel := context.WithTimeout(ctx, time.Minute*10)
 			defer newCtxCancel()
 			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Failed to run compliance check")
+				logging.GetLogger().Error().Err(err).
+					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
+					Str("checkType", checkType).
+					Msg("Failed to run compliance check")
 			} else {
-				logging.GetLogger().Info().Str("cluster", fmt.Sprintf("%+v", cluster)).Str("checkType", checkType).Msg("Compliance cron job finished successfully")
+				logging.GetLogger().Info().
+					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
+					Str("checkType", checkType).
+					Msg("Compliance cron job finished successfully")
 			}
 
 			// TODO: I though that here next and prev times can be updated via channels to spawned goroutines
@@ -122,11 +134,11 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 		if err != nil {
 			return NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't schedule job: %w", err), Suberror{"cronString", err.Error()})
 		}
-		if checkType == "kube" {
+		if checkType == model.ComplianceCheckTargetTypeKube {
 			cluster.CronConfig.KubeBenchCron.CronID = int(newCronID)
-		} else if checkType == "docker" {
+		} else if checkType == model.ComplianceCheckTargetTypeDocker {
 			cluster.CronConfig.DockerBenchCron.CronID = int(newCronID)
-		} else if checkType == "host" {
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			cluster.CronConfig.HostBenchCron.CronID = int(newCronID)
 		}
 	}
@@ -147,7 +159,9 @@ func (s *CronService) StartCrons(ctx context.Context) error {
 		return err
 	}
 	for _, cluster := range clusters {
-		for _, checkType := range []string{"kube", "docker", "host"} {
+		for _, checkType := range []string{model.ComplianceCheckTargetTypeKube,
+			model.ComplianceCheckTargetTypeDocker,
+			model.ComplianceCheckTargetTypeHost} {
 			err = s.startCron(ctx, &cluster, checkType)
 			if err != nil {
 				return err
@@ -176,11 +190,11 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 		return err
 	}
 
-	if checkType == "kube" {
+	if checkType == model.ComplianceCheckTargetTypeKube {
 		cluster.CronConfig.KubeBenchCron.CronString = cronString
-	} else if checkType == "docker" {
+	} else if checkType == model.ComplianceCheckTargetTypeDocker {
 		cluster.CronConfig.DockerBenchCron.CronString = cronString
-	} else if checkType == "host" {
+	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		cluster.CronConfig.HostBenchCron.CronString = cronString
 	}
 
@@ -218,11 +232,11 @@ func (s *CronService) GetCron(ctx context.Context, clusterObjectID primitive.Obj
 	}
 
 	var cronString string
-	if checkType == "kube" {
+	if checkType == model.ComplianceCheckTargetTypeKube {
 		cronString = cluster.CronConfig.KubeBenchCron.CronString
-	} else if checkType == "docker" {
+	} else if checkType == model.ComplianceCheckTargetTypeDocker {
 		cronString = cluster.CronConfig.DockerBenchCron.CronString
-	} else if checkType == "host" {
+	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		cronString = cluster.CronConfig.HostBenchCron.CronString
 	}
 	return cronString, nil

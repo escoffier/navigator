@@ -71,7 +71,9 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			return
 
 		}
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -115,7 +117,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		defer cursor.Close(ctx)
 
 		checkMap := make(map[string]*scap.CheckHistoryEntry)
-		if checkType == "kube" {
+		if checkType == model.ComplianceCheckTargetTypeKube {
 			err := kube.GetKubeHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -123,7 +125,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 						fmt.Errorf("Couldn't get kube history entries: %w", err)))
 				return
 			}
-		} else if checkType == "docker" {
+		} else if checkType == model.ComplianceCheckTargetTypeDocker {
 			err := docker.GetDockerHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -131,7 +133,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 						fmt.Errorf("Couldn't get docker history entries: %w", err)))
 				return
 			}
-		} else if checkType == "host" {
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -211,7 +213,9 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			return
 		}
 
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -277,7 +281,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		numError := int64(0)
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
-		if checkType == "kube" {
+		if checkType == model.ComplianceCheckTargetTypeKube {
 			err := kube.GetKubeBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -286,7 +290,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 				return
 			}
-		} else if checkType == "docker" {
+		} else if checkType == model.ComplianceCheckTargetTypeDocker {
 			err := docker.GetDockerBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -295,7 +299,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 				return
 			}
-		} else if checkType == "host" {
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -378,7 +382,9 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 
 		}
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -418,7 +424,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		numWaiting := int64(0)
 		numError := int64(0)
 
-		if checkType == "kube" {
+		if checkType == model.ComplianceCheckTargetTypeKube {
 			err := kube.GetKubePolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -427,7 +433,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 				return
 			}
-		} else if checkType == "docker" {
+		} else if checkType == model.ComplianceCheckTargetTypeDocker {
 			err := docker.GetDockerPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -436,7 +442,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 				return
 			}
-		} else if checkType == "host" {
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
@@ -493,7 +499,9 @@ func (api *api) getScapReports() http.HandlerFunc {
 			return
 
 		}
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -593,7 +601,9 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		if checkType != "kube" && checkType != "docker" && checkType != "host" {
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
