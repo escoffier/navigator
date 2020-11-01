@@ -274,6 +274,33 @@ paths:
     get:
       description: Redirect to scan config screen in Harbor.
       summary: Redirect to scan config screen in Harbor.
+  /api/v1/scanner/report/{taskID}:
+    get:
+      description: List images and their vulnerabilities
+      parameters:
+      - description: scan task ID
+        in: path
+        name: taskID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: List images and their vulnerabilities
+  /api/v1/scanner/reportsByImage:
+    get:
+      description: List images and their vulnerabilities
+      parameters:
+      - description: from offset
+        in: query
+        name: offset
+        type: integer
+      - description: returned data limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      summary: List images and their vulnerabilities
   /api/v1/scanner/reportsBySeverity:
     get:
       description: List reports by severity

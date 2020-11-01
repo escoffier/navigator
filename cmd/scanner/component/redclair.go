@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -498,6 +499,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		report := &model.ScanReport{}
 		vulns := make([]redclair.VulnerabilityInfo, 0)
 		sensitives := make([]redclair.Sensitive, 0)
+		perLayerReport := make(map[string]redclair.VulnerabilityLayerReport)
 		for _, digest := range layers {
 			cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 			if err != nil {
@@ -509,32 +511,46 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 				rcSvc.updateMongoStatus(ctx, scanTask)
 				return
 			}
-			vulns = append(vulns, cachedLayer.ScanReport.Vulns...)
 			report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
 			report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
 			sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
+			perLayerReport[digest] = redclair.VulnerabilityLayerReport{
+				VulnerabilitiesAdded:   cachedLayer.ScanReport.VulnsAdded,
+				VulnerabilitiesRemoved: cachedLayer.ScanReport.VulnsRemoved,
+				Sensitives:             cachedLayer.ScanReport.Sensitive,
+			}
+
+			currentVulns := vulns[:0]
+			for _, v := range vulns {
+				remove := false
+				for _, vv := range cachedLayer.ScanReport.VulnsRemoved {
+					if v.CVE == vv.CVE {
+						remove = true
+					}
+				}
+				if remove {
+					continue
+				} else {
+					currentVulns = append(currentVulns, v)
+				}
+			}
+			for _, v := range cachedLayer.ScanReport.VulnsAdded {
+				currentVulns = append(currentVulns, v)
+			}
+
+			vulns = currentVulns
 		}
 		scanTask.FinishedAt = time.Now().Unix()
 		scanTask.Status = model.ScanStatusSucceeded
-
-		// Deduplicate vulns (may be duplicates from many layers)
-		// TODO: this may be a bug from the way we fetch results...
-		kvs := make(map[string]redclair.VulnerabilityInfo)
-		for _, v := range vulns {
-			kvs[v.CVE] = v
-		}
-		vulnsDedup := []redclair.VulnerabilityInfo{}
-		for _, v := range kvs {
-			vulnsDedup = append(vulnsDedup, v)
-		}
 
 		report.Vulns = redclair.VulnerabilityReport{
 			Repository:      scanTask.Repository,
 			Tag:             scanTask.Tag,
 			Digest:          scanTask.ImageDigest,
 			Unapproved:      []string{},
-			Vulnerabilities: vulnsDedup,
+			Vulnerabilities: vulns,
 			Sensitives:      sensitives,
+			PerLayerReport:  perLayerReport,
 		}
 		scanTask.ScanReport = *report
 		rcSvc.updateMongoStatus(scanCtx, scanTask)
@@ -585,11 +601,28 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			}
 		} else {
 			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
+			var vulnInfoAdded, vulnInfoRemoved []redclair.VulnerabilityInfo
+			if currLayer.Parent == "" {
+				vulnInfoAdded = vulnInfo
+			} else {
+				parentLayer, err := rcSvc.getParentLayerFromCache(ctx, currLayer.Parent, *currentlyCachedLayers)
+				if err != nil {
+					zerolog.Ctx(ctx).Info().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
+					return err
+				}
+				vulnInfoAdded, vulnInfoRemoved, err = rcSvc.getLayerVulnDiff(parentLayer.ScanReport.Vulns, vulnInfo)
+				if err != nil {
+					zerolog.Ctx(ctx).Info().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
+					return err
+				}
+			}
 			scanWorkerResult := &model.ScanWorkerReport{
-				Vulns:     vulnInfo,
-				Files:     fileSignatures,
-				Software:  software,
-				Sensitive: sensitive,
+				Vulns:        vulnInfo,
+				VulnsAdded:   vulnInfoAdded,
+				VulnsRemoved: vulnInfoRemoved,
+				Files:        fileSignatures,
+				Software:     software,
+				Sensitive:    sensitive,
 			}
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if len(layersBench) > 0 {
@@ -606,6 +639,41 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 		return fmt.Errorf("Max retries reached for a single layer")
 	}
 	return nil
+}
+
+func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulns []redclair.VulnerabilityInfo, currFullVulns []redclair.VulnerabilityInfo) ([]redclair.VulnerabilityInfo, []redclair.VulnerabilityInfo, error) {
+	vulnLayerAdded := make([]redclair.VulnerabilityInfo, 0)
+	vulnLayerRemoved := make([]redclair.VulnerabilityInfo, 0)
+	sort.Slice(parentFullVulns, func(i, j int) bool {
+		return parentFullVulns[i].CVE < parentFullVulns[j].CVE
+	})
+	sort.Slice(currFullVulns, func(i, j int) bool {
+		return currFullVulns[i].CVE < currFullVulns[j].CVE
+	})
+	parentIndex := 0
+	currIndex := 0
+	for currIndex < len(currFullVulns) {
+		if parentIndex >= len(parentFullVulns) {
+			vulnLayerAdded = append(vulnLayerAdded, currFullVulns[currIndex])
+			currIndex++
+			continue
+		}
+		if currFullVulns[currIndex].CVE < parentFullVulns[parentIndex].CVE {
+			vulnLayerAdded = append(vulnLayerAdded, currFullVulns[currIndex])
+			currIndex++
+		} else if currFullVulns[currIndex].CVE > parentFullVulns[parentIndex].CVE {
+			vulnLayerRemoved = append(vulnLayerRemoved, parentFullVulns[parentIndex])
+			parentIndex++
+		} else {
+			currIndex++
+			parentIndex++
+		}
+	}
+	for parentIndex < len(parentFullVulns) {
+		vulnLayerRemoved = append(vulnLayerRemoved, parentFullVulns[parentIndex])
+		parentIndex++
+	}
+	return vulnLayerAdded, vulnLayerAdded, nil
 }
 
 func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.CachedLayer) (*model.CachedLayer, error) {
