@@ -206,6 +206,11 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 		if !ok {
 			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Expected CHECK_ID label to be present"))
 		}
+
+		if job.Status.StartTime == nil {
+			logging.GetLogger().Info().Str("job-name", job.Name).Msg("StartTime is nil, skipping")
+			continue
+		}
 		thisJobStartTime := job.Status.StartTime.Time
 
 		earliestJobStartTimeSoFar, ok := startTimesOfChecks[checkID]
