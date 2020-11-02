@@ -245,6 +245,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 				SensitiveFiles:      sensitives,
 				WasScanned:          wasScanned,
 				HarborURL:           scanTask.HarborURL,
+				TaskID:              scanTask.ID,
 			}
 
 			ovDetails.Namespace = container.Namespace // all containers share namespace

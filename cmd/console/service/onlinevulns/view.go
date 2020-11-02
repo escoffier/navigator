@@ -1,6 +1,9 @@
 package onlinevulns
 
-import "gitlab.com/piccolo_su/vegeta/pkg/redclair"
+import (
+	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type onlineVulnListItem struct {
 	Namespace         string                       `json:"namespace"`
@@ -33,6 +36,7 @@ type onlineVulnDetailsContainer struct {
 	SensitiveFiles      []redclair.Sensitive                  `json:"sensitiveFiles"`
 	WasScanned          bool                                  `json:"wasScanned"`
 	HarborURL           string                                `json:"harborURL"`
+	TaskID              primitive.ObjectID                    `json:"taskID"`
 }
 
 type onlineVulnDetails struct {
