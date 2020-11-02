@@ -159,7 +159,6 @@ endif
 
 .PHONY: retag
 retag:
-pushimages:
 ifeq ($(RELEASEVERSION),true)
 	@echo "tag all images release"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
