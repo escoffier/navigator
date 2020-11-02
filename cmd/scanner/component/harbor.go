@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -20,13 +21,22 @@ type HarborRESTClient struct {
 	skipTLSVerify bool
 }
 
-func NewHarborRESTClient(harborOpts *flag.HarborOpts) *HarborRESTClient {
-	return &HarborRESTClient{
+func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*HarborRESTClient, error) {
+	h := &HarborRESTClient{
 		address:       harborOpts.URL,
 		username:      harborOpts.Username,
 		password:      harborOpts.Password,
 		skipTLSVerify: harborOpts.SkipTLSVerify,
 	}
+
+	testCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	err := h.testConnectionAndAdminPrivileges(testCtx)
+	if err != nil {
+		return nil, fmt.Errorf("Harbor connection and admin privilege check failed: %w", err)
+	}
+
+	return h, nil
 }
 
 type harborHTTPSubError struct {
@@ -183,4 +193,49 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 
 func (h HarborRESTClient) GetHarborFullScanConfigURL() string {
 	return fmt.Sprintf("%s/harbor/interrogation-services/vulnerability", h.address)
+}
+
+func (h HarborRESTClient) testConnectionAndAdminPrivileges(ctx context.Context) error {
+	// GET /users endpoint requires admin role, so let's try to use it
+
+	url := fmt.Sprintf("%s/api/v2.0/users", h.address)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get users request to Harbor: %w", err))
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get users request to Harbor: %w", err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+
+		var errorResp harborHTTPErrorResp
+		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+		}
+
+		if resp.StatusCode == http.StatusUnauthorized {
+			return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusForbidden {
+			return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
+		} else {
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		}
+	}
+
+	return nil
 }
