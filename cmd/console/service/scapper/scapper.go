@@ -442,6 +442,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		ClusterID: check.ClusterID,
 		Status:    model.ComplianceCheckStatusInProgress,
 		CreatedAt: secs,
+		LogOutput: "",
 	}
 
 	_, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)

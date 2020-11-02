@@ -8,6 +8,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -83,6 +84,36 @@ func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor
 		}
 	}
 
+	return nil
+}
+
+func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, nodeCheckDetails *scap.NodeCheckDetails) error {
+	var complianceTest docker.DockerJobEntry
+	err := col.FindOne(ctx, filter).Decode(&complianceTest)
+	if err != nil {
+		return err
+	}
+
+	nodeCheckDetails.CheckID = complianceTest.CheckID
+	nodeCheckDetails.ClusterID = complianceTest.ClusterID
+	nodeCheckDetails.Status = complianceTest.Status
+	if nodeCheckDetails.Status == model.ComplianceCheckStatusInProgress || nodeCheckDetails.Status == model.ComplianceCheckStatusFailed {
+		return nil
+	}
+
+	complianceMap := make([]scap.ComplianceMapEntry, 0)
+
+	for _, test := range complianceTest.Report.Tests {
+		for _, result := range test.Results {
+			complianceMapEntry := &scap.ComplianceMapEntry{}
+			complianceMapEntry.PolicyNumber = result.ID
+			complianceMapEntry.Name = test.Description
+			complianceMapEntry.Description = result.Description
+			complianceMapEntry.TestStatus = result.Result
+			complianceMap = append(complianceMap, *complianceMapEntry)
+		}
+	}
+	nodeCheckDetails.ComplianceMap = complianceMap
 	return nil
 }
 

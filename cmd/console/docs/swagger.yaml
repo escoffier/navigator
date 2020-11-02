@@ -447,6 +447,29 @@ paths:
       produces:
       - application/json
       summary: Get scap reports
+  /api/v1/scap/{checkType}/{nodeName}/{checkID}/details:
+    get:
+      description: Get scap history
+      operationId: v1-scap-history
+      parameters:
+      - description: kube/docker/host
+        in: path
+        name: checkType
+        required: true
+        type: string
+      - description: nodeName
+        in: path
+        name: nodeName
+        required: true
+        type: string
+      - description: checkID
+        in: path
+        name: checkID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Get scap history
   /api/v1/scap/{checkType}/breakdown/{checkID}:
     get:
       description: Get scap job breakdown

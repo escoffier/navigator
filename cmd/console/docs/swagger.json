@@ -773,6 +773,39 @@
                     }
                 ]
             }
+        },
+        "/api/v1/scap/{checkType}/{nodeName}/{checkID}/details": {
+            "get": {
+                "description": "Get scap history",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get scap history",
+                "operationId": "v1-scap-history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "kube/docker/host",
+                        "name": "checkType",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "nodeName",
+                        "name": "nodeName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "checkID",
+                        "name": "checkID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
         }
     },
     "definitions": {
