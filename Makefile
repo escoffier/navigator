@@ -10,6 +10,8 @@ REPOPREFIXOLD?=localhost:32000
 
 USEMIRROR?=definitelynottrue
 
+RELEASEVERSION?=0.0.1
+
 .PHONY: help
 help:
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -133,6 +135,18 @@ all: tensordig scanner scap-jobs console elastalert faulty
 
 .PHONY: pushimages
 pushimages:
+ifeq ($(PUSHRELEASE),true)
+	@echo "push all images release"
+	docker push $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/elastalert:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
+else
+	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
 	docker push $(REPOPREFIX)/tensorsec-scanner:latest
 	docker push $(REPOPREFIX)/kube-bench:latest
@@ -141,6 +155,7 @@ pushimages:
 	docker push $(REPOPREFIX)/tensordig:latest
 	docker push $(REPOPREFIX)/elastalert:latest
 	docker push $(REPOPREFIX)/faulty:latest
+endif
 
 .PHONY: retag
 retag:
