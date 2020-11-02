@@ -109,13 +109,22 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 			id = fmt.Sprintf("%s (%s)", id, redVuln.CNNVD)
 		}
 
+		description := redVuln.Description
+		if redVuln.CVSSv2Score != "" {
+			description = fmt.Sprintf("[CVSSv2] Score: %s (Base: %s, Temporal: *coming soon*) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, description)
+		}
+		if redVuln.CVSSv3Score != "" {
+			description = fmt.Sprintf("[CVSSv3] Score: %s, Exploitability Score: %s, Impact Score: %s (Base: %s, Temporal: *coming soon*) | %s",
+				redVuln.CVSSv3Score, redVuln.CVSSv3ExploitabilityScore, redVuln.CVSSv3ImpactScore, redVuln.CVSSv3Vector, description)
+		}
+
 		harborVuln := VulnerabilityItem{
 			ID:          id,
 			Package:     redVuln.FeatureName,
 			Version:     redVuln.FeatureVersion,
 			FixVersion:  redVuln.FixedBy, // Not sure about this field
 			Severity:    redVuln.Severity,
-			Description: redVuln.Description,
+			Description: description,
 			Links:       redVuln.Links,
 		}
 
