@@ -24,12 +24,99 @@ func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/{checkType}/{clusterID}/reports", api.getScapReports())
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
+		r.Get("/{checkType}/{nodeName}/{checkID}/details", api.getHostCheckDetails())
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
 		r.Get("/{checkType}/breakdown/{checkID}", api.getCheckBreakdown())
 		r.Get("/{checkType}/history", api.getCheckHistory())
 		r.Get("/crons", api.listAllCrons())
 		r.Get("/{checkType}/{clusterID}/cron", api.getCron())
 		r.Put("/{checkType}/{clusterID}/cron", api.putCron())
+	}
+}
+
+// @Summary Get scap history
+// @Description Get scap history
+// @ID v1-scap-history
+// @Produce json
+// @Param checkType path string true "kube/docker/host"
+// @Param nodeName path string true "nodeName"
+// @Param checkID path string true "checkID"
+// @Router /api/v1/scap/{checkType}/{nodeName}/{checkID}/details [get]
+func (api *api) getHostCheckDetails() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		defer cancel()
+
+		filter := bson.M{}
+
+		checkID := chi.URLParam(r, "checkID")
+		if checkID == "" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkID param missing"),
+					Suberror{"checkID", ""}))
+			return
+		}
+		filter["checkId"] = checkID
+
+		nodeName := chi.URLParam(r, "nodeName")
+		if nodeName == "" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("nodeName param missing"),
+					Suberror{"nodeName", ""}))
+			return
+		}
+		filter["nodeName"] = nodeName
+
+		checkType := chi.URLParam(r, "checkType")
+		if checkType == "" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("checkType param missing"),
+					Suberror{"checkType", ""}))
+			return
+		}
+
+		if checkType != model.ComplianceCheckTargetTypeKube &&
+			checkType != model.ComplianceCheckTargetTypeDocker &&
+			checkType != model.ComplianceCheckTargetTypeHost {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+					Suberror{"checkType", "allowed: kube/docker/host"}))
+			return
+		}
+
+		col := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType))
+
+		nodeCheckDetails := &scap.NodeCheckDetails{}
+		if checkType == model.ComplianceCheckTargetTypeKube {
+			err := kube.GetKubeNodeCheckDetails(ctx, col, filter, nodeCheckDetails)
+			if err != nil {
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get kube history entries: %w", err)))
+				return
+			}
+		} else if checkType == model.ComplianceCheckTargetTypeDocker {
+			err := docker.GetDockerNodeCheckDetails(ctx, col, filter, nodeCheckDetails)
+			if err != nil {
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get docker history entries: %w", err)))
+				return
+			}
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
+			err := host.GetHostNodeCheckDetails(ctx, col, filter, nodeCheckDetails)
+			if err != nil {
+				RespAndLog(w, r,
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't get host history entries: %w", err)))
+				return
+			}
+		}
+		response.Ok(w, response.WithItem(*nodeCheckDetails))
 	}
 }
 
@@ -69,8 +156,8 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
 			return
-
 		}
+
 		if checkType != model.ComplianceCheckTargetTypeKube &&
 			checkType != model.ComplianceCheckTargetTypeDocker &&
 			checkType != model.ComplianceCheckTargetTypeHost {
