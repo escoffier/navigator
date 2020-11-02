@@ -161,14 +161,14 @@ endif
 retag:
 ifeq ($(USERELEASE),true)
 	@echo "tag all images release"
-	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/tensorsec-scanner:latest $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:$(RELEASEVERSION)
-	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-scanner:latest $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/kube-bench:latest $(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/elastalert:latest $(REPOPREFIX)/elastalert:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
