@@ -47,8 +47,8 @@ func getTaskObjectIDFromURL(r *http.Request) (primitive.ObjectID, error) {
 	return primitive.ObjectIDFromHex(taskID)
 }
 
-// @Summary List images and their vulnerabilities
-// @Description List images and their vulnerabilities
+// @Summary Get image and its vulnerabilities
+// @Description Get image and its vulnerabilities
 // @Produce json
 // @Param taskID path string true "scan task ID"
 // @Router /api/v1/scanner/report/{taskID} [get]
@@ -78,7 +78,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 			return
 		}
 
-		result := &s.ImageScanResult{}
+		result := &s.ImageScanDetailedResult{}
 		report := scanTask.ScanReport.Vulns
 		util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
 
@@ -157,9 +157,9 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 		actualLimit := int(math.Min(float64(offset+limit), float64(len(scanTasks))))
 
 		scanTasks = scanTasks[actualOffset:actualLimit]
-		items := make([]s.ImageScanResult, len(scanTasks))
+		items := make([]s.ImageScanSummaryResult, len(scanTasks))
 		for _, scanTask := range scanTasks {
-			imageScanResult := &s.ImageScanResult{}
+			imageScanResult := &s.ImageScanSummaryResult{}
 			report := scanTask.ScanReport.Vulns
 			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
 
@@ -178,7 +178,6 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			imageScanResult.Repository = report.Repository
 			imageScanResult.Tag = report.Tag
 			imageScanResult.Digest = report.Digest
-			imageScanResult.PerLayerReport = report.PerLayerReport
 			imageScanResult.TaskID = scanTask.ID
 			items = append(items, *imageScanResult)
 		}

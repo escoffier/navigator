@@ -280,7 +280,7 @@ paths:
       summary: Redirect to scan config screen in Harbor.
   /api/v1/scanner/report/{taskID}:
     get:
-      description: List images and their vulnerabilities
+      description: Get image and its vulnerabilities
       parameters:
       - description: scan task ID
         in: path
@@ -289,7 +289,7 @@ paths:
         type: string
       produces:
       - application/json
-      summary: List images and their vulnerabilities
+      summary: Get image and its vulnerabilities
   /api/v1/scanner/reportsByImage:
     get:
       description: List images and their vulnerabilities
