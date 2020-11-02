@@ -72,7 +72,10 @@ func NewScanner(
 		return nil, err
 	}
 
-	harbor := component.NewHarborRESTClient(harborOpts)
+	harbor, err := component.NewHarborRESTClient(mainCtx, harborOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Scanner{
 		server: &http.Server{
