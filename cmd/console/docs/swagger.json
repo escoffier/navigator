@@ -372,11 +372,11 @@
         },
         "/api/v1/scanner/report/{taskID}": {
             "get": {
-                "description": "List images and their vulnerabilities",
+                "description": "Get image and its vulnerabilities",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "List images and their vulnerabilities",
+                "summary": "Get image and its vulnerabilities",
                 "parameters": [
                     {
                         "type": "string",
