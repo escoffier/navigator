@@ -1,9 +1,5 @@
 package redclair
 
-import (
-	"sort"
-)
-
 // VulnerabilityReport ...
 type VulnerabilityReport struct {
 	Repository      string                              `json:"repository"`
@@ -20,11 +16,4 @@ type VulnerabilityLayerReport struct {
 	VulnerabilitiesAdded   []VulnerabilityInfo `json:"vulnerabilitiesAdded"`
 	VulnerabilitiesRemoved []VulnerabilityInfo `json:"vulnerabilitiesRemoved"`
 	Sensitives             []Sensitive         `json:"sensitives"`
-}
-
-// SortBySeverity ...
-func SortBySeverity(vulnerabilities []VulnerabilityInfo) {
-	sort.Slice(vulnerabilities, func(i, j int) bool {
-		return SeverityMap[vulnerabilities[i].Severity] < SeverityMap[vulnerabilities[j].Severity]
-	})
 }
