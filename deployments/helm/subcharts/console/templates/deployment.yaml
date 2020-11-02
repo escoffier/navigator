@@ -83,10 +83,6 @@ spec:
       - name: tmp
         hostPath:
           path: /tmp/
-      - name: elastalert-volume
-        configMap:
-          name: elastalert-config
-          defaultMode: 0600
       - name: available-rules-volume
         configMap:
           name: available-rules-config
