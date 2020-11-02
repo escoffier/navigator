@@ -135,7 +135,7 @@ all: tensordig scanner scap-jobs console elastalert faulty
 
 .PHONY: pushimages
 pushimages:
-ifeq ($(RELEASEVERSION),true)
+ifeq ($(USERELEASE),true)
 	@echo "push all images release"
 	docker push $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
@@ -159,7 +159,7 @@ endif
 
 .PHONY: retag
 retag:
-ifeq ($(RELEASEVERSION),true)
+ifeq ($(USERELEASE),true)
 	@echo "tag all images release"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
 	docker tag $(REPOPREFIXOLD)/tensorsec-scanner:latest $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
