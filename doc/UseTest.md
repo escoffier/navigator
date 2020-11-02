@@ -114,7 +114,7 @@ curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/js
 # Docker-bench
 curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66
 # Host-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f908926ac6dc2cdc4559f7a
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 
@@ -127,7 +127,7 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f908926ac6dc2cdc4559f7a/reports?checkId=60e2616c-6dd0-4447-b745-a09abee15b51&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4/reports?checkId=2c22411a-296f-4387-a1c3-3fb46a6b83ad&status=completed" > out.json
 
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
