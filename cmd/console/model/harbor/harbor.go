@@ -132,7 +132,7 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 			Package:     "-",
 			Version:     "-",
 			FixVersion:  "-",
-			Severity:    "High",
+			Severity:    "Medium",
 			Description: sensitiveFile.Description,
 			Links:       []string{},
 		}

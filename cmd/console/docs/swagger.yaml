@@ -317,6 +317,10 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: risk explorarion filter (none(default)/medToCrit/networkBased)
+        in: query
+        name: riskFilter
+        type: string
       - description: asc/desc
         in: query
         name: sortOrder
