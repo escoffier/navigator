@@ -9,6 +9,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -108,7 +110,7 @@ func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filte
 			complianceMapEntry := &scap.ComplianceMapEntry{}
 			complianceMapEntry.PolicyNumber = result.ID
 			complianceMapEntry.Name = test.Description
-			complianceMapEntry.Description = result.Description
+			complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.Description)
 			complianceMapEntry.TestStatus = result.Result
 			complianceMap = append(complianceMap, *complianceMapEntry)
 		}
@@ -135,7 +137,7 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWait
 		for _, test := range complianceTest.Report.Tests {
 			testName := test.Description
 			for _, result := range test.Results {
-				testDescription := result.Description
+				testDescription := util.RemoveScoredNotScoredFrom(result.Description)
 				testNumber := result.ID
 				if policyNumber != "" && policyNumber != testNumber {
 					continue
@@ -185,7 +187,7 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64
 				if result.ID == policyNumber {
 					policyDetails.PolicyNumber = result.ID
 					policyDetails.Name = testName
-					policyDetails.Description = result.Description
+					policyDetails.Description = util.RemoveScoredNotScoredFrom(result.Description)
 					// TODO: how to classify Docker policy specific information?
 					testStatus := result.Result
 					if testStatus == "WARN" {

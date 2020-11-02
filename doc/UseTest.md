@@ -110,28 +110,37 @@ curl -v -X DELETE -H "Authorization: Bearer $JWT" -H "Content-Type: application/
 
 ```bash
 # Kube-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5f8d86d0841e561ca4e81cc9
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5fa03941d1044d02adfadfd4
 # Docker-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5fa03941d1044d02adfadfd4
 # Host-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5f908926ac6dc2cdc4559f7a
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5f75a5221b29c43e6838df66/reports?checkId=ebb296ee-0ff7-4f70-9989-715a04796f04&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa03941d1044d02adfadfd4/reports?checkId=ebb296ee-0ff7-4f70-9989-715a04796f04&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5f75a5221b29c43e6838df66/reports?checkId=7b659ec9-2966-4b3c-8afe-e8beda64d7a1&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa03941d1044d02adfadfd4/reports?checkId=f310c485-a091-4622-b72f-b40c3406a2a6&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5f908926ac6dc2cdc4559f7a/reports?checkId=60e2616c-6dd0-4447-b745-a09abee15b51&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4/reports?checkId=247d1db7-5888-415a-b176-f8cb71814a5b&status=completed" > out.json
 
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
+
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/cc7f68b4-d35f-4a97-8b0d-556751eb82a8" > out.json
+
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/cc7f68b4-d35f-4a97-8b0d-556751eb82a8/1.1.1/details" > out.json
+
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/master/cc7f68b4-d35f-4a97-8b0d-556751eb82a8/details" > out.json
 ```
+
+
+/api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details
 
 Cronjobs:
 
