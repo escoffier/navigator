@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -245,6 +246,7 @@ type scanReportListItem struct {
 // @Produce json
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
+// @Param riskFilter query string false "risk explorarion filter (none(default)/medToCrit/networkBased)"
 // @Param sortOrder query string false "asc/desc"
 // @Param from query int64 false "absolute time (in unix epoch seconds) from which to return results (default is 1 week ago)"
 // @Router /api/v1/scanner/reportsBySeverity [get]
@@ -252,6 +254,18 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*20)
 		defer cancel()
+
+		riskFilter := r.URL.Query().Get("riskFilter")
+		if riskFilter == "" {
+			riskFilter = "none"
+		}
+		if riskFilter != "none" && riskFilter != "medToCrit" && riskFilter != "networkBased" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("invalid riskFilter param value (allowed: none(default)/medToCrit/networkBased)"),
+					Suberror{"riskFilter", "allowed: none(default)/medToCrit/networkBased"}))
+			return
+		}
 
 		sortOrder := r.URL.Query().Get("sortOrder")
 		if sortOrder == "" {
@@ -353,6 +367,18 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			digestToVulns[task.ImageDigest] = []vulnInfoEx{}
 
 			for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
+
+				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
+					if vuln.Severity == "Low" || vuln.Severity == "Negligible" || vuln.Severity == "Unknown" {
+						continue
+					}
+				}
+				if riskFilter == "networkBased" {
+					if strings.Contains(vuln.CVSSv2Vector, "AV:L") {
+						continue
+					}
+				}
+
 				vex := vulnInfoEx{
 					VulnerabilityInfo:  vuln,
 					AffectedRepository: task.Repository,
@@ -365,12 +391,17 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
 			}
 			for _, sens := range task.ScanReport.Vulns.Sensitives {
+
+				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
+					continue
+				}
+
 				// "dumb" convert of sensitive file info to vulnerability info.
 				// Consider a different way to return this maybe?
 				vi := redclair.VulnerabilityInfo{
 					Description:    fmt.Sprintf("Potential file leak: %s", sens.Description),
 					FeatureName:    sens.Name,
-					Severity:       "High",
+					Severity:       "Medium",
 					CVE:            "-",
 					CNNVD:          "-",
 					Namespace:      "-",

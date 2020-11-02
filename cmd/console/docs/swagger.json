@@ -433,6 +433,12 @@
                     },
                     {
                         "type": "string",
+                        "description": "risk explorarion filter (none(default)/medToCrit/networkBased)",
+                        "name": "riskFilter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "asc/desc",
                         "name": "sortOrder",
                         "in": "query"
