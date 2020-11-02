@@ -135,7 +135,7 @@ all: tensordig scanner scap-jobs console elastalert faulty
 
 .PHONY: pushimages
 pushimages:
-ifeq ($(PUSHRELEASE),true)
+ifeq ($(RELEASEVERSION),true)
 	@echo "push all images release"
 	docker push $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
@@ -159,6 +159,19 @@ endif
 
 .PHONY: retag
 retag:
+pushimages:
+ifeq ($(RELEASEVERSION),true)
+    @echo "tag all images release"
+	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/tensorsec-scanner:latest $(REPOPREFIX)/tensorsec-scanner:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:$(RELEASEVERSION)
+	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
+else
+	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-scanner:latest $(REPOPREFIX)/tensorsec-scanner:latest
 	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:latest
@@ -167,6 +180,7 @@ retag:
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
 	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
+endif
 
 .PHONY: redeploy
 redeploy:
