@@ -10,7 +10,7 @@ REPOPREFIXOLD?=localhost:32000
 
 USEMIRROR?=definitelynottrue
 
-RELEASEVERSION?=0.0.1
+RELEASEVERSION?=v0.0.1
 
 .PHONY: help
 help:
