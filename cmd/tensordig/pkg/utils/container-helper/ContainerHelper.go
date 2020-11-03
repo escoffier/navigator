@@ -46,7 +46,8 @@ func (cu ContainerUtil) GetContainerPid(pid int) (int, error) {
 			cu.pidCache.Set(pid, dockerPID)
 			return dockerPID, nil
 		}
-		if p.Executable() == "docker-containerd-shim" {
+		// TODO: need to have larger buffer for executable...
+		if p.Executable() == "docker-containerd-shim" || p.Executable() == "docker-containe" {
 			dockerPID = p.Pid()
 			log.Infof("Current checked PID %d is docker-containerd-shim. Persist it as docker pid for %d\n", dockerPID, pid)
 			cu.pidCache.Set(pid, dockerPID)
