@@ -83,9 +83,9 @@ spec:
       - name: usr
         hostPath:
           path: /usr/src
-      - name: host
+      - name: proc
         hostPath:
-          path: /
+          path: /proc
       - name: syscall-data
         emptyDir: { }
       {{- range .Values.secretMounts }}
@@ -177,14 +177,16 @@ spec:
             readOnly: true
           - name: time
             mountPath: /etc/localtime
+            readOnly: true
           - name: syskerneldebug
             mountPath: /sys/kernel/debug
           - name: sysfsbpf
             mountPath: /sys/fs/bpf
           - name: sysfscgroup
             mountPath: /sys/fs/cgroup            
-          - name: host
-            mountPath: /host
+          - name: proc
+            mountPath: /host/proc
+            readOnly: true
           - name: syscall-data
             mountPath: /data
       - name: "filebeat"

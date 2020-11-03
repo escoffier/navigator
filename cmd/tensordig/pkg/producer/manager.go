@@ -31,7 +31,7 @@ type Manager struct {
 var bufferRemain = 0
 
 //DataChanBufferSize 32
-const DataChanBufferSize = 1048576
+const DataChanBufferSize = 1000
 
 type SortBuffer []*constant.TotalData
 

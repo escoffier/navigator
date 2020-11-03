@@ -14,9 +14,14 @@ import (
 )
 
 var (
-	// 	kubePattern   = regexp.MustCompile(`\d+:.+:/kubepods/[^/]+/pod[^/]+/([0-9a-f]{64})`)
-	// 	dockerPattern = regexp.MustCompile(`\d+:.+:/docker/pod[^/]+/([0-9a-f]{64})`)
-	kubePattern   = regexp.MustCompile(`/kubepods/[^/]+/pod([^/]+)/([0-9a-f]{64})`)
+	// pattern found on microk8s
+	kubePattern = regexp.MustCompile(`/kubepods/[^/]+/pod([^/]+)/([0-9a-f]{64})`)
+	// E.g. cgroup hierarchy: https://github.com/kubernetes/kubernetes/issues/62896
+	// kubelet cgroup v1 schema - guaranteed QoS
+	kubePatternCgroupV1Guaranteed = regexp.MustCompile(`/kubepods\.slice/kubepods-[^-]+-pod([^/]+)\.slice/docker-([0-9a-f]{64})`)
+	// kubelet cgroup v1 schema - burstable and besteffort QoS
+	kubePatternCgroupV1 = regexp.MustCompile(`/kubepods\.slice/[^/]+/kubepods-[^-]+-pod([^/]+)\.slice/docker-([0-9a-f]{64})`)
+	// docker pattern
 	dockerPattern = regexp.MustCompile(`/docker/pod([^/]+)/([0-9a-f]{64})`)
 )
 
@@ -161,7 +166,19 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			log.Infof("Found match for %d against %s", pid, kubePattern)
 			return parts[2], parts[1], nil
 		}
-		log.Infof("Match not for against %s", kubePattern)
+		log.Infof("Match not for against %s", kubePatternCgroupV1)
+		parts = kubePatternCgroupV1.FindStringSubmatch(line)
+		if parts != nil {
+			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1)
+			return parts[2], parts[1], nil
+		}
+		log.Infof("Match not for against %s", kubePatternCgroupV1Guaranteed)
+		parts = kubePatternCgroupV1Guaranteed.FindStringSubmatch(line)
+		if parts != nil {
+			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1Guaranteed)
+			return parts[2], parts[1], nil
+		}
+		log.Infof("Match not for against %s", kubePatternCgroupV1Guaranteed)
 	}
 	log.Infof("No match for %d in its cpuset", pid)
 	return "", "", nil
