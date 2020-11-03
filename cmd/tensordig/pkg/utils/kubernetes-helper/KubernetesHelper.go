@@ -91,11 +91,14 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 		return nil, err
 	}
 
-	log.Info("Iterating over pods in the cluster")
+	log.Info("Iterating over pods")
 	for _, item := range pods.Items {
+		log.Infof("Checking %s kid", kid)
 		if kid != "" {
 			if kid == string(item.ObjectMeta.UID) {
+				log.Info("Matching UUID with the one in the process")
 				for _, status := range item.Status.ContainerStatuses {
+					log.Infof("Checking %s container", status.ContainerID)
 					if status.ContainerID == "docker://"+cid || status.ContainerID == "containerd://"+cid {
 						return &SyscallContext{
 							Namespace:     item.ObjectMeta.Namespace,
