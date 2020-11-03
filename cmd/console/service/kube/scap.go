@@ -9,6 +9,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -105,7 +107,7 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 				complianceMapEntry := &scap.ComplianceMapEntry{}
 				complianceMapEntry.PolicyNumber = test.TestNumber
 				complianceMapEntry.Name = section.Description
-				complianceMapEntry.Description = test.TestDescription
+				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
 				complianceMapEntry.TestStatus = test.Status
 				complianceMap = append(complianceMap, *complianceMapEntry)
 			}
@@ -134,7 +136,7 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 			for _, section := range reportDetails.Tests {
 				testName := section.Description
 				for _, test := range section.Results {
-					testDescription := test.TestDescription
+					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescription)
 					testNumber := test.TestNumber
 					if policyNumber != "" && policyNumber != testNumber {
 						continue
@@ -188,7 +190,7 @@ func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, 
 					}
 					policyDetails.PolicyNumber = test.TestNumber
 					policyDetails.Name = testName
-					policyDetails.Description = test.TestDescription
+					policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
 					policyDetails.Audit = test.Audit
 					policyDetails.ExpectedResult = test.ExpectedResult
 					policyDetails.Remediation = test.Remediation
