@@ -28,6 +28,21 @@ type CheckBreakdown struct {
 	NumWarn       int64  `json:"numWarn"`
 }
 
+type NodeCheckDetails struct {
+	CheckID       string               `json:"checkId"`
+	ClusterID     string               `json:"clusterId"`
+	Status        string               `json:"status"`
+	NodeName      string               `json:"nodeName"`
+	ComplianceMap []ComplianceMapEntry `json:"complianceMap"`
+}
+
+type ComplianceMapEntry struct {
+	PolicyNumber string `json:"policyNumber"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	TestStatus   string `json:"testStatus"`
+}
+
 type PolicyDetails struct {
 	PolicyNumber   string   `json:"policyNumber"`
 	Name           string   `json:"name"`
@@ -55,4 +70,5 @@ type JobEntry struct {
 	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
 	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
+	LogOutput  string                 `json:"log_output" bson:"logOutput,omitempty"`
 }

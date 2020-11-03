@@ -8,6 +8,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -86,6 +89,36 @@ func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor
 	return nil
 }
 
+func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, nodeCheckDetails *scap.NodeCheckDetails) error {
+	var complianceTest docker.DockerJobEntry
+	err := col.FindOne(ctx, filter).Decode(&complianceTest)
+	if err != nil {
+		return err
+	}
+
+	nodeCheckDetails.CheckID = complianceTest.CheckID
+	nodeCheckDetails.ClusterID = complianceTest.ClusterID
+	nodeCheckDetails.Status = complianceTest.Status
+	if nodeCheckDetails.Status == model.ComplianceCheckStatusInProgress || nodeCheckDetails.Status == model.ComplianceCheckStatusFailed {
+		return nil
+	}
+
+	complianceMap := make([]scap.ComplianceMapEntry, 0)
+
+	for _, test := range complianceTest.Report.Tests {
+		for _, result := range test.Results {
+			complianceMapEntry := &scap.ComplianceMapEntry{}
+			complianceMapEntry.PolicyNumber = result.ID
+			complianceMapEntry.Name = test.Description
+			complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.Description)
+			complianceMapEntry.TestStatus = result.Result
+			complianceMap = append(complianceMap, *complianceMapEntry)
+		}
+	}
+	nodeCheckDetails.ComplianceMap = complianceMap
+	return nil
+}
+
 func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest docker.DockerJobEntry
@@ -104,7 +137,7 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWait
 		for _, test := range complianceTest.Report.Tests {
 			testName := test.Description
 			for _, result := range test.Results {
-				testDescription := result.Description
+				testDescription := util.RemoveScoredNotScoredFrom(result.Description)
 				testNumber := result.ID
 				if policyNumber != "" && policyNumber != testNumber {
 					continue
@@ -154,7 +187,7 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64
 				if result.ID == policyNumber {
 					policyDetails.PolicyNumber = result.ID
 					policyDetails.Name = testName
-					policyDetails.Description = result.Description
+					policyDetails.Description = util.RemoveScoredNotScoredFrom(result.Description)
 					// TODO: how to classify Docker policy specific information?
 					testStatus := result.Result
 					if testStatus == "WARN" {

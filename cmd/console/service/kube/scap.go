@@ -8,6 +8,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -81,6 +84,39 @@ func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *
 	return nil
 }
 
+func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, nodeCheckDetails *scap.NodeCheckDetails) error {
+	var complianceTest kube.KubeJobEntry
+	err := col.FindOne(ctx, filter).Decode(&complianceTest)
+	if err != nil {
+		return err
+	}
+
+	nodeCheckDetails.CheckID = complianceTest.CheckID
+	nodeCheckDetails.ClusterID = complianceTest.ClusterID
+	nodeCheckDetails.NodeName = complianceTest.NodeName
+	nodeCheckDetails.Status = complianceTest.Status
+	if nodeCheckDetails.Status == model.ComplianceCheckStatusInProgress || nodeCheckDetails.Status == model.ComplianceCheckStatusFailed {
+		return nil
+	}
+
+	complianceMap := make([]scap.ComplianceMapEntry, 0)
+
+	for _, reportDetails := range complianceTest.Report {
+		for _, section := range reportDetails.Tests {
+			for _, test := range section.Results {
+				complianceMapEntry := &scap.ComplianceMapEntry{}
+				complianceMapEntry.PolicyNumber = test.TestNumber
+				complianceMapEntry.Name = section.Description
+				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+				complianceMapEntry.TestStatus = test.Status
+				complianceMap = append(complianceMap, *complianceMapEntry)
+			}
+		}
+	}
+	nodeCheckDetails.ComplianceMap = complianceMap
+	return nil
+}
+
 func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
@@ -100,7 +136,7 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 			for _, section := range reportDetails.Tests {
 				testName := section.Description
 				for _, test := range section.Results {
-					testDescription := test.TestDescription
+					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescription)
 					testNumber := test.TestNumber
 					if policyNumber != "" && policyNumber != testNumber {
 						continue
@@ -154,7 +190,7 @@ func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, 
 					}
 					policyDetails.PolicyNumber = test.TestNumber
 					policyDetails.Name = testName
-					policyDetails.Description = test.TestDescription
+					policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
 					policyDetails.Audit = test.Audit
 					policyDetails.ExpectedResult = test.ExpectedResult
 					policyDetails.Remediation = test.Remediation

@@ -8,6 +8,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func GetHostHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -124,12 +125,41 @@ func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 	return nil
 }
 
+func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, nodeCheckDetails *scap.NodeCheckDetails) error {
+	var complianceTest host.HostJobEntry
+	err := col.FindOne(ctx, filter).Decode(&complianceTest)
+	if err != nil {
+		return err
+	}
+
+	nodeCheckDetails.CheckID = complianceTest.CheckID
+	nodeCheckDetails.ClusterID = complianceTest.ClusterID
+	nodeCheckDetails.NodeName = complianceTest.NodeName
+	nodeCheckDetails.Status = complianceTest.Status
+	if nodeCheckDetails.Status == model.ComplianceCheckStatusInProgress || nodeCheckDetails.Status == model.ComplianceCheckStatusFailed {
+		return nil
+	}
+
+	complianceMap := make([]scap.ComplianceMapEntry, 0)
+
+	for _, test := range complianceTest.Report.Results {
+		complianceMapEntry := &scap.ComplianceMapEntry{}
+		complianceMapEntry.PolicyNumber = test.RuleID
+		complianceMapEntry.Name = test.Title
+		complianceMapEntry.Description = test.Description
+		complianceMapEntry.TestStatus = test.Result
+		complianceMap = append(complianceMap, *complianceMapEntry)
+	}
+	nodeCheckDetails.ComplianceMap = complianceMap
+	return nil
+}
+
 func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
 		if err != nil {
-			return nil
+			return err
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
 			*numError++
