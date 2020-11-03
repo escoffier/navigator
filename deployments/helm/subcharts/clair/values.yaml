@@ -39,7 +39,7 @@ config:
   postgresServiceName: "tensorsec-postgresql"
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   paginationKey: "XxoPtCUzrUv4JV5dS+yQ+MdW7yLEJnRMwigVY/bpgtQ="
-  updateInterval: 0 # 0 disables - disable updates for now until we fix TEN-31
+  updateInterval: 2h
   # notificationWebhookEndpoint: https://example.com/notify/me
   enabledUpdaters:
   - debian

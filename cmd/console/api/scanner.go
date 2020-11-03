@@ -101,7 +101,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		result.PerLayerReport = report.PerLayerReport
 		result.TaskID = scanTask.ID
 
-		response.Ok(w, response.WithItem(result))
+		response.Ok(w, response.WithItem(*result))
 	}
 }
 

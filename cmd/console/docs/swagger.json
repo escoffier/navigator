@@ -782,12 +782,12 @@
         },
         "/api/v1/scap/{checkType}/{nodeName}/{checkID}/details": {
             "get": {
-                "description": "Get scap history",
+                "description": "Get node check details",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get scap history",
-                "operationId": "v1-scap-history",
+                "summary": "Get node check details",
+                "operationId": "v1-node-check-details-get",
                 "parameters": [
                     {
                         "type": "string",

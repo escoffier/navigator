@@ -3,6 +3,7 @@ package kube
 import (
 	"context"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
@@ -11,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
@@ -84,9 +86,18 @@ func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *
 	return nil
 }
 
-func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, nodeCheckDetails *scap.NodeCheckDetails) error {
+func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, checkID string, nodeCheckDetails *scap.NodeCheckDetails) error {
 	var complianceTest kube.KubeJobEntry
-	err := col.FindOne(ctx, filter).Decode(&complianceTest)
+
+	findOptions := options.FindOne()
+
+	if checkID == "latest" {
+		findOptions.SetSort(bson.D{{"finishedAt", -1}})
+	} else {
+		filter["checkId"] = checkID
+	}
+
+	err := col.FindOne(ctx, filter, findOptions).Decode(&complianceTest)
 	if err != nil {
 		return err
 	}
