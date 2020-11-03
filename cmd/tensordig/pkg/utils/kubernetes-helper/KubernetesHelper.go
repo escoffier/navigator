@@ -160,25 +160,25 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			log.Infof("Found match for %d against %s", pid, dockerPattern)
 			return parts[2], parts[1], nil
 		}
-		log.Infof("Match not for against %s", dockerPattern)
+		log.Infof("Match not found against %s", dockerPattern)
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, kubePattern)
 			return parts[2], parts[1], nil
 		}
-		log.Infof("Match not for against %s", kubePatternCgroupV1)
+		log.Infof("Match not found against %s", kubePatternCgroupV1)
 		parts = kubePatternCgroupV1.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1)
 			return parts[2], parts[1], nil
 		}
-		log.Infof("Match not for against %s", kubePatternCgroupV1Guaranteed)
+		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
 		parts = kubePatternCgroupV1Guaranteed.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1Guaranteed)
 			return parts[2], parts[1], nil
 		}
-		log.Infof("Match not for against %s", kubePatternCgroupV1Guaranteed)
+		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
 	}
 	log.Infof("No match for %d in its cpuset", pid)
 	return "", "", nil

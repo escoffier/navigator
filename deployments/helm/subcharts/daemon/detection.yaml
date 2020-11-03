@@ -28,60 +28,60 @@ producers:
             - v: 17 #AF_PACKET
             - v: 2 #AF_INET             
         logic: f1||f2
-      - syscallExecve:
-        name: execve
-        filters:
-          - filenameFilter:
-            id: f1
-            field: filename
-            operation: equalTo
-            values:
-              - v: /usr/bin/sudo
-          - argv1Filter:
-            id: f2
-            field: argv1
-            operation: inArray
-            values:
-              - v: -u#-1
-              - v: -u#4294967295
-          - filenameRSNCFilter:
-            id: f3
-            field: filename
-            operation: inArray
-            values:
-              - v: /bin/nc
-              - v: /usr/bin/ncat
-          - argv1RSNCFilter:
-            id: f4
-            field: argv1
-            operation: inArray
-            values:
-              - v: -e
-              - v: -c
-              - v: --sh-exec
-              - v: --exec
-              - v: --lua-exec
-          - argv2RSNCFilter:
-            id: f5
-            field: argv2
-            operation: inArray
-            values:
-              - v: -e
-              - v: -c
-              - v: --sh-exec
-              - v: --exec
-              - v: --lua-exec
-          - argv3RSNCFilter:
-            id: f6
-            field: argv3
-            operation: inArray
-            values:
-              - v: -e
-              - v: -c
-              - v: --sh-exec
-              - v: --exec
-              - v: --lua-exec
-        logic: (f1&&f2)||(f3&&(f4||f5||f6))    
+      # - syscallExecve:
+      #   name: execve
+      #   filters:
+      #     - filenameFilter:
+      #       id: f1
+      #       field: filename
+      #       operation: equalTo
+      #       values:
+      #         - v: /usr/bin/sudo
+      #     - argv1Filter:
+      #       id: f2
+      #       field: argv1
+      #       operation: inArray
+      #       values:
+      #         - v: -u#-1
+      #         - v: -u#4294967295
+      #     - filenameRSNCFilter:
+      #       id: f3
+      #       field: filename
+      #       operation: inArray
+      #       values:
+      #         - v: /bin/nc
+      #         - v: /usr/bin/ncat
+      #     - argv1RSNCFilter:
+      #       id: f4
+      #       field: argv1
+      #       operation: inArray
+      #       values:
+      #         - v: -e
+      #         - v: -c
+      #         - v: --sh-exec
+      #         - v: --exec
+      #         - v: --lua-exec
+      #     - argv2RSNCFilter:
+      #       id: f5
+      #       field: argv2
+      #       operation: inArray
+      #       values:
+      #         - v: -e
+      #         - v: -c
+      #         - v: --sh-exec
+      #         - v: --exec
+      #         - v: --lua-exec
+      #     - argv3RSNCFilter:
+      #       id: f6
+      #       field: argv3
+      #       operation: inArray
+      #       values:
+      #         - v: -e
+      #         - v: -c
+      #         - v: --sh-exec
+      #         - v: --exec
+      #         - v: --lua-exec
+      #   logic: (f1&&f2)||(f3&&(f4||f5||f6))    
       - syscallOpen:
         name: open
         filters:
