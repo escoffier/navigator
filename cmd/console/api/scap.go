@@ -24,7 +24,7 @@ func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/{checkType}/{clusterID}/reports", api.getScapReports())
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
-		r.Get("/{checkType}/{nodeName}/{checkID}/details", api.getHostCheckDetails())
+		r.Get("/{checkType}/{nodeName}/{checkID}/details", api.getNodeCheckDetails())
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
 		r.Get("/{checkType}/breakdown/{checkID}", api.getCheckBreakdown())
 		r.Get("/{checkType}/history", api.getCheckHistory())
@@ -34,15 +34,15 @@ func (api *api) scap() func(chi.Router) {
 	}
 }
 
-// @Summary Get scap history
-// @Description Get scap history
-// @ID v1-scap-history
+// @Summary Get node check details
+// @Description Get node check details
+// @ID v1-node-check-details-get
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param nodeName path string true "nodeName"
 // @Param checkID path string true "checkID"
 // @Router /api/v1/scap/{checkType}/{nodeName}/{checkID}/details [get]
-func (api *api) getHostCheckDetails() http.HandlerFunc {
+func (api *api) getNodeCheckDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
 		defer cancel()
@@ -57,7 +57,6 @@ func (api *api) getHostCheckDetails() http.HandlerFunc {
 					Suberror{"checkID", ""}))
 			return
 		}
-		filter["checkId"] = checkID
 
 		nodeName := chi.URLParam(r, "nodeName")
 		if nodeName == "" {
@@ -92,7 +91,7 @@ func (api *api) getHostCheckDetails() http.HandlerFunc {
 
 		nodeCheckDetails := &scap.NodeCheckDetails{}
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeNodeCheckDetails(ctx, col, filter, nodeCheckDetails)
+			err := kube.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
@@ -100,7 +99,7 @@ func (api *api) getHostCheckDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerNodeCheckDetails(ctx, col, filter, nodeCheckDetails)
+			err := docker.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
@@ -108,7 +107,7 @@ func (api *api) getHostCheckDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostNodeCheckDetails(ctx, col, filter, nodeCheckDetails)
+			err := host.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,

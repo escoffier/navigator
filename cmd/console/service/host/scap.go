@@ -8,6 +8,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -125,9 +128,18 @@ func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 	return nil
 }
 
-func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, nodeCheckDetails *scap.NodeCheckDetails) error {
+func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, checkID string, nodeCheckDetails *scap.NodeCheckDetails) error {
 	var complianceTest host.HostJobEntry
-	err := col.FindOne(ctx, filter).Decode(&complianceTest)
+
+	findOptions := options.FindOne()
+
+	if checkID == "latest" {
+		findOptions.SetSort(bson.D{{"finishedAt", -1}})
+	} else {
+		filter["checkId"] = checkID
+	}
+
+	err := col.FindOne(ctx, filter, findOptions).Decode(&complianceTest)
 	if err != nil {
 		return err
 	}
