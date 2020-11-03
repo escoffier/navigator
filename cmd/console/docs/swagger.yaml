@@ -453,8 +453,8 @@ paths:
       summary: Get scap reports
   /api/v1/scap/{checkType}/{nodeName}/{checkID}/details:
     get:
-      description: Get scap history
-      operationId: v1-scap-history
+      description: Get node check details
+      operationId: v1-node-check-details-get
       parameters:
       - description: kube/docker/host
         in: path
@@ -473,7 +473,7 @@ paths:
         type: string
       produces:
       - application/json
-      summary: Get scap history
+      summary: Get node check details
   /api/v1/scap/{checkType}/breakdown/{checkID}:
     get:
       description: Get scap job breakdown
