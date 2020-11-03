@@ -39,6 +39,7 @@ func (cu ContainerUtil) GetContainerPid(pid int) (int, error) {
 
 	notInit := true
 	for notInit {
+		log.Infof("Process %d executable: %s", p.Pid(), p.Executable())
 		if p.Executable() == "containerd-shim" {
 			dockerPID = p.Pid()
 			log.Infof("Current checked PID %d is containerd-shim. Persist it as docker pid for %d\n", dockerPID, pid)
@@ -54,7 +55,7 @@ func (cu ContainerUtil) GetContainerPid(pid int) (int, error) {
 
 		p, err = ps.FindProcess(p.PPid())
 		if p == nil || err != nil {
-			log.Error(fmt.Sprintf("Could not find process information for %d. Probably vanished", pid), err)
+			log.Error(fmt.Sprintf("Could not find process information for %d parent. Probably vanished or not existing", pid), err)
 			return 0, nil
 		}
 		log.Infof("Searching for parent process information %d of %d\n", p.PPid(), p.Pid())
