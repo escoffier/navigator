@@ -639,6 +639,7 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			var vulnInfoAdded, vulnInfoRemoved []redclair.VulnerabilityInfo
 			if currLayer.Parent == "" {
 				vulnInfoAdded = vulnInfo
+				vulnInfoRemoved = make([]redclair.VulnerabilityInfo, 0)
 			} else {
 				parentLayer, err := rcSvc.getParentLayerFromCache(ctx, currLayer.Parent, *currentlyCachedLayers)
 				if err != nil {
@@ -708,7 +709,7 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulns []redclair.Vulner
 		vulnLayerRemoved = append(vulnLayerRemoved, parentFullVulns[parentIndex])
 		parentIndex++
 	}
-	return vulnLayerAdded, vulnLayerAdded, nil
+	return vulnLayerAdded, vulnLayerRemoved, nil
 }
 
 func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.CachedLayer) (*model.CachedLayer, error) {
