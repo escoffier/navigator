@@ -170,7 +170,7 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
-			return parts[2], parts[1], nil
+			return parts[2], foundKid, nil
 		}
 		log.Infof("Match not found against %s", dockerPattern)
 		parts = kubePattern.FindStringSubmatch(line)
@@ -179,7 +179,7 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
-			return parts[2], parts[1], nil
+			return parts[2], foundKid, nil
 		}
 		log.Infof("Match not found against %s", kubePatternCgroupV1)
 		parts = kubePatternCgroupV1.FindStringSubmatch(line)
@@ -188,7 +188,7 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
-			return parts[2], parts[1], nil
+			return parts[2], foundKid, nil
 		}
 		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
 		parts = kubePatternCgroupV1Guaranteed.FindStringSubmatch(line)
@@ -197,7 +197,7 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
-			return parts[2], parts[1], nil
+			return parts[2], foundKid, nil
 		}
 		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
 	}

@@ -1,16 +1,16 @@
 producers:
     syscalls:
-      # - syscallDup2:
-      #   name: dup2
-      #   filters:
-      #     - newfdFilter:
-      #       id: f1
-      #       field: newfd
-      #       operation: inArray
-      #       values:
-      #       - v: 0
-      #       - v: 1
-      #       - v: 2
+      - syscallDup2:
+        name: dup2
+        filters:
+          - newfdFilter:
+            id: f1
+            field: newfd
+            operation: inArray
+            values:
+            - v: 0
+            - v: 1
+            - v: 2
       - syscallSocket:
         name: socket
         filters:
@@ -20,14 +20,14 @@ producers:
             operation: equalTo
             values:
             - v: 132 #IPPROTO_SCTP
-        #   - familyFilter:
-        #     id: f2
-        #     field: family
-        #     operation: inArray
-        #     values:
-        #     - v: 17 #AF_PACKET
-        #     - v: 2 #AF_INET             
-        # logic: f1||f2
+          - familyFilter:
+            id: f2
+            field: family
+            operation: inArray
+            values:
+            - v: 17 #AF_PACKET
+            - v: 2 #AF_INET             
+        logic: f1||f2
       # - syscallExecve:
       #   name: execve
       #   filters:
@@ -82,55 +82,55 @@ producers:
       #         - v: --exec
       #         - v: --lua-exec
       #   logic: (f1&&f2)||(f3&&(f4||f5||f6))    
-      # - syscallOpen:
-      #   name: open
-      #   filters:
-      #     - filenameFilter:
-      #       id: f1
-      #       field: filename
-      #       operation: startsWithArray
-      #       values: 
-      #         - v: /proc/self/exe
-      #         - v: /proc/self/fd
-      #     - modeFilter:
-      #       id: f2
-      #       field: mode
-      #       operation: andIs
-      #       values:
-      #       - v: 1
-      #       - v: 1
-      #     - modeFilter:
-      #       id: f3
-      #       field: mode
-      #       operation: andIs
-      #       values:
-      #       - v: 2
-      #       - v: 2
-      #   logic: f1&&(f2||f3)
-      # - syscallOpenat:
-      #   name: openat
-      #   filters:
-      #     - filenameFilter:
-      #       id: f1
-      #       field: filename
-      #       operation: startsWithArray
-      #       values: 
-      #         - v: /proc/self/exe
-      #         - v: /proc/self/fd
-      #     - modeFilter:
-      #       id: f2
-      #       field: mode
-      #       operation: andIs
-      #       values:
-      #       - v: 1
-      #       - v: 1
-      #     - modeFilter:
-      #       id: f3
-      #       field: mode
-      #       operation: andIs
-      #       values:
-      #       - v: 2
-      #       - v: 2
-      #   logic: f1&&(f2||f3)
+      - syscallOpen:
+        name: open
+        filters:
+          - filenameFilter:
+            id: f1
+            field: filename
+            operation: startsWithArray
+            values: 
+              - v: /proc/self/exe
+              - v: /proc/self/fd
+          - modeFilter:
+            id: f2
+            field: mode
+            operation: andIs
+            values:
+            - v: 1
+            - v: 1
+          - modeFilter:
+            id: f3
+            field: mode
+            operation: andIs
+            values:
+            - v: 2
+            - v: 2
+        logic: f1&&(f2||f3)
+      - syscallOpenat:
+        name: openat
+        filters:
+          - filenameFilter:
+            id: f1
+            field: filename
+            operation: startsWithArray
+            values: 
+              - v: /proc/self/exe
+              - v: /proc/self/fd
+          - modeFilter:
+            id: f2
+            field: mode
+            operation: andIs
+            values:
+            - v: 1
+            - v: 1
+          - modeFilter:
+            id: f3
+            field: mode
+            operation: andIs
+            values:
+            - v: 2
+            - v: 2
+        logic: f1&&(f2||f3)
 consumers:
   - File
