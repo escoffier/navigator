@@ -274,7 +274,12 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
 	}
 
-	zerolog.Ctx(ctx).Info().Str("repository", repository).Str("layerDigest", digest).Int64("size", info.Size()).Str("path", pathToLayersInFS+"/layer.tar").Msg("Layer saved locally")
+	zerolog.Ctx(ctx).Info().
+		Str("repository", repository).
+		Str("layerDigest", digest).
+		Int64("size", info.Size()).
+		Str("path", pathToLayersInFS+"/layer.tar").
+		Msg("Layer saved locally")
 	if err != nil {
 		zerolog.Ctx(ctx).Error().
 			Err(err).
