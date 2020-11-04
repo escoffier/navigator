@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -23,6 +24,7 @@ var (
 	kubePatternCgroupV1 = regexp.MustCompile(`/kubepods\.slice/[^/]+/kubepods-[^-]+-pod([^/]+)\.slice/docker-([0-9a-f]{64})`)
 	// docker pattern
 	dockerPattern = regexp.MustCompile(`/docker/pod([^/]+)/([0-9a-f]{64})`)
+	// TODO: different cgroup schema: https://stackoverflow.com/questions/49035724/how-do-i-resolve-kubepods-besteffort-poduuid-to-a-pod-name
 )
 
 type KubernetesUtil struct {
@@ -93,7 +95,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 
 	log.Info("Iterating over pods")
 	for _, item := range pods.Items {
-		log.Infof("Checking %s kid", kid)
+		log.Infof("Checking %s kid", item.ObjectMeta.UID)
 		if kid != "" {
 			if kid == string(item.ObjectMeta.UID) {
 				log.Info("Matching UUID with the one in the process")
@@ -165,28 +167,36 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 		parts := dockerPattern.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, dockerPattern)
-			log.Infof("Kid: %s, cid: %s", parts[2], parts[1])
+			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			foundKid := strings.ReplaceAll(parts[1], "_", "-")
+			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], parts[1], nil
 		}
 		log.Infof("Match not found against %s", dockerPattern)
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, kubePattern)
-			log.Infof("Kid: %s, cid: %s", parts[2], parts[1])
+			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			foundKid := strings.ReplaceAll(parts[1], "_", "-")
+			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], parts[1], nil
 		}
 		log.Infof("Match not found against %s", kubePatternCgroupV1)
 		parts = kubePatternCgroupV1.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1)
-			log.Infof("Kid: %s, cid: %s", parts[2], parts[1])
+			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			foundKid := strings.ReplaceAll(parts[1], "_", "-")
+			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], parts[1], nil
 		}
 		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
 		parts = kubePatternCgroupV1Guaranteed.FindStringSubmatch(line)
 		if parts != nil {
 			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1Guaranteed)
-			log.Infof("Kid: %s, cid: %s", parts[2], parts[1])
+			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			foundKid := strings.ReplaceAll(parts[1], "_", "-")
+			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], parts[1], nil
 		}
 		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
