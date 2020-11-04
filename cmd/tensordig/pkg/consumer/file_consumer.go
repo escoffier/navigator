@@ -121,14 +121,14 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 							out[typeOfS.Field(i).Name] = v.Field(i).Interface()
 						}
 						if info.Syscall == "socket" {
-							cc.cache.Set(info.ContainerID+" "+strconv.FormatInt(event.EventInfo.Ret, 10), true, cache.DefaultExpiration)
+							cc.cache.Set(info.ContainerID+" "+strconv.Itoa(pid)+" "+strconv.FormatInt(event.EventInfo.Ret, 10), true, cache.DefaultExpiration)
 							// For now AF_INET is only bound to reverse shell with dup2, so we don't want to spam elasticsearch with this data
 							if ExtraInfo["socket__family"].(uint64) == 2 {
 								continue
 							}
 							// Other socket detections are to be sent for alerting
 						} else if info.Syscall == "dup2" {
-							_, found := cc.cache.Get(info.ContainerID + " " + strconv.FormatUint(ExtraInfo["dup2__oldfd"].(uint64), 10))
+							_, found := cc.cache.Get(info.ContainerID + " " + strconv.Itoa(pid) + " " + strconv.FormatUint(ExtraInfo["dup2__oldfd"].(uint64), 10))
 							if found {
 								log.Info("Reverse shell attempt with socket/dup2 detected")
 								out["reverse_shell_socket_dup2"] = "true"
