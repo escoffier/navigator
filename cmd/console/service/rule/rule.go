@@ -10,9 +10,9 @@ import (
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gopkg.in/yaml.v2"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/rule"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,13 +30,13 @@ func NewRuleService(availableRulesFolderPath string, mongodb *mongo.Database) *R
 	}
 }
 
-func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) ([]rule.Rule, int64, error) {
+func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) ([]model.Rule, int64, error) {
 	availableRulesFiles, err := ioutil.ReadDir(s.availableRulesFolderPath)
 	if err != nil {
-		return []rule.Rule{}, 0, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot list rules in dir %s: %w", s.availableRulesFolderPath, err))
+		return []model.Rule{}, 0, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot list rules in dir %s: %w", s.availableRulesFolderPath, err))
 	}
 
-	availableRules := make([]rule.Rule, 0)
+	availableRules := make([]model.Rule, 0)
 
 	for _, file := range availableRulesFiles {
 		filenameSplit := strings.Split(file.Name(), ".yaml")
@@ -45,20 +45,20 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 		}
 		ruleName := filenameSplit[0]
 
-		var queryRule rule.Rule
+		var queryRule model.Rule
 		filter := bson.M{"name": ruleName}
 
-		queryResult := s.mongodb.Collection(rule.RuleCollection).FindOne(ctx, filter)
+		queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 		if queryResult.Err() != nil {
 			if queryResult.Err() == mongo.ErrNoDocuments {
-				var ruleDefinition rule.RuleDefinition
+				var ruleDefinition model.RuleDefinition
 				ruleYamlFile, err := ioutil.ReadFile(s.availableRulesFolderPath + "/" + file.Name())
 				if err != nil {
-					return []rule.Rule{}, 0, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot read rule definition %s: %w", s.availableRulesFolderPath+"/"+file.Name(), err))
+					return []model.Rule{}, 0, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot read rule definition %s: %w", s.availableRulesFolderPath+"/"+file.Name(), err))
 				}
 				err = yaml.Unmarshal(ruleYamlFile, &ruleDefinition)
 				if err != nil {
-					return []rule.Rule{}, 0, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot unmarshal rules definition %s: %w", s.availableRulesFolderPath+"/"+file.Name(), err))
+					return []model.Rule{}, 0, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot unmarshal rules definition %s: %w", s.availableRulesFolderPath+"/"+file.Name(), err))
 				}
 				logging.GetLogger().Info().Str("rule", file.Name()).Msg("Rule successfully parsed")
 
@@ -68,22 +68,22 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 				queryRule.Description = ruleDefinition.Description
 				queryRule.Cvss3Score = ruleDefinition.Cvss3Score
 				queryRule.Cvss3Vector = ruleDefinition.Cvss3Vector
-				insertResult, err := s.mongodb.Collection(rule.RuleCollection).InsertOne(ctx, queryRule)
+				insertResult, err := s.mongodb.Collection(model.RuleCollection).InsertOne(ctx, queryRule)
 				if err != nil {
-					return []rule.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+					return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
 				}
 				id, ok := insertResult.InsertedID.(primitive.ObjectID)
 				if !ok {
-					return []rule.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %w", queryResult.Err()))
+					return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document ID: %w", queryResult.Err()))
 				}
 				queryRule.ID = id
 			} else {
-				return []rule.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+				return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 			}
 		} else {
 			err = queryResult.Decode(&queryRule)
 			if err != nil {
-				return []rule.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+				return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
 			}
 		}
 		availableRules = append(availableRules, queryRule)
@@ -91,11 +91,11 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 	return availableRules, int64(len(availableRules)), nil
 }
 
-func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*rule.Rule, error) {
-	var queryRule rule.Rule
+func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
+	var queryRule model.Rule
 	filter := bson.M{"_id": ruleObjectID}
 
-	queryResult := s.mongodb.Collection(rule.RuleCollection).FindOne(ctx, filter)
+	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -115,9 +115,9 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	queryRule.ID = ruleObjectID
 	update := bson.M{"$set": queryRule}
 
-	_, err = s.mongodb.Collection(rule.RuleCollection).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Collection(model.RuleCollection).UpdateOne(ctx, filter, update)
 
-	queryResult = s.mongodb.Collection(rule.RuleCollection).FindOne(ctx, filter)
+	queryResult = s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -133,11 +133,11 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	return &queryRule, nil
 }
 
-func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*rule.Rule, error) {
-	var queryRule rule.Rule
+func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
+	var queryRule model.Rule
 	filter := bson.M{"_id": ruleObjectID}
 
-	queryResult := s.mongodb.Collection(rule.RuleCollection).FindOne(ctx, filter)
+	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -157,9 +157,9 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	queryRule.ID = ruleObjectID
 	update := bson.M{"$set": queryRule}
 
-	_, err = s.mongodb.Collection(rule.RuleCollection).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Collection(model.RuleCollection).UpdateOne(ctx, filter, update)
 
-	queryResult = s.mongodb.Collection(rule.RuleCollection).FindOne(ctx, filter)
+	queryResult = s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))

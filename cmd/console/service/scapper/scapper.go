@@ -3,6 +3,7 @@ package scapper
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,12 +14,15 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -136,7 +140,7 @@ func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Cont
 
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
-	cursor, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(checkType)).Find(mongoCtx, filter)
+	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(mongoCtx, filter)
 	if err != nil {
 		return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - can't list in-progress checks: %w", err))
 	}
@@ -450,7 +454,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		LogOutput: "",
 	}
 
-	_, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
+	_, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
 	if err != nil {
 		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %w", err))
 	}
@@ -466,7 +470,7 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 		"finishedAt": timeEpochSecs,
 		"message":    msg,
 	}}
-	_, err := s.MongoDB.Collection(s.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
+	_, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
 	if err != nil {
 		logging.GetLogger().Error().
 			Str("checkId", check.CheckUUID.String()).
@@ -488,6 +492,9 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 	})
 	jobInformer := kubeInformerFactory.Batch().V1().Jobs().Informer()
 
+	// Keep track of already finished nodes, so that we don't handle events for further updates after they're done.
+	alreadyFinishedNodes := make(map[string]bool)
+
 	jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) {},
 		DeleteFunc: func(obj interface{}) {},
@@ -500,14 +507,19 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				return
 			}
 
+			thisNodeName := job.Spec.Template.Spec.NodeName
+			if _, ok := alreadyFinishedNodes[thisNodeName]; ok {
+				return
+			}
+
 			// Finished successfuly?
 			if job.Status.Succeeded > 0 {
 				logging.GetLogger().Info().
 					Str("job-name", fmt.Sprintf("%s", job.Name)).
 					Msg("Managed job succeeded")
 
-				thisNodeName := job.Spec.Template.Spec.NodeName
 				finishedNodesCh <- thisNodeName
+				alreadyFinishedNodes[thisNodeName] = true
 				return
 			}
 
@@ -519,6 +531,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 				thisNodeName := job.Spec.Template.Spec.NodeName
 				finishedNodesCh <- thisNodeName
+				alreadyFinishedNodes[thisNodeName] = true
 
 				transTime := failedCondition.LastTransitionTime
 				msg := fmt.Sprintf("Message: %s; Reason: %s", failedCondition.Message, failedCondition.Reason)
@@ -550,9 +563,6 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper.Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
 	defer close(listenerStopCh)
 
-	// TODO: if console restarts while job is running, that job's events won't be watched.
-	// TODO: rethink. Maybe we should have a listener thread all the time and utilize AddFunc
-	// to listen to newly created jobs and keep track that way?
 	// I think this design is kinda fragile... but I don't have any quick ideas.
 	// A better design would be to create a k8s custom resource with a custom controller to manage it.
 
@@ -592,16 +602,136 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 				logging.GetLogger().Info().
 					Str("checkId", check.CheckUUID.String()).
 					Msg("All managed jobs accounted for, done watching for events")
+
+				err := s.generateAlerts(ctx, check)
+				if err != nil {
+					logging.GetLogger().Error().
+						Str("checkId", check.CheckUUID.String()).
+						Msg("Failed to generate alerts")
+				}
+
 				return
 			}
 		}
 
 		if scheduledNodesCh == nil && finishedNodesCh == nil {
 			logging.GetLogger().Error().
-				Msg("Both chans are nil, this shouldln't happen")
+				Msg("Both chans are nil, this shouldn't happen")
 		}
 	}
 
+}
+
+func (s Scapper) generateAlerts(ctx context.Context, check *scapper.Check) error {
+
+	// TODO:
+	// For now, we only alert on one specific policy of Docker compliance check.
+	// This code should be refactored to allow for arbitrary alerts from all checkTypes.
+
+	dockerEntries, err := s.GetJobEntriesForCheck(ctx, check.ClusterID, model.ComplianceCheckTargetTypeDocker,
+		check.CheckUUID.String(), "", model.ComplianceCheckStatusCompleted)
+	if err != nil {
+		return err
+	}
+
+	alertsToReport := make(map[string]model.Alert)
+
+	for _, dockerEntry := range dockerEntries {
+		jsonbody, err := json.Marshal(dockerEntry.Report)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal %T docker report: %w", dockerEntry.Report, err))
+		}
+		var report docker.DockerReportResult
+		err = json.Unmarshal(jsonbody, &report)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to unmarshal into %T docker report: %w", report, err))
+		}
+
+		for _, section := range report.Tests {
+			for _, result := range section.Results {
+				// Ensure Content trust for Docker is Enabled
+				if result.ID == "4.5" && result.Result != "PASS" {
+
+					if _, ok := alertsToReport[result.ID]; !ok {
+						alertsToReport[result.ID] = model.Alert{
+							ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
+							AlertKind: model.AlertKindComplianceCheck,
+							Timestamp: time.Now(),
+							ComplianceCheckAlert: &model.ComplianceCheckAlert{
+								AffectedNodes: &[]string{},
+								ClusterID:     check.ClusterID,
+								CheckID:       check.CheckUUID.String(),
+								CheckType:     check.CheckType,
+								PolicyID:      result.ID,
+								Message:       util.RemoveScoredNotScoredFrom(result.Description),
+							},
+						}
+					}
+
+					*alertsToReport[result.ID].ComplianceCheckAlert.AffectedNodes =
+						append(*alertsToReport[result.ID].ComplianceCheckAlert.AffectedNodes, dockerEntry.NodeName)
+				}
+			}
+		}
+	}
+
+	for _, complianceAlert := range alertsToReport {
+		_, err = s.MongoDB.Collection(model.AlertCollection).InsertOne(ctx, complianceAlert)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", complianceAlert, err))
+		}
+	}
+	return nil
+}
+
+func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID, checkType, checkID, nodeName, status string) ([]scap.JobEntry, error) {
+
+	filter := bson.M{"clusterId": clusterID}
+
+	if checkID != "" {
+		filter["checkId"] = checkID
+	}
+
+	if nodeName != "" {
+		filter["nodeName"] = nodeName
+	}
+
+	if status != "" {
+		if status != model.ComplianceCheckStatusCompleted && status != model.ComplianceCheckStatusInProgress && status != model.ComplianceCheckStatusFailed {
+			allowed := strings.Join([]string{model.ComplianceCheckStatusCompleted, model.ComplianceCheckStatusInProgress, model.ComplianceCheckStatusFailed}, "/")
+			return []scap.JobEntry{}, NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("invalid status param value (allowed: %s)", allowed),
+				Suberror{"status", fmt.Sprintf("allowed: %s", allowed)})
+		}
+		filter["status"] = status
+	}
+
+	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+	if err != nil {
+		return []scap.JobEntry{}, NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find documents: %w", err))
+	}
+	defer cursor.Close(ctx)
+
+	var results []scap.JobEntry
+	for cursor.Next(ctx) {
+		var result scap.JobEntry
+		err := cursor.Decode(&result)
+		if err != nil {
+			return []scap.JobEntry{}, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		// TODO: pagination, maybe https://github.com/gobeam/mongo-go-pagination?
+		results = append(results, result)
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return []scap.JobEntry{}, NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Cursor error: %w", err))
+	}
+
+	return results, nil
 }
 
 func (s Scapper) isJobFailed(job *batchv1.Job) (bool, *batchv1.JobCondition) {

@@ -25,3 +25,24 @@ type ComplianceCheckEntryBase struct {
 	CreatedAt  int64              `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt int64              `json:"finished_at" bson:"finishedAt,omitempty"`
 }
+
+func GetMongoCollectionForCheckType(checkType string) string {
+	if checkType == ComplianceCheckTargetTypeKube {
+		return ComplianceCheckKubeRecordsCollection
+	} else if checkType == ComplianceCheckTargetTypeDocker {
+		return ComplianceCheckDockerRecordsCollection
+	} else if checkType == ComplianceCheckTargetTypeHost {
+		return ComplianceCheckHostRecordsCollection
+	} else {
+		return ""
+	}
+}
+
+func IsAnyCheckType(checkType string) bool {
+	if checkType != ComplianceCheckTargetTypeKube &&
+		checkType != ComplianceCheckTargetTypeDocker &&
+		checkType != ComplianceCheckTargetTypeHost {
+		return false
+	}
+	return true
+}
