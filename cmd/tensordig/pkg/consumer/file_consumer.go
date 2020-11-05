@@ -124,7 +124,9 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 							cc.cache.Set(info.ContainerID+" "+strconv.Itoa(pid)+" "+strconv.FormatInt(event.EventInfo.Ret, 10), true, cache.DefaultExpiration)
 							// For now AF_INET is only bound to reverse shell with dup2, so we don't want to spam elasticsearch with this data
 							if ExtraInfo["socket__family"].(uint64) == 2 {
-								continue
+								if ExtraInfo["socket__protocol"].(uint64) != 132 {
+									continue
+								}
 							}
 							// Other socket detections are to be sent for alerting
 						} else if info.Syscall == "dup2" {

@@ -381,7 +381,7 @@ func (m *Manager) progGenerator() string {
 	}
 
 	// Exit Code
-	prog.WriteString(exitCode)
+	// prog.WriteString(exitCode)
 	return prog.String()
 }
 
@@ -397,7 +397,7 @@ func (m *Manager) Init() {
 	}
 
 	// init exit
-	m.ExitP.Init(m.Module)
+	// m.ExitP.Init(m.Module)
 
 	// init Net
 	if len(m.NetProducers) > 0 {
@@ -429,7 +429,9 @@ func (m *Manager) Start() {
 					if err != nil {
 						log.Fatalf("Deserialize failed. Impossible.")
 					}
-					m.process(d)
+					if d != nil {
+						m.process(d)
+					}
 				}
 				wg.Done()
 			}()

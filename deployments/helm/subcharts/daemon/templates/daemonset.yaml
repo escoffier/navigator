@@ -65,15 +65,9 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
       volumes:
-      - name: syskerneldebug
+      - name: sys
         hostPath:
-          path: /sys/kernel/debug
-      - name: sysfscgroup
-        hostPath:
-          path: /sys/fs/cgroup
-      - name: sysfsbpf
-        hostPath:
-          path: /sys/fs/bpf
+          path: /sys
       - name: time
         hostPath:
         path: /etc/localtime
@@ -178,12 +172,8 @@ spec:
           - name: time
             mountPath: /etc/localtime
             readOnly: true
-          - name: syskerneldebug
-            mountPath: /sys/kernel/debug
-          - name: sysfsbpf
-            mountPath: /sys/fs/bpf
-          - name: sysfscgroup
-            mountPath: /sys/fs/cgroup            
+          - name: sys
+            mountPath: /sys
           - name: proc
             mountPath: /host/proc
             readOnly: true
