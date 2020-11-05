@@ -55,7 +55,7 @@ func (api *api) listRules() http.HandlerFunc {
 // @ID v1-runtime-detection-rule-enable
 // @Produce json
 // @Param ruleID path string true "ruleID"
-// @Router /api/v1/runtimeDetectionConfig/rule/{ruleID}/enable [post]
+// @Router /api/v1/runtimeDetectionConfig/rules/{ruleID}/enable [post]
 func (api *api) enableRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
@@ -87,7 +87,7 @@ func (api *api) enableRule() http.HandlerFunc {
 // @ID v1-runtime-detection-rule-disable
 // @Produce json
 // @Param ruleID path string true "ruleID"
-// @Router /api/v1/runtimeDetectionConfig/rule/{ruleID}/disable [post]
+// @Router /api/v1/runtimeDetectionConfig/rules/{ruleID}/disable [post]
 func (api *api) disableRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()

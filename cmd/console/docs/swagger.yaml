@@ -228,32 +228,6 @@ paths:
       produces:
       - application/json
       summary: Get details of online vulnerabiilty
-  /api/v1/runtimeDetectionConfig/rule/{ruleID}/disable:
-    post:
-      description: Disable single rule
-      operationId: v1-runtime-detection-rule-disable
-      parameters:
-      - description: ruleID
-        in: path
-        name: ruleID
-        required: true
-        type: string
-      produces:
-      - application/json
-      summary: Disable single rule
-  /api/v1/runtimeDetectionConfig/rule/{ruleID}/enable:
-    post:
-      description: Enable single rule
-      operationId: v1-runtime-detection-rule-enable
-      parameters:
-      - description: ruleID
-        in: path
-        name: ruleID
-        required: true
-        type: string
-      produces:
-      - application/json
-      summary: Enable single rule
   /api/v1/runtimeDetectionConfig/rules:
     get:
       description: List runtime detection rules
@@ -270,6 +244,32 @@ paths:
       produces:
       - application/json
       summary: List runtime detection rules
+  /api/v1/runtimeDetectionConfig/rules/{ruleID}/disable:
+    post:
+      description: Disable single rule
+      operationId: v1-runtime-detection-rule-disable
+      parameters:
+      - description: ruleID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Disable single rule
+  /api/v1/runtimeDetectionConfig/rules/{ruleID}/enable:
+    post:
+      description: Enable single rule
+      operationId: v1-runtime-detection-rule-enable
+      parameters:
+      - description: ruleID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Enable single rule
   /api/v1/scanner/harbor/scanAllNow:
     post:
       description: Trigger scan of all images in Harbor.
