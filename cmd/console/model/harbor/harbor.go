@@ -2,7 +2,6 @@ package harbor
 
 import (
 	"fmt"
-	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
@@ -74,33 +73,9 @@ type HarborVulnerabilityReport struct {
 	Vulnerabilities []VulnerabilityItem `json:"vulnerabilities"`
 }
 
-func severityGreaterThan(this, other string) bool {
-	return severityToInt(this) > severityToInt(other)
-}
-
-func severityToInt(sev string) int {
-	switch strings.ToLower(sev) {
-	case "unknown":
-		return 0
-	case "negligible":
-		return 1
-	case "low":
-		return 2
-	case "medium":
-		return 3
-	case "high":
-		return 4
-	case "critical":
-		return 5
-	default:
-		logging.GetLogger().Warn().Str("severity", sev).Msg("Unexpected severity level")
-		return -1
-	}
-}
-
 func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) HarborVulnerabilityReport {
 	harborVulns := []VulnerabilityItem{}
-	highestSeveritySoFar := "Unknown"
+	highestSeveritySoFar := redclair.SeverityUnknown
 
 	for _, redVuln := range redclairReport.Vulnerabilities {
 
@@ -130,7 +105,7 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 
 		harborVulns = append(harborVulns, harborVuln)
 
-		if severityGreaterThan(highestSeveritySoFar, redVuln.Severity) {
+		if redclair.SeverityGreaterThan(highestSeveritySoFar, redVuln.Severity) {
 			highestSeveritySoFar = redVuln.Severity
 		}
 	}
@@ -141,7 +116,7 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 			Package:     "-",
 			Version:     "-",
 			FixVersion:  "-",
-			Severity:    "Medium",
+			Severity:    redclair.SeverityMedium,
 			Description: sensitiveFile.Description,
 			Links:       []string{},
 		}

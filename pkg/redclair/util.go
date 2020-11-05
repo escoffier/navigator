@@ -2,9 +2,46 @@ package redclair
 
 import (
 	"fmt"
+	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
+
+const (
+	SeverityUnknown    = "Unknown"
+	SeverityNone       = "None"
+	SeverityNegligible = "Negligible"
+	SeverityLow        = "Low"
+	SeverityMedium     = "Medium"
+	SeverityHigh       = "High"
+	SeverityCritical   = "Critical"
+)
+
+func SeverityGreaterThan(this, other string) bool {
+	return severityToInt(this) > severityToInt(other)
+}
+
+func severityToInt(sev string) int {
+	switch strings.ToLower(sev) {
+	case strings.ToLower(SeverityUnknown):
+		return 0
+	case strings.ToLower(SeverityNone):
+		return 1
+	case strings.ToLower(SeverityNegligible):
+		return 2
+	case strings.ToLower(SeverityLow):
+		return 3
+	case strings.ToLower(SeverityMedium):
+		return 4
+	case strings.ToLower(SeverityHigh):
+		return 5
+	case strings.ToLower(SeverityCritical):
+		return 6
+	default:
+		logging.GetLogger().Warn().Str("severity", sev).Msg("Unexpected severity level")
+		return -1
+	}
+}
 
 func CompareVulnerabilities(left VulnerabilityInfo, right VulnerabilityInfo) bool {
 
@@ -15,10 +52,10 @@ func CompareVulnerabilities(left VulnerabilityInfo, right VulnerabilityInfo) boo
 	}
 	// else CVSSv2 was equal (usually the case when its empty string "" on both sides)
 
-	if SeverityMap[left.Severity] < SeverityMap[right.Severity] {
-		return true
-	} else if SeverityMap[left.Severity] > SeverityMap[right.Severity] {
+	if SeverityGreaterThan(left.Severity, right.Severity) {
 		return false
+	} else if SeverityGreaterThan(right.Severity, left.Severity) {
+		return true
 	}
 	// else Severity equal
 

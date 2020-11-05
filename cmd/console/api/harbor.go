@@ -207,12 +207,12 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 		} else if result.Status == model.ScanStatusUnprocessableEntity {
 			api.unprocessableEntityCache.Set(result.ImageDigest, true, cache.DefaultExpiration)
 			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
-			e := harbor.NewHarborErrorAndLog(nil, "Scan failed - unprocessable entity")
+			e := harbor.NewHarborErrorAndLog(nil, fmt.Sprintf("Scan failed - unprocessable entity: %s", result.Message))
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if result.Status == model.ScanStatusFailed {
 			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
-			e := harbor.NewHarborErrorAndLog(nil, "Scan failed in scanner")
+			e := harbor.NewHarborErrorAndLog(nil, fmt.Sprintf("Scan failed in scanner: %s", result.Message))
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		} else if time.Now().Unix()-result.StartedAt > int64(lastChanceTimeout.Seconds()) {
