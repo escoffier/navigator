@@ -10,9 +10,10 @@ const (
 	// ScanTasksCollection is the collection name for the scan tasks
 	ScanTasksCollection = "scantasks"
 
-	ScanStatusInProgress = "inprogress"
-	ScanStatusSucceeded  = "succeeded"
-	ScanStatusFailed     = "failed"
+	ScanStatusInProgress          = "inprogress"
+	ScanStatusSucceeded           = "succeeded"
+	ScanStatusFailed              = "failed"
+	ScanStatusUnprocessableEntity = "failedUnprocessable"
 )
 
 type ScannerReq struct {

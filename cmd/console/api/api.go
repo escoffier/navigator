@@ -28,20 +28,23 @@ import (
 )
 
 type api struct {
-	ctx                            context.Context
-	userCache                      *cache.Cache
-	tokenAuth                      *jwtauth.JWTAuth
-	mongodb                        *mongo.Database
-	scapper                        *scapper.Scapper
-	scannerURL                     string
-	cronService                    *cron.CronService
-	clusterService                 *cluster.ClusterService
-	redisClient                    *redis.Client
+	ctx            context.Context
+	userCache      *cache.Cache
+	tokenAuth      *jwtauth.JWTAuth
+	mongodb        *mongo.Database
+	scapper        *scapper.Scapper
+	scannerURL     string
+	cronService    *cron.CronService
+	clusterService *cluster.ClusterService
+	redisClient    *redis.Client
+	ruleService    *rule.RuleService
+	alertService   *alert.AlertService
+	onlineVulnsSvc *onlinevulns.OnlineVulnsService
+
+	// For Harbor API
 	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
 	scanResultLocalBackoffCacheMux sync.Mutex
-	ruleService                    *rule.RuleService
-	alertService                   *alert.AlertService
-	onlineVulnsSvc                 *onlinevulns.OnlineVulnsService
+	unprocessableEntityCache       *cache.Cache
 }
 
 func newAPI(
@@ -67,10 +70,11 @@ func newAPI(
 		cronService:                 cronService,
 		clusterService:              clusterService,
 		redisClient:                 redisClient,
-		scanResultLocalBackoffCache: make(map[string]int),
 		ruleService:                 ruleService,
 		alertService:                alertService,
 		onlineVulnsSvc:              onlineVulnsSvc,
+		scanResultLocalBackoffCache: make(map[string]int),
+		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 	}
 }
 

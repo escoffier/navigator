@@ -111,10 +111,10 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 
 		description := redVuln.Description
 		if redVuln.CVSSv2Score != "" {
-			description = fmt.Sprintf("[CVSSv2] Score: %s (Base: %s, Temporal: *coming soon*) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, description)
+			description = fmt.Sprintf("[CVSSv2] Score: %s (Base: %s) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, description)
 		}
 		if redVuln.CVSSv3Score != "" {
-			description = fmt.Sprintf("[CVSSv3] Score: %s, Exploitability Score: %s, Impact Score: %s (Base: %s, Temporal: *coming soon*) | %s",
+			description = fmt.Sprintf("[CVSSv3] Score: %s, Exploitability Score: %s, Impact Score: %s (Base: %s) | %s",
 				redVuln.CVSSv3Score, redVuln.CVSSv3ExploitabilityScore, redVuln.CVSSv3ImpactScore, redVuln.CVSSv3Vector, description)
 		}
 

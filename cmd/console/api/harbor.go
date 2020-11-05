@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
+	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -36,7 +37,7 @@ func (api *api) harbor() func(chi.Router) {
 
 func (api *api) getHarborPluginManifest() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		newCtx, cancel := api.getTimeoutCtx()
+		newCtx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		manifest := harbor.Manifest{
@@ -83,7 +84,7 @@ func (api *api) getHarborPluginManifest() http.HandlerFunc {
 
 func (api *api) postHarborPluginScan() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		var harborScanReq harbor.ScanRequest
@@ -97,6 +98,13 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		harborScanReqRedacted := harborScanReq
 		harborScanReqRedacted.Registry.Authorization = "<redacted>"
 		logging.GetLogger().Info().Str("scanrequest", fmt.Sprintf("%+v", harborScanReqRedacted)).Msg("Received scan request from Harbor")
+
+		_, ok := api.unprocessableEntityCache.Get(harborScanReq.Artifact.Digest)
+		if ok {
+			e := harbor.NewHarborErrorAndLog(err, "Unprocessable entity, don't retry please")
+			response.Respond(w, http.StatusUnprocessableEntity, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
 
 		tensorsecScannerReqPayload := model.ScannerReq{
 			URL:           harborScanReq.Registry.URL,
@@ -166,7 +174,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 
 func (api *api) getHarborPluginReport() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		scanRequestID := chi.URLParam(r, "scan_request_id")
@@ -196,6 +204,12 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 			harborVulnReport := harbor.RedclairReportToHarborReport(result.ScanReport.Vulns)
 			response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0", harborVulnReport)
 			return
+		} else if result.Status == model.ScanStatusUnprocessableEntity {
+			api.unprocessableEntityCache.Set(result.ImageDigest, true, cache.DefaultExpiration)
+			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
+			e := harbor.NewHarborErrorAndLog(nil, "Scan failed - unprocessable entity")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
 		} else if result.Status == model.ScanStatusFailed {
 			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			e := harbor.NewHarborErrorAndLog(nil, "Scan failed in scanner")
@@ -214,6 +228,7 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 
 			// harbor expects 302 Found. By http spec, we must supply Location header.
 			w.Header().Set("Location", r.URL.Path)
+			w.Header().Set("Refresh-After", fmt.Sprint(refreshAfterSec))
 			w.WriteHeader(http.StatusFound)
 		}
 	}

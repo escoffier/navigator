@@ -523,8 +523,15 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	select {
 	case err := <-scanErrorCh:
 		zerolog.Ctx(ctx).Error().Err(err).Msg("Error occured while scanning layers")
+
+		switch err.(type) {
+		case ClairUnprocessableLayerError:
+			scanTask.Status = model.ScanStatusUnprocessableEntity
+		default:
+			scanTask.Status = model.ScanStatusFailed
+		}
+
 		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Status = model.ScanStatusFailed
 		scanTask.Message = fmt.Sprintf("Error occured while scanning layers: %s", err)
 
 		rcSvc.updateMongoStatus(ctx, scanTask)
