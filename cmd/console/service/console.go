@@ -111,7 +111,7 @@ func NewConsole(
 	// cron service
 	c := cr.New()
 	c.Start()
-	cronService := cron.NewCronService(c, mongodb, scapper, clusterService)
+	cronService := cron.NewCronService(c, mongodb, scapper, clusterService, mainCtx)
 
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, ruleService, es, elasticOpts.Index, mongodb)
