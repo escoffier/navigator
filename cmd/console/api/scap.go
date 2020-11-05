@@ -5,7 +5,6 @@ import (
 	"math"
 	"net/http"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -77,9 +76,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 			return
 		}
 
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -87,7 +84,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 			return
 		}
 
-		col := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType))
+		col := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType))
 
 		nodeCheckDetails := &scap.NodeCheckDetails{}
 		if checkType == model.ComplianceCheckTargetTypeKube {
@@ -157,9 +154,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			return
 		}
 
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -193,7 +188,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
@@ -299,9 +294,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			return
 		}
 
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -337,7 +330,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
-		count, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
@@ -353,7 +346,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
@@ -468,9 +461,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 
 		}
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -480,7 +471,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
-		count, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
@@ -496,7 +487,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r,
 				NewMongoError(http.StatusInternalServerError,
@@ -585,9 +576,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 			return
 
 		}
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -595,62 +584,13 @@ func (api *api) getScapReports() http.HandlerFunc {
 			return
 		}
 
-		filter := bson.M{"clusterId": clusterObjectID.Hex()}
-
 		checkID := r.URL.Query().Get("checkId")
-		if checkID != "" {
-			filter["checkId"] = checkID
-		}
-
 		nodeName := r.URL.Query().Get("nodeName")
-		if nodeName != "" {
-			filter["nodeName"] = nodeName
-		}
-
 		status := r.URL.Query().Get("status")
-		if status != "" {
-			if status != model.ComplianceCheckStatusCompleted && status != model.ComplianceCheckStatusInProgress && status != model.ComplianceCheckStatusFailed {
-				allowed := strings.Join([]string{model.ComplianceCheckStatusCompleted, model.ComplianceCheckStatusInProgress, model.ComplianceCheckStatusFailed}, "/")
-				RespAndLog(w, r,
-					NewFieldError(http.StatusBadRequest,
-						fmt.Errorf("invalid status param value (allowed: %s)", allowed),
-						Suberror{"status", fmt.Sprintf("allowed: %s", allowed)}))
-				return
-			}
-			filter["status"] = status
-		}
 
-		cursor, err := api.scapper.MongoDB.Collection(api.scapper.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		results, err := api.scapper.GetJobEntriesForCheck(ctx, clusterObjectID.Hex(), checkType, checkID, nodeName, status)
 		if err != nil {
-			RespAndLog(w, r,
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find documents: %w", err)))
-
-			return
-		}
-		defer cursor.Close(ctx)
-
-		var results []scap.JobEntry
-		for cursor.Next(ctx) {
-			var result scap.JobEntry
-			err := cursor.Decode(&result)
-			if err != nil {
-				RespAndLog(w, r,
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't decode document: %w", err)))
-
-				return
-			}
-			// TODO: pagination, maybe https://github.com/gobeam/mongo-go-pagination?
-			results = append(results, result)
-		}
-
-		err = cursor.Err()
-		if err != nil {
-			RespAndLog(w, r,
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Cursor error: %w", err)))
-
+			RespAndLog(w, r, err)
 			return
 		}
 
@@ -687,9 +627,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),

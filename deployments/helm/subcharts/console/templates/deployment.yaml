@@ -26,7 +26,7 @@ spec:
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
-          "for i in $(seq 1 200); do nc -z -w3 elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
+          "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
         ]    
       containers:
       - name: {{ .Chart.Name }}

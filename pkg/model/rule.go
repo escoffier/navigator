@@ -1,6 +1,8 @@
-package rule
+package model
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 const (
 	RuleCollection = "rules"
