@@ -27,6 +27,7 @@ type CronService struct {
 	mongodb        *mongo.Database
 	scapper        *scapper.Scapper
 	clusterService *cluster.ClusterService
+	rootCtx        context.Context
 }
 
 func NewCronService(
@@ -34,12 +35,14 @@ func NewCronService(
 	mongodb *mongo.Database,
 	scapper *scapper.Scapper,
 	clusterService *cluster.ClusterService,
+	rootCtx context.Context,
 ) *CronService {
 	return &CronService{
 		cron:           cron,
 		mongodb:        mongodb,
 		scapper:        scapper,
 		clusterService: clusterService,
+		rootCtx:        rootCtx,
 	}
 }
 
@@ -110,7 +113,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 				Str("checkType", checkType).
 				Msg("Starting compliance cron job now")
 
-			newCtx, newCtxCancel := context.WithTimeout(ctx, time.Minute*10)
+			newCtx, newCtxCancel := context.WithTimeout(s.rootCtx, time.Minute*10)
 			defer newCtxCancel()
 			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType)
 			if err != nil {
