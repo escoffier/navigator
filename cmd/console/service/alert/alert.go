@@ -13,10 +13,10 @@ import (
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/alert"
-	r "gitlab.com/piccolo_su/vegeta/cmd/console/model/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -46,12 +46,12 @@ func NewAlertService(ctx context.Context, rs *rule.RuleService, es *elastic.Clie
 		lastPollTimestamp: time.Now(),
 		ctx:               ctx,
 	}
-	go alertService.alertPoller()
+	go alertService.elasticsearchAlertPoller()
 	return alertService
 }
 
-func (s *AlertService) alertPoller() {
-	logging.GetLogger().Info().Msg("Started alert poller")
+func (s *AlertService) elasticsearchAlertPoller() {
+	logging.GetLogger().Info().Msg("Started image scan alert poller")
 
 	var wg sync.WaitGroup
 	defer wg.Done()
@@ -63,20 +63,23 @@ loop:
 		case <-ticker.C:
 			pollCtx, pollCtxCancel := context.WithTimeout(s.ctx, alertPollTimeout)
 			defer pollCtxCancel()
-			err := s.pollAlerts(pollCtx)
+			err := s.pollImageScanAlerts(pollCtx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("Alert poller error - alert polling failed")
+				logging.GetLogger().Error().Err(err).Msg("Error when polling image scan alerts")
 			}
 		case <-s.ctx.Done():
 			break loop
 		}
 	}
-	logging.GetLogger().Info().Msg("Shutting down Alert poller")
+	logging.GetLogger().Info().Msg("Shutting down image scan alert poller")
 }
 
-func (s *AlertService) pollAlerts(ctx context.Context) error {
+func (s *AlertService) pollImageScanAlerts(ctx context.Context) error {
 	lastPollTimestampFrom := s.lastPollTimestamp.Add(time.Duration(-5) * time.Minute)
 	lastPollTimestampTo := time.Now()
+	defer func() {
+		s.lastPollTimestamp = lastPollTimestampTo
+	}()
 
 	logging.GetLogger().Info().Str("fromTimestamp", lastPollTimestampFrom.Format(time.RFC3339)).Str("timetsampTo", lastPollTimestampTo.Format(time.RFC3339)).Msg("Searching for new detections")
 	var buf bytes.Buffer
@@ -97,8 +100,7 @@ func (s *AlertService) pollAlerts(ctx context.Context) error {
 	read := strings.NewReader(b.String())
 
 	if err := json.NewEncoder(&buf).Encode(read); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to marshal elasticsearch query")
-		return err
+		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal elasticsearch query: %w", err))
 	}
 
 	searchResult, err := s.elasticClient.Search().
@@ -107,16 +109,14 @@ func (s *AlertService) pollAlerts(ctx context.Context) error {
 		Pretty(true).
 		Do(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to get elasticsearch results")
-		return err
+		return NewElasticError(http.StatusInternalServerError, fmt.Errorf("Failed to get elasticsearch results: %w", err))
 	}
 
 	rules, _, err := s.rs.ListRules(ctx, 0, 500)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to get platform detection rules")
-		return err
+		return fmt.Errorf("Failed to get platform detection rules: %w", err)
 	}
-	enabledRules := make([]r.Rule, 0)
+	enabledRules := make([]model.Rule, 0)
 	for _, rule := range rules {
 		if rule.Enabled {
 			enabledRules = append(enabledRules, rule)
@@ -124,179 +124,217 @@ func (s *AlertService) pollAlerts(ctx context.Context) error {
 		}
 	}
 
-	results := make([]alert.Alert, 0)
-	if searchResult.Hits.TotalHits.Value > 0 {
-		for _, hit := range searchResult.Hits.Hits {
-			var queryAlert alert.Alert
-			elasticID := hit.Id
-			var elasticAlert map[string]interface{}
-			err := json.Unmarshal(hit.Source, &elasticAlert)
-			if err != nil {
-				logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to parse elasticsearch result")
-				continue
-			}
-			filter := bson.M{"elasticId": elasticID}
-			queryResult := s.mongodb.Collection(alert.AlertCollection).FindOne(ctx, filter)
-			if queryResult.Err() == mongo.ErrNoDocuments {
-				vulnerability := ""
-				if val, ok := elasticAlert["socket__protocol"]; ok {
-					if int(val.(float64)) == 132 {
-						vulnerability = "CVE-2019-3874"
-					}
-				}
-				if val, ok := elasticAlert["socket__family"]; ok {
-					if int(val.(float64)) == 17 {
-						vulnerability = "CVE-2020-14386"
-					}
-				}
-				if _, ok := elasticAlert["reverse_shell_socket_dup2"]; ok {
-					vulnerability = "RS-SOCKET_DUP2"
-				}
-				if val, ok := elasticAlert["openat__filename"]; ok {
-					if val.(string) == "/proc/self/exe" {
-						vulnerability = "CVE-2019-5736"
-					}
-				}
-				if val, ok := elasticAlert["open__filename"]; ok {
-					if val.(string) == "/proc/self/exe" {
-						vulnerability = "CVE-2019-5736"
-					}
-				}
-				if val, ok := elasticAlert["execve__filename"]; ok {
-					if val.(string) == "/usr/bin/sudo" {
-						vulnerability = "CVE-2019-14287"
-					} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
-						vulnerability = "RS-NC"
-					}
-				}
-				if val, ok := elasticAlert["exec__filename"]; ok {
-					if val.(string) == "/usr/bin/sudo" {
-						vulnerability = "CVE-2019-14287"
-					} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
-						vulnerability = "RS-NC"
-					}
-				}
+	if searchResult.Hits.TotalHits.Value == 0 {
+		return nil
+	}
 
-				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Checking if vulnerability supported")
-				isEnabled := false
-				for _, enabledRule := range enabledRules {
-					if enabledRule.Name == vulnerability {
-						logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
+	for _, hit := range searchResult.Hits.Hits {
+		elasticID := hit.Id
+		var elasticAlert map[string]interface{}
+		err := json.Unmarshal(hit.Source, &elasticAlert)
+		if err != nil {
+			return NewElasticError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to parse elasticsearch result: %w", err),
+				Suberror{"elasticID", elasticID})
+		}
 
-						isEnabled = true
-						queryAlert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-						queryAlert.Acknowledged = false
-						queryAlert.ContainerID = elasticAlert["ContainerID"].(string)
-						queryAlert.ElasticID = elasticID
-						queryAlert.PodName = elasticAlert["PodName"].(string)
-						queryAlert.PodUID = elasticAlert["PodUID"].(string)
-						queryAlert.RuleName = enabledRule.Name
-						queryAlert.Cvss3Score = enabledRule.Cvss3Score
-						queryAlert.Cvss3Vector = enabledRule.Cvss3Vector
-						t, err := time.Parse(time.RFC3339, elasticAlert["@timestamp"].(string))
-						if err != nil {
-							logging.GetLogger().Error().Err(err).Str("timestamp", elasticAlert["@timestamp"].(string)).Str("elasticID", elasticID).Msg("Failed to parse timestamp")
-							continue
-						}
-						queryAlert.Timestamp = t
-						_, err = s.mongodb.Collection(alert.AlertCollection).InsertOne(ctx, queryAlert)
-						if err != nil {
-							logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to insert alert from elastic to mongo")
-							continue
-						}
-					}
-				}
-				if !isEnabled {
-					continue
-				}
-				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Polled alert not recognized by the platform")
-				results = append(results, queryAlert)
-			} else if queryResult.Err() != nil {
-				logging.GetLogger().Error().Err(err).Str("elasticID", elasticID).Msg("Failed to check if alert is already recognized by the system")
-			} else {
-				logging.GetLogger().Info().Str("elasticID", elasticID).Msg("Polled alert that is already recognized by the platform")
+		filter := bson.M{
+			"$and": []bson.M{
+				{"alertKind": model.AlertKindImageScan},
+				{"imageScanAlert.elasticId": elasticID},
+			},
+		}
+		queryResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
+
+		if queryResult.Err() != nil && queryResult.Err() != mongo.ErrNoDocuments {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to check if alert is already recognized by the system: %w", err),
+				Suberror{"elasticID", elasticID})
+		}
+
+		if queryResult.Err() == nil {
+			logging.GetLogger().Info().Str("elasticID", elasticID).Msg("Alert already reported into mongo, skipping")
+			continue
+		}
+
+		// else queryResult.Err() == mongo.ErrNoDocuments
+
+		vulnerability := ""
+		if val, ok := elasticAlert["socket__protocol"]; ok {
+			if int(val.(float64)) == 132 {
+				vulnerability = "CVE-2019-3874"
 			}
 		}
+		if val, ok := elasticAlert["socket__family"]; ok {
+			if int(val.(float64)) == 17 {
+				vulnerability = "CVE-2020-14386"
+			}
+		}
+		if _, ok := elasticAlert["reverse_shell_socket_dup2"]; ok {
+			vulnerability = "RS-SOCKET_DUP2"
+		}
+		if val, ok := elasticAlert["openat__filename"]; ok {
+			if val.(string) == "/proc/self/exe" {
+				vulnerability = "CVE-2019-5736"
+			}
+		}
+		if val, ok := elasticAlert["open__filename"]; ok {
+			if val.(string) == "/proc/self/exe" {
+				vulnerability = "CVE-2019-5736"
+			}
+		}
+		if val, ok := elasticAlert["execve__filename"]; ok {
+			if val.(string) == "/usr/bin/sudo" {
+				vulnerability = "CVE-2019-14287"
+			} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
+				vulnerability = "RS-NC"
+			}
+		}
+		if val, ok := elasticAlert["exec__filename"]; ok {
+			if val.(string) == "/usr/bin/sudo" {
+				vulnerability = "CVE-2019-14287"
+			} else if val.(string) == "/bin/nc" || val.(string) == "/usr/bin/ncat" {
+				vulnerability = "RS-NC"
+			}
+		}
+
+		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Checking if vulnerability supported")
+
+		numRaised := 0
+		for _, enabledRule := range enabledRules {
+			if enabledRule.Name == vulnerability {
+
+				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
+
+				timestamp, err := time.Parse(time.RFC3339, elasticAlert["@timestamp"].(string))
+				if err != nil {
+					return NewElasticError(http.StatusInternalServerError,
+						fmt.Errorf("Failed to parse timestamp as RFC3339: %w", err),
+						Suberror{"elasticID", elasticID},
+						Suberror{"timestamp", elasticAlert["@timestamp"].(string)})
+				}
+
+				alert := model.Alert{
+					ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
+					AlertKind: model.AlertKindImageScan,
+					Timestamp: timestamp,
+					ImageScanAlert: &model.ImageScanAlert{
+						ElasticID:   elasticID,
+						ContainerID: elasticAlert["ContainerID"].(string),
+						PodName:     elasticAlert["PodName"].(string),
+						PodUID:      elasticAlert["PodUID"].(string),
+						RuleName:    enabledRule.Name,
+						Cvss3Score:  enabledRule.Cvss3Score,
+						Cvss3Vector: enabledRule.Cvss3Vector,
+					},
+				}
+
+				numRaised++
+
+				_, err = s.mongodb.Collection(model.AlertCollection).InsertOne(ctx, alert)
+				if err != nil {
+					return NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
+						Suberror{"elasticID", elasticID})
+				}
+			}
+		}
+
+		if numRaised == 0 {
+			logging.GetLogger().Info().
+				Str("elasticID", elasticID).
+				Str("vulnerability", vulnerability).
+				Msg("Didn't raise any alert to mongo, because no matched vulnerability was enabled")
+		} else {
+			logging.GetLogger().Info().
+				Int("numRaised", numRaised).
+				Str("vulnerability", vulnerability).
+				Msg("Raised alerts to mongo")
+		}
 	}
-	fmt.Printf("Upserting %+v to mongo\n", results)
+
 	s.lastPollTimestamp = lastPollTimestampTo
 	return nil
 }
 
-func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primitive.ObjectID) (*alert.Alert, error) {
-	var queryAlert alert.Alert
+func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primitive.ObjectID) (*model.Alert, error) {
 	filter := bson.M{"_id": alertObjectID}
-
-	queryResult := s.mongodb.Collection(alert.AlertCollection).FindOne(ctx, filter)
-	if queryResult.Err() != nil {
-		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+	alertResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
+	if alertResult.Err() != nil {
+		if alertResult.Err() == mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", alertResult.Err()))
 		}
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", alertResult.Err()))
 	}
 
-	err := queryResult.Decode(&queryAlert)
+	var oldAlert model.Alert
+	err := alertResult.Decode(&oldAlert)
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", alertResult.Err()))
 	}
-	if queryAlert.Acknowledged {
+
+	if oldAlert.Acknowledged {
 		return nil, NewAlertAlreadyAcknowledgedError(http.StatusBadRequest, fmt.Errorf("Alert already acknowledged"))
 	}
 
-	queryAlert.Acknowledged = true
-	queryAlert.ID = alertObjectID
-	update := bson.M{"$set": queryAlert}
+	update := bson.M{"$set": bson.M{
+		"acknowledged": true,
+	}}
 
-	_, err = s.mongodb.Collection(alert.AlertCollection).UpdateOne(ctx, filter, update)
-
-	queryResult = s.mongodb.Collection(alert.AlertCollection).FindOne(ctx, filter)
-	if queryResult.Err() != nil {
-		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
-		}
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
-	}
-
-	err = queryResult.Decode(&queryAlert)
+	_, err = s.mongodb.Collection(model.AlertCollection).UpdateOne(ctx, filter, update)
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update: %w", err))
 	}
 
-	return &queryAlert, nil
+	afterUpdateResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
+	if afterUpdateResult.Err() != nil {
+		if afterUpdateResult.Err() == mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", afterUpdateResult.Err()))
+		}
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", afterUpdateResult.Err()))
+	}
+
+	var updatedAlert model.Alert
+	err = afterUpdateResult.Decode(&updatedAlert)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", afterUpdateResult.Err()))
+	}
+
+	return &updatedAlert, nil
 }
 
-func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, onlyNotAcknowledged bool) ([]alert.Alert, int64, error) {
+func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, onlyNotAcknowledged bool) ([]model.Alert, int64, error) {
 	filter := bson.M{}
 	if onlyNotAcknowledged {
 		filter = bson.M{"acknowledged": false}
 	}
 
-	var alerts []alert.Alert
 	opts := options.Find()
 	opts.SetSkip(offset)
 	opts.SetLimit(limit)
-	opts.SetSort(bson.D{{"cvss3Score", -1}, {"timestamp", -1}})
-	coll := s.mongodb.Collection(alert.AlertCollection)
-
+	opts.SetSort(bson.D{{"timestamp", -1}})
+	coll := s.mongodb.Collection(model.AlertCollection)
 	cur, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err))
 	}
 	defer cur.Close(ctx)
 
+	var alerts []model.Alert
+
 	for cur.Next(ctx) {
-		//Create a value into which the single document can be decoded
-		var elem alert.Alert
-		err := cur.Decode(&elem)
+		var alert model.Alert
+		err := cur.Decode(&alert)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
-		alerts = append(alerts, elem)
+
+		alerts = append(alerts, alert)
 	}
 
 	docNum, err := coll.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't count documents: %w", err))
 	}
 	return alerts, docNum, err
 }

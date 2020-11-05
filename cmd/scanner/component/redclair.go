@@ -514,6 +514,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 			err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
 			if err != nil {
 				scanErrorCh <- err
+				return
 			}
 		}
 		scanDoneCh <- struct{}{}

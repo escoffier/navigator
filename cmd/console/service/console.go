@@ -17,8 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/olivere/elastic/v7"
-	alertModel "gitlab.com/piccolo_su/vegeta/cmd/console/model/alert"
-	ruleModel "gitlab.com/piccolo_su/vegeta/cmd/console/model/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
@@ -80,6 +78,20 @@ func NewConsole(
 		DB:       0,  // TODO: Add DB
 	})
 
+	// main function context
+	mainCtx, mainCancel := context.WithCancel(context.Background())
+
+	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
+
+	es, err := elastic.NewClient(
+		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
+		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// online vulns service
 	onlineVulnsSvc := onlinevulns.NewOnlineVulnsService(mongodb)
 
 	// cluster service
@@ -101,19 +113,7 @@ func NewConsole(
 	c.Start()
 	cronService := cron.NewCronService(c, mongodb, scapper, clusterService)
 
-	// main function context
-	mainCtx, mainCancel := context.WithCancel(context.Background())
-
-	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
-
-	es, err := elastic.NewClient(
-		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
-		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
-	)
-	if err != nil {
-		return nil, err
-	}
-
+	// alert service
 	alertService := alert.NewAlertService(mainCtx, ruleService, es, elasticOpts.Index, mongodb)
 
 	return &Console{
@@ -276,7 +276,7 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[alertModel.AlertCollection] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.AlertCollection] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"timestamp": 1,
@@ -284,11 +284,16 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		},
 		{
 			Keys: bson.M{
-				"cvss3Score": 1,
+				"alertKind": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"imageScanAlert.elasticId": 1,
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[ruleModel.RuleCollection] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.RuleCollection] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"name": 1,
