@@ -76,6 +76,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 make pushimages
                 kubectl scale --replicas=0 deploy/tensorsec-console deploy/tensorsec-scanner -n tensorsec
                 kubectl scale --replicas=1 deploy/tensorsec-console deploy/tensorsec-scanner -n tensorsec
+                kubectl delete pod `kubectl get pod -n tensorsec |grep tensorsec-daemon|awk '{print $1}'` -n tensorsec
                 '''
                 }
                 if("$moduleToDeploy".trim() == "scap-jobs") {
@@ -94,6 +95,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 export GO111MODULE=on
                 USEMIRROR=true make tensordig
                 docker push registry.t-appagile.com/tensorsecurity/tensordig:latest
+                kubectl delete pod `kubectl get pod -n tensorsec |grep tensorsec-daemon|awk '{print $1}'` -n tensorsec
                 '''
                 }
                 if("$moduleToDeploy".trim() == "faulty") {
