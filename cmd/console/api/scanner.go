@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -82,7 +81,6 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		}
 
 		result := &s.ImageScanDetailedResult{}
-		perLayerResult := make(map[int]redclair.VulnerabilityLayerReport)
 		report := scanTask.ScanReport.Vulns
 		util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
 
@@ -101,18 +99,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		result.Repository = report.Repository
 		result.Tag = report.Tag
 		result.Digest = report.Digest
-
-		for k, v := range report.PerLayerReport {
-			i, err := strconv.Atoi(k)
-			if err != nil {
-				RespAndLog(w, r,
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't parse per layer information: %w", err)))
-				return
-			}
-			perLayerResult[i] = v
-		}
-		result.PerLayerReport = perLayerResult
+		result.PerLayerReport = report.PerLayerReport
 		result.TaskID = scanTask.ID
 
 		response.Ok(w, response.WithItem(*result))
