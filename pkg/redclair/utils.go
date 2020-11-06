@@ -130,17 +130,6 @@ func distinctFileHash(src []FileSignature) (ret []FileSignature) {
 	return result
 }
 
-// SeverityMap Exported var used as mapping on CVE severity name to implied ranking
-var SeverityMap = map[string]int{
-	"Defcon1":    7,
-	"Critical":   6,
-	"High":       5,
-	"Medium":     4,
-	"Low":        3,
-	"Negligible": 2,
-	"Unknown":    1,
-}
-
 func (r Redclair) CreateHTTPRootDir() (string, error) {
 	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
 	return rootPath, os.MkdirAll(rootPath, os.ModePerm)

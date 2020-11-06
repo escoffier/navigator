@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/heroku/docker-registry-client/registry"
@@ -352,7 +353,12 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 
 	err = r.enrichWithCNNVD(ctx, vulnerabilities)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD")
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
+	}
+
+	err = r.recalculateSeverity(ctx, vulnerabilities)
+	if err != nil {
+		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to recalculate severity: %w", err)
 	}
 
 	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, imageSensitiveFiles, nil
@@ -371,4 +377,41 @@ func (r *Redclair) getSensitiveFiles(sensitiveFiles []FileSignature) []Sensitive
 		}
 	}
 	return imageSensitiveFiles
+}
+
+func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []VulnerabilityInfo) error {
+	for i, vuln := range vulns {
+
+		if vuln.CVSSv2Score == "" {
+			continue
+		}
+
+		// It's a string that contains one decimal place.
+		// Convert to an int without decimals by removing the "."
+		// (effectively multiplies by 10)
+		s := strings.ReplaceAll(vuln.CVSSv2Score, ".", "")
+		score, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("Failed to parse CVSSv2 score: %w", err)
+		}
+
+		// Based on ranges defined for CVSS v3.0, because they're more fine-grained.
+		// https://nvd.nist.gov/vuln-metrics/cvss
+		if score == 0 {
+			vulns[i].Severity = SeverityNone
+		} else if score >= 1 && score <= 9 {
+			vulns[i].Severity = SeverityNegligible
+		} else if score >= 10 && score <= 39 {
+			vulns[i].Severity = SeverityLow
+		} else if score >= 40 && score <= 69 {
+			vulns[i].Severity = SeverityMedium
+		} else if score >= 70 && score <= 89 {
+			vulns[i].Severity = SeverityHigh
+		} else if score >= 90 {
+			vulns[i].Severity = SeverityCritical
+		} else {
+			vulns[i].Severity = SeverityUnknown
+		}
+	}
+	return nil
 }

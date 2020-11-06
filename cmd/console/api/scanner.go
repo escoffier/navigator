@@ -92,7 +92,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		if len(result.TopVulns) >= 1 {
 			result.OverallSeverity = report.Vulnerabilities[0].Severity
 		} else {
-			result.OverallSeverity = "Unknown"
+			result.OverallSeverity = redclair.SeverityUnknown
 		}
 
 		result.Repository = report.Repository
@@ -173,7 +173,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			if len(imageScanResult.TopVulns) >= 1 {
 				imageScanResult.OverallSeverity = report.Vulnerabilities[0].Severity
 			} else {
-				imageScanResult.OverallSeverity = "Unknown"
+				imageScanResult.OverallSeverity = redclair.SeverityUnknown
 			}
 
 			imageScanResult.Repository = report.Repository
@@ -369,7 +369,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
 
 				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
-					if vuln.Severity == "Low" || vuln.Severity == "Negligible" || vuln.Severity == "Unknown" {
+					if !redclair.SeverityGreaterThan(vuln.Severity, redclair.SeverityLow) {
 						continue
 					}
 				}
@@ -401,7 +401,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 				vi := redclair.VulnerabilityInfo{
 					Description:    fmt.Sprintf("Potential file leak: %s", sens.Description),
 					FeatureName:    sens.Name,
-					Severity:       "Medium",
+					Severity:       redclair.SeverityMedium,
 					CVE:            "-",
 					CNNVD:          "-",
 					Namespace:      "-",
