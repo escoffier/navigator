@@ -90,6 +90,12 @@ mongodb:
   mongodbPassword: redstoneMongo123
   mongodbRootPassword: redstoneMongo123
   mongodbDatabase: vegeta
+
+  # https://github.com/helm/charts/issues/18588
+  useStatefulSet: true
+  replicaSet:
+    enabled: true 
+
   # mongodbDatabase: elasticalert
   # NOTE: we need to create elasticalert database as well.
   volumePermissions:
