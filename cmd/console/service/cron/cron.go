@@ -113,8 +113,8 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 				Str("checkType", checkType).
 				Msg("Starting compliance cron job now")
 
-			newCtx, newCtxCancel := context.WithTimeout(s.rootCtx, time.Minute*10)
-			defer newCtxCancel()
+			// don't cancel() when exiting this function as we are starting an async task
+			newCtx, _ := context.WithTimeout(s.rootCtx, time.Minute*10)
 			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).
@@ -125,7 +125,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 				logging.GetLogger().Info().
 					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
 					Str("checkType", checkType).
-					Msg("Compliance cron job finished successfully")
+					Msg("Compliance cron job scheduled successfully")
 			}
 
 			// TODO: I though that here next and prev times can be updated via channels to spawned goroutines
