@@ -522,7 +522,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	report := &model.ScanReport{}
 	vulns := make([]redclair.VulnerabilityInfo, 0)
 	sensitives := make([]redclair.Sensitive, 0)
-	perLayerReport := make(map[string]redclair.VulnerabilityLayerReport)
+	perLayerReport := make([]redclair.VulnerabilityLayerReport, 0)
 	for layerNo, digest := range layers {
 		cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 		if err != nil {
@@ -537,13 +537,13 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		util.SortVulnsBySeverityAndStuff(addedVulns, false)
 		removedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsRemoved...)
 		util.SortVulnsBySeverityAndStuff(removedVulns, false)
-		// https://jira.mongodb.org/browse/GODRIVER-1190 - but still not part of library
-		perLayerReport[strconv.Itoa(layerNo)] = redclair.VulnerabilityLayerReport{
+		perLayerReport = append(perLayerReport, redclair.VulnerabilityLayerReport{
+			LayerNo:                layerNo,
 			LayerDigest:            digest,
 			VulnerabilitiesAdded:   addedVulns,
 			VulnerabilitiesRemoved: removedVulns,
 			Sensitives:             cachedLayer.ScanReport.Sensitive,
-		}
+		})
 
 		currentVulns := vulns[:0]
 		for _, v := range vulns {
