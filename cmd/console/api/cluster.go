@@ -106,7 +106,15 @@ func (api *api) updateCluster() http.HandlerFunc {
 			return
 		}
 
-		var upCluster model.Cluster
+		var upCluster model.ClusterUpdateRequest
+
+		err = util.DecodeJSONBody(w, r, &upCluster)
+		if err != nil {
+			RespAndLog(w, r,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
+			return
+		}
 
 		_, err = api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
 
@@ -199,7 +207,7 @@ func (api *api) delCluster() http.HandlerFunc {
 			return
 		}
 
-		delResult, err := api.clusterService.DeleteCluster(ctx, clusterObjectID)
+		deletedCount, err := api.clusterService.DeleteCluster(ctx, clusterObjectID)
 		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusInternalServerError,
@@ -209,7 +217,7 @@ func (api *api) delCluster() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItem(resp{
-			Message: fmt.Sprintf("MongoDB DeletedCount: %d", delResult.DeletedCount),
+			Message: fmt.Sprintf("MongoDB DeletedCount: %d", deletedCount),
 		}))
 	}
 }
