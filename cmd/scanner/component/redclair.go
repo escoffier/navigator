@@ -43,11 +43,6 @@ const (
 	maxLayerScanRetires      = 3
 )
 
-var (
-	numRunning    = 0
-	wantsToUpdate = false
-)
-
 // RedClair ...
 type RedClairService struct {
 	ctx         context.Context
@@ -63,7 +58,9 @@ type RedClairService struct {
 
 	clairDBConnectionString string
 
-	cond *sync.Cond
+	cond          *sync.Cond
+	numRunning    int
+	wantsToUpdate bool
 }
 
 // NewRedClair creates the instance of RedClair
@@ -150,20 +147,30 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
+			log.Info().Msg("Cache invalidator received request to update layer cache")
+
 			rcSvc.cond.L.Lock()
-			for numRunning > 0 {
-				wantsToUpdate = true
-				rcSvc.cond.Wait()
+			{
+				for rcSvc.numRunning > 0 {
+					rcSvc.wantsToUpdate = true
+					log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator waiting")
+					rcSvc.cond.Wait()
+					log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator waking up")
+				}
+
+				log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator updating layer cache")
+				err := rcSvc.updateLayerCache(ctx)
+				if err != nil {
+					log.Error().Err(err).Msg("Cache invalidator - updateLayerCache failed")
+				}
+
+				rcSvc.wantsToUpdate = false
+				log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator resuming workers after clair update")
 			}
-			log.Info().Msg("Updating layer cache")
-			err := rcSvc.updateLayerCache(ctx)
-			if err != nil {
-				log.Error().Err(err).Msg("Cache invalidator worker - updateLayerCache failed")
-			}
-			log.Info().Msg("Resuming workers after clair update")
-			wantsToUpdate = false
 			rcSvc.cond.L.Unlock()
+
 			rcSvc.cond.Broadcast()
+			log.Info().Msg("Cache invalidator done")
 		case <-ctx.Done():
 			break loop
 		}
@@ -182,23 +189,33 @@ loop:
 	for {
 		select {
 		case scanTask := <-rcSvc.scanTasksChan:
-			zerolog.Ctx(ctx).Info().Msg("Trying to acquire scanning lock")
+			zerolog.Ctx(ctx).Info().Msg("Received scan task")
+
 			rcSvc.cond.L.Lock()
-			for wantsToUpdate {
-				rcSvc.cond.Wait()
+			{
+				for rcSvc.wantsToUpdate {
+					zerolog.Ctx(ctx).Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Waiting")
+					rcSvc.cond.Wait()
+					log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Waking up")
+				}
+				rcSvc.numRunning++
+				zerolog.Ctx(ctx).Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Got cond, incremented numRunning")
 			}
-			numRunning++
 			rcSvc.cond.L.Unlock()
 
-			zerolog.Ctx(ctx).Info().Msg("Starting image scanning")
-			rcSvc.asyncProcessScanTask(ctx, scanTask)
+			zerolog.Ctx(ctx).Info().Msg("Starting scanning")
+			rcSvc.processScanTask(ctx, scanTask)
+			zerolog.Ctx(ctx).Info().Msg("Finished scanning")
 
-			zerolog.Ctx(ctx).Info().Msg("Finished image scanning")
 			rcSvc.cond.L.Lock()
-			numRunning--
+			{
+				rcSvc.numRunning--
+				zerolog.Ctx(ctx).Info().Int("numRunning", rcSvc.numRunning).Msg("Decremented numRunning")
+			}
 			rcSvc.cond.L.Unlock()
-			zerolog.Ctx(ctx).Info().Msg("Scanning lock released")
+
 			rcSvc.cond.Signal()
+			zerolog.Ctx(ctx).Info().Msg("Ready to accept new tasks")
 		case <-ctx.Done():
 			break loop
 		}
@@ -435,7 +452,7 @@ func (rcSvc *RedClairService) appendNewVulnerabilities(ctx context.Context, db *
 	return nil
 }
 
-func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask model.ScanTask) {
+func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask model.ScanTask) {
 	scanCtx, scanCtxCancel := context.WithTimeout(ctx, scanOneTimeout)
 	defer scanCtxCancel()
 
@@ -445,12 +462,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		var err error
 		username, password, err = rcSvc.decodeUsernamePassword(scanTask)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't decode username and password")
-			scanTask.FinishedAt = time.Now().Unix()
-			scanTask.Status = model.ScanStatusFailed
-			scanTask.Message = fmt.Sprintf("Couldn't decode username and password: %s", err)
-
-			rcSvc.updateMongoStatus(ctx, scanTask)
+			rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't decode username and password", err)
 			return
 		}
 	}
@@ -474,12 +486,7 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 		}
 	}
 	if err != nil {
-		zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't initialize docker registry client")
-		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = fmt.Sprintf("Couldn't initialize docker registry client: %s", err)
-
-		rcSvc.updateMongoStatus(ctx, scanTask)
+		rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't initialize docker registry client", err)
 		return
 	}
 
@@ -487,126 +494,82 @@ func (rcSvc *RedClairService) asyncProcessScanTask(ctx context.Context, scanTask
 	version := "v2"
 	layers, err := rcSvc.readManifest(ctx, version, hub, scanTask)
 	if err != nil {
-		zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't read manifest")
-		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = fmt.Sprintf("Couldn't read manifest: %s", err)
-
-		rcSvc.updateMongoStatus(ctx, scanTask)
+		rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't read manifest", err)
 		return
 	}
 
 	currentlyCachedLayers, toScan, err := rcSvc.getCachedGraph(ctx, layers, scanTask)
 	if err != nil {
-		zerolog.Ctx(ctx).Error().Err(err).Msg("Couldn't get cache graph")
-		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = fmt.Sprintf("Couldn't get cache graph: %s", err)
-
-		rcSvc.updateMongoStatus(ctx, scanTask)
+		rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't get cache graph", err)
 		return
 	}
 
-	scanDoneCh := make(chan struct{})
-	scanErrorCh := make(chan error)
-	go func() {
-		for i := range toScan {
-			err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
-			if err != nil {
-				scanErrorCh <- err
-				return
+	for i := range toScan {
+		err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
+		if err != nil {
+			switch err.(type) {
+			case ClairUnprocessableLayerError:
+				rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusUnprocessableEntity, "Error occured while scanning layers", err)
+			default:
+				rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
 			}
+			return
 		}
-		scanDoneCh <- struct{}{}
-	}()
+	}
 
-	select {
-	case err := <-scanErrorCh:
-		zerolog.Ctx(ctx).Error().Err(err).Msg("Error occured while scanning layers")
+	zerolog.Ctx(ctx).Info().Msg("Redclair scan finished, processed all layers")
 
-		switch err.(type) {
-		case ClairUnprocessableLayerError:
-			scanTask.Status = model.ScanStatusUnprocessableEntity
-		default:
-			scanTask.Status = model.ScanStatusFailed
+	report := &model.ScanReport{}
+	vulns := make([]redclair.VulnerabilityInfo, 0)
+	sensitives := make([]redclair.Sensitive, 0)
+	perLayerReport := make(map[string]redclair.VulnerabilityLayerReport)
+	for _, digest := range layers {
+		cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
+		if err != nil {
+			rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Failed to get entries from cache from just-finished scan", err)
+			return
 		}
 
-		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Message = fmt.Sprintf("Error occured while scanning layers: %s", err)
+		report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
+		report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
+		sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
+		perLayerReport[digest] = redclair.VulnerabilityLayerReport{
+			VulnerabilitiesAdded:   cachedLayer.ScanReport.VulnsAdded,
+			VulnerabilitiesRemoved: cachedLayer.ScanReport.VulnsRemoved,
+			Sensitives:             cachedLayer.ScanReport.Sensitive,
+		}
 
-		rcSvc.updateMongoStatus(ctx, scanTask)
-		return
-
-	case <-scanDoneCh:
-		zerolog.Ctx(ctx).Info().Msg("Redclair scan finished")
-		report := &model.ScanReport{}
-		vulns := make([]redclair.VulnerabilityInfo, 0)
-		sensitives := make([]redclair.Sensitive, 0)
-		perLayerReport := make(map[string]redclair.VulnerabilityLayerReport)
-		for _, digest := range layers {
-			cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
-			if err != nil {
-				zerolog.Ctx(ctx).Error().Err(err).Msg("Failed to get entries from cache from just-finished scan")
-				scanTask.FinishedAt = time.Now().Unix()
-				scanTask.Status = model.ScanStatusFailed
-				scanTask.Message = fmt.Sprintf("Failed to get entries from cache from just-finished scan: %s", err)
-
-				rcSvc.updateMongoStatus(ctx, scanTask)
-				return
-			}
-			report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
-			report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
-			sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
-			perLayerReport[digest] = redclair.VulnerabilityLayerReport{
-				VulnerabilitiesAdded:   cachedLayer.ScanReport.VulnsAdded,
-				VulnerabilitiesRemoved: cachedLayer.ScanReport.VulnsRemoved,
-				Sensitives:             cachedLayer.ScanReport.Sensitive,
-			}
-
-			currentVulns := vulns[:0]
-			for _, v := range vulns {
-				remove := false
-				for _, vv := range cachedLayer.ScanReport.VulnsRemoved {
-					if v.CVE == vv.CVE {
-						remove = true
-					}
-				}
-				if remove {
-					continue
-				} else {
-					currentVulns = append(currentVulns, v)
+		currentVulns := vulns[:0]
+		for _, v := range vulns {
+			remove := false
+			for _, vv := range cachedLayer.ScanReport.VulnsRemoved {
+				if v.CVE == vv.CVE {
+					remove = true
 				}
 			}
-			for _, v := range cachedLayer.ScanReport.VulnsAdded {
+			if remove {
+				continue
+			} else {
 				currentVulns = append(currentVulns, v)
 			}
-
-			vulns = currentVulns
 		}
-		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Status = model.ScanStatusSucceeded
-
-		report.Vulns = redclair.VulnerabilityReport{
-			Repository:      scanTask.Repository,
-			Tag:             scanTask.Tag,
-			Digest:          scanTask.ImageDigest,
-			Unapproved:      []string{},
-			Vulnerabilities: vulns,
-			Sensitives:      sensitives,
-			PerLayerReport:  perLayerReport,
+		for _, v := range cachedLayer.ScanReport.VulnsAdded {
+			currentVulns = append(currentVulns, v)
 		}
-		scanTask.ScanReport = *report
-		rcSvc.updateMongoStatus(scanCtx, scanTask)
 
-	case <-scanCtx.Done():
-		zerolog.Ctx(ctx).Error().Err(scanCtx.Err()).Msg("Redclair scan timeout")
-
-		scanTask.FinishedAt = time.Now().Unix()
-		scanTask.Status = model.ScanStatusFailed
-		scanTask.Message = scanCtx.Err().Error()
-
-		rcSvc.updateMongoStatus(ctx, scanTask)
+		vulns = currentVulns
 	}
+	report.Vulns = redclair.VulnerabilityReport{
+		Repository:      scanTask.Repository,
+		Tag:             scanTask.Tag,
+		Digest:          scanTask.ImageDigest,
+		Unapproved:      []string{},
+		Vulnerabilities: vulns,
+		Sensitives:      sensitives,
+		PerLayerReport:  perLayerReport,
+	}
+	scanTask.ScanReport = *report
+	rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
 }
 
 func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Registry, scanTask model.ScanTask, currentlyCachedLayers *map[string]*model.CachedLayer, digest string) error {
@@ -878,9 +841,17 @@ func (rcSvc *RedClairService) decodeUsernamePassword(scanTask model.ScanTask) (s
 	return username, password, nil
 }
 
-func (rcSvc *RedClairService) updateMongoStatus(ctx context.Context, scanTask model.ScanTask) {
+func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanTask model.ScanTask, status, message string, originalErr error) {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
 	defer mongoCtxCancel()
+
+	if originalErr != nil {
+		zerolog.Ctx(ctx).Error().Err(originalErr).Msg(message)
+		scanTask.Message = fmt.Sprintf("%s: %s", message, originalErr)
+	}
+
+	scanTask.FinishedAt = time.Now().Unix()
+	scanTask.Status = status
 
 	filter := bson.M{"_id": scanTask.ID}
 	update := bson.M{"$set": scanTask}
