@@ -13,6 +13,7 @@ type VulnerabilityReport struct {
 
 // VulnerabilityLayerReport ...
 type VulnerabilityLayerReport struct {
+	LayerDigest            string              `json:"layerDigest"`
 	VulnerabilitiesAdded   []VulnerabilityInfo `json:"vulnerabilitiesAdded"`
 	VulnerabilitiesRemoved []VulnerabilityInfo `json:"vulnerabilitiesRemoved"`
 	Sensitives             []Sensitive         `json:"sensitives"`
