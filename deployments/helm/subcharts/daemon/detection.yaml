@@ -133,4 +133,4 @@ producers:
             - v: 1
             - v: 2  
 consumers:
-- Json
+- File
