@@ -56,7 +56,6 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 			zerolog.Ctx(ctx).Info().Str("cve", cve).Msg("CVE to CNNVD mapping not found in database, will get from cnnvd.org")
 
 			r.cve2cnnvdCollectionMux.Unlock()
-			// This sometimes takes > 2 minutes (!!!) (usually below a second), but let's not starve other goroutines
 			cnnvd, link, err := r.getFromCNNVDdotOrg(ctx, cve)
 			r.cve2cnnvdCollectionMux.Lock()
 			if err != nil {
@@ -92,7 +91,6 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 			zerolog.Ctx(ctx).Info().Str("cve", cve).Msg("CVE to CNNVD mapping is stale, will get from cnnvd.org")
 
 			r.cve2cnnvdCollectionMux.Unlock()
-			// This sometimes takes > 2 minutes (!!!) (usually below a second), but let's not starve other goroutines
 			cnnvd, link, err := r.getFromCNNVDdotOrg(ctx, cve)
 			r.cve2cnnvdCollectionMux.Lock()
 			if err != nil {
@@ -146,7 +144,11 @@ func (r *Redclair) getFromCNNVDdotOrg(ctx context.Context, cveID string) (string
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Add("Content-Length", strconv.Itoa(len(encodedForm)))
 
-	resp, err := client.Do(request.WithContext(ctx))
+	// This request sometimes takes > 2 minutes (!!!) (usually below a second)
+	// Let's do it for as long as we can based on parent ctx
+	cnnvdCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resp, err := client.Do(request.WithContext(cnnvdCtx))
 	if err != nil {
 		return "", "", fmt.Errorf("Failed to send request: %w", err)
 	}
