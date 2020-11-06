@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -39,4 +40,49 @@ type ComplianceCheckAlert struct {
 	CheckType     string    `json:"checkType" bson:"checkType"`
 	PolicyID      string    `json:"policyID" bson:"policyID"`
 	Message       string    `json:"message" bson:"message"`
+}
+
+func (a *Alert) MarshalJSON() ([]byte, error) {
+	if a.ImageScanAlert != nil {
+		return json.Marshal(&struct {
+			ID             primitive.ObjectID `json:"id"`
+			AlertKind      string             `json:"kind"`
+			Acknowledged   bool               `json:"acknowledged"`
+			Timestamp      time.Time          `json:"timestamp"`
+			ImageScanAlert *ImageScanAlert    `json:"data"`
+		}{
+			ID:             a.ID,
+			AlertKind:      a.AlertKind,
+			Acknowledged:   a.Acknowledged,
+			Timestamp:      a.Timestamp,
+			ImageScanAlert: a.ImageScanAlert,
+		})
+	} else if a.ComplianceCheckAlert != nil {
+		return json.Marshal(&struct {
+			ID                   primitive.ObjectID    `json:"id"`
+			AlertKind            string                `json:"kind"`
+			Acknowledged         bool                  `json:"acknowledged"`
+			Timestamp            time.Time             `json:"timestamp"`
+			ComplianceCheckAlert *ComplianceCheckAlert `json:"data"`
+		}{
+			ID:                   a.ID,
+			AlertKind:            a.AlertKind,
+			Acknowledged:         a.Acknowledged,
+			Timestamp:            a.Timestamp,
+			ComplianceCheckAlert: a.ComplianceCheckAlert,
+		})
+	}
+	return json.Marshal(&struct {
+		ID           primitive.ObjectID `json:"id"`
+		AlertKind    string             `json:"kind"`
+		Acknowledged bool               `json:"acknowledged"`
+		Timestamp    time.Time          `json:"timestamp"`
+		EmptyPayload *struct{}          `json:"data"`
+	}{
+		ID:           a.ID,
+		AlertKind:    a.AlertKind,
+		Acknowledged: a.Acknowledged,
+		Timestamp:    a.Timestamp,
+		EmptyPayload: &struct{}{},
+	})
 }
