@@ -4,7 +4,7 @@
 replicaCount: 1
 logLevel: info
 insecureTls: false
-fullname: tensorsec-clair
+fullname: "tensorsec-clair"
 image:
   name: coreos/clair
   repository: quay.io
