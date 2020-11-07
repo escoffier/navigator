@@ -106,6 +106,7 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 	nodeCheckDetails.ClusterID = complianceTest.ClusterID
 	nodeCheckDetails.NodeName = complianceTest.NodeName
 	nodeCheckDetails.Status = complianceTest.Status
+	nodeCheckDetails.Logs = complianceTest.Logs
 	if nodeCheckDetails.Status == model.ComplianceCheckStatusInProgress || nodeCheckDetails.Status == model.ComplianceCheckStatusFailed {
 		return nil
 	}

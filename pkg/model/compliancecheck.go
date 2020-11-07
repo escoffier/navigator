@@ -24,6 +24,7 @@ type ComplianceCheckEntryBase struct {
 	Status     string             `json:"status" bson:"status,omitempty"`
 	CreatedAt  int64              `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt int64              `json:"finished_at" bson:"finishedAt,omitempty"`
+	Logs       string             `json:"logs" bson:"logs,omitempty"`
 }
 
 func GetMongoCollectionForCheckType(checkType string) string {
