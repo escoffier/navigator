@@ -117,7 +117,7 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 			for _, test := range section.Results {
 				complianceMapEntry := &scap.ComplianceMapEntry{}
 				complianceMapEntry.PolicyNumber = test.TestNumber
-				complianceMapEntry.Name = section.Description
+				complianceMapEntry.Section = section.Description
 				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
 				complianceMapEntry.TestStatus = test.Status
 				complianceMap = append(complianceMap, *complianceMapEntry)
@@ -128,7 +128,7 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 	return nil
 }
 
-func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -136,16 +136,16 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 			return err
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			*numError++
+			*errorOn = util.AppendIfMissing(*errorOn, complianceTest.NodeName)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			*numWaiting++
+			*waitingOn = util.AppendIfMissing(*waitingOn, complianceTest.NodeName)
 			continue
 		}
 		for _, reportDetails := range complianceTest.Report {
 			for _, section := range reportDetails.Tests {
-				testName := section.Description
+				testSection := section.Description
 				for _, test := range section.Results {
 					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescription)
 					testNumber := test.TestNumber
@@ -155,7 +155,7 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 					if _, ok := checkMap[testNumber]; !ok {
 						checkMap[testNumber] = &scap.CheckBreakdown{
 							PolicyNumber: testNumber,
-							Name:         testName,
+							Section:      testSection,
 							Description:  testDescription,
 						}
 					}
@@ -172,11 +172,12 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 				}
 			}
 		}
+		*successOn = util.AppendIfMissing(*successOn, complianceTest.NodeName)
 	}
 	return nil
 }
 
-func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -184,23 +185,25 @@ func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, 
 			return nil
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			*numError++
+			policyDetails.ErrorOn = append(policyDetails.ErrorOn, complianceTest.NodeName)
+			policyDetails.NumError++
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			*numWaiting++
+			policyDetails.WaitingOn = append(policyDetails.WaitingOn, complianceTest.NodeName)
+			policyDetails.NumWaiting++
 			continue
 		}
 
 		for _, reportDetails := range complianceTest.Report {
 			for _, section := range reportDetails.Tests {
-				testName := section.Description
+				testSection := section.Description
 				for _, test := range section.Results {
 					if policyNumber != test.TestNumber {
 						continue
 					}
 					policyDetails.PolicyNumber = test.TestNumber
-					policyDetails.Name = testName
+					policyDetails.Section = testSection
 					policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
 					policyDetails.Audit = test.Audit
 					policyDetails.ExpectedResult = test.ExpectedResult

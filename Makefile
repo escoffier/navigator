@@ -191,6 +191,8 @@ redeploy:
 		helm delete --purge tensorsec; \
 		rm -rf charts; \
 		kubectl -n tensorsec delete pvc elasticsearch-master-elasticsearch-master-0; \
+		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
+		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
 		helm dep up; \
 		helm install ./ --namespace tensorsec --name tensorsec; \
 		cd -

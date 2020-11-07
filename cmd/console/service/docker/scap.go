@@ -119,7 +119,7 @@ func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filte
 		for _, result := range test.Results {
 			complianceMapEntry := &scap.ComplianceMapEntry{}
 			complianceMapEntry.PolicyNumber = result.ID
-			complianceMapEntry.Name = test.Description
+			complianceMapEntry.Section = test.Description
 			complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.Description)
 			complianceMapEntry.TestStatus = result.Result
 			complianceMap = append(complianceMap, *complianceMapEntry)
@@ -129,7 +129,7 @@ func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filte
 	return nil
 }
 
-func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest docker.DockerJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -137,15 +137,15 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWait
 			return err
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			*numError++
+			*errorOn = util.AppendIfMissing(*errorOn, complianceTest.NodeName)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			*numWaiting++
+			*waitingOn = util.AppendIfMissing(*waitingOn, complianceTest.NodeName)
 			continue
 		}
 		for _, test := range complianceTest.Report.Tests {
-			testName := test.Description
+			testSection := test.Description
 			for _, result := range test.Results {
 				testDescription := util.RemoveScoredNotScoredFrom(result.Description)
 				testNumber := result.ID
@@ -155,7 +155,7 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWait
 				if _, ok := checkMap[testNumber]; !ok {
 					checkMap[testNumber] = &scap.CheckBreakdown{
 						PolicyNumber: testNumber,
-						Name:         testName,
+						Section:      testSection,
 						Description:  testDescription,
 					}
 				}
@@ -171,11 +171,12 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWait
 				}
 			}
 		}
+		*successOn = util.AppendIfMissing(*successOn, complianceTest.NodeName)
 	}
 	return nil
 }
 
-func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest docker.DockerJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -183,11 +184,11 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64
 			return nil
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			*numError++
+			policyDetails.ErrorOn = append(policyDetails.ErrorOn, complianceTest.NodeName)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			*numWaiting++
+			policyDetails.WaitingOn = append(policyDetails.WaitingOn, complianceTest.NodeName)
 			continue
 		}
 
@@ -196,7 +197,7 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64
 			for _, result := range test.Results {
 				if result.ID == policyNumber {
 					policyDetails.PolicyNumber = result.ID
-					policyDetails.Name = testName
+					policyDetails.Section = testName
 					policyDetails.Description = util.RemoveScoredNotScoredFrom(result.Description)
 					// TODO: how to classify Docker policy specific information?
 					testStatus := result.Result
