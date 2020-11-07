@@ -109,6 +109,7 @@ func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filte
 	nodeCheckDetails.CheckID = complianceTest.CheckID
 	nodeCheckDetails.ClusterID = complianceTest.ClusterID
 	nodeCheckDetails.Status = complianceTest.Status
+	nodeCheckDetails.Logs = complianceTest.Logs
 	if nodeCheckDetails.Status == model.ComplianceCheckStatusInProgress || nodeCheckDetails.Status == model.ComplianceCheckStatusFailed {
 		return nil
 	}

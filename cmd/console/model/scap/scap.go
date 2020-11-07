@@ -34,6 +34,7 @@ type NodeCheckDetails struct {
 	ClusterID     string               `json:"clusterId"`
 	Status        string               `json:"status"`
 	NodeName      string               `json:"nodeName"`
+	Logs          string               `json:"logs"`
 	ComplianceMap []ComplianceMapEntry `json:"complianceMap"`
 }
 
@@ -74,6 +75,6 @@ type JobEntry struct {
 	Status     string                 `json:"status" bson:"status,omitempty"`
 	CreatedAt  int64                  `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
+	Logs       string                 `json:"logs" bson:"logs,omitempty"`
 	Report     map[string]interface{} `json:"report" bson:"report,omitempty"`
-	LogOutput  string                 `json:"log_output" bson:"logOutput,omitempty"`
 }

@@ -3,8 +3,10 @@ package scapper
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -26,6 +28,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -451,7 +454,6 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		ClusterID: check.ClusterID,
 		Status:    model.ComplianceCheckStatusInProgress,
 		CreatedAt: secs,
-		LogOutput: "",
 	}
 
 	_, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
@@ -520,6 +522,14 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 				finishedNodesCh <- thisNodeName
 				alreadyFinishedNodes[thisNodeName] = true
+
+				err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).
+						Str("job-name", fmt.Sprintf("%s", job.Name)).
+						Msg("Failed to get logs, ignoring")
+				}
+
 				return
 			}
 
@@ -537,8 +547,16 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				msg := fmt.Sprintf("Message: %s; Reason: %s", failedCondition.Message, failedCondition.Reason)
 
 				mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+				defer mongoCtxCancel()
 				s.mongoJobStatusToFailed(mongoCtx, check, thisNodeName, msg, transTime.Unix())
-				mongoCtxCancel()
+
+				err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).
+						Str("job-name", fmt.Sprintf("%s", job.Name)).
+						Msg("Failed to get logs, ignoring")
+				}
+
 				return
 			}
 
@@ -558,6 +576,66 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 	cacheSynced := kubeInformerFactory.WaitForCacheSync(stopCh)[reflect.TypeOf(jobType)]
 
 	return finishedNodesCh, stopCh, cacheSynced
+}
+
+func (s *Scapper) containerLogsToMongo(ctx context.Context, kubeClient *kubernetes.Clientset, jobNamespace, jobName, nodeName string, check *scapper.Check) error {
+	labelSelector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"job-name": jobName,
+		},
+	}
+	listOpts := metav1.ListOptions{LabelSelector: labels.Set(labelSelector.MatchLabels).String()}
+
+	podList, err := kubeClient.CoreV1().Pods(jobNamespace).List(listOpts)
+	if err != nil {
+		return fmt.Errorf("Failed to list pods of jobs: %w", err)
+	}
+
+	if len(podList.Items) != 1 {
+		return fmt.Errorf("Expected exactly 1 pod per 1 job, got %d", len(podList.Items))
+	}
+
+	pod := podList.Items[0]
+
+	if len(pod.Spec.Containers) != 1 {
+		return fmt.Errorf("Expected exactly 1 container in 1 pod, got %d, "+
+			"please either adjust deployment.yaml or PodLogOptions", len(pod.Spec.Containers))
+	}
+
+	podLogOpts := corev1.PodLogOptions{
+		// If more containers added to this pod, specify
+		//Container: ...
+	}
+
+	req := kubeClient.CoreV1().Pods(jobNamespace).GetLogs(pod.Name, &podLogOpts)
+	podLogs, err := req.Stream()
+	if err != nil {
+		return fmt.Errorf("Error in opening pod log stream: %w", err)
+	}
+	defer podLogs.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, podLogs)
+	if err != nil {
+		return fmt.Errorf("Error copying pod logs to buffer: %w", err)
+	}
+
+	encodedLogs := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	filter := bson.M{"checkId": check.CheckUUID.String(), "nodeName": nodeName}
+	update := bson.M{"$set": bson.M{
+		"logs": encodedLogs,
+	}}
+	opts := options.Update().SetUpsert(true)
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	_, err = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(mongoCtx, filter, update, opts)
+	if err != nil {
+		return fmt.Errorf("Failed to upsert container logs: %w", err)
+	}
+	return nil
 }
 
 func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper.Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
