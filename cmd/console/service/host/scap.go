@@ -8,6 +8,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -86,7 +87,7 @@ func GetHostHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *
 	return nil
 }
 
-func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -94,24 +95,22 @@ func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 			return err
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			*numError++
+			*errorOn = util.AppendIfMissing(*errorOn, complianceTest.NodeName)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			*numWaiting++
+			*waitingOn = util.AppendIfMissing(*waitingOn, complianceTest.NodeName)
 			continue
 		}
 		for _, test := range complianceTest.Report.Results {
-			testDescription := test.Description
+			testDescription := test.Title
 			testNumber := test.RuleID
-			testName := test.Title
 			if policyNumber != "" && policyNumber != testNumber {
 				continue
 			}
 			if _, ok := checkMap[testNumber]; !ok {
 				checkMap[testNumber] = &scap.CheckBreakdown{
 					PolicyNumber: testNumber,
-					Name:         testName,
 					Description:  testDescription,
 				}
 			}
@@ -124,6 +123,7 @@ func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, numWaitin
 				checkMap[testNumber].NumSuccessful++
 			}
 		}
+		*successOn = util.AppendIfMissing(*successOn, complianceTest.NodeName)
 	}
 	return nil
 }
@@ -157,8 +157,7 @@ func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 	for _, test := range complianceTest.Report.Results {
 		complianceMapEntry := &scap.ComplianceMapEntry{}
 		complianceMapEntry.PolicyNumber = test.RuleID
-		complianceMapEntry.Name = test.Title
-		complianceMapEntry.Description = test.Description
+		complianceMapEntry.Description = test.Title
 		complianceMapEntry.TestStatus = test.Result
 		complianceMap = append(complianceMap, *complianceMapEntry)
 	}
@@ -166,7 +165,7 @@ func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 	return nil
 }
 
-func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, numError *int64, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -174,19 +173,18 @@ func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, numWaiting *int64, 
 			return err
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			*numError++
+			policyDetails.ErrorOn = append(policyDetails.ErrorOn, complianceTest.NodeName)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			*numWaiting++
+			policyDetails.WaitingOn = append(policyDetails.WaitingOn, complianceTest.NodeName)
 			continue
 		}
 
 		for _, test := range complianceTest.Report.Results {
 			if test.RuleID == policyNumber {
 				policyDetails.PolicyNumber = test.RuleID
-				policyDetails.Name = test.Title
-				policyDetails.Description = test.Description
+				policyDetails.Description = test.Title
 				// TODO: how to classify Host policy specific information?
 				testStatus := test.Result
 				if testStatus == "fail" {

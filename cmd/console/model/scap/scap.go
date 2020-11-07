@@ -20,7 +20,7 @@ type CheckHistoryEntry struct {
 
 type CheckBreakdown struct {
 	PolicyNumber  string `json:"policyNumber"`
-	Name          string `json:"name"`
+	Section       string `json:"section"`
 	Description   string `json:"description"`
 	NumSuccessful int64  `json:"numSuccessful"`
 	NumFailed     int64  `json:"numFailed"`
@@ -38,14 +38,14 @@ type NodeCheckDetails struct {
 
 type ComplianceMapEntry struct {
 	PolicyNumber string `json:"policyNumber"`
-	Name         string `json:"name"`
+	Section      string `json:"section"`
 	Description  string `json:"description"`
 	TestStatus   string `json:"testStatus"`
 }
 
 type PolicyDetails struct {
 	PolicyNumber   string   `json:"policyNumber"`
-	Name           string   `json:"name"`
+	Section        string   `json:"section"`
 	Description    string   `json:"description"`
 	Audit          string   `json:"audit"`
 	ExpectedResult string   `json:"expectedResult"`
@@ -55,10 +55,14 @@ type PolicyDetails struct {
 	NumFailed      int64    `json:"numFailed"`
 	NumInfo        int64    `json:"numInfo"`
 	NumWarn        int64    `json:"numWarn"`
+	NumError       int64    `json:"numError"`
+	NumWaiting     int64    `json:"numWaiting"`
 	FailedOn       []string `json:"failedOn"`
 	WarnOn         []string `json:"warnOn"`
 	InfoOn         []string `json:"infoOn"`
 	SuccessfulOn   []string `json:"successfulOn"`
+	ErrorOn        []string `json:"errorOn"`
+	WaitingOn      []string `json:"waitingOn"`
 }
 
 type JobEntry struct {

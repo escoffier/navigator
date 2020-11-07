@@ -13,9 +13,7 @@ type HostReportResult struct {
 }
 
 type HostReportTest struct {
-	Description string `json:"profile" bson:"profile"`
-	Rationale   string `json:"rationale" bson:"rationale"`
-	Result      string `json:"result" bson:"result"`
-	RuleID      string `json:"rule-id" bson:"rule-id"`
-	Title       string `json:"title" bson:"title"`
+	Result string `json:"result" bson:"result"`
+	RuleID string `json:"rule-id" bson:"rule-id"`
+	Title  string `json:"title" bson:"title"`
 }

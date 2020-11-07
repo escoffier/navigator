@@ -356,35 +356,33 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
-		numWaiting := int64(0)
-		numError := int64(0)
+		waitingOn := []string{}
+		errorOn := []string{}
+		successOn := []string{}
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
+			err := kube.GetKubeBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
-
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
+			err := docker.GetDockerBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
-
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostBreakdownEntries(checkMap, &numWaiting, &numError, policyNumber, cursor, ctx)
+			err := host.GetHostBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
-
 				return
 			}
 		}
@@ -412,8 +410,9 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
 		resultsLimit := int(math.Min(float64(offset+limit), float64(len(results))))
 		response.Ok(w,
-			response.WithCustomField("numWaiting", numWaiting),
-			response.WithCustomField("numError", numError),
+			response.WithCustomField("waitingOn", waitingOn),
+			response.WithCustomField("errorOn", errorOn),
+			response.WithCustomField("successOn", successOn),
 			response.WithItems(results[resultsOffset:resultsLimit]),
 			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
@@ -498,34 +497,29 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		defer cursor.Close(ctx)
 
 		policyDetails := &scap.PolicyDetails{}
-		numWaiting := int64(0)
-		numError := int64(0)
 
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubePolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
+			err := kube.GetKubePolicyDetails(policyDetails, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube policy details: %w", err)))
-
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
+			err := docker.GetDockerPolicyDetails(policyDetails, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker policy details: %w", err)))
-
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostPolicyDetails(policyDetails, &numWaiting, &numError, policyNumber, cursor, ctx)
+			err := host.GetHostPolicyDetails(policyDetails, policyNumber, cursor, ctx)
 			if err != nil {
 				RespAndLog(w, r,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host policy details: %w", err)))
-
 				return
 			}
 		}
@@ -539,7 +533,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithCustomField("numWaiting", numWaiting), response.WithCustomField("numError", numError), response.WithItem(*policyDetails))
+		response.Ok(w, response.WithItem(*policyDetails))
 	}
 }
 
