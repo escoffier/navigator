@@ -160,7 +160,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 
 		scanTasks = scanTasks[actualOffset:actualLimit]
 		items := make([]s.ImageScanSummaryResult, len(scanTasks))
-		for _, scanTask := range scanTasks {
+		for scanTaskNo, scanTask := range scanTasks {
 			imageScanResult := &s.ImageScanSummaryResult{}
 			report := scanTask.ScanReport.Vulns
 			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
@@ -181,7 +181,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			imageScanResult.Tag = report.Tag
 			imageScanResult.Digest = report.Digest
 			imageScanResult.TaskID = scanTask.ID
-			items = append(items, *imageScanResult)
+			items[scanTaskNo] = *imageScanResult
 		}
 		docNum := int64(len(items))
 		response.Ok(w,
