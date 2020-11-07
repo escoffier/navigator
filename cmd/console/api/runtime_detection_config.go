@@ -65,7 +65,7 @@ func (api *api) enableRule() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("ruleID param missing"),
+					fmt.Errorf("ruleID param invalid: %w", err),
 					Suberror{"ruleID", ""}))
 			return
 		}
@@ -97,7 +97,7 @@ func (api *api) disableRule() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("ruleID param missing"),
+					fmt.Errorf("ruleID param invalid: %w", err),
 					Suberror{"ruleID", ""}))
 			return
 		}
