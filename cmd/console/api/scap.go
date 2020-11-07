@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (api *api) scap() func(chi.Router) {
@@ -222,6 +223,29 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 						fmt.Errorf("Couldn't get host history entries: %w", err)))
 				return
 			}
+		}
+
+		// We want to return cluster names to frontend for nice rendering
+		clusterNames := make(map[string]string)
+		for _, v := range checkMap {
+			if _, ok := clusterNames[v.ClusterID]; !ok {
+				clusterIDPrimitive, err := primitive.ObjectIDFromHex(v.ClusterID)
+				if err != nil {
+					RespAndLog(w, r,
+						NewFieldError(http.StatusInternalServerError,
+							fmt.Errorf("Cluster with ID %s not found: %w", v.ClusterID, err)))
+					return
+				}
+
+				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive)
+				if err != nil {
+					RespAndLog(w, r, fmt.Errorf("Couldn't get cluster: %w", err))
+					return
+				}
+
+				clusterNames[v.ClusterID] = queryCluster.ClusterName
+			}
+			v.ClusterName = clusterNames[v.ClusterID]
 		}
 
 		err = cursor.Err()

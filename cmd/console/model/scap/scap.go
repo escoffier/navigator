@@ -5,6 +5,7 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 type CheckHistoryEntry struct {
 	CheckID             string  `json:"checkId"`
 	ClusterID           string  `json:"clusterId"`
+	ClusterName         string  `json:"clusterName"`
 	CreatedAt           int64   `json:"createdAt"`
 	FinishedAt          int64   `json:"finishedAt,omitempty"`
 	NumSuccessful       int64   `json:"numSuccessful"`
