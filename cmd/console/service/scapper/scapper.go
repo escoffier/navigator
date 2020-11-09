@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,14 +15,12 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -58,7 +55,7 @@ const (
 	historicalChecksToKeep = 3
 )
 
-func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType string) (uuid.UUID, error) {
+func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType model.ComplianceCheckType) (uuid.UUID, error) {
 	// get namespace of this pod - it will be used for scheduled jobs/pods
 	namespace := os.Getenv("MY_POD_NAMESPACE")
 	if namespace == "" {
@@ -107,7 +104,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 
 	// schedule jobs
 	logging.GetLogger().Info().
-		Str("check-type", check.CheckType).
+		Str("check-type", fmt.Sprintf("%s", check.CheckType)).
 		Str("check-cluster", check.ClusterID).
 		Str("check-uuid", check.CheckUUID.String()).
 		Str("namespace", check.Namespace).
@@ -131,7 +128,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	return checkUUID, nil
 }
 
-func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Context, checkType, namespace string) (bool, error) {
+func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Context, checkType model.ComplianceCheckType, namespace string) (bool, error) {
 
 	someJobStillInProgress := false
 
@@ -192,7 +189,7 @@ func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Cont
 	return someJobStillInProgress, nil
 }
 
-func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *kubernetes.Clientset, checkType, namespace string) error {
+func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *kubernetes.Clientset, checkType model.ComplianceCheckType, namespace string) error {
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"TENSORSEC": "true",
@@ -316,7 +313,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 
 }
 
-func (s Scapper) GetMongoCollectionForCheckType(checkType string) string {
+func (s Scapper) GetMongoCollectionForCheckType(checkType model.ComplianceCheckType) string {
 	if checkType == model.ComplianceCheckTargetTypeKube {
 		return model.ComplianceCheckKubeRecordsCollection
 	} else if checkType == model.ComplianceCheckTargetTypeDocker {
@@ -345,7 +342,7 @@ func (s Scapper) prepareJobObject(check *scapper.Check) (*batchv1.Job, error) {
 	return jobObj, nil
 }
 
-func (s Scapper) readJobObjFromYamlFile(checkType string) (*batchv1.Job, error) {
+func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*batchv1.Job, error) {
 	jobYamlPath := ""
 	if checkType == model.ComplianceCheckTargetTypeKube {
 		jobYamlPath = "/jobs/kube-bench/job.yaml"
@@ -700,69 +697,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 
 }
 
-func (s Scapper) generateAlerts(ctx context.Context, check *scapper.Check) error {
-
-	// TODO:
-	// For now, we only alert on one specific policy of Docker compliance check.
-	// This code should be refactored to allow for arbitrary alerts from all checkTypes.
-
-	dockerEntries, err := s.GetJobEntriesForCheck(ctx, check.ClusterID, model.ComplianceCheckTargetTypeDocker,
-		check.CheckUUID.String(), "", model.ComplianceCheckStatusCompleted)
-	if err != nil {
-		return err
-	}
-
-	alertsToReport := make(map[string]model.Alert)
-
-	for _, dockerEntry := range dockerEntries {
-		jsonbody, err := json.Marshal(dockerEntry.Report)
-		if err != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal %T docker report: %w", dockerEntry.Report, err))
-		}
-		var report docker.DockerReportResult
-		err = json.Unmarshal(jsonbody, &report)
-		if err != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to unmarshal into %T docker report: %w", report, err))
-		}
-
-		for _, section := range report.Tests {
-			for _, result := range section.Results {
-				// Ensure Content trust for Docker is Enabled
-				if result.ID == "4.5" && result.Result != "PASS" {
-
-					if _, ok := alertsToReport[result.ID]; !ok {
-						alertsToReport[result.ID] = model.Alert{
-							ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
-							AlertKind: model.AlertKindComplianceCheck,
-							Timestamp: time.Now(),
-							ComplianceCheckAlert: &model.ComplianceCheckAlert{
-								AffectedNodes: &[]string{},
-								ClusterID:     check.ClusterID,
-								CheckID:       check.CheckUUID.String(),
-								CheckType:     check.CheckType,
-								PolicyID:      result.ID,
-								Message:       util.RemoveScoredNotScoredFrom(result.Description),
-							},
-						}
-					}
-
-					*alertsToReport[result.ID].ComplianceCheckAlert.AffectedNodes =
-						append(*alertsToReport[result.ID].ComplianceCheckAlert.AffectedNodes, dockerEntry.NodeName)
-				}
-			}
-		}
-	}
-
-	for _, complianceAlert := range alertsToReport {
-		_, err = s.MongoDB.Collection(model.AlertCollection).InsertOne(ctx, complianceAlert)
-		if err != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", complianceAlert, err))
-		}
-	}
-	return nil
-}
-
-func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID, checkType, checkID, nodeName, status string) ([]scap.JobEntry, error) {
+func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, checkType model.ComplianceCheckType, checkID, nodeName, status string) ([]scap.JobEntry, error) {
 
 	filter := bson.M{"clusterId": clusterID}
 

@@ -2,6 +2,8 @@ package model
 
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
+type ComplianceCheckType string
+
 const (
 	ComplianceCheckStatusInProgress = "inprogress"
 	ComplianceCheckStatusCompleted  = "completed"
@@ -11,9 +13,9 @@ const (
 	ComplianceCheckDockerRecordsCollection = "docker-bench-records"
 	ComplianceCheckHostRecordsCollection   = "host-bench-records"
 
-	ComplianceCheckTargetTypeKube   = "kube"
-	ComplianceCheckTargetTypeDocker = "docker"
-	ComplianceCheckTargetTypeHost   = "host"
+	ComplianceCheckTargetTypeKube   ComplianceCheckType = "kube"
+	ComplianceCheckTargetTypeDocker ComplianceCheckType = "docker"
+	ComplianceCheckTargetTypeHost   ComplianceCheckType = "host"
 )
 
 type ComplianceCheckEntryBase struct {
@@ -27,7 +29,7 @@ type ComplianceCheckEntryBase struct {
 	Logs       string             `json:"logs" bson:"logs,omitempty"`
 }
 
-func GetMongoCollectionForCheckType(checkType string) string {
+func GetMongoCollectionForCheckType(checkType ComplianceCheckType) string {
 	if checkType == ComplianceCheckTargetTypeKube {
 		return ComplianceCheckKubeRecordsCollection
 	} else if checkType == ComplianceCheckTargetTypeDocker {
@@ -39,7 +41,7 @@ func GetMongoCollectionForCheckType(checkType string) string {
 	}
 }
 
-func IsAnyCheckType(checkType string) bool {
+func IsAnyCheckType(checkType ComplianceCheckType) bool {
 	if checkType != ComplianceCheckTargetTypeKube &&
 		checkType != ComplianceCheckTargetTypeDocker &&
 		checkType != ComplianceCheckTargetTypeHost {
