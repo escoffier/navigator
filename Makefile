@@ -183,9 +183,8 @@ endif
 
 .PHONY: redeploy
 redeploy:
-	# Note, if you get:
-	# Error: release tensorsec failed: object is being deleted: persistentvolumeclaims "tensorsec-mongodb" already exists
-	# then run this target again.
+	# DO NOT USE THIS FOR PRODUCTION ENVIRONMENT
+	# It will wipe out customer data.
 	@echo "+ $@"
 	cd deployments/helm; \
 		helm delete --purge tensorsec; \
@@ -193,6 +192,7 @@ redeploy:
 		kubectl -n tensorsec delete pvc elasticsearch-master-elasticsearch-master-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
+		kubectl --namespace tensorsec get job --namespace tensorsec | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job; \
 		helm dep up; \
 		helm install ./ --namespace tensorsec --name tensorsec; \
 		cd -
