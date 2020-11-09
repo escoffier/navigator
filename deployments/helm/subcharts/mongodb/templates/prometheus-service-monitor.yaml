@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ template "mongodb.fullname" . }}
+  name: {{ template "mongodb.fullnameOverride" . }}
   {{- if .Values.metrics.serviceMonitor.namespace }}
   namespace: {{ .Values.metrics.serviceMonitor.namespace }}
   {{- end }}
@@ -22,7 +22,7 @@ spec:
     metricRelabelings:
 {{ toYaml .Values.metrics.serviceMonitor.relabellings | indent 4 }}
     {{- end }}
-  jobLabel: {{ template "mongodb.fullname" . }}
+  jobLabel: {{ template "mongodb.fullnameOverride" . }}
   namespaceSelector:
     matchNames:
     - "{{ $.Release.Namespace }}"

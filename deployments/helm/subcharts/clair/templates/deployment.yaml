@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "clair.fullname" . }}
+  name: {{ template "clair.fullnameOverride" . }}
   labels:
     heritage: {{ .Release.Service | quote }}
     release: {{ .Release.Name | quote }}
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
-    app: {{ template "clair.fullname" . }}
+    app: {{ template "clair.fullnameOverride" . }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: {{ template "clair.fullname" . }}
+      app: {{ template "clair.fullnameOverride" . }}
   template:
     metadata:
       labels:
-        app: {{ template "clair.fullname" . }}
+        app: {{ template "clair.fullnameOverride" . }}
     spec:
       volumes:
       - name: "{{ .Chart.Name }}-config"
         secret:
-          secretName: {{ template "clair.fullname" . }}
+          secretName: {{ template "clair.fullnameOverride" . }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.nodeSelector | indent 8 }}

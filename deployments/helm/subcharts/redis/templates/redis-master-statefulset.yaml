@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ template "redis.fullname" . }}-master
+  name: {{ template "redis.fullnameOverride" . }}-master
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}
@@ -18,7 +18,7 @@ spec:
       app: {{ template "redis.name" . }}
       release: {{ .Release.Name }}
       role: master
-  serviceName: {{ template "redis.fullname" . }}-headless
+  serviceName: {{ template "redis.fullnameOverride" . }}-headless
   template:
     metadata:
       labels:
@@ -200,7 +200,7 @@ spec:
               redis_exporter{{- range $key, $value := .Values.metrics.extraArgs }} --{{ $key }}={{ $value }}{{- end }}
           env:
             - name: REDIS_ALIAS
-              value: {{ template "redis.fullname" . }}
+              value: {{ template "redis.fullnameOverride" . }}
             {{- if and .Values.usePassword (not .Values.usePasswordFile) }}
             - name: REDIS_PASSWORD
               valueFrom:
@@ -273,11 +273,11 @@ spec:
       volumes:
         - name: start-scripts
           configMap:
-            name: {{ include "redis.fullname" . }}-scripts
+            name: {{ include "redis.fullnameOverride" . }}-scripts
             defaultMode: 0755
         - name: health
           configMap:
-            name: {{ template "redis.fullname" . }}-health
+            name: {{ template "redis.fullnameOverride" . }}-health
             defaultMode: 0755
         {{- if .Values.usePasswordFile }}
         - name: redis-password
@@ -289,7 +289,7 @@ spec:
         {{- end }}
         - name: config
           configMap:
-            name: {{ template "redis.fullname" . }}
+            name: {{ template "redis.fullnameOverride" . }}
         {{- if not .Values.master.persistence.enabled }}
         - name: "redis-data"
           emptyDir: {}

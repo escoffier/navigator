@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ template "redis.fullname" . }}
+  name: {{ template "redis.fullnameOverride" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}
@@ -14,7 +14,7 @@ rules:
   - apiGroups: ['{{ template "podSecurityPolicy.apiGroup" . }}']
     resources: ['podsecuritypolicies']
     verbs: ['use']
-    resourceNames: [{{ template "redis.fullname" . }}]
+    resourceNames: [{{ template "redis.fullnameOverride" . }}]
 {{- end -}}
 {{- if .Values.rbac.role.rules }}
 {{- toYaml .Values.rbac.role.rules | nindent 2 }}

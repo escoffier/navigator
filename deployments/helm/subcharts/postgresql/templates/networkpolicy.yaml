@@ -2,7 +2,7 @@
 kind: NetworkPolicy
 apiVersion: {{ template "postgresql.networkPolicy.apiVersion" . }}
 metadata:
-  name: {{ template "postgresql.fullname" . }}
+  name: {{ template "postgresql.fullnameOverride" . }}
   labels:
     app: {{ template "postgresql.name" . }}
     chart: {{ template "postgresql.chart" . }}
@@ -21,7 +21,7 @@ spec:
       from:
       - podSelector:
           matchLabels:
-            {{ template "postgresql.fullname" . }}-client: "true"
+            {{ template "postgresql.fullnameOverride" . }}-client: "true"
       - podSelector:
           matchLabels:
             app: {{ template "postgresql.name" . }}

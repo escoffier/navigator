@@ -43,11 +43,12 @@ image:
 ##
 # fullnameOverride:
 fullname: "tensorsec-mongodb"
+fullnameOverride: "tensorsec-mongodb"
 ## Init containers parameters:
 ## volumePermissions: Change the owner and group of the persistent volume mountpoint to runAsUser:fsGroup values from the securityContext section.
 ##
 volumePermissions:
-  enabled: false
+  enabled: true
   image:
     registry: docker.io
     repository: bitnami/minideb

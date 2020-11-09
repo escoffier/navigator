@@ -10,9 +10,9 @@ Expand the name of the chart.
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
-{{- define "postgresql.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- define "postgresql.fullnameOverride" -}}
+{{- if .Values.fullnameOverrideOverride -}}
+{{- .Values.fullnameOverrideOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
@@ -26,13 +26,13 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
-{{- define "postgresql.master.fullname" -}}
+{{- define "postgresql.master.fullnameOverride" -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- $fullname := default (printf "%s-%s" .Release.Name $name) .Values.fullnameOverride -}}
+{{- $fullnameOverride := default (printf "%s-%s" .Release.Name $name) .Values.fullnameOverrideOverride -}}
 {{- if .Values.replication.enabled -}}
-{{- printf "%s-%s" $fullname "master" | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" $fullnameOverride "master" | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- printf "%s" $fullname | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s" $fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -203,7 +203,7 @@ Get the password secret.
 {{- else if .Values.existingSecret -}}
     {{- printf "%s" .Values.existingSecret -}}
 {{- else -}}
-    {{- printf "%s" (include "postgresql.fullname" .) -}}
+    {{- printf "%s" (include "postgresql.fullnameOverride" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -225,7 +225,7 @@ Get the configuration ConfigMap name.
 {{- if .Values.configurationConfigMap -}}
 {{- printf "%s" (tpl .Values.configurationConfigMap $) -}}
 {{- else -}}
-{{- printf "%s-configuration" (include "postgresql.fullname" .) -}}
+{{- printf "%s-configuration" (include "postgresql.fullnameOverride" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -236,7 +236,7 @@ Get the extended configuration ConfigMap name.
 {{- if .Values.extendedConfConfigMap -}}
 {{- printf "%s" (tpl .Values.extendedConfConfigMap $) -}}
 {{- else -}}
-{{- printf "%s-extended-configuration" (include "postgresql.fullname" .) -}}
+{{- printf "%s-extended-configuration" (include "postgresql.fullnameOverride" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -247,7 +247,7 @@ Get the initialization scripts ConfigMap name.
 {{- if .Values.initdbScriptsConfigMap -}}
 {{- printf "%s" (tpl .Values.initdbScriptsConfigMap $) -}}
 {{- else -}}
-{{- printf "%s-init-scripts" (include "postgresql.fullname" .) -}}
+{{- printf "%s-init-scripts" (include "postgresql.fullnameOverride" .) -}}
 {{- end -}}
 {{- end -}}
 

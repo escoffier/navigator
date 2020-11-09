@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ template "redis.fullname" . }}
+  name: {{ template "redis.fullnameOverride" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}
@@ -12,7 +12,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ template "redis.fullname" . }}
+  name: {{ template "redis.fullnameOverride" . }}
 subjects:
 - kind: ServiceAccount
   name: {{ template "redis.serviceAccountName" . }}

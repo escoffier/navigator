@@ -40,7 +40,8 @@ image:
 ## String to fully override postgresql.fullname template
 ##
 # fullnameOverride:
-fullname: tensorsec-postgresql
+fullname: "tensorsec-postgresql"
+fullnameOverride: "tensorsec-postgresql"
 ##
 ## Init containers parameters:
 ## volumePermissions: Change the owner of the persist volume mountpoint to RunAsUser:fsGroup

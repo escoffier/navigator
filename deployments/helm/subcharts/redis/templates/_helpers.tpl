@@ -18,9 +18,9 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "redis.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- define "redis.fullnameOverride" -}}
+{{- if .Values.fullnameOverrideOverride -}}
+{{- .Values.fullnameOverrideOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
@@ -191,7 +191,7 @@ Create the name of the service account to use
 */}}
 {{- define "redis.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-    {{ default (include "redis.fullname" .) .Values.serviceAccount.name }}
+    {{ default (include "redis.fullnameOverride" .) .Values.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}
@@ -204,7 +204,7 @@ Get the password secret.
 {{- if .Values.existingSecret -}}
 {{- printf "%s" .Values.existingSecret -}}
 {{- else -}}
-{{- printf "%s" (include "redis.fullname" .) -}}
+{{- printf "%s" (include "redis.fullnameOverride" .) -}}
 {{- end -}}
 {{- end -}}
 

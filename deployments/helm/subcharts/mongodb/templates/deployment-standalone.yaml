@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "mongodb.fullname" . }}
+  name: {{ template "mongodb.fullnameOverride" . }}
   labels:
     app: {{ template "mongodb.name" . }}
     chart: {{ template "mongodb.chart" . }}
@@ -72,7 +72,7 @@ spec:
           mountPath: {{ .Values.persistence.mountPath }}
       {{- end }}
       containers:
-      - name: {{ template "mongodb.fullname" . }}
+      - name: {{ template "mongodb.fullnameOverride" . }}
         image: {{ template "mongodb.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
         {{- if .Values.securityContext.enabled }}
@@ -90,13 +90,13 @@ spec:
         - name: MONGODB_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+              name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullnameOverride" . }}{{- end }}
               key: mongodb-password
         {{- end }}
         - name: MONGODB_ROOT_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+              name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullnameOverride" . }}{{- end }}
               key: mongodb-root-password
         {{- end }}
         {{- if .Values.mongodbUsername }}
@@ -189,7 +189,7 @@ spec:
         - name: MONGODB_ROOT_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+              name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullnameOverride" . }}{{- end }}
               key: mongodb-root-password
         command: [ 'sh', '-c', '/bin/mongodb_exporter --mongodb.uri mongodb://root:${MONGODB_ROOT_PASSWORD}@localhost:{{ .Values.service.port }}/admin {{ .Values.metrics.extraArgs }}' ]
         {{- else }}
@@ -227,7 +227,7 @@ spec:
       {{- if (.Files.Glob "files/docker-entrypoint-initdb.d/*[sh|js|json]") }}
       - name: custom-init-scripts
         configMap:
-          name: {{ template "mongodb.fullname" . }}-init-scripts
+          name: {{ template "mongodb.fullnameOverride" . }}-init-scripts
       {{- end }}
       {{- if (.Values.initConfigMap) }}
       - name: custom-init-scripts
@@ -237,7 +237,7 @@ spec:
       - name: data
       {{- if .Values.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+          claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}{{- else }}{{ template "mongodb.fullnameOverride" . }}{{- end }}
 
       {{- else }}
         emptyDir: {}
@@ -245,6 +245,6 @@ spec:
       {{- if .Values.configmap }}
       - name: config
         configMap:
-          name: {{ template "mongodb.fullname" . }}
+          name: {{ template "mongodb.fullnameOverride" . }}
       {{- end }}
  {{- end -}}

@@ -2,7 +2,7 @@
 kind: NetworkPolicy
 apiVersion: {{ template "networkPolicy.apiVersion" . }}
 metadata:
-  name: {{ template "redis.fullname" . }}
+  name: {{ template "redis.fullnameOverride" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}
@@ -46,7 +46,7 @@ spec:
       from:
         - podSelector:
             matchLabels:
-              {{ template "redis.fullname" . }}-client: "true"
+              {{ template "redis.fullnameOverride" . }}-client: "true"
         - podSelector:
             matchLabels:
               app: {{ template "redis.name" . }}

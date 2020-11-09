@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ template "redis.fullname" . }}-slave
+  name: {{ template "redis.fullnameOverride" . }}-slave
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}
@@ -17,7 +17,7 @@ spec:
   strategy: {{- toYaml .Values.slave.updateStrategy | nindent 4 }}
 {{- end }}
   replicas: {{ .Values.cluster.slaveCount }}
-  serviceName: {{ template "redis.fullname" . }}-headless
+  serviceName: {{ template "redis.fullnameOverride" . }}-headless
   selector:
     matchLabels:
       app: {{ template "redis.name" . }}
@@ -88,7 +88,7 @@ spec:
             - name: REDIS_REPLICATION_MODE
               value: slave
             - name: REDIS_MASTER_HOST
-              value: {{ template "redis.fullname" . }}-master-0.{{ template "redis.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+              value: {{ template "redis.fullnameOverride" . }}-master-0.{{ template "redis.fullnameOverride" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
             - name: REDIS_MASTER_PORT_NUMBER
               value: {{ .Values.redisPort | quote }}
             {{- if .Values.usePassword }}
@@ -216,7 +216,7 @@ spec:
               redis_exporter{{- range $key, $value := .Values.metrics.extraArgs }} --{{ $key }}={{ $value }}{{- end }}
           env:
             - name: REDIS_ALIAS
-              value: {{ template "redis.fullname" . }}
+              value: {{ template "redis.fullnameOverride" . }}
             {{- if and .Values.usePassword (not .Values.usePasswordFile) }}
             - name: REDIS_PASSWORD
               valueFrom:
@@ -289,11 +289,11 @@ spec:
       volumes:
         - name: start-scripts
           configMap:
-            name: {{ include "redis.fullname" . }}-scripts
+            name: {{ include "redis.fullnameOverride" . }}-scripts
             defaultMode: 0755
         - name: health
           configMap:
-            name: {{ template "redis.fullname" . }}-health
+            name: {{ template "redis.fullnameOverride" . }}-health
             defaultMode: 0755
         {{- if .Values.usePasswordFile }}
         - name: redis-password
@@ -305,7 +305,7 @@ spec:
         {{- end }}
         - name: config
           configMap:
-            name: {{ template "redis.fullname" . }}
+            name: {{ template "redis.fullnameOverride" . }}
         {{- if .Values.sysctlImage.mountHostSys }}
         - name: host-sys
           hostPath:
