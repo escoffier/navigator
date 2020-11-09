@@ -53,6 +53,8 @@ notice, that Endpoint address is the address of Tensorsec Console, with /harbor 
 If tensorsec-console is in a different namespace, but same kubernetes cluster as Harbor, use the following format:
 `http://tensorsec-console.tensorsec.svc.cluster.local:8889/harbor`
 
+(Also, specify harbor-url for tensorsec-scanner deployment: `https://harbor-harbor-core.harbor.svc.cluster.local:30003`)
+
 3. Test Connection -> Save
 4. Select Tensorsec -> Set as default
 

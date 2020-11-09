@@ -19,10 +19,10 @@ import (
 // @Router /api/v1/scap/crons [get]
 func (api *api) listAllCrons() http.HandlerFunc {
 	type RespItem struct {
-		CronType    string `json:"cronType"`
-		CronString  string `json:"cronString"`
-		ClusterID   string `json:"clusterId"`
-		ClusterName string `json:"clusterName"`
+		CronType    model.ComplianceCheckType `json:"cronType"`
+		CronString  string                    `json:"cronString"`
+		ClusterID   string                    `json:"clusterId"`
+		ClusterName string                    `json:"clusterName"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
@@ -87,7 +87,7 @@ func (api *api) getCron() http.HandlerFunc {
 			return
 		}
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -96,9 +96,7 @@ func (api *api) getCron() http.HandlerFunc {
 			return
 		}
 
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
@@ -141,7 +139,7 @@ func (api *api) putCron() http.HandlerFunc {
 			return
 		}
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -150,9 +148,7 @@ func (api *api) putCron() http.HandlerFunc {
 			return
 		}
 
-		if checkType != model.ComplianceCheckTargetTypeKube &&
-			checkType != model.ComplianceCheckTargetTypeDocker &&
-			checkType != model.ComplianceCheckTargetTypeHost {
+		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),

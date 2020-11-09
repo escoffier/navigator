@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: tensorsec
+  name: faulty
+  labels:
+    app: faulty
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: faulty
+  template:
+    metadata:
+      labels:
+        app: faulty
+    spec:
+      containers:
+      - name: faulty
+        image: registry.t-appagile.com/tensorsecurity/faulty
+        command: ["/bin/bash", "-c", "sleep 99999"]
+      imagePullSecrets:
+      - name: harbor-admin-secret

@@ -68,7 +68,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		}
 		filter["nodeName"] = nodeName
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -146,7 +146,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			filter["clusterId"] = clusterID
 		}
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -233,7 +233,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				if err != nil {
 					RespAndLog(w, r,
 						NewFieldError(http.StatusInternalServerError,
-							fmt.Errorf("Cluster with ID %s not found: %w", v.ClusterID, err)))
+							fmt.Errorf("Cluster with invalid ID %s: %w", v.ClusterID, err)))
 					return
 				}
 
@@ -309,7 +309,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		policyNumber := r.URL.Query().Get("policyNumber")
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -475,7 +475,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -585,7 +585,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 			return
 		}
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,
@@ -636,7 +636,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		checkType := chi.URLParam(r, "checkType")
+		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, r,
 				NewFieldError(http.StatusBadRequest,

@@ -46,7 +46,7 @@ func NewCronService(
 	}
 }
 
-func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID primitive.ObjectID, checkType string, next *time.Time, prev *time.Time) error {
+func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType, next *time.Time, prev *time.Time) error {
 	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID)
 	if err != nil {
 		return err
@@ -76,10 +76,10 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 	return nil
 }
 
-func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, checkType string) error {
+func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, checkType model.ComplianceCheckType) error {
 	logging.GetLogger().Info().
 		Str("cluster", fmt.Sprintf("%+v", cluster)).
-		Str("checkType", checkType).
+		Str("checkType", fmt.Sprintf("%s", checkType)).
 		Msg("Registering compliance cron")
 
 	var cronID int
@@ -110,7 +110,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 		newCronID, err := s.cron.AddFunc(cronString, func() {
 			logging.GetLogger().Info().
 				Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
-				Str("checkType", checkType).
+				Str("checkType", fmt.Sprintf("%s", checkType)).
 				Msg("Starting compliance cron job now")
 
 			// don't cancel() when exiting this function as we are starting an async task
@@ -119,12 +119,12 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 			if err != nil {
 				logging.GetLogger().Error().Err(err).
 					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
-					Str("checkType", checkType).
+					Str("checkType", fmt.Sprintf("%s", checkType)).
 					Msg("Failed to run compliance check")
 			} else {
 				logging.GetLogger().Info().
 					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
-					Str("checkType", checkType).
+					Str("checkType", fmt.Sprintf("%s", checkType)).
 					Msg("Compliance cron job scheduled successfully")
 			}
 
@@ -162,7 +162,8 @@ func (s *CronService) StartCrons(ctx context.Context) error {
 		return err
 	}
 	for _, cluster := range clusters {
-		for _, checkType := range []string{model.ComplianceCheckTargetTypeKube,
+		for _, checkType := range []model.ComplianceCheckType{
+			model.ComplianceCheckTargetTypeKube,
 			model.ComplianceCheckTargetTypeDocker,
 			model.ComplianceCheckTargetTypeHost} {
 			err = s.startCron(ctx, &cluster, checkType)
@@ -184,7 +185,7 @@ func (s *CronService) idInCronEntries(ID int, cronEntries []cr.Entry) bool {
 	return false
 }
 
-func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType string, cronString string) error {
+func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType, cronString string) error {
 	// get kube client for this cluster
 	mongoGetCtx, mongoGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoGetCtxCancel()
@@ -227,7 +228,7 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 	return nil
 }
 
-func (s *CronService) GetCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType string) (string, error) {
+func (s *CronService) GetCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType) (string, error) {
 	// get kube client for this cluster
 	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID)
 	if err != nil {

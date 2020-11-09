@@ -110,33 +110,33 @@ curl -v -X DELETE -H "Authorization: Bearer $JWT" -H "Content-Type: application/
 
 ```bash
 # Kube-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5fa03941d1044d02adfadfd4
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/kube/5fa69022046adaa45b057c55
 # Docker-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5fa03941d1044d02adfadfd4
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/docker/5fa69022046adaa45b057c55
 # Host-bench
-curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4
+curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  http://$CONSOLEADDR/api/v1/scap/host/5fa69022046adaa45b057c55
 
 # They return Check id 0e87b7ae-9711-4d5f-b2c2-17b18ca0ee94
 
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa03941d1044d02adfadfd4/reports?checkId=ebb296ee-0ff7-4f70-9989-715a04796f04&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa69022046adaa45b057c55/reports?checkId=739e407b-ee8d-4cea-abd2-dd587a4e396a&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa03941d1044d02adfadfd4/reports?checkId=f310c485-a091-4622-b72f-b40c3406a2a6&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa69022046adaa45b057c55/reports?checkId=579737de-20b9-423f-92b2-90a53f26160b&nodeName=master&status=completed" > out.json
 
 # host-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4/reports?checkId=247d1db7-5888-415a-b176-f8cb71814a5b&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4/reports?checkId=4f04bac6-2033-4577-b89a-68eb8f200828&status=completed" > out.json
 
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/cc7f68b4-d35f-4a97-8b0d-556751eb82a8" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/f2200fc7-c08e-4a07-9ca7-6b8f4387b9a1" > out.json
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/cc7f68b4-d35f-4a97-8b0d-556751eb82a8/1.1.1/details" > out.json
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/master/cc7f68b4-d35f-4a97-8b0d-556751eb82a8/details" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/master/9e14db5e-e05a-479b-9cbf-f2d6f84fad1f/details" > out.json
 ```
 
 
@@ -177,7 +177,9 @@ After enabling rule - you can simulate syscalls from a special pod, which has
 to be started manually.
 
 ```bash
-kubectl run tensorsec-faulty --image=localhost:32000/faulty:latest -i --tty --rm
+kubectl run tensorsec-faulty --image=registry.t-appagile.com/faulty:latest -i --tty --rm
+# On dev environment:
+kubectl apply -f deployments/test/faulty.yaml
 ```
 
 ## Database access
@@ -186,7 +188,7 @@ Some oneliners:
 
 ```bash
 mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.scantasks.find().toArray()' > out.json
-mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["kube-bench-records"].find().toArray()' > out.json
+mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["docker-bench-records"].find().toArray()' > out2.json
 ```
 
 ```bash
@@ -209,9 +211,17 @@ curl -X GET http://localhost:32000/v2/tensorsec-console/tags/list
 microk8s kubectl --namespace tensorsec get pods --all-namespaces -o name | grep "-bench"  | xargs microk8s kubectl --namespace tensorsec delete
 
 # Delete all scap jobs (will remove pods as well)
-kubectl --namespace tensorsec get job --all-namespaces   | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job
+kubectl --namespace tensorsec get job --namespace tensorsec | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job
 
 # scale down some deployments by grep
 k8 get deployment | grep harbor | awk '{print $1}' | xargs kubectl -n tensorsec scale --replicas 0 deployment {} 
 
 ```
+
+## Mongo Topology errors
+
+```bash
+cat /proc/sys/net/ipv4/ip_forward
+echo "1" > /proc/sys/net/ipv4/ip_forward
+```
+

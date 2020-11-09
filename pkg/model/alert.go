@@ -19,6 +19,7 @@ type Alert struct {
 	AlertKind            string                `json:"kind" bson:"kind"`
 	Acknowledged         bool                  `json:"acknowledged" bson:"acknowledged"`
 	Timestamp            time.Time             `json:"timestamp" bson:"timestamp"`
+	Severity             string                `json:"severity" bson:"severity"`
 	ImageScanAlert       *ImageScanAlert       `json:"imageScanAlert,omitempty" bson:"imageScanAlert,omitempty"`
 	ComplianceCheckAlert *ComplianceCheckAlert `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
 }
@@ -51,10 +52,11 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Timestamp      time.Time          `json:"timestamp"`
 			ImageScanAlert *ImageScanAlert    `json:"data"`
 		}{
-			ID:             a.ID,
-			AlertKind:      a.AlertKind,
-			Acknowledged:   a.Acknowledged,
-			Timestamp:      a.Timestamp,
+			ID:           a.ID,
+			AlertKind:    a.AlertKind,
+			Acknowledged: a.Acknowledged,
+			Timestamp:    a.Timestamp,
+			// Severity add TODO
 			ImageScanAlert: a.ImageScanAlert,
 		})
 	} else if a.ComplianceCheckAlert != nil {
@@ -63,12 +65,14 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			AlertKind            string                `json:"kind"`
 			Acknowledged         bool                  `json:"acknowledged"`
 			Timestamp            time.Time             `json:"timestamp"`
+			Severity             string                `json:"severity"`
 			ComplianceCheckAlert *ComplianceCheckAlert `json:"data"`
 		}{
 			ID:                   a.ID,
 			AlertKind:            a.AlertKind,
 			Acknowledged:         a.Acknowledged,
 			Timestamp:            a.Timestamp,
+			Severity:             a.Severity,
 			ComplianceCheckAlert: a.ComplianceCheckAlert,
 		})
 	}
@@ -77,12 +81,14 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 		AlertKind    string             `json:"kind"`
 		Acknowledged bool               `json:"acknowledged"`
 		Timestamp    time.Time          `json:"timestamp"`
+		Severity     string             `json:"severity"`
 		EmptyPayload *struct{}          `json:"data"`
 	}{
 		ID:           a.ID,
 		AlertKind:    a.AlertKind,
 		Acknowledged: a.Acknowledged,
 		Timestamp:    a.Timestamp,
+		Severity:     a.Severity,
 		EmptyPayload: &struct{}{},
 	})
 }
