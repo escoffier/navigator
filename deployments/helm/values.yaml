@@ -1,6 +1,6 @@
 global:
   # Not sure if it's good practice to pas our docker repo address to our subcharts like this.
-  ourDockerRepo: registry.t-appagile.com/tensorsecurity
+  ourDockerRepo: 192.168.1.203:5000 
 
 clair:
   enabled: true
