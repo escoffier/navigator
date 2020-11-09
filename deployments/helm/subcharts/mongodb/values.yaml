@@ -7,7 +7,6 @@
 #   imagePullSecrets:
 #     - myRegistryKeySecretName
 #   storageClass: myStorageClass
-
 image:
   ## Bitnami MongoDB registry
   ##
@@ -37,17 +36,17 @@ image:
 
 ## String to partially override mongodb.fullname template (will maintain the release name)
 ##
-# nameOverride:
+nameOverride: mongodb
 
 ## String to fully override mongodb.fullname template
 ##
 # fullnameOverride:
-fullname: "tensorsec-mongodb"
+fullnameOverride: tensorsec-mongodb
 ## Init containers parameters:
 ## volumePermissions: Change the owner and group of the persistent volume mountpoint to runAsUser:fsGroup values from the securityContext section.
 ##
 volumePermissions:
-  enabled: false
+  enabled: true 
   image:
     registry: docker.io
     repository: bitnami/minideb
@@ -143,9 +142,10 @@ service:
 ## Setting up replication
 ## ref: https://github.com/bitnami/bitnami-docker-mongodb#setting-up-a-replication
 #
+useStatefulSet: true
 replicaSet:
   ## Whether to create a MongoDB replica set for high availability or not
-  enabled: false
+  enabled: true
   useHostnames: true
 
   ## Name of the replica set

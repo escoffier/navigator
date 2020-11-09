@@ -36,7 +36,9 @@ image:
 ## String to partially override postgresql.fullname template (will maintain the release name)
 ##
 # nameOverride:
+nameOverride: postgresql
 
+fullnameOverride: tensorsec-postgresql
 ## String to fully override postgresql.fullname template
 ##
 # fullnameOverride:

@@ -33,12 +33,12 @@ image:
 
 ## String to partially override redis.fullname template (will maintain the release name)
 ##
-# nameOverride:
+nameOverride: redis
 
 ## String to fully override redis.fullname template
 ##
 # fullnameOverride:
-fullname: tensorsec-redis
+fullnameOverride: tensorsec-redis
 ## Cluster settings
 cluster:
   enabled: true

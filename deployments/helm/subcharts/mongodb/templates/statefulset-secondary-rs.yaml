@@ -7,7 +7,7 @@ metadata:
     chart: {{ template "mongodb.chart" . }}
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
-  name: {{ template "mongodb.fullname" . }}-secondary
+  name: tensorsec-mongodb-secondary
 spec:
   selector:
     matchLabels:
@@ -15,7 +15,7 @@ spec:
       release: {{ .Release.Name }}
       component: secondary
   podManagementPolicy: "Parallel"
-  serviceName: {{ template "mongodb.fullname" . }}-headless
+  serviceName: tensorsec-mongodb-headless
   replicas: {{ .Values.replicaSet.replicas.secondary }}
   updateStrategy:
     type: {{ .Values.updateStrategy.type }}
@@ -113,23 +113,23 @@ spec:
           - name: MONGODB_REPLICA_SET_MODE
             value: "secondary"
           - name: MONGODB_PRIMARY_HOST
-            value: {{ template "mongodb.fullname" . }}
+            value: tensorsec-mongodb
           - name: MONGODB_REPLICA_SET_NAME
             value: {{ .Values.replicaSet.name | quote }}
             {{- if .Values.replicaSet.useHostnames }}
           - name: MONGODB_ADVERTISED_HOSTNAME
-            value: "$(MONGODB_POD_NAME).{{ template "mongodb.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+            value: "$(MONGODB_POD_NAME).tensorsec-mongodb-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
             {{- end }}
             {{- if .Values.usePassword }}
           - name: MONGODB_PRIMARY_ROOT_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+                name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}tensorsec-mongodb{{- end }}
                 key: mongodb-root-password
           - name: MONGODB_REPLICA_SET_KEY
             valueFrom:
               secretKeyRef:
-                name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+                name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}tensorsec-mongodb{{- end }}
                 key: mongodb-replica-set-key
             {{- end }}
           - name: MONGODB_ENABLE_IPV6
@@ -199,7 +199,7 @@ spec:
           - name: MONGODB_ROOT_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}{{ template "mongodb.fullname" . }}{{- end }}
+                name: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{- else }}tensorsec-mongodb{{- end }}
                 key: mongodb-root-password
           command: [ 'sh', '-c', '/bin/mongodb_exporter --mongodb.uri mongodb://root:${MONGODB_ROOT_PASSWORD}@localhost:{{ .Values.service.port }}/admin {{ .Values.metrics.extraArgs }}' ]
           {{- else }}
@@ -237,7 +237,7 @@ spec:
         {{- if .Values.configmap }}
         - name: config
           configMap:
-            name: {{ template "mongodb.fullname" . }}
+            name: tensorsec-mongodb
         {{- end }}
 {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
