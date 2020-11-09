@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "mongodb.fullnameOverride" . }}-init-scripts
+  name: {{ template "mongodb.fullname" . }}-init-scripts
   labels:
     app: {{ template "mongodb.name" . }}
     chart: {{ template "mongodb.chart" . }}

@@ -2,7 +2,7 @@
 apiVersion: {{ template "podSecurityPolicy.apiVersion" . }}
 kind: PodSecurityPolicy
 metadata:
-  name: {{ template "redis.fullnameOverride" . }}
+  name: {{ template "redis.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}

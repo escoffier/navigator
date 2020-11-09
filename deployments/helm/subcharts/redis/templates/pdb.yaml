@@ -2,7 +2,7 @@
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ template "redis.fullnameOverride" . }}
+  name: {{ template "redis.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}

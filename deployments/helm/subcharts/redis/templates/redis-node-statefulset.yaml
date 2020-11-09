@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ template "redis.fullnameOverride" . }}-node
+  name: {{ template "redis.fullname" . }}-node
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ template "redis.name" . }}
@@ -14,7 +14,7 @@ spec:
   strategy: {{- toYaml .Values.slave.updateStrategy | nindent 4 }}
 {{- end }}
   replicas: {{ .Values.cluster.slaveCount }}
-  serviceName: {{ template "redis.fullnameOverride" . }}-headless
+  serviceName: {{ template "redis.fullname" . }}-headless
   selector:
     matchLabels:
       app: {{ template "redis.name" . }}
@@ -306,7 +306,7 @@ spec:
               redis_exporter{{- range $key, $value := .Values.metrics.extraArgs }} --{{ $key }}={{ $value }}{{- end }}
           env:
             - name: REDIS_ALIAS
-              value: {{ template "redis.fullnameOverride" . }}
+              value: {{ template "redis.fullname" . }}
             {{- if and .Values.usePassword (not .Values.usePasswordFile) }}
             - name: REDIS_PASSWORD
               valueFrom:
@@ -379,11 +379,11 @@ spec:
       volumes:
         - name: start-scripts
           configMap:
-            name: {{ include "redis.fullnameOverride" . }}-scripts
+            name: {{ include "redis.fullname" . }}-scripts
             defaultMode: 0755
         - name: health
           configMap:
-            name: {{ template "redis.fullnameOverride" . }}-health
+            name: {{ template "redis.fullname" . }}-health
             defaultMode: 0755
         {{- if .Values.usePasswordFile }}
         - name: redis-password
@@ -395,7 +395,7 @@ spec:
         {{- end }}
         - name: config
           configMap:
-            name: {{ template "redis.fullnameOverride" . }}
+            name: {{ template "redis.fullname" . }}
         {{- if .Values.sysctlImage.mountHostSys }}
         - name: host-sys
           hostPath:

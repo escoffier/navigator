@@ -38,8 +38,7 @@ image:
 ## String to fully override redis.fullname template
 ##
 # fullnameOverride:
-fullname: "tensorsec-redis"
-fullnameOverride: "tensorsec-redis"
+fullname: tensorsec-redis
 ## Cluster settings
 cluster:
   enabled: true

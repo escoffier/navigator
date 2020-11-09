@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "postgresql.fullnameOverride" . }}-configuration
+  name: {{ template "postgresql.fullname" . }}-configuration
   labels:
     app: {{ template "postgresql.name" . }}
     chart: {{ template "postgresql.chart" . }}

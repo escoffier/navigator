@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ template "mongodb.fullnameOverride" . }}
+  name: {{ template "mongodb.fullname" . }}
   labels:
     app: {{ template "mongodb.name" . }}
     chart: {{ template "mongodb.chart" . }}

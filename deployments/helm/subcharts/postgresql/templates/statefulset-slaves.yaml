@@ -2,14 +2,14 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: "{{ template "postgresql.fullnameOverride" . }}-slave"
+  name: "{{ template "postgresql.fullname" . }}-slave"
   labels:
     app: {{ template "postgresql.name" . }}
     chart: {{ template "postgresql.chart" . }}
     release: {{ .Release.Name | quote }}
     heritage: {{ .Release.Service | quote }}
 spec:
-  serviceName: {{ template "postgresql.fullnameOverride" . }}-headless
+  serviceName: {{ template "postgresql.fullname" . }}-headless
   replicas: {{ .Values.replication.slaveReplicas }}
   selector:
     matchLabels:
@@ -18,7 +18,7 @@ spec:
       role: slave
   template:
     metadata:
-      name: {{ template "postgresql.fullnameOverride" . }}
+      name: {{ template "postgresql.fullname" . }}
       labels:
         app: {{ template "postgresql.name" . }}
         chart: {{ template "postgresql.chart" . }}
@@ -57,7 +57,7 @@ spec:
         fsGroup: {{ .Values.securityContext.fsGroup }}
       {{- end }}
       {{- if .Values.serviceAccount.enabled }}
-      serviceAccountName: {{ default (include "postgresql.fullnameOverride" . ) .Values.serviceAccount.name}}
+      serviceAccountName: {{ default (include "postgresql.fullname" . ) .Values.serviceAccount.name}}
       {{- end }}
       {{- if and .Values.volumePermissions.enabled .Values.persistence.enabled }}
       initContainers:
@@ -82,7 +82,7 @@ spec:
           subPath: {{ .Values.persistence.subPath }}
       {{- end }}
       containers:
-      - name: {{ template "postgresql.fullnameOverride" . }}
+      - name: {{ template "postgresql.fullname" . }}
         image: {{ template "postgresql.image" . }}
         imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         resources:
@@ -119,7 +119,7 @@ spec:
         - name: POSTGRES_CLUSTER_APP_NAME
           value: {{ .Values.replication.applicationName }}
         - name: POSTGRES_MASTER_HOST
-          value: {{ template "postgresql.fullnameOverride" . }}
+          value: {{ template "postgresql.fullname" . }}
         - name: POSTGRES_MASTER_PORT_NUMBER
           value: {{ include "postgresql.port" . | quote }}
         {{- if .Values.usePasswordFile }}
