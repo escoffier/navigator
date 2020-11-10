@@ -44,7 +44,7 @@ func (api *api) getCluster() http.HandlerFunc {
 			return
 		}
 
-		queryCluster, err := api.clusterService.GetCluster(ctx, clusterObjectID)
+		queryCluster, err := api.clusterService.GetCluster(ctx, clusterObjectID, true)
 		if err != nil {
 			RespAndLog(w, r, fmt.Errorf("Couldn't get cluster: %w", err))
 			return

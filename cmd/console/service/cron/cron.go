@@ -47,7 +47,7 @@ func NewCronService(
 }
 
 func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType, next *time.Time, prev *time.Time) error {
-	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID)
+	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID, false)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 	// get kube client for this cluster
 	mongoGetCtx, mongoGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoGetCtxCancel()
-	cluster, err := s.clusterService.GetCluster(mongoGetCtx, clusterObjectID)
+	cluster, err := s.clusterService.GetCluster(mongoGetCtx, clusterObjectID, false)
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 
 	clusterGetCtx, clusterGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer clusterGetCtxCancel()
-	cluster, err = s.clusterService.GetCluster(clusterGetCtx, clusterObjectID)
+	cluster, err = s.clusterService.GetCluster(clusterGetCtx, clusterObjectID, false)
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 
 func (s *CronService) GetCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType) (string, error) {
 	// get kube client for this cluster
-	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID)
+	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID, false)
 	if err != nil {
 		return "", err
 	}

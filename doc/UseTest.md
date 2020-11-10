@@ -124,10 +124,10 @@ curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/js
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa69022046adaa45b057c55/reports?checkId=739e407b-ee8d-4cea-abd2-dd587a4e396a&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa69022046adaa45b057c55/reports?checkId=579737de-20b9-423f-92b2-90a53f26160b&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa94d93a89ad1571e025559/reports?checkId=61e59005-973b-4c53-834e-bd08554f089c&nodeName=master01-172.21.0.5-centos&status=completed" > docker.json
 
 # host-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa03941d1044d02adfadfd4/reports?checkId=4f04bac6-2033-4577-b89a-68eb8f200828&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa94d93a89ad1571e025559/reports?checkId=21a9bae8-0921-4acb-bb29-be02dcaa1293&nodeName=master01-172.21.0.5-centos&status=completed" > host.json
 
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
@@ -187,7 +187,7 @@ kubectl apply -f deployments/test/faulty.yaml
 Some oneliners:
 
 ```bash
-mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.scantasks.find().toArray()' > out.json
+mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db.cluster.find().toArray()' > out.json
 mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=SCRAM-SHA-1" --quiet --eval 'db["docker-bench-records"].find().toArray()' > out2.json
 ```
 

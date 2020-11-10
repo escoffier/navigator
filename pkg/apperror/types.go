@@ -1,5 +1,7 @@
 package apperror
 
+import "runtime"
+
 type AnError struct{ detailedError }
 type MongoError struct{ detailedError }
 type KubernetesError struct{ detailedError }
@@ -35,6 +37,8 @@ type AlertAlreadyAcknowledged struct{ detailedError }
 // return NewMongoError(fmt.Errorf("Some error occurred: %w", err), http.StatusInternalServerError)
 // return NewMongoError(fmt.Errorf("Some error occurred: %w", err), http.StatusInternalServerError, Suberror{"loc", "msg"}, Suberror{"loc2", "msg2"})
 func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return AnError{
 		detailedError{
 			err:       err,
@@ -42,11 +46,15 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生了错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return MongoError{
 		detailedError{
 			err:       err,
@@ -54,11 +62,15 @@ func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生数据库错误(MongoDB)",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return KubernetesError{
 		detailedError{
 			err:       err,
@@ -66,11 +78,15 @@ func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生Kubernetes错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewRulesError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return RulesError{
 		detailedError{
 			err:       err,
@@ -78,11 +94,15 @@ func NewRulesError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "Runtime detection rules error has occured, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewRuleNotAppliedError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return RuleNotAppliedError{
 		detailedError{
 			err:       err,
@@ -90,11 +110,15 @@ func NewRuleNotAppliedError(httpCode int, err error, suberrors ...Suberror) erro
 			Zhongwen:  "Runtime detection rule is not applied, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewRuleAlreadyAppliedError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return RuleAlreadyAppliedError{
 		detailedError{
 			err:       err,
@@ -102,11 +126,15 @@ func NewRuleAlreadyAppliedError(httpCode int, err error, suberrors ...Suberror) 
 			Zhongwen:  "Runtime detection rule already applied, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewRuleDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return RuleDoesntExistError{
 		detailedError{
 			err:       err,
@@ -114,11 +142,15 @@ func NewRuleDoesntExistError(httpCode int, err error, suberrors ...Suberror) err
 			Zhongwen:  "Runtime detection rule doesn't exist, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return CheckAlreadyInProgressError{
 		detailedError{
 			err:       err,
@@ -126,11 +158,15 @@ func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberr
 			Zhongwen:  "此类合规性检查已在进行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewHTTPResponseError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return HTTPResponseError{
 		detailedError{
 			err:       err,
@@ -138,11 +174,15 @@ func NewHTTPResponseError(httpCode int, err error, suberrors ...Suberror) error 
 			Zhongwen:  "写入回应时发生错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewConfigurationError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ConfigurationError{
 		detailedError{
 			err:       err,
@@ -150,11 +190,15 @@ func NewConfigurationError(httpCode int, err error, suberrors ...Suberror) error
 			Zhongwen:  "发生后端配置错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ConnectionError{
 		detailedError{
 			err:       err,
@@ -162,11 +206,15 @@ func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生连接错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewElasticError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ElasticError{
 		detailedError{
 			err:       err,
@@ -174,11 +222,15 @@ func NewElasticError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "Elasticsearch error, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return MalformedRequestError{
 		detailedError{
 			err:       err,
@@ -186,11 +238,15 @@ func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) er
 			Zhongwen:  "请求格式错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return InvalidUsernameOrPasswordError{
 		detailedError{
 			err:       err,
@@ -198,11 +254,15 @@ func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Sub
 			Zhongwen:  "用户名或密码无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return FieldError{
 		detailedError{
 			err:       err,
@@ -210,11 +270,15 @@ func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "字段缺失或无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ClusterAlreadyExists{
 		detailedError{
 			err:       err,
@@ -222,11 +286,15 @@ func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) err
 			Zhongwen:  "具有该名称的集群已存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return MaxNumberOfClustersReached{
 		detailedError{
 			err:       err,
@@ -234,11 +302,15 @@ func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberro
 			Zhongwen:  "达到最大群集数",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return InvalidAuthToken{
 		detailedError{
 			err:       err,
@@ -246,11 +318,15 @@ func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "无效的身份验证令牌",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return SessionExpired{
 		detailedError{
 			err:       err,
@@ -258,11 +334,15 @@ func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "会话已过期",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ClairError{
 		detailedError{
 			err:       err,
@@ -270,11 +350,15 @@ func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生了Clair错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return DockerError{
 		detailedError{
 			err:       err,
@@ -282,11 +366,15 @@ func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生Docker错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ClairUnprocessableLayerError{
 		detailedError{
 			err:       err,
@@ -294,11 +382,15 @@ func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suber
 			Zhongwen:  "Clair扫描错误：不可处理的图层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return ClairMissingParentLayerError{
 		detailedError{
 			err:       err,
@@ -306,11 +398,15 @@ func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suber
 			Zhongwen:  "Clair扫描错误：缺少父层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewHarborError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return HarborError{
 		detailedError{
 			err:       err,
@@ -318,11 +414,15 @@ func NewHarborError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "发生Harbor错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewHarborUnauthorizedError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return HarborUnauthorizedError{
 		detailedError{
 			err:       err,
@@ -330,11 +430,15 @@ func NewHarborUnauthorizedError(httpCode int, err error, suberrors ...Suberror) 
 			Zhongwen:  "Harbor返回错误“未经授权”, 请检查用户名/密码",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewHarborForbiddenError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return HarborForbiddenError{
 		detailedError{
 			err:       err,
@@ -342,11 +446,15 @@ func NewHarborForbiddenError(httpCode int, err error, suberrors ...Suberror) err
 			Zhongwen:  "Harbor返回错误“禁止”, 请检查用户是否具有管理员权限",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return HarborScanAllInProgressError{
 		detailedError{
 			err:       err,
@@ -354,11 +462,15 @@ func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suber
 			Zhongwen:  "Harbor全面扫描已在进行中, 请稍候",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return RedisError{
 		detailedError{
 			err:       err,
@@ -366,11 +478,15 @@ func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
 			Zhongwen:  "Redis error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }
 
 func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
 	return RedisError{
 		detailedError{
 			err:       err,
@@ -378,6 +494,8 @@ func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Sube
 			Zhongwen:  "Alert already acknowledged but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }

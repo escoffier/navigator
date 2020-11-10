@@ -210,6 +210,7 @@ func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string
 					policyDetails.ExpectedResult = test.ExpectedResult
 					policyDetails.Remediation = test.Remediation
 					policyDetails.TestInfo = test.TestInfo
+					policyDetails.Reason = test.Reason
 					testStatus := test.Status
 					if testStatus == "FAIL" {
 						policyDetails.NumFailed++
