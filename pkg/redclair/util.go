@@ -17,6 +17,26 @@ const (
 	SeverityCritical   = "Critical"
 )
 
+// Based on ranges defined for CVSS v3.0, because they're more fine-grained.
+// https://nvd.nist.gov/vuln-metrics/cvss
+func GetSeverityFromScore(score int64) string {
+	if score == 0 {
+		return SeverityNone
+	} else if score >= 1 && score <= 9 {
+		return SeverityNegligible
+	} else if score >= 10 && score <= 39 {
+		return SeverityLow
+	} else if score >= 40 && score <= 69 {
+		return SeverityMedium
+	} else if score >= 70 && score <= 89 {
+		return SeverityHigh
+	} else if score >= 90 {
+		return SeverityCritical
+	} else {
+		return SeverityUnknown
+	}
+}
+
 func SeverityGreaterThan(this, other string) bool {
 	return severityToInt(this) > severityToInt(other)
 }

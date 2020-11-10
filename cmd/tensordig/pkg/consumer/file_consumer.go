@@ -75,35 +75,35 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 			ptid := int(event.EventInfo.Ptgid)
 			containerPID, err := cu.GetContainerPid(pid)
 			if err != nil {
-				log.Error("Problem getting container ID", err)
+				log.Debugf("Problem getting container ID: %w", err)
 				continue
 			}
 			if containerPID == 1 {
-				log.Infof("Checking if parent %d of %d still has docker context\n", pid, ptid)
+				log.Debugf("Checking if parent %d of %d still has docker context\n", pid, ptid)
 				containerPID, err = cu.GetContainerPid(ptid)
 				if err != nil {
-					log.Error("Problem getting container ID", err)
+					log.Debugf("Problem getting container ID: %w", err)
 					continue
 				}
 			}
 			if containerPID == 1 {
-				log.Infof("Host process: %d", pid)
+				log.Debugf("Host process: %d", pid)
 				continue
 			}
 			if pid > 0 {
 				info, err := ku.LookupPod(containerPID, pid, ExtraInfo["syscall"].(string))
 				if err != nil {
-					log.Error("Problem getting pod ID", err)
+					log.Debugf("Problem getting pod ID: %w", err)
 				} else {
 					if info.DockerPID <= 0 {
 						info, err = ku.LookupPod(containerPID, ptid, ExtraInfo["syscall"].(string))
 						if err != nil {
-							log.Error("Problem getting pod ID", err)
+							log.Debugf("Problem getting pod ID: %w", err)
 							continue
 						}
 					}
 					if info.DockerPID <= 0 {
-						log.Infof("Host process: %d", pid)
+						log.Debugf("Host process: %d", pid)
 						continue
 					} else {
 						out := map[string]interface{}{}

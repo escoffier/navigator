@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ template "daemon.fullname" . }}-config
-data:
-  detection.yaml: |-
-{{ .Files.Get "detection.yaml" | indent 4}}

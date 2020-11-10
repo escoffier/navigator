@@ -88,10 +88,6 @@ spec:
           secretName: {{ .secretName }}
       {{- end }}
       {{- if .Values.filebeatConfig }}
-      - name: digconfig
-        configMap:
-          name: {{ template "daemon.fullname" . }}-config
-          defaultMode: 0600
       - name: filebeat-config
         configMap:
           defaultMode: 0600
@@ -161,8 +157,6 @@ spec:
           limits:
             memory: 200Mi
         volumeMounts:
-          - name: digconfig
-            mountPath: "/config"
           - name: modules
             mountPath: /lib/modules
             readOnly: true

@@ -19,7 +19,16 @@ func main() {
 	exitDelay := flag.Int("exit-delay",
 		0,
 		"Run and exit after [exit-delay] seconds. Default is 0.")
+	debug := flag.Bool("debug",
+		false,
+		"Run in debug mode with extended logging")
 	flag.Parse()
+
+	if *debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
 
 	cs := &scheduler.CombineSchedule{}
 	syscallPIFS, netPIFS, consumersInfo, err := config.ParseYaml(configFilename)
