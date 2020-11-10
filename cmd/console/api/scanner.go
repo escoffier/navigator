@@ -176,7 +176,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			} else {
 				imageScanResult.OverallSeverity = redclair.SeverityUnknown
 			}
-
+			imageScanResult.SensitiveFiles = report.Sensitives
 			imageScanResult.Repository = report.Repository
 			imageScanResult.Tag = report.Tag
 			imageScanResult.Digest = report.Digest
