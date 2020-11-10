@@ -201,6 +201,8 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber stri
 					policyDetails.PolicyNumber = result.ID
 					policyDetails.Section = testName
 					policyDetails.Description = util.RemoveScoredNotScoredFrom(result.Description)
+					policyDetails.Details = result.Details
+					policyDetails.Items = result.Items
 					// TODO: how to classify Docker policy specific information?
 					testStatus := result.Result
 					if testStatus == "WARN" {

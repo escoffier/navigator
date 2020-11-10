@@ -36,4 +36,5 @@ type KubeTestResult struct {
 	IsMultiple      bool     `json:"IsMultiple" bson:"IsMultiple"`
 	ActualValue     string   `json:"actual_value" bson:"actual_value"`
 	Status          string   `json:"status" bson:"status"`
+	Reason          string   `json:"reason" bson:"reason"`
 }

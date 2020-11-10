@@ -29,10 +29,13 @@ type detailedError struct {
 
 	HTTPCode  int
 	Suberrors []Suberror
+
+	File string
+	Line int
 }
 
 func (de detailedError) Error() string {
-	msg := fmt.Sprintf("DetailedError<En: %s, Zh: %s, Code: %d, Suberrors: ", de.English, de.Zhongwen, de.HTTPCode)
+	msg := fmt.Sprintf("DetailedError<En: %s, Zh: %s, Code: %d, Location: %s:%d, Suberrors: ", de.English, de.Zhongwen, de.HTTPCode, de.File, de.Line)
 	if len(de.Suberrors) == 0 {
 		msg += "<none>"
 	} else {

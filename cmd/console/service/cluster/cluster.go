@@ -37,13 +37,19 @@ func NewClusterService(
 	}
 }
 
-func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (*model.Cluster, error) {
+func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primitive.ObjectID, onlyActive bool) (*model.Cluster, error) {
 	var queryCluster model.Cluster
 	filter := bson.M{
-		"$and": []bson.M{
-			{"_id": clusterObjectID},
-			{"active": true},
-		},
+		"active": true,
+	}
+
+	if !onlyActive {
+		filter = bson.M{
+			"$and": []bson.M{
+				{"_id": clusterObjectID},
+				{"active": true},
+			},
+		}
 	}
 
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)

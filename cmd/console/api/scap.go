@@ -237,7 +237,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 					return
 				}
 
-				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive)
+				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, false)
 				if err != nil {
 					RespAndLog(w, r, fmt.Errorf("Couldn't get cluster: %w", err))
 					return
@@ -653,7 +653,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		cluster, err := api.clusterService.GetCluster(ctx, clusterObjectID)
+		cluster, err := api.clusterService.GetCluster(ctx, clusterObjectID, true)
 		if err != nil {
 			RespAndLog(w, r, fmt.Errorf("Failed to get cluster from Mongo: %w", err))
 			return
