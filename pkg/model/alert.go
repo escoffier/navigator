@@ -12,6 +12,7 @@ const (
 
 	AlertKindImageScan       = "imageScan"
 	AlertKindComplianceCheck = "complianceCheck"
+	AlertKindExploitRisk     = "exploitRisk"
 )
 
 type Alert struct {
@@ -22,6 +23,7 @@ type Alert struct {
 	Severity             string                `json:"severity" bson:"severity"`
 	ImageScanAlert       *ImageScanAlert       `json:"imageScanAlert,omitempty" bson:"imageScanAlert,omitempty"`
 	ComplianceCheckAlert *ComplianceCheckAlert `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
+	ExploitRiskAlert     *ExploitRiskAlert     `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
 }
 
 type ImageScanAlert struct {
@@ -32,6 +34,15 @@ type ImageScanAlert struct {
 	RuleName    string  `json:"ruleName" bson:"ruleName"`
 	Cvss3Vector string  `json:"cvss3Vector" bson:"cvss3Vector"`
 	Cvss3Score  float64 `json:"cvss3Score" bson:"cvss3Score"`
+}
+
+type ExploitRiskAlert struct {
+	ElasticID   string `json:"elasticId" bson:"elasticId"`
+	ContainerID string `json:"containerId" bson:"containerId"`
+	PodUID      string `json:"podUid" bson:"podUid"`
+	PodName     string `json:"podName" bson:"podName"`
+	RuleName    string `json:"ruleName" bson:"ruleName"`
+	PID         int    `json:"pid" bson:"pid"`
 }
 
 type ComplianceCheckAlert struct {
@@ -50,13 +61,14 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			AlertKind      string             `json:"kind"`
 			Acknowledged   bool               `json:"acknowledged"`
 			Timestamp      time.Time          `json:"timestamp"`
+			Severity       string             `json:"severity"`
 			ImageScanAlert *ImageScanAlert    `json:"data"`
 		}{
-			ID:           a.ID,
-			AlertKind:    a.AlertKind,
-			Acknowledged: a.Acknowledged,
-			Timestamp:    a.Timestamp,
-			// Severity add TODO
+			ID:             a.ID,
+			AlertKind:      a.AlertKind,
+			Acknowledged:   a.Acknowledged,
+			Timestamp:      a.Timestamp,
+			Severity:       a.Severity,
 			ImageScanAlert: a.ImageScanAlert,
 		})
 	} else if a.ComplianceCheckAlert != nil {
@@ -74,6 +86,22 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Timestamp:            a.Timestamp,
 			Severity:             a.Severity,
 			ComplianceCheckAlert: a.ComplianceCheckAlert,
+		})
+	} else if a.ExploitRiskAlert != nil {
+		return json.Marshal(&struct {
+			ID               primitive.ObjectID `json:"id"`
+			AlertKind        string             `json:"kind"`
+			Acknowledged     bool               `json:"acknowledged"`
+			Timestamp        time.Time          `json:"timestamp"`
+			Severity         string             `json:"severity"`
+			ExploitRiskAlert *ExploitRiskAlert  `json:"data"`
+		}{
+			ID:               a.ID,
+			AlertKind:        a.AlertKind,
+			Acknowledged:     a.Acknowledged,
+			Timestamp:        a.Timestamp,
+			Severity:         a.Severity,
+			ExploitRiskAlert: a.ExploitRiskAlert,
 		})
 	}
 	return json.Marshal(&struct {

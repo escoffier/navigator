@@ -60,7 +60,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 	}
 
 	if cid == "" && kid == "" {
-		log.Info("Not found k8s context for given syscall")
+		log.Debug("Not found k8s context for given syscall")
 		return &SyscallContext{
 			Namespace:     "",
 			PodName:       "",
@@ -74,7 +74,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 		}, nil
 	}
 
-	log.Info("Using incluster config")
+	log.Debug("Using incluster config")
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -87,20 +87,20 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 
 	// TODO: filter by namespace?
 	// TODO: use https://kubernetes.io/docs/reference/using-api/api-concepts/#retrieving-large-results-sets-in-chunks and watch?
-	log.Info("Searching for pod")
+	log.Debug("Searching for pod")
 	pods, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	log.Info("Iterating over pods")
+	log.Debug("Iterating over pods")
 	for _, item := range pods.Items {
-		log.Infof("Checking %s kid", item.ObjectMeta.UID)
+		log.Debugf("Checking %s kid", item.ObjectMeta.UID)
 		if kid != "" {
 			if kid == string(item.ObjectMeta.UID) {
-				log.Info("Matching UUID with the one in the process")
+				log.Debugf("Matching UUID with the one in the process")
 				for _, status := range item.Status.ContainerStatuses {
-					log.Infof("Checking %s container", status.ContainerID)
+					log.Debugf("Checking %s container", status.ContainerID)
 					if status.ContainerID == "docker://"+cid || status.ContainerID == "containerd://"+cid {
 						return &SyscallContext{
 							Namespace:     item.ObjectMeta.Namespace,
@@ -133,7 +133,7 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 			}
 		}
 	}
-	log.Infof("Cached pod %s and container %s doesn't exist in the cluster anymore\n", kid, cid)
+	log.Debugf("Cached pod %s and container %s doesn't exist in the cluster anymore\n", kid, cid)
 	return &SyscallContext{
 		Namespace:     "",
 		PodName:       "",
@@ -159,48 +159,48 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 	}
 	defer f.Close()
 
-	log.Infof("Scanning %d cpuset", pid)
+	log.Debugf("Scanning %d cpuset", pid)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		log.Infof("Currently scanned line: %s", line)
+		log.Debugf("Currently scanned line: %s", line)
 		parts := dockerPattern.FindStringSubmatch(line)
 		if parts != nil {
-			log.Infof("Found match for %d against %s", pid, dockerPattern)
-			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			log.Debugf("Found match for %d against %s", pid, dockerPattern)
+			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Infof("Match not found against %s", dockerPattern)
+		log.Debugf("Match not found against %s", dockerPattern)
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
-			log.Infof("Found match for %d against %s", pid, kubePattern)
-			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			log.Debugf("Found match for %d against %s", pid, kubePattern)
+			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Infof("Match not found against %s", kubePatternCgroupV1)
+		log.Debugf("Match not found against %s", kubePatternCgroupV1)
 		parts = kubePatternCgroupV1.FindStringSubmatch(line)
 		if parts != nil {
-			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1)
-			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			log.Debugf("Found match for %d against %s", pid, kubePatternCgroupV1)
+			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
+		log.Debugf("Match not found against %s", kubePatternCgroupV1Guaranteed)
 		parts = kubePatternCgroupV1Guaranteed.FindStringSubmatch(line)
 		if parts != nil {
-			log.Infof("Found match for %d against %s", pid, kubePatternCgroupV1Guaranteed)
-			log.Infof("Cid: %s, kid: %s", parts[2], parts[1])
+			log.Debugf("Found match for %d against %s", pid, kubePatternCgroupV1Guaranteed)
+			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Infof("Match not found against %s", kubePatternCgroupV1Guaranteed)
+		log.Debugf("Match not found against %s", kubePatternCgroupV1Guaranteed)
 	}
-	log.Infof("No match for %d in its cpuset", pid)
+	log.Debugf("No match for %d in its cpuset", pid)
 	return "", "", nil
 }

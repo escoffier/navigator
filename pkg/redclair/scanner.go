@@ -395,23 +395,8 @@ func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []Vulnerabilit
 			return fmt.Errorf("Failed to parse CVSSv2 score: %w", err)
 		}
 
-		// Based on ranges defined for CVSS v3.0, because they're more fine-grained.
-		// https://nvd.nist.gov/vuln-metrics/cvss
-		if score == 0 {
-			vulns[i].Severity = SeverityNone
-		} else if score >= 1 && score <= 9 {
-			vulns[i].Severity = SeverityNegligible
-		} else if score >= 10 && score <= 39 {
-			vulns[i].Severity = SeverityLow
-		} else if score >= 40 && score <= 69 {
-			vulns[i].Severity = SeverityMedium
-		} else if score >= 70 && score <= 89 {
-			vulns[i].Severity = SeverityHigh
-		} else if score >= 90 {
-			vulns[i].Severity = SeverityCritical
-		} else {
-			vulns[i].Severity = SeverityUnknown
-		}
+		severity := GetSeverityFromScore(score)
+		vulns[i].Severity = severity
 	}
 	return nil
 }

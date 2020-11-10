@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	r "gitlab.com/piccolo_su/vegeta/pkg/redclair"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -139,9 +140,9 @@ func (s *AlertService) pollImageScanAlerts(ctx context.Context) error {
 		}
 
 		filter := bson.M{
-			"$and": []bson.M{
-				{"alertKind": model.AlertKindImageScan},
+			"$or": []bson.M{
 				{"imageScanAlert.elasticId": elasticID},
+				{"exploitRiskAlert.elasticId": elasticID},
 			},
 		}
 		queryResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
@@ -214,19 +215,38 @@ func (s *AlertService) pollImageScanAlerts(ctx context.Context) error {
 						Suberror{"timestamp", elasticAlert["@timestamp"].(string)})
 				}
 
-				alert := model.Alert{
-					ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
-					AlertKind: model.AlertKindImageScan,
-					Timestamp: timestamp,
-					ImageScanAlert: &model.ImageScanAlert{
-						ElasticID:   elasticID,
-						ContainerID: elasticAlert["ContainerID"].(string),
-						PodName:     elasticAlert["PodName"].(string),
-						PodUID:      elasticAlert["PodUID"].(string),
-						RuleName:    enabledRule.Name,
-						Cvss3Score:  enabledRule.Cvss3Score,
-						Cvss3Vector: enabledRule.Cvss3Vector,
-					},
+				var alert model.Alert
+				if strings.HasPrefix(vulnerability, "CVE") {
+					alert = model.Alert{
+						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
+						AlertKind: model.AlertKindImageScan,
+						Severity:  r.GetSeverityFromScore(int64(enabledRule.Cvss3Score*10)),
+						Timestamp: timestamp,
+						ImageScanAlert: &model.ImageScanAlert{
+							ElasticID:   elasticID,
+							ContainerID: elasticAlert["ContainerID"].(string),
+							PodName:     elasticAlert["PodName"].(string),
+							PodUID:      elasticAlert["PodUID"].(string),
+							RuleName:    enabledRule.Name,
+							Cvss3Score:  enabledRule.Cvss3Score,
+							Cvss3Vector: enabledRule.Cvss3Vector,
+						},
+					}
+				} else {
+					alert = model.Alert{
+						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
+						AlertKind: model.AlertKindExploitRisk,
+						Timestamp: timestamp,
+						Severity:  r.SeverityHigh,
+						ExploitRiskAlert: &model.ExploitRiskAlert{
+							ElasticID:   elasticID,
+							ContainerID: elasticAlert["ContainerID"].(string),
+							PodName:     elasticAlert["PodName"].(string),
+							PodUID:      elasticAlert["PodUID"].(string),
+							RuleName:    enabledRule.Name,
+							PID:         int(elasticAlert["Pid"].(float64)),
+						},
+					}
 				}
 
 				numRaised++
