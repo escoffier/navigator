@@ -106,6 +106,7 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 		} else if resp.StatusCode == http.StatusForbidden {
 			return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
 		} else if resp.StatusCode == http.StatusConflict {
+			// 409 is documented as "harbor scan already in progress", 412 is undocumented
 			return NewHarborScanAllInProgressError(resp.StatusCode, fmt.Errorf("Harbor scan already in progress: %+v", errorResp))
 		} else if resp.StatusCode == http.StatusServiceUnavailable {
 			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error, potentially no scanners detected: %+v", errorResp))
