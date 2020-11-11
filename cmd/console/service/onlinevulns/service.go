@@ -92,7 +92,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 			continue
 		}
 
-		ownerStr := fmt.Sprintf("%s/%s", container.PodOwnerKind, container.PodOwnerName)
+		ownerStr := fmt.Sprintf("%s/%s/%s", container.Namespace, container.PodOwnerKind, container.PodOwnerName)
 
 		if _, ok := onlineVulns[ownerStr]; !ok {
 			onlineVulns[ownerStr] = &onlineVulnListItem{
