@@ -608,29 +608,38 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 	}
 
 	httpClient := http.Client{}
-	tensorsecScannerResp, err := httpClient.Do(tensorsecScannerReq.WithContext(ctx))
+	resp, err := httpClient.Do(tensorsecScannerReq.WithContext(ctx))
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
 			fmt.Errorf("Failed to send request to tensorsec scanner: %w", err))
 	}
-	defer tensorsecScannerResp.Body.Close()
+	defer resp.Body.Close()
 
-	if tensorsecScannerResp.StatusCode != http.StatusOK {
-		// Should we return tensorsecScannerResp.StatusCode here?
-		return NewAnError(tensorsecScannerResp.StatusCode,
-			fmt.Errorf("Failed schedule harbor full scan via tensorsec scanner: %w", err))
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized"))
+		} else if resp.StatusCode == http.StatusForbidden {
+			return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden"))
+		} else if resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusPreconditionFailed {
+			// 409 is documented as "harbor scan already in progress", 412 is undocumented
+			return NewHarborScanAllInProgressError(resp.StatusCode, fmt.Errorf("Harbor scan already in progress"))
+		} else if resp.StatusCode == http.StatusServiceUnavailable {
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error, potentially no scanners detected"))
+		} else {
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error"))
+		}
 	}
 
-	var tensorsecScannerRespEnvelope response.HTTPEnvelope
-	err = json.NewDecoder(tensorsecScannerResp.Body).Decode(&tensorsecScannerRespEnvelope)
+	var envelope response.HTTPEnvelope
+	err = json.NewDecoder(resp.Body).Decode(&envelope)
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
 			fmt.Errorf("Failed to decode response from tensorsec scanner: %w", err))
 	}
 
-	logging.GetLogger().Info().Str("tensorsecScannerResp", fmt.Sprintf("%+v", tensorsecScannerRespEnvelope)).Msg("Received response from tensorsec scanner")
+	logging.GetLogger().Info().Str("envelope", fmt.Sprintf("%+v", envelope)).Msg("Received response from tensorsec scanner")
 
-	json.Unmarshal(tensorsecScannerRespEnvelope.Data.Item, outData)
+	json.Unmarshal(envelope.Data.Item, outData)
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
 			fmt.Errorf("Failed to unmarshal from tensorsec scanner: %w", err))
