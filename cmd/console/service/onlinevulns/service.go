@@ -114,7 +114,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 
 		vulns := scanTask.ScanReport.Vulns.Vulnerabilities
 
-		containerNameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
+		containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
 		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
 		onlineVulns[ownerStr].RunningPodsSet[container.PodName] = true
 		for _, vuln := range vulns {
