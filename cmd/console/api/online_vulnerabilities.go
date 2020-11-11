@@ -14,7 +14,7 @@ import (
 func (api *api) onlineVulnerabilities() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/current", api.getCurrentOnlineVulnerabilities())
-		r.Get("/details/{resourceKind}/{resourceName}", api.getOnlineVulnerabilityDetails())
+		r.Get("/details/{namespace}/{resourceKind}/{resourceName}", api.getOnlineVulnerabilityDetails())
 	}
 }
 
@@ -51,13 +51,22 @@ func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 // @Summary Get details of online vulnerabiilty
 // @Description Get details of online vulnerabiilty
 // @Produce json
-// @Router /api/v1/onlineVulnerabilities/details/{resourceKind}/{resourceName} [get]
+// @Router /api/v1/onlineVulnerabilities/details/{namespace}/{resourceKind}/{resourceName} [get]
 // @Param resourceKind query string false "case-sensitive resource kind"
 // @Param resourceName query string false "case-sensitive resource name"
 func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := api.getTimeoutCtx()
 		defer cancel()
+
+		namespace := chi.URLParam(r, "namespace")
+		if namespace == "" {
+			RespAndLog(w, r,
+				NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("Missing param 'namespace'"),
+					Suberror{"namespace", ""}))
+			return
+		}
 
 		resourceName := chi.URLParam(r, "resourceName")
 		if resourceName == "" {
@@ -77,7 +86,7 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 			return
 		}
 
-		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, resourceKind, resourceName)
+		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, namespace, resourceKind, resourceName)
 		if err != nil {
 			RespAndLog(w, r, err)
 			return

@@ -273,7 +273,7 @@
                 ]
             }
         },
-        "/api/v1/onlineVulnerabilities/details/{resourceKind}/{resourceName}": {
+        "/api/v1/onlineVulnerabilities/details/{namespace}/{resourceKind}/{resourceName}": {
             "get": {
                 "description": "Get details of online vulnerabiilty",
                 "produces": [

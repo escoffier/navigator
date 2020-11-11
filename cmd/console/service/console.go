@@ -262,6 +262,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		},
 		{
 			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
 				"podOwnerKind": 1,
 			}, Options: nil,
 		},

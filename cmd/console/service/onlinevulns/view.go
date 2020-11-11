@@ -40,8 +40,8 @@ type onlineVulnDetailsContainer struct {
 }
 
 type onlineVulnDetails struct {
+	Namespace    string                                `json:"namespace"`
 	ResourceKind string                                `json:"resourceKind"`
 	ResourceName string                                `json:"resourceName"`
-	Namespace    string                                `json:"namespace"`
 	Containers   map[string]onlineVulnDetailsContainer `json:"containers"`
 }

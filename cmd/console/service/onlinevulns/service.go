@@ -88,7 +88,6 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 
 		// only care about Running containers in this view
 		if container.State != "Running" {
-			logging.GetLogger().Debug().Str("container", fmt.Sprintf("%s@%s", container.Name, container.Digest)).Msg("Not running.")
 			continue
 		}
 
@@ -173,11 +172,12 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 	return onlineVulnsList, nil
 }
 
-func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, resourceKind, resourceName string) (*onlineVulnDetails, error) {
+func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, namespace, resourceKind, resourceName string) (*onlineVulnDetails, error) {
 
 	filter := bson.M{
 		"$and": []bson.M{
 			{"isDeleted": false},
+			{"namespace": namespace},
 			{"podOwnerKind": resourceKind},
 			{"podOwnerName": resourceName},
 		},
@@ -197,6 +197,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 	}()
 
 	ovDetails := onlineVulnDetails{
+		Namespace:    namespace,
 		ResourceKind: resourceKind,
 		ResourceName: resourceName,
 		Containers:   make(map[string]onlineVulnDetailsContainer),
@@ -247,8 +248,6 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 				HarborURL:           scanTask.HarborURL,
 				TaskID:              scanTask.ID,
 			}
-
-			ovDetails.Namespace = container.Namespace // all containers share namespace
 		}
 
 		ovInstance := onlineVulnDetailsContainerInstance{
