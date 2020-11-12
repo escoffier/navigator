@@ -220,7 +220,7 @@ func (s *AlertService) pollImageScanAlerts(ctx context.Context) error {
 					alert = model.Alert{
 						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
 						AlertKind: model.AlertKindImageScan,
-						Severity:  r.GetSeverityFromScore(int64(enabledRule.Cvss3Score*10)),
+						Severity:  r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10)),
 						Timestamp: timestamp,
 						ImageScanAlert: &model.ImageScanAlert{
 							ElasticID:   elasticID,
@@ -348,6 +348,8 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 		if err != nil {
 			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
+
+		alert.ApplyTranslation(ctx)
 
 		alerts = append(alerts, alert)
 	}

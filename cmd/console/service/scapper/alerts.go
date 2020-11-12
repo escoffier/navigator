@@ -12,7 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -195,7 +194,7 @@ var (
 	}
 )
 
-func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, check *scapper.Check, policyID, description, nodeName string, sev severity) {
+func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, check *scapper.Check, policyID, descriptionEn, descriptionZh, nodeName string, sev severity) {
 	if _, ok := alertsToReport[policyID]; !ok {
 		alertsToReport[policyID] = model.Alert{
 			ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
@@ -208,7 +207,8 @@ func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, c
 				CheckID:       check.CheckUUID.String(),
 				CheckType:     string(check.CheckType),
 				PolicyID:      policyID,
-				Message:       util.RemoveScoredNotScoredFrom(description),
+				MessageEn:     util.RemoveScoredNotScoredFrom(descriptionEn),
+				MessageZh:     util.RemoveScoredNotScoredFrom(descriptionZh),
 			},
 		}
 	}
@@ -251,7 +251,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 				for _, section := range report.Tests {
 					for _, result := range section.Results {
 						if severity, ok := benchAlerts[model.ComplianceCheckTargetTypeKube][result.TestNumber]; ok && result.Status == "FAIL" {
-							s.appendComplianceAlert(alertsToReport, check, result.TestNumber, result.TestDescription, jobEntry.NodeName, severity)
+							s.appendComplianceAlert(alertsToReport, check, result.TestNumber, result.TestDescriptionEn, result.TestDescriptionZh, jobEntry.NodeName, severity)
 						}
 					}
 				}
@@ -266,11 +266,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 			for _, section := range report.Tests {
 				for _, result := range section.Results {
 					if severity, ok := benchAlerts[model.ComplianceCheckTargetTypeDocker][result.ID]; ok && result.Result == "WARN" {
-						testDescription := result.DescriptionEn
-						if lang.Language(ctx) == lang.LanguageZH {
-							testDescription = result.DescriptionZh
-						}
-						s.appendComplianceAlert(alertsToReport, check, result.ID, testDescription, jobEntry.NodeName, severity)
+						s.appendComplianceAlert(alertsToReport, check, result.ID, result.DescriptionEn, result.DescriptionZh, jobEntry.NodeName, severity)
 					}
 				}
 			}
@@ -283,7 +279,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 			}
 			for _, result := range report.Results {
 				if severity, ok := benchAlerts[model.ComplianceCheckTargetTypeDocker][result.RuleID]; ok && result.Result == "fail" {
-					s.appendComplianceAlert(alertsToReport, check, result.RuleID, result.Title, jobEntry.NodeName, severity)
+					s.appendComplianceAlert(alertsToReport, check, result.RuleID, result.Title, result.Title, jobEntry.NodeName, severity)
 				}
 			}
 

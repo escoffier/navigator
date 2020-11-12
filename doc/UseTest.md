@@ -124,7 +124,7 @@ curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/js
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa69022046adaa45b057c55/reports?checkId=d4fc6e71-19de-4ede-8e8d-09f644ee714f&nodeName=master&status=completed" > out.json
 
 # docker-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa94d93a89ad1571e025559/reports?checkId=61e59005-973b-4c53-834e-bd08554f089c&nodeName=master01-172.21.0.5-centos&status=completed" > docker.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa94d93a89ad1571e025559/reports?checkId=53d7c29e-e634-4d0a-b900-a4332c9e671f&nodeName=master01-172.21.0.5-centos&status=completed" > docker.json
 
 # host-bench
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/host/5fa94d93a89ad1571e025559/reports?checkId=21a9bae8-0921-4acb-bb29-be02dcaa1293&nodeName=master01-172.21.0.5-centos&status=completed" > host.json
@@ -133,6 +133,12 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/d4fc6e71-19de-4ede-8e8d-09f644ee714f" > out.json
+
+
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/docker/breakdown/53d7c29e-e634-4d0a-b900-a4332c9e671f" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/docker/breakdown/53d7c29e-e634-4d0a-b900-a4332c9e671f/4.1/details" > out.json
+
+
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/d4fc6e71-19de-4ede-8e8d-09f644ee714f/1.1.1/details" > out.json
 

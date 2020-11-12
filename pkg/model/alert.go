@@ -1,9 +1,11 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -51,7 +53,31 @@ type ComplianceCheckAlert struct {
 	CheckID       string    `json:"checkID" bson:"checkID"`
 	CheckType     string    `json:"checkType" bson:"checkType"`
 	PolicyID      string    `json:"policyID" bson:"policyID"`
-	Message       string    `json:"message" bson:"message"`
+	MessageEn     string    `json:"-" bson:"message_en"`
+	MessageZh     string    `json:"-" bson:"message_zh"`
+	Message       string    `json:"message" bson:"message,omitempty"`
+}
+
+func (a *Alert) ApplyTranslation(ctx context.Context) {
+	if a.ComplianceCheckAlert != nil {
+		a.ComplianceCheckAlert.ApplyTranslation((ctx))
+	}
+}
+
+func (cca *ImageScanAlert) ApplyTranslation(ctx context.Context) {
+	// TODO
+}
+
+func (cca *ExploitRiskAlert) ApplyTranslation(ctx context.Context) {
+	// TODO
+}
+
+func (cca *ComplianceCheckAlert) ApplyTranslation(ctx context.Context) {
+	if lang.Language(ctx) == lang.LanguageZH {
+		cca.Message = cca.MessageZh
+	} else {
+		cca.Message = cca.MessageEn
+	}
 }
 
 func (a *Alert) MarshalJSON() ([]byte, error) {

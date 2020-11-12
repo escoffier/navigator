@@ -209,7 +209,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerHistoryEntries(checkMap, cursor, ctx)
+			err := docker.GetDockerHistoryEntries(ctx, checkMap, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -395,7 +395,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
+			err := docker.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -532,7 +532,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerPolicyDetails(policyDetails, policyNumber, cursor, ctx)
+			err := docker.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,

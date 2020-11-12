@@ -10,7 +10,7 @@ type KubeJobEntry struct {
 type KubeReportResult struct {
 	ID       string        `json:"id" bson:"id"`
 	Version  string        `json:"version" bson:"version"`
-	Text     string        `json:"text_en" bson:"text_en"`
+	TextEn   string        `json:"text_en" bson:"text_en"`
 	TextZh   string        `json:"text_zh" bson:"text_zh"`
 	NodeType string        `json:"node_type" bson:"node_type"`
 	Tests    []KubeSection `json:"tests" bson:"tests"`
@@ -22,18 +22,18 @@ type KubeSection struct {
 	Fail          int64            `json:"fail" bson:"fail"`
 	Warn          int64            `json:"warn" bson:"warn"`
 	Info          int64            `json:"info" bson:"info"`
-	Description   string           `json:"text_en" bson:"text_en"`
+	DescriptionEn string           `json:"text_en" bson:"text_en"`
 	DescriptionZh string           `json:"text_zh" bson:"text_zh"`
 	Results       []KubeTestResult `json:"results" bson:"results"`
 }
 
 type KubeTestResult struct {
 	TestNumber        string   `json:"test_number" bson:"test_number"`
-	TestDescription   string   `json:"text_en" bson:"text_en"`
+	TestDescriptionEn string   `json:"text_en" bson:"text_en"`
 	TestDescriptionZh string   `json:"text_zh" bson:"text_zh"`
 	Audit             string   `json:"audit" bson:"audit"`
 	Type              string   `json:"type" bson:"type"`
-	Remediation       string   `json:"remediation_en" bson:"remediation_en"`
+	RemediationEn     string   `json:"remediation_en" bson:"remediation_en"`
 	RemediationZh     string   `json:"remediation_zh" bson:"remediation_zh"`
 	TestInfo          []string `json:"test_info" bson:"test_info"`
 	ExpectedResult    string   `json:"expected_result" bson:"expected_result"`

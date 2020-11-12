@@ -119,16 +119,16 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 			for _, test := range section.Results {
 				complianceMapEntry := &scap.ComplianceMapEntry{}
 				complianceMapEntry.PolicyNumber = test.TestNumber
-				complianceMapEntry.Section = section.Description
+				complianceMapEntry.Section = section.DescriptionEn
 				if lang.Language(ctx) == lang.LanguageZH {
 					complianceMapEntry.Section = section.DescriptionZh
 				} else {
-					complianceMapEntry.Section = section.Description
+					complianceMapEntry.Section = section.DescriptionEn
 				}
 				if lang.Language(ctx) == lang.LanguageZH {
 					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
 				} else {
-					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionEn)
 				}
 				complianceMapEntry.TestStatus = test.Status
 				complianceMap = append(complianceMap, *complianceMapEntry)
@@ -157,14 +157,14 @@ func GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*scap.Chec
 		for _, reportDetails := range complianceTest.Report {
 			for _, section := range reportDetails.Tests {
 
-				testSection := section.Description
+				testSection := section.DescriptionEn
 				if lang.Language(ctx) == lang.LanguageZH {
 					testSection = section.DescriptionZh
 				}
 
 				for _, test := range section.Results {
 
-					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescription)
+					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescriptionEn)
 					if lang.Language(ctx) == lang.LanguageZH {
 						testDescription = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
 					}
@@ -218,7 +218,7 @@ func GetKubePolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails
 
 		for _, reportDetails := range complianceTest.Report {
 			for _, section := range reportDetails.Tests {
-				testSection := section.Description
+				testSection := section.DescriptionEn
 				if lang.Language(ctx) == lang.LanguageZH {
 					testSection = section.DescriptionZh
 				}
@@ -232,14 +232,14 @@ func GetKubePolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails
 					if lang.Language(ctx) == lang.LanguageZH {
 						policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
 					} else {
-						policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+						policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionEn)
 					}
 					policyDetails.Audit = test.Audit
 					policyDetails.ExpectedResult = test.ExpectedResult
 					if lang.Language(ctx) == lang.LanguageZH {
 						policyDetails.Remediation = util.RemoveScoredNotScoredFrom(test.RemediationZh)
 					} else {
-						policyDetails.Remediation = util.RemoveScoredNotScoredFrom(test.Remediation)
+						policyDetails.Remediation = util.RemoveScoredNotScoredFrom(test.RemediationEn)
 					}
 					policyDetails.TestInfo = test.TestInfo
 					policyDetails.Reason = test.Reason
