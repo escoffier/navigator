@@ -121,7 +121,7 @@ curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/js
 
 # Get results using cluster ID and optional query parameters
 # kube-bench
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa69022046adaa45b057c55/reports?checkId=739e407b-ee8d-4cea-abd2-dd587a4e396a&nodeName=master&status=completed" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/5fa69022046adaa45b057c55/reports?checkId=d4fc6e71-19de-4ede-8e8d-09f644ee714f&nodeName=master&status=completed" > out.json
 
 # docker-bench
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/docker/5fa94d93a89ad1571e025559/reports?checkId=61e59005-973b-4c53-834e-bd08554f089c&nodeName=master01-172.21.0.5-centos&status=completed" > docker.json
@@ -132,9 +132,9 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/history" > out.json
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/f2200fc7-c08e-4a07-9ca7-6b8f4387b9a1" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/d4fc6e71-19de-4ede-8e8d-09f644ee714f" > out.json
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/cc7f68b4-d35f-4a97-8b0d-556751eb82a8/1.1.1/details" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/d4fc6e71-19de-4ede-8e8d-09f644ee714f/1.1.1/details" > out.json
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/master/9e14db5e-e05a-479b-9cbf-f2d6f84fad1f/details" > out.json
 ```

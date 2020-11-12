@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -29,14 +31,14 @@ func (api *api) runtimeDetectionConfig() func(chi.Router) {
 // @Router /api/v1/runtimeDetectionConfig/rules [get]
 func (api *api) listRules() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		offset, limit := api.getOffsetAndLimit(r)
 
 		rules, docNum, err := api.ruleService.ListRules(ctx, offset, limit)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to list rules: %w", err)))
 			return
@@ -58,12 +60,12 @@ func (api *api) listRules() http.HandlerFunc {
 // @Router /api/v1/runtimeDetectionConfig/rules/{ruleID}/enable [post]
 func (api *api) enableRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		ruleID, err := getRuleIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("ruleID param invalid: %w", err),
 					Suberror{"ruleID", ""}))
@@ -72,7 +74,7 @@ func (api *api) enableRule() http.HandlerFunc {
 
 		queryRule, err := api.ruleService.EnableRule(ctx, ruleID)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to enable rule %s: %w", ruleID, err)))
 			return
@@ -90,12 +92,12 @@ func (api *api) enableRule() http.HandlerFunc {
 // @Router /api/v1/runtimeDetectionConfig/rules/{ruleID}/disable [post]
 func (api *api) disableRule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		ruleID, err := getRuleIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("ruleID param invalid: %w", err),
 					Suberror{"ruleID", ""}))
@@ -104,7 +106,7 @@ func (api *api) disableRule() http.HandlerFunc {
 
 		queryRule, err := api.ruleService.DisableRule(ctx, ruleID)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to disable rule %s: %w", ruleID, err)))
 			return

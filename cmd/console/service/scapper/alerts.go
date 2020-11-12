@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -265,7 +266,11 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 			for _, section := range report.Tests {
 				for _, result := range section.Results {
 					if severity, ok := benchAlerts[model.ComplianceCheckTargetTypeDocker][result.ID]; ok && result.Result == "WARN" {
-						s.appendComplianceAlert(alertsToReport, check, result.ID, result.Description, jobEntry.NodeName, severity)
+						testDescription := result.DescriptionEn
+						if lang.Language(ctx) == lang.LanguageZH {
+							testDescription = result.DescriptionZh
+						}
+						s.appendComplianceAlert(alertsToReport, check, result.ID, testDescription, jobEntry.NodeName, severity)
 					}
 				}
 			}

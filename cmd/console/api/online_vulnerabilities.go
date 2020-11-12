@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/http"
+	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -26,14 +28,14 @@ func (api *api) onlineVulnerabilities() func(chi.Router) {
 // @Param limit query int false "returned data limit"
 func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		offset, limit := api.getOffsetAndLimit(r)
 
 		vulns, err := api.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, offset, limit)
 		if err != nil {
-			RespAndLog(w, r, err)
+			RespAndLog(w, ctx, err)
 			return
 		}
 
@@ -56,12 +58,12 @@ func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 // @Param resourceName query string false "case-sensitive resource name"
 func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		namespace := chi.URLParam(r, "namespace")
 		if namespace == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing param 'namespace'"),
 					Suberror{"namespace", ""}))
@@ -70,7 +72,7 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 
 		resourceName := chi.URLParam(r, "resourceName")
 		if resourceName == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing param 'resourceName'"),
 					Suberror{"resourceName", ""}))
@@ -79,7 +81,7 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 
 		resourceKind := chi.URLParam(r, "resourceKind")
 		if resourceKind == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing param 'resourceKind'"),
 					Suberror{"resourceKind", ""}))
@@ -88,7 +90,7 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 
 		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, namespace, resourceKind, resourceName)
 		if err != nil {
-			RespAndLog(w, r, err)
+			RespAndLog(w, ctx, err)
 			return
 		}
 

@@ -8,6 +8,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -15,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func GetKubeHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubeHistoryEntries(ctx context.Context, checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -119,7 +120,16 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 				complianceMapEntry := &scap.ComplianceMapEntry{}
 				complianceMapEntry.PolicyNumber = test.TestNumber
 				complianceMapEntry.Section = section.Description
-				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+				if lang.Language(ctx) == lang.LanguageZH {
+					complianceMapEntry.Section = section.DescriptionZh
+				} else {
+					complianceMapEntry.Section = section.Description
+				}
+				if lang.Language(ctx) == lang.LanguageZH {
+					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
+				} else {
+					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+				}
 				complianceMapEntry.TestStatus = test.Status
 				complianceMap = append(complianceMap, *complianceMapEntry)
 			}
@@ -129,7 +139,7 @@ func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 	return nil
 }
 
-func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -146,9 +156,19 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn
 		}
 		for _, reportDetails := range complianceTest.Report {
 			for _, section := range reportDetails.Tests {
+
 				testSection := section.Description
+				if lang.Language(ctx) == lang.LanguageZH {
+					testSection = section.DescriptionZh
+				}
+
 				for _, test := range section.Results {
+
 					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescription)
+					if lang.Language(ctx) == lang.LanguageZH {
+						testDescription = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
+					}
+
 					testNumber := test.TestNumber
 					if policyNumber != "" && policyNumber != testNumber {
 						continue
@@ -178,7 +198,7 @@ func GetKubeBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn
 	return nil
 }
 
-func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetKubePolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest kube.KubeJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -199,16 +219,28 @@ func GetKubePolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string
 		for _, reportDetails := range complianceTest.Report {
 			for _, section := range reportDetails.Tests {
 				testSection := section.Description
+				if lang.Language(ctx) == lang.LanguageZH {
+					testSection = section.DescriptionZh
+				}
+
 				for _, test := range section.Results {
 					if policyNumber != test.TestNumber {
 						continue
 					}
 					policyDetails.PolicyNumber = test.TestNumber
 					policyDetails.Section = testSection
-					policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+					if lang.Language(ctx) == lang.LanguageZH {
+						policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
+					} else {
+						policyDetails.Description = util.RemoveScoredNotScoredFrom(test.TestDescription)
+					}
 					policyDetails.Audit = test.Audit
 					policyDetails.ExpectedResult = test.ExpectedResult
-					policyDetails.Remediation = test.Remediation
+					if lang.Language(ctx) == lang.LanguageZH {
+						policyDetails.Remediation = util.RemoveScoredNotScoredFrom(test.RemediationZh)
+					} else {
+						policyDetails.Remediation = util.RemoveScoredNotScoredFrom(test.Remediation)
+					}
 					policyDetails.TestInfo = test.TestInfo
 					policyDetails.Reason = test.Reason
 					testStatus := test.Status

@@ -67,7 +67,7 @@ func (api *api) login() http.HandlerFunc {
 		creds := &credentials{}
 		err := json.NewDecoder(r.Body).Decode(creds)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -78,20 +78,20 @@ func (api *api) login() http.HandlerFunc {
 				// Handle case where both username and password are missing
 				// We probably should have some validation helper instead of nested
 				// ifs like this.
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewFieldError(http.StatusBadRequest,
 						fmt.Errorf("Missing field 'password' and 'username'"),
 						Suberror{"username", ""}, Suberror{"password", ""}))
 				return
 			}
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing field 'username'"),
 					Suberror{"username", ""}))
 			return
 		}
 		if creds.Password == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing field 'password'"),
 					Suberror{"password", ""}))
@@ -103,7 +103,7 @@ func (api *api) login() http.HandlerFunc {
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
 		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
 		if errUsername != nil || errPassword != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewInvalidUsernameOrPasswordError(http.StatusUnauthorized,
 					fmt.Errorf("Invalid username or password'")))
 			return

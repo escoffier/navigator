@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
@@ -27,12 +29,12 @@ func (api *api) alert() func(chi.Router) {
 // @Router /api/v1/alerts/{alertID}/acknowledge [post]
 func (api *api) acknowledgeAlert() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		alertObjectID, err := getAlertIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read alertID: %w", err),
 					Suberror{"alertID", ""}))
@@ -41,7 +43,7 @@ func (api *api) acknowledgeAlert() http.HandlerFunc {
 
 		queryAlert, err := api.alertService.AcknowledgeAlert(ctx, alertObjectID)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Couldn't acknowledge alert: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't acknowledge alert: %w", err))
 			return
 		}
 
@@ -59,7 +61,7 @@ func (api *api) acknowledgeAlert() http.HandlerFunc {
 // @Router /api/v1/alerts/ [get]
 func (api *api) listAlerts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		offset, limit := api.getOffsetAndLimit(r)
@@ -71,7 +73,7 @@ func (api *api) listAlerts() http.HandlerFunc {
 
 		alerts, docNum, err := api.alertService.ListAlerts(ctx, offset, limit, onlyNotAcknowledged)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to list alerts: %w", err)))
 			return
