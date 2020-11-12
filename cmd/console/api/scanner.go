@@ -59,14 +59,14 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		// get ObjectID
 		taskObjectID, err := getTaskObjectIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read taskID: %w", err),
 					Suberror{"taskID", ""}))
 			return
 		}
 
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		// from mongo
@@ -74,7 +74,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
 			ctx, bson.M{"_id": taskObjectID}).Decode(&scanTask)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -114,7 +114,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 // @Router /api/v1/scanner/reportsByImage [get]
 func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		offset, limit := api.getOffsetAndLimit(r)
@@ -125,7 +125,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter, findOptions)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -137,7 +137,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			var task model.ScanTask
 			err := cursor.Decode(&task)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't decode document: %w", err)))
 				return
@@ -203,14 +203,14 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		// get ObjectID
 		taskObjectID, err := getTaskObjectIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read taskID: %w", err),
 					Suberror{"taskID", ""}))
 			return
 		}
 
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		// from mongo
@@ -218,7 +218,7 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
 			ctx, bson.M{"_id": taskObjectID}).Decode(&result)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -261,7 +261,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			riskFilter = "none"
 		}
 		if riskFilter != "none" && riskFilter != "medToCrit" && riskFilter != "networkBased" {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid riskFilter param value (allowed: none(default)/medToCrit/networkBased)"),
 					Suberror{"riskFilter", "allowed: none(default)/medToCrit/networkBased"}))
@@ -273,7 +273,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			sortOrder = "desc"
 		}
 		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
 					Suberror{"sortOrder", "allowed: asc/desc"}))
@@ -290,7 +290,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		if filterFrom != "" {
 			fromTimestamp, err := time.Parse(time.RFC3339, filterFrom)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewFieldError(http.StatusBadRequest,
 						fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
 						Suberror{"from", "allowed: RFC3339 timestamp format"}))
@@ -301,7 +301,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		if filterTo != "" {
 			toTimestamp, err := time.Parse(time.RFC3339, filterTo)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewFieldError(http.StatusBadRequest,
 						fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
 						Suberror{"to", "allowed: RFC3339 timestamp format"}))
@@ -329,7 +329,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter, findOptions)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -352,7 +352,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			var task model.ScanTask
 			err := cursor.Decode(&task)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't decode document: %w", err)))
 				return
@@ -425,7 +425,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Cursor error: %w", err)))
 			return
@@ -515,7 +515,7 @@ func (api *api) scan() http.HandlerFunc {
 		var param param
 		err := util.DecodeJSONBody(w, r, &param)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -523,7 +523,7 @@ func (api *api) scan() http.HandlerFunc {
 
 		jsonValue, err := json.Marshal(param)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to marshall json: %w", err)))
 			return
@@ -541,7 +541,7 @@ func (api *api) scan() http.HandlerFunc {
 			defer resp.Body.Close()
 		}
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewConnectionError(http.StatusInternalServerError,
 					fmt.Errorf("POSt to Scanner failed: %w", err)))
 			return
@@ -549,7 +549,7 @@ func (api *api) scan() http.HandlerFunc {
 
 		_, err = io.Copy(w, resp.Body)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, r.Context(),
 				NewHTTPResponseError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't respond with response from Scanner: %w", err)))
 			return
@@ -569,7 +569,7 @@ func (api *api) harborScanAllNow() http.HandlerFunc {
 		var resp respT
 		err := api.quickReqToScanner(ctx, "POST", fmt.Sprintf("%s/api/v1/scan/harbor/scanAll", api.scannerURL), &resp)
 		if err != nil {
-			RespAndLog(w, r, err)
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 
@@ -591,7 +591,7 @@ func (api *api) harborScanConfig() http.HandlerFunc {
 		var resp respT
 		err := api.quickReqToScanner(ctx, "GET", fmt.Sprintf("%s/api/v1/scan/harbor/scanConfigURL", api.scannerURL), &resp)
 		if err != nil {
-			RespAndLog(w, r, err)
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 

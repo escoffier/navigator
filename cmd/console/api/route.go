@@ -86,13 +86,13 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			token, claims, err := jwtauth.FromContext(r.Context())
 
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewInvalidAuthToken(http.StatusUnauthorized,
 						fmt.Errorf("Error when getting token & claims from context: %w", err)))
 				return
 			}
 			if token == nil || !token.Valid {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewInvalidAuthToken(http.StatusUnauthorized,
 						fmt.Errorf("Token empty or invalid")))
 				return
@@ -102,7 +102,7 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			username := claims["username"].(string)
 			userPtr, ok := userCache.Get(username)
 			if !ok {
-				RespAndLog(w, r,
+				RespAndLog(w, r.Context(),
 					NewSessionExpired(http.StatusUnauthorized,
 						fmt.Errorf("User not in cache")))
 				return

@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 )
 
 func setupChiRouter(
@@ -40,6 +41,7 @@ func setupChiRouter(
 	r.Use(middleware.StripSlashes)
 	r.Use(middleware.Compress(5))
 	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(lang.AcceptLanguageMiddleware)
 	if !httpLoggerDisabled {
 		r.Use(middleware.Logger)
 	}

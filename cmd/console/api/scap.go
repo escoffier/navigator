@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -44,14 +45,14 @@ func (api *api) scap() func(chi.Router) {
 // @Router /api/v1/scap/{checkType}/{nodeName}/{checkID}/details [get]
 func (api *api) getNodeCheckDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		filter := bson.M{}
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkID param missing"),
 					Suberror{"checkID", ""}))
@@ -60,7 +61,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 
 		nodeName := chi.URLParam(r, "nodeName")
 		if nodeName == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("nodeName param missing"),
 					Suberror{"nodeName", ""}))
@@ -70,7 +71,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -78,7 +79,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -91,7 +92,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		if checkType == model.ComplianceCheckTargetTypeKube {
 			err := kube.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube history entries: %w", err)))
 				return
@@ -99,7 +100,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
 			err := docker.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker history entries: %w", err)))
 				return
@@ -107,7 +108,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host history entries: %w", err)))
 				return
@@ -131,7 +132,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/history [get]
 func (api *api) getCheckHistory() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		filter := bson.M{}
@@ -148,7 +149,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -156,7 +157,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -168,7 +169,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			sortBy = "createdAt"
 		}
 		if sortBy != "createdAt" && sortBy != "finishedAt" && sortBy != "checkID" && sortBy != "clusterID" && sortBy != "numSuccessful" && sortBy != "numFailed" && sortBy != "numError" && sortBy != "numWaiting" && sortBy != "numInconclusive" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid sortBy param value (allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive)"),
 					Suberror{"sortBy", "allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive"}))
@@ -180,7 +181,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			sortOrder = "asc"
 		}
 		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
 					Suberror{"sortOrder", "allowed: asc/desc"}))
@@ -191,7 +192,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -200,17 +201,17 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		checkMap := make(map[string]*scap.CheckHistoryEntry)
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeHistoryEntries(checkMap, cursor, ctx)
+			err := kube.GetKubeHistoryEntries(ctx, checkMap, cursor)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube history entries: %w", err)))
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerHistoryEntries(checkMap, cursor, ctx)
+			err := docker.GetDockerHistoryEntries(ctx, checkMap, cursor)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker history entries: %w", err)))
 				return
@@ -218,7 +219,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostHistoryEntries(checkMap, cursor, ctx)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host history entries: %w", err)))
 				return
@@ -231,7 +232,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			if _, ok := clusterNames[v.ClusterID]; !ok {
 				clusterIDPrimitive, err := primitive.ObjectIDFromHex(v.ClusterID)
 				if err != nil {
-					RespAndLog(w, r,
+					RespAndLog(w, ctx,
 						NewFieldError(http.StatusInternalServerError,
 							fmt.Errorf("Cluster with invalid ID %s: %w", v.ClusterID, err)))
 					return
@@ -239,7 +240,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, false)
 				if err != nil {
-					RespAndLog(w, r, fmt.Errorf("Couldn't get cluster: %w", err))
+					RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
 					return
 				}
 
@@ -250,7 +251,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Cursor error: %w", err)))
 			return
@@ -295,12 +296,12 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/breakdown/{checkID} [get]
 func (api *api) getCheckBreakdown() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkID param missing"),
 					Suberror{"checkID", ""}))
@@ -311,7 +312,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -319,7 +320,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -331,7 +332,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			sortBy = "policyNumber"
 		}
 		if sortBy != "policyNumber" && sortBy != "name" && sortBy != "numFailed" && sortBy != "numSuccessful" && sortBy != "numInfo" && sortBy != "numWarn" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid sortBy param value (allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn)"),
 					Suberror{"sortBy", "allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn"}))
@@ -343,7 +344,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			sortOrder = "asc"
 		}
 		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
 					Suberror{"sortOrder", "allowed: asc/desc"}))
@@ -356,14 +357,14 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 
 			return
 		}
 		if count == 0 {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkID not existing"),
 					Suberror{"checkID", checkID}))
@@ -372,7 +373,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find documents: %w", err)))
 
@@ -386,17 +387,17 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
+			err := kube.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
+			err := docker.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
 				return
@@ -404,7 +405,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
 				return
@@ -418,7 +419,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Cursor error: %w", err)))
 
@@ -454,12 +455,12 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details [get]
 func (api *api) getPolicyDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkID param missing"),
 					Suberror{"checkID", ""}))
@@ -468,7 +469,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		policyNumber := chi.URLParam(r, "policyNumber")
 		if policyNumber == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("policyNumber param missing"),
 					Suberror{"policyNumber", ""}))
@@ -477,7 +478,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -485,7 +486,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		}
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -496,14 +497,14 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 
 			return
 		}
 		if count == 0 {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkID not existing"),
 					Suberror{"checkID", checkID}))
@@ -512,7 +513,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't update cluster: %w", err)))
 
@@ -523,17 +524,17 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		policyDetails := &scap.PolicyDetails{}
 
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubePolicyDetails(policyDetails, policyNumber, cursor, ctx)
+			err := kube.GetKubePolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get kube policy details: %w", err)))
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerPolicyDetails(policyDetails, policyNumber, cursor, ctx)
+			err := docker.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get docker policy details: %w", err)))
 				return
@@ -541,7 +542,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
 			err := host.GetHostPolicyDetails(policyDetails, policyNumber, cursor, ctx)
 			if err != nil {
-				RespAndLog(w, r,
+				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Couldn't get host policy details: %w", err)))
 				return
@@ -550,7 +551,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		err = cursor.Err()
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Cursor error: %w", err)))
 
@@ -573,12 +574,12 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/{clusterID}/reports [get]
 func (api *api) getScapReports() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -587,7 +588,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -595,7 +596,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		}
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -608,7 +609,7 @@ func (api *api) getScapReports() http.HandlerFunc {
 
 		results, err := api.scapper.GetJobEntriesForCheck(ctx, clusterObjectID.Hex(), checkType, checkID, nodeName, status)
 		if err != nil {
-			RespAndLog(w, r, err)
+			RespAndLog(w, ctx, err)
 			return
 		}
 
@@ -624,12 +625,12 @@ func (api *api) getScapReports() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/{clusterID} [post]
 func (api *api) scapCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -638,7 +639,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -646,7 +647,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -655,13 +656,13 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		cluster, err := api.clusterService.GetCluster(ctx, clusterObjectID, true)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Failed to get cluster from Mongo: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Failed to get cluster from Mongo: %w", err))
 			return
 		}
 
 		checkUUID, err := api.scapper.RunComplianceCheck(ctx, api.ctx, clusterObjectID, cluster, checkType)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Failed to run compliance check: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 			return
 		}
 

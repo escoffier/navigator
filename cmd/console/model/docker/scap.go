@@ -19,15 +19,18 @@ type DockerReportResult struct {
 }
 
 type DockerSection struct {
-	ID          string       `json:"id" bson:"id"`
-	Description string       `json:"description" bson:"description"`
-	Results     []DockerTest `json:"results" bson:"results"`
+	ID            string       `json:"id" bson:"id"`
+	DescriptionEn string       `json:"description_en" bson:"description_en"`
+	DescriptionZh string       `json:"description_zh" bson:"description_zh"`
+	Results       []DockerTest `json:"results" bson:"results"`
 }
 
 type DockerTest struct {
-	ID          string   `json:"id" bson:"id"`
-	Description string   `json:"description" bson:"description"`
-	Result      string   `json:"result" bson:"result"`
-	Details     string   `json:"details" bson:"details"`
-	Items       []string `json:"items" bson:"items"`
+	ID            string   `json:"id" bson:"id"`
+	DescriptionEn string   `json:"description" bson:"description"`
+	DescriptionZh string   `json:"description_zh" bson:"description_zh"`
+	Result        string   `json:"result" bson:"result"`
+	DetailsEn     string   `json:"details_en" bson:"details_en"`
+	DetailsZh     string   `json:"details_zh" bson:"details_zh"`
+	Items         []string `json:"items" bson:"items"`
 }

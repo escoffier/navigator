@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -15,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func GetDockerHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
+func GetDockerHistoryEntries(ctx context.Context, checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest docker.DockerJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -121,8 +122,16 @@ func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filte
 		for _, result := range test.Results {
 			complianceMapEntry := &scap.ComplianceMapEntry{}
 			complianceMapEntry.PolicyNumber = result.ID
-			complianceMapEntry.Section = test.Description
-			complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.Description)
+			if lang.Language(ctx) == lang.LanguageZH {
+				complianceMapEntry.Section = test.DescriptionZh
+			} else {
+				complianceMapEntry.Section = test.DescriptionEn
+			}
+			if lang.Language(ctx) == lang.LanguageZH {
+				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.DescriptionZh)
+			} else {
+				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.DescriptionEn)
+			}
 			complianceMapEntry.TestStatus = result.Result
 			complianceMap = append(complianceMap, *complianceMapEntry)
 		}
@@ -131,7 +140,7 @@ func GetDockerNodeCheckDetails(ctx context.Context, col *mongo.Collection, filte
 	return nil
 }
 
-func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetDockerBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest docker.DockerJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -147,9 +156,17 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waiting
 			continue
 		}
 		for _, test := range complianceTest.Report.Tests {
-			testSection := test.Description
+			testSection := test.DescriptionEn
+			if lang.Language(ctx) == lang.LanguageZH {
+				testSection = test.DescriptionZh
+			}
+
 			for _, result := range test.Results {
-				testDescription := util.RemoveScoredNotScoredFrom(result.Description)
+				testDescription := util.RemoveScoredNotScoredFrom(result.DescriptionEn)
+				if lang.Language(ctx) == lang.LanguageZH {
+					testDescription = util.RemoveScoredNotScoredFrom(result.DescriptionZh)
+				}
+
 				testNumber := result.ID
 				if policyNumber != "" && policyNumber != testNumber {
 					continue
@@ -178,7 +195,7 @@ func GetDockerBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waiting
 	return nil
 }
 
-func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetDockerPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest docker.DockerJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -195,13 +212,25 @@ func GetDockerPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber stri
 		}
 
 		for _, test := range complianceTest.Report.Tests {
-			testName := test.Description
+			testName := test.DescriptionEn
+			if lang.Language(ctx) == lang.LanguageZH {
+				testName = test.DescriptionZh
+			}
+
 			for _, result := range test.Results {
 				if result.ID == policyNumber {
 					policyDetails.PolicyNumber = result.ID
 					policyDetails.Section = testName
-					policyDetails.Description = util.RemoveScoredNotScoredFrom(result.Description)
-					policyDetails.Details = result.Details
+					if lang.Language(ctx) == lang.LanguageZH {
+						policyDetails.Description = util.RemoveScoredNotScoredFrom(result.DescriptionZh)
+					} else {
+						policyDetails.Description = util.RemoveScoredNotScoredFrom(result.DescriptionEn)
+					}
+					if lang.Language(ctx) == lang.LanguageZH {
+						policyDetails.Details = util.RemoveScoredNotScoredFrom(result.DetailsZh)
+					} else {
+						policyDetails.Details = util.RemoveScoredNotScoredFrom(result.DetailsEn)
+					}
 					policyDetails.Items = result.Items
 					// TODO: how to classify Docker policy specific information?
 					testStatus := result.Result

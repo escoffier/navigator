@@ -355,6 +355,8 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
 
+		alert.ApplyTranslation(ctx)
+
 		alerts = append(alerts, alert)
 	}
 

@@ -30,7 +30,7 @@ func (api *api) listAllCrons() http.HandlerFunc {
 
 		clusters, _, err := api.clusterService.ListClusters(ctx, 0, 9999999)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Couldn't list clusters: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
 		}
 
@@ -75,12 +75,12 @@ func (api *api) getCron() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := respStruct{}
 
-		ctx, cancel := api.getTimeoutCtx(time.Second * 60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -89,7 +89,7 @@ func (api *api) getCron() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -97,7 +97,7 @@ func (api *api) getCron() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -106,7 +106,7 @@ func (api *api) getCron() http.HandlerFunc {
 
 		cronConfig, err := api.cronService.GetCron(ctx, clusterObjectID, checkType)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to get cron: %w", err)))
 			return
@@ -130,9 +130,12 @@ func (api *api) putCron() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		defer cancel()
+
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -141,7 +144,7 @@ func (api *api) putCron() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("checkType param missing"),
 					Suberror{"checkType", ""}))
@@ -149,7 +152,7 @@ func (api *api) putCron() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 					Suberror{"checkType", "allowed: kube/docker/host"}))
@@ -159,7 +162,7 @@ func (api *api) putCron() http.HandlerFunc {
 		var req req
 		err = util.DecodeJSONBody(w, r, &req)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -167,7 +170,7 @@ func (api *api) putCron() http.HandlerFunc {
 
 		err = api.cronService.UpdateCron(api.ctx, clusterObjectID, checkType, req.NewCronString)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Failed to update cron: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Failed to update cron: %w", err))
 			return
 		}
 

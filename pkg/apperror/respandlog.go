@@ -1,6 +1,7 @@
 package apperror
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -8,7 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-func RespAndLog(w http.ResponseWriter, r *http.Request, err error) {
+func RespAndLog(w http.ResponseWriter, ctx context.Context, err error) {
 
 	var det detailedError
 	if errors.As(err, &det) {
@@ -23,7 +24,7 @@ func RespAndLog(w http.ResponseWriter, r *http.Request, err error) {
 
 		// Respond
 		subfuncs := []response.ResponseErrorOptionFunc{}
-		subfuncs = append(subfuncs, response.WithMessage(det.LocalizedError(r)))
+		subfuncs = append(subfuncs, response.WithMessage(det.LocalizedError(ctx)))
 		for _, v := range det.Suberrors {
 			subfuncs = append(subfuncs, response.WithSuberror(v.Location, v.Message))
 		}

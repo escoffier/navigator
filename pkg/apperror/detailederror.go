@@ -1,10 +1,11 @@
 package apperror
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -69,16 +70,16 @@ func (de detailedError) As(target interface{}) bool {
 	return false
 }
 
-func (de detailedError) LocalizedError(r *http.Request) string {
-	lang := r.Header.Get("Accept-Language")
-	if lang == "zh" {
+func (de detailedError) LocalizedError(ctx context.Context) string {
+	languageKey := lang.Language(ctx)
+	if languageKey == lang.LanguageZH {
 		return de.Zhongwen
-	} else if lang == "en" {
+	} else if languageKey == lang.LanguageEN {
 		return de.English
 	} else {
 		logging.GetLogger().Warn().
-			Str("Accept-Language", lang).
-			Msg("Couldn't recognize language, defaulting to English")
+			Str("languageKey", string(languageKey)).
+			Msg("LocalizedError: Couldn't recognize language, defaulting to English")
 		return de.English
 	}
 }

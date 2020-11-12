@@ -44,7 +44,7 @@ func (api *api) forceInvalidateCache() http.HandlerFunc {
 
 		err := api.redclair.ForceInvalidateCache(ctx)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Failed to force cache invalidation: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Failed to force cache invalidation: %w", err))
 			return
 		}
 
@@ -63,7 +63,7 @@ func (api *api) harborScanAll() http.HandlerFunc {
 
 		err := api.harbor.ScanAll(ctx)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Failed to trigger full scan in Harbor: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Failed to trigger full scan in Harbor: %w", err))
 			return
 		}
 
@@ -106,7 +106,7 @@ func (api *api) scanOne() http.HandlerFunc {
 		var scanReq model.ScannerReq
 		err := util.DecodeJSONBody(w, r, &scanReq)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -118,7 +118,7 @@ func (api *api) scanOne() http.HandlerFunc {
 
 		harborResultsLink, err := api.harbor.GetHarborScanResultsLink(ctx, scanReq.Repository, scanReq.Digest)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Failed to obtain harbor results link: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Failed to obtain harbor results link: %w", err))
 			return
 		}
 
@@ -141,7 +141,7 @@ func (api *api) scanOne() http.HandlerFunc {
 		_, err = api.mongodb.Collection(model.ScanTasksCollection).InsertOne(mongoCtx, task)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't update cluster: %w", err)))
 			return

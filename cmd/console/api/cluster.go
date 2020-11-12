@@ -32,12 +32,12 @@ func (api *api) config() func(chi.Router) {
 // @Router /api/v1/config/clusters/{clusterID} [get]
 func (api *api) getCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx()
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -46,7 +46,7 @@ func (api *api) getCluster() http.HandlerFunc {
 
 		queryCluster, err := api.clusterService.GetCluster(ctx, clusterObjectID, true)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Couldn't get cluster: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
 			return
 		}
 
@@ -63,13 +63,13 @@ func (api *api) getCluster() http.HandlerFunc {
 // @Router /api/v1/config/clusters [get]
 func (api *api) listClusters() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := api.getTimeoutCtx(15 * time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 		offset, limit := api.getOffsetAndLimit(r)
 
 		clusters, docNum, err := api.clusterService.ListClusters(ctx, offset, limit)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Couldn't list clusters: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
 		}
 
@@ -99,7 +99,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -110,7 +110,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 
 		err = util.DecodeJSONBody(w, r, &upCluster)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -119,7 +119,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 		_, err = api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
 
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't update cluster: %w", err)))
 			return
@@ -153,7 +153,7 @@ func (api *api) addCluster() http.HandlerFunc {
 
 		err := util.DecodeJSONBody(w, r, &param)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -162,11 +162,11 @@ func (api *api) addCluster() http.HandlerFunc {
 		// For now, cap at 1 cluster max:
 		_, numClusters, err := api.clusterService.ListClusters(ctx, 0, 9999999)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Couldn't list clusters: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
 		}
 		if numClusters >= 1 {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewMaxNumberOfClustersReached(http.StatusConflict,
 					fmt.Errorf("Max num of clusters reached")))
 			return
@@ -174,7 +174,7 @@ func (api *api) addCluster() http.HandlerFunc {
 
 		id, err := api.clusterService.AddCluster(ctx, param.ClusterName, param.KubeConfig)
 		if err != nil {
-			RespAndLog(w, r, fmt.Errorf("Couldn't add cluster: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't add cluster: %w", err))
 			return
 		}
 
@@ -200,7 +200,7 @@ func (api *api) delCluster() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Couldn't read clusterID: %w", err),
 					Suberror{"clusterID", ""}))
@@ -209,7 +209,7 @@ func (api *api) delCluster() http.HandlerFunc {
 
 		deletedCount, err := api.clusterService.DeleteCluster(ctx, clusterObjectID)
 		if err != nil {
-			RespAndLog(w, r,
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't delete ClusterID: %w", err),
 					Suberror{"clusterID", ""}))
