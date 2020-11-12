@@ -595,8 +595,7 @@ func (api *api) harborScanConfig() http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Location", resp.Href)
-		w.WriteHeader(http.StatusFound)
+		response.Ok(w, response.WithItem(resp))
 	}
 }
 
