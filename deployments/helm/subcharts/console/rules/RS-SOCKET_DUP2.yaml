@@ -1,4 +1,6 @@
 name: RS-SOCKET_DUP2
-description: "Reverse Shell (Socket + Dup2)"
+description: "Risk of Reverse Shell exploit (through socket and dup2 syscalls)"
 cvss_3_vector: ""
 cvss_3_score: 0.0
+cvss_2_vector: ""
+cvss_2_score: 0.0
