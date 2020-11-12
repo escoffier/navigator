@@ -118,19 +118,8 @@ else
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile .
 endif
 
-.PHONY: elastalert
-elastalert:     ## Build elastalert binary
-	@echo "+ $@" 		
-ifeq ($(USEMIRROR),true)
-	@echo "elastalert will use mirror"
-	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
-else
-	@echo "elastalert will not use mirror"
-	docker build -t $(REPOPREFIX)/elastalert:latest -f ./build/elastalert/Dockerfile .
-endif
-
 .PHONY: all
-all: tensordig scanner scap-jobs console elastalert faulty
+all: tensordig scanner scap-jobs console faulty
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -143,7 +132,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/elastalert:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
@@ -153,7 +141,6 @@ else
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
 	docker push $(REPOPREFIX)/tensordig:latest
-	docker push $(REPOPREFIX)/elastalert:latest
 	docker push $(REPOPREFIX)/faulty:latest
 endif
 
@@ -167,7 +154,6 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/elastalert:latest $(REPOPREFIX)/elastalert:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
@@ -177,7 +163,6 @@ else
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
-	docker tag $(REPOPREFIXOLD)/elastalert:latest $(REPOPREFIX)/elastalert:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
 endif
 

@@ -68,6 +68,8 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 				queryRule.Description = ruleDefinition.Description
 				queryRule.Cvss3Score = ruleDefinition.Cvss3Score
 				queryRule.Cvss3Vector = ruleDefinition.Cvss3Vector
+				queryRule.Cvss2Score = ruleDefinition.Cvss2Score
+				queryRule.Cvss2Vector = ruleDefinition.Cvss2Vector
 				insertResult, err := s.mongodb.Collection(model.RuleCollection).InsertOne(ctx, queryRule)
 				if err != nil {
 					return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
