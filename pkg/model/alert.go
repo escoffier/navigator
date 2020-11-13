@@ -13,26 +13,26 @@ import (
 const (
 	AlertCollection = "alerts"
 
-	AlertKindImageScan       = "imageScan"
-	AlertKindComplianceCheck = "complianceCheck"
-	AlertKindExploitRisk     = "exploitRisk"
+	AlertKindRuntimeDetection = "runtimeDetection"
+	AlertKindComplianceCheck  = "complianceCheck"
+	AlertKindExploitRisk      = "exploitRisk"
 )
 
 type Alert struct {
-	ID                   primitive.ObjectID    `json:"id" bson:"_id, omitempty"`
-	AlertKind            string                `json:"kind" bson:"kind"`
-	Acknowledged         bool                  `json:"acknowledged" bson:"acknowledged"`
-	Timestamp            time.Time             `json:"timestamp" bson:"timestamp"`
-	Severity             string                `json:"severity" bson:"severity"`
-	ImageScanAlert       *ImageScanAlert       `json:"imageScanAlert,omitempty" bson:"imageScanAlert,omitempty"`
-	ComplianceCheckAlert *ComplianceCheckAlert `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
-	ExploitRiskAlert     *ExploitRiskAlert     `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
-	Message              string                `json:"message" bson:"message"`
-	MessageEn            string                `json:"-" bson:"message_en"`
-	MessageZh            string                `json:"-" bson:"message_zh"`
+	ID                    primitive.ObjectID     `json:"id" bson:"_id, omitempty"`
+	AlertKind             string                 `json:"kind" bson:"kind"`
+	Acknowledged          bool                   `json:"acknowledged" bson:"acknowledged"`
+	Timestamp             time.Time              `json:"timestamp" bson:"timestamp"`
+	Severity              string                 `json:"severity" bson:"severity"`
+	RuntimeDetectionAlert *RuntimeDetectionAlert `json:"runtimeDetectionAlert,omitempty" bson:"runtimeDetectionAlert,omitempty"`
+	ComplianceCheckAlert  *ComplianceCheckAlert  `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
+	ExploitRiskAlert      *ExploitRiskAlert      `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
+	Message               string                 `json:"message" bson:"message"`
+	MessageEn             string                 `json:"-" bson:"message_en"`
+	MessageZh             string                 `json:"-" bson:"message_zh"`
 }
 
-type ImageScanAlert struct {
+type RuntimeDetectionAlert struct {
 	ElasticID     string  `json:"elasticId" bson:"elasticId"`
 	ContainerID   string  `json:"containerId" bson:"containerId"`
 	PodUID        string  `json:"podUid" bson:"podUid"`
@@ -81,12 +81,12 @@ func (a *Alert) ApplyTranslation(ctx context.Context) {
 	if a.ExploitRiskAlert != nil {
 		a.ExploitRiskAlert.ApplyTranslation((ctx))
 	}
-	if a.ImageScanAlert != nil {
-		a.ImageScanAlert.ApplyTranslation((ctx))
+	if a.RuntimeDetectionAlert != nil {
+		a.RuntimeDetectionAlert.ApplyTranslation((ctx))
 	}
 }
 
-func (isa *ImageScanAlert) ApplyTranslation(ctx context.Context) {
+func (isa *RuntimeDetectionAlert) ApplyTranslation(ctx context.Context) {
 	if lang.Language(ctx) == lang.LanguageZH {
 		isa.Description = isa.DescriptionZh
 		isa.RuleName = isa.RuleNameZh
@@ -107,23 +107,23 @@ func (era *ExploitRiskAlert) ApplyTranslation(ctx context.Context) {
 }
 
 func (a *Alert) MarshalJSON() ([]byte, error) {
-	if a.ImageScanAlert != nil {
+	if a.RuntimeDetectionAlert != nil {
 		return json.Marshal(&struct {
-			ID             primitive.ObjectID `json:"id"`
-			AlertKind      string             `json:"kind"`
-			Acknowledged   bool               `json:"acknowledged"`
-			Timestamp      time.Time          `json:"timestamp"`
-			Severity       string             `json:"severity"`
-			Message        string             `json:"message"`
-			ImageScanAlert *ImageScanAlert    `json:"data"`
+			ID                    primitive.ObjectID     `json:"id"`
+			AlertKind             string                 `json:"kind"`
+			Acknowledged          bool                   `json:"acknowledged"`
+			Timestamp             time.Time              `json:"timestamp"`
+			Severity              string                 `json:"severity"`
+			Message               string                 `json:"message"`
+			RuntimeDetectionAlert *RuntimeDetectionAlert `json:"data"`
 		}{
-			ID:             a.ID,
-			AlertKind:      a.AlertKind,
-			Acknowledged:   a.Acknowledged,
-			Timestamp:      a.Timestamp,
-			Severity:       a.Severity,
-			Message:        a.Message,
-			ImageScanAlert: a.ImageScanAlert,
+			ID:                    a.ID,
+			AlertKind:             a.AlertKind,
+			Acknowledged:          a.Acknowledged,
+			Timestamp:             a.Timestamp,
+			Severity:              a.Severity,
+			Message:               a.Message,
+			RuntimeDetectionAlert: a.RuntimeDetectionAlert,
 		})
 	} else if a.ComplianceCheckAlert != nil {
 		return json.Marshal(&struct {
