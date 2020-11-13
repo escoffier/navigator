@@ -14,7 +14,7 @@ const (
 
 type Rule struct {
 	ID            primitive.ObjectID `json:"id" bson:"_id, omitempty"`
-	Description   string             `json:"description" bson:"description"`
+	Description   string             `json:"description"`
 	DescriptionEn string             `json:"-" bson:"description_en"`
 	DescriptionZh string             `json:"-" bson:"description_zh"`
 	Name          string             `json:"name"`

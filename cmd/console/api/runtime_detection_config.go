@@ -84,6 +84,8 @@ func (api *api) enableRule() http.HandlerFunc {
 			return
 		}
 
+		queryRule.ApplyTranslation(ctx)
+
 		response.Ok(w, response.WithItem(*queryRule))
 	}
 }
@@ -115,6 +117,8 @@ func (api *api) disableRule() http.HandlerFunc {
 					fmt.Errorf("Failed to disable rule %s: %w", ruleID, err)))
 			return
 		}
+
+		queryRule.ApplyTranslation(ctx)
 
 		response.Ok(w, response.WithItem(*queryRule))
 	}
