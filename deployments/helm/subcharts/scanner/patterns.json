@@ -1,706 +1,847 @@
 [
   {
-    "description": "Azure service configuration file",
+    "descriptionEn": "Azure service configuration file",
+    "descriptionZh": "Azure service configuration file",
     "secret_type": "Filename",
     "value": "\\.cscfg$"
   },
   {
-    "description": "Decryption Key",
+    "descriptionEn": "Decryption Key",
+    "descriptionZh": "Decryption Key",
     "secret_type": "FileContent",
     "value": "CryptDeriveKey"
   },
   {
-    "description": "Encryption Key",
+    "descriptionEn": "Encryption Key",
+    "descriptionZh": "Encryption Key",
     "secret_type": "FileContent",
     "value": "CryptGenKey"
   },
   {
-    "description": "Encryption Key",
+    "descriptionEn": "Encryption Key",
+    "descriptionZh": "Encryption Key",
     "secret_type": "FileContent",
     "value": "HMACSHA1"
   },
   {
-    "description": "Machine Key",
+    "descriptionEn": "Machine Key",
+    "descriptionZh": "Machine Key",
     "secret_type": "FileContent",
     "value": "machinekey"
   },
   {
-    "description": "Potential MSBuild publish profile",
+    "descriptionEn": "Potential MSBuild publish profile",
+    "descriptionZh": "Potential MSBuild publish profile",
     "secret_type": "Filename",
     "value": "\\.pubxml(\\.user)?$"
   },
   {
-    "description": "RDP file",
+    "descriptionEn": "RDP file",
+    "descriptionZh": "RDP file",
     "secret_type": "Filename",
     "value": "\\.rdp$"
   },
   {
-    "description": "Private client certificate",
+    "descriptionEn": "Private client certificate",
+    "descriptionZh": "Private client certificate",
     "secret_type": "Filename",
     "value": "\\.pfx$"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": "\\.pkcs12$"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": "\\.p12$"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": "\\.asc$"
   },
   {
-    "description": "Possible public key",
+    "descriptionEn": "Possible public key",
+    "descriptionZh": "Possible public key",
     "secret_type": "Filename",
     "value": "\\.pub$"
   },
   {
-    "description": "Potential Jenkins credentials file",
+    "descriptionEn": "Potential Jenkins credentials file",
+    "descriptionZh": "Potential Jenkins credentials file",
     "secret_type": "Filename",
     "value": "^cred[\\s\\S]*xml"
   },
   {
-    "description": "Database file",
+    "descriptionEn": "Database file",
+    "descriptionZh": "Database file",
     "secret_type": "Filename",
     "value": "\\.mdf$"
   },
   {
-    "description": "Database file",
+    "descriptionEn": "Database file",
+    "descriptionZh": "Database file",
     "secret_type": "Filename",
     "value": "\\.sdf$"
   },
   {
-    "description": "Database file",
+    "descriptionEn": "Database file",
+    "descriptionZh": "Database file",
     "secret_type": "Filename",
     "value": "\\.sql$"
   },
   {
-    "description": "Database file",
+    "descriptionEn": "Database file",
+    "descriptionZh": "Database file",
     "secret_type": "Filename",
     "value": "\\.sqlite$"
   },
   {
-    "description": "MySQL client command history file",
+    "descriptionEn": "MySQL client command history file",
+    "descriptionZh": "MySQL client command history file",
     "secret_type": "Filename",
     "value": "^[\\s\\S]*mysql_history"
   },
   {
-    "description": "PostgreSQL client command history file",
+    "descriptionEn": "PostgreSQL client command history file",
+    "descriptionZh": "PostgreSQL client command history file",
     "secret_type": "Filename",
     "value": "^[\\s\\S]*psql_history"
   },
   {
-    "description": "Ruby On Rails database configuration file",
+    "descriptionEn": "Ruby On Rails database configuration file",
+    "descriptionZh": "Ruby On Rails database configuration file",
     "secret_type": "Filename",
     "value": "^database[\\s\\S]*.yml"
   },
   {
-    "description": "Network traffic capture file",
+    "descriptionEn": "Network traffic capture file",
+    "descriptionZh": "Network traffic capture file",
     "secret_type": "Filename",
     "value": "\\.pcap$"
   },
   {
-    "description": "Pidgin chat client account configuration file",
+    "descriptionEn": "Pidgin chat client account configuration file",
+    "descriptionZh": "Pidgin chat client account configuration file",
     "secret_type": "Filename",
     "value": "accounts[\\s\\S]*.xml"
   },
   {
-    "description": "Wordpress configuration file",
+    "descriptionEn": "Wordpress configuration file",
+    "descriptionZh": "Wordpress configuration file",
     "secret_type": "Filename",
     "value": "wp-config[\\s\\S]*.php"
   },
   {
-    "description": "Hexchat/XChat IRC client server list configuration file",
+    "descriptionEn": "Hexchat/XChat IRC client server list configuration file",
+    "descriptionZh": "Hexchat/XChat IRC client server list configuration file",
     "secret_type": "Filename",
     "value": ".?xchat2[\\s\\S]*.conf"
   },
   {
-    "description": "S3cmd configuration file",
+    "descriptionEn": "S3cmd configuration file",
+    "descriptionZh": "S3cmd configuration file",
     "secret_type": "Filename",
     "value": "\\.s3cfg$"
   },
   {
-    "description": "T command-line Twitter client configuration file",
+    "descriptionEn": "T command-line Twitter client configuration file",
+    "descriptionZh": "T command-line Twitter client configuration file",
     "secret_type": "Filename",
     "value": "\\.trc$"
   },
   {
-    "description": "OpenVPN client configuration file",
+    "descriptionEn": "OpenVPN client configuration file",
+    "descriptionZh": "OpenVPN client configuration file",
     "secret_type": "Filename",
     "value": "\\.ovpn$"
   },
   {
-    "description": "Ruby On Rails secret token configuration file",
+    "descriptionEn": "Ruby On Rails secret token configuration file",
+    "descriptionZh": "Ruby On Rails secret token configuration file",
     "secret_type": "Filename",
     "value": "secret_token"
   },
   {
-    "description": "OmniAuth configuration file",
+    "descriptionEn": "OmniAuth configuration file",
+    "descriptionZh": "OmniAuth configuration file",
     "secret_type": "Filename",
     "value": "\\.omniauth$"
   },
   {
-    "description": "Carrierwave configuration file",
+    "descriptionEn": "Carrierwave configuration file",
+    "descriptionZh": "Carrierwave configuration file",
     "secret_type": "Filename",
     "value": "carrierwave"
   },
   {
-    "description": "Client SSH Config",
+    "descriptionEn": "Client SSH Config",
+    "descriptionZh": "Client SSH Config",
     "secret_type": "Filename",
     "value": ".?sssh_config[\\s\\S]*"
   },
   {
-    "description": "Server SSH Config",
+    "descriptionEn": "Server SSH Config",
+    "descriptionZh": "Server SSH Config",
     "secret_type": "Filename",
     "value": ".?sshd_config[\\s\\S]*"
   },
   {
-    "description": "KeePass password manager database file",
+    "descriptionEn": "KeePass password manager database file",
+    "descriptionZh": "KeePass password manager database file",
     "secret_type": "Filename",
     "value": "\\.kdb$"
   },
   {
-    "description": "Contains word: backup",
+    "descriptionEn": "Contains word: backup",
+    "descriptionZh": "Contains word: backup",
     "secret_type": "Filename",
     "value": "\\.backup$"
   },
   {
-    "description": "Jenkins publish over SSH plugin file",
+    "descriptionEn": "Jenkins publish over SSH plugin file",
+    "descriptionZh": "Jenkins publish over SSH plugin file",
     "secret_type": "Filename",
     "value": "jenkins.plugins.publish_over_ssh[^ ]*.xml"
   },
   {
-    "description": "Potential MediaWiki configuration file",
+    "descriptionEn": "Potential MediaWiki configuration file",
+    "descriptionZh": "Potential MediaWiki configuration file",
     "secret_type": "Filename",
     "value": "LocalSettings[^ ]*php"
   },
   {
-    "description": "Rubygems credentials file",
+    "descriptionEn": "Rubygems credentials file",
+    "descriptionZh": "Rubygems credentials file",
     "secret_type": "Filename",
     "value": "\\A\\.?gem/credentials\\z"
   },
   {
-    "description": "SSH file",
+    "descriptionEn": "SSH file",
+    "descriptionZh": "SSH file",
     "secret_type": "Filename",
     "value": "\\.ssh$"
   },
   {
-    "description": "Github Dev API key",
+    "descriptionEn": "Github Dev API key",
+    "descriptionZh": "Github Dev API key",
     "secret_type": "FileContent",
     "value": "jekyll_github_token[^ ]*"
   },
   {
-    "description": "DHCP server configs",
+    "descriptionEn": "DHCP server configs",
+    "descriptionZh": "DHCP server configs",
     "secret_type": "Filename",
     "value": "dhcpd[^ ]*.conf"
   },
   {
-    "description": "Heroku Environment Variable",
+    "descriptionEn": "Heroku Environment Variable",
+    "descriptionZh": "Heroku Environment Variable",
     "secret_type": "FileContent",
     "value": "heroku config:set"
   },
   {
-    "description": "Jupyter Configuration file",
+    "descriptionEn": "Jupyter Configuration file",
+    "descriptionZh": "Jupyter Configuration file",
     "secret_type": "Filename",
     "value": "jupyter[^ ]*config[^ ]*.json"
   },
   {
-    "description": "bitlocker",
+    "descriptionEn": "bitlocker",
+    "descriptionZh": "bitlocker",
     "secret_type": "Filename",
     "value": "\\.bek$"
   },
   {
-    "description": "bitlocker",
+    "descriptionEn": "bitlocker",
+    "descriptionZh": "bitlocker",
     "secret_type": "Filename",
     "value": "\\.tpm$"
   },
   {
-    "description": "bitlocker",
+    "descriptionEn": "bitlocker",
+    "descriptionZh": "bitlocker",
     "secret_type": "Filename",
     "value": "\\.fve$"
   },
   {
-    "description": "java key store",
+    "descriptionEn": "java key store",
+    "descriptionZh": "java key store",
     "secret_type": "Filename",
     "value": "\\.jks$"
   },
   {
-    "description": "openssl .key, apple .keychain, etc.",
+    "descriptionEn": "openssl .key, apple .keychain, etc.",
+    "descriptionZh": "openssl .key, apple .keychain, etc.",
     "secret_type": "Filename",
     "value": "\\.key$"
   },
   {
-    "description": "passwordsafe",
+    "descriptionEn": "passwordsafe",
+    "descriptionZh": "passwordsafe",
     "secret_type": "Filename",
     "value": "\\.psafe3$"
   },
   {
-    "description": "PKCS15 tokens",
+    "descriptionEn": "PKCS15 tokens",
+    "descriptionZh": "PKCS15 tokens",
     "secret_type": "Filename",
     "value": "\\.p15$"
   },
   {
-    "description": "mozilla",
+    "descriptionEn": "mozilla",
+    "descriptionZh": "mozilla",
     "secret_type": "Filename",
     "value": "cert8.db"
   },
   {
-    "description": "sql",
+    "descriptionEn": "sql",
+    "descriptionZh": "sql",
     "secret_type": "Filename",
     "value": "connect.inc"
   },
   {
-    "description": "dbman",
+    "descriptionEn": "dbman",
+    "descriptionZh": "dbman",
     "secret_type": "Filename",
     "value": "default.pass"
   },
   {
-    "description": "apache/nginx",
+    "descriptionEn": "apache/nginx",
+    "descriptionZh": "apache/nginx",
     "secret_type": "Filename",
     "value": "htaccess"
   },
   {
-    "description": "openssh",
+    "descriptionEn": "openssh",
+    "descriptionZh": "openssh",
     "secret_type": "Filename",
     "value": "id_dsa"
   },
   {
-    "description": "openssh",
+    "descriptionEn": "openssh",
+    "descriptionZh": "openssh",
     "secret_type": "Filename",
     "value": "id_ecdsa"
   },
   {
-    "description": "openssh",
+    "descriptionEn": "openssh",
+    "descriptionZh": "openssh",
     "secret_type": "Filename",
     "value": "id_ed25519"
   },
   {
-    "description": "openssh",
+    "descriptionEn": "openssh",
+    "descriptionZh": "openssh",
     "secret_type": "Filename",
     "value": "id_rsa"
   },
   {
-    "description": "mozilla",
+    "descriptionEn": "mozilla",
+    "descriptionZh": "mozilla",
     "secret_type": "Filename",
     "value": "key3.db"
   },
   {
-    "description": "typo3",
+    "descriptionEn": "typo3",
+    "descriptionZh": "typo3",
     "secret_type": "Filename",
     "value": "localconf"
   },
   {
-    "description": "wikimedia",
+    "descriptionEn": "wikimedia",
+    "descriptionZh": "wikimedia",
     "secret_type": "Filename",
     "value": "localsettings"
   },
   {
-    "description": "~/.netrc",
+    "descriptionEn": "~/.netrc",
+    "descriptionZh": "~/.netrc",
     "secret_type": "Filename",
     "value": "\\.netrc$"
   },
   {
-    "description": "libpurple otr fingerprints",
+    "descriptionEn": "libpurple otr fingerprints",
+    "descriptionZh": "libpurple otr fingerprints",
     "secret_type": "Filename",
     "value": "otr.fingerprints"
   },
   {
-    "description": "pgp",
+    "descriptionEn": "pgp",
+    "descriptionZh": "pgp",
     "secret_type": "Filename",
     "value": "pgplog"
   },
   {
-    "description": "pgp",
+    "descriptionEn": "pgp",
+    "descriptionZh": "pgp",
     "secret_type": "Filename",
     "value": "pgppolicy.xml"
   },
   {
-    "description": "pgp",
+    "descriptionEn": "pgp",
+    "descriptionZh": "pgp",
     "secret_type": "Filename",
     "value": "pgpprefs.xml"
   },
   {
-    "description": "gnupg",
+    "descriptionEn": "gnupg",
+    "descriptionZh": "gnupg",
     "secret_type": "Filename",
     "value": "secring\\.gpg"
   },
   {
-    "description": "sftp",
+    "descriptionEn": "sftp",
+    "descriptionZh": "sftp",
     "secret_type": "Filename",
     "value": "sftp-config"
   },
   {
-    "description": "freebsd",
+    "descriptionEn": "freebsd",
+    "descriptionZh": "freebsd",
     "secret_type": "Filename",
     "value": "spwd.bd"
   },
   {
-    "description": ".net",
+    "descriptionEn": ".net",
+    "descriptionZh": ".net",
     "secret_type": "Filename",
     "value": "users.xml"
   },
   {
-    "description": "bitcoin",
+    "descriptionEn": "bitcoin",
+    "descriptionZh": "bitcoin",
     "secret_type": "Filename",
     "value": "wallet.dat"
   },
   {
-    "description": "Private SSH key",
+    "descriptionEn": "Private SSH key",
+    "descriptionZh": "Private SSH key",
     "secret_type": "Filename",
     "value": "\\A.*_rsa\\z"
   },
   {
-    "description": "Private SSH key",
+    "descriptionEn": "Private SSH key",
+    "descriptionZh": "Private SSH key",
     "secret_type": "Filename",
     "value": "\\A.*_dsa\\z"
   },
   {
-    "description": "Private SSH key",
+    "descriptionEn": "Private SSH key",
+    "descriptionZh": "Private SSH key",
     "secret_type": "Filename",
     "value": "\\A.*_ed25519\\z"
   },
   {
-    "description": "Private SSH key",
+    "descriptionEn": "Private SSH key",
+    "descriptionZh": "Private SSH key",
     "secret_type": "Filename",
     "value": "\\A.*_ecdsa\\z"
   },
   {
-    "description": "SSH configuration file",
+    "descriptionEn": "SSH configuration file",
+    "descriptionZh": "SSH configuration file",
     "secret_type": "Filename",
     "value": "\\.?ssh/config\\z"
   },
   {
-    "description": "Potential cryptographic private key",
+    "descriptionEn": "Potential cryptographic private key",
+    "descriptionZh": "Potential cryptographic private key",
     "secret_type": "Filename",
     "value": "\\Akey(pair)?\\z"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": ".pkcs12$"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": ".pfx$"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": ".p12$"
   },
   {
-    "description": "Potential cryptographic key bundle",
+    "descriptionEn": "Potential cryptographic key bundle",
+    "descriptionZh": "Potential cryptographic key bundle",
     "secret_type": "Filename",
     "value": ".asc$"
   },
   {
-    "description": "Pidgin OTR private key",
+    "descriptionEn": "Pidgin OTR private key",
+    "descriptionZh": "Pidgin OTR private key",
     "secret_type": "Filename",
     "value": ".otr.private_key"
   },
   {
-    "description": "Shell command history file",
+    "descriptionEn": "Shell command history file",
+    "descriptionZh": "Shell command history file",
     "secret_type": "Filename",
     "value": "\\A\\.?(bash_|zsh_|z)?history\\z"
   },
   {
-    "description": "MySQL client command history file",
+    "descriptionEn": "MySQL client command history file",
+    "descriptionZh": "MySQL client command history file",
     "secret_type": "Filename",
     "value": "\\A\\.?mysql_history\\z"
   },
   {
-    "description": "PostgreSQL client command history file",
+    "descriptionEn": "PostgreSQL client command history file",
+    "descriptionZh": "PostgreSQL client command history file",
     "secret_type": "Filename",
     "value": "\\A\\.?psql_history\\z"
   },
   {
-    "description": "PostgreSQL password file",
+    "descriptionEn": "PostgreSQL password file",
+    "descriptionZh": "PostgreSQL password file",
     "secret_type": "Filename",
     "value": "\\A\\.?pgpass\\z"
   },
   {
-    "description": "Ruby IRB console history file",
+    "descriptionEn": "Ruby IRB console history file",
+    "descriptionZh": "Ruby IRB console history file",
     "secret_type": "Filename",
     "value": "\\A\\.?irb_history\\z"
   },
   {
-    "description": "Pidgin chat client account configuration file",
+    "descriptionEn": "Pidgin chat client account configuration file",
+    "descriptionZh": "Pidgin chat client account configuration file",
     "secret_type": "Filename",
     "value": "\\.?purple\\/accounts\\.xml\\z"
   },
   {
-    "description": "Hexchat/XChat IRC client server list configuration file",
+    "descriptionEn": "Hexchat/XChat IRC client server list configuration file",
+    "descriptionZh": "Hexchat/XChat IRC client server list configuration file",
     "secret_type": "Filename",
     "value": "\\.?xchat2?\\/servlist_?\\.conf\\z"
   },
   {
-    "description": "Irssi IRC client configuration file",
+    "descriptionEn": "Irssi IRC client configuration file",
+    "descriptionZh": "Irssi IRC client configuration file",
     "secret_type": "Filename",
     "value": "\\.?irssi\\/config\\z"
   },
   {
-    "description": "Recon-ng web reconnaissance framework API key database",
+    "descriptionEn": "Recon-ng web reconnaissance framework API key database",
+    "descriptionZh": "Recon-ng web reconnaissance framework API key database",
     "secret_type": "Filename",
     "value": "\\.?recon-ng\\/keys\\.db\\z"
   },
   {
-    "description": "DBeaver SQL database manager configuration file",
+    "descriptionEn": "DBeaver SQL database manager configuration file",
+    "descriptionZh": "DBeaver SQL database manager configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?dbeaver-data-sources.xml\\z"
   },
   {
-    "description": "Mutt e-mail client configuration file",
+    "descriptionEn": "Mutt e-mail client configuration file",
+    "descriptionZh": "Mutt e-mail client configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?muttrc\\z"
   },
   {
-    "description": "S3cmd configuration file",
+    "descriptionEn": "S3cmd configuration file",
+    "descriptionZh": "S3cmd configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?s3cfg\\z"
   },
   {
-    "description": "AWS CLI credentials file",
+    "descriptionEn": "AWS CLI credentials file",
+    "descriptionZh": "AWS CLI credentials file",
     "secret_type": "Filename",
     "value": "\\.?aws/credentials\\z"
   },
   {
-    "description": "T command-line Twitter client configuration file",
+    "descriptionEn": "T command-line Twitter client configuration file",
+    "descriptionZh": "T command-line Twitter client configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?trc\\z"
   },
   {
-    "description": "OpenVPN client configuration file",
+    "descriptionEn": "OpenVPN client configuration file",
+    "descriptionZh": "OpenVPN client configuration file",
     "secret_type": "Filename",
     "value": "\\.ovpn$"
   },
   {
-    "description": "Well, this is awkward... Gitrob configuration file",
+    "descriptionEn": "Well, this is awkward... Gitrob configuration file",
+    "descriptionZh": "Well, this is awkward... Gitrob configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?gitrobrc\\z"
   },
   {
-    "description": "Shell configuration file",
+    "descriptionEn": "Shell configuration file",
+    "descriptionZh": "Shell configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?(bash|zsh)rc\\z"
   },
   {
-    "description": "Shell profile configuration file",
+    "descriptionEn": "Shell profile configuration file",
+    "descriptionZh": "Shell profile configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?(bash_|zsh_)?profile\\z"
   },
   {
-    "description": "Shell command alias configuration file",
+    "descriptionEn": "Shell command alias configuration file",
+    "descriptionZh": "Shell command alias configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?(bash_|zsh_)?aliases\\z"
   },
   {
-    "description": "Potential Ruby On Rails database configuration file",
+    "descriptionEn": "Potential Ruby On Rails database configuration file",
+    "descriptionZh": "Potential Ruby On Rails database configuration file",
     "secret_type": "Filename",
     "value": "database.yml"
   },
   {
-    "description": "PHP configuration file",
+    "descriptionEn": "PHP configuration file",
+    "descriptionZh": "PHP configuration file",
     "secret_type": "Filename",
     "value": "\\A(.*)?config(\\.inc)?\\.php\\z"
   },
   {
-    "description": "KeePass password manager database file",
+    "descriptionEn": "KeePass password manager database file",
+    "descriptionZh": "KeePass password manager database file",
     "secret_type": "Filename",
     "value": "\\.kdb$"
   },
   {
-    "description": "1Password password manager database file",
+    "descriptionEn": "1Password password manager database file",
+    "descriptionZh": "1Password password manager database file",
     "secret_type": "Filename",
     "value": "\\.agilekeychain$"
   },
   {
-    "description": "Apple Keychain database file",
+    "descriptionEn": "Apple Keychain database file",
+    "descriptionZh": "Apple Keychain database file",
     "secret_type": "Filename",
     "value": "\\.keychain$"
   },
   {
-    "description": "GNOME Keyring database file",
+    "descriptionEn": "GNOME Keyring database file",
+    "descriptionZh": "GNOME Keyring database file",
     "secret_type": "Filename",
     "value": "\\Akey(store|ring)\\z"
   },
   {
-    "description": "Network traffic capture file",
+    "descriptionEn": "Network traffic capture file",
+    "descriptionZh": "Network traffic capture file",
     "secret_type": "Filename",
     "value": "\\.pcap$"
   },
   {
-    "description": "SQL dump file",
+    "descriptionEn": "SQL dump file",
+    "descriptionZh": "SQL dump file",
     "secret_type": "Filename",
     "value": "\\Asql(dump)?\\z"
   },
   {
-    "description": "GnuCash database file",
+    "descriptionEn": "GnuCash database file",
+    "descriptionZh": "GnuCash database file",
     "secret_type": "Filename",
     "value": "\\.gnucash$"
   },
   {
-    "description": "Jenkins publish over SSH plugin file",
+    "descriptionEn": "Jenkins publish over SSH plugin file",
+    "descriptionZh": "Jenkins publish over SSH plugin file",
     "secret_type": "Filename",
     "value": "jenkins.plugins.publish_over_ssh.BapSshPublisherPlugin.xml"
   },
   {
-    "description": "Potential Jenkins credentials file",
+    "descriptionEn": "Potential Jenkins credentials file",
+    "descriptionZh": "Potential Jenkins credentials file",
     "secret_type": "Filename",
     "value": "credentials.xml$"
   },
   {
-    "description": "Apache htpasswd file",
+    "descriptionEn": "Apache htpasswd file",
+    "descriptionZh": "Apache htpasswd file",
     "secret_type": "Filename",
     "value": "\\A\\.?htpasswd\\z"
   },
   {
-    "description": "Configuration file for auto-login process",
+    "descriptionEn": "Configuration file for auto-login process",
+    "descriptionZh": "Configuration file for auto-login process",
     "secret_type": "Filename",
     "value": "\\A(\\.|_)?netrc\\z"
   },
   {
-    "description": "KDE Wallet Manager database file",
+    "descriptionEn": "KDE Wallet Manager database file",
+    "descriptionZh": "KDE Wallet Manager database file",
     "secret_type": "Filename",
     "value": "\\.kwallet$"
   },
   {
-    "description": "Potential MediaWiki configuration file",
+    "descriptionEn": "Potential MediaWiki configuration file",
+    "descriptionZh": "Potential MediaWiki configuration file",
     "secret_type": "Filename",
     "value": "LocalSettings.php"
   },
   {
-    "description": "Tunnelblick VPN configuration file",
+    "descriptionEn": "Tunnelblick VPN configuration file",
+    "descriptionZh": "Tunnelblick VPN configuration file",
     "secret_type": "Filename",
     "value": "\\.tblk$"
   },
   {
-    "description": "Rubygems credentials file",
+    "descriptionEn": "Tunnelblick VPN configuration file",
+    "descriptionZh": "Tunnelblick VPN configuration file",
     "secret_type": "Filename",
     "value": "\\.?gem/credentials\\z"
   },
   {
-    "description": "Potential MSBuild publish profile",
+    "descriptionEn": "Potential MSBuild publish profile",
+    "descriptionZh": "Potential MSBuild publish profile",
     "secret_type": "Filename",
     "value": "\\A*\\.pubxml(\\.user)?\\z"
   },
   {
-    "description": "Sequel Pro MySQL database manager bookmark file",
+    "descriptionEn": "Sequel Pro MySQL database manager bookmark file",
+    "descriptionZh": "Sequel Pro MySQL database manager bookmark file",
     "secret_type": "Filename",
     "value": "Favorites.plist"
   },
   {
-    "description": "Little Snitch firewall configuration file",
+    "descriptionEn": "Little Snitch firewall configuration file",
+    "descriptionZh": "Little Snitch firewall configuration file",
     "secret_type": "Filename",
     "value": "configuration.user.xpl"
   },
   {
-    "description": "Day One journal file",
+    "descriptionEn": "Day One journal file",
+    "descriptionZh": "Day One journal file",
     "secret_type": "Filename",
     "value": "\\.dayone$"
   },
   {
-    "description": "Tugboat DigitalOcean management tool configuration",
+    "descriptionEn": "Tugboat DigitalOcean management tool configuration",
+    "descriptionZh": "Tugboat DigitalOcean management tool configuration",
     "secret_type": "Filename",
     "value": "\\A\\.?tugboat\\z"
   },
   {
-    "description": "git-credential-store helper credentials file",
+    "descriptionEn": "git-credential-store helper credentials file",
+    "descriptionZh": "git-credential-store helper credentials file",
     "secret_type": "Filename",
     "value": "\\A\\.?git-credentials\\z"
   },
   {
-    "description": "Git configuration file",
+    "descriptionEn": "Git configuration file",
+    "descriptionZh": "Git configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?gitconfig\\z"
   },
   {
-    "description": "Chef Knife configuration file",
+    "descriptionEn": "Chef Knife configuration file",
+    "descriptionZh": "Chef Knife configuration file",
     "secret_type": "Filename",
     "value": "knife.rb"
   },
   {
-    "description": "Chef private key",
+    "descriptionEn": "Chef private key",
+    "descriptionZh": "Chef private key",
     "secret_type": "Filename",
     "value": "\\.?chef/(.*)\\.pem\\z"
   },
   {
-    "description": "cPanel backup ProFTPd credentials file",
+    "descriptionEn": "cPanel backup ProFTPd credentials file",
+    "descriptionZh": "cPanel backup ProFTPd credentials file",
     "secret_type": "Filename",
     "value": "proftpdpasswd"
   },
   {
-    "description": "Robomongo MongoDB manager configuration file",
+    "descriptionEn": "Robomongo MongoDB manager configuration file",
+    "descriptionZh": "Robomongo MongoDB manager configuration file",
     "secret_type": "Filename",
     "value": "robomongo.json"
   },
   {
-    "description": "FileZilla FTP configuration file",
+    "descriptionEn": "FileZilla FTP configuration file",
+    "descriptionZh": "FileZilla FTP configuration file",
     "secret_type": "Filename",
     "value": "filezilla.xml"
   },
   {
-    "description": "FileZilla FTP recent servers file",
+    "descriptionEn": "FileZilla FTP recent servers file",
+    "descriptionZh": "FileZilla FTP recent servers file",
     "secret_type": "Filename",
     "value": "recentservers.xml"
   },
   {
-    "description": "Ventrilo server configuration file",
+    "descriptionEn": "Ventrilo server configuration file",
+    "descriptionZh": "Ventrilo server configuration file",
     "secret_type": "Filename",
     "value": "ventrilo_srv.ini"
   },
   {
-    "description": "Docker configuration file",
+    "descriptionEn": "Docker configuration file",
+    "descriptionZh": "Docker configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?dockercfg\\z"
   },
   {
-    "description": "NPM configuration file",
+    "descriptionEn": "NPM configuration file",
+    "descriptionZh": "NPM configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?npmrc\\z"
   },
   {
-    "description": "Terraform variable config file",
+    "descriptionEn": "Terraform variable config file",
+    "descriptionZh": "Terraform variable config file",
     "secret_type": "Filename",
     "value": "terraform.tfvars"
   },
   {
-    "description": "Environment configuration file",
+    "descriptionEn": "Environment configuration file",
+    "descriptionZh": "Environment configuration file",
     "secret_type": "Filename",
     "value": "\\A\\.?env\\z"
   },
   {
-    "description": "Secret",
+    "descriptionEn": "Secret",
+    "descriptionZh": "Secret",
     "secret_type": "FileContent",
     "value": "(\\n[a-z0-9_\\-]+[:;\\|][a-z0-9_\\-]+){10,}"
   },
   {
-    "description": "API secret key",
+    "descriptionEn": "API secret key",
+    "descriptionZh": "API secret key",
     "secret_type": "FileContent",
     "value": "(api|secret)key\\s*[\\=]+"
   },
   {
-    "description": "iCalender",
+    "descriptionEn": "iCalender",
+    "descriptionZh": "iCalender",
     "secret_type": "FileContent",
     "value": "BEGIN:VCALENDAR"
   },
   {
-    "description": "secret key",
+    "descriptionEn": "secret key",
+    "descriptionZh": "secret key",
     "secret_type": "FileContent",
     "value": "\\s*[a-z0-9\\-_]*secret[key]+\\s*[:=]+\\s*[\"']\\S+[\"']"
   },
   {
-    "description": "HtPasswds",
+    "descriptionEn": "HtPasswds",
+    "descriptionZh": "HtPasswds",
     "secret_type": "FileContent",
     "value": "^[a-z0-9]+:[a-z0-9]{13}$"
   },
   {
-    "description": "Secret finder",
+    "descriptionEn": "Secret finder",
+    "descriptionZh": "Secret finder",
     "secret_type": "FileContent",
     "value": "secret\\s*[\\=]+"
   }

@@ -44,6 +44,10 @@ func (api *api) listRules() http.HandlerFunc {
 			return
 		}
 
+		for i := range rules {
+			rules[i].ApplyTranslation(ctx)
+		}
+
 		response.Ok(w,
 			response.WithItems(rules),
 			response.WithTotalItems(docNum),

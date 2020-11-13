@@ -1,5 +1,7 @@
 package redclair
 
+import "context"
+
 // VulnerabilityReport ...
 type VulnerabilityReport struct {
 	Repository      string                     `json:"repository"`
@@ -18,4 +20,16 @@ type VulnerabilityLayerReport struct {
 	VulnerabilitiesAdded   []VulnerabilityInfo `json:"vulnerabilitiesAdded"`
 	VulnerabilitiesRemoved []VulnerabilityInfo `json:"vulnerabilitiesRemoved"`
 	Sensitives             []Sensitive         `json:"sensitives"`
+}
+
+func (vlr *VulnerabilityLayerReport) ApplyTranslation(ctx context.Context) {
+	for i := range vlr.VulnerabilitiesAdded {
+		vlr.VulnerabilitiesAdded[i].ApplyTranslation(ctx)
+	}
+	for i := range vlr.VulnerabilitiesRemoved {
+		vlr.VulnerabilitiesRemoved[i].ApplyTranslation(ctx)
+	}
+	for i := range vlr.Sensitives {
+		vlr.Sensitives[i].ApplyTranslation(ctx)
+	}
 }

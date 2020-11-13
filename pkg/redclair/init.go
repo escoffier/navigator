@@ -41,9 +41,15 @@ type CveWhite struct {
 
 // SecretPattern ...
 type SecretPattern struct {
-	Description string `json:"description"`
-	Type        string `json:"secret_type"`
-	Value       string `json:"value"`
+	DescriptionEn string `json:"descriptionEn"`
+	DescriptionZh string `json:"descriptionZh"`
+	Type          string `json:"secret_type"`
+	Value         string `json:"value"`
+}
+
+type SensitiveDescription struct {
+	En string `json:"en"`
+	Zh string `json:"zh"`
 }
 
 type Redclair struct {
@@ -63,7 +69,7 @@ type Redclair struct {
 	mongodb                *mongo.Database
 	cve2cnnvdCollectionMux sync.Mutex
 
-	sensitiveFilenameRegExpMap map[*regexp.Regexp]string
+	sensitiveFilenameRegExpMap map[*regexp.Regexp]*SensitiveDescription
 	sensitiveFilenameRegExp    *regexp.Regexp
 	softwareRegExp             *regexp.Regexp
 	softwareRegExpMap          map[*regexp.Regexp]func([]byte) []Software
@@ -106,7 +112,7 @@ func (r *Redclair) initConfigFiles(opts *flag.ClairOpts) error {
 	// if err := readJSONFile(opts.IgnorePackageList, &meta.IgnorePackages); err != nil {
 	// 	return err
 	// }
-	r.sensitiveFilenameRegExpMap = make(map[*regexp.Regexp]string)
+	r.sensitiveFilenameRegExpMap = make(map[*regexp.Regexp]*SensitiveDescription)
 	secretPatterns := []SecretPattern{}
 	if err := r.readJSONFile(opts.SecretPattern, &secretPatterns); err != nil {
 		return err
@@ -114,7 +120,10 @@ func (r *Redclair) initConfigFiles(opts *flag.ClairOpts) error {
 		var sensitiveFilenameRegExpStrList []string
 		for _, item := range secretPatterns {
 			if item.Type == "Filename" {
-				r.sensitiveFilenameRegExpMap[regexp.MustCompile(item.Value)] = item.Description
+				r.sensitiveFilenameRegExpMap[regexp.MustCompile(item.Value)] = &SensitiveDescription{
+					En: item.DescriptionEn,
+					Zh: item.DescriptionZh,
+				}
 				sensitiveFilenameRegExpStrList = append(sensitiveFilenameRegExpStrList, item.Value)
 			}
 		}
