@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/host"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
@@ -15,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GetHostHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostHistoryEntries(ctx context.Context, checkMap map[string]*scap.CheckHistoryEntry, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -87,7 +88,7 @@ func GetHostHistoryEntries(checkMap map[string]*scap.CheckHistoryEntry, cursor *
 	return nil
 }
 
-func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, waitingOn *[]string, errorOn *[]string, successOn *[]string, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -103,7 +104,12 @@ func GetHostBreakdownEntries(checkMap map[string]*scap.CheckBreakdown, waitingOn
 			continue
 		}
 		for _, test := range complianceTest.Report.Results {
-			testDescription := test.Title
+
+			testDescription := test.TitleEn
+			if lang.Language(ctx) == lang.LanguageZH {
+				testDescription = test.TitleZh
+			}
+
 			testNumber := test.RuleID
 			if policyNumber != "" && policyNumber != testNumber {
 				continue
@@ -157,8 +163,14 @@ func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 
 	for _, test := range complianceTest.Report.Results {
 		complianceMapEntry := &scap.ComplianceMapEntry{}
+
+		if lang.Language(ctx) == lang.LanguageZH {
+			complianceMapEntry.Description = test.TitleZh
+		} else {
+			complianceMapEntry.Description = test.TitleEn
+		}
+
 		complianceMapEntry.PolicyNumber = test.RuleID
-		complianceMapEntry.Description = test.Title
 		complianceMapEntry.TestStatus = test.Result
 		complianceMap = append(complianceMap, *complianceMapEntry)
 	}
@@ -166,7 +178,7 @@ func GetHostNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter 
 	return nil
 }
 
-func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor, ctx context.Context) error {
+func GetHostPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest host.HostJobEntry
 		err := cursor.Decode(&complianceTest)
@@ -184,8 +196,18 @@ func GetHostPolicyDetails(policyDetails *scap.PolicyDetails, policyNumber string
 
 		for _, test := range complianceTest.Report.Results {
 			if test.RuleID == policyNumber {
+
+				if lang.Language(ctx) == lang.LanguageZH {
+					policyDetails.Description = test.TitleZh
+					policyDetails.Details = test.DescriptionZh
+					policyDetails.Rationale = test.RationaleZh
+				} else {
+					policyDetails.Description = test.TitleEn
+					policyDetails.Details = test.DescriptionEn
+					policyDetails.Rationale = test.RationaleEn
+				}
+
 				policyDetails.PolicyNumber = test.RuleID
-				policyDetails.Description = test.Title
 				// TODO: how to classify Host policy specific information?
 				testStatus := test.Result
 				if testStatus == "fail" {

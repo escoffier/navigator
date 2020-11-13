@@ -275,7 +275,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 			}
 			for _, result := range report.Results {
 				if severity, ok := benchAlerts[model.ComplianceCheckTargetTypeDocker][result.RuleID]; ok && result.Result == "fail" {
-					s.appendComplianceAlert(alertsToReport, check, result.RuleID, result.Title, result.Title, jobEntry.NodeName, severity)
+					s.appendComplianceAlert(alertsToReport, check, result.RuleID, result.TitleEn, result.TitleZh, jobEntry.NodeName, severity)
 				}
 			}
 

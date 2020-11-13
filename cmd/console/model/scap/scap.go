@@ -54,6 +54,7 @@ type PolicyDetails struct {
 	Audit          string   `json:"audit"`
 	ExpectedResult string   `json:"expectedResult"`
 	Remediation    string   `json:"remediation"`
+	Rationale      string   `json:"rationale"`
 	TestInfo       []string `json:"testInfo"`
 	Reason         string   `json:"reason"`
 

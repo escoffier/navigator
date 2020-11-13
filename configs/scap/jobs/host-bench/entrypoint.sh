@@ -47,9 +47,17 @@ case $NAME in
   ;;
 esac
 
-
 echo "Running xccdfparser"
-xccdfparser -o ./out.json ./results.xccdf
+xccdfparser -o ./parsed.json ./results.xccdf
+retval=$?
+if [ $retval -ne 0 ]; then
+  exit $retval
+fi
+
+cat ./parsed.json
+
+echo "Adding translations"
+python3 ./add_translations.py --input parsed.json --output out.json --translations translations.json
 retval=$?
 if [ $retval -ne 0 ]; then
   exit $retval
