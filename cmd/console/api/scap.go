@@ -217,7 +217,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostHistoryEntries(checkMap, cursor, ctx)
+			err := host.GetHostHistoryEntries(ctx, checkMap, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -403,7 +403,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostBreakdownEntries(checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor, ctx)
+			err := host.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -540,7 +540,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostPolicyDetails(policyDetails, policyNumber, cursor, ctx)
+			err := host.GetHostPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,

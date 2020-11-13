@@ -34,4 +34,7 @@ ADD tailoring-file-centos.xml tailoring/
 
 ADD entrypoint.sh .
 
+ADD add_translations.py .
+ADD translations.json .
+
 CMD ["./entrypoint.sh"]

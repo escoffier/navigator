@@ -135,8 +135,8 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/kube/breakdown/d4fc6e71-19de-4ede-8e8d-09f644ee714f" > out.json
 
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/docker/breakdown/53d7c29e-e634-4d0a-b900-a4332c9e671f" > out.json
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/docker/breakdown/53d7c29e-e634-4d0a-b900-a4332c9e671f/4.1/details" > out.json
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -H "Accept-Language: zh" "http://$CONSOLEADDR/api/v1/scap/docker/breakdown/53d7c29e-e634-4d0a-b900-a4332c9e671f" > out.json
 
 
 
@@ -144,9 +144,6 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/scap/kube/master/9e14db5e-e05a-479b-9cbf-f2d6f84fad1f/details" > out.json
 ```
-
-
-/api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details
 
 Cronjobs:
 
