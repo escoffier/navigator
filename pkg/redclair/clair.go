@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
@@ -26,6 +28,8 @@ type VulnerabilityInfo struct {
 	CNNVD                     string   `json:"cnnvd" bson:"cnnvd"`
 	Namespace                 string   `json:"namespace" bson:"namespace"`
 	Description               string   `json:"description" bson:"description"`
+	DescriptionEn             string   `json:"-" bson:"description_en"`
+	DescriptionZh             string   `json:"-" bson:"description_zh"`
 	Links                     []string `json:"links" bson:"links"`
 	Severity                  string   `json:"severity" bson:"severity"`
 	FixedBy                   string   `json:"fixedby" bson:"fixedby"`
@@ -35,6 +39,14 @@ type VulnerabilityInfo struct {
 	CVSSv3ExploitabilityScore string   `json:"cvssv3exploitabilityScore" bson:"cvssv3exploitabilityScore"`
 	CVSSv3ImpactScore         string   `json:"cvssv3impactScore" bson:"cvssv3impactScore"`
 	CVSSv3Vector              string   `json:"cvssv3vector" bson:"cvssv3vector"`
+}
+
+func (vi *VulnerabilityInfo) ApplyTranslation(ctx context.Context) {
+	if lang.Language(ctx) == lang.LanguageZH {
+		vi.Description = vi.DescriptionZh
+	} else {
+		vi.Description = vi.DescriptionEn
+	}
 }
 
 // https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
@@ -143,7 +155,8 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 					FeatureVersion:            feature.Version,
 					CVE:                       vulnerability.Name,
 					Namespace:                 vulnerability.NamespaceName,
-					Description:               vulnerability.Description,
+					DescriptionEn:             vulnerability.Description,
+					DescriptionZh:             vulnerability.Description,
 					Links:                     links,
 					Severity:                  vulnerability.Severity,
 					FixedBy:                   vulnerability.FixedBy,

@@ -64,8 +64,10 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 
 				queryRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
 				queryRule.Enabled = false
-				queryRule.Name = ruleName
-				queryRule.Description = ruleDefinition.Description
+				queryRule.Name = ruleDefinition.NameEn
+				queryRule.NameZh = ruleDefinition.NameZh
+				queryRule.DescriptionEn = ruleDefinition.DescriptionEn
+				queryRule.DescriptionZh = ruleDefinition.DescriptionZh
 				queryRule.Cvss3Score = ruleDefinition.Cvss3Score
 				queryRule.Cvss3Vector = ruleDefinition.Cvss3Vector
 				queryRule.Cvss2Score = ruleDefinition.Cvss2Score

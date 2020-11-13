@@ -93,7 +93,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		if len(result.TopVulns) >= 1 {
 			result.OverallSeverity = report.Vulnerabilities[0].Severity
 		} else {
-			result.OverallSeverity = redclair.SeverityUnknown
+			result.OverallSeverity = redclair.SeverityUnknownEn
 		}
 
 		result.Repository = report.Repository
@@ -101,6 +101,8 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		result.Digest = report.Digest
 		result.PerLayerReport = report.PerLayerReport
 		result.TaskID = scanTask.ID
+
+		result.ApplyTranslation(ctx)
 
 		response.Ok(w, response.WithItem(*result))
 	}
@@ -174,7 +176,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			if len(imageScanResult.TopVulns) >= 1 {
 				imageScanResult.OverallSeverity = report.Vulnerabilities[0].Severity
 			} else {
-				imageScanResult.OverallSeverity = redclair.SeverityUnknown
+				imageScanResult.OverallSeverity = redclair.SeverityUnknownEn
 			}
 			imageScanResult.SensitiveFiles = report.Sensitives
 			imageScanResult.Repository = report.Repository
@@ -182,6 +184,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			imageScanResult.Digest = report.Digest
 			imageScanResult.TaskID = scanTask.ID
 			items[scanTaskNo] = *imageScanResult
+			items[scanTaskNo].ApplyTranslation(ctx)
 		}
 		docNum := int64(len(items))
 		response.Ok(w,
@@ -240,6 +243,10 @@ type scanReportAffectedImage struct {
 type scanReportListItem struct {
 	VulnInfo       redclair.VulnerabilityInfo `json:"vulnInfo"`
 	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
+}
+
+func (srli *scanReportListItem) ApplyTranslation(ctx context.Context) {
+	srli.VulnInfo.ApplyTranslation(ctx)
 }
 
 // @Summary List reports by severity
@@ -370,7 +377,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
 
 				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
-					if !redclair.SeverityGreaterThan(vuln.Severity, redclair.SeverityLow) {
+					if !redclair.SeverityGreaterThan(vuln.Severity, redclair.SeverityLowEn) {
 						continue
 					}
 				}
@@ -400,9 +407,10 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 				// "dumb" convert of sensitive file info to vulnerability info.
 				// Consider a different way to return this maybe?
 				vi := redclair.VulnerabilityInfo{
-					Description:    fmt.Sprintf("Potential file leak: %s", sens.Description),
+					DescriptionEn:  fmt.Sprintf("Potential file leak: %s", sens.DescriptionEn),
+					DescriptionZh:  fmt.Sprintf("潛在的文件洩漏: %s", sens.DescriptionZh),
 					FeatureName:    sens.Name,
-					Severity:       redclair.SeverityMedium,
+					Severity:       redclair.SeverityMediumEn,
 					CVE:            "-",
 					CNNVD:          "-",
 					Namespace:      "-",
@@ -466,6 +474,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		i := 0
 		for _, item := range listItemsSet {
 			listItems[i] = item
+			listItems[i].ApplyTranslation(ctx)
 			i++
 		}
 

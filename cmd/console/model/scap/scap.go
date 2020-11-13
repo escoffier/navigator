@@ -1,6 +1,8 @@
 package scap
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type CheckHistoryEntry struct {
 	CheckID             string  `json:"checkId"`

@@ -152,7 +152,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 		if len(ov.TopVulns) >= 1 {
 			ov.OverallSeverity = vulns[0].Severity
 		} else {
-			ov.OverallSeverity = redclair.SeverityUnknown
+			ov.OverallSeverity = redclair.SeverityUnknownEn
 		}
 	}
 

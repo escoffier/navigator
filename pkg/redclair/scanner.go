@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+
 	"github.com/heroku/docker-registry-client/registry"
 	dig "github.com/opencontainers/go-digest"
 	"github.com/rs/zerolog"
@@ -106,8 +108,18 @@ type Software struct {
 
 // Sensitive ...
 type Sensitive struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name          string `json:"name" bson:"name"`
+	Description   string `json:"description" bson:"description"`
+	DescriptionEn string `json:"-" bson:"description_en"`
+	DescriptionZh string `json:"-" bson:"description_zh"`
+}
+
+func (s *Sensitive) ApplyTranslation(ctx context.Context) {
+	if lang.Language(ctx) == lang.LanguageZH {
+		s.Description = s.DescriptionZh
+	} else {
+		s.Description = s.DescriptionEn
+	}
 }
 
 var softwareRegExpRawMap = map[string]func([]byte) []Software{
@@ -370,8 +382,9 @@ func (r *Redclair) getSensitiveFiles(sensitiveFiles []FileSignature) []Sensitive
 		for re, description := range r.sensitiveFilenameRegExpMap {
 			if re.MatchString(f.Name) {
 				imageSensitiveFiles = append(imageSensitiveFiles, Sensitive{
-					Name:        f.Name,
-					Description: description,
+					Name:          f.Name,
+					DescriptionEn: description.En,
+					DescriptionZh: description.Zh,
 				})
 			}
 		}

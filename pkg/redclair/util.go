@@ -8,32 +8,65 @@ import (
 )
 
 const (
-	SeverityUnknown    = "Unknown"
-	SeverityNone       = "None"
-	SeverityNegligible = "Negligible"
-	SeverityLow        = "Low"
-	SeverityMedium     = "Medium"
-	SeverityHigh       = "High"
-	SeverityCritical   = "Critical"
+	SeverityUnknownEn    = "Unknown"
+	SeverityUnknownZh    = "未知"
+	SeverityNoneEn       = "None"
+	SeverityNoneZh       = "沒有"
+	SeverityNegligibleEn = "Negligible"
+	SeverityNegligibleZh = "微不足道"
+	SeverityLowEn        = "Low"
+	SeverityLowZh        = "低"
+	SeverityMediumEn     = "Medium"
+	SeverityMediumZh     = "中"
+	SeverityHighEn       = "High"
+	SeverityHighZh       = "高"
+	SeverityCriticalEn   = "Critical"
+	SeverityCriticalZh   = "危急"
 )
+
+func ToChineseSeverity(severityEn string) string {
+	if severityEn == SeverityUnknownEn {
+		return SeverityUnknownZh
+	}
+	if severityEn == SeverityNoneEn {
+		return SeverityNoneZh
+	}
+	if severityEn == SeverityNegligibleEn {
+		return SeverityNegligibleZh
+	}
+	if severityEn == SeverityLowEn {
+		return SeverityLowZh
+	}
+	if severityEn == SeverityMediumEn {
+		return SeverityMediumZh
+	}
+	if severityEn == SeverityHighEn {
+		return SeverityHighZh
+	}
+	if severityEn == SeverityCriticalEn {
+		return SeverityCriticalZh
+	}
+	logging.GetLogger().Warn().Str("severity", severityEn).Msg("Failed to obtain chinese severity")
+	return SeverityUnknownZh
+}
 
 // Based on ranges defined for CVSS v3.0, because they're more fine-grained.
 // https://nvd.nist.gov/vuln-metrics/cvss
 func GetSeverityFromScore(score int64) string {
 	if score == 0 {
-		return SeverityNone
+		return SeverityNoneEn
 	} else if score >= 1 && score <= 9 {
-		return SeverityNegligible
+		return SeverityNegligibleEn
 	} else if score >= 10 && score <= 39 {
-		return SeverityLow
+		return SeverityLowEn
 	} else if score >= 40 && score <= 69 {
-		return SeverityMedium
+		return SeverityMediumEn
 	} else if score >= 70 && score <= 89 {
-		return SeverityHigh
+		return SeverityHighEn
 	} else if score >= 90 {
-		return SeverityCritical
+		return SeverityCriticalEn
 	} else {
-		return SeverityUnknown
+		return SeverityUnknownEn
 	}
 }
 
@@ -43,19 +76,19 @@ func SeverityGreaterThan(this, other string) bool {
 
 func severityToInt(sev string) int {
 	switch strings.ToLower(sev) {
-	case strings.ToLower(SeverityUnknown):
+	case strings.ToLower(SeverityUnknownEn):
 		return 0
-	case strings.ToLower(SeverityNone):
+	case strings.ToLower(SeverityNoneEn):
 		return 1
-	case strings.ToLower(SeverityNegligible):
+	case strings.ToLower(SeverityNegligibleEn):
 		return 2
-	case strings.ToLower(SeverityLow):
+	case strings.ToLower(SeverityLowEn):
 		return 3
-	case strings.ToLower(SeverityMedium):
+	case strings.ToLower(SeverityMediumEn):
 		return 4
-	case strings.ToLower(SeverityHigh):
+	case strings.ToLower(SeverityHighEn):
 		return 5
-	case strings.ToLower(SeverityCritical):
+	case strings.ToLower(SeverityCriticalEn):
 		return 6
 	default:
 		logging.GetLogger().Warn().Str("severity", sev).Msg("Unexpected severity level")

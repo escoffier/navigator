@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -27,29 +28,39 @@ type Alert struct {
 	ComplianceCheckAlert *ComplianceCheckAlert `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
 	ExploitRiskAlert     *ExploitRiskAlert     `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
 	Message              string                `json:"message" bson:"message"`
+	MessageEn            string                `json:"-" bson:"message_en"`
+	MessageZh            string                `json:"-" bson:"message_zh"`
 }
 
 type ImageScanAlert struct {
-	ElasticID   string  `json:"elasticId" bson:"elasticId"`
-	ContainerID string  `json:"containerId" bson:"containerId"`
-	PodUID      string  `json:"podUid" bson:"podUid"`
-	PodName     string  `json:"podName" bson:"podName"`
-	Description string  `json:"description" bson:"description"`
-	RuleName    string  `json:"ruleName" bson:"ruleName"`
-	Cvss2Vector string  `json:"cvss2Vector" bson:"cvss2Vector"`
-	Cvss2Score  float64 `json:"cvss2Score" bson:"cvss2Score"`
-	Cvss3Vector string  `json:"cvss3Vector" bson:"cvss3Vector"`
-	Cvss3Score  float64 `json:"cvss3Score" bson:"cvss3Score"`
+	ElasticID     string  `json:"elasticId" bson:"elasticId"`
+	ContainerID   string  `json:"containerId" bson:"containerId"`
+	PodUID        string  `json:"podUid" bson:"podUid"`
+	PodName       string  `json:"podName" bson:"podName"`
+	Description   string  `json:"description" bson:"description"`
+	DescriptionEn string  `json:"-" bson:"description_en"`
+	DescriptionZh string  `json:"-" bson:"description_zh"`
+	RuleName      string  `json:"ruleName" bson:"ruleName"`
+	RuleNameEn    string  `json:"-" bson:"ruleName_en"`
+	RuleNameZh    string  `json:"-" bson:"ruleName_zh"`
+	Cvss2Vector   string  `json:"cvss2Vector" bson:"cvss2Vector"`
+	Cvss2Score    float64 `json:"cvss2Score" bson:"cvss2Score"`
+	Cvss3Vector   string  `json:"cvss3Vector" bson:"cvss3Vector"`
+	Cvss3Score    float64 `json:"cvss3Score" bson:"cvss3Score"`
 }
 
 type ExploitRiskAlert struct {
-	ElasticID   string `json:"elasticId" bson:"elasticId"`
-	ContainerID string `json:"containerId" bson:"containerId"`
-	Description string `json:"description" bson:"description"`
-	PodUID      string `json:"podUid" bson:"podUid"`
-	PodName     string `json:"podName" bson:"podName"`
-	RuleName    string `json:"ruleName" bson:"ruleName"`
-	PID         int    `json:"pid" bson:"pid"`
+	ElasticID     string `json:"elasticId" bson:"elasticId"`
+	ContainerID   string `json:"containerId" bson:"containerId"`
+	Description   string `json:"description" bson:"description"`
+	DescriptionEn string `json:"-" bson:"description_en"`
+	DescriptionZh string `json:"-" bson:"description_zh"`
+	PodUID        string `json:"podUid" bson:"podUid"`
+	PodName       string `json:"podName" bson:"podName"`
+	RuleName      string `json:"ruleName" bson:"ruleName"`
+	RuleNameEn    string `json:"-" bson:"ruleName_en"`
+	RuleNameZh    string `json:"-" bson:"ruleName_zh"`
+	PID           int    `json:"pid" bson:"pid"`
 }
 
 type ComplianceCheckAlert struct {
@@ -58,30 +69,40 @@ type ComplianceCheckAlert struct {
 	CheckID       string    `json:"checkID" bson:"checkID"`
 	CheckType     string    `json:"checkType" bson:"checkType"`
 	PolicyID      string    `json:"policyID" bson:"policyID"`
-	MessageEn     string    `json:"-" bson:"message_en"`
-	MessageZh     string    `json:"-" bson:"message_zh"`
-	Message       string    `json:"message" bson:"message,omitempty"`
 }
 
 func (a *Alert) ApplyTranslation(ctx context.Context) {
-	if a.ComplianceCheckAlert != nil {
-		a.ComplianceCheckAlert.ApplyTranslation((ctx))
+	if lang.Language(ctx) == lang.LanguageZH {
+		a.Message = a.MessageZh
+		a.Severity = redclair.ToChineseSeverity(a.Severity)
+	} else {
+		a.Message = a.MessageEn
+	}
+	if a.ExploitRiskAlert != nil {
+		a.ExploitRiskAlert.ApplyTranslation((ctx))
+	}
+	if a.ImageScanAlert != nil {
+		a.ImageScanAlert.ApplyTranslation((ctx))
 	}
 }
 
-func (cca *ImageScanAlert) ApplyTranslation(ctx context.Context) {
-	// TODO
-}
-
-func (cca *ExploitRiskAlert) ApplyTranslation(ctx context.Context) {
-	// TODO
-}
-
-func (cca *ComplianceCheckAlert) ApplyTranslation(ctx context.Context) {
+func (isa *ImageScanAlert) ApplyTranslation(ctx context.Context) {
 	if lang.Language(ctx) == lang.LanguageZH {
-		cca.Message = cca.MessageZh
+		isa.Description = isa.DescriptionZh
+		isa.RuleName = isa.RuleNameZh
 	} else {
-		cca.Message = cca.MessageEn
+		isa.Description = isa.DescriptionEn
+		isa.RuleName = isa.RuleNameEn
+	}
+}
+
+func (era *ExploitRiskAlert) ApplyTranslation(ctx context.Context) {
+	if lang.Language(ctx) == lang.LanguageZH {
+		era.Description = era.DescriptionZh
+		era.RuleName = era.RuleNameZh
+	} else {
+		era.Description = era.DescriptionEn
+		era.RuleName = era.RuleNameEn
 	}
 }
 

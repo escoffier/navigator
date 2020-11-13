@@ -1,8 +1,10 @@
 package harbor
 
 import (
+	"context"
 	"fmt"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 )
@@ -58,14 +60,30 @@ type ScanResponse struct {
 }
 
 type VulnerabilityItem struct {
-	ID          string   `json:"id"`          // CVE-2017-8283
-	Package     string   `json:"package"`     // dpkg
-	Version     string   `json:"version"`     // 1.17.27
-	FixVersion  string   `json:"fix_version"` // 1.18.0
-	Severity    string   `json:"severity"`    // enum in: Unknown,Negligible,Low,Medium,High,Critical
-	Description string   `json:"description"` // ...
-	Links       []string `json:"links"`       // - https://security-tracker.debian.org/tracker/CVE-2017-8283
+	ID            string   `json:"id"` // CVE-2017-8283
+	IDEn          string   `json:"-"`
+	IDZh          string   `json:"-"`
+	Package       string   `json:"package"`     // dpkg
+	Version       string   `json:"version"`     // 1.17.27
+	FixVersion    string   `json:"fix_version"` // 1.18.0
+	Severity      string   `json:"severity"`    // enum in: Unknown,Negligible,Low,Medium,High,Critical
+	Description   string   `json:"description"`
+	DescriptionEn string   `json:"-"`
+	DescriptionZh string   `json:"-"`
+	Links         []string `json:"links"` // - https://security-tracker.debian.org/tracker/CVE-2017-8283
 }
+
+func (vi *VulnerabilityItem) ApplyTranslation(ctx context.Context) {
+	if lang.Language(ctx) == lang.LanguageZH {
+		vi.Description = vi.DescriptionZh
+		vi.ID = vi.IDZh
+		vi.Severity = redclair.ToChineseSeverity(vi.Severity)
+	} else {
+		vi.Description = vi.DescriptionEn
+		vi.ID = vi.IDEn
+	}
+}
+
 type HarborVulnerabilityReport struct {
 	Registry        Registry            `json:"registry"`
 	Artifact        Artifact            `json:"artifact"`
@@ -73,9 +91,18 @@ type HarborVulnerabilityReport struct {
 	Vulnerabilities []VulnerabilityItem `json:"vulnerabilities"`
 }
 
+func (hvr *HarborVulnerabilityReport) ApplyTranslation(ctx context.Context) {
+	for i := range hvr.Vulnerabilities {
+		hvr.Vulnerabilities[i].ApplyTranslation(ctx)
+	}
+	if lang.Language(ctx) == lang.LanguageZH {
+		hvr.Severity = redclair.ToChineseSeverity(hvr.Severity)
+	}
+}
+
 func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) HarborVulnerabilityReport {
 	harborVulns := []VulnerabilityItem{}
-	highestSeveritySoFar := redclair.SeverityUnknown
+	highestSeveritySoFar := redclair.SeverityUnknownEn
 
 	for _, redVuln := range redclairReport.Vulnerabilities {
 
@@ -84,23 +111,29 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 			id = fmt.Sprintf("%s (%s)", id, redVuln.CNNVD)
 		}
 
-		description := redVuln.Description
+		descriptionEn := redVuln.DescriptionEn
+		descriptionZh := redVuln.DescriptionZh
 		if redVuln.CVSSv2Score != "" {
-			description = fmt.Sprintf("[CVSSv2] Score: %s (Base: %s) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, description)
+			descriptionEn = fmt.Sprintf("[CVSSv2] Score: %s (Base: %s) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, descriptionEn)
+			descriptionZh = fmt.Sprintf("[CVSSv2] 得分了: %s (基礎: %s) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, descriptionZh)
 		}
 		if redVuln.CVSSv3Score != "" {
-			description = fmt.Sprintf("[CVSSv3] Score: %s, Exploitability Score: %s, Impact Score: %s (Base: %s) | %s",
-				redVuln.CVSSv3Score, redVuln.CVSSv3ExploitabilityScore, redVuln.CVSSv3ImpactScore, redVuln.CVSSv3Vector, description)
+			descriptionEn = fmt.Sprintf("[CVSSv3] Score: %s, Exploitability Score: %s, Impact Score: %s (Base: %s) | %s",
+				redVuln.CVSSv3Score, redVuln.CVSSv3ExploitabilityScore, redVuln.CVSSv3ImpactScore, redVuln.CVSSv3Vector, descriptionEn)
+			descriptionZh = fmt.Sprintf("[CVSSv3] 得分了: %s, 可利用性得分: %s, 影響得分: %s (基礎: %s) | %s",
+				redVuln.CVSSv3Score, redVuln.CVSSv3ExploitabilityScore, redVuln.CVSSv3ImpactScore, redVuln.CVSSv3Vector, descriptionZh)
 		}
 
 		harborVuln := VulnerabilityItem{
-			ID:          id,
-			Package:     redVuln.FeatureName,
-			Version:     redVuln.FeatureVersion,
-			FixVersion:  redVuln.FixedBy, // Not sure about this field
-			Severity:    redVuln.Severity,
-			Description: description,
-			Links:       redVuln.Links,
+			IDEn:          id,
+			IDZh:          id,
+			Package:       redVuln.FeatureName,
+			Version:       redVuln.FeatureVersion,
+			FixVersion:    redVuln.FixedBy, // Not sure about this field
+			Severity:      redVuln.Severity,
+			DescriptionEn: descriptionEn,
+			DescriptionZh: descriptionZh,
+			Links:         redVuln.Links,
 		}
 
 		harborVulns = append(harborVulns, harborVuln)
@@ -112,13 +145,15 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 
 	for _, sensitiveFile := range redclairReport.Sensitives {
 		harborVuln := VulnerabilityItem{
-			ID:          fmt.Sprintf("Potential leak of sensitive file: %s", sensitiveFile.Name),
-			Package:     "-",
-			Version:     "-",
-			FixVersion:  "-",
-			Severity:    redclair.SeverityMedium,
-			Description: sensitiveFile.Description,
-			Links:       []string{},
+			IDEn:          fmt.Sprintf("Potential leak of sensitive file: %s", sensitiveFile.Name),
+			IDZh:          fmt.Sprintf("敏感文件的潛在洩漏: %s", sensitiveFile.Name),
+			Package:       "-",
+			Version:       "-",
+			FixVersion:    "-",
+			Severity:      redclair.SeverityMediumEn,
+			DescriptionEn: sensitiveFile.DescriptionEn,
+			DescriptionZh: sensitiveFile.DescriptionZh,
+			Links:         []string{},
 		}
 
 		harborVulns = append(harborVulns, harborVuln)
