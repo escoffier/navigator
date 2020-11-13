@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -16,11 +17,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
+	version "github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/patrickmn/go-cache"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -115,6 +118,20 @@ func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sor
 				}
 				return val1.Int() > val2.Int()
 			case reflect.String:
+				matched, err := regexp.MatchString(`^\d+\.\d+\.\d+$`, val1.String())
+				// Do we want to handle it or just do other sorting then?
+				if err != nil {
+					logging.GetLogger().Warn().
+						Str("val1", val1.String()).
+						Msg("Error regex matching in sorting")
+					matched = false
+				}
+				if matched {
+					if sortOrder == "asc" {
+						return version.CompareSimple(val1.String(), val2.String()) < 0
+					}
+					return version.CompareSimple(val2.String(), val1.String()) > 0
+				}
 				if sortOrder == "asc" {
 					return val1.String() < val2.String()
 				}

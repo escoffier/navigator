@@ -38,6 +38,7 @@ require (
 	github.com/iovisor/gobpf v0.0.0-20200614202714-e6b321d32103
 	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.6 // indirect
+	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-ps v0.0.0-20170309133038-4fdf99ab2936
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/oceanicdev/chi-param v1.1.0
