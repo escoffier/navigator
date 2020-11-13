@@ -64,7 +64,7 @@ loop:
 		case <-ticker.C:
 			pollCtx, pollCtxCancel := context.WithTimeout(s.ctx, alertPollTimeout)
 			defer pollCtxCancel()
-			err := s.pollImageScanAlerts(pollCtx)
+			err := s.pollRuntimeDetectionAlerts(pollCtx)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Error when polling image scan alerts")
 			}
@@ -75,7 +75,7 @@ loop:
 	logging.GetLogger().Info().Msg("Shutting down image scan alert poller")
 }
 
-func (s *AlertService) pollImageScanAlerts(ctx context.Context) error {
+func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 	lastPollTimestampFrom := s.lastPollTimestamp.Add(time.Duration(-5) * time.Minute)
 	lastPollTimestampTo := time.Now()
 	defer func() {
@@ -219,12 +219,12 @@ func (s *AlertService) pollImageScanAlerts(ctx context.Context) error {
 				if strings.HasPrefix(vulnerability, "CVE") {
 					alert = model.Alert{
 						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
-						AlertKind: model.AlertKindImageScan,
+						AlertKind: model.AlertKindRuntimeDetection,
 						Severity:  r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10)),
 						Timestamp: timestamp,
 						MessageEn: "Potential " + enabledRule.NameEn,
 						MessageZh: "潛在 " + enabledRule.NameZh,
-						ImageScanAlert: &model.ImageScanAlert{
+						RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
 							ElasticID:     elasticID,
 							ContainerID:   elasticAlert["ContainerID"].(string),
 							PodName:       elasticAlert["PodName"].(string),
