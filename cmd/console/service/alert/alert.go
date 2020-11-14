@@ -121,7 +121,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 	for _, rule := range rules {
 		if rule.Enabled {
 			enabledRules = append(enabledRules, rule)
-			logging.GetLogger().Info().Str("rule", rule.Name).Msg("Enabled rule")
+			logging.GetLogger().Info().Str("rule", rule.NameEn).Msg("Enabled rule")
 		}
 	}
 
@@ -203,7 +203,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 
 		numRaised := 0
 		for _, enabledRule := range enabledRules {
-			if enabledRule.Name == vulnerability {
+			if enabledRule.NameEn == vulnerability {
 
 				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
 

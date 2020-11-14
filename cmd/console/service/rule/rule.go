@@ -46,7 +46,7 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 		ruleName := filenameSplit[0]
 
 		var queryRule model.Rule
-		filter := bson.M{"name": ruleName}
+		filter := bson.M{"name_en": ruleName}
 
 		queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 		if queryResult.Err() != nil {
@@ -64,7 +64,7 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 
 				queryRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
 				queryRule.Enabled = false
-				queryRule.Name = ruleDefinition.NameEn
+				queryRule.NameEn = ruleDefinition.NameEn
 				queryRule.NameZh = ruleDefinition.NameZh
 				queryRule.DescriptionEn = ruleDefinition.DescriptionEn
 				queryRule.DescriptionZh = ruleDefinition.DescriptionZh

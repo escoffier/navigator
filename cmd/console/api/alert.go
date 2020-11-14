@@ -47,6 +47,8 @@ func (api *api) acknowledgeAlert() http.HandlerFunc {
 			return
 		}
 
+		queryAlert.ApplyTranslation(ctx)
+
 		response.Ok(w, response.WithItem(*queryAlert))
 	}
 }
