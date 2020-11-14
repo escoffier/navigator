@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ template "clair.fullname" . }}
+        app: {{ template "clair.fullname" . }}    
     spec:
       volumes:
       - name: "{{ .Chart.Name }}-config"
@@ -35,9 +35,11 @@ spec:
         command: [ "sh", "-c",
           "until pg_isready -h {{ .Values.config.postgresServiceName }} -p 5432;
           do echo waiting for database; sleep 1; done;"]
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
         - "-log-level={{ .Values.logLevel }}"

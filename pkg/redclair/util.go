@@ -65,9 +65,9 @@ func severityToInt(sev string) int {
 
 func CompareVulnerabilities(left VulnerabilityInfo, right VulnerabilityInfo) bool {
 
-	if left.CVSSv2Score < right.CVSSv2Score {
+	if left.CVSS.CVSSv2Score < right.CVSS.CVSSv2Score {
 		return true
-	} else if left.CVSSv2Score > right.CVSSv2Score {
+	} else if left.CVSS.CVSSv2Score > right.CVSS.CVSSv2Score {
 		return false
 	}
 	// else CVSSv2 was equal (usually the case when its empty string "" on both sides)
@@ -79,12 +79,12 @@ func CompareVulnerabilities(left VulnerabilityInfo, right VulnerabilityInfo) boo
 	}
 	// else Severity equal
 
-	if left.CVE < right.CVE {
+	if left.ID < right.ID {
 		return true
-	} else if left.CVE > right.CVE {
+	} else if left.ID > right.ID {
 		return false
 	}
-	// else Same CVE
+	// else Same ID (e.g. CVE)
 
 	// Sometimes we hack SensitiveFilenames into VulnerabilitInfo, in that case FeatureName
 	// is file path. Use it to sort.

@@ -202,7 +202,6 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 		if result.Status == model.ScanStatusSucceeded {
 			api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
 			harborVulnReport := harbor.RedclairReportToHarborReport(result.ScanReport.Vulns)
-			harborVulnReport.ApplyTranslation(ctx)
 			response.Respond(w, http.StatusOK, "application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0", harborVulnReport)
 			return
 		} else if result.Status == model.ScanStatusUnprocessableEntity {

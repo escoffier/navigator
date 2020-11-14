@@ -117,7 +117,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
 		onlineVulns[ownerStr].RunningPodsSet[container.PodName] = true
 		for _, vuln := range vulns {
-			onlineVulns[ownerStr].VulnerabilitiesSet[vuln.CVE] = vuln
+			onlineVulns[ownerStr].VulnerabilitiesSet[vuln.ID] = vuln
 		}
 	}
 

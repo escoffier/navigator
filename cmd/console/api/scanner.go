@@ -21,6 +21,7 @@ import (
 
 	s "gitlab.com/piccolo_su/vegeta/cmd/console/model/scanner"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
@@ -245,10 +246,6 @@ type scanReportListItem struct {
 	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
 }
 
-func (srli *scanReportListItem) ApplyTranslation(ctx context.Context) {
-	srli.VulnInfo.ApplyTranslation(ctx)
-}
-
 // @Summary List reports by severity
 // @Description List reports by severity
 // @Produce json
@@ -382,7 +379,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					}
 				}
 				if riskFilter == "networkBased" {
-					if strings.Contains(vuln.CVSSv2Vector, "AV:L") {
+					if strings.Contains(vuln.CVSS.CVSSv2Vector, "AV:L") {
 						continue
 					}
 				}
@@ -404,19 +401,18 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					continue
 				}
 
+				description := fmt.Sprintf("Potential file leak: %s", sens.DescriptionEn)
+				if lang.Language(ctx) == lang.LanguageZH {
+					description = fmt.Sprintf("潛在的文件洩漏: %s", sens.DescriptionZh)
+				}
+
 				// "dumb" convert of sensitive file info to vulnerability info.
 				// Consider a different way to return this maybe?
 				vi := redclair.VulnerabilityInfo{
-					DescriptionEn:  fmt.Sprintf("Potential file leak: %s", sens.DescriptionEn),
-					DescriptionZh:  fmt.Sprintf("潛在的文件洩漏: %s", sens.DescriptionZh),
-					FeatureName:    sens.Name,
-					Severity:       redclair.SeverityMedium,
-					CVE:            "-",
-					CNNVD:          "-",
-					Namespace:      "-",
-					Links:          []string{},
-					FeatureVersion: "-",
-					FixedBy:        "-",
+					Description: description,
+					FeatureName: sens.Name,
+					Severity:    redclair.SeverityMedium,
+					Links:       []string{},
 				}
 				vex := vulnInfoEx{
 					VulnerabilityInfo:  vi,
@@ -443,8 +439,8 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		for _, vulns := range digestToVulns {
 
 			for _, vuln := range vulns {
-				key := vuln.CVE
-				if key == "-" {
+				key := vuln.ID
+				if key == "" {
 					// handle sensitive filename
 					key = vuln.FeatureName
 				}
@@ -474,18 +470,10 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		i := 0
 		for _, item := range listItemsSet {
 			listItems[i] = item
-			listItems[i].ApplyTranslation(ctx)
 			i++
 		}
 
 		sortListItemsBySeverityAndStuff(listItems, sortOrder == "asc")
-
-		// TODO: if many images are vulnerable to the same CVE, this CVE will appear multiple times in output
-		// (albeit with different `affectedImage`).
-		// Why not merge them somehow?
-		// The logic to merge multiple CVEs into one CVE isn't obvious. E.g. what if desription changed?
-		// How to merge fixVersion?, etc...
-		// Potentially something to consider the future.
 
 		docNum := int64(len(listItems))
 		actualOffset := int(math.Min(float64(offset), float64(len(listItems))))
