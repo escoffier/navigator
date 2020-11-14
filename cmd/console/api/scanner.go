@@ -93,7 +93,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		if len(result.TopVulns) >= 1 {
 			result.OverallSeverity = report.Vulnerabilities[0].Severity
 		} else {
-			result.OverallSeverity = redclair.SeverityUnknownEn
+			result.OverallSeverity = redclair.SeverityUnknown
 		}
 
 		result.Repository = report.Repository
@@ -176,7 +176,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			if len(imageScanResult.TopVulns) >= 1 {
 				imageScanResult.OverallSeverity = report.Vulnerabilities[0].Severity
 			} else {
-				imageScanResult.OverallSeverity = redclair.SeverityUnknownEn
+				imageScanResult.OverallSeverity = redclair.SeverityUnknown
 			}
 			imageScanResult.SensitiveFiles = report.Sensitives
 			imageScanResult.Repository = report.Repository
@@ -377,7 +377,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
 
 				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
-					if !redclair.SeverityGreaterThan(vuln.Severity, redclair.SeverityLowEn) {
+					if !redclair.SeverityGreaterThan(vuln.Severity, redclair.SeverityLow) {
 						continue
 					}
 				}
@@ -410,7 +410,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					DescriptionEn:  fmt.Sprintf("Potential file leak: %s", sens.DescriptionEn),
 					DescriptionZh:  fmt.Sprintf("潛在的文件洩漏: %s", sens.DescriptionZh),
 					FeatureName:    sens.Name,
-					Severity:       redclair.SeverityMediumEn,
+					Severity:       redclair.SeverityMedium,
 					CVE:            "-",
 					CNNVD:          "-",
 					Namespace:      "-",

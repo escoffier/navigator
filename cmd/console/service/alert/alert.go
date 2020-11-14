@@ -244,7 +244,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
 						AlertKind: model.AlertKindExploitRisk,
 						Timestamp: timestamp,
-						Severity:  r.SeverityHighEn,
+						Severity:  r.SeverityHigh,
 						MessageEn: "Potential exploit",
 						MessageZh: "潛在利用",
 						ExploitRiskAlert: &model.ExploitRiskAlert{

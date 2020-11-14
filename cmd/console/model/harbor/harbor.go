@@ -77,7 +77,6 @@ func (vi *VulnerabilityItem) ApplyTranslation(ctx context.Context) {
 	if lang.Language(ctx) == lang.LanguageZH {
 		vi.Description = vi.DescriptionZh
 		vi.ID = vi.IDZh
-		vi.Severity = redclair.ToChineseSeverity(vi.Severity)
 	} else {
 		vi.Description = vi.DescriptionEn
 		vi.ID = vi.IDEn
@@ -95,14 +94,11 @@ func (hvr *HarborVulnerabilityReport) ApplyTranslation(ctx context.Context) {
 	for i := range hvr.Vulnerabilities {
 		hvr.Vulnerabilities[i].ApplyTranslation(ctx)
 	}
-	if lang.Language(ctx) == lang.LanguageZH {
-		hvr.Severity = redclair.ToChineseSeverity(hvr.Severity)
-	}
 }
 
 func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) HarborVulnerabilityReport {
 	harborVulns := []VulnerabilityItem{}
-	highestSeveritySoFar := redclair.SeverityUnknownEn
+	highestSeveritySoFar := redclair.SeverityUnknown
 
 	for _, redVuln := range redclairReport.Vulnerabilities {
 
@@ -150,7 +146,7 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 			Package:       "-",
 			Version:       "-",
 			FixVersion:    "-",
-			Severity:      redclair.SeverityMediumEn,
+			Severity:      redclair.SeverityMedium,
 			DescriptionEn: sensitiveFile.DescriptionEn,
 			DescriptionZh: sensitiveFile.DescriptionZh,
 			Links:         []string{},
