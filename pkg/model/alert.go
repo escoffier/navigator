@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -74,7 +73,6 @@ type ComplianceCheckAlert struct {
 func (a *Alert) ApplyTranslation(ctx context.Context) {
 	if lang.Language(ctx) == lang.LanguageZH {
 		a.Message = a.MessageZh
-		a.Severity = redclair.ToChineseSeverity(a.Severity)
 	} else {
 		a.Message = a.MessageEn
 	}
