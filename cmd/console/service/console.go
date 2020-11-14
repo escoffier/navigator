@@ -100,6 +100,7 @@ func NewConsole(
 	// scap service
 	scapper := &scapper.Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
+		DockerRepoScapTag:  scapOpts.ImageTag,
 		MongoDB:            mongodb,
 		MongoEndpoint:      mongoOpts.Endpoint,
 		MongoUsername:      mongoOpts.Username,
