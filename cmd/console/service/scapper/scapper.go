@@ -497,8 +497,27 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 	alreadyFinishedNodes := make(map[string]bool)
 
 	jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) {},
-		DeleteFunc: func(obj interface{}) {},
+		AddFunc: func(obj interface{}) {},
+		DeleteFunc: func(obj interface{}) {
+			job, ok := obj.(*batchv1.Job)
+			if !ok {
+				logging.GetLogger().Error().
+					Str("obj-type", fmt.Sprintf("%T", obj)).
+					Msg("Failed to cast to *batchv1.Job")
+				return
+			}
+			thisNodeName := job.Spec.Template.Spec.NodeName
+			if _, ok := alreadyFinishedNodes[thisNodeName]; ok {
+				return
+			}
+
+			err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).
+					Str("job-name", fmt.Sprintf("%s", job.Name)).
+					Msg("Failed to get logs, ignoring")
+			}
+		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			job, ok := newObj.(*batchv1.Job)
 			if !ok {
@@ -513,6 +532,13 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				return
 			}
 
+			err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).
+					Str("job-name", fmt.Sprintf("%s", job.Name)).
+					Msg("Failed to get logs, ignoring")
+			}
+
 			// Finished successfuly?
 			if job.Status.Succeeded > 0 {
 				logging.GetLogger().Info().
@@ -521,13 +547,6 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 				finishedNodesCh <- thisNodeName
 				alreadyFinishedNodes[thisNodeName] = true
-
-				err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
-				if err != nil {
-					logging.GetLogger().Error().Err(err).
-						Str("job-name", fmt.Sprintf("%s", job.Name)).
-						Msg("Failed to get logs, ignoring")
-				}
 
 				return
 			}
@@ -548,13 +567,6 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 				defer mongoCtxCancel()
 				s.mongoJobStatusToFailed(mongoCtx, check, thisNodeName, msg, transTime.Unix())
-
-				err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
-				if err != nil {
-					logging.GetLogger().Error().Err(err).
-						Str("job-name", fmt.Sprintf("%s", job.Name)).
-						Msg("Failed to get logs, ignoring")
-				}
 
 				return
 			}

@@ -19,6 +19,9 @@ spec:
               mountPath: /mnt/root
               readOnly: true
           resources:
+            requests:
+              memory: "1536Mi"
+              cpu: "1"
             limits:
               # For Centos8:
               # OpenScap tends to use quite a bit of memory (some scap rules tend to use a lot of it).
@@ -32,6 +35,7 @@ spec:
               #memory: "1024Mi"
               # Update: for Centos7, there are more rules to check and 1024Mi is not enough. So let's use 2048Mi:
               memory: "2048Mi"
+              cpu: "1.5"
       restartPolicy: Never
       imagePullSecrets:
       - name: harbor-admin-secret
