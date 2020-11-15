@@ -253,19 +253,19 @@
   },
   {
     "descriptionEn": "bitlocker",
-    "descriptionZh": "位锁",
+    "descriptionZh": "bitlocker位锁",
     "secret_type": "Filename",
     "value": "\\.bek$"
   },
   {
     "descriptionEn": "bitlocker",
-    "descriptionZh": "位锁",
+    "descriptionZh": "bitlocker位锁",
     "secret_type": "Filename",
     "value": "\\.tpm$"
   },
   {
     "descriptionEn": "bitlocker",
-    "descriptionZh": "位锁",
+    "descriptionZh": "bitlocker位锁",
     "secret_type": "Filename",
     "value": "\\.fve$"
   },
@@ -576,8 +576,8 @@
     "value": "\\.ovpn$"
   },
   {
-    "descriptionEn": "Well, this is awkward... Gitrob configuration file",
-    "descriptionZh": "好吧，这很尴尬... Gitrob配置文件",
+    "descriptionEn": "Gitrob configuration file",
+    "descriptionZh": "Gitrob配置文件",
     "secret_type": "Filename",
     "value": "\\A\\.?gitrobrc\\z"
   },
@@ -619,7 +619,7 @@
   },
   {
     "descriptionEn": "1Password password manager database file",
-    "descriptionZh": "密码管理器数据库文件",
+    "descriptionZh": "1Password密码管理器数据库文件",
     "secret_type": "Filename",
     "value": "\\.agilekeychain$"
   },
@@ -637,7 +637,7 @@
   },
   {
     "descriptionEn": "Network traffic capture file",
-    "descriptionZh": "网络流量捕获文件",
+    "descriptionZh": "网络流量捕获文件pcap",
     "secret_type": "Filename",
     "value": "\\.pcap$"
   },
@@ -667,7 +667,7 @@
   },
   {
     "descriptionEn": "Apache htpasswd file",
-    "descriptionZh": "Apache htpasswd file",
+    "descriptionZh": "Apache htpasswd文件",
     "secret_type": "Filename",
     "value": "\\A\\.?htpasswd\\z"
   },
@@ -841,7 +841,7 @@
   },
   {
     "descriptionEn": "Secret finder",
-    "descriptionZh": "机密发现者",
+    "descriptionZh": "密钥搜索匹配引擎",
     "secret_type": "FileContent",
     "value": "secret\\s*[\\=]+"
   }
