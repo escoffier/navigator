@@ -55,8 +55,8 @@ postgresql:
   # but we use helm chart designed for bitnami/postgresql.
   enabled: true
   image:
-    repository: arminc/clair-db # Custom image with prefilled vulnerabilities info
-    tag: "2020-10-29" # Use specific tag for now until we fix TEN-31
+    repository: tensorsecurity/tensorsec-postgres # Our image with prefilled vulnerabilities info
+    tag: "2020-11-15" # Use specific tag for now until we fix TEN-31
   # Use the same PGDATA as the travis job that builds arminc/clair-db
   # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
   postgresqlDataDir: /var/lib/postgresql/clair
