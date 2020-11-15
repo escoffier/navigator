@@ -27,7 +27,7 @@ type DockerSection struct {
 
 type DockerTest struct {
 	ID            string   `json:"id" bson:"id"`
-	DescriptionEn string   `json:"description" bson:"description"`
+	DescriptionEn string   `json:"description_en" bson:"description_en"`
 	DescriptionZh string   `json:"description_zh" bson:"description_zh"`
 	Result        string   `json:"result" bson:"result"`
 	DetailsEn     string   `json:"details_en" bson:"details_en"`

@@ -40,6 +40,7 @@ import (
 
 type Scapper struct {
 	DockerRepoHostPort string
+	DockerRepoScapTag  string
 	MongoDB            *mongo.Database
 	MongoEndpoint      string
 	MongoUsername      string
@@ -335,8 +336,9 @@ func (s Scapper) prepareJobObject(check *scapper.Check) (*batchv1.Job, error) {
 	// Subsitute job's image repository in job.yaml for the one configured for Console.
 	currImage := jobObj.Spec.Template.Spec.Containers[0].Image
 	splitted := strings.Split(currImage, "/")
-	currImgname := splitted[1]
-	newImage := fmt.Sprintf("%s/%s", s.DockerRepoHostPort, currImgname)
+	currImgnameSplit := strings.Split(splitted[1], ":")
+	currImgname := currImgnameSplit[0]
+	newImage := fmt.Sprintf("%s/%s:%s", s.DockerRepoHostPort, currImgname, s.DockerRepoScapTag)
 	jobObj.Spec.Template.Spec.Containers[0].Image = newImage
 
 	return jobObj, nil

@@ -49,6 +49,7 @@ var rootCmd = &cobra.Command{
 		scapOpts := flag.GetScapOpts(cmd)
 		logging.GetLogger().Info().
 			Str("scap-job-repo", scapOpts.HostPort).
+			Str("scap-job-tag", scapOpts.ImageTag).
 			Msg("Scap options")
 
 		redisOpts := flag.GetRedisOpts(cmd)

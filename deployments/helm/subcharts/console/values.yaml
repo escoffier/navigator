@@ -15,6 +15,9 @@ replicaCount: 1
 
 apiInstallLabel: "console.tensorsec/install"
 
+scap:
+  tag: test
+
 elastic:
   host: tensorsec-elasticsearch-master
   port: 9200
