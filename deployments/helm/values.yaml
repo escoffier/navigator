@@ -41,13 +41,32 @@ redis:
 
 elasticsearch:
   enabled: true
-  minimumMasterNodes: 1
-  replicas: 1
   extraEnvs:
     - name: ELASTIC_PASSWORD
       value: Elastic12345
     - name: ELASTIC_USERNAME
       value: elasticsearch
+  # Below settings for local dev environment
+  # sysctlInitContainer:
+  #   enabled: false
+  # esConfig:
+  #   elasticsearch.yml: |
+  #     node.store.allow_mmap: false
+  # antiAffinity: "soft"
+  # esJavaOpts: "-Xmx128m -Xms128m"
+  # resources:
+  #   requests:
+  #     cpu: "100m"
+  #     memory: "512M"
+  #   limits:
+  #     cpu: "1000m"
+  #     memory: "512M"
+  # volumeClaimTemplate:
+  #   accessModes: [ "ReadWriteOnce" ]
+  #   storageClassName: "microk8s-hostpath"
+  #   resources:
+  #     requests:
+  #       storage: 100M
 
 postgresql:
   # Note for maintainers:
