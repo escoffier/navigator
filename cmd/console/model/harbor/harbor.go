@@ -139,7 +139,7 @@ func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) H
 		harborVuln := VulnerabilityItem{
 			ID:          fmt.Sprintf("敏感文件的潛在洩漏: %s", sensitiveFile.Name), // Assume ZH lang
 			Package:     sensitiveFile.Name,
-			Severity:    redclair.SeverityMedium,
+			Severity:    redclair.SeverityUnknown,
 			Description: sensitiveFile.DescriptionZh, // Assume ZH lang
 			Links:       []string{},
 		}
