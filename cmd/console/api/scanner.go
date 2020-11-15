@@ -411,7 +411,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 				vi := redclair.VulnerabilityInfo{
 					Description: description,
 					FeatureName: sens.Name,
-					Severity:    redclair.SeverityMedium,
+					Severity:    redclair.SeverityUnknown,
 					Links:       []string{},
 				}
 				vex := vulnInfoEx{
