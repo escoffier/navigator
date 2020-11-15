@@ -45,6 +45,7 @@ func NewScanner(
 	clairOpts *flag.ClairOpts,
 	harborOpts *flag.HarborOpts,
 	redisOpts *flag.RedisOpts,
+	updateOpts *flag.UpdateOpts,
 ) (*Scanner, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -67,7 +68,7 @@ func NewScanner(
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	// redclair
-	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, redisClient)
+	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, redisClient, updateOpts)
 	if err != nil {
 		return nil, err
 	}

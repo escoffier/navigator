@@ -18,9 +18,6 @@ type ImageScanSummaryResult struct {
 }
 
 func (issr *ImageScanSummaryResult) ApplyTranslation(ctx context.Context) {
-	for i := range issr.TopVulns {
-		issr.TopVulns[i].ApplyTranslation(ctx)
-	}
 	for i := range issr.SensitiveFiles {
 		issr.SensitiveFiles[i].ApplyTranslation(ctx)
 	}
@@ -37,9 +34,6 @@ type ImageScanDetailedResult struct {
 }
 
 func (isdr *ImageScanDetailedResult) ApplyTranslation(ctx context.Context) {
-	for i := range isdr.TopVulns {
-		isdr.TopVulns[i].ApplyTranslation(ctx)
-	}
 	for i := range isdr.PerLayerReport {
 		isdr.PerLayerReport[i].ApplyTranslation(ctx)
 	}

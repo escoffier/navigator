@@ -42,7 +42,10 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 		default:
 		}
 
-		cve := vulns[i].CVE
+		cve := vulns[i].ID
+		if !strings.Contains(cve, "CVE") {
+			continue
+		}
 
 		var cve2cnnvd cve2cnnvdMapping
 
@@ -75,9 +78,10 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 				return fmt.Errorf("Failed to insert new CVE to CNNVD mapping to mongo: %w", err)
 			}
 
-			vulns[i].CNNVD = cnnvd
-			vulns[i].Links = append(vulns[i].Links, link)
-
+			vulns[i].CNNVDs = append(vulns[i].CNNVDs, CNNVDVulnerabilityInfo{
+				Number:  cnnvd,
+				RefLink: link,
+			})
 			continue
 		}
 
@@ -116,14 +120,18 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 				return fmt.Errorf("Failed to update CVE to CNNVD mapping in mongo: %w", err)
 			}
 
-			vulns[i].CNNVD = cnnvd
-			vulns[i].Links = append(vulns[i].Links, link)
-
+			vulns[i].CNNVDs = append(vulns[i].CNNVDs, CNNVDVulnerabilityInfo{
+				Number:  cnnvd,
+				RefLink: link,
+			})
 			continue
 		}
 
-		vulns[i].CNNVD = cve2cnnvd.CVNND
-		vulns[i].Links = append(vulns[i].Links, cve2cnnvd.CVNNDLink)
+		vulns[i].CNNVDs = append(vulns[i].CNNVDs, CNNVDVulnerabilityInfo{
+			Number:  cve2cnnvd.CVNND,
+			RefLink: cve2cnnvd.CVNNDLink,
+		})
+
 	}
 
 	return nil

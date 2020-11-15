@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
@@ -19,35 +17,6 @@ const (
 	postLayerURI        = "http://%s:%d/v1/layers"
 	getLayerFeaturesURI = "http://%s:%d/v1/layers/%s?vulnerabilities"
 )
-
-// VulnerabilityInfo ...
-type VulnerabilityInfo struct {
-	FeatureName               string   `json:"featurename" bson:"featurename"`
-	FeatureVersion            string   `json:"featureversion" bson:"featureversion"`
-	CVE                       string   `json:"cve" bson:"cve"` // technically, this doesn't have to be CVE. This could be for example ELSA...
-	CNNVD                     string   `json:"cnnvd" bson:"cnnvd"`
-	Namespace                 string   `json:"namespace" bson:"namespace"`
-	Description               string   `json:"description" bson:"description"`
-	DescriptionEn             string   `json:"-" bson:"description_en"`
-	DescriptionZh             string   `json:"-" bson:"description_zh"`
-	Links                     []string `json:"links" bson:"links"`
-	Severity                  string   `json:"severity" bson:"severity"`
-	FixedBy                   string   `json:"fixedby" bson:"fixedby"`
-	CVSSv2Score               string   `json:"cvssv2score" bson:"cvssv2score"`
-	CVSSv2Vector              string   `json:"cvssv2vector" bson:"cvssv2vector"`
-	CVSSv3Score               string   `json:"cvssv3score" bson:"cvssv3score"`
-	CVSSv3ExploitabilityScore string   `json:"cvssv3exploitabilityScore" bson:"cvssv3exploitabilityScore"`
-	CVSSv3ImpactScore         string   `json:"cvssv3impactScore" bson:"cvssv3impactScore"`
-	CVSSv3Vector              string   `json:"cvssv3vector" bson:"cvssv3vector"`
-}
-
-func (vi *VulnerabilityInfo) ApplyTranslation(ctx context.Context) {
-	if lang.Language(ctx) == lang.LanguageZH {
-		vi.Description = vi.DescriptionZh
-	} else {
-		vi.Description = vi.DescriptionEn
-	}
-}
 
 // https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
 
@@ -149,26 +118,37 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 						Msgf("Failed to unmarshall metadata of %s", digest)
 				}
 
-				links := []string{vulnerability.Link}
 				newVuln := VulnerabilityInfo{
-					FeatureName:               feature.Name,
-					FeatureVersion:            feature.Version,
-					CVE:                       vulnerability.Name,
-					Namespace:                 vulnerability.NamespaceName,
-					DescriptionEn:             vulnerability.Description,
-					DescriptionZh:             vulnerability.Description,
-					Links:                     links,
-					Severity:                  vulnerability.Severity,
-					FixedBy:                   vulnerability.FixedBy,
-					CVSSv2Vector:              meta.NVD.CVSSv2.Vectors,
-					CVSSv2Score:               meta.NVD.CVSSv2.Score.String(),
-					CVSSv3Vector:              meta.NVD.CVSSv3.Vectors,
-					CVSSv3Score:               meta.NVD.CVSSv3.Score.String(),
-					CVSSv3ImpactScore:         meta.NVD.CVSSv3.ImpactScore.String(),
-					CVSSv3ExploitabilityScore: meta.NVD.CVSSv3.ExploitabilityScore.String(),
+					FeatureName:    feature.Name,
+					FeatureVersion: feature.Version,
+					ID:             vulnerability.Name,
+					Namespace:      vulnerability.NamespaceName,
+					Description:    vulnerability.Description,
+					Links:          []string{vulnerability.Link},
+					Severity:       vulnerability.Severity,
+					FixedBy:        vulnerability.FixedBy,
+
+					CVSS: CVSSVulnerabilityInfo{
+						CVSSv2Vector:              meta.NVD.CVSSv2.Vectors,
+						CVSSv2Score:               meta.NVD.CVSSv2.Score.String(),
+						CVSSv3Vector:              meta.NVD.CVSSv3.Vectors,
+						CVSSv3Score:               meta.NVD.CVSSv3.Score.String(),
+						CVSSv3ImpactScore:         meta.NVD.CVSSv3.ImpactScore.String(),
+						CVSSv3ExploitabilityScore: meta.NVD.CVSSv3.ExploitabilityScore.String(),
+					},
 				}
 
-				vulnerabilitiesMap[newVuln.CVE] = newVuln
+				for _, cnvd := range meta.CNVD {
+					newVuln.CNVDs = append(newVuln.CNVDs, CNVDVulnerabilityInfo{
+						Number:      cnvd.Number,
+						Title:       cnvd.Title,
+						Severity:    cnvd.Severity,
+						RefLink:     cnvd.RefLink,
+						Description: cnvd.Description,
+					})
+				}
+
+				vulnerabilitiesMap[newVuln.ID] = newVuln
 			}
 		}
 	}

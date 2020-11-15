@@ -363,9 +363,11 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 
 	namespaceName, vulnerabilities := r.getVulnerabilities(ctx, digest)
 
-	err = r.enrichWithCNNVD(ctx, vulnerabilities)
-	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
+	if !r.offlineMode {
+		err = r.enrichWithCNNVD(ctx, vulnerabilities)
+		if err != nil {
+			return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
+		}
 	}
 
 	err = r.recalculateSeverity(ctx, vulnerabilities)
@@ -395,14 +397,14 @@ func (r *Redclair) getSensitiveFiles(sensitiveFiles []FileSignature) []Sensitive
 func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []VulnerabilityInfo) error {
 	for i, vuln := range vulns {
 
-		if vuln.CVSSv2Score == "" {
+		if vuln.CVSS.CVSSv2Score == "" {
 			continue
 		}
 
 		// It's a string that contains one decimal place.
 		// Convert to an int without decimals by removing the "."
 		// (effectively multiplies by 10)
-		s := strings.ReplaceAll(vuln.CVSSv2Score, ".", "")
+		s := strings.ReplaceAll(vuln.CVSS.CVSSv2Score, ".", "")
 		score, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return fmt.Errorf("Failed to parse CVSSv2 score: %w", err)

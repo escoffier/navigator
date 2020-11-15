@@ -66,12 +66,17 @@ var rootCmd = &cobra.Command{
 			Str("endpoint", redisOpts.Endpoint).
 			Msg("Redis options")
 
+		updateOpts := flag.GetUpdateOpts(cmd)
+		logging.GetLogger().Info().
+			Bool("offline-mode", updateOpts.OfflineMode).
+			Msg("Update options")
+
 		logging.GetLogger().Info().
 			Str("version", Version).
 			Msg("starting Vegeta Scanner")
 
 		scanner, err := service.NewScanner(
-			httpOpts, mongoOpts, clairOpts, harborOpts, redisOpts)
+			httpOpts, mongoOpts, clairOpts, harborOpts, redisOpts, updateOpts)
 		if err != nil {
 			return err
 		}
@@ -101,6 +106,7 @@ func init() {
 	flag.AddClairFlags(rootCmd)
 	flag.AddHarborFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
+	flag.AddUpdateFlags(rootCmd)
 
 	flag.ConfigViper()
 }

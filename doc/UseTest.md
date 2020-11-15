@@ -195,6 +195,10 @@ mongo "mongodb://redstone:redstoneMongo123@localhost:27017/vegeta?authMechanism=
 ```
 
 ```bash
+psql -h localhost -p 5432 -U postgres
+```
+
+```bash
 ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get / --prefix
 ETCDCTL_API=3 etcdctl --endpoints=10.152.183.14:2379 get /agents/agentID/pods/scanner/heartbeat
 ```

@@ -75,11 +75,14 @@ type Redclair struct {
 	softwareRegExpMap          map[*regexp.Regexp]func([]byte) []Software
 	ignoreRegExp               *regexp.Regexp
 	cveWhitelist               map[string]struct{}
+
+	offlineMode bool // if true, won't download CNNVD metadata
 }
 
-func NewRedclair(opts *flag.ClairOpts, mongodb *mongo.Database) (*Redclair, error) {
+func NewRedclair(opts *flag.ClairOpts, updateOpts *flag.UpdateOpts, mongodb *mongo.Database) (*Redclair, error) {
 	rc := &Redclair{
-		mongodb: mongodb,
+		mongodb:     mongodb,
+		offlineMode: updateOpts.OfflineMode,
 	}
 	rc.initFlags(opts)
 	if err := rc.initConfigFiles(opts); err != nil {

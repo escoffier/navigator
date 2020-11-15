@@ -64,8 +64,8 @@ type RedClairService struct {
 }
 
 // NewRedClair creates the instance of RedClair
-func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, rc *redis.Client) (*RedClairService, error) {
-	redclairEng, err := redclair.NewRedclair(clairOpts, db)
+func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, rc *redis.Client, updateOpts *flag.UpdateOpts) (*RedClairService, error) {
+	redclairEng, err := redclair.NewRedclair(clairOpts, updateOpts, db)
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +549,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		for _, v := range vulns {
 			remove := false
 			for _, vv := range cachedLayer.ScanReport.VulnsRemoved {
-				if v.CVE == vv.CVE {
+				if v.ID == vv.ID {
 					remove = true
 				}
 			}
@@ -569,7 +569,6 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		Repository:      scanTask.Repository,
 		Tag:             scanTask.Tag,
 		Digest:          scanTask.ImageDigest,
-		Unapproved:      []string{},
 		Vulnerabilities: vulns,
 		Sensitives:      sensitives,
 		PerLayerReport:  perLayerReport,
@@ -658,10 +657,10 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulns []redclair.Vulner
 	vulnLayerAdded := make([]redclair.VulnerabilityInfo, 0)
 	vulnLayerRemoved := make([]redclair.VulnerabilityInfo, 0)
 	sort.Slice(parentFullVulns, func(i, j int) bool {
-		return parentFullVulns[i].CVE < parentFullVulns[j].CVE
+		return parentFullVulns[i].ID < parentFullVulns[j].ID
 	})
 	sort.Slice(currFullVulns, func(i, j int) bool {
-		return currFullVulns[i].CVE < currFullVulns[j].CVE
+		return currFullVulns[i].ID < currFullVulns[j].ID
 	})
 	parentIndex := 0
 	currIndex := 0
@@ -671,10 +670,10 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulns []redclair.Vulner
 			currIndex++
 			continue
 		}
-		if currFullVulns[currIndex].CVE < parentFullVulns[parentIndex].CVE {
+		if currFullVulns[currIndex].ID < parentFullVulns[parentIndex].ID {
 			vulnLayerAdded = append(vulnLayerAdded, currFullVulns[currIndex])
 			currIndex++
-		} else if currFullVulns[currIndex].CVE > parentFullVulns[parentIndex].CVE {
+		} else if currFullVulns[currIndex].ID > parentFullVulns[parentIndex].ID {
 			vulnLayerRemoved = append(vulnLayerRemoved, parentFullVulns[parentIndex])
 			parentIndex++
 		} else {

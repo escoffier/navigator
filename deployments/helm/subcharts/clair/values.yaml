@@ -7,9 +7,8 @@ insecureTls: false
 nameOverride: clair
 fullnameOverride: "tensorsec-clair"
 image:
-  name: coreos/clair
-  repository: quay.io
-  tag: v2.1.6
+  name: tensorsec-clair
+  tag: latest
   pullPolicy: Always
 service:
   type: ClusterIP
@@ -41,13 +40,13 @@ config:
   postgresServiceName: "tensorsec-postgresql"
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   paginationKey: "XxoPtCUzrUv4JV5dS+yQ+MdW7yLEJnRMwigVY/bpgtQ="
-  updateInterval: 2h
+  updateInterval: 5m
   # notificationWebhookEndpoint: https://example.com/notify/me
   enabledUpdaters:
   - debian
   - ubuntu
   - redhat
-  - oracle
+  # - oracle
   - alpine
   - redhat
   enabledNamespaceDetectors:
