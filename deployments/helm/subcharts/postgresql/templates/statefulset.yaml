@@ -64,6 +64,8 @@ spec:
       serviceAccountName: {{ default (include "postgresql.fullname" . ) .Values.serviceAccount.name }}
       {{- end }}
       {{- if and .Values.volumePermissions.enabled .Values.persistence.enabled }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
       initContainers:
       - name: init-chmod-data
         image: {{ template "postgresql.volumePermissions.image" . }}

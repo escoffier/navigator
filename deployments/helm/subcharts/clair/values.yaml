@@ -10,6 +10,7 @@ image:
   name: tensorsec-clair
   tag: latest
   pullPolicy: Always
+  pullSecret: harbor-admin-secret
 service:
   type: ClusterIP
   internalApiPort: 6060
