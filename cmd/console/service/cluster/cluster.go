@@ -44,12 +44,7 @@ func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primiti
 	}
 
 	if !onlyActive {
-		filter = bson.M{
-			"$and": []bson.M{
-				{"_id": clusterObjectID},
-				{"active": true},
-			},
-		}
+		filter = bson.M{"_id": clusterObjectID, "active": true}
 	}
 
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
@@ -73,6 +68,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		ClusterName: clusterName,
 		KubeConfig:  kubeConfig,
 		Active:      true,
+		CreatedAt:   time.Now(),
 	}
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(newCluster.KubeConfig)
@@ -87,12 +83,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 	collection := s.mongodb.Collection(clusterCol)
 
 	// find if this cluster already there
-	filter := bson.M{
-		"$and": []bson.M{
-			{"name": newCluster.ClusterName},
-			{"active": true},
-		},
-	}
+	filter := bson.M{"name": newCluster.ClusterName, "active": true}
 
 	queryResult := collection.FindOne(ctx, filter)
 
@@ -153,12 +144,8 @@ func (s *ClusterService) ListClusters(ctx context.Context, offset int64, limit i
 }
 
 func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID primitive.ObjectID, upCluster *model.ClusterUpdateRequest) (*model.Cluster, error) {
-	filter := bson.M{
-		"$and": []bson.M{
-			{"_id": clusterObjectID},
-			{"active": true},
-		},
-	}
+	filter := bson.M{"_id": clusterObjectID, "active": true}
+
 	upCluster.ID = clusterObjectID
 	update := bson.M{"$set": upCluster}
 
@@ -196,17 +183,13 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 }
 
 func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (int64, error) {
-	filter := bson.M{
-		"$and": []bson.M{
-			{"_id": clusterObjectID},
-			{"active": true},
-		},
-	}
+	filter := bson.M{"_id": clusterObjectID, "active": true}
 
 	var upCluster model.Cluster
 
 	upCluster.ID = clusterObjectID
 	upCluster.Active = false
+	upCluster.DeletedAt = time.Now()
 	update := bson.M{"$set": upCluster}
 
 	result, err := s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)

@@ -116,7 +116,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 			return
 		}
 
-		_, err = api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
+		updatedCluster, err := api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
 
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -124,9 +124,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 					fmt.Errorf("Couldn't update cluster: %w", err)))
 			return
 		}
-		response.Ok(w, response.WithItem(resp{
-			Message: "Successful updated",
-		}))
+		response.Ok(w, response.WithItem(*updatedCluster))
 	}
 }
 
