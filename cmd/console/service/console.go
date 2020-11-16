@@ -4,15 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
+	"gopkg.in/yaml.v2"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -45,6 +51,7 @@ type Console struct {
 	mongoClient        *mongo.Client
 	mongodb            *mongo.Database
 	cronService        *cron.CronService
+	ruleService        *rule.RuleService
 	clusterService     *cluster.ClusterService
 	onlineVulnsService *onlinevulns.OnlineVulnsService
 	ctx                context.Context
@@ -140,6 +147,7 @@ func NewConsole(
 		ctx:                mainCtx,
 		cancel:             mainCancel,
 		clusterService:     clusterService,
+		ruleService:        ruleService,
 		onlineVulnsService: onlineVulnsSvc,
 	}, nil
 }
@@ -180,6 +188,8 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
+	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongodb)
+
 	err = initializeOnlineVulnsWatch(ctx, c.clusterService, c.onlineVulnsService)
 	if err != nil {
 		log.Error().
@@ -210,6 +220,71 @@ func (c *Console) Run() func() {
 
 		log.Info().Msg("TensorNavigator stopped")
 	}
+}
+
+func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleService, mongodb *mongo.Database) error {
+	availableRulesFiles, err := ioutil.ReadDir(rulesService.AvailableRulesFolderPath)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range availableRulesFiles {
+		filenameSplit := strings.Split(file.Name(), ".yaml")
+		if len(filenameSplit) <= 1 {
+			continue
+		}
+		ruleName := filenameSplit[0]
+		logging.GetLogger().Info().Str("rule", ruleName).Msg("Processing rule")
+
+		var ruleDefinition model.RuleDefinition
+		filter := bson.M{"name_en": ruleName}
+
+		queryResult := mongodb.Collection(model.RuleDefinitionCollection).FindOne(ctx, filter)
+		if queryResult.Err() != nil {
+			if queryResult.Err() == mongo.ErrNoDocuments {
+				logging.GetLogger().Info().Str("rule", ruleName).Msg("Rule definition not present in the db")
+				ruleYamlFile, err := ioutil.ReadFile(rulesService.AvailableRulesFolderPath + "/" + file.Name())
+				if err != nil {
+					return NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot read rule definition %s: %w", rulesService.AvailableRulesFolderPath+"/"+file.Name(), err))
+				}
+				err = yaml.Unmarshal(ruleYamlFile, &ruleDefinition)
+				if err != nil {
+					return NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot unmarshal rules definition %s: %w", rulesService.AvailableRulesFolderPath+"/"+file.Name(), err))
+				}
+				logging.GetLogger().Info().Str("rule", file.Name()).Msg("Rule successfully parsed")
+
+				ruleDefinition.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+				_, err = mongodb.Collection(model.RuleDefinitionCollection).InsertOne(ctx, ruleDefinition)
+				if err != nil {
+					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+				}
+
+				var newRule model.Rule
+
+				newRule.NameEn = ruleDefinition.NameEn
+				newRule.CreatedAt = time.Now()
+				newRule.NameZh = ruleDefinition.NameZh
+				newRule.DescriptionEn = ruleDefinition.DescriptionEn
+				newRule.DescriptionZh = ruleDefinition.DescriptionZh
+				newRule.Cvss3Score = ruleDefinition.Cvss3Score
+				newRule.Enabled = false
+				newRule.Active = true
+				newRule.Cvss3Vector = ruleDefinition.Cvss3Vector
+				newRule.Cvss2Score = ruleDefinition.Cvss2Score
+				newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
+				newRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+				_, err = mongodb.Collection(model.RuleCollection).InsertOne(ctx, newRule)
+				if err != nil {
+					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+				}
+			} else {
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+			}
+		} else {
+			logging.GetLogger().Info().Str("rule", ruleName).Msg("Rule definition already exists")
+		}
+	}
+	return nil
 }
 
 func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
