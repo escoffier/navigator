@@ -100,10 +100,19 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		result.Repository = report.Repository
 		result.Tag = report.Tag
 		result.Digest = report.Digest
+		for i := range report.PerLayerReport {
+			for j := range report.PerLayerReport[i].Sensitives {
+				if lang.Language(ctx) == lang.LanguageZH {
+					description := report.PerLayerReport[i].Sensitives[j].DescriptionZh
+					report.PerLayerReport[i].Sensitives[j].Description = description
+				} else {
+					description := report.PerLayerReport[i].Sensitives[j].DescriptionEn
+					report.PerLayerReport[i].Sensitives[j].Description = description
+				}
+			}
+		}
 		result.PerLayerReport = report.PerLayerReport
 		result.TaskID = scanTask.ID
-
-		result.ApplyTranslation(ctx)
 
 		response.Ok(w, response.WithItem(*result))
 	}
@@ -179,13 +188,21 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			} else {
 				imageScanResult.OverallSeverity = redclair.SeverityUnknown
 			}
+			for j := range report.Sensitives {
+				if lang.Language(ctx) == lang.LanguageZH {
+					description := report.Sensitives[j].DescriptionZh
+					report.Sensitives[j].Description = description
+				} else {
+					description := report.Sensitives[j].DescriptionEn
+					report.Sensitives[j].Description = description
+				}
+			}
 			imageScanResult.SensitiveFiles = report.Sensitives
 			imageScanResult.Repository = report.Repository
 			imageScanResult.Tag = report.Tag
 			imageScanResult.Digest = report.Digest
 			imageScanResult.TaskID = scanTask.ID
 			items[scanTaskNo] = *imageScanResult
-			items[scanTaskNo].ApplyTranslation(ctx)
 		}
 		docNum := int64(len(items))
 		response.Ok(w,
