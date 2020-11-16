@@ -41,6 +41,8 @@ redis:
 
 elasticsearch:
   enabled: true
+  minimumMasterNodes: 1
+  replicas: 1
   extraEnvs:
     - name: ELASTIC_PASSWORD
       value: Elastic12345
@@ -74,6 +76,7 @@ postgresql:
   # but we use helm chart designed for bitnami/postgresql.
   enabled: true
   image:
+    registry: registry.t-appagile.com
     repository: tensorsecurity/tensorsec-postgres # Our image with prefilled vulnerabilities info
     tag: "2020-11-15" # Use specific tag for now until we fix TEN-31
   # Use the same PGDATA as the travis job that builds arminc/clair-db
