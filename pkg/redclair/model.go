@@ -1,7 +1,5 @@
 package redclair
 
-import "context"
-
 type CNVDVulnerabilityInfo struct {
 	Number      string `json:"number" bson:"number"`
 	Title       string `json:"title" bson:"title"`
@@ -58,10 +56,4 @@ type VulnerabilityLayerReport struct {
 	VulnerabilitiesAdded   []VulnerabilityInfo `json:"vulnerabilitiesAdded"`
 	VulnerabilitiesRemoved []VulnerabilityInfo `json:"vulnerabilitiesRemoved"`
 	Sensitives             []Sensitive         `json:"sensitives"`
-}
-
-func (vlr *VulnerabilityLayerReport) ApplyTranslation(ctx context.Context) {
-	for i := range vlr.Sensitives {
-		vlr.Sensitives[i].ApplyTranslation(ctx)
-	}
 }

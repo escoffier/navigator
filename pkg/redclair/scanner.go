@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-
 	"github.com/heroku/docker-registry-client/registry"
 	dig "github.com/opencontainers/go-digest"
 	"github.com/rs/zerolog"
@@ -110,16 +108,8 @@ type Software struct {
 type Sensitive struct {
 	Name          string `json:"name" bson:"name"`
 	Description   string `json:"description" bson:"description"`
-	DescriptionEn string `json:"-" bson:"description_en"`
-	DescriptionZh string `json:"-" bson:"description_zh"`
-}
-
-func (s *Sensitive) ApplyTranslation(ctx context.Context) {
-	if lang.Language(ctx) == lang.LanguageZH {
-		s.Description = s.DescriptionZh
-	} else {
-		s.Description = s.DescriptionEn
-	}
+	DescriptionEn string `json:"description_en" bson:"description_en"`
+	DescriptionZh string `json:"description_zh" bson:"description_zh"`
 }
 
 var softwareRegExpRawMap = map[string]func([]byte) []Software{
@@ -357,6 +347,14 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		}
 	}
 	var imageSensitiveFiles = r.getSensitiveFiles(sensitiveFiles)
+	for i := range imageSensitiveFiles {
+		zerolog.Ctx(ctx).Info().
+			Str("name", imageSensitiveFiles[i].Name).
+			Str("descriptionEn", imageSensitiveFiles[i].DescriptionEn).
+			Str("descriptionZh", imageSensitiveFiles[i].DescriptionZh).
+			Str("description", imageSensitiveFiles[i].Description).
+			Msg("Sensitive file found")
+	}
 
 	imageFileSignature = append(imageFileSignature, layerFileSignature...)
 	imageFileSignature = distinctFileHash(imageFileSignature)
