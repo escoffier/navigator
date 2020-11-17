@@ -32,34 +32,36 @@ type Alert struct {
 }
 
 type RuntimeDetectionAlert struct {
-	ElasticID     string  `json:"elasticId" bson:"elasticId"`
-	ContainerID   string  `json:"containerId" bson:"containerId"`
-	PodUID        string  `json:"podUid" bson:"podUid"`
-	PodName       string  `json:"podName" bson:"podName"`
-	Description   string  `json:"description" bson:"description"`
-	DescriptionEn string  `json:"-" bson:"description_en"`
-	DescriptionZh string  `json:"-" bson:"description_zh"`
-	RuleName      string  `json:"ruleName" bson:"ruleName"`
-	RuleNameEn    string  `json:"-" bson:"ruleName_en"`
-	RuleNameZh    string  `json:"-" bson:"ruleName_zh"`
-	Cvss2Vector   string  `json:"cvss2Vector" bson:"cvss2Vector"`
-	Cvss2Score    float64 `json:"cvss2Score" bson:"cvss2Score"`
-	Cvss3Vector   string  `json:"cvss3Vector" bson:"cvss3Vector"`
-	Cvss3Score    float64 `json:"cvss3Score" bson:"cvss3Score"`
+	ElasticID     string             `json:"-" bson:"elasticId"`
+	ContainerID   string             `json:"containerId" bson:"containerId"`
+	PodUID        string             `json:"podUid" bson:"podUid"`
+	PodName       string             `json:"podName" bson:"podName"`
+	Description   string             `json:"description" bson:"description"`
+	DescriptionEn string             `json:"-" bson:"description_en"`
+	DescriptionZh string             `json:"-" bson:"description_zh"`
+	RuleID        primitive.ObjectID `json:"-" bson:"rule_id"`
+	RuleName      string             `json:"ruleName" bson:"ruleName"`
+	RuleNameEn    string             `json:"-" bson:"ruleName_en"`
+	RuleNameZh    string             `json:"-" bson:"ruleName_zh"`
+	Cvss2Vector   string             `json:"cvss2Vector" bson:"cvss2Vector"`
+	Cvss2Score    float64            `json:"cvss2Score" bson:"cvss2Score"`
+	Cvss3Vector   string             `json:"cvss3Vector" bson:"cvss3Vector"`
+	Cvss3Score    float64            `json:"cvss3Score" bson:"cvss3Score"`
 }
 
 type ExploitRiskAlert struct {
-	ElasticID     string `json:"elasticId" bson:"elasticId"`
-	ContainerID   string `json:"containerId" bson:"containerId"`
-	Description   string `json:"description" bson:"description"`
-	DescriptionEn string `json:"-" bson:"description_en"`
-	DescriptionZh string `json:"-" bson:"description_zh"`
-	PodUID        string `json:"podUid" bson:"podUid"`
-	PodName       string `json:"podName" bson:"podName"`
-	RuleName      string `json:"ruleName" bson:"ruleName"`
-	RuleNameEn    string `json:"-" bson:"ruleName_en"`
-	RuleNameZh    string `json:"-" bson:"ruleName_zh"`
-	PID           int    `json:"pid" bson:"pid"`
+	ElasticID     string             `json:"-" bson:"elasticId"`
+	ContainerID   string             `json:"containerId" bson:"containerId"`
+	Description   string             `json:"description" bson:"description"`
+	DescriptionEn string             `json:"-" bson:"description_en"`
+	DescriptionZh string             `json:"-" bson:"description_zh"`
+	RuleID        primitive.ObjectID `json:"-" bson:"rule_id"`
+	PodUID        string             `json:"podUid" bson:"podUid"`
+	PodName       string             `json:"podName" bson:"podName"`
+	RuleName      string             `json:"ruleName" bson:"ruleName"`
+	RuleNameEn    string             `json:"-" bson:"ruleName_en"`
+	RuleNameZh    string             `json:"-" bson:"ruleName_zh"`
+	PID           int                `json:"pid" bson:"pid"`
 }
 
 type ComplianceCheckAlert struct {

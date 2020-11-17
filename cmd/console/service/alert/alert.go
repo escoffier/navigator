@@ -141,7 +141,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 
 		filter := bson.M{
 			"$or": []bson.M{
-				{"imageScanAlert.elasticId": elasticID},
+				{"runtimeDetectionAlert.elasticId": elasticID},
 				{"exploitRiskAlert.elasticId": elasticID},
 			},
 		}
@@ -231,6 +231,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 							PodUID:        elasticAlert["PodUID"].(string),
 							DescriptionEn: enabledRule.DescriptionEn,
 							DescriptionZh: enabledRule.DescriptionZh,
+							RuleID:        enabledRule.ID,
 							RuleNameEn:    enabledRule.NameEn,
 							RuleNameZh:    enabledRule.NameZh,
 							Cvss2Score:    enabledRule.Cvss2Score,
@@ -252,6 +253,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 							ContainerID:   elasticAlert["ContainerID"].(string),
 							PodName:       elasticAlert["PodName"].(string),
 							PodUID:        elasticAlert["PodUID"].(string),
+							RuleID:        enabledRule.ID,
 							DescriptionEn: enabledRule.DescriptionEn,
 							DescriptionZh: enabledRule.DescriptionZh,
 							RuleNameEn:    enabledRule.NameEn,
