@@ -228,7 +228,12 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		// We want to return cluster names to frontend for nice rendering
 		clusterNames := make(map[string]string)
+		inactiveClusters := make(map[string]bool)
 		for _, v := range checkMap {
+			if _, ok := inactiveClusters[v.ClusterID]; ok {
+				// Scap check references to deleted cluster
+				continue
+			}
 			if _, ok := clusterNames[v.ClusterID]; !ok {
 				clusterIDPrimitive, err := primitive.ObjectIDFromHex(v.ClusterID)
 				if err != nil {
@@ -238,10 +243,18 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 					return
 				}
 
-				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, false)
+				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, true)
 				if err != nil {
-					RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
-					return
+					fmt.Println(err)
+					switch err.(type) {
+					case ClusterDoesntExistError:
+						// Scap check references a deleted cluster
+						inactiveClusters[v.ClusterID] = true
+						continue
+					default:
+						RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
+						return
+					}
 				}
 
 				clusterNames[v.ClusterID] = queryCluster.ClusterName
@@ -261,7 +274,10 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		var results []*scap.CheckHistoryEntry
 		for _, v := range checkMap {
-			// Convert -1 to 0 to omit the FinishedAt field
+			if _, ok := inactiveClusters[v.ClusterID]; ok {
+				continue
+			}
+			// Convert -1 to 0 to omit the FinishedAt field			
 			if v.FinishedAt == -1 {
 				v.FinishedAt = 0
 			}

@@ -13,13 +13,7 @@ type Cluster struct {
 	ClusterName string               `json:"name" bson:"name"`
 	KubeConfig  string               `json:"config" bson:"config"`
 	CronConfig  ComplianceCronConfig `json:"cronConfig" bson:"cronConfig"`
-	Active      bool                 `json:"active" bson:"active"`
-}
-
-type ClusterUpdateRequest struct {
-	ID          primitive.ObjectID   `json:"id" bson:"_id, omitempty"`
-	ClusterName string               `json:"name" bson:"name"`
-	CronConfig  ComplianceCronConfig `json:"cronConfig" bson:"cronConfig"`
+	Active      bool                 `json:"-" bson:"active"`
 }
 
 type ComplianceCronConfig struct {

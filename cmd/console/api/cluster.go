@@ -106,7 +106,7 @@ func (api *api) updateCluster() http.HandlerFunc {
 			return
 		}
 
-		var upCluster model.ClusterUpdateRequest
+		var upCluster model.Cluster
 
 		err = util.DecodeJSONBody(w, r, &upCluster)
 		if err != nil {

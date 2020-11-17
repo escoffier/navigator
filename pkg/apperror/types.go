@@ -31,6 +31,8 @@ type RuleDoesntExistError struct{ detailedError }
 type RuleAlreadyAppliedError struct{ detailedError }
 type RuleNotAppliedError struct{ detailedError }
 type AlertAlreadyAcknowledged struct{ detailedError }
+type ClusterError struct { detailedError }
+type ClusterDoesntExistError struct { detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -487,11 +489,43 @@ func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
 func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 
-	return RedisError{
+	return AlertAlreadyAcknowledged{
 		detailedError{
 			err:       err,
 			English:   "Alert already acknowledged",
 			Zhongwen:  "Alert already acknowledged but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewClusterError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ClusterError{
+		detailedError{
+			err:       err,
+			English:   "Cluster error has occured",
+			Zhongwen:  "Cluster error has occured but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewClusterDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ClusterDoesntExistError{
+		detailedError{
+			err:       err,
+			English:   "Cluster does not exist",
+			Zhongwen:  "Cluster does not exist but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
