@@ -46,7 +46,7 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 		ruleName := filenameSplit[0]
 
 		var queryRule model.Rule
-		filter := bson.M{"name_en": ruleName}
+		filter := bson.M{"name_en": ruleName, "active": true}
 
 		queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 		if queryResult.Err() != nil {
