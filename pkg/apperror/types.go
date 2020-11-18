@@ -33,6 +33,7 @@ type RuleNotAppliedError struct{ detailedError }
 type AlertAlreadyAcknowledged struct{ detailedError }
 type ClusterError struct { detailedError }
 type ClusterDoesntExistError struct { detailedError }
+type AuditConfigError struct { detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -526,6 +527,22 @@ func NewClusterDoesntExistError(httpCode int, err error, suberrors ...Suberror) 
 			err:       err,
 			English:   "Cluster does not exist",
 			Zhongwen:  "Cluster does not exist but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAuditConfigError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AuditConfigError{
+		detailedError{
+			err:       err,
+			English:   "Audit config error occured",
+			Zhongwen:  "Audit config error occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

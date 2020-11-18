@@ -1,0 +1,44 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ template "auditCleanup.fullname" . }}
+  labels:
+{{ include "auditCleanup.labels" . | indent 4 }}
+spec:
+  schedule: "0 4 * * *"
+  jobTemplate:
+    spec:
+      concurrencyPolicy: Forbid
+      completions: 1
+      template:
+        spec:
+          containers:
+            - name: {{ .Chart.Name }}
+              image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.auditCleanup.image.name }}:{{ .Values.auditCleanup.image.tag }}"
+              volumeMounts:
+                - name: audits
+                  mountPath: /audits
+              env:
+                - name: TENSORSEC_MONGO_ADDRESS
+                  value: tensorsec-mongodb
+                - name: TENSORSEC_MONGO_PORT
+                  value: "27017"
+                - name: TENSORSEC_MONGO_USER
+                  value: {{ .Values.mongo.mongoUsername }}
+                - name: TENSORSEC_MONGO_AUTH_SOURCE
+                  value: {{ .Values.mongo.mongoDatabase }}
+                - name: TENSORSEC_MONGO_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.mongo.mongoSecretName }}
+                      key: mongodb-password
+
+          restartPolicy: Never
+          imagePullPolicy: {{ .Values.auditCleanup.image.pullPolicy }}
+          imagePullSecrets:
+            - name: {{ .Values.auditCleanup.image.pullSecret }}
+          volumes:
+            - name: audits
+              persistentVolumeClaim:
+                claimName: audit-pvc
+          restartPolicy: OnFailure

@@ -24,6 +24,7 @@ import (
 
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
@@ -54,6 +55,7 @@ type Console struct {
 	ruleService        *rule.RuleService
 	clusterService     *cluster.ClusterService
 	onlineVulnsService *onlinevulns.OnlineVulnsService
+	auditService       *audit.AuditService
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -89,6 +91,8 @@ func NewConsole(
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
+
+	auditService := audit.NewAuditService(mongodb)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -139,6 +143,7 @@ func NewConsole(
 				ruleService,
 				alertService,
 				onlineVulnsSvc,
+				auditService,
 			),
 		},
 		mongoClient:        mongoClient,
@@ -149,6 +154,7 @@ func NewConsole(
 		clusterService:     clusterService,
 		ruleService:        ruleService,
 		onlineVulnsService: onlineVulnsSvc,
+		auditService:       auditService,
 	}, nil
 }
 
@@ -188,6 +194,8 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
+	err = initializeAuditConfig(ctx, c.auditService)
+
 	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongodb)
 
 	err = initializeOnlineVulnsWatch(ctx, c.clusterService, c.onlineVulnsService)
@@ -220,6 +228,20 @@ func (c *Console) Run() func() {
 
 		log.Info().Msg("TensorNavigator stopped")
 	}
+}
+
+func initializeAuditConfig(ctx context.Context, auditService *audit.AuditService) error {
+	// Default values on startup
+	auditConfig := &model.AuditConfig{
+		HotStorageDays:  30,
+		ColdStorageDays: 90,
+	}
+
+	_, err := auditService.AddAuditConfig(ctx, auditConfig)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleService, mongodb *mongo.Database) error {

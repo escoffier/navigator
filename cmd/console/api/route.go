@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
@@ -52,10 +53,11 @@ func SetupRoutes(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	auditService *audit.AuditService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
-	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc)
+	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc, auditService)
 
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
@@ -76,6 +78,7 @@ func SetupRoutes(
 			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
 			r.Route("/runtimeDetectionConfig", api.runtimeDetectionConfig())
 			r.Route("/alerts", api.alert())
+			r.Route("/audit", api.audit())
 		})
 	})
 }

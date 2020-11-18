@@ -58,6 +58,44 @@
                 ]
             }
         },
+        "/api/v1/audit/config": {
+            "get": {
+                "description": "Get audit config",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get audit config",
+                "operationId": "v1-audit-config-get"
+            },
+            "put": {
+                "description": "Update audit config",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update audit config",
+                "operationId": "v1-audit-config-put",
+                "parameters": [
+                    {
+                        "description": "hotStorageDays",
+                        "name": "hotStorageDays",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "coldStorageDays",
+                        "name": "coldStorageDays",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        },
         "/api/v1/auth/login": {
             "post": {
                 "description": "Login by username/password",
