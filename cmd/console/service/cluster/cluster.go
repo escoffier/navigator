@@ -39,23 +39,18 @@ func NewClusterService(
 
 func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primitive.ObjectID, onlyActive bool) (*model.Cluster, error) {
 	var queryCluster model.Cluster
-	filter := bson.M{
-		"active": true,
-	}
 
-	if !onlyActive {
-		filter = bson.M{
-			"$and": []bson.M{
-				{"_id": clusterObjectID},
-				{"active": true},
-			},
-		}
+	filter := bson.M{
+		"_id": clusterObjectID,
+	}
+	if onlyActive {
+		filter = bson.M{"_id": clusterObjectID, "active": true}
 	}
 
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+			return nil, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
@@ -73,6 +68,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		ClusterName: clusterName,
 		KubeConfig:  kubeConfig,
 		Active:      true,
+		CreatedAt:   time.Now(),
 	}
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(newCluster.KubeConfig)
@@ -87,12 +83,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 	collection := s.mongodb.Collection(clusterCol)
 
 	// find if this cluster already there
-	filter := bson.M{
-		"$and": []bson.M{
-			{"name": newCluster.ClusterName},
-			{"active": true},
-		},
-	}
+	filter := bson.M{"name": newCluster.ClusterName, "active": true}
 
 	queryResult := collection.FindOne(ctx, filter)
 
@@ -152,28 +143,32 @@ func (s *ClusterService) ListClusters(ctx context.Context, offset int64, limit i
 	return clusters, docNum, err
 }
 
-func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID primitive.ObjectID, upCluster *model.ClusterUpdateRequest) (*model.Cluster, error) {
-	filter := bson.M{
-		"$and": []bson.M{
-			{"_id": clusterObjectID},
-			{"active": true},
-		},
-	}
+func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID primitive.ObjectID, upCluster *model.Cluster) (*model.Cluster, error) {
+	filter := bson.M{"_id": clusterObjectID, "active": true}
+
 	upCluster.ID = clusterObjectID
 	update := bson.M{"$set": upCluster}
 
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+			return nil, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
 
-	_, err := s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
+	var queryCluster model.Cluster
+	err := queryResult.Decode(&queryCluster)
+	if queryCluster.KubeConfig != upCluster.KubeConfig {
+		return nil, NewClusterError(http.StatusBadRequest, fmt.Errorf("Cannot update cluster's kube config: %w", queryResult.Err()))
+	}
+	upCluster.Active = queryCluster.Active
+	upCluster.CreatedAt = queryCluster.CreatedAt	
+
+	_, err = s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
+			return nil, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
 		}
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
 	}
@@ -181,12 +176,11 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 	queryResult = s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+			return nil, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
 
-	var queryCluster model.Cluster
 	err = queryResult.Decode(&queryCluster)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
@@ -196,23 +190,19 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 }
 
 func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (int64, error) {
-	filter := bson.M{
-		"$and": []bson.M{
-			{"_id": clusterObjectID},
-			{"active": true},
-		},
-	}
+	filter := bson.M{"_id": clusterObjectID, "active": true}
 
 	var upCluster model.Cluster
 
 	upCluster.ID = clusterObjectID
 	upCluster.Active = false
+	upCluster.DeletedAt = time.Now()
 	update := bson.M{"$set": upCluster}
 
 	result, err := s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return 0, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
+			return 0, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
 		}
 		return 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't remove document: %w", err))
 	}
