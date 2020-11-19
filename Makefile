@@ -175,6 +175,7 @@ redeploy:
 		helm delete --purge tensorsec; \
 		rm -rf charts; \
 		kubectl -n tensorsec delete pvc elasticsearch-master-elasticsearch-master-0; \
+		kubectl -n tensorsec delete pvc tensorsec-elasticsearch-master-tensorsec-elasticsearch-master-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
 		kubectl --namespace tensorsec get job --namespace tensorsec | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job; \
