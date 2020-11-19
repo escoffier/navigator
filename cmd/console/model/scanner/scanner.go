@@ -13,6 +13,8 @@ type ImageScanSummaryResult struct {
 	Digest          string                       `json:"digest"`
 	TaskID          primitive.ObjectID           `json:"taskID"`
 	SensitiveFiles  []redclair.Sensitive         `json:"sensitiveFiles"`
+	StartedAt       int64                        `json:"startedAt"`
+	FinishedAt      int64                        `json:"finishedAt"`
 }
 
 type ImageScanDetailedResult struct {

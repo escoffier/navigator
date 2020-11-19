@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"time"
@@ -129,9 +130,43 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		maxImageAgeInHoursRaw := r.URL.Query().Get("maxImageAgeInHours")
+		var maxImageAge time.Duration
+		if maxImageAgeInHoursRaw != "" {
+			maxImageAgeInHours, err := strconv.Atoi(maxImageAgeInHoursRaw)
+			if err != nil {
+				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("failed to convert to int: %w", err),
+					Suberror{"maxImageAgeInHours", "uint"}))
+				return
+			}
+			if maxImageAgeInHours < 0 {
+				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("must be positive"),
+					Suberror{"maxImageAgeInHours", "uint"}))
+				return
+			}
+			maxImageAge = time.Duration(maxImageAgeInHours) * time.Hour
+		}
+
+		sortBy := r.URL.Query().Get("sortBy")
+		if sortBy == "" {
+			sortBy = "finishedAt"
+		}
+
+		sortOrder := r.URL.Query().Get("sortOrder")
+		if sortOrder == "" {
+			sortOrder = "desc"
+		}
+
 		offset, limit := api.getOffsetAndLimit(r)
 
-		filter := bson.M{}
+		filter, err := api.timeRangeFilterFromQuery(r)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
 		findOptions := options.Find()
 		findOptions.SetSort(bson.D{{"finishedAt", 1}})
 
@@ -143,6 +178,11 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			return
 		}
 		defer cursor.Close(ctx)
+
+		// for "Recent images" view we want to exclude all images that have any
+		// scans older than some cutoff point. That's how we determine if an image
+		// is recent.
+		notRecentImages := make(map[string]bool)
 
 		scanTasksMap := make(map[string]model.ScanTask)
 		for cursor.Next(ctx) {
@@ -159,6 +199,15 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 				continue
 			}
 
+			if maxImageAge != 0 && task.FinishedAt < time.Now().Add(-1*maxImageAge).Unix() {
+				// if digest was encountered more than a day ago, the image is not 'recent'.
+				// if digest was encountered only less than a day ago, the image is 'recent'.
+				notRecentImages[task.ImageDigest] = true
+			}
+			if _, ok := notRecentImages[task.ImageDigest]; ok {
+				continue
+			}
+
 			scanTasksMap[task.ImageDigest] = task
 		}
 		scanTasks := make([]model.ScanTask, 0, len(scanTasksMap))
@@ -167,27 +216,42 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			scanTasks = append(scanTasks, scanTask)
 		}
 
+		sort.Slice(scanTasks, func(i, j int) bool {
+			if sortOrder == "desc" {
+				i, j = j, i
+			}
+
+			switch sortBy {
+			case "finishedAt":
+				return scanTasks[i].FinishedAt < scanTasks[j].FinishedAt
+			case "overallSeverity":
+				return redclair.SeverityGreaterThan(scanTasks[j].ScanReport.OverallSeverity, scanTasks[i].ScanReport.OverallSeverity)
+			case "repository":
+				return scanTasks[i].Repository < scanTasks[j].Repository
+			case "tag":
+				return scanTasks[i].Tag < scanTasks[j].Tag
+			case "imageDigest":
+				return scanTasks[i].ImageDigest < scanTasks[j].ImageDigest
+			}
+			return true
+		})
+
 		actualOffset := int(math.Min(float64(offset), float64(len(scanTasks))))
 		actualLimit := int(math.Min(float64(offset+limit), float64(len(scanTasks))))
+
+		docNum := int64(len(scanTasks))
 
 		scanTasks = scanTasks[actualOffset:actualLimit]
 		items := make([]s.ImageScanSummaryResult, len(scanTasks))
 		for scanTaskNo, scanTask := range scanTasks {
-			imageScanResult := &s.ImageScanSummaryResult{}
+
 			report := scanTask.ScanReport.Vulns
 			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
-
 			topVulnsNum := len(report.Vulnerabilities)
 			if len(report.Vulnerabilities) >= 5 {
 				topVulnsNum = 5
 			}
-			imageScanResult.TopVulns = report.Vulnerabilities[:topVulnsNum]
 
-			if len(imageScanResult.TopVulns) >= 1 {
-				imageScanResult.OverallSeverity = report.Vulnerabilities[0].Severity
-			} else {
-				imageScanResult.OverallSeverity = redclair.SeverityUnknown
-			}
 			for j := range report.Sensitives {
 				if lang.Language(ctx) == lang.LanguageZH {
 					description := report.Sensitives[j].DescriptionZh
@@ -197,14 +261,22 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 					report.Sensitives[j].Description = description
 				}
 			}
-			imageScanResult.SensitiveFiles = report.Sensitives
-			imageScanResult.Repository = report.Repository
-			imageScanResult.Tag = report.Tag
-			imageScanResult.Digest = report.Digest
-			imageScanResult.TaskID = scanTask.ID
+
+			imageScanResult := &s.ImageScanSummaryResult{
+				TopVulns:        report.Vulnerabilities[:topVulnsNum],
+				SensitiveFiles:  report.Sensitives,
+				Repository:      report.Repository,
+				Tag:             report.Tag,
+				Digest:          report.Digest,
+				TaskID:          scanTask.ID,
+				StartedAt:       scanTask.StartedAt,
+				FinishedAt:      scanTask.FinishedAt,
+				OverallSeverity: scanTask.ScanReport.OverallSeverity,
+			}
+
 			items[scanTaskNo] = *imageScanResult
 		}
-		docNum := int64(len(items))
+
 		response.Ok(w,
 			response.WithItems(items),
 			response.WithTotalItems(docNum),
@@ -263,6 +335,42 @@ type scanReportListItem struct {
 	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
 }
 
+func (api *api) timeRangeFilterFromQuery(r *http.Request) (bson.M, error) {
+	fromDateUnix := time.Now().Add(-1 * time.Hour * 24 * 7).Unix()
+	toDateUnix := time.Now().Unix()
+
+	filterFrom := r.URL.Query().Get("from")
+	filterTo := r.URL.Query().Get("to")
+	if filterFrom != "" {
+		fromTimestamp, err := time.Parse(time.RFC3339, filterFrom)
+		if err != nil {
+			return bson.M{}, NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
+				Suberror{"from", "allowed: RFC3339 timestamp format"})
+		}
+		fromDateUnix = fromTimestamp.Unix()
+	}
+	if filterTo != "" {
+		toTimestamp, err := time.Parse(time.RFC3339, filterTo)
+		if err != nil {
+			return bson.M{}, NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
+				Suberror{"to", "allowed: RFC3339 timestamp format"})
+		}
+		toDateUnix = toTimestamp.Unix()
+	}
+
+	filter := bson.M{
+		"finishedAt": bson.M{"$gt": fromDateUnix, "$lt": toDateUnix},
+	}
+	if filterTo == "" {
+		filter = bson.M{
+			"finishedAt": bson.M{"$gt": fromDateUnix},
+		}
+	}
+	return filter, nil
+}
+
 // @Summary List reports by severity
 // @Description List reports by severity
 // @Produce json
@@ -303,41 +411,10 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		fromDateUnix := time.Now().Add(-1 * time.Hour * 24 * 7).Unix()
-		toDateUnix := time.Now().Unix()
-
-		filterFrom := r.URL.Query().Get("from")
-		filterTo := r.URL.Query().Get("to")
-		if filterFrom != "" {
-			fromTimestamp, err := time.Parse(time.RFC3339, filterFrom)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewFieldError(http.StatusBadRequest,
-						fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
-						Suberror{"from", "allowed: RFC3339 timestamp format"}))
-				return
-			}
-			fromDateUnix = fromTimestamp.Unix()
-		}
-		if filterTo != "" {
-			toTimestamp, err := time.Parse(time.RFC3339, filterTo)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewFieldError(http.StatusBadRequest,
-						fmt.Errorf("failed to parse time (allowed: RFC3339 timestamp format): %w", err),
-						Suberror{"to", "allowed: RFC3339 timestamp format"}))
-				return
-			}
-			toDateUnix = toTimestamp.Unix()
-		}
-
-		filter := bson.M{
-			"finishedAt": bson.M{"$gt": fromDateUnix, "$lt": toDateUnix},
-		}
-		if filterTo == "" {
-			filter = bson.M{
-				"finishedAt": bson.M{"$gt": fromDateUnix},
-			}
+		filter, err := api.timeRangeFilterFromQuery(r)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
 		}
 
 		findOptions := options.Find()

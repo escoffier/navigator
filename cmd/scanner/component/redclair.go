@@ -523,6 +523,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	vulns := make([]redclair.VulnerabilityInfo, 0)
 	sensitives := make([]redclair.Sensitive, 0)
 	perLayerReport := make([]redclair.VulnerabilityLayerReport, 0)
+	report.OverallSeverity = redclair.SeverityUnknown
 	for layerNo, digest := range layers {
 		cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 		if err != nil {
@@ -533,8 +534,14 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
 		report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
 		sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
+
 		addedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsAdded...)
 		util.SortVulnsBySeverityAndStuff(addedVulns, false)
+		overallSeverity := redclair.SeverityUnknown
+		if len(addedVulns) > 0 {
+			overallSeverity = addedVulns[0].Severity
+		}
+
 		removedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsRemoved...)
 		util.SortVulnsBySeverityAndStuff(removedVulns, false)
 		perLayerReport = append(perLayerReport, redclair.VulnerabilityLayerReport{
@@ -543,7 +550,12 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 			VulnerabilitiesAdded:   addedVulns,
 			VulnerabilitiesRemoved: removedVulns,
 			Sensitives:             cachedLayer.ScanReport.Sensitive,
+			OverallSeverity:        overallSeverity,
 		})
+
+		if redclair.SeverityGreaterThan(overallSeverity, report.OverallSeverity) {
+			report.OverallSeverity = overallSeverity
+		}
 
 		currentVulns := vulns[:0]
 		for _, v := range vulns {
@@ -628,13 +640,21 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 					return err
 				}
 			}
+
+			overallSeverity := redclair.SeverityUnknown
+			if len(vulnInfo) > 0 {
+				util.SortVulnsBySeverityAndStuff(vulnInfo, false)
+				overallSeverity = vulnInfo[0].Severity
+			}
+
 			scanWorkerResult := &model.ScanWorkerReport{
-				Vulns:        vulnInfo,
-				VulnsAdded:   vulnInfoAdded,
-				VulnsRemoved: vulnInfoRemoved,
-				Files:        fileSignatures,
-				Software:     software,
-				Sensitive:    sensitive,
+				Vulns:           vulnInfo,
+				VulnsAdded:      vulnInfoAdded,
+				VulnsRemoved:    vulnInfoRemoved,
+				Files:           fileSignatures,
+				Software:        software,
+				Sensitive:       sensitive,
+				OverallSeverity: overallSeverity,
 			}
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if len(layersBench) > 0 {
