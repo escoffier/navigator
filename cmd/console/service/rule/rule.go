@@ -106,6 +106,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 
 	queryRule.Active = false
 	queryRule.DeletedAt = time.Now()
+	queryRule.AuditTimestamp = time.Now()
 	filter = bson.M{"_id": ruleObjectID}
 	update := bson.M{"$set": queryRule}
 
@@ -174,6 +175,7 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 
 	queryRule.Active = false
 	queryRule.DeletedAt = time.Now()
+	queryRule.AuditTimestamp = time.Now()
 	filter = bson.M{"_id": ruleObjectID}
 	update := bson.M{"$set": queryRule}
 

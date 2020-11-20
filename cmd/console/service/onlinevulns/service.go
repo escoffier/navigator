@@ -480,6 +480,10 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 			LastUpdateTimeEpoch: time.Now().Unix(),
 		}
 
+		if isDeleteEvent {
+			assetContainer.AuditTimestamp = time.Now()
+		}
+
 		if owner == nil {
 			// owner can be nil e.g. when we run
 			//kubectl run curl --image=radial/busyboxplus:curl -i --tty -n tensorsec
@@ -549,6 +553,7 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 		}
 
 		container.IsDeleted = true
+		container.AuditTimestamp = time.Now()
 
 		update := bson.M{"$set": container}
 		opts := options.Update().SetUpsert(true)

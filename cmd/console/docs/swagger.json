@@ -96,6 +96,37 @@
                 ]
             }
         },
+        "/api/v1/audit/gc": {
+            "post": {
+                "description": "Run hot storage garbace collection",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Run hot storage garbace collection",
+                "operationId": "v1-audit-gc-post",
+                "parameters": [
+                    {
+                        "description": "hotStorageDays",
+                        "name": "hotStorageDays",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        },
+        "/api/v1/audit/hotStorage/view": {
+            "get": {
+                "description": "Get hot storage view",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get hot storage view",
+                "operationId": "v1-audit-hot-storage-view-get"
+            }
+        },
         "/api/v1/auth/login": {
             "post": {
                 "description": "Login by username/password",

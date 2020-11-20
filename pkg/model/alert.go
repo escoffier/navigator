@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -18,6 +19,7 @@ const (
 )
 
 type Alert struct {
+	audit.AuditedEntry    `json:"-" bson:"auditedentry, omitempty"`
 	ID                    primitive.ObjectID     `json:"id" bson:"_id, omitempty"`
 	AlertKind             string                 `json:"kind" bson:"kind"`
 	Acknowledged          bool                   `json:"acknowledged" bson:"acknowledged"`

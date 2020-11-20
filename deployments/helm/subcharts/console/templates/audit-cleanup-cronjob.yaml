@@ -5,7 +5,7 @@ metadata:
   labels:
 {{ include "auditCleanup.labels" . | indent 4 }}
 spec:
-  schedule: "0 4 * * *"
+  schedule: {{ .Values.auditCleanup.cronString }}
   jobTemplate:
     spec:
       concurrencyPolicy: Forbid
@@ -17,7 +17,7 @@ spec:
               image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.auditCleanup.image.name }}:{{ .Values.auditCleanup.image.tag }}"
               volumeMounts:
                 - name: audits
-                  mountPath: /audits
+                  mountPath: {{ .Values.audit.mountPath }}
               env:
                 - name: TENSORSEC_MONGO_ADDRESS
                   value: tensorsec-mongodb

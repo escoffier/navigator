@@ -94,6 +94,27 @@ paths:
       produces:
       - application/json
       summary: Update audit config
+  /api/v1/audit/gc:
+    post:
+      description: Run hot storage garbace collection
+      operationId: v1-audit-gc-post
+      parameters:
+      - description: hotStorageDays
+        in: body
+        name: hotStorageDays
+        required: true
+        schema:
+          type: integer
+      produces:
+      - application/json
+      summary: Run hot storage garbace collection
+  /api/v1/audit/hotStorage/view:
+    get:
+      description: Get hot storage view
+      operationId: v1-audit-hot-storage-view-get
+      produces:
+      - application/json
+      summary: Get hot storage view
   /api/v1/auth/login:
     post:
       consumes:

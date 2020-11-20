@@ -192,7 +192,7 @@ var (
 
 func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, check *scapper.Check, policyID, descriptionEn, descriptionZh, nodeName string, sev severity) {
 	if _, ok := alertsToReport[policyID]; !ok {
-		alertsToReport[policyID] = model.Alert{
+		newAlert := model.Alert{
 			ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
 			AlertKind: model.AlertKindComplianceCheck,
 			Timestamp: time.Now(),
@@ -207,6 +207,8 @@ func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, c
 				PolicyID:      policyID,
 			},
 		}
+		newAlert.AuditTimestamp = time.Now()
+		alertsToReport[policyID] = newAlert
 	}
 
 	*alertsToReport[policyID].ComplianceCheckAlert.AffectedNodes =

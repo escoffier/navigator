@@ -138,6 +138,7 @@ func (api *api) scanOne() http.HandlerFunc {
 		defer mongoCancel()
 
 		task.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+		task.AuditTimestamp = time.Now()
 		_, err = api.mongodb.Collection(model.ScanTasksCollection).InsertOne(mongoCtx, task)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")

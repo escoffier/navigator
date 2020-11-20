@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,15 +26,18 @@ const (
 type ClusterService struct {
 	mongodb        *mongo.Database
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService
+	cleanupService *cleanup.CleanupService
 }
 
 func NewClusterService(
 	mongodb *mongo.Database,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	cleanupService *cleanup.CleanupService,
 ) *ClusterService {
 	return &ClusterService{
 		mongodb:        mongodb,
 		onlineVulnsSvc: onlineVulnsSvc,
+		cleanupService: cleanupService,
 	}
 }
 
@@ -108,6 +112,13 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		return primitive.NilObjectID, err
 	}
 
+	restConfig, err := k8s.GetRestConfigFromKubeConfig(newCluster.KubeConfig)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	s.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
+
 	return id, nil
 }
 
@@ -163,7 +174,7 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 		return nil, NewClusterError(http.StatusBadRequest, fmt.Errorf("Cannot update cluster's kube config: %w", queryResult.Err()))
 	}
 	upCluster.Active = queryCluster.Active
-	upCluster.CreatedAt = queryCluster.CreatedAt	
+	upCluster.CreatedAt = queryCluster.CreatedAt
 
 	_, err = s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 	if err != nil {
@@ -197,6 +208,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 	upCluster.ID = clusterObjectID
 	upCluster.Active = false
 	upCluster.DeletedAt = time.Now()
+	upCluster.AuditTimestamp = time.Now()
 	update := bson.M{"$set": upCluster}
 
 	result, err := s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
@@ -211,6 +223,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 	if err != nil {
 		return result.MatchedCount, err
 	}
+	s.cleanupService.OnKubeConfigUpdate(nil, nil)
 
 	return result.MatchedCount, nil
 }

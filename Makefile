@@ -208,6 +208,7 @@ redeploy:
 		kubectl -n tensorsec delete pvc tensorsec-elasticsearch-master-tensorsec-elasticsearch-master-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
+		kubectl -n tensorsec delete pvc audit-pvc; \
 		kubectl --namespace tensorsec get job --namespace tensorsec | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job; \
 		helm dep up; \
 		helm install ./ --namespace tensorsec --name tensorsec; \

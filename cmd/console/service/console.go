@@ -14,6 +14,8 @@ import (
 	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
@@ -56,6 +59,7 @@ type Console struct {
 	clusterService     *cluster.ClusterService
 	onlineVulnsService *onlinevulns.OnlineVulnsService
 	auditService       *audit.AuditService
+	cleanupService     *cleanup.CleanupService
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -90,9 +94,14 @@ func NewConsole(
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
+	// rule service
 	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
 
+	// audit service
 	auditService := audit.NewAuditService(mongodb)
+
+	// cleanup service
+	cleanupService := cleanup.NewCleanupService(mongodb, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -106,7 +115,7 @@ func NewConsole(
 	onlineVulnsSvc := onlinevulns.NewOnlineVulnsService(mongodb)
 
 	// cluster service
-	clusterService := cluster.NewClusterService(mongodb, onlineVulnsSvc)
+	clusterService := cluster.NewClusterService(mongodb, onlineVulnsSvc, cleanupService)
 
 	// scap service
 	scapper := &scapper.Scapper{
@@ -144,6 +153,7 @@ func NewConsole(
 				alertService,
 				onlineVulnsSvc,
 				auditService,
+				cleanupService,
 			),
 		},
 		mongoClient:        mongoClient,
@@ -155,6 +165,7 @@ func NewConsole(
 		ruleService:        ruleService,
 		onlineVulnsService: onlineVulnsSvc,
 		auditService:       auditService,
+		cleanupService:     cleanupService,
 	}, nil
 }
 
@@ -198,12 +209,22 @@ func (c *Console) Run() func() {
 
 	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongodb)
 
-	err = initializeOnlineVulnsWatch(ctx, c.clusterService, c.onlineVulnsService)
+	kubeClient, restConfig, err := getCurrentKubeClient(ctx, c.clusterService)
 	if err != nil {
 		log.Error().
 			Err(err).
-			Msg("When initializing online vulns watch")
-		panic(fmt.Errorf("When initializing online vulns watch: %w", err))
+			Msg("When validating kube client")
+		panic(fmt.Errorf("When validating kube client: %w", err))
+	}
+	if kubeClient != nil {
+		err = initializeOnlineVulnsWatch(ctx, c.onlineVulnsService, kubeClient)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Msg("When initializing online vulns watch")
+			panic(fmt.Errorf("When initializing online vulns watch: %w", err))
+		}
+		c.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
 	}
 
 	err = c.cronService.StartCrons(ctx)
@@ -233,7 +254,6 @@ func (c *Console) Run() func() {
 func initializeAuditConfig(ctx context.Context, auditService *audit.AuditService) error {
 	// Default values on startup
 	auditConfig := &model.AuditConfig{
-		HotStorageDays:  30,
 		ColdStorageDays: 90,
 	}
 
@@ -460,7 +480,37 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 	return nil
 }
 
-func initializeOnlineVulnsWatch(ctx context.Context, clusterSvc *cluster.ClusterService, onlineVulnsSvc *onlinevulns.OnlineVulnsService) error {
+func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterService) (*kubernetes.Clientset, *rest.Config, error) {
+	clusters, _, err := clusterSvc.ListClusters(ctx, 0, math.MaxInt64)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(clusters) == 0 {
+		return nil, nil, nil
+	}
+	if len(clusters) != 1 {
+		return nil, nil, errors.New("Expected at most 1 cluster at startup")
+	}
+
+	// TODO when support multiple clusters, just loop?
+	firstCluster := clusters[0]
+
+	kubeClient, err := k8s.KubeClientFromB64KubeConfig(firstCluster.KubeConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to create kube client from config: %w", err)
+	}
+	restConfig, err := k8s.GetRestConfigFromKubeConfig(firstCluster.KubeConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to get k8s rest config: %w", err)
+	}
+	err = k8s.CheckKubeClientConnection(kubeClient)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Kube client connection check failed: %w", err)
+	}
+	return kubeClient, restConfig, nil
+}
+
+func initializeOnlineVulnsWatch(ctx context.Context, onlineVulnsSvc *onlinevulns.OnlineVulnsService, kubeClient *kubernetes.Clientset) error {
 	// TODO: to do this properly, this should be a method of OnlineVulns
 	// however, ClusterService already has dependency on OnlineVulns, so this leads to
 	// 1. spaghetti
@@ -470,35 +520,11 @@ func initializeOnlineVulnsWatch(ctx context.Context, clusterSvc *cluster.Cluster
 	// However, I will leave this implementation and design when we know more about alerting hooks etc,
 	// since it will greatly impact the design of the hook thingy.
 
-	clusters, _, err := clusterSvc.ListClusters(ctx, 0, math.MaxInt64)
-	if err != nil {
-		return err
-	}
-	if len(clusters) == 0 {
-		return nil
-	}
-	if len(clusters) != 1 {
-		return errors.New("Expected at most 1 cluster at startup")
-	}
-
-	// TODO when support multiple clusters, just loop?
-	firstCluster := clusters[0]
-
-	kubeClient, err := k8s.KubeClientFromB64KubeConfig(firstCluster.KubeConfig)
-	if err != nil {
-		return fmt.Errorf("Failed to create kube client from config: %w", err)
-	}
-	err = k8s.CheckKubeClientConnection(kubeClient)
-	if err != nil {
-		return fmt.Errorf("Kube client connection check failed: %w", err)
-	}
-
 	// to get things started, call OnKubeConfigUpdate
-	err = onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
+	err := onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
 	if err != nil {
 		return fmt.Errorf("Failed OnKubeConfigUpdate: %w", err)
 	}
 
 	return nil
-
 }

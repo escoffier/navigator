@@ -89,12 +89,8 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 	upAuditConfig.Active = true
 	upAuditConfig.CreatedAt = time.Now()
 
-	if upAuditConfig.HotStorageDays == 0 || upAuditConfig.ColdStorageDays == 0 {
+	if upAuditConfig.ColdStorageDays <= 0 {
 		return nil, NewAuditConfigError(http.StatusBadRequest, fmt.Errorf("Both cold and hot storage expiration date need to be passed"))
-	}
-
-	if upAuditConfig.HotStorageDays >= upAuditConfig.ColdStorageDays {
-		return nil, NewAuditConfigError(http.StatusBadRequest, fmt.Errorf("Hot storage span needs to be shorter than cold storage one"))
 	}
 
 	queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
@@ -112,6 +108,7 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 	}
 	oldAuditConfig.Active = false
 	oldAuditConfig.DeletedAt = time.Now()
+	oldAuditConfig.AuditTimestamp = time.Now()
 	update := bson.M{"$set": oldAuditConfig}
 
 	_, err = s.mongodb.Collection(model.AuditConfigCollection).UpdateOne(ctx, filter, update)

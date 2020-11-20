@@ -17,6 +17,7 @@ require (
 	github.com/docker/docker v0.7.3-0.20190813234819-fade624f1696
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7
+	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
 	github.com/elastic/go-elasticsearch v0.0.0
 	github.com/elastic/go-elasticsearch/v8 v8.0.0-20201022194115-1af099fb3eca
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
@@ -31,7 +32,6 @@ require (
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/googleapis/gnostic v0.3.0 // indirect
-	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/imdario/mergo v0.3.5 // indirect
@@ -39,6 +39,7 @@ require (
 	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
+	github.com/minio/minio v0.0.0-20201122074850-39f3d5493bc9
 	github.com/mitchellh/go-ps v0.0.0-20170309133038-4fdf99ab2936
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/oceanicdev/chi-param v1.1.0
@@ -50,7 +51,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.17.2
 	github.com/satori/go.uuid v1.2.0
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.5.0
 	github.com/stretchr/testify v1.6.1
@@ -62,12 +63,11 @@ require (
 	github.com/xdg/stringprep v1.0.0 // indirect
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.1.3
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	golang.org/x/tools v0.0.0-20200904185747-39188db58858 // indirect
 	google.golang.org/appengine v1.5.0 // indirect
-	google.golang.org/grpc v1.23.0
+	google.golang.org/grpc v1.26.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.0.0-20190409021203-6e4e0e4f393b
