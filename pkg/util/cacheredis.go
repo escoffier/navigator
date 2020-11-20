@@ -277,12 +277,9 @@ func (s *SyncData) GetMongoData() {
 		i++
 	}
 
-	sortListItemsBySeverityAndStuff(listItemsBySeverity, sortOrder == "asc")
-	sortListItemsBySeverityAndStuff(listItemsMedToCritical, sortOrder == "asc")
-	sortListItemsBySeverityAndStuff(listItemsNetWorkBased, sortOrder == "asc")
-	fmt.Println("listItemsBySeverity len：" ,len(listItemsBySeverity))
-	fmt.Println("listItemsMedToCritical len：" ,len(listItemsMedToCritical))
-	fmt.Println("listItemsNetWorkBased len：" ,len(listItemsNetWorkBased))
+	sortListItemsBySeverityAndStuff(listItemsBySeverity, sortOrder == "desc")
+	sortListItemsBySeverityAndStuff(listItemsMedToCritical, sortOrder == "desc")
+	sortListItemsBySeverityAndStuff(listItemsNetWorkBased, sortOrder == "desc")
 
 	s.listItemsBySeverity = &listItemsBySeverity
 	s.listItemsMedToCritical = &listItemsMedToCritical
@@ -514,12 +511,22 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 		fmt.Errorf("get redis cache error:%s", err)
 		return    sl,0
 	}
+
 	start :=  offset
+
 	end :=  offset+limit-1
+	if end >len-1{
+		end = len-1
+	}
+	
 	if    sortOrder == "desc"{
 		start  =len -offset-limit
+		if start<0{
+			start = 0
+		}
 		end =len - offset -1
 	}
+
 
 	result, err = s.redisClient.LRange(ctx, key, start, end).Result()
 
@@ -527,6 +534,7 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 		fmt.Errorf("get redis cache error:%s", err)
 		return sl,0
 	}
+
 	for _, v := range result {
 		r := scanReportListItem{}
 		json.Unmarshal([]byte(v), &r)
