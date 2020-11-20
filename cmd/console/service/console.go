@@ -293,7 +293,42 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 	neededIndexesPerCollection[model.ScanTasksCollection] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
-				"finishedAt": 1, // index in ascending order
+				"finishedAt": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"firstScanAt": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"scan_report.overallSeverity": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"repository": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"tag": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"imageDigest": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"stale": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"status": 1,
 			}, Options: nil,
 		},
 	}
@@ -320,7 +355,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		}
 	}
 	neededIndexesPerCollection[model.AssetsContainerCollection] = []mongo.IndexModel{
-		// so many indexes on one collection smells...
 		{
 			Keys: bson.M{
 				"lastUpdateTime": 1,
