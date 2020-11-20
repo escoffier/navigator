@@ -339,7 +339,8 @@ func (s *SyncData) GetRedisMaxFinishedAt() *int64 {
 	var ctx = context.Background()
 	val, err := s.redisClient.Get(ctx, "FinishedAt").Result()
 	if err != nil {
-		return nil
+		var i int64 = 2
+		return &i
 	}
 	val64, _ := strconv.ParseInt(val, 10, 64)
 	return &val64
@@ -372,7 +373,8 @@ func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
 	singleResult := s.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		fmt.Println("singleResult error:", singleResult.Err())
-		return nil
+		var i int64 =0
+		return &i
 	}
 
 	var scanTask model.ScanTask
