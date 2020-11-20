@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 
 	"time"
 
@@ -411,184 +410,18 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		filter, err := api.timeRangeFilterFromQuery(r)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
 
-		findOptions := options.Find()
-		// sorted by date ascending, so that newer scans of the same digest are on top ("last scan wins")
-		// NOTE: need index on finishedAt ascending on this collection for this to work, otherwise
-		// may get errors like:
-		//  (OperationFailed) Executor error during find command :: caused by ::
-		//  Sort operation used more than the maximum 33554432 bytes of RAM. Add an index, or specify a smaller limit."
-		findOptions.SetSort(bson.D{{"finishedAt", 1}})
+		item,lenth :=api.syncData.GetResultItem(riskFilter,lang.Language(ctx),offset,limit,sortOrder)
 
-		cursor, err := api.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter, findOptions)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-		defer cursor.Close(ctx)
-
-		type vulnInfoEx struct {
-			// Helper struct that creates one to one mapping between vulnerability and affected image.
-			redclair.VulnerabilityInfo
-			AffectedRepository string
-			AffectedTag        string
-			AffectedDigest     string
-			AffectedHarborURL  string
-			FinishedAt         int64
-			TaskID             primitive.ObjectID
-		}
-
-		digestToVulns := make(map[string][]vulnInfoEx)
-		for cursor.Next(ctx) {
-			var task model.ScanTask
-			err := cursor.Decode(&task)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't decode document: %w", err)))
-				return
-			}
-
-			if task.Status != model.ScanStatusSucceeded {
-				continue
-			}
-
-			// if the same ImageDigest was encountered before, its list of vulns will be overwritten.
-			// This way, we only keep info from the newest scan of an image.
-			// This assumes cursor returns entries sorted from old to new.
-			digestToVulns[task.ImageDigest] = []vulnInfoEx{}
-
-			for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
-
-				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
-					if !redclair.SeverityGreaterThan(vuln.Severity, redclair.SeverityLow) {
-						continue
-					}
-				}
-				if riskFilter == "networkBased" {
-					if strings.Contains(vuln.CVSS.CVSSv2Vector, "AV:L") {
-						continue
-					}
-				}
-
-				vex := vulnInfoEx{
-					VulnerabilityInfo:  vuln,
-					AffectedRepository: task.Repository,
-					AffectedTag:        task.Tag,
-					AffectedDigest:     task.ImageDigest,
-					AffectedHarborURL:  task.HarborURL,
-					FinishedAt:         task.FinishedAt,
-					TaskID:             task.ID,
-				}
-				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
-			}
-			for _, sens := range task.ScanReport.Vulns.Sensitives {
-
-				if riskFilter == "medToCrit" || riskFilter == "networkBased" {
-					continue
-				}
-
-				description := fmt.Sprintf("Potential file leak: %s", sens.DescriptionEn)
-				if lang.Language(ctx) == lang.LanguageZH {
-					description = fmt.Sprintf("潛在的文件洩漏: %s", sens.DescriptionZh)
-				}
-
-				// "dumb" convert of sensitive file info to vulnerability info.
-				// Consider a different way to return this maybe?
-				vi := redclair.VulnerabilityInfo{
-					Description: description,
-					FeatureName: sens.Name,
-					Severity:    redclair.SeverityUnknown,
-					Links:       []string{},
-				}
-				vex := vulnInfoEx{
-					VulnerabilityInfo:  vi,
-					AffectedRepository: task.Repository,
-					AffectedTag:        task.Tag,
-					AffectedDigest:     task.ImageDigest,
-					AffectedHarborURL:  task.HarborURL,
-					FinishedAt:         task.FinishedAt,
-					TaskID:             task.ID,
-				}
-				digestToVulns[task.ImageDigest] = append(digestToVulns[task.ImageDigest], vex)
-			}
-		}
-
-		err = cursor.Err()
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Cursor error: %w", err)))
-			return
-		}
-
-		listItemsSet := make(map[string]scanReportListItem)
-		for _, vulns := range digestToVulns {
-
-			for _, vuln := range vulns {
-				key := vuln.ID
-				if key == "" {
-					// handle sensitive filename
-					key = vuln.FeatureName
-				}
-
-				if _, ok := listItemsSet[key]; !ok {
-					listItemsSet[key] = scanReportListItem{
-						VulnInfo:       vuln.VulnerabilityInfo,
-						AffectedImages: &[]scanReportAffectedImage{},
-					}
-				}
-
-				af := scanReportAffectedImage{
-					Repository: vuln.AffectedRepository,
-					Tag:        vuln.AffectedTag,
-					Digest:     vuln.AffectedDigest,
-					HarborURL:  vuln.AffectedHarborURL,
-					FinishedAt: vuln.FinishedAt,
-					TaskID:     vuln.TaskID,
-				}
-
-				*listItemsSet[key].AffectedImages = append(*listItemsSet[key].AffectedImages, af)
-			}
-		}
-
-		// convert to list in order to sort easier
-		listItems := make([]scanReportListItem, len(listItemsSet))
-		i := 0
-		for _, item := range listItemsSet {
-			listItems[i] = item
-			i++
-		}
-
-		sortListItemsBySeverityAndStuff(listItems, sortOrder == "asc")
-
-		docNum := int64(len(listItems))
-		actualOffset := int(math.Min(float64(offset), float64(len(listItems))))
-		actualLimit := int(math.Min(float64(offset+limit), float64(len(listItems))))
 		response.Ok(w,
-			response.WithItems(listItems[actualOffset:actualLimit]),
-			response.WithTotalItems(docNum),
+			response.WithItems(item),
+			response.WithTotalItems(lenth),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
 	}
 }
 
-func sortListItemsBySeverityAndStuff(vulnerabilities []scanReportListItem, asc bool) {
-	sort.Slice(vulnerabilities, func(i, j int) bool {
-		if !asc {
-			i, j = j, i
-		}
 
-		return redclair.CompareVulnerabilities(vulnerabilities[i].VulnInfo, vulnerabilities[j].VulnInfo)
-	})
-}
 
 // @Summary Tell scanner to scan an image
 // @Description Tell scanner to scan an image
