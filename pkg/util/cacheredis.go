@@ -367,6 +367,7 @@ func (s *SyncData) SetRedisMaxFinishedAt() {
 		fmt.Errorf("-------------->Set FinishedAt  redis error：%s ", err)
 		return
 	}
+	fmt.Println("设定时间完毕！！！！")
 	return
 }
 
@@ -420,13 +421,14 @@ func (s *SyncData) FlushToRedisBySeverity() {
 			return
 		}
 	}
-
+	fmt.Println("设定BySeverity完毕！！！！")
 
 }
 
 func (s *SyncData) FlushToRedisMedToCritical() {
 	if s.listItemsMedToCritical == nil {
-		fmt.Errorf("listItemsMedToCritical is nil")
+		//fmt.Errorf("listItemsMedToCritical is nil")
+		fmt.Printf("Redis 执行错误 set MedToCritical data error %s", err)
 		return
 	}
 	//clear ll
@@ -444,10 +446,12 @@ func (s *SyncData) FlushToRedisMedToCritical() {
 		}
 		err = s.redisClient.RPush(ctx, MedToCriticalKey, data).Err()
 		if err != nil {
-			fmt.Errorf("set MedToCritical data error %s", err)
+			//fmt.Errorf("set MedToCritical data error %s", err)
+			fmt.Printf("Redis 执行错误 set MedToCritical data error %s", err)
 			return
 		}
 	}
+	fmt.Println("设定 MedToCritical完毕！！！！")
 }
 
 func (s *SyncData) FlushToRedisNetWorkBased() {
@@ -470,10 +474,11 @@ func (s *SyncData) FlushToRedisNetWorkBased() {
 		}
 		err = s.redisClient.RPush(ctx, NetWorkBasedKey, data).Err()
 		if err != nil {
-			fmt.Errorf("set NetWorkBased data error %s", err)
+			fmt.Printf("Redis 执行错误 set NetWorkBased data error %s", err)
 			return
 		}
 	}
+	fmt.Println("设定 NetWorkBased 完毕！！！！")
 }
 
 func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64,sortOrder string) ([]scanReportListItem,int64){
