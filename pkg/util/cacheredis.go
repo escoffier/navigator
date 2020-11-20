@@ -73,6 +73,7 @@ func NewSyncData(mongodb *mongo.Database, redisClient *redis.Client) *SyncData {
 
 
 func (s *SyncData) GetMongoData() {
+	fmt.Println("begin get data form mongo")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*100)
 	defer cancel()
 	//By Severity
@@ -279,7 +280,9 @@ func (s *SyncData) GetMongoData() {
 	sortListItemsBySeverityAndStuff(listItemsBySeverity, sortOrder == "asc")
 	sortListItemsBySeverityAndStuff(listItemsMedToCritical, sortOrder == "asc")
 	sortListItemsBySeverityAndStuff(listItemsNetWorkBased, sortOrder == "asc")
-	/**/
+	fmt.Println("listItemsBySeverity len：" ,len(listItemsBySeverity))
+	fmt.Println("listItemsMedToCritical len：" ,len(listItemsMedToCritical))
+	fmt.Println("listItemsNetWorkBased len：" ,len(listItemsNetWorkBased))
 
 	s.listItemsBySeverity = &listItemsBySeverity
 	s.listItemsMedToCritical = &listItemsMedToCritical
@@ -309,8 +312,11 @@ func (s *SyncData) BgSync() {
 
 
 func (s *SyncData) CheckVersion() bool {
+	fmt.Println("begin check sync")
 	mongoFinishedAt := s.GetMongoMaxFinishedAt()
 	redisFinishedAt := s.GetRedisMaxFinishedAt()
+	fmt.Println("mongoFinishedAt:",*mongoFinishedAt)
+	fmt.Println("redisFinishedAt:",*redisFinishedAt)
 	if mongoFinishedAt != nil && redisFinishedAt != nil && *mongoFinishedAt == *redisFinishedAt {
 		return true
 	}
@@ -343,13 +349,13 @@ func (s *SyncData) SetRedisMaxFinishedAt() {
 	if s.FinishedAt == nil {
 		return
 	}
-	fmt.Println("设置redis 时间参数：")
+	fmt.Println("set redis time")
 	fmt.Println("*s.FinishedAt:", *s.FinishedAt)
 	var ctx = context.Background()
 	//
 	err := s.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(*s.FinishedAt, 10), 0).Err()
 	if err != nil {
-		fmt.Errorf("Set redis error：%s", err.Error())
+		fmt.Errorf("Set redis error：%s ", err)
 		return
 	}
 	return
@@ -394,11 +400,12 @@ func (s *SyncData) FlushToRedisBySeverity() {
 	for _, v := range *s.listItemsBySeverity {
 		data, err := json.Marshal(v)
 		if err != nil {
-			fmt.Errorf("json marshal error:%s", err)
+			fmt.Errorf("json marshal error: %s", err)
 			return
 		}
 		s.redisClient.RPush(ctx, BySeverityKey, data)
 	}
+
 
 }
 
@@ -416,7 +423,7 @@ func (s *SyncData) FlushToRedisMedToCritical() {
 	for _, v := range *s.listItemsMedToCritical {
 		data, err := json.Marshal(v)
 		if err != nil {
-			fmt.Errorf("json marshal error:%s", err)
+			fmt.Errorf("json marshal error:%s ", err)
 			return
 		}
 		s.redisClient.RPush(ctx, MedToCriticalKey, data)
