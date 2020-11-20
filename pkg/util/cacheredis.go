@@ -518,7 +518,7 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 	if end >len-1{
 		end = len-1
 	}
-	
+
 	if    sortOrder == "desc"{
 		start  =len -offset-limit
 		if start<0{
@@ -547,7 +547,7 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 		}
 		sl = append(sl, r)
 	}
-	if sortOrder != "desc"{
+	if sortOrder != "asc"{
 		return 	reverse(sl),len
 	}
 	return sl,len
