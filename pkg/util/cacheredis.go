@@ -417,7 +417,9 @@ func (s *SyncData) FlushToRedisBySeverity() {
 		}
 		err = s.redisClient.RPush(ctx, BySeverityKey, data).Err()
 		if err != nil {
-			fmt.Errorf("set BySeverityKey data error %s", err)
+			//fmt.Errorf("set BySeverityKey data error %s", err)
+			fmt.Printf("Redis 执行错误 set BySeverity data error %s", err)
+
 			return
 		}
 	}
@@ -428,7 +430,6 @@ func (s *SyncData) FlushToRedisBySeverity() {
 func (s *SyncData) FlushToRedisMedToCritical() {
 	if s.listItemsMedToCritical == nil {
 		//fmt.Errorf("listItemsMedToCritical is nil")
-		fmt.Printf("Redis 执行错误 set MedToCritical data error %s", err)
 		return
 	}
 	//clear ll
