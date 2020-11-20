@@ -28,13 +28,19 @@ type FileConsumer struct {
 	quitChan chan struct{}
 	file     string
 	cache    *cache.Cache
+	k8sCache *cache.Cache
 }
 
 func (cc *FileConsumer) Init(dataChan chan constant.Data) error {
 	cc.dataChan = dataChan
 	cc.quitChan = make(chan struct{}, 1)
 	cc.file = "/data/syscall.json"
-	cc.cache = cache.New(10*time.Second, 10*time.Second)
+	cc.cache = cache.New(10*time.Second, 5*time.Minute)
+	cc.k8sCache = cache.New(cache.NoExpiration, 5*time.Minute)
+	err := kh.InitKubernetesWatcher(cc.k8sCache)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -91,12 +97,12 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 				continue
 			}
 			if pid > 0 {
-				info, err := ku.LookupPod(containerPID, pid, ExtraInfo["syscall"].(string))
+				info, err := ku.LookupPod(cc.k8sCache, containerPID, pid, ExtraInfo["syscall"].(string))
 				if err != nil {
 					log.Debugf("Problem getting pod ID: %w", err)
 				} else {
 					if info.DockerPID <= 0 {
-						info, err = ku.LookupPod(containerPID, ptid, ExtraInfo["syscall"].(string))
+						info, err = ku.LookupPod(cc.k8sCache, containerPID, ptid, ExtraInfo["syscall"].(string))
 						if err != nil {
 							log.Debugf("Problem getting pod ID: %w", err)
 							continue
