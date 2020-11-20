@@ -866,6 +866,56 @@ func (rcSvc *RedClairService) decodeUsernamePassword(scanTask model.ScanTask) (s
 	return username, password, nil
 }
 
+func (rcSvc *RedClairService) doImageScanBookkeeping(ctx context.Context, scanTask model.ScanTask) (int64, int, error) {
+	numMarked := 0
+	var firstScanAt int64 = scanTask.FinishedAt
+
+	filter := bson.M{
+		"$and": []bson.M{
+			{"$ne": bson.M{"_id": scanTask.ID}},
+			{"digest": scanTask.ImageDigest},
+			{"stale": false},
+		},
+	}
+	cursor, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter)
+	if err != nil {
+		return firstScanAt, numMarked, NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var task model.ScanTask
+		err := cursor.Decode(&task)
+		if err != nil {
+			return firstScanAt, numMarked, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't decode document: %w", err))
+		}
+
+		task.Stale = true
+
+		if task.FirstScanAt < firstScanAt {
+			firstScanAt = task.FirstScanAt
+		}
+
+		filter := bson.M{"_id": task.ID}
+		update := bson.M{"$set": task}
+		_, err = rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateOne(ctx, filter, update)
+		if err != nil {
+			return firstScanAt, numMarked, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't update document: %w", err))
+		}
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return firstScanAt, numMarked, NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Cursor error: %w", err))
+	}
+
+	return firstScanAt, numMarked, nil
+}
+
 func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanTask model.ScanTask, status, message string, originalErr error) {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
 	defer mongoCtxCancel()
@@ -877,6 +927,20 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 
 	scanTask.FinishedAt = time.Now().Unix()
 	scanTask.Status = status
+
+	if status == model.ScanStatusSucceeded {
+		firstScanAt, numMarked, err := rcSvc.doImageScanBookkeeping(ctx, scanTask)
+		if err != nil {
+			zerolog.Ctx(ctx).Error().
+				Err(err).
+				Str("scanTask", fmt.Sprintf("%+v", scanTask)).
+				Int("numMarked", numMarked).
+				Msg("error in marking tasks as stale in Mongo")
+		}
+
+		scanTask.FirstScanAt = firstScanAt
+		scanTask.Stale = false
+	}
 
 	filter := bson.M{"_id": scanTask.ID}
 	update := bson.M{"$set": scanTask}

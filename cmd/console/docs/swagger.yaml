@@ -302,6 +302,18 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: asc/desc
+        in: query
+        name: sortOrder
+        type: string
+      - description: return only images that have only scans younger than this number; 0 or empty disables
+        in: query
+        name: maxImageAgeInHours
+        type: integer
+      - description: finishedAt/overallSeverity/repository/tag/imageDigest
+        in: query
+        name: sortBy
+        type: string
       produces:
       - application/json
       summary: List images and their vulnerabilities
@@ -325,10 +337,6 @@ paths:
         in: query
         name: sortOrder
         type: string
-      - description: absolute time (in unix epoch seconds) from which to return results (default is 1 week ago)
-        in: query
-        name: from
-        type: integer
       produces:
       - application/json
       summary: List reports by severity
