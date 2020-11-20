@@ -315,8 +315,16 @@ func (s *SyncData) CheckVersion() bool {
 	fmt.Println("begin check sync")
 	mongoFinishedAt := s.GetMongoMaxFinishedAt()
 	redisFinishedAt := s.GetRedisMaxFinishedAt()
-	fmt.Println("mongoFinishedAt:",*mongoFinishedAt)
-	fmt.Println("redisFinishedAt:",*redisFinishedAt)
+	if mongoFinishedAt ==nil{
+		fmt.Println("mongoFinishedAt: nil")
+	}else{
+		fmt.Println("mongoFinishedAt:",*mongoFinishedAt)
+	}
+	if redisFinishedAt == nil{
+		fmt.Println("redisFinishedAt: nil")
+	}else{
+		fmt.Println("redisFinishedAt:",*redisFinishedAt)
+	}
 	if mongoFinishedAt != nil && redisFinishedAt != nil && *mongoFinishedAt == *redisFinishedAt {
 		return true
 	}
@@ -356,7 +364,7 @@ func (s *SyncData) SetRedisMaxFinishedAt() {
 	//
 	err := s.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(*s.FinishedAt, 10), 0).Err()
 	if err != nil {
-		fmt.Errorf("Set redis error：%s ", err)
+		fmt.Errorf("-------------->Set FinishedAt  redis error：%s ", err)
 		return
 	}
 	return
@@ -389,6 +397,7 @@ func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
 func (s *SyncData) FlushToRedisBySeverity() {
 
 	if s.listItemsBySeverity == nil {
+		fmt.Errorf("listItemsMedToCritical is nil")
 		return
 	}
 	//开始刷写数据
@@ -405,7 +414,11 @@ func (s *SyncData) FlushToRedisBySeverity() {
 			fmt.Errorf("json marshal error: %s", err)
 			return
 		}
-		s.redisClient.RPush(ctx, BySeverityKey, data)
+		err = s.redisClient.RPush(ctx, BySeverityKey, data).Err()
+		if err != nil {
+			fmt.Errorf("set BySeverityKey data error %s", err)
+			return
+		}
 	}
 
 
@@ -413,6 +426,7 @@ func (s *SyncData) FlushToRedisBySeverity() {
 
 func (s *SyncData) FlushToRedisMedToCritical() {
 	if s.listItemsMedToCritical == nil {
+		fmt.Errorf("listItemsMedToCritical is nil")
 		return
 	}
 	//clear ll
@@ -428,12 +442,17 @@ func (s *SyncData) FlushToRedisMedToCritical() {
 			fmt.Errorf("json marshal error:%s ", err)
 			return
 		}
-		s.redisClient.RPush(ctx, MedToCriticalKey, data)
+		err = s.redisClient.RPush(ctx, MedToCriticalKey, data).Err()
+		if err != nil {
+			fmt.Errorf("set MedToCritical data error %s", err)
+			return
+		}
 	}
 }
 
 func (s *SyncData) FlushToRedisNetWorkBased() {
 	if s.listItemsNetWorkBased == nil {
+		fmt.Println("listItemsNetWorkBased is nil")
 		return
 	}
 	//clear all
@@ -449,7 +468,11 @@ func (s *SyncData) FlushToRedisNetWorkBased() {
 			fmt.Errorf("json marshal error:%s", err)
 			return
 		}
-		s.redisClient.RPush(ctx, NetWorkBasedKey, data)
+		err = s.redisClient.RPush(ctx, NetWorkBasedKey, data).Err()
+		if err != nil {
+			fmt.Errorf("set NetWorkBased data error %s", err)
+			return
+		}
 	}
 }
 
