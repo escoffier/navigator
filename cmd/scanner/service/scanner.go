@@ -55,6 +55,17 @@ func NewScanner(
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = mongoClient.Connect(ctx)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("error in connecting to the Mongo database")
+		panic(err)
+	}
+
+	
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
 	// Redis DB client

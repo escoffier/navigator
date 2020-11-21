@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -12,12 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
-
 
 type syncCache interface {
 	GetMongoData()
@@ -28,7 +28,7 @@ type syncCache interface {
 	FlushToRedisMedToCritical()
 	FlushToRedisNetWorkBased()
 	SetRedisMaxFinishedAt()
-	GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64,sortOrder string) ([]scanReportListItem,int64)
+	GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64)
 	BgSync()
 }
 type scanReportAffectedImage struct {
@@ -53,6 +53,7 @@ type SyncData struct {
 	FinishedAt             *int64
 	DataChannel            chan string
 }
+
 const (
 	BySeverityKey    = "BySeverity"
 	MedToCriticalKey = "MedToCritical"
@@ -66,11 +67,10 @@ func NewSyncData(mongodb *mongo.Database, redisClient *redis.Client) *SyncData {
 		mongodb: mongodb, redisClient: redisClient, DataChannel: make(chan string, 1),
 	}
 	go s.BgSync()
-	s.DataChannel<- "Begain"
+	s.DataChannel <- "Begain"
 	return &s
 
 }
-
 
 func (s *SyncData) GetMongoData() {
 	fmt.Println("begin get data form mongo")
@@ -146,7 +146,7 @@ func (s *SyncData) GetMongoData() {
 			}
 		}
 		for _, sens := range task.ScanReport.Vulns.Sensitives {
-
+			sens.Description = fmt.Sprintf("Potential file leak: %s", sens.Description)
 			vi := redclair.VulnerabilityInfo{
 				Description: sens.Description,
 				FeatureName: sens.Name,
@@ -307,20 +307,19 @@ func (s *SyncData) BgSync() {
 	}
 }
 
-
 func (s *SyncData) CheckVersion() bool {
 	fmt.Println("begin check sync")
 	mongoFinishedAt := s.GetMongoMaxFinishedAt()
 	redisFinishedAt := s.GetRedisMaxFinishedAt()
-	if mongoFinishedAt ==nil{
+	if mongoFinishedAt == nil {
 		fmt.Println("mongoFinishedAt: nil")
-	}else{
-		fmt.Println("mongoFinishedAt:",*mongoFinishedAt)
+	} else {
+		fmt.Println("mongoFinishedAt:", *mongoFinishedAt)
 	}
-	if redisFinishedAt == nil{
+	if redisFinishedAt == nil {
 		fmt.Println("redisFinishedAt: nil")
-	}else{
-		fmt.Println("redisFinishedAt:",*redisFinishedAt)
+	} else {
+		fmt.Println("redisFinishedAt:", *redisFinishedAt)
 	}
 	if mongoFinishedAt != nil && redisFinishedAt != nil && *mongoFinishedAt == *redisFinishedAt {
 		return true
@@ -379,7 +378,7 @@ func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
 	singleResult := s.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		fmt.Println("singleResult error:", singleResult.Err())
-		var i int64 =0
+		var i int64 = 0
 		return &i
 	}
 
@@ -479,7 +478,7 @@ func (s *SyncData) FlushToRedisNetWorkBased() {
 	fmt.Println("设定 NetWorkBased 完毕！！！！")
 }
 
-func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64,sortOrder string) ([]scanReportListItem,int64){
+func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64) {
 
 	if !s.CheckVersion() {
 		s.GetMongoData()
@@ -489,7 +488,7 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 		s.SetRedisMaxFinishedAt()
 	}
 	if sortOrder != "asc" && sortOrder != "desc" {
-		sortOrder="asc"
+		sortOrder = "asc"
 	}
 	key := BySeverityKey
 	if riskFilter == "medToCrit" {
@@ -501,56 +500,49 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 	var sl = make([]scanReportListItem, 0)
 	var ctx = context.Background()
 	var (
-		result   []string
-		err error
+		result []string
+		err    error
 	)
 
 	//gen len
 	len, err := s.redisClient.LLen(ctx, key).Result()
 	if err != nil {
 		fmt.Errorf("get redis cache error:%s", err)
-		return    sl,0
+		return sl, 0
 	}
 
-	start :=  offset
+	start := offset
 
-	end :=  offset+limit-1
-	if end >len-1{
-		end = len-1
+	end := offset + limit - 1
+	if end > len-1 {
+		end = len - 1
 	}
 
-	if    sortOrder == "desc"{
-		start  =len -offset-limit
-		if start<0{
+	if sortOrder == "desc" {
+		start = len - offset - limit
+		if start < 0 {
 			start = 0
 		}
-		end =len - offset -1
+		end = len - offset - 1
 	}
-
 
 	result, err = s.redisClient.LRange(ctx, key, start, end).Result()
 
 	if err != nil {
 		fmt.Errorf("get redis cache error:%s", err)
-		return sl,0
+		return sl, 0
 	}
 
 	for _, v := range result {
 		r := scanReportListItem{}
 		json.Unmarshal([]byte(v), &r)
-		if   r.VulnInfo.Description !=""{
-			description := fmt.Sprintf("Potential file leak: %s", r.VulnInfo.Description)
-			if lan == lang.LanguageZH {
-				description = fmt.Sprintf("潛在的文件洩漏: %s", r.VulnInfo.Description)
-			}
-			r.VulnInfo.Description = description
-		}
+
 		sl = append(sl, r)
 	}
-	if sortOrder != "asc"{
-		return 	reverse(sl),len
+	if sortOrder != "asc" {
+		return reverse(sl), len
 	}
-	return sl,len
+	return sl, len
 }
 func reverse(s []scanReportListItem) []scanReportListItem {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
@@ -558,4 +550,3 @@ func reverse(s []scanReportListItem) []scanReportListItem {
 	}
 	return s
 }
-
