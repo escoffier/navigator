@@ -3,15 +3,12 @@ package kuberneteshelper
 import (
 	"bufio"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"os"
 	"regexp"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	gocache "github.com/patrickmn/go-cache"
 )
 
 var (
@@ -53,14 +50,14 @@ type SyscallContext struct {
 	Syscall       string            `json:"syscall"`
 }
 
-func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*SyscallContext, error) {
+func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, pid int, syscall string) (*SyscallContext, error) {
 	cid, kid, err := ku.LookupDockerPodID(dockerPID, pid)
 	if err != nil {
 		return nil, err
 	}
 
 	if cid == "" && kid == "" {
-		log.Debug("Not found k8s context for given syscall")
+		logging.GetLogger().Debug().Msg("Not found k8s context for given syscall")
 		return &SyscallContext{
 			Namespace:     "",
 			PodName:       "",
@@ -74,66 +71,41 @@ func (ku KubernetesUtil) LookupPod(dockerPID int, pid int, syscall string) (*Sys
 		}, nil
 	}
 
-	log.Debug("Using incluster config")
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, err
-	}
+	logging.GetLogger().Debug().Msg("Finding corresponding pod")
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
+	x, found := clusterCache.Get("docker://" + cid)
+	if found {
+		logging.GetLogger().Debug().Str("container", cid).Msg("Found docker in k8s\n")
+		kubeSelectedInfo := x.(*KubeSelectedInfo)
+		return &SyscallContext{
+			Namespace:     kubeSelectedInfo.Namespace,
+			PodName:       kubeSelectedInfo.PodName,
+			PodUID:        kubeSelectedInfo.PodUID,
+			PodLabels:     kubeSelectedInfo.PodLabels,
+			ContainerID:   cid,
+			ContainerName: kubeSelectedInfo.ContainerName,
+			DockerPID:     dockerPID,
+			ProcessPID:    pid,
+			Syscall:       syscall,
+		}, nil
 	}
-
-	// TODO: filter by namespace?
-	// TODO: use https://kubernetes.io/docs/reference/using-api/api-concepts/#retrieving-large-results-sets-in-chunks and watch?
-	log.Debug("Searching for pod")
-	pods, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
+	x, found = clusterCache.Get("containerd://" + cid)
+	if found {
+		logging.GetLogger().Debug().Str("container", cid).Msg("Found docker in k8s\n")
+		kubeSelectedInfo := x.(*KubeSelectedInfo)
+		return &SyscallContext{
+			Namespace:     kubeSelectedInfo.Namespace,
+			PodName:       kubeSelectedInfo.PodName,
+			PodUID:        kubeSelectedInfo.PodUID,
+			PodLabels:     kubeSelectedInfo.PodLabels,
+			ContainerID:   cid,
+			ContainerName: kubeSelectedInfo.ContainerName,
+			DockerPID:     dockerPID,
+			ProcessPID:    pid,
+			Syscall:       syscall,
+		}, nil
 	}
-
-	log.Debug("Iterating over pods")
-	for _, item := range pods.Items {
-		log.Debugf("Checking %s kid", item.ObjectMeta.UID)
-		if kid != "" {
-			if kid == string(item.ObjectMeta.UID) {
-				log.Debugf("Matching UUID with the one in the process")
-				for _, status := range item.Status.ContainerStatuses {
-					log.Debugf("Checking %s container", status.ContainerID)
-					if status.ContainerID == "docker://"+cid || status.ContainerID == "containerd://"+cid {
-						return &SyscallContext{
-							Namespace:     item.ObjectMeta.Namespace,
-							PodName:       item.ObjectMeta.Name,
-							PodUID:        string(item.ObjectMeta.UID),
-							PodLabels:     item.ObjectMeta.Labels,
-							ContainerID:   cid,
-							ContainerName: status.Name,
-							DockerPID:     dockerPID,
-							ProcessPID:    pid,
-							Syscall:       syscall,
-						}, nil
-					}
-				}
-			}
-		}
-		for _, status := range item.Status.ContainerStatuses {
-			if status.ContainerID == "docker://"+cid || status.ContainerID == "containerd://"+cid {
-				return &SyscallContext{
-					Namespace:     item.ObjectMeta.Namespace,
-					PodName:       item.ObjectMeta.Name,
-					PodUID:        string(item.ObjectMeta.UID),
-					PodLabels:     item.ObjectMeta.Labels,
-					ContainerID:   cid,
-					ContainerName: status.Name,
-					DockerPID:     dockerPID,
-					ProcessPID:    pid,
-					Syscall:       syscall,
-				}, nil
-			}
-		}
-	}
-	log.Debugf("Cached pod %s and container %s doesn't exist in the cluster anymore\n", kid, cid)
+	logging.GetLogger().Debug().Str("pod", kid).Str("container", cid).Msg("Cached pod and container doesn't exist in the cluster anymore\n")
 	return &SyscallContext{
 		Namespace:     "",
 		PodName:       "",
@@ -159,48 +131,48 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 	}
 	defer f.Close()
 
-	log.Debugf("Scanning %d cpuset", pid)
+	logging.GetLogger().Debug().Int("pid", pid).Msg("Scanning cpuset")
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		log.Debugf("Currently scanned line: %s", line)
+		logging.GetLogger().Debug().Str("line", line).Msg("Currently scanned line")
 		parts := dockerPattern.FindStringSubmatch(line)
 		if parts != nil {
-			log.Debugf("Found match for %d against %s", pid, dockerPattern)
-			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
+			logging.GetLogger().Debug().Int("pid", pid).Str("pattern", dockerPattern.String()).Msg("Found match")
+			logging.GetLogger().Debug().Str("cid", parts[2]).Str("kid", parts[1]).Msg("Match")
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Debugf("Match not found against %s", dockerPattern)
+		logging.GetLogger().Debug().Str("pattern", dockerPattern.String()).Msg("Match not found")
 		parts = kubePattern.FindStringSubmatch(line)
 		if parts != nil {
-			log.Debugf("Found match for %d against %s", pid, kubePattern)
-			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
+			logging.GetLogger().Debug().Int("pid", pid).Str("pattern", kubePattern.String()).Msg("Found match")
+			logging.GetLogger().Debug().Str("cid", parts[2]).Str("kid", parts[1]).Msg("Match")
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Debugf("Match not found against %s", kubePatternCgroupV1)
+		logging.GetLogger().Debug().Str("pattern", kubePattern.String()).Msg("Match not found")
 		parts = kubePatternCgroupV1.FindStringSubmatch(line)
 		if parts != nil {
-			log.Debugf("Found match for %d against %s", pid, kubePatternCgroupV1)
-			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
+			logging.GetLogger().Debug().Int("pid", pid).Str("pattern", kubePatternCgroupV1.String()).Msg("Found match")
+			logging.GetLogger().Debug().Str("cid", parts[2]).Str("kid", parts[1]).Msg("Match")
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Debugf("Match not found against %s", kubePatternCgroupV1Guaranteed)
+		logging.GetLogger().Debug().Str("pattern", kubePatternCgroupV1.String()).Msg("Match not found")
 		parts = kubePatternCgroupV1Guaranteed.FindStringSubmatch(line)
 		if parts != nil {
-			log.Debugf("Found match for %d against %s", pid, kubePatternCgroupV1Guaranteed)
-			log.Debugf("Cid: %s, kid: %s", parts[2], parts[1])
+			logging.GetLogger().Debug().Int("pid", pid).Str("pattern", kubePatternCgroupV1Guaranteed.String()).Msg("Found match")
+			logging.GetLogger().Debug().Str("cid", parts[2]).Str("kid", parts[1]).Msg("Match")
 			foundKid := strings.ReplaceAll(parts[1], "_", "-")
 			ku.containerCache.Set(dockerPID, parts[2], foundKid)
 			return parts[2], foundKid, nil
 		}
-		log.Debugf("Match not found against %s", kubePatternCgroupV1Guaranteed)
+		logging.GetLogger().Debug().Str("pattern", kubePatternCgroupV1Guaranteed.String()).Msg("Match not found")
 	}
-	log.Debugf("No match for %d in its cpuset", pid)
+	logging.GetLogger().Debug().Int("pid", pid).Msg("No match in its cpuset")
 	return "", "", nil
 }

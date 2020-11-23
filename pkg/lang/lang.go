@@ -44,7 +44,7 @@ func withLanguage(ctx context.Context, r *http.Request) context.Context {
 	languageKey := r.Header.Get("Accept-Language")
 
 	if !isValid(languageKey) {
-		logging.GetLogger().Warn().
+		logging.GetLogger().Debug().
 			Str("languageKey", languageKey).
 			Msg("Couldn't recognize language, defaulting to English")
 		languageKey = string(LanguageEN)

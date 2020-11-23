@@ -407,6 +407,24 @@
                         "description": "returned data limit",
                         "name": "limit",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc/desc",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "return only images that have only scans younger than this number; 0 or empty disables",
+                        "name": "maxImageAgeInHours",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "finishedAt/overallSeverity/repository/tag/imageDigest",
+                        "name": "sortBy",
+                        "in": "query"
                     }
                 ]
             }
@@ -441,12 +459,6 @@
                         "type": "string",
                         "description": "asc/desc",
                         "name": "sortOrder",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "absolute time (in unix epoch seconds) from which to return results (default is 1 week ago)",
-                        "name": "from",
                         "in": "query"
                     }
                 ]
