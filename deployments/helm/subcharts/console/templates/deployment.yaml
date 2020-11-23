@@ -37,6 +37,9 @@ spec:
           "--mongo-database={{ .Values.mongo.mongoDatabase }}",
           "--mongo-username={{ .Values.mongo.mongoUsername }}",
           "--mongo-k8secretname={{ .Values.mongo.mongoSecretName }}",
+          "--mongo-pvc=datadir-tensorsec-mongodb-primary-0",
+          "--mongo-pod=tensorsec-mongodb-primary-0",
+          "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
           "--redis-endpoint=tensorsec-redis-master:6379",
@@ -52,7 +55,7 @@ spec:
         volumeMounts:
           - name: available-rules-volume
             mountPath: "/available-rules"
-  
+
         env:
         - name: TENSORSEC_MONGO_PASSWORD
           valueFrom:
@@ -95,4 +98,3 @@ spec:
         configMap:
           name: available-rules-config
           defaultMode: 0600
-  

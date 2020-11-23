@@ -68,6 +68,32 @@ paths:
       produces:
       - application/json
       summary: Acknowledge alert
+  /api/v1/audit/config:
+    get:
+      description: Get audit config
+      operationId: v1-audit-config-get
+      produces:
+      - application/json
+      summary: Get audit config
+    put:
+      description: Update audit config
+      operationId: v1-audit-config-put
+      parameters:
+      - description: hotStorageDays
+        in: body
+        name: hotStorageDays
+        required: true
+        schema:
+          type: integer
+      - description: coldStorageDays
+        in: body
+        name: coldStorageDays
+        required: true
+        schema:
+          type: integer
+      produces:
+      - application/json
+      summary: Update audit config
   /api/v1/auth/login:
     post:
       consumes:
@@ -114,6 +140,27 @@ paths:
           schema:
             $ref: '#/definitions/api.User'
       summary: User API
+  /api/v1/cleanup/gc:
+    post:
+      description: Run hot storage garbage collection
+      operationId: v1-cleanup-gc-post
+      parameters:
+      - description: hotStorageDays
+        in: body
+        name: hotStorageDays
+        required: true
+        schema:
+          type: integer
+      produces:
+      - application/json
+      summary: Run hot storage garbage collection
+  /api/v1/cleanup/hotStorage:
+    get:
+      description: Get hot storage view
+      operationId: v1-cleanup-hot-storage-view-get
+      produces:
+      - application/json
+      summary: Get hot storage view
   /api/v1/config/clusters:
     get:
       description: Get all cluster information

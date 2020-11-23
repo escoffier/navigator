@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,15 +26,18 @@ const (
 type ClusterService struct {
 	mongodb        *mongo.Database
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService
+	cleanupService *cleanup.CleanupService
 }
 
 func NewClusterService(
 	mongodb *mongo.Database,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	cleanupService *cleanup.CleanupService,
 ) *ClusterService {
 	return &ClusterService{
 		mongodb:        mongodb,
 		onlineVulnsSvc: onlineVulnsSvc,
+		cleanupService: cleanupService,
 	}
 }
 
@@ -44,7 +48,7 @@ func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primiti
 		"_id": clusterObjectID,
 	}
 	if onlyActive {
-		filter = bson.M{"_id": clusterObjectID, "active": true}
+		filter = bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 	}
 
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
@@ -67,7 +71,6 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
 		ClusterName: clusterName,
 		KubeConfig:  kubeConfig,
-		Active:      true,
 		CreatedAt:   time.Now(),
 	}
 
@@ -83,7 +86,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 	collection := s.mongodb.Collection(clusterCol)
 
 	// find if this cluster already there
-	filter := bson.M{"name": newCluster.ClusterName, "active": true}
+	filter := bson.M{"name": newCluster.ClusterName, "deleted_at": bson.M{"$exists": false}}
 
 	queryResult := collection.FindOne(ctx, filter)
 
@@ -108,11 +111,18 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		return primitive.NilObjectID, err
 	}
 
+	restConfig, err := k8s.GetRestConfigFromKubeConfig(newCluster.KubeConfig)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	s.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
+
 	return id, nil
 }
 
 func (s *ClusterService) ListClusters(ctx context.Context, offset int64, limit int64) ([]model.Cluster, int64, error) {
-	filter := bson.M{"active": true}
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 	var clusters []model.Cluster
 	opts := options.Find()
 	opts.SetSkip(offset)
@@ -144,10 +154,7 @@ func (s *ClusterService) ListClusters(ctx context.Context, offset int64, limit i
 }
 
 func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID primitive.ObjectID, upCluster *model.Cluster) (*model.Cluster, error) {
-	filter := bson.M{"_id": clusterObjectID, "active": true}
-
-	upCluster.ID = clusterObjectID
-	update := bson.M{"$set": upCluster}
+	filter := bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 
 	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
@@ -162,8 +169,9 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 	if queryCluster.KubeConfig != upCluster.KubeConfig {
 		return nil, NewClusterError(http.StatusBadRequest, fmt.Errorf("Cannot update cluster's kube config: %w", queryResult.Err()))
 	}
-	upCluster.Active = queryCluster.Active
-	upCluster.CreatedAt = queryCluster.CreatedAt	
+	queryCluster.ClusterName = upCluster.ClusterName
+
+	update := bson.M{"$set": queryCluster}
 
 	_, err = s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 	if err != nil {
@@ -190,14 +198,24 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 }
 
 func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (int64, error) {
-	filter := bson.M{"_id": clusterObjectID, "active": true}
+	filter := bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 
-	var upCluster model.Cluster
+	queryResult := s.mongodb.Collection(clusterCol).FindOne(ctx, filter)
+	if queryResult.Err() != nil {
+		if queryResult.Err() == mongo.ErrNoDocuments {
+			return 0, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+		}
+		return 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+	}
+	var queryCluster model.Cluster
+	err := queryResult.Decode(&queryCluster)
+	if err != nil {
+		return 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+	}
 
-	upCluster.ID = clusterObjectID
-	upCluster.Active = false
-	upCluster.DeletedAt = time.Now()
-	update := bson.M{"$set": upCluster}
+	queryCluster.DeletedAt = time.Now()
+	queryCluster.HistoricisedTimestamp = time.Now()
+	update := bson.M{"$set": queryCluster}
 
 	result, err := s.mongodb.Collection(clusterCol).UpdateOne(ctx, filter, update)
 	if err != nil {
@@ -211,6 +229,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 	if err != nil {
 		return result.MatchedCount, err
 	}
+	s.cleanupService.OnKubeConfigUpdate(nil, nil)
 
 	return result.MatchedCount, nil
 }

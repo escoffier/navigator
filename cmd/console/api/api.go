@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
@@ -43,7 +45,8 @@ type api struct {
 	ruleService    *rule.RuleService
 	alertService   *alert.AlertService
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService
-
+	auditService   *audit.AuditService
+	cleanupService *cleanup.CleanupService
 	// For Harbor API
 	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
 	scanResultLocalBackoffCacheMux sync.Mutex
@@ -62,6 +65,8 @@ func newAPI(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	auditService *audit.AuditService,
+	cleanupService *cleanup.CleanupService,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -76,6 +81,8 @@ func newAPI(
 		ruleService:                 ruleService,
 		alertService:                alertService,
 		onlineVulnsSvc:              onlineVulnsSvc,
+		auditService:                auditService,
+		cleanupService:              cleanupService,
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 	}

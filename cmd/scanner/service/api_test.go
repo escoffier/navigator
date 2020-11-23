@@ -32,6 +32,7 @@ func setup(t *testing.T) (string, func(t *testing.T)) {
 		flag.NewDefaultClairOpts(),
 		flag.NewDefaultHarborOpts(),
 		flag.NewDefaultRedisOpts(),
+		flag.NewDefaultUpdateOpts(),
 	)
 	require.NoError(t, err)
 

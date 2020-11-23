@@ -29,7 +29,7 @@ func setup(t *testing.T,
 
 	console, err := NewConsole(
 		httpOpts, flag.NewDefaultMongoOpts(),
-		flag.NewDefaultVegetaScannerOpts(), flag.NewDefaultScapOpts(), flag.NewDefaultRedisOpts())
+		flag.NewDefaultVegetaScannerOpts(), flag.NewDefaultScapOpts(), flag.NewDefaultRedisOpts(), flag.NewDefaultElasticOpts(), flag.NewDefaultRulesOpts())
 	require.NoError(t, err)
 
 	stop := console.Run()
