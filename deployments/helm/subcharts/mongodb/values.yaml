@@ -59,6 +59,12 @@ volumePermissions:
     # pullSecrets:
     #   - myRegistryKeySecretName
   resources: {}
+  limits:
+    cpu: 500m
+    memory: 1000Mi
+  requests:
+    cpu: 500m
+    memory: 1000Mi
 
 ## Enable authentication
 ## ref: https://docs.mongodb.com/manual/tutorial/enable-authentication/
@@ -193,12 +199,12 @@ resources: {}
 # Define separate resources per arbiter, which are less then primary or secondary
 # used only when replica set is enabled
 resourcesArbiter: {}
-# limits:
-#   cpu: 500m
-#   memory: 512Mi
-# requests:
-#   cpu: 100m
-#   memory: 256Mi
+  limits:
+    cpu: 100m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 512Mi
 
 ## Pod priority
 ## https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/

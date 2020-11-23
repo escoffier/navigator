@@ -17,6 +17,14 @@ replicaCount: 1
 
 apiInstallLabel: "scanner.tensorsec/install"
 
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "2000Mi"
+  limits:
+    cpu: "1000m"
+    memory: "2000Mi"
+
 image:
   name: tensorsec-scanner
   # repository: localhost:32000

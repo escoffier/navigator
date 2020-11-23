@@ -293,9 +293,12 @@ slave:
 ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
 ##
 resources:
+  limits:
+    cpu: 200m
+    memory: 500Mi
   requests:
-    memory: 256Mi
-    cpu: 250m
+    cpu: 200m
+    memory: 500Mi
 
 networkPolicy:
   ## Enable creation of NetworkPolicy resources.

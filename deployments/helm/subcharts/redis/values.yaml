@@ -109,10 +109,13 @@ sentinel:
   customReadinessProbe: {}
   ## Redis Sentinel resource requests and limits
   ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-  # resources:
-  #   requests:
-  #     memory: 256Mi
-  #     cpu: 100m
+    resources:
+      limits:
+        cpu: 200m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
   ## Redis Sentinel Service properties
   service:
     ##  Redis Sentinel Service type
@@ -292,10 +295,13 @@ master:
 
   ## Redis Master resource requests and limits
   ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-  # resources:
-  #   requests:
-  #     memory: 256Mi
-  #     cpu: 100m
+    resources:
+      limits:
+        cpu: 200m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
   ## Use an alternate scheduler, e.g. "stork".
   ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
   ##
