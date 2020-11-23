@@ -59,12 +59,12 @@ volumePermissions:
     # pullSecrets:
     #   - myRegistryKeySecretName
   resources: {}
-  limits:
-    cpu: 500m
-    memory: 1000Mi
-  requests:
-    cpu: 500m
-    memory: 1000Mi
+    limits:
+      cpu: 500m
+      memory: 1000Mi
+    requests:
+      cpu: 500m
+      memory: 1000Mi
 
 ## Enable authentication
 ## ref: https://docs.mongodb.com/manual/tutorial/enable-authentication/
