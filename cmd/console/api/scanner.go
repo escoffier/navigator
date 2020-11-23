@@ -361,7 +361,6 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					Suberror{"riskFilter", "allowed: none(default)/medToCrit/networkBased"}))
 			return
 		}
-
 		sortOrder := r.URL.Query().Get("sortOrder")
 		if sortOrder == "" {
 			sortOrder = "desc"
@@ -373,12 +372,8 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 					Suberror{"sortOrder", "allowed: asc/desc"}))
 			return
 		}
-
 		offset, limit := api.getOffsetAndLimit(r)
-
-
-		item,lenth :=api.syncData.GetResultItem(riskFilter,lang.Language(ctx),offset,limit,sortOrder)
-
+		item, lenth := api.syncData.GetResultItem(riskFilter, lang.Language(ctx), offset, limit, sortOrder)
 		response.Ok(w,
 			response.WithItems(item),
 			response.WithTotalItems(lenth),
@@ -386,8 +381,6 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			response.WithStartIndex(offset))
 	}
 }
-
-
 
 // @Summary Tell scanner to scan an image
 // @Description Tell scanner to scan an image

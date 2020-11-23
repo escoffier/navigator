@@ -65,7 +65,6 @@ func NewScanner(
 		panic(err)
 	}
 
-	
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
 	// Redis DB client
@@ -125,8 +124,6 @@ func (s *Scanner) Run() func() {
 		defer wg.Done()
 		s.redclair.Run(s.ctx)
 	}()
-
-	
 
 	return func() {
 		s.cancel()

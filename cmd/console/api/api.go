@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	
+
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
@@ -38,7 +38,7 @@ type api struct {
 	tokenAuth      *jwtauth.JWTAuth
 	mongodb        *mongo.Database
 	scapper        *scapper.Scapper
-	syncData 	   *util.SyncData
+	syncData       *util.SyncData
 	scannerURL     string
 	cronService    *cron.CronService
 	clusterService *cluster.ClusterService
@@ -72,7 +72,7 @@ func newAPI(
 		tokenAuth:                   jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
 		mongodb:                     mongodb,
 		scapper:                     scapper,
-		syncData:                    util.NewSyncData(mongodb,redisClient),
+		syncData:                    util.NewSyncData(mongodb, redisClient,ctx),
 		scannerURL:                  scannerURL,
 		cronService:                 cronService,
 		clusterService:              clusterService,

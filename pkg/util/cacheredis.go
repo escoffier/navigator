@@ -21,14 +21,14 @@ import (
 )
 
 type syncCache interface {
-	GetMongoData()
-	CheckVersion() bool
-	GetRedisMaxFinishedAt() *int64
-	GetMongoMaxFinishedAt() *int64
-	FlushToRedisBySeverity()
-	FlushToRedisMedToCritical()
-	FlushToRedisNetWorkBased()
-	SetRedisMaxFinishedAt()
+	getMongoData()
+	checkVersion() bool
+	getRedisMaxFinishedAt() *int64
+	getMongoMaxFinishedAt() *int64
+	flushToRedisBySeverity()
+	flushToRedisMedToCritical()
+	flushToRedisNetWorkBased()
+	setRedisMaxFinishedAt()
 	GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64)
 	BgSync()
 }
@@ -53,6 +53,7 @@ type SyncData struct {
 	listItemsNetWorkBased  *[]scanReportListItem
 	FinishedAt             *int64
 	DataChannel            chan string
+	ctx                    context.Context
 }
 
 const (
@@ -60,21 +61,21 @@ const (
 	MedToCriticalKey = "MedToCritical"
 	NetWorkBasedKey  = "NetWorkBased"
 	FinishedAtKey    = "FinishedAt"
+	MongoTimeout     = time.Second * 20
+	RedisTimeout     = time.Second * 5
 )
 
-func NewSyncData(mongodb *mongo.Database, redisClient *redis.Client) *SyncData {
+func NewSyncData(mongodb *mongo.Database, redisClient *redis.Client, ctx context.Context) *SyncData {
 
 	s := SyncData{
-		mongodb: mongodb, redisClient: redisClient, DataChannel: make(chan string, 1),
+		mongodb: mongodb, redisClient: redisClient, DataChannel: make(chan string, 1),ctx:ctx,
 	}
 	go s.BgSync()
 	s.DataChannel <- "Begain"
 	return &s
-
 }
-
-func (s *SyncData) GetMongoData() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*100)
+func (s *SyncData) getMongoData(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, MongoTimeout)
 	defer cancel()
 	//By Severity
 	//Med to Critical
@@ -108,7 +109,6 @@ func (s *SyncData) GetMongoData() {
 		FinishedAt         int64
 		TaskID             primitive.ObjectID
 	}
-
 	digestToVulnsBySeverity := make(map[string][]vulnInfoEx)
 	digestToVulnsMedToCritical := make(map[string][]vulnInfoEx)
 	digestToVulnsNetworkBased := make(map[string][]vulnInfoEx)
@@ -118,11 +118,9 @@ func (s *SyncData) GetMongoData() {
 		if err != nil {
 			fmt.Errorf("Couldn't decode document: %w", err)
 		}
-
 		digestToVulnsBySeverity[task.ImageDigest] = []vulnInfoEx{}
 		digestToVulnsMedToCritical[task.ImageDigest] = []vulnInfoEx{}
 		digestToVulnsNetworkBased[task.ImageDigest] = []vulnInfoEx{}
-
 		for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
 
 			vex := vulnInfoEx{
@@ -169,7 +167,6 @@ func (s *SyncData) GetMongoData() {
 	if err != nil {
 		fmt.Errorf("Cursor error: %w", err)
 	}
-
 	listItemsSetBySeverity := make(map[string]scanReportListItem)
 	for _, vulns := range digestToVulnsBySeverity {
 		for _, vuln := range vulns {
@@ -178,14 +175,12 @@ func (s *SyncData) GetMongoData() {
 				// handle sensitive filename
 				key = vuln.FeatureName
 			}
-
 			if _, ok := listItemsSetBySeverity[key]; !ok {
 				listItemsSetBySeverity[key] = scanReportListItem{
 					VulnInfo:       vuln.VulnerabilityInfo,
 					AffectedImages: &[]scanReportAffectedImage{},
 				}
 			}
-
 			af := scanReportAffectedImage{
 				Repository: vuln.AffectedRepository,
 				Tag:        vuln.AffectedTag,
@@ -221,8 +216,6 @@ func (s *SyncData) GetMongoData() {
 			}
 			*listItemsSetMedToCritical[key].AffectedImages = append(*listItemsSetMedToCritical[key].AffectedImages, af)
 		}
-		//
-
 	}
 	listItemsSetNetWorkBased := make(map[string]scanReportListItem)
 	for _, vulns := range digestToVulnsNetworkBased {
@@ -284,7 +277,7 @@ func (s *SyncData) GetMongoData() {
 	s.listItemsBySeverity = &listItemsBySeverity
 	s.listItemsMedToCritical = &listItemsMedToCritical
 	s.listItemsNetWorkBased = &listItemsNetWorkBased
-	s.FinishedAt = s.GetMongoMaxFinishedAt()
+	s.FinishedAt = s.getMongoMaxFinishedAt(ctx)
 	return
 }
 
@@ -302,35 +295,36 @@ func (s *SyncData) BgSync() {
 	for {
 		select {
 		case <-s.DataChannel:
-			s.CheckVersionAndSyncData()
+			s.checkVersionAndSyncData(s.ctx)
 		}
 	}
 }
 
-func (s *SyncData) CheckVersion() bool {
+func (s *SyncData) checkVersion(ctx context.Context) bool {
 
-	mongoFinishedAt := s.GetMongoMaxFinishedAt()
-	redisFinishedAt := s.GetRedisMaxFinishedAt()
+	mongoFinishedAt := s.getMongoMaxFinishedAt(ctx)
+	redisFinishedAt := s.getRedisMaxFinishedAt(ctx)
 	if mongoFinishedAt != nil && redisFinishedAt != nil && *mongoFinishedAt == *redisFinishedAt {
 		return true
 	}
 	return false
 }
 
-func (s *SyncData) CheckVersionAndSyncData() {
-	mongoFinishedAt := s.GetMongoMaxFinishedAt()
-	redisFinishedAt := s.GetRedisMaxFinishedAt()
+func (s *SyncData) checkVersionAndSyncData(ctx context.Context) {
+	mongoFinishedAt := s.getMongoMaxFinishedAt(ctx)
+	redisFinishedAt := s.getRedisMaxFinishedAt(ctx)
 	if mongoFinishedAt != nil && redisFinishedAt != nil && *mongoFinishedAt == *redisFinishedAt {
 		return
 	}
-	s.GetMongoData()
-	s.FlushToRedisBySeverity()
-	s.FlushToRedisMedToCritical()
-	s.FlushToRedisNetWorkBased()
-	s.SetRedisMaxFinishedAt()
+	s.getMongoData(ctx)
+	s.flushToRedisBySeverity(ctx)
+	s.flushToRedisMedToCritical(ctx)
+	s.flushToRedisNetWorkBased(ctx)
+	s.setRedisMaxFinishedAt(ctx)
 }
-func (s *SyncData) GetRedisMaxFinishedAt() *int64 {
-	var ctx = context.Background()
+func (s *SyncData) getRedisMaxFinishedAt(ctx context.Context) *int64 {
+	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
+	defer cancel()
 	val, err := s.redisClient.Get(ctx, FinishedAtKey).Result()
 	if err != nil {
 		var i int64 = 2
@@ -340,23 +334,25 @@ func (s *SyncData) GetRedisMaxFinishedAt() *int64 {
 	return &val64
 }
 
-func (s *SyncData) SetRedisMaxFinishedAt() {
+func (s *SyncData) setRedisMaxFinishedAt(ctx context.Context) {
 	if s.FinishedAt == nil {
 		return
 	}
-	var ctx = context.Background()
+	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
+	defer cancel()
 	//
 	err := s.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(*s.FinishedAt, 10), 0).Err()
 	if err != nil {
-		fmt.Errorf("-------------->Set FinishedAt  redis error：%s ", err)
+		fmt.Errorf("set FinishedAt  redis error：%s ", err)
 		return
 	}
 	return
 }
 
-func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
+func (s *SyncData) getMongoMaxFinishedAt(ctx context.Context) *int64 {
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, MongoTimeout)
+	defer cancel()
 	filter := bson.D{}
 
 	findOptions := options.FindOne()
@@ -378,20 +374,16 @@ func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
 	return &scanTask.FinishedAt
 }
 
-func (s *SyncData) FlushToRedisBySeverity() {
+func (s *SyncData) flushToRedisBySeverity(ctx context.Context) {
 
 	if s.listItemsBySeverity == nil {
 		fmt.Errorf("listItemsMedToCritical is nil")
 		return
 	}
-	//开始刷写数据
-	//首先清除原有数据
-	var ctx = context.Background()
-
-	//开始移除
+	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
+	defer cancel()
 	s.redisClient.LTrim(ctx, BySeverityKey, 1, 0)
-	//开始写入数据
-	//RPUSH key value1 [value2]
+
 	for _, v := range *s.listItemsBySeverity {
 		data, err := json.Marshal(v)
 		if err != nil {
@@ -401,22 +393,20 @@ func (s *SyncData) FlushToRedisBySeverity() {
 		err = s.redisClient.RPush(ctx, BySeverityKey, data).Err()
 		if err != nil {
 			fmt.Errorf("Redis  set BySeverity data error %s", err)
-
 			return
 		}
 	}
 
-
 }
 
-func (s *SyncData) FlushToRedisMedToCritical() {
+func (s *SyncData) flushToRedisMedToCritical(ctx context.Context) {
 	if s.listItemsMedToCritical == nil {
 		fmt.Errorf("listItemsMedToCritical is nil")
 		return
 	}
 	//clear all
-	var ctx = context.Background()
-
+	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
+	defer cancel()
 	//remove item
 	s.redisClient.LTrim(ctx, MedToCriticalKey, 1, 0)
 	//RPUSH key value1 [value2]
@@ -434,13 +424,14 @@ func (s *SyncData) FlushToRedisMedToCritical() {
 	}
 }
 
-func (s *SyncData) FlushToRedisNetWorkBased() {
+func (s *SyncData) flushToRedisNetWorkBased(ctx context.Context) {
 	if s.listItemsNetWorkBased == nil {
 		fmt.Errorf("listItemsNetWorkBased is nil")
 		return
 	}
 	//clear all
-	var ctx = context.Background()
+	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
+	defer cancel()
 	//remove item
 	s.redisClient.LTrim(ctx, NetWorkBasedKey, 1, 0)
 
@@ -460,14 +451,14 @@ func (s *SyncData) FlushToRedisNetWorkBased() {
 	}
 }
 
-func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64) {
+func (s *SyncData) GetResultItem(ctx context.Context, riskFilter string, lan lang.LanguageType, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64) {
 
-	if !s.CheckVersion() {
-		s.GetMongoData()
-		s.FlushToRedisBySeverity()
-		s.FlushToRedisMedToCritical()
-		s.FlushToRedisNetWorkBased()
-		s.SetRedisMaxFinishedAt()
+	if !s.checkVersion(ctx) {
+		s.getMongoData(ctx)
+		s.flushToRedisBySeverity(ctx)
+		s.flushToRedisMedToCritical(ctx)
+		s.flushToRedisNetWorkBased(ctx)
+		s.setRedisMaxFinishedAt(ctx)
 	}
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "asc"
@@ -480,7 +471,9 @@ func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offse
 		key = NetWorkBasedKey
 	}
 	var sl = make([]scanReportListItem, 0)
-	var ctx = context.Background()
+
+	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
+	defer cancel()
 	var (
 		result []string
 		err    error
