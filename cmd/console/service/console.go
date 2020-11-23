@@ -81,7 +81,7 @@ func NewConsole(
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisOpts.Endpoint,
-		Password: redisOpts.Password, // TODO: Add authorization
+		Password: "Redis12345", // TODO: Add authorization
 		DB:       0,  // TODO: Add DB
 	})
 
