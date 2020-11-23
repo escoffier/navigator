@@ -42,3 +42,6 @@ mongo:
   mongoUsername: redstone
   mongoDatabase: vegeta
   mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
+
+redis:
+  redisSecretName: tensorsec-redis

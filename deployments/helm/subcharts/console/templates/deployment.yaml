@@ -63,7 +63,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ .Values.redis.redisSecretName }}
-              key: password
+              key: redis-password 
         - name: TENSORSEC_ELASTIC_PASSWORD
           valueFrom:
             secretKeyRef:
