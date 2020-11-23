@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"sort"
 	"strconv"
 	"strings"
@@ -73,7 +74,6 @@ func NewSyncData(mongodb *mongo.Database, redisClient *redis.Client) *SyncData {
 }
 
 func (s *SyncData) GetMongoData() {
-	fmt.Println("begin get data form mongo")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*100)
 	defer cancel()
 	//By Severity
@@ -308,19 +308,9 @@ func (s *SyncData) BgSync() {
 }
 
 func (s *SyncData) CheckVersion() bool {
-	fmt.Println("begin check sync")
+
 	mongoFinishedAt := s.GetMongoMaxFinishedAt()
 	redisFinishedAt := s.GetRedisMaxFinishedAt()
-	if mongoFinishedAt == nil {
-		fmt.Println("mongoFinishedAt: nil")
-	} else {
-		fmt.Println("mongoFinishedAt:", *mongoFinishedAt)
-	}
-	if redisFinishedAt == nil {
-		fmt.Println("redisFinishedAt: nil")
-	} else {
-		fmt.Println("redisFinishedAt:", *redisFinishedAt)
-	}
 	if mongoFinishedAt != nil && redisFinishedAt != nil && *mongoFinishedAt == *redisFinishedAt {
 		return true
 	}
@@ -341,7 +331,7 @@ func (s *SyncData) CheckVersionAndSyncData() {
 }
 func (s *SyncData) GetRedisMaxFinishedAt() *int64 {
 	var ctx = context.Background()
-	val, err := s.redisClient.Get(ctx, "FinishedAt").Result()
+	val, err := s.redisClient.Get(ctx, FinishedAtKey).Result()
 	if err != nil {
 		var i int64 = 2
 		return &i
@@ -354,8 +344,6 @@ func (s *SyncData) SetRedisMaxFinishedAt() {
 	if s.FinishedAt == nil {
 		return
 	}
-	fmt.Println("set redis time")
-	fmt.Println("*s.FinishedAt:", *s.FinishedAt)
 	var ctx = context.Background()
 	//
 	err := s.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(*s.FinishedAt, 10), 0).Err()
@@ -363,7 +351,6 @@ func (s *SyncData) SetRedisMaxFinishedAt() {
 		fmt.Errorf("-------------->Set FinishedAt  redis error：%s ", err)
 		return
 	}
-	fmt.Println("设定时间完毕！！！！")
 	return
 }
 
@@ -377,7 +364,7 @@ func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
 
 	singleResult := s.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
-		fmt.Println("singleResult error:", singleResult.Err())
+		fmt.Errorf("singleResult error: %s", singleResult.Err())
 		var i int64 = 0
 		return &i
 	}
@@ -385,7 +372,7 @@ func (s *SyncData) GetMongoMaxFinishedAt() *int64 {
 	var scanTask model.ScanTask
 	err := singleResult.Decode(&scanTask)
 	if err != nil {
-		fmt.Errorf("Couldn't decode scan task: %w", err)
+		fmt.Errorf("Couldn't decode scan task: %s", err)
 		return nil
 	}
 	return &scanTask.FinishedAt
@@ -413,27 +400,25 @@ func (s *SyncData) FlushToRedisBySeverity() {
 		}
 		err = s.redisClient.RPush(ctx, BySeverityKey, data).Err()
 		if err != nil {
-			//fmt.Errorf("set BySeverityKey data error %s", err)
-			fmt.Printf("Redis 执行错误 set BySeverity data error %s", err)
+			fmt.Errorf("Redis  set BySeverity data error %s", err)
 
 			return
 		}
 	}
-	fmt.Println("设定BySeverity完毕！！！！")
+
 
 }
 
 func (s *SyncData) FlushToRedisMedToCritical() {
 	if s.listItemsMedToCritical == nil {
-		//fmt.Errorf("listItemsMedToCritical is nil")
+		fmt.Errorf("listItemsMedToCritical is nil")
 		return
 	}
-	//clear ll
+	//clear all
 	var ctx = context.Background()
 
 	//remove item
 	s.redisClient.LTrim(ctx, MedToCriticalKey, 1, 0)
-	//开始写入数据
 	//RPUSH key value1 [value2]
 	for _, v := range *s.listItemsMedToCritical {
 		data, err := json.Marshal(v)
@@ -443,17 +428,15 @@ func (s *SyncData) FlushToRedisMedToCritical() {
 		}
 		err = s.redisClient.RPush(ctx, MedToCriticalKey, data).Err()
 		if err != nil {
-			//fmt.Errorf("set MedToCritical data error %s", err)
-			fmt.Printf("Redis 执行错误 set MedToCritical data error %s", err)
+			fmt.Errorf("Redis  set MedToCritical data error %s", err)
 			return
 		}
 	}
-	fmt.Println("设定 MedToCritical完毕！！！！")
 }
 
 func (s *SyncData) FlushToRedisNetWorkBased() {
 	if s.listItemsNetWorkBased == nil {
-		fmt.Println("listItemsNetWorkBased is nil")
+		fmt.Errorf("listItemsNetWorkBased is nil")
 		return
 	}
 	//clear all
@@ -471,11 +454,10 @@ func (s *SyncData) FlushToRedisNetWorkBased() {
 		}
 		err = s.redisClient.RPush(ctx, NetWorkBasedKey, data).Err()
 		if err != nil {
-			fmt.Printf("Redis 执行错误 set NetWorkBased data error %s", err)
+			fmt.Errorf("Redis set NetWorkBased data error %s", err)
 			return
 		}
 	}
-	fmt.Println("设定 NetWorkBased 完毕！！！！")
 }
 
 func (s *SyncData) GetResultItem(riskFilter string, lan lang.LanguageType, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64) {
