@@ -3,7 +3,7 @@ package model
 import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 )
 
@@ -27,21 +27,21 @@ type ScannerReq struct {
 
 // ScanTask ...
 type ScanTask struct {
-	audit.AuditedEntry `json:"-" bson:"auditedentry, omitempty"`
-	ID                 primitive.ObjectID `json:"dbId,omitempty" bson:"_id,omitempty"`
-	URL                string             `json:"url" bson:"url"`
-	Authorization      string             `json:"-" bson:"-"` // Do NOT persist or return authorization
-	Status             string             `json:"status" bson:"status"`
-	Message            string             `json:"message" bson:"message"`
-	StartedAt          int64              `json:"startedAt" bson:"startedAt"`
-	FinishedAt         int64              `json:"finishedAt" bson:"finishedAt"`
-	Tag                string             `json:"tag" form:"tag" query:"tag"`
-	Repository         string             `json:"repository" bson:"repository"`
-	ImageDigest        string             `json:"digest,omitempty" bson:"digest,omitempty"` // sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
-	ScanReport         ScanReport         `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
-	HarborURL          string             `json:"harborURL,omitempty" bson:"harborURL,omitempty"`
-	FirstScanAt        int64              `json:"firstScanAt" bson:"firstScanAt"` // tracks the first ever scan of this image (digest)
-	Stale              bool               `json:"stale" bson:"stale"`             // if true, there are newer scans of this image (digest)
+	metadata.MetadataEntry `json:"-" bson:",inline"`
+	ID                     primitive.ObjectID `json:"dbId,omitempty" bson:"_id,omitempty"`
+	URL                    string             `json:"url" bson:"url"`
+	Authorization          string             `json:"-" bson:"-"` // Do NOT persist or return authorization
+	Status                 string             `json:"status" bson:"status"`
+	Message                string             `json:"message" bson:"message"`
+	StartedAt              int64              `json:"startedAt" bson:"startedAt"`
+	FinishedAt             int64              `json:"finishedAt" bson:"finishedAt"`
+	Tag                    string             `json:"tag" form:"tag" query:"tag"`
+	Repository             string             `json:"repository" bson:"repository"`
+	ImageDigest            string             `json:"digest,omitempty" bson:"digest,omitempty"` // sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
+	ScanReport             ScanReport         `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
+	HarborURL              string             `json:"harborURL,omitempty" bson:"harborURL,omitempty"`
+	FirstScanAt            int64              `json:"firstScanAt" bson:"firstScanAt"` // tracks the first ever scan of this image (digest)
+	Stale                  bool               `json:"stale" bson:"stale"`             // if true, there are newer scans of this image (digest)
 }
 
 // ScanWorkerReport ...

@@ -245,7 +245,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, true)
 				if err != nil {
-					fmt.Println(err)
 					switch err.(type) {
 					case ClusterDoesntExistError:
 						// Scap check references a deleted cluster

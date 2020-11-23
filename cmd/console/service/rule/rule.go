@@ -28,7 +28,7 @@ func NewRuleService(availableRulesFolderPath string, mongodb *mongo.Database) *R
 }
 
 func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) ([]model.Rule, int64, error) {
-	filter := bson.M{"active": true}
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 	findOptions := options.Find()
 
 	cursor, err := s.mongodb.Collection(model.RuleCollection).Find(ctx, filter, findOptions)
@@ -51,7 +51,7 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 
 func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
 	var queryRule model.Rule
-	filter := bson.M{"_id": ruleObjectID, "active": true}
+	filter := bson.M{"_id": ruleObjectID, "deleted_at": bson.M{"$exists": false}}
 
 	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
@@ -89,7 +89,6 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	newRule.DescriptionZh = ruleDefinition.DescriptionZh
 	newRule.Cvss3Score = ruleDefinition.Cvss3Score
 	newRule.Enabled = !queryRule.Enabled
-	newRule.Active = true
 	newRule.Cvss3Vector = ruleDefinition.Cvss3Vector
 	newRule.Cvss2Score = ruleDefinition.Cvss2Score
 	newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
@@ -104,9 +103,8 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	}
 	newRule.ID = id
 
-	queryRule.Active = false
 	queryRule.DeletedAt = time.Now()
-	queryRule.AuditTimestamp = time.Now()
+	queryRule.HistoricisedTimestamp = time.Now()
 	filter = bson.M{"_id": ruleObjectID}
 	update := bson.M{"$set": queryRule}
 
@@ -120,7 +118,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 
 func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
 	var queryRule model.Rule
-	filter := bson.M{"_id": ruleObjectID, "active": true}
+	filter := bson.M{"_id": ruleObjectID, "deleted_at": bson.M{"$exists": false}}
 
 	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
@@ -154,7 +152,6 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	newRule.NameEn = ruleDefinition.NameEn
 	newRule.CreatedAt = time.Now()
 	newRule.NameZh = ruleDefinition.NameZh
-	newRule.Active = true
 	newRule.DescriptionEn = ruleDefinition.DescriptionEn
 	newRule.DescriptionZh = ruleDefinition.DescriptionZh
 	newRule.Cvss3Score = ruleDefinition.Cvss3Score
@@ -173,9 +170,8 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	}
 	newRule.ID = id
 
-	queryRule.Active = false
 	queryRule.DeletedAt = time.Now()
-	queryRule.AuditTimestamp = time.Now()
+	queryRule.HistoricisedTimestamp = time.Now()
 	filter = bson.M{"_id": ruleObjectID}
 	update := bson.M{"$set": queryRule}
 

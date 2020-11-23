@@ -481,7 +481,7 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 		}
 
 		if isDeleteEvent {
-			assetContainer.AuditTimestamp = time.Now()
+			assetContainer.HistoricisedTimestamp = time.Now()
 		}
 
 		if owner == nil {
@@ -553,7 +553,7 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 		}
 
 		container.IsDeleted = true
-		container.AuditTimestamp = time.Now()
+		container.HistoricisedTimestamp = time.Now()
 
 		update := bson.M{"$set": container}
 		opts := options.Update().SetUpsert(true)

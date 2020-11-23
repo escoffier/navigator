@@ -15,7 +15,7 @@ client = MongoClient("mongodb://%s:%s@%s:%s/?authSource=%s" % (
     user, password, address, port, auth_source
 ))
 
-audit_configuration = client.vegeta.audit.find_one({'active': True})
+audit_configuration = client.vegeta.audit.find_one({"deleted_at": {"$exists": False}})
 last_cold_days_limit = audit_configuration['coldStorageDays']
 last_cold_date = datetime.today().replace(hour=0,minute=0,second=0,microsecond=0) - timedelta(days=last_cold_days_limit)
 print("Cold storage days limit: %d" % last_cold_days_limit)

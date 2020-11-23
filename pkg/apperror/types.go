@@ -35,6 +35,7 @@ type ClusterError struct{ detailedError }
 type ClusterDoesntExistError struct{ detailedError }
 type AuditConfigError struct{ detailedError }
 type CannotGetDiskUsageError struct{ detailedError }
+type AuditConfigDoesntExistError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -543,7 +544,7 @@ func NewAuditConfigError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Audit config error occured",
-			Zhongwen:  "Audit config error occured but in 中文",
+			Zhongwen:  "审计配置发生错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -559,7 +560,23 @@ func NewCannotGetDiskUsageError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Cannot get disk usage info",
-			Zhongwen:  "Cannot get disk usage info but in 中文",
+			Zhongwen:  "无法获取磁盘用量信息",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAuditConfigDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AuditConfigDoesntExistError{
+		detailedError{
+			err:       err,
+			English:   "Audit config does not exist",
+			Zhongwen:  "审计配置不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

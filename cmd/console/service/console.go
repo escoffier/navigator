@@ -252,12 +252,24 @@ func (c *Console) Run() func() {
 }
 
 func initializeAuditConfig(ctx context.Context, auditService *audit.AuditService) error {
+	_, err := auditService.GetAuditConfig(ctx)
+	if err != nil {
+		switch err.(type) {
+		case AuditConfigDoesntExistError:
+			// Continue with setting default values
+		default:
+			return err
+		}
+	} else {
+		return nil
+	}
+
 	// Default values on startup
 	auditConfig := &model.AuditConfig{
 		ColdStorageDays: 90,
 	}
 
-	_, err := auditService.AddAuditConfig(ctx, auditConfig)
+	_, err = auditService.AddAuditConfig(ctx, auditConfig)
 	if err != nil {
 		return err
 	}
@@ -310,7 +322,6 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 				newRule.DescriptionZh = ruleDefinition.DescriptionZh
 				newRule.Cvss3Score = ruleDefinition.Cvss3Score
 				newRule.Enabled = false
-				newRule.Active = true
 				newRule.Cvss3Vector = ruleDefinition.Cvss3Vector
 				newRule.Cvss2Score = ruleDefinition.Cvss2Score
 				newRule.Cvss2Vector = ruleDefinition.Cvss2Vector

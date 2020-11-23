@@ -207,7 +207,7 @@ func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, c
 				PolicyID:      policyID,
 			},
 		}
-		newAlert.AuditTimestamp = time.Now()
+		newAlert.HistoricisedTimestamp = time.Now()
 		alertsToReport[policyID] = newAlert
 	}
 

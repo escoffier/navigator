@@ -66,7 +66,7 @@ func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp
 	}
 	defer allCollectionsCursor.Close(ctx)
 
-	filter = bson.M{"auditedentry.audit_timestamp": bson.M{"$lt": fromTimestamp}}
+	filter = bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
 
 	for allCollectionsCursor.Next(ctx) {
 		collectionInfo := bson.D{}

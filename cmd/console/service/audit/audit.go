@@ -27,12 +27,12 @@ func NewAuditService(
 
 func (s *AuditService) GetAuditConfig(ctx context.Context) (*model.AuditConfig, error) {
 	var queryAuditConfig model.AuditConfig
-	filter := bson.M{"active": true}
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
 	queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+			return nil, NewAuditConfigDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
@@ -45,7 +45,7 @@ func (s *AuditService) GetAuditConfig(ctx context.Context) (*model.AuditConfig, 
 }
 
 func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.AuditConfig) (*model.AuditConfig, error) {
-	filter := bson.M{"active": true}
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
 	queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
@@ -59,7 +59,6 @@ func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.Au
 	// err = mongo.ErrNoDocuments
 
 	auditConfig.CreatedAt = time.Now()
-	auditConfig.Active = true
 
 	_, err := s.mongodb.Collection(model.AuditConfigCollection).InsertOne(ctx, auditConfig)
 	if err != nil {
@@ -84,9 +83,8 @@ func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.Au
 }
 
 func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *model.AuditConfig) (*model.AuditConfig, error) {
-	filter := bson.M{"active": true}
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
-	upAuditConfig.Active = true
 	upAuditConfig.CreatedAt = time.Now()
 
 	if upAuditConfig.ColdStorageDays <= 0 {
@@ -106,9 +104,8 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
 	}
-	oldAuditConfig.Active = false
 	oldAuditConfig.DeletedAt = time.Now()
-	oldAuditConfig.AuditTimestamp = time.Now()
+	oldAuditConfig.HistoricisedTimestamp = time.Now()
 	update := bson.M{"$set": oldAuditConfig}
 
 	_, err = s.mongodb.Collection(model.AuditConfigCollection).UpdateOne(ctx, filter, update)

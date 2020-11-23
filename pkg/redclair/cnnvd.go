@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/rs/zerolog"
@@ -25,12 +25,12 @@ const (
 )
 
 type cve2cnnvdMapping struct {
-	audit.AuditedEntry `json:"-" bson:"auditedentry, omitempty"`
-	ID                 primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CVE                string             `json:"cve" bson:"cve"`
-	CVNND              string             `json:"cvnnd" bson:"cvnnd"`
-	CVNNDLink          string             `json:"cvnndLink" bson:"cvnndLink"`
-	UpdatedAt          int64              `json:"updatedAt" bson:"updatedAt"`
+	metadata.MetadataEntry `json:"-" bson:",inline"`
+	ID                     primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
+	CVE                    string             `json:"cve" bson:"cve"`
+	CVNND                  string             `json:"cvnnd" bson:"cvnnd"`
+	CVNNDLink              string             `json:"cvnndLink" bson:"cvnndLink"`
+	UpdatedAt              int64              `json:"updatedAt" bson:"updatedAt"`
 }
 
 func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInfo) error {
@@ -115,7 +115,7 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 				UpdatedAt: time.Now().Unix(),
 			}
 
-			newMapping.AuditTimestamp = time.Now()
+			newMapping.HistoricisedTimestamp = time.Now()
 
 			filter := bson.M{"_id": cve2cnnvd.ID}
 			update := bson.M{"$set": newMapping}

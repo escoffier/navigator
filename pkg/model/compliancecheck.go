@@ -1,7 +1,7 @@
 package model
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -22,15 +22,15 @@ const (
 )
 
 type ComplianceCheckEntryBase struct {
-	audit.AuditedEntry `json:"-" bson:"auditedentry, omitempty"`
-	ID                 primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CheckID            string             `json:"check_id" bson:"checkId"`
-	NodeName           string             `json:"node_name" bson:"nodeName"`
-	ClusterID          string             `json:"cluster_id" bson:"clusterId"`
-	Status             string             `json:"status" bson:"status,omitempty"`
-	CreatedAt          int64              `json:"created_at" bson:"createdAt,omitempty"`
-	FinishedAt         int64              `json:"finished_at" bson:"finishedAt,omitempty"`
-	Logs               string             `json:"logs" bson:"logs,omitempty"`
+	metadata.MetadataEntry `json:"-" bson:",inline"`
+	ID                     primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
+	CheckID                string             `json:"check_id" bson:"checkId"`
+	NodeName               string             `json:"node_name" bson:"nodeName"`
+	ClusterID              string             `json:"cluster_id" bson:"clusterId"`
+	Status                 string             `json:"status" bson:"status,omitempty"`
+	CreatedAt              int64              `json:"created_at" bson:"createdAt,omitempty"`
+	FinishedAt             int64              `json:"finished_at" bson:"finishedAt,omitempty"`
+	Logs                   string             `json:"logs" bson:"logs,omitempty"`
 }
 
 func GetMongoCollectionForCheckType(checkType ComplianceCheckType) string {
