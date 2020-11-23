@@ -59,11 +59,6 @@ spec:
             secretKeyRef:
               name: {{ .Values.mongo.mongoSecretName }}
               key: mongodb-password
-        - name: TENSORSEC_REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.redis.redisSecretName }}
-              key: redis-password 
         - name: TENSORSEC_ELASTIC_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -82,6 +77,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: TENSORSEC_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.redis.redisSecretName }}
+              key: redis-password 
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       volumes:
