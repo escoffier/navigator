@@ -71,7 +71,7 @@ func NewScanner(
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisOpts.Endpoint,
-		Password: redisOpts.Password,
+		Password: "Redis12345",
 		DB:       0, // TODO: Add DB
 	})
 
@@ -126,7 +126,7 @@ func (s *Scanner) Run() func() {
 		s.redclair.Run(s.ctx)
 	}()
 
-	
+
 
 	return func() {
 		s.cancel()
