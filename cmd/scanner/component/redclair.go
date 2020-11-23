@@ -48,7 +48,7 @@ type RedClairService struct {
 	ctx         context.Context
 	mongodb     *mongo.Database
 	redisClient *redis.Client
-
+	syncData 	   *util.SyncData
 	scanTasksChan chan model.ScanTask
 	numWorkers    int
 
@@ -75,6 +75,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		ctx:                     ctx,
 		mongodb:                 db,
 		redisClient:             rc,
+		syncData: 				util.NewSyncData(db,rc),
 		scanTasksChan:           make(chan model.ScanTask, 1000),
 		numWorkers:              clairOpts.NumWorkers,
 		redclairEngine:          redclairEng,
@@ -952,6 +953,14 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
 			Msg("error in updating task in Mongo")
 	}
+	if status == model.ScanStatusSucceeded{
+		select {
+		case rcSvc.syncData.DataChannel <-"start":
+		case <-time.After(1 * time.Second):
+			fmt.Errorf("Have a scanner to mongo running ")
+		}
+	}
+
 }
 
 func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []string, scanTask model.ScanTask) (map[string]*model.CachedLayer, []string, error) {

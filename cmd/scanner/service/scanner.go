@@ -54,7 +54,18 @@ func NewScanner(
 	if err != nil {
 		return nil, err
 	}
+	// connect the mongo client
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = mongoClient.Connect(ctx)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("error in connecting to the Mongo database")
+		panic(err)
+	}
 
+	
 	mongodb := mongoClient.Database(mongoOpts.Database)
 
 	// Redis DB client
@@ -115,16 +126,7 @@ func (s *Scanner) Run() func() {
 		s.redclair.Run(s.ctx)
 	}()
 
-	// connect the mongo client
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
-	defer cancel()
-	err := s.mongoClient.Connect(ctx)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("error in connecting to the Mongo database")
-		panic(err)
-	}
+	
 
 	return func() {
 		s.cancel()
