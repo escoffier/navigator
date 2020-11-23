@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"time"
