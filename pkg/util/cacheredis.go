@@ -421,7 +421,7 @@ func (c *ImageVulnerabilityCache) GetResultItem(ctx context.Context, riskFilter 
 
 	//gen len
 	lenth, err := c.redisClient.LLen(ctx, key).Result()
-	var sl = make([]scanReportListItem, limit)
+	var sl = make([]scanReportListItem, 0)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Errorf("get redis cache error:%s", err).Error())
 		return sl, 0
@@ -449,13 +449,13 @@ func (c *ImageVulnerabilityCache) GetResultItem(ctx context.Context, riskFilter 
 		return sl, 0
 	}
 
-	for i, v := range result {
+	for _, v := range result {
 		r := scanReportListItem{}
 		err := json.Unmarshal([]byte(v), &r)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Errorf("json  unmarshal error:%s", err).Error())
 		}
-		sl[i] = r
+		sl = append(sl, r)
 	}
 	if sortOrder != "asc" {
 		return reverse(sl), lenth
