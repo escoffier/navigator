@@ -417,7 +417,7 @@ func (c *ImageVulnerabilityCache) GetResultItem(ctx context.Context, riskFilter 
 
 	//gen len
 	lenth, err := c.redisClient.LLen(ctx, key).Result()
-	var sl = make([]scanReportListItem, lenth)
+	var sl = make([]scanReportListItem, limit)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Errorf("get redis cache error:%s", err).Error())
 		return sl, 0
