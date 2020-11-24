@@ -197,9 +197,24 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) {
 
 			*listItemsSetBySeverity[key].AffectedImages = append(*listItemsSetBySeverity[key].AffectedImages, af)
 			if vuln.ScanType >= 2 {
+
+				if _, ok := listItemsSetMedToCritical[key]; !ok {
+					listItemsSetMedToCritical[key] = scanReportListItem{
+						VulnInfo:       vuln.VulnerabilityInfo,
+						AffectedImages: &[]scanReportAffectedImage{},
+					}
+				}
+
 				*listItemsSetMedToCritical[key].AffectedImages = append(*listItemsSetMedToCritical[key].AffectedImages, af)
 			}
+
 			if vuln.ScanType == 3 {
+				if _, ok := listItemsSetNetWorkBased[key]; !ok {
+					listItemsSetNetWorkBased[key] = scanReportListItem{
+						VulnInfo:       vuln.VulnerabilityInfo,
+						AffectedImages: &[]scanReportAffectedImage{},
+					}
+				}
 				*listItemsSetNetWorkBased[key].AffectedImages = append(*listItemsSetNetWorkBased[key].AffectedImages, af)
 			}
 		}
