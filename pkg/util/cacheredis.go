@@ -301,6 +301,10 @@ func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) {
 			logging.GetLogger().Error().Msg(fmt.Errorf("BySeverity flush to redis error:%s", err).Error())
 		}
 		c.setRedisMaxFinishedAt(ctx)
+		c.listItemsBySeverity = nil
+		c.listItemsMedToCritical = nil
+		c.listItemsNetWorkBased = nil
+		c.FinishedAt = 0
 	}
 }
 func (c *ImageVulnerabilityCache) getRedisMaxFinishedAt(ctx context.Context) int64 {
