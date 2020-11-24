@@ -36,6 +36,7 @@ type ClusterDoesntExistError struct{ detailedError }
 type AuditConfigError struct{ detailedError }
 type CannotGetDiskUsageError struct{ detailedError }
 type AuditConfigDoesntExistError struct{ detailedError }
+type GarbageCollectionError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -577,6 +578,22 @@ func NewAuditConfigDoesntExistError(httpCode int, err error, suberrors ...Suberr
 			err:       err,
 			English:   "Audit config does not exist",
 			Zhongwen:  "审计配置不存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewGarbageCollectionError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AuditConfigDoesntExistError{
+		detailedError{
+			err:       err,
+			English:   "Garbage collection error",
+			Zhongwen:  "Garbage collection error but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

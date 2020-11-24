@@ -154,6 +154,19 @@ paths:
       produces:
       - application/json
       summary: Run hot storage garbage collection
+  /api/v1/cleanup/gc/{gcID}:
+    get:
+      description: Get garbage collection task
+      operationId: v1-cleanup-gctask-get
+      parameters:
+      - description: gcID
+        in: path
+        name: gcID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Get garbage collection task
   /api/v1/cleanup/hotStorage:
     get:
       description: Get hot storage view

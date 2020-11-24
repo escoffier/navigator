@@ -186,6 +186,25 @@
                 ]
             }
         },
+        "/api/v1/cleanup/gc/{gcID}": {
+            "get": {
+                "description": "Get garbage collection task",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get garbage collection task",
+                "operationId": "v1-cleanup-gctask-get",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "gcID",
+                        "name": "gcID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
         "/api/v1/cleanup/hotStorage": {
             "get": {
                 "description": "Get hot storage view",
