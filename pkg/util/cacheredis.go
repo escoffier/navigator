@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -46,15 +45,10 @@ type scanReportListItem struct {
 	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
 }
 type ImageVulnerabilityCache struct {
-	mongodb                *mongo.Database
-	redisClient            *redis.Client
-	listItemsBySeverity    *[]scanReportListItem
-	listItemsMedToCritical *[]scanReportListItem
-	listItemsNetWorkBased  *[]scanReportListItem
-	FinishedAt             int64
-	DataChannel            chan struct{}
-	ctx                    context.Context
-	mu                     sync.Mutex
+	mongodb     *mongo.Database
+	redisClient *redis.Client
+	DataChannel chan struct{}
+	ctx         context.Context
 }
 
 const (
@@ -75,7 +69,15 @@ func NewImageVulnerabilityCache(mongodb *mongo.Database, redisClient *redis.Clie
 	s.DataChannel <- struct{}{}
 	return &s
 }
-func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) {
+
+type mongoQueryResult struct {
+	listItemsBySeverity    *[]scanReportListItem
+	listItemsMedToCritical *[]scanReportListItem
+	listItemsNetWorkBased  *[]scanReportListItem
+	FinishedAt             int64
+}
+
+func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) (*mongoQueryResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, MongoTimeout)
 	defer cancel()
 	//By Severity
@@ -166,6 +168,7 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) {
 	err = cursor.Err()
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Errorf("Cursor error: %s ", err).Error())
+		return nil, err
 	}
 
 	listItemsSetBySeverity := make(map[string]scanReportListItem)
@@ -246,13 +249,19 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) {
 	sortListItemsBySeverityAndStuff(listItemsBySeverity, true)
 	sortListItemsBySeverityAndStuff(listItemsMedToCritical, true)
 	sortListItemsBySeverityAndStuff(listItemsNetWorkBased, true)
-	c.mu.Lock()
-	c.listItemsBySeverity = &listItemsBySeverity
-	c.listItemsMedToCritical = &listItemsMedToCritical
-	c.listItemsNetWorkBased = &listItemsNetWorkBased
-	c.FinishedAt = c.getMongoMaxFinishedAt(ctx)
-	c.mu.Unlock()
-	return
+	var mqr mongoQueryResult
+	mqr.listItemsBySeverity = &listItemsBySeverity
+	mqr.listItemsMedToCritical = &listItemsMedToCritical
+	mqr.listItemsNetWorkBased = &listItemsNetWorkBased
+	FinishedAt, err := c.getMongoMaxFinishedAt(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Errorf("get mongo maxfinishedat error: %s ", err).Error())
+		return nil, err
+	} else {
+		mqr.FinishedAt = FinishedAt
+	}
+
+	return &mqr, nil
 }
 
 func sortListItemsBySeverityAndStuff(vulnerabilities []scanReportListItem, asc bool) {
@@ -274,59 +283,77 @@ func (c *ImageVulnerabilityCache) BgSync() {
 	}
 }
 
-func (c *ImageVulnerabilityCache) checkVersion(ctx context.Context) bool {
+func (c *ImageVulnerabilityCache) checkVersion(ctx context.Context) (bool, error) {
 
-	mongoFinishedAt := c.getMongoMaxFinishedAt(ctx)
-	redisFinishedAt := c.getRedisMaxFinishedAt(ctx)
+	mongoFinishedAt, err := c.getMongoMaxFinishedAt(ctx)
+	if err != nil {
+		return false, err
+	}
+	redisFinishedAt, err := c.getRedisMaxFinishedAt(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Errorf("getredisMaxFinishadAt error: %s ", err).Error())
+	}
 	if mongoFinishedAt != -1 && redisFinishedAt != -1 && mongoFinishedAt == redisFinishedAt {
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
-func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) {
-	if !c.checkVersion(ctx) {
-		c.getMongoData(ctx)
-		err := c.flushToRedis(ctx, BySeverityKey)
+func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) error {
+	ok, err := c.checkVersion(ctx)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		mqr, err := c.getMongoData(ctx)
 		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Errorf("BySeverity flush to redis error:%s", err).Error())
+			return err
 		}
-		err = c.flushToRedis(ctx, MedToCriticalKey)
+		err = c.flushToRedis(ctx, BySeverityKey, *mqr)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Errorf("BySeverity flush to redis error:%s", err).Error())
+			return err
+		}
+		err = c.flushToRedis(ctx, MedToCriticalKey, *mqr)
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Errorf("BySeverity flush to redis error:%s", err).Error())
+			return err
 
 		}
-		err = c.flushToRedis(ctx, NetWorkBasedKey)
+		err = c.flushToRedis(ctx, NetWorkBasedKey, *mqr)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Errorf("BySeverity flush to redis error:%s", err).Error())
+			return err
 		}
-		c.setRedisMaxFinishedAt(ctx)
-		c.listItemsBySeverity = nil
-		c.listItemsMedToCritical = nil
-		c.listItemsNetWorkBased = nil
-		c.FinishedAt = 0
+		c.setRedisMaxFinishedAt(ctx, *mqr)
+
 	}
+	return nil
 }
-func (c *ImageVulnerabilityCache) getRedisMaxFinishedAt(ctx context.Context) int64 {
+func (c *ImageVulnerabilityCache) getRedisMaxFinishedAt(ctx context.Context) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
 	defer cancel()
 	val, err := c.redisClient.Get(ctx, FinishedAtKey).Result()
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Errorf("get redis max finishedat error: %s", err).Error())
-		return -1
+		return -1, err
 	}
-	val64, _ := strconv.ParseInt(val, 10, 64)
-	return val64
+	val64, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Errorf("redis  parseint [val:%s] error: %s", val, err).Error())
+		return -1, err
+	}
+	return val64, nil
 }
 
-func (c *ImageVulnerabilityCache) setRedisMaxFinishedAt(ctx context.Context) {
-	if c.FinishedAt == -1 {
+func (c *ImageVulnerabilityCache) setRedisMaxFinishedAt(ctx context.Context, mqr mongoQueryResult) {
+	if mqr.FinishedAt == -1 {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
 	defer cancel()
 	//
-	err := c.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(c.FinishedAt, 10), 0).Err()
+	err := c.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(mqr.FinishedAt, 10), 0).Err()
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Errorf("set FinishedAt  redis error：%s", err).Error())
 		return
@@ -334,7 +361,7 @@ func (c *ImageVulnerabilityCache) setRedisMaxFinishedAt(ctx context.Context) {
 	return
 }
 
-func (c *ImageVulnerabilityCache) getMongoMaxFinishedAt(ctx context.Context) int64 {
+func (c *ImageVulnerabilityCache) getMongoMaxFinishedAt(ctx context.Context) (int64, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, MongoTimeout)
 	defer cancel()
@@ -345,23 +372,22 @@ func (c *ImageVulnerabilityCache) getMongoMaxFinishedAt(ctx context.Context) int
 
 	singleResult := c.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
-
 		logging.GetLogger().Error().Msg(fmt.Errorf("singleResult error: %s", singleResult.Err()).Error())
-		return -1
+		return -1, singleResult.Err()
 	}
 
 	var scanTask model.ScanTask
 	err := singleResult.Decode(&scanTask)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Errorf("Couldn't decode scan task: %s ", err).Error())
-		return -1
+		return -1, err
 	}
-	return scanTask.FinishedAt
+	return scanTask.FinishedAt, nil
 }
 
-func (c *ImageVulnerabilityCache) flushToRedis(ctx context.Context, ftype string) error {
+func (c *ImageVulnerabilityCache) flushToRedis(ctx context.Context, ftype string, mqr mongoQueryResult) error {
 
-	if c.listItemsBySeverity == nil {
+	if mqr.listItemsBySeverity == nil {
 		return fmt.Errorf("listItemsMedToCritical is nil")
 	}
 	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
@@ -373,12 +399,12 @@ func (c *ImageVulnerabilityCache) flushToRedis(ctx context.Context, ftype string
 
 	if ftype == BySeverityKey {
 
-		scanReport = c.listItemsBySeverity
+		scanReport = mqr.listItemsBySeverity
 	} else if ftype == MedToCriticalKey {
 
-		scanReport = c.listItemsMedToCritical
+		scanReport = mqr.listItemsMedToCritical
 	} else {
-		scanReport = c.listItemsNetWorkBased
+		scanReport = mqr.listItemsNetWorkBased
 	}
 
 	c.redisClient.LTrim(ctx, ftype, 1, 0)
@@ -400,7 +426,10 @@ func (c *ImageVulnerabilityCache) flushToRedis(ctx context.Context, ftype string
 
 func (c *ImageVulnerabilityCache) GetResultItem(ctx context.Context, riskFilter string, offset int64, limit int64, sortOrder string) ([]scanReportListItem, int64) {
 
-	c.checkVersionAndSyncData(ctx)
+	err := c.checkVersionAndSyncData(ctx)
+	if err != nil {
+		return nil, 0
+	}
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "asc"
 	}
@@ -414,10 +443,7 @@ func (c *ImageVulnerabilityCache) GetResultItem(ctx context.Context, riskFilter 
 
 	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
 	defer cancel()
-	var (
-		result []string
-		err    error
-	)
+	var result []string
 
 	//gen len
 	lenth, err := c.redisClient.LLen(ctx, key).Result()

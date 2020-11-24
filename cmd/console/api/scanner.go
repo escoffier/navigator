@@ -373,10 +373,10 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			return
 		}
 		offset, limit := api.getOffsetAndLimit(r)
-		item, lenth := api.syncData.GetResultItem(ctx, riskFilter, offset, limit, sortOrder)
+		GetResultItem, size := api.syncData.GetResultItem(ctx, riskFilter, offset, limit, sortOrder)
 		response.Ok(w,
-			response.WithItems(item),
-			response.WithTotalItems(lenth),
+			response.WithItems(GetResultItem),
+			response.WithTotalItems(size),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
 	}
