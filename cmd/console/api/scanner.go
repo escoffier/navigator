@@ -347,7 +347,7 @@ type scanReportListItem struct {
 // @Router /api/v1/scanner/reportsBySeverity [get]
 func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*20)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 		defer cancel()
 
 		riskFilter := r.URL.Query().Get("riskFilter")
@@ -373,7 +373,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			return
 		}
 		offset, limit := api.getOffsetAndLimit(r)
-		item, lenth := api.syncData.GetResultItem(riskFilter, lang.Language(ctx), offset, limit, sortOrder)
+		item, lenth := api.syncData.GetResultItem(ctx, riskFilter, offset, limit, sortOrder)
 		response.Ok(w,
 			response.WithItems(item),
 			response.WithTotalItems(lenth),
