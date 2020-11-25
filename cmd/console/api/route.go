@@ -91,6 +91,9 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
 
+			ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+			defer cancel()
+
 			if err != nil {
 				RespAndLog(w, r.Context(),
 					NewInvalidAuthToken(http.StatusUnauthorized,
@@ -120,7 +123,7 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 				userPtr,
 				cache.DefaultExpiration)
 
-			ctx := context.WithValue(r.Context(), userKey, userPtr)
+			ctx = context.WithValue(r.Context(), userKey, userPtr)
 
 			// Token is authenticated, pass it through
 			next.ServeHTTP(w, r.WithContext(ctx))
