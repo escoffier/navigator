@@ -13,7 +13,6 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -143,8 +142,6 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 			i = i + 1
 		}
 
-		util.SortVulnsBySeverityAndStuff(vulns, false)
-
 		topVulnsNum := len(vulns)
 		if len(vulns) >= 5 {
 			topVulnsNum = 5
@@ -235,8 +232,6 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 					"Weird, check logic. Assuming it was scanned.")
 				wasScanned = true
 			}
-
-			util.SortVulnsBySeverityAndStuff(vulns, false)
 
 			ovDetails.Containers[nameDigest] = onlineVulnDetailsContainer{
 				Name:                container.Name,

@@ -536,14 +536,12 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
 
 		addedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsAdded...)
-		util.SortVulnsBySeverityAndStuff(addedVulns, false)
 		overallSeverity := redclair.SeverityUnknown
 		if len(addedVulns) > 0 {
 			overallSeverity = addedVulns[0].Severity
 		}
 
 		removedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsRemoved...)
-		util.SortVulnsBySeverityAndStuff(removedVulns, false)
 		perLayerReport = append(perLayerReport, redclair.VulnerabilityLayerReport{
 			LayerNo:                layerNo,
 			LayerDigest:            digest,
@@ -577,6 +575,9 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 
 		vulns = currentVulns
 	}
+
+	util.SortVulnsBySeverityAndStuff(vulns, false)
+
 	report.Vulns = redclair.VulnerabilityReport{
 		Repository:      scanTask.Repository,
 		Tag:             scanTask.Tag,
@@ -673,7 +674,10 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	return nil
 }
 
-func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulns []redclair.VulnerabilityInfo, currFullVulns []redclair.VulnerabilityInfo) ([]redclair.VulnerabilityInfo, []redclair.VulnerabilityInfo, error) {
+func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []redclair.VulnerabilityInfo, currFullVulnsOrig []redclair.VulnerabilityInfo) ([]redclair.VulnerabilityInfo, []redclair.VulnerabilityInfo, error) {
+	parentFullVulns := parentFullVulnsOrig
+	currFullVulns := currFullVulnsOrig
+
 	vulnLayerAdded := make([]redclair.VulnerabilityInfo, 0)
 	vulnLayerRemoved := make([]redclair.VulnerabilityInfo, 0)
 	sort.Slice(parentFullVulns, func(i, j int) bool {
@@ -705,6 +709,10 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulns []redclair.Vulner
 		vulnLayerRemoved = append(vulnLayerRemoved, parentFullVulns[parentIndex])
 		parentIndex++
 	}
+
+	util.SortVulnsBySeverityAndStuff(vulnLayerAdded, false)
+	util.SortVulnsBySeverityAndStuff(vulnLayerRemoved, false)
+
 	return vulnLayerAdded, vulnLayerRemoved, nil
 }
 

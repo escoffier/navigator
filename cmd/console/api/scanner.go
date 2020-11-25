@@ -86,7 +86,6 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 
 		result := &s.ImageScanDetailedResult{}
 		report := scanTask.ScanReport.Vulns
-		util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
 
 		topVulnsNum := len(report.Vulnerabilities)
 		if len(report.Vulnerabilities) >= 5 {
@@ -255,7 +254,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 		for scanTaskNo, scanTask := range scanTasks {
 
 			report := scanTask.ScanReport.Vulns
-			util.SortVulnsBySeverityAndStuff(report.Vulnerabilities, false)
+
 			topVulnsNum := len(report.Vulnerabilities)
 			if len(report.Vulnerabilities) >= 5 {
 				topVulnsNum = 5
