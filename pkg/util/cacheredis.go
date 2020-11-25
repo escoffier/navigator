@@ -293,9 +293,9 @@ func (c *ImageVulnerabilityCache) checkVersion(ctx context.Context) (bool, error
 }
 
 func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) error {
-	ok, err := c.checkVersion(ctx)
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	ok, err := c.checkVersion(ctx)
 	if err != nil {
 		return err
 	}
