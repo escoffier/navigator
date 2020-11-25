@@ -376,9 +376,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		resultItems, size, err := api.syncData.GetResultItem(ctx, riskFilter, offset, limit, sortOrder)
 		if err != nil {
 			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					err,
-					Suberror{}))
+				NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 		response.Ok(w,

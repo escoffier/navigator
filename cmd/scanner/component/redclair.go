@@ -958,7 +958,7 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 		select {
 		case rcSvc.syncData.DataChannel <- struct{}{}:
 		default:
-			logging.GetLogger().Error().Msg("Have a scanner to mongo running")
+			logging.GetLogger().Info().Msg("Have a scanner to mongo running")
 		}
 	}
 }

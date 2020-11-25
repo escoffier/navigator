@@ -307,7 +307,6 @@ func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) e
 		err = c.flushToRedis(ctx, MedToCriticalKey, *mqr)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("BySeverity flush to redis error")
-
 		}
 		err = c.flushToRedis(ctx, NetWorkBasedKey, *mqr)
 		if err != nil {
