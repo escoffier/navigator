@@ -118,19 +118,23 @@ func (s *CleanupService) updateGCStatus(ctx context.Context, gcTask *model.GCTas
 	return nil
 }
 
+func (s *CleanupService) updateFailedGCStatusUpdate(ctx context.Context, gcTask *model.GCTask, err error) {
+	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	zerolog.Ctx(taskUpdateCtx).Error().Str("gcTaskId", gcTask.ID.Hex()).Err(err)
+	defer taskUpdateCtxCancel()
+	updateErr := s.updateGCStatus(taskUpdateCtx, gcTask, model.GCFailed)
+	if updateErr != nil {
+		zerolog.Ctx(context.Background()).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", updateErr)))
+	}
+}
+
 func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp time.Time, gcTask *model.GCTask) {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 	filter := bson.M{}
 	allCollectionsCursor, err := s.mongodb.ListCollections(mongoCtx, filter)
 	if err != nil {
-		taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-		zerolog.Ctx(ctx).Error().Str("gcTaskId", gcTask.ID.Hex()).Err(NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to list collections: %w", err)))
-		defer taskUpdateCtxCancel()
-		err = s.updateGCStatus(taskUpdateCtx, gcTask, model.GCFailed)
-		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", err)))
-		}
+		s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to list collections: %w", err)))
 		return
 	}
 	defer allCollectionsCursor.Close(ctx)
@@ -141,13 +145,7 @@ func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp
 		collectionInfo := bson.D{}
 		err := allCollectionsCursor.Decode(&collectionInfo)
 		if err != nil {
-			taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-			zerolog.Ctx(ctx).Error().Str("gcTaskId", gcTask.ID.Hex()).Err(NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not decode collection info: %w", err)))
-			defer taskUpdateCtxCancel()
-			err = s.updateGCStatus(taskUpdateCtx, gcTask, model.GCFailed)
-			if err != nil {
-				zerolog.Ctx(ctx).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", err)))
-			}
+			s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not decode collection info: %w", err)))
 			return
 		}
 		mongoColCtx, mongoColCtxCancel := context.WithTimeout(ctx, time.Second*60)
@@ -155,13 +153,7 @@ func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp
 		colName := collectionInfo.Map()["name"].(string)
 		deleteResult, err := s.mongodb.Collection(colName).DeleteMany(mongoColCtx, filter)
 		if err != nil {
-			taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-			zerolog.Ctx(ctx).Error().Str("gcTaskId", gcTask.ID.Hex()).Err(NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to delete documents: %w", err)))
-			defer taskUpdateCtxCancel()
-			err = s.updateGCStatus(taskUpdateCtx, gcTask, model.GCFailed)
-			if err != nil {
-				zerolog.Ctx(ctx).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", err)))
-			}
+			s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to delete documents: %w", err)))
 			return
 		}
 		zerolog.Ctx(ctx).Info().
