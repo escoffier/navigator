@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"os"
 	"sort"
@@ -957,7 +958,7 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 		select {
 		case rcSvc.syncData.DataChannel <- struct{}{}:
 		default:
-			fmt.Errorf("Have a scanner to mongo running ")
+			logging.GetLogger().Error().Msg("Have a scanner to mongo running")
 		}
 	}
 }
