@@ -880,7 +880,7 @@ func (rcSvc *RedClairService) doImageScanBookkeeping(ctx context.Context, scanTa
 
 	filter := bson.M{
 		"$and": []bson.M{
-			{"$ne": bson.M{"_id": scanTask.ID}},
+			{"_id": bson.M{"$ne": scanTask.ID}},
 			{"digest": scanTask.ImageDigest},
 			{"stale": false},
 		},
