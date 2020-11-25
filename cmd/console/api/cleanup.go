@@ -17,7 +17,7 @@ import (
 
 func (api *api) cleanup() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Post("/gc", api.runGarbageCollection())
+		r.Post("/gc", api.gc())
 		r.Get("/gc/{gcID}", api.getGarbageCollectionTask())
 		r.Get("/hotStorage", api.getHotStorageView())
 	}
@@ -59,7 +59,7 @@ func (api *api) getGarbageCollectionTask() http.HandlerFunc {
 // @Produce json
 // @Param hotStorageDays body int true "hotStorageDays"
 // @Router /api/v1/cleanup/gc [post]
-func (api *api) runGarbageCollection() http.HandlerFunc {
+func (api *api) gc() http.HandlerFunc {
 	type param struct {
 		DaysOffset int `json:"daysOffset"`
 	}
@@ -89,7 +89,7 @@ func (api *api) runGarbageCollection() http.HandlerFunc {
 			return
 		}
 		gcCtx, _ := context.WithTimeout(api.ctx, time.Minute*1)
-		go api.cleanupService.ScheduleGarbageCollection(gcCtx, fromTimestamp, gcTask)
+		go api.cleanupService.RunGarbageCollection(gcCtx, fromTimestamp, gcTask)
 
 		response.Ok(w, response.WithItem(*gcTask))
 	}
