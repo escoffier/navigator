@@ -41,4 +41,3 @@ spec:
             - name: audits
               persistentVolumeClaim:
                 claimName: audit-pvc
-          restartPolicy: OnFailure
