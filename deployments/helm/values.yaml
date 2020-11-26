@@ -80,6 +80,7 @@ postgresql:
     registry: registry.t-appagile.com
     repository: tensorsecurity/tensorsec-postgres # Our image with prefilled vulnerabilities info
     tag: "latest"
+    pullPolicy: Always
   # Use the same PGDATA as the travis job that builds arminc/clair-db
   # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
   postgresqlDataDir: /var/lib/postgresql/clair
