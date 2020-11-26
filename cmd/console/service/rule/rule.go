@@ -28,14 +28,8 @@ func NewRuleService(availableRulesFolderPath string, mongodb *mongo.Database) *R
 }
 
 func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) ([]model.Rule, int64, error) {
-<<<<<<< HEAD
-	filter := bson.M{"active": true}
-
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
-=======
 	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
-	findOptions := options.Find()
->>>>>>> master
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
 
 	cursor, err := s.mongodb.Collection(model.RuleCollection).Find(ctx, filter, findOptions)
 	if err != nil {
