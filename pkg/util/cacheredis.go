@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -38,7 +37,6 @@ type ImageVulnerabilityCache struct {
 	redisClient *redis.Client
 	DataChannel chan struct{}
 	ctx         context.Context
-	mu          sync.Mutex
 }
 
 const (
@@ -293,8 +291,7 @@ func (c *ImageVulnerabilityCache) checkVersion(ctx context.Context) (bool, error
 }
 
 func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+
 	ok, err := c.checkVersion(ctx)
 	if err != nil {
 		return err
