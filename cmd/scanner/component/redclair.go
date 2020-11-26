@@ -45,10 +45,9 @@ const (
 
 // RedClair ...
 type RedClairService struct {
-	ctx         context.Context
-	mongodb     *mongo.Database
-	redisClient *redis.Client
-
+	ctx           context.Context
+	mongodb       *mongo.Database
+	redisClient   *redis.Client
 	scanTasksChan chan model.ScanTask
 	numWorkers    int
 
