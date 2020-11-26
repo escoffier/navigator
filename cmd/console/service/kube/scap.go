@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -90,7 +91,7 @@ func GetKubeHistoryEntries(ctx context.Context, checkMap map[string]*scap.CheckH
 func GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, checkID string, nodeCheckDetails *scap.NodeCheckDetails) error {
 	var complianceTest kube.KubeJobEntry
 
-	findOptions := options.FindOne()
+	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
 
 	if checkID == "latest" {
 		findOptions.SetSort(bson.D{{"finishedAt", -1}})

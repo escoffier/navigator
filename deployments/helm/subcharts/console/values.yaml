@@ -31,6 +31,27 @@ elastic:
   port: 9200
   index: filebeat-*
 
+audit:
+  nameOverride: "audit"
+  fullnameOverride: "tensorsec-audit"
+  cronString: "0 4 * * *"
+  mountPath: /audits
+  image:
+    name: tensorsec-audit
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+
+auditCleanup:
+  nameOverride: "audit-cleanup"
+  fullnameOverride: "tensorsec-audit-cleanup"
+  cronString: "0 4 * * *"
+  image:
+    name: tensorsec-audit-cleanup
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+
 image:
   name: tensorsec-console
   # repository: localhost:32000
@@ -42,6 +63,7 @@ mongo:
   mongoUsername: redstone
   mongoDatabase: vegeta
   mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
+  mongoDataPath: /bitnami/mongodb/data
 
 redis:
   redisSecretName: tensorsec-redis

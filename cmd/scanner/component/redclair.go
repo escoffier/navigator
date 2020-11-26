@@ -928,6 +928,7 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 	}
 
 	scanTask.FinishedAt = time.Now().Unix()
+	scanTask.HistoricisedTimestamp = time.Now()
 	scanTask.Status = status
 
 	if status == model.ScanStatusSucceeded {

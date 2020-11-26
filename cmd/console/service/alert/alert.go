@@ -265,6 +265,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 
 				numRaised++
 
+				alert.HistoricisedTimestamp = time.Now()
 				_, err = s.mongodb.Collection(model.AlertCollection).InsertOne(ctx, alert)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError,
@@ -312,7 +313,8 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 	}
 
 	update := bson.M{"$set": bson.M{
-		"acknowledged": true,
+		"acknowledged":           true,
+		"historicised_timestamp": time.Now(),
 	}}
 
 	_, err = s.mongodb.Collection(model.AlertCollection).UpdateOne(ctx, filter, update)

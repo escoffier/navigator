@@ -63,9 +63,11 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 		},
 	}
 
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
+
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
-	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter)
+	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
@@ -183,9 +185,11 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 		},
 	}
 
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
+
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
-	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter)
+	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
@@ -286,6 +290,8 @@ func (r *OnlineVulnsService) getScanTaskByDigest(ctx context.Context, digest str
 	// sort by finishedAt descending, so that we get the freshest scan result
 	findOptions := options.FindOne()
 	findOptions.SetSort(bson.D{{"finishedAt", -1}})
+
+	findOptions.SetMaxTime(time.Second * 10)
 
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
@@ -480,6 +486,10 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 			LastUpdateTimeEpoch: time.Now().Unix(),
 		}
 
+		if isDeleteEvent {
+			assetContainer.HistoricisedTimestamp = time.Now()
+		}
+
 		if owner == nil {
 			// owner can be nil e.g. when we run
 			//kubectl run curl --image=radial/busyboxplus:curl -i --tty -n tensorsec
@@ -519,10 +529,10 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 	filter := bson.M{
 		"lastUpdateTime": bson.M{"$lt": upTo.Unix()},
 	}
-
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
-	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter)
+	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return numMarked, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
@@ -549,6 +559,7 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 		}
 
 		container.IsDeleted = true
+		container.HistoricisedTimestamp = time.Now()
 
 		update := bson.M{"$set": container}
 		opts := options.Update().SetUpsert(true)

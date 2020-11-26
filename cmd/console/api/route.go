@@ -14,6 +14,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
@@ -52,10 +54,12 @@ func SetupRoutes(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	auditService *audit.AuditService,
+	cleanupService *cleanup.CleanupService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
-	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc)
+	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc, auditService, cleanupService)
 
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
@@ -76,6 +80,8 @@ func SetupRoutes(
 			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
 			r.Route("/runtimeDetectionConfig", api.runtimeDetectionConfig())
 			r.Route("/alerts", api.alert())
+			r.Route("/audit", api.audit())
+			r.Route("/cleanup", api.cleanup())
 		})
 	})
 }
@@ -84,6 +90,9 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
+
+			ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+			defer cancel()
 
 			if err != nil {
 				RespAndLog(w, r.Context(),
@@ -114,7 +123,7 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 				userPtr,
 				cache.DefaultExpiration)
 
-			ctx := context.WithValue(r.Context(), userKey, userPtr)
+			ctx = context.WithValue(r.Context(), userKey, userPtr)
 
 			// Token is authenticated, pass it through
 			next.ServeHTTP(w, r.WithContext(ctx))

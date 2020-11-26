@@ -31,8 +31,13 @@ type RuleDoesntExistError struct{ detailedError }
 type RuleAlreadyAppliedError struct{ detailedError }
 type RuleNotAppliedError struct{ detailedError }
 type AlertAlreadyAcknowledged struct{ detailedError }
-type ClusterError struct { detailedError }
-type ClusterDoesntExistError struct { detailedError }
+type ClusterError struct{ detailedError }
+type ClusterDoesntExistError struct{ detailedError }
+type AuditConfigError struct{ detailedError }
+type CannotGetDiskUsageError struct{ detailedError }
+type AuditConfigDoesntExistError struct{ detailedError }
+type GarbageCollectionError struct{ detailedError }
+type GarbageCollectionInProgressError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -526,6 +531,86 @@ func NewClusterDoesntExistError(httpCode int, err error, suberrors ...Suberror) 
 			err:       err,
 			English:   "Cluster does not exist",
 			Zhongwen:  "Cluster does not exist but in 中文",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAuditConfigError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AuditConfigError{
+		detailedError{
+			err:       err,
+			English:   "Audit config error occured",
+			Zhongwen:  "审计配置发生错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotGetDiskUsageError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotGetDiskUsageError{
+		detailedError{
+			err:       err,
+			English:   "Cannot get disk usage info",
+			Zhongwen:  "无法获取磁盘用量信息",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAuditConfigDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AuditConfigDoesntExistError{
+		detailedError{
+			err:       err,
+			English:   "Audit config does not exist",
+			Zhongwen:  "审计配置不存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewGarbageCollectionError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return GarbageCollectionError{
+		detailedError{
+			err:       err,
+			English:   "Garbage collection error",
+			Zhongwen:  "垃圾回收錯誤",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewGarbageCollectionInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return GarbageCollectionInProgressError{
+		detailedError{
+			err:       err,
+			English:   "Garbage collection in progress",
+			Zhongwen:  "垃圾回收正在進行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
