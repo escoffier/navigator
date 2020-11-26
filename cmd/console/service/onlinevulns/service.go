@@ -286,9 +286,7 @@ func (r *OnlineVulnsService) getScanTaskByDigest(ctx context.Context, digest str
 		},
 	}
 
-	// sort by finishedAt descending, so that we get the freshest scan result
 	findOptions := options.FindOne()
-	findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
 	findOptions.SetMaxTime(time.Second * 10)
 
