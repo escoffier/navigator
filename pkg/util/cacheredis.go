@@ -47,7 +47,6 @@ const (
 	FinishedAtKey           = "FinishedAt"
 	MongoTimeout            = time.Second * 20
 	RedisTimeout            = time.Second * 5
-	CacheRefreshInterval    = time.Second * 30
 	ScanTypeBySeverity      = 1
 	ScanTypeByMedToCritical = 2
 	ScanTypeNetWorkBased    = 3
@@ -267,9 +266,10 @@ func sortListItemsBySeverityAndStuff(vulnerabilities []scanReportListItem, asc b
 }
 
 func (c *ImageVulnerabilityCache) BgSync() {
+	timer := time.NewTimer(time.Second * 60)
 	for {
 		select {
-		case <-time.After(CacheRefreshInterval):
+		case <-timer.C:
 			c.checkVersionAndSyncData(c.ctx)
 		}
 	}
