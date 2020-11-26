@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -67,16 +68,33 @@ func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error
 
 	filter := bson.M{"status": model.GCInProgress}
 
-	queryResult := collection.FindOne(ctx, filter)
+	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		var sessionError error
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
 
-	if queryResult.Err() == nil {
-		return nil, NewGarbageCollectionInProgressError(http.StatusConflict, fmt.Errorf("GC in progress"))
-	}
+		sessionCommitter := util.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
 
-	_, err := collection.InsertOne(ctx, newGCTask)
+		queryResult := collection.FindOne(sessionContext, filter)
+
+		if queryResult.Err() == nil {
+			sessionError = fmt.Errorf("GC in progress")
+			return NewGarbageCollectionInProgressError(http.StatusConflict, sessionError)
+		}
+
+		_, sessionError = collection.InsertOne(sessionContext, newGCTask)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+		return nil, err
 	}
+
 	return newGCTask, nil
 }
 
@@ -129,38 +147,47 @@ func (s *CleanupService) updateFailedGCStatusUpdate(ctx context.Context, gcTask 
 }
 
 func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp time.Time, gcTask *model.GCTask) {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-	filter := bson.M{}
-	allCollectionsCursor, err := s.mongodb.ListCollections(mongoCtx, filter)
+	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		filter := bson.M{}
+
+		var sessionError error
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
+
+		sessionCommitter := util.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
+
+		allCollectionsCursor, sessionError := s.mongodb.ListCollections(sessionContext, filter)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not list collections: %w", sessionError))
+		}
+		defer allCollectionsCursor.Close(sessionContext)
+		filter = bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
+
+		for allCollectionsCursor.Next(sessionContext) {
+			collectionInfo := bson.D{}
+			sessionError = allCollectionsCursor.Decode(&collectionInfo)
+			if sessionError != nil {
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", sessionError))
+			}
+			colName := collectionInfo.Map()["name"].(string)
+			deleteResult, sessionError := s.mongodb.Collection(colName).DeleteMany(sessionContext, filter)
+			if sessionError != nil {
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't delete documents: %w", sessionError))
+			}
+			zerolog.Ctx(ctx).Info().
+				Int64("deletedCount", deleteResult.DeletedCount).
+				Str("collection", colName).
+				Str("fromTimestamp", fromTimestamp.String()).
+				Msg("Removed audit documents older than")
+		}
+		return nil
+	})
 	if err != nil {
-		s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to list collections: %w", err)))
+		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
 		return
-	}
-	defer allCollectionsCursor.Close(ctx)
-
-	filter = bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
-
-	for allCollectionsCursor.Next(ctx) {
-		collectionInfo := bson.D{}
-		err := allCollectionsCursor.Decode(&collectionInfo)
-		if err != nil {
-			s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not decode collection info: %w", err)))
-			return
-		}
-		mongoColCtx, mongoColCtxCancel := context.WithTimeout(ctx, time.Second*60)
-		defer mongoColCtxCancel()
-		colName := collectionInfo.Map()["name"].(string)
-		deleteResult, err := s.mongodb.Collection(colName).DeleteMany(mongoColCtx, filter)
-		if err != nil {
-			s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to delete documents: %w", err)))
-			return
-		}
-		zerolog.Ctx(ctx).Info().
-			Int64("deletedCount", deleteResult.DeletedCount).
-			Str("collection", colName).
-			Str("fromTimestamp", fromTimestamp.String()).
-			Msg("Removed audit documents older than")
 	}
 	zerolog.Ctx(ctx).Info().Str("gcTaskId", gcTask.ID.Hex()).Msg("GC Task finished successfully")
 	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
