@@ -279,12 +279,14 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 
 func (r *OnlineVulnsService) getScanTaskByDigest(ctx context.Context, digest string) (model.ScanTask, bool, error) {
 	filter := bson.M{
-		"digest": digest,
+		"$and": []bson.M{
+			{"stale": false},
+			{"status": model.ScanStatusSucceeded},
+			{"digest": digest},
+		},
 	}
 
-	// sort by finishedAt descending, so that we get the freshest scan result
 	findOptions := options.FindOne()
-	findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
 	findOptions.SetMaxTime(time.Second * 10)
 
