@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/chi"
@@ -66,8 +68,12 @@ func (api *api) login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		creds := &credentials{}
 		err := json.NewDecoder(r.Body).Decode(creds)
+
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
 		if err != nil {
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))
 			return
@@ -78,20 +84,20 @@ func (api *api) login() http.HandlerFunc {
 				// Handle case where both username and password are missing
 				// We probably should have some validation helper instead of nested
 				// ifs like this.
-				RespAndLog(w, r.Context(),
+				RespAndLog(w, ctx,
 					NewFieldError(http.StatusBadRequest,
 						fmt.Errorf("Missing field 'password' and 'username'"),
 						Suberror{"username", ""}, Suberror{"password", ""}))
 				return
 			}
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing field 'username'"),
 					Suberror{"username", ""}))
 			return
 		}
 		if creds.Password == "" {
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("Missing field 'password'"),
 					Suberror{"password", ""}))
@@ -145,6 +151,10 @@ func (api *api) login() http.HandlerFunc {
 // @Router /api/v1/auth/logout [post]
 func (api *api) logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		_, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
 		token, claims, err := jwtauth.FromContext(r.Context())
 		if err != nil || token == nil || !token.Valid {
 			response.Ok(w)
@@ -154,7 +164,6 @@ func (api *api) logout() http.HandlerFunc {
 		// check if we can find the user's session
 		username := claims["username"].(string)
 		api.userCache.Delete(username)
-
 		response.Ok(w)
 	}
 }

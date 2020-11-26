@@ -1,10 +1,13 @@
 package model
 
+import "gitlab.com/piccolo_su/vegeta/pkg/metadata"
+
 const (
 	AssetsContainerCollection = "assets-containers"
 )
 
 type AssetContainer struct {
+	metadata.MetadataEntry `json:"-" bson:",inline"`
 	// PodName-Name is a "primary key"
 	PodName string `json:"podName" bson:"podName"` // ind
 	Name    string `json:"name" bson:"name"`       // ind

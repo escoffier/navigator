@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"math"
 	"net/http"
 	"sort"
@@ -190,7 +191,9 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		findOptions := options.Find().SetMaxTime(time.Second * 10)
+
+		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
@@ -245,7 +248,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, true)
 				if err != nil {
-					fmt.Println(err)
 					switch err.(type) {
 					case ClusterDoesntExistError:
 						// Scap check references a deleted cluster
@@ -277,7 +279,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			if _, ok := inactiveClusters[v.ClusterID]; ok {
 				continue
 			}
-			// Convert -1 to 0 to omit the FinishedAt field			
+			// Convert -1 to 0 to omit the FinishedAt field
 			if v.FinishedAt == -1 {
 				v.FinishedAt = 0
 			}
@@ -371,6 +373,8 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
+		findOptions := options.Find().SetMaxTime(time.Second * 10)
+
 		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -387,7 +391,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
@@ -527,7 +531,9 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+		findOptions := options.Find().SetMaxTime(time.Second * 10)
+
+		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,

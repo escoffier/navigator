@@ -8,6 +8,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -17,8 +18,19 @@ func CreateK8sClientFromKubeConfig(kubeconfig []byte) (*kubernetes.Clientset, er
 	if err != nil {
 		return nil, err
 	}
-
 	return kubernetes.NewForConfig(config)
+}
+
+func GetRestConfigFromKubeConfig(kubeConfig string) (*rest.Config, error) {
+	kubeconfig, err := b64.StdEncoding.DecodeString(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Can't decode kubeconfig: %s", err)
+	}
+	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 func KubeClientFromB64KubeConfig(kubeConfig string) (*kubernetes.Clientset, error) {

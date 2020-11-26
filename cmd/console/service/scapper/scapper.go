@@ -467,9 +467,10 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 	filter := bson.M{"checkId": check.CheckUUID.String(), "nodeName": nodeName}
 	// TODO: is there better way to do this using struct annotations?
 	update := bson.M{"$set": bson.M{
-		"status":     model.ComplianceCheckStatusFailed,
-		"finishedAt": timeEpochSecs,
-		"message":    msg,
+		"status":          model.ComplianceCheckStatusFailed,
+		"finishedAt":      timeEpochSecs,
+		"message":         msg,
+		"audit_timestamp": time.Now(),
 	}}
 	_, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
 	if err != nil {

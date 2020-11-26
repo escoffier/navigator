@@ -118,8 +118,30 @@ else
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile .
 endif
 
+.PHONY: audit
+audit:     ## Build audit docker
+	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	@echo "audit will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "audit will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile .
+endif
+
+.PHONY: audit-cleanup
+audit-cleanup:     ## Build audit-cleanup docker
+	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	@echo "audit-cleanup will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "audit-cleanup will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile .
+endif
+
 .PHONY: all
-all: tensordig scanner scap-jobs console faulty
+all: tensordig scanner scap-jobs console faulty audit audit-cleanup
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -132,6 +154,8 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-audit:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-audit-cleanup:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
@@ -141,6 +165,8 @@ else
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
 	docker push $(REPOPREFIX)/tensordig:latest
+	docker push $(REPOPREFIX)/tensorsec-audit:latest
+	docker push $(REPOPREFIX)/tensorsec-audit-cleanup:latest
 	docker push $(REPOPREFIX)/faulty:latest
 endif
 
@@ -154,6 +180,8 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-audit:latest $(REPOPREFIX)/tensorsec-audit:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-audit-cleanup:latest $(REPOPREFIX)/tensorsec-audit-cleanup:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
@@ -163,6 +191,8 @@ else
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-audit:latest $(REPOPREFIX)/tensorsec-audit:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-audit-cleanup:latest $(REPOPREFIX)/tensorsec-audit-cleanup:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
 endif
 
@@ -178,6 +208,7 @@ redeploy:
 		kubectl -n tensorsec delete pvc tensorsec-elasticsearch-master-tensorsec-elasticsearch-master-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
+		kubectl -n tensorsec delete pvc audit-pvc; \
 		kubectl --namespace tensorsec get job --namespace tensorsec | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job; \
 		helm dep up; \
 		helm install ./ --namespace tensorsec --name tensorsec; \

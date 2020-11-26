@@ -28,8 +28,8 @@ func NewRuleService(availableRulesFolderPath string, mongodb *mongo.Database) *R
 }
 
 func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) ([]model.Rule, int64, error) {
-	filter := bson.M{"active": true}
-	findOptions := options.Find()
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
 
 	cursor, err := s.mongodb.Collection(model.RuleCollection).Find(ctx, filter, findOptions)
 	if err != nil {
@@ -51,9 +51,11 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 
 func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
 	var queryRule model.Rule
-	filter := bson.M{"_id": ruleObjectID, "active": true}
+	filter := bson.M{"_id": ruleObjectID, "deleted_at": bson.M{"$exists": false}}
 
-	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
+	oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
+
+	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter, oneOptions)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -71,7 +73,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 
 	filter = bson.M{"name_en": queryRule.NameEn}
 	var ruleDefinition model.RuleDefinition
-	ruleDefinitionResult := s.mongodb.Collection(model.RuleDefinitionCollection).FindOne(ctx, filter)
+	ruleDefinitionResult := s.mongodb.Collection(model.RuleDefinitionCollection).FindOne(ctx, filter, oneOptions)
 	if queryResult.Err() != nil {
 		return nil, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Error getting rule definitino from db: %w", queryRule.NameEn, err))
 	}
@@ -89,7 +91,6 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	newRule.DescriptionZh = ruleDefinition.DescriptionZh
 	newRule.Cvss3Score = ruleDefinition.Cvss3Score
 	newRule.Enabled = !queryRule.Enabled
-	newRule.Active = true
 	newRule.Cvss3Vector = ruleDefinition.Cvss3Vector
 	newRule.Cvss2Score = ruleDefinition.Cvss2Score
 	newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
@@ -104,11 +105,10 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	}
 	newRule.ID = id
 
-	queryRule.Active = false
 	queryRule.DeletedAt = time.Now()
+	queryRule.HistoricisedTimestamp = time.Now()
 	filter = bson.M{"_id": ruleObjectID}
 	update := bson.M{"$set": queryRule}
-
 	_, err = s.mongodb.Collection(model.RuleCollection).UpdateOne(ctx, filter, update)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
@@ -119,9 +119,11 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 
 func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
 	var queryRule model.Rule
-	filter := bson.M{"_id": ruleObjectID, "active": true}
+	filter := bson.M{"_id": ruleObjectID, "deleted_at": bson.M{"$exists": false}}
 
-	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter)
+	oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
+
+	queryResult := s.mongodb.Collection(model.RuleCollection).FindOne(ctx, filter, oneOptions)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -139,7 +141,7 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 
 	filter = bson.M{"name_en": queryRule.NameEn}
 	var ruleDefinition model.RuleDefinition
-	ruleDefinitionResult := s.mongodb.Collection(model.RuleDefinitionCollection).FindOne(ctx, filter)
+	ruleDefinitionResult := s.mongodb.Collection(model.RuleDefinitionCollection).FindOne(ctx, filter, oneOptions)
 	if queryResult.Err() != nil {
 		return nil, NewRulesError(http.StatusInternalServerError, fmt.Errorf("Error getting rule definitino from db: %w", queryRule.NameEn, err))
 	}
@@ -153,7 +155,6 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	newRule.NameEn = ruleDefinition.NameEn
 	newRule.CreatedAt = time.Now()
 	newRule.NameZh = ruleDefinition.NameZh
-	newRule.Active = true
 	newRule.DescriptionEn = ruleDefinition.DescriptionEn
 	newRule.DescriptionZh = ruleDefinition.DescriptionZh
 	newRule.Cvss3Score = ruleDefinition.Cvss3Score
@@ -172,8 +173,8 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	}
 	newRule.ID = id
 
-	queryRule.Active = false
 	queryRule.DeletedAt = time.Now()
+	queryRule.HistoricisedTimestamp = time.Now()
 	filter = bson.M{"_id": ruleObjectID}
 	update := bson.M{"$set": queryRule}
 

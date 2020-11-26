@@ -68,10 +68,12 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		findOneOptions := options.FindOne().SetMaxTime(time.Second * 10)
+
 		// from mongo
 		var scanTask model.ScanTask
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
-			ctx, bson.M{"_id": taskObjectID}).Decode(&scanTask)
+			ctx, bson.M{"_id": taskObjectID}, findOneOptions).Decode(&scanTask)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
@@ -195,9 +197,11 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			}
 		}
 
+		mt := time.Second * 10
 		findOptions := options.FindOptions{
-			Skip:  &offset,
-			Limit: &limit,
+			Skip:    &offset,
+			Limit:   &limit,
+			MaxTime: &mt,
 		}
 
 		switch sortBy {
@@ -308,17 +312,17 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
 		// from mongo
 		var result model.ScanTask
 		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
-			ctx, bson.M{"_id": taskObjectID}).Decode(&result)
+			ctx, bson.M{"_id": taskObjectID}, oneOptions).Decode(&result)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
 			return
 		}
-
 		response.Ok(w, response.WithItem(result))
 	}
 }

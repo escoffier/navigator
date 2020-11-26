@@ -38,6 +38,9 @@ var rootCmd = &cobra.Command{
 			Str("username", mongoOpts.Username).
 			Str("secretname", mongoOpts.SecretName).
 			Str("database", mongoOpts.Database).
+			Str("pvc", mongoOpts.PVC).
+			Str("pod", mongoOpts.Pod).
+			Str("dataPath", mongoOpts.DataPath).
 			Msg("Mongo options")
 
 		scannerOpts := flag.GetVegetaScannerOpts(cmd)
