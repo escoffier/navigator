@@ -354,8 +354,6 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 		defer cancel()
 
-		findOptions := options.Find().SetMaxTime(time.Second * 10)
-
 		riskFilter := r.URL.Query().Get("riskFilter")
 		if riskFilter == "" {
 			riskFilter = "none"
