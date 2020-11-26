@@ -7,8 +7,20 @@ import (
 	"reflect"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/mongo"
+
 	"github.com/golang/gddo/httputil/header"
 )
+
+func MongoSessionCommitter(sessionContext mongo.SessionContext, err *error) func() {
+	return func() {
+		if err != nil {
+			sessionContext.AbortTransaction(sessionContext)
+		} else {
+			sessionContext.CommitTransaction(sessionContext)
+		}
+	}
+}
 
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	if reflect.ValueOf(dst).Kind() != reflect.Ptr {
