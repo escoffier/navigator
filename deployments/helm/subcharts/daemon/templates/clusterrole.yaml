@@ -15,5 +15,6 @@ rules:
   - namespaces
   - pods
   verbs:
+  - list
   - watch
 {{- end -}}

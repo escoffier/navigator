@@ -1,0 +1,22 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: faulty
+spec:
+  schedule: "*/10 * * * *"
+  jobTemplate:
+    spec:
+      completions: 1
+      template:
+        spec:
+          containers:
+            - name: faulty
+              image: registry.t-appagile.com/tensorsecurity/faulty:test
+              imagePullPolicy: Always
+              args:
+                - /bin/bash
+                - -c
+                - /app/entrypoint.sh
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: harbor-admin-secret

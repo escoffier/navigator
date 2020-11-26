@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN export PATH="/usr/lib/go-1.10/bin:$PATH"
 
+ADD configs/faulty /app
 ADD test/ /test
 
-CMD ["/bin/sh"]
+CMD ["/app/entrypoint.sh"]
