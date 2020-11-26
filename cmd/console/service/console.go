@@ -384,6 +384,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 				"status": 1,
 			}, Options: nil,
 		},
+		{
+			Keys: bson.M{
+				"digest": 1,
+			}, Options: nil,
+		},
 	}
 	for _, col := range []string{model.ComplianceCheckKubeRecordsCollection,
 		model.ComplianceCheckDockerRecordsCollection,
