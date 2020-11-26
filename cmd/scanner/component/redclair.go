@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"os"
 	"sort"
@@ -49,7 +48,6 @@ type RedClairService struct {
 	ctx           context.Context
 	mongodb       *mongo.Database
 	redisClient   *redis.Client
-	syncData      *util.ImageVulnerabilityCache
 	scanTasksChan chan model.ScanTask
 	numWorkers    int
 
@@ -76,7 +74,6 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		ctx:                     ctx,
 		mongodb:                 db,
 		redisClient:             rc,
-		syncData:                util.NewImageVulnerabilityCache(db, rc, ctx),
 		scanTasksChan:           make(chan model.ScanTask, 1000),
 		numWorkers:              clairOpts.NumWorkers,
 		redclairEngine:          redclairEng,
@@ -954,13 +951,6 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 			Err(err).
 			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
 			Msg("error in updating task in Mongo")
-	}
-	if status == model.ScanStatusSucceeded {
-		select {
-		case rcSvc.syncData.DataChannel <- struct{}{}:
-		default:
-			logging.GetLogger().Info().Msg("Have a scanner to mongo running")
-		}
 	}
 }
 
