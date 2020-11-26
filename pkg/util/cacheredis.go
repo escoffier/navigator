@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -47,6 +48,7 @@ const (
 	FinishedAtKey           = "FinishedAt"
 	MongoTimeout            = time.Second * 20
 	RedisTimeout            = time.Second * 5
+	CacheRefreshInterval    = time.Second * 30
 	ScanTypeBySeverity      = 1
 	ScanTypeByMedToCritical = 2
 	ScanTypeNetWorkBased    = 3
@@ -57,7 +59,7 @@ func NewImageVulnerabilityCache(mongodb *mongo.Database, redisClient *redis.Clie
 	s := ImageVulnerabilityCache{
 		mongodb: mongodb, redisClient: redisClient, ctx: ctx,
 	}
-	go s.BgSync()
+	go s.bgSync()
 	return &s
 }
 
@@ -246,12 +248,11 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) (*mongoQuery
 		0,
 	}
 
-	FinishedAt, err := c.getMongoMaxFinishedAt(ctx)
+	finishedAt, err := c.getMongoMaxFinishedAt(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get mongo maxfinishedat error:%w", err)
-	} else {
-		mqr.FinishedAt = FinishedAt
+		return nil, fmt.Errorf("getMongoMaxFinishedAt error:%w", err)
 	}
+	mqr.FinishedAt = finishedAt
 
 	return &mqr, nil
 }
@@ -265,12 +266,13 @@ func sortListItemsBySeverityAndStuff(vulnerabilities []scanReportListItem, asc b
 	})
 }
 
-func (c *ImageVulnerabilityCache) BgSync() {
-	timer := time.NewTimer(time.Second * 60)
+func (c *ImageVulnerabilityCache) bgSync() {
 	for {
 		select {
-		case <-timer.C:
-			c.checkVersionAndSyncData(c.ctx)
+		case <-time.After(CacheRefreshInterval):
+			logging.GetLogger().Info().Msg("Starting data sync")
+			err := c.checkVersionAndSyncData(c.ctx)
+			logging.GetLogger().Error().Err(err).Msg("Failed data sync")
 		}
 	}
 }
@@ -279,11 +281,11 @@ func (c *ImageVulnerabilityCache) checkVersion(ctx context.Context) (bool, error
 
 	mongoFinishedAt, err := c.getMongoMaxFinishedAt(ctx)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("getMongoMaxFinishedAt error: %w ", err)
 	}
 	redisFinishedAt, err := c.getRedisMaxFinishedAt(ctx)
 	if err != nil {
-		return false, fmt.Errorf("getredisMaxFinishadAt error: %w ", err)
+		return false, fmt.Errorf("getRedisMaxFinishedAt error: %w ", err)
 	}
 	if mongoFinishedAt != -1 && redisFinishedAt != -1 && mongoFinishedAt == redisFinishedAt {
 		return true, nil
@@ -294,58 +296,75 @@ func (c *ImageVulnerabilityCache) checkVersion(ctx context.Context) (bool, error
 func (c *ImageVulnerabilityCache) checkVersionAndSyncData(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	ok, err := c.checkVersion(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("checkVersion error: %w", err)
 	}
-	if !ok {
-		mqr, err := c.getMongoData(ctx)
-		if err != nil {
-			return err
-		}
-		err = c.flushToRedis(ctx, BySeverityKey, *mqr)
-		if err != nil {
-			return fmt.Errorf("BySeverity flush to redis error:%w", err)
-		}
-		err = c.flushToRedis(ctx, MedToCriticalKey, *mqr)
-		if err != nil {
-			return fmt.Errorf("MedToCritical flush to redis error:%w", err)
-		}
-		err = c.flushToRedis(ctx, NetWorkBasedKey, *mqr)
-		if err != nil {
-			return fmt.Errorf("NetWorkBased flush to redis error:%w", err)
-		}
-		c.setRedisMaxFinishedAt(ctx, *mqr)
+	if ok {
+		return nil
 	}
+
+	mqr, err := c.getMongoData(ctx)
+	if err != nil {
+		return fmt.Errorf("getMongoData error: %w", err)
+	}
+
+	err = c.flushToRedis(ctx, BySeverityKey, *mqr)
+	if err != nil {
+		return fmt.Errorf("BySeverity flush to redis error: %w", err)
+	}
+	err = c.flushToRedis(ctx, MedToCriticalKey, *mqr)
+	if err != nil {
+		return fmt.Errorf("MedToCritical flush to redis error: %w", err)
+	}
+	err = c.flushToRedis(ctx, NetWorkBasedKey, *mqr)
+	if err != nil {
+		return fmt.Errorf("NetWorkBased flush to redis error: %w", err)
+	}
+
+	err = c.setRedisMaxFinishedAt(ctx, *mqr)
+	if err != nil {
+		return fmt.Errorf("setRedisMaxFinishedAt error: %w", err)
+	}
+
 	return nil
 }
+
 func (c *ImageVulnerabilityCache) getRedisMaxFinishedAt(ctx context.Context) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
 	defer cancel()
+
 	val, err := c.redisClient.Get(ctx, FinishedAtKey).Result()
 	if err != nil {
-		return -1, fmt.Errorf("get redis max finishedat error: %w", err)
+		if err == redis.Nil {
+			// key not found
+			return -1, nil
+		}
+		return -1, fmt.Errorf("Get redis FinishedAt error: %w", err)
 	}
+
 	val64, err := strconv.ParseInt(val, 10, 64)
 	if err != nil {
-		return -1, fmt.Errorf("redis  parseint [val:%s] error: %w", val, err)
+		return -1, fmt.Errorf("Redis ParseInt [val:%s] error: %w", val, err)
 	}
+
 	return val64, nil
 }
 
-func (c *ImageVulnerabilityCache) setRedisMaxFinishedAt(ctx context.Context, mqr mongoQueryResult) {
+func (c *ImageVulnerabilityCache) setRedisMaxFinishedAt(ctx context.Context, mqr mongoQueryResult) error {
 	if mqr.FinishedAt == -1 {
-		return
+		return nil
 	}
+
 	ctx, cancel := context.WithTimeout(ctx, RedisTimeout)
 	defer cancel()
-	//
+
 	err := c.redisClient.Set(ctx, FinishedAtKey, strconv.FormatInt(mqr.FinishedAt, 10), 0).Err()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("set FinishedAt  redis error：%s")
-		return
+		return fmt.Errorf("Set redis FinishedAt error: %w")
 	}
-	return
+	return nil
 }
 
 func (c *ImageVulnerabilityCache) getMongoMaxFinishedAt(ctx context.Context) (int64, error) {
@@ -359,6 +378,9 @@ func (c *ImageVulnerabilityCache) getMongoMaxFinishedAt(ctx context.Context) (in
 
 	singleResult := c.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
+		if singleResult.Err() == mongo.ErrNoDocuments {
+			return -1, nil
+		}
 		return -1, fmt.Errorf("singleResult error: %w", singleResult.Err())
 	}
 
