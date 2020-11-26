@@ -37,7 +37,7 @@ type ImageVulnerabilityCache struct {
 	mongodb     *mongo.Database
 	redisClient *redis.Client
 	ctx         context.Context
-	mu          sync.Locker
+	mu          sync.Mutex
 }
 
 const (
