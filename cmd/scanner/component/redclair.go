@@ -20,6 +20,7 @@ import (
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -84,17 +85,22 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 }
 
 // Run runs the RedClair instance
-func (rcSvc *RedClairService) Run(ctx context.Context) {
+func (rcSvc *RedClairService) Run(ctx context.Context) error {
 
 	// Set scanner environment
 	err := os.Setenv("DOCKER_API_VERSION", "1.38")
 	if err != nil {
-		log.Panic().Err(err).Msg("error in setting DOCKER_API_VERSION")
+		return fmt.Errorf("Error in setting DOCKER_API_VERSION: %w", err)
+	}
+
+	err = rcSvc.failDanglingTasks(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to fail dangling tasks: %w", err)
 	}
 
 	err = rcSvc.redclairEngine.StartImageHTTPServer()
 	if err != nil {
-		log.Panic().Err(err).Msg("Failed to start image http server")
+		return fmt.Errorf("Failed to start image http server: %w", err)
 	}
 	defer rcSvc.redclairEngine.StopImageHTTPServer()
 
@@ -108,6 +114,52 @@ func (rcSvc *RedClairService) Run(ctx context.Context) {
 	}
 	wg.Wait()
 	log.Info().Msg("All Redclair workers finished")
+
+	return nil
+}
+
+func (rcSvc *RedClairService) failDanglingTasks(ctx context.Context) error {
+	// why do we need this function?
+	//
+	// If Scanner crashes and restarts, but there were 10 scantasks 'inprogress',
+	// then Harbor will keep asking Console about the status of those 10 tasks. However,
+	// the newly-restarted Scanner won't know about the 10 'inprogress' scantasks.
+	// Harbor will keep asking Console for a long time. Harbor won't send any new scan requests.
+	// As a result, new scans are not started until Console 'last chance' scan timeout happens.
+	//
+	// If Scanner crashes and restarts, Scanner could query mongo to get any 'inprogress' tasks and
+	// restart those tasks. However, if there is some image that caused the Scanner crash
+	// in the first place, then Scanner will keep crashing in a loop.
+	// It's better to fail all 'inprogress' scantasks so that Scanner is not in inifinite crash loop.
+	// Harbor retries a scan 3 times per image, so there is no risk of infinite loop.
+	//
+	// Alternatively, we need better restart logic.
+	//
+	// Note: this only works if we only have 1 instance of scanner running.
+	//       Need to fix this logic when we want to scale or have HA.
+
+	filter := bson.M{"status": model.ScanStatusInProgress}
+	update := bson.M{
+		"$set": bson.M{
+			"status": model.ScanStatusFailed,
+		},
+	}
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	result, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateMany(mongoCtx, filter, update)
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
+	}
+
+	logging.GetLogger().Info().
+		Int64("MatchedCount", result.MatchedCount).
+		Int64("ModifiedCount", result.ModifiedCount).
+		Int64("UpsertedCount", result.UpsertedCount).
+		Msg("Maked inprogress scantasks as failed")
+
+	return nil
 }
 
 // AddScanTask adds ScanTask to the internal channel

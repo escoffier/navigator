@@ -111,9 +111,9 @@ func (s *Scanner) Run() func() {
 		defer wg.Done()
 		if err := s.server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Error().
+				log.Panic().
 					Err(err).
-					Msg("error in http.Server.ListenAndServe")
+					Msg("Panic in http.Server.ListenAndServe")
 			}
 		}
 	}()
@@ -122,7 +122,12 @@ func (s *Scanner) Run() func() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.redclair.Run(s.ctx)
+		err := s.redclair.Run(s.ctx)
+		if err != nil {
+			log.Panic().
+				Err(err).
+				Msg("Panic failed to start redclair")
+		}
 	}()
 
 	return func() {
