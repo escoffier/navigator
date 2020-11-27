@@ -88,7 +88,7 @@ func NewConsole(
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisOpts.Endpoint,
 		Password: redisOpts.Password, // TODO: Add authorization
-		DB:       0,  // TODO: Add DB
+		DB:       0,                  // TODO: Add DB
 	})
 
 	// main function context
@@ -357,6 +357,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		{
 			Keys: bson.M{
 				"scan_report.overallSeverity": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"scan_report.overallSeverityInt": 1,
 			}, Options: nil,
 		},
 		{

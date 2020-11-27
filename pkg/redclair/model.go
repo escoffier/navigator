@@ -57,4 +57,5 @@ type VulnerabilityLayerReport struct {
 	VulnerabilitiesRemoved []VulnerabilityInfo `json:"vulnerabilitiesRemoved"`
 	Sensitives             []Sensitive         `json:"sensitives"`
 	OverallSeverity        string              `json:"overallSeverity"`
+	OverallSeverityInt     int                 `json:"overallSeverityInt"`
 }
