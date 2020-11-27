@@ -8,7 +8,18 @@ import (
 	"strings"
 
 	"github.com/golang/gddo/httputil/header"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
+
+func SortOrderToInt(sortOrder string) int {
+	if sortOrder == "asc" {
+		return 1
+	} else if sortOrder == "desc" {
+		return -1
+	}
+	logging.GetLogger().Warn().Str("sortOrder", sortOrder).Msg("Unknown sortOrder string, can be asc/desc.")
+	return 1
+}
 
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	if reflect.ValueOf(dst).Kind() != reflect.Ptr {

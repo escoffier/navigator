@@ -12,6 +12,7 @@ import (
 
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -217,13 +218,15 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 
 				var alert model.Alert
 				if strings.HasPrefix(vulnerability, "CVE") {
+					sev := r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10))
 					alert = model.Alert{
-						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
-						AlertKind: model.AlertKindRuntimeDetection,
-						Severity:  r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10)),
-						Timestamp: timestamp,
-						MessageEn: "Potential " + enabledRule.NameEn,
-						MessageZh: "潛在 " + enabledRule.NameZh,
+						ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+						AlertKind:   string(model.AlertKindRuntimeDetection),
+						Severity:    sev,
+						SeverityInt: util.SeverityToInt(sev),
+						Timestamp:   timestamp,
+						MessageEn:   "Potential " + enabledRule.NameEn,
+						MessageZh:   "潛在 " + enabledRule.NameZh,
 						RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
 							ElasticID:     elasticID,
 							ContainerID:   elasticAlert["ContainerID"].(string),
@@ -241,13 +244,15 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 						},
 					}
 				} else {
+					sev := r.SeverityHigh
 					alert = model.Alert{
-						ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
-						AlertKind: model.AlertKindExploitRisk,
-						Timestamp: timestamp,
-						Severity:  r.SeverityHigh,
-						MessageEn: "Potential exploit",
-						MessageZh: "潛在利用",
+						ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+						AlertKind:   string(model.AlertKindExploitRisk),
+						Timestamp:   timestamp,
+						Severity:    sev,
+						SeverityInt: util.SeverityToInt(string(sev)),
+						MessageEn:   "Potential exploit",
+						MessageZh:   "潛在利用",
 						ExploitRiskAlert: &model.ExploitRiskAlert{
 							ElasticID:     elasticID,
 							ContainerID:   elasticAlert["ContainerID"].(string),
@@ -339,16 +344,27 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 	return &updatedAlert, nil
 }
 
-func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, onlyNotAcknowledged bool) ([]model.Alert, int64, error) {
+func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, kind model.AlertKind, sortBy string, sortOrder string, onlyNotAcknowledged bool) ([]model.Alert, int64, error) {
 	filter := bson.M{}
 	if onlyNotAcknowledged {
 		filter = bson.M{"acknowledged": false}
 	}
 
+	if kind != model.AlertKindAny {
+		filter["kind"] = string(kind)
+	}
+
 	opts := options.Find()
 	opts.SetSkip(offset)
 	opts.SetLimit(limit)
-	opts.SetSort(bson.D{{"timestamp", -1}})
+
+	switch sortBy {
+	case "timestamp":
+		opts.SetSort(bson.D{{"timestamp", util.SortOrderToInt(sortOrder)}})
+	case "severity":
+		opts.SetSort(bson.D{{"severityInt", util.SortOrderToInt(sortOrder)}})
+	}
+
 	coll := s.mongodb.Collection(model.AlertCollection)
 	cur, err := coll.Find(ctx, filter, opts)
 	if err != nil {

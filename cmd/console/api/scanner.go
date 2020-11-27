@@ -150,32 +150,16 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			imageTimeFilter = time.Now().Add(time.Duration(-1*maxImageAgeInHours) * time.Hour)
 		}
 
-		sortBy := r.URL.Query().Get("sortBy")
-		if sortBy == "" {
-			sortBy = "finishedAt"
-		}
-		if sortBy != "finishedAt" && sortBy != "overallSeverity" && sortBy != "repository" && sortBy != "tag" && sortBy != "imageDigest" {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortBy param value (allowed: finishedAt/overallSeverity/repository/tag/imageDigest)"),
-					Suberror{"sortBy", "allowed: finishedAt/overallSeverity/repository/tag/imageDigest"}))
+		sortBy, err := api.sortByFromQuery(r, "finishedAt", "overallSeverity", "repository", "tag", "imageDigest")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 
-		sortOrder := r.URL.Query().Get("sortOrder")
-		if sortOrder == "" {
-			sortOrder = "desc"
-		}
-		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
-					Suberror{"sortOrder", "allowed: asc/desc"}))
+		sortOrder, err := api.sortOrderFromQuery(r, "desc")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
 			return
-		}
-		sortOrderInt := 1
-		if sortOrder == "desc" {
-			sortOrderInt = -1
 		}
 
 		offset, limit := api.getOffsetAndLimit(r)
@@ -205,15 +189,15 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 
 		switch sortBy {
 		case "finishedAt":
-			findOptions.SetSort(bson.D{{"finishedAt", sortOrderInt}})
+			findOptions.SetSort(bson.D{{"finishedAt", util.SortOrderToInt(sortOrder)}})
 		case "overallSeverity":
-			findOptions.SetSort(bson.D{{"scan_report.overallSeverityInt", sortOrderInt}})
+			findOptions.SetSort(bson.D{{"scan_report.overallSeverityInt", util.SortOrderToInt(sortOrder)}})
 		case "repository":
-			findOptions.SetSort(bson.D{{"repository", sortOrderInt}})
+			findOptions.SetSort(bson.D{{"repository", util.SortOrderToInt(sortOrder)}})
 		case "tag":
-			findOptions.SetSort(bson.D{{"tag", sortOrderInt}})
+			findOptions.SetSort(bson.D{{"tag", util.SortOrderToInt(sortOrder)}})
 		case "imageDigest":
-			findOptions.SetSort(bson.D{{"digest", sortOrderInt}})
+			findOptions.SetSort(bson.D{{"digest", util.SortOrderToInt(sortOrder)}})
 		}
 
 		docNum, err := api.mongodb.Collection(model.ScanTasksCollection).CountDocuments(ctx, filter)

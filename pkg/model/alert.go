@@ -3,20 +3,41 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type AlertKind string
+
 const (
 	AlertCollection = "alerts"
 
-	AlertKindRuntimeDetection = "runtimeDetection"
-	AlertKindComplianceCheck  = "complianceCheck"
-	AlertKindExploitRisk      = "exploitRisk"
+	AlertKindAny              AlertKind = "any"
+	AlertKindRuntimeDetection AlertKind = "runtimeDetection"
+	AlertKindComplianceCheck  AlertKind = "complianceCheck"
+	AlertKindExploitRisk      AlertKind = "exploitRisk"
 )
+
+func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
+	kindRaw := r.URL.Query().Get("kind")
+	if kindRaw == "" {
+		return AlertKindAny, nil
+	}
+	kind := AlertKind(kindRaw)
+	if kind != AlertKindComplianceCheck && kind != AlertKindExploitRisk && kind != AlertKindRuntimeDetection {
+		allowed := fmt.Sprintf("allowed: %s/%s/%s", AlertKindComplianceCheck, AlertKindExploitRisk, AlertKindRuntimeDetection)
+		return AlertKindAny, NewFieldError(http.StatusBadRequest,
+			fmt.Errorf("invalid kind param value (%s)", allowed),
+			Suberror{"kind", allowed})
+	}
+	return kind, nil
+}
 
 type Alert struct {
 	metadata.MetadataEntry `json:"-" bson:",inline"`
@@ -25,6 +46,7 @@ type Alert struct {
 	Acknowledged           bool                   `json:"acknowledged" bson:"acknowledged"`
 	Timestamp              time.Time              `json:"timestamp" bson:"timestamp"`
 	Severity               string                 `json:"severity" bson:"severity"`
+	SeverityInt            int                    `json:"severityInt" bson:"severityInt"`
 	RuntimeDetectionAlert  *RuntimeDetectionAlert `json:"runtimeDetectionAlert,omitempty" bson:"runtimeDetectionAlert,omitempty"`
 	ComplianceCheckAlert   *ComplianceCheckAlert  `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
 	ExploitRiskAlert       *ExploitRiskAlert      `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`

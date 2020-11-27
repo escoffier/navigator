@@ -3,11 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"math"
 	"net/http"
 	"sort"
 	"time"
+
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
@@ -165,27 +166,15 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			return
 		}
 
-		sortBy := r.URL.Query().Get("sortBy")
-		if sortBy == "" {
-			sortBy = "createdAt"
-		}
-		if sortBy != "createdAt" && sortBy != "finishedAt" && sortBy != "checkID" && sortBy != "clusterID" && sortBy != "numSuccessful" && sortBy != "numFailed" && sortBy != "numError" && sortBy != "numWaiting" && sortBy != "numInconclusive" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortBy param value (allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive)"),
-					Suberror{"sortBy", "allowed: createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive"}))
+		sortBy, err := api.sortByFromQuery(r, "createdAt", "finishedAt", "checkID", "numSuccessful", "numFailed", "numError", "numWaiting", "numInconclusive")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 
-		sortOrder := r.URL.Query().Get("sortOrder")
-		if sortOrder == "" {
-			sortOrder = "asc"
-		}
-		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
-					Suberror{"sortOrder", "allowed: asc/desc"}))
+		sortOrder, err := api.sortOrderFromQuery(r, "asc")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 
@@ -345,27 +334,15 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			return
 		}
 
-		sortBy := r.URL.Query().Get("sortBy")
-		if sortBy == "" {
-			sortBy = "policyNumber"
-		}
-		if sortBy != "policyNumber" && sortBy != "name" && sortBy != "numFailed" && sortBy != "numSuccessful" && sortBy != "numInfo" && sortBy != "numWarn" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortBy param value (allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn)"),
-					Suberror{"sortBy", "allowed: policyNumber/name/numFailed/numSuccessful/numInfo/numWarn"}))
+		sortBy, err := api.sortByFromQuery(r, "policyNumber", "name", "numFailed", "numSuccessful", "numInfo", "numWarn")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 
-		sortOrder := r.URL.Query().Get("sortOrder")
-		if sortOrder == "" {
-			sortOrder = "asc"
-		}
-		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
-					Suberror{"sortOrder", "allowed: asc/desc"}))
+		sortOrder, err := api.sortOrderFromQuery(r, "asc")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
 			return
 		}
 
