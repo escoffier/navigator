@@ -8,7 +8,6 @@ import (
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -40,7 +39,7 @@ func (s *AuditService) GetAuditConfig(ctx context.Context) (*model.AuditConfig, 
 
 	err := queryResult.Decode(&queryAuditConfig)
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
 	}
 	return &queryAuditConfig, nil
 }
@@ -48,42 +47,39 @@ func (s *AuditService) GetAuditConfig(ctx context.Context) (*model.AuditConfig, 
 func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.AuditConfig) (*model.AuditConfig, error) {
 	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+	queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
+	if queryResult.Err() != nil {
+		if queryResult.Err() != mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 		}
-
-		sessionCommitter := util.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
-
-		queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(sessionContext, filter)
-		if queryResult.Err() != nil {
-			sessionError = queryResult.Err()
-			if sessionError != mongo.ErrNoDocuments {
-				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", sessionError))
-			}
-		} else {
-			sessionError = fmt.Errorf("Document already exists")
-			return NewMongoError(http.StatusNotFound, sessionError)
-		}
-
-		// err = mongo.ErrNoDocuments
-
-		auditConfig.CreatedAt = time.Now()
-
-		_, sessionError = s.mongodb.Collection(model.AuditConfigCollection).InsertOne(sessionContext, auditConfig)
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	} else {
+		return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document already exists"))
 	}
-	return auditConfig, nil
+
+	// err = mongo.ErrNoDocuments
+
+	auditConfig.CreatedAt = time.Now()
+
+	_, err := s.mongodb.Collection(model.AuditConfigCollection).InsertOne(ctx, auditConfig)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+	}
+
+	queryResult = s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
+	if queryResult.Err() != nil {
+		if queryResult.Err() == mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+		}
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+	}
+
+	var newAuditConfig model.AuditConfig
+	err = queryResult.Decode(&newAuditConfig)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+	}
+
+	return &newAuditConfig, nil
 }
 
 func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *model.AuditConfig) (*model.AuditConfig, error) {
@@ -95,51 +91,49 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 		return nil, NewAuditConfigError(http.StatusBadRequest, fmt.Errorf("Both cold and hot storage expiration date need to be passed"))
 	}
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+	queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
+	if queryResult.Err() != nil {
+		if queryResult.Err() == mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
 		}
-
-		sessionCommitter := util.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
-
-		queryResult := s.mongodb.Collection(model.AuditConfigCollection).FindOne(sessionContext, filter)
-		if queryResult.Err() != nil {
-			sessionError = queryResult.Err()
-			if sessionError == mongo.ErrNoDocuments {
-				return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", sessionError))
-			}
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", sessionError))
-		}
-		var oldAuditConfig model.AuditConfig
-		sessionError = queryResult.Decode(&oldAuditConfig)
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", sessionError))
-		}
-		oldAuditConfig.DeletedAt = time.Now()
-		oldAuditConfig.HistoricisedTimestamp = time.Now()
-		update := bson.M{"$set": oldAuditConfig}
-
-		_, sessionError = s.mongodb.Collection(model.AuditConfigCollection).UpdateOne(sessionContext, filter, update)
-		if sessionError != nil {
-			if sessionError == mongo.ErrNoDocuments {
-				return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", sessionError))
-			}
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", sessionError))
-		}
-
-		_, sessionError = s.mongodb.Collection(model.AuditConfigCollection).InsertOne(sessionContext, upAuditConfig)
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
 	}
 
-	return upAuditConfig, nil
+	var oldAuditConfig model.AuditConfig
+	err := queryResult.Decode(&oldAuditConfig)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+	}
+	oldAuditConfig.DeletedAt = time.Now()
+	oldAuditConfig.HistoricisedTimestamp = time.Now()
+	update := bson.M{"$set": oldAuditConfig}
+
+	_, err = s.mongodb.Collection(model.AuditConfigCollection).UpdateOne(ctx, filter, update)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
+		}
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
+	}
+
+	_, err = s.mongodb.Collection(model.AuditConfigCollection).InsertOne(ctx, upAuditConfig)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+	}
+
+	queryResult = s.mongodb.Collection(model.AuditConfigCollection).FindOne(ctx, filter)
+	if queryResult.Err() != nil {
+		if queryResult.Err() == mongo.ErrNoDocuments {
+			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+		}
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+	}
+
+	var auditConfig model.AuditConfig
+	err = queryResult.Decode(&auditConfig)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+	}
+
+	return &auditConfig, nil
 }
