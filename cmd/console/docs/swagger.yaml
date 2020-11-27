@@ -48,6 +48,18 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: timestamp/severity
+        in: query
+        name: sortBy
+        type: string
+      - description: asc/desc
+        in: query
+        name: sortOrder
+        type: string
+      - description: runtimeDetection/complianceCheck/exploitRisk
+        in: query
+        name: kind
+        type: string
       - description: only not acknowledged alerts
         in: query
         name: onlyNotAcknowledged
