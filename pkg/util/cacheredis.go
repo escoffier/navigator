@@ -272,7 +272,9 @@ func (c *ImageVulnerabilityCache) bgSync() {
 		case <-time.After(CacheRefreshInterval):
 			logging.GetLogger().Info().Msg("Starting data sync")
 			err := c.checkVersionAndSyncData(c.ctx)
-			logging.GetLogger().Error().Err(err).Msg("Failed data sync")
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("Failed data sync")
+			}
 		}
 	}
 }
