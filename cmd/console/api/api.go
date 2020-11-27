@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	"github.com/go-chi/chi"
@@ -112,6 +114,38 @@ func (api *api) getOffsetAndLimit(r *http.Request) (int64, int64) {
 		limit = 10000
 	}
 	return int64(offset), int64(limit)
+}
+
+func (api *api) sortOrderFromQuery(r *http.Request, defaultSortOrder string) (string, error) {
+	sortOrder := r.URL.Query().Get("sortOrder")
+	if sortOrder == "" {
+		sortOrder = defaultSortOrder
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		return "desc", NewFieldError(http.StatusBadRequest,
+			fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
+			Suberror{"sortOrder", "allowed: asc/desc"})
+	}
+	return sortOrder, nil
+}
+
+func (api *api) sortByFromQuery(r *http.Request, firstAllowedValue string, nextAllowedValues ...string) (string, error) {
+	sortBy := r.URL.Query().Get("sortBy")
+	if sortBy == "" {
+		sortBy = firstAllowedValue
+	}
+
+	nextAllowedValues = append(nextAllowedValues, firstAllowedValue)
+	for _, val := range nextAllowedValues {
+		if sortBy == val {
+			return sortBy, nil
+		}
+	}
+
+	allowed := fmt.Sprintf("allowed: %s", strings.Join(nextAllowedValues, "/"))
+	return firstAllowedValue, NewFieldError(http.StatusBadRequest,
+		fmt.Errorf("invalid kind param value (%s)", allowed),
+		Suberror{"sortBy", allowed})
 }
 
 func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sortOrder string) bool {

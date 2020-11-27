@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -59,6 +60,9 @@ func (api *api) acknowledgeAlert() http.HandlerFunc {
 // @Produce json
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
+// @Param sortBy query string false "timestamp/severity"
+// @Param sortOrder query string false "asc/desc"
+// @Param kind query string false "runtimeDetection/complianceCheck/exploitRisk"
 // @Param onlyNotAcknowledged query bool false "only not acknowledged alerts"
 // @Router /api/v1/alerts/ [get]
 func (api *api) listAlerts() http.HandlerFunc {
@@ -73,7 +77,25 @@ func (api *api) listAlerts() http.HandlerFunc {
 			onlyNotAcknowledged = false
 		}
 
-		alerts, docNum, err := api.alertService.ListAlerts(ctx, offset, limit, onlyNotAcknowledged)
+		sortBy, err := api.sortByFromQuery(r, "timestamp", "severity")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		sortOrder, err := api.sortOrderFromQuery(r, "desc")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		kind, err := model.AlertKindFromQuery(r)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		alerts, docNum, err := api.alertService.ListAlerts(ctx, offset, limit, kind, sortBy, sortOrder, onlyNotAcknowledged)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
