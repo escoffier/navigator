@@ -31,6 +31,24 @@
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "timestamp/severity",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc/desc",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "runtimeDetection/complianceCheck/exploitRisk",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
                         "type": "boolean",
                         "description": "only not acknowledged alerts",
                         "name": "onlyNotAcknowledged",
