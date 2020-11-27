@@ -46,21 +46,23 @@ type ScanTask struct {
 
 // ScanWorkerReport ...
 type ScanWorkerReport struct {
-	Vulns           []redclair.VulnerabilityInfo `json:"vulnerability" bson:"vulnerability"`
-	VulnsAdded      []redclair.VulnerabilityInfo `json:"vulnerabilityAdded" bson:"vulnerabilityAdded"`
-	VulnsRemoved    []redclair.VulnerabilityInfo `json:"vulnerabilityRemoved" bson:"vulnerabilityRemoved"`
-	Files           []redclair.FileSignature     `json:"files" bson:"files"`
-	Software        []redclair.Software          `json:"software" bson:"software"`
-	Sensitive       []redclair.Sensitive         `json:"sensitive" bson:"sensitive"`
-	OverallSeverity string                       `json:"overallSeverity" bson:"overallSeverity"`
+	Vulns              []redclair.VulnerabilityInfo `json:"vulnerability" bson:"vulnerability"`
+	VulnsAdded         []redclair.VulnerabilityInfo `json:"vulnerabilityAdded" bson:"vulnerabilityAdded"`
+	VulnsRemoved       []redclair.VulnerabilityInfo `json:"vulnerabilityRemoved" bson:"vulnerabilityRemoved"`
+	Files              []redclair.FileSignature     `json:"files" bson:"files"`
+	Software           []redclair.Software          `json:"software" bson:"software"`
+	Sensitive          []redclair.Sensitive         `json:"sensitive" bson:"sensitive"`
+	OverallSeverity    string                       `json:"overallSeverity" bson:"overallSeverity"`
+	OverallSeverityInt int                          `json:"overallSeverityInt" bson:"overallSeverityInt"`
 }
 
 // ScanReport ...
 type ScanReport struct {
-	Vulns           redclair.VulnerabilityReport `json:"vulnerability" bson:"vulnerability"`
-	Files           []redclair.FileSignature     `json:"files" bson:"files"`
-	Software        []redclair.Software          `json:"software" bson:"software"`
-	OverallSeverity string                       `json:"overallSeverity" bson:"overallSeverity"`
+	Vulns              redclair.VulnerabilityReport `json:"vulnerability" bson:"vulnerability"`
+	Files              []redclair.FileSignature     `json:"files" bson:"files"`
+	Software           []redclair.Software          `json:"software" bson:"software"`
+	OverallSeverity    string                       `json:"overallSeverity" bson:"overallSeverity"`
+	OverallSeverityInt int                          `json:"overallSeverityInt" bson:"overallSeverityInt"`
 }
 
 // CachedLayer ...

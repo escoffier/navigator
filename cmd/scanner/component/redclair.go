@@ -600,10 +600,12 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 			VulnerabilitiesRemoved: removedVulns,
 			Sensitives:             cachedLayer.ScanReport.Sensitive,
 			OverallSeverity:        overallSeverity,
+			OverallSeverityInt:     redclair.SeverityToInt(overallSeverity),
 		})
 
 		if redclair.SeverityGreaterThan(overallSeverity, report.OverallSeverity) {
 			report.OverallSeverity = overallSeverity
+			report.OverallSeverityInt = redclair.SeverityToInt(overallSeverity)
 		}
 
 		currentVulns := vulns[:0]
@@ -700,13 +702,14 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			}
 
 			scanWorkerResult := &model.ScanWorkerReport{
-				Vulns:           vulnInfo,
-				VulnsAdded:      vulnInfoAdded,
-				VulnsRemoved:    vulnInfoRemoved,
-				Files:           fileSignatures,
-				Software:        software,
-				Sensitive:       sensitive,
-				OverallSeverity: overallSeverity,
+				Vulns:              vulnInfo,
+				VulnsAdded:         vulnInfoAdded,
+				VulnsRemoved:       vulnInfoRemoved,
+				Files:              fileSignatures,
+				Software:           software,
+				Sensitive:          sensitive,
+				OverallSeverity:    overallSeverity,
+				OverallSeverityInt: redclair.SeverityToInt(overallSeverity),
 			}
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if len(layersBench) > 0 {

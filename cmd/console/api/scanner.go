@@ -207,7 +207,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 		case "finishedAt":
 			findOptions.SetSort(bson.D{{"finishedAt", sortOrderInt}})
 		case "overallSeverity":
-			findOptions.SetSort(bson.D{{"scan_report.overallSeverity", sortOrderInt}})
+			findOptions.SetSort(bson.D{{"scan_report.overallSeverityInt", sortOrderInt}})
 		case "repository":
 			findOptions.SetSort(bson.D{{"repository", sortOrderInt}})
 		case "tag":

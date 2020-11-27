@@ -38,10 +38,10 @@ func GetSeverityFromScore(score int64) string {
 }
 
 func SeverityGreaterThan(this, other string) bool {
-	return severityToInt(this) > severityToInt(other)
+	return SeverityToInt(this) > SeverityToInt(other)
 }
 
-func severityToInt(sev string) int {
+func SeverityToInt(sev string) int {
 	switch strings.ToLower(sev) {
 	case strings.ToLower(SeverityUnknown):
 		return 0
