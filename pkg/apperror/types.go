@@ -38,6 +38,7 @@ type CannotGetDiskUsageError struct{ detailedError }
 type AuditConfigDoesntExistError struct{ detailedError }
 type GarbageCollectionError struct{ detailedError }
 type GarbageCollectionInProgressError struct{ detailedError }
+type AssetDoesntExistError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -611,6 +612,22 @@ func NewGarbageCollectionInProgressError(httpCode int, err error, suberrors ...S
 			err:       err,
 			English:   "Garbage collection in progress",
 			Zhongwen:  "垃圾回收正在進行中",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAssetDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AssetDoesntExistError{
+		detailedError{
+			err:       err,
+			English:   "Asset does not exist",
+			Zhongwen:  "資產不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

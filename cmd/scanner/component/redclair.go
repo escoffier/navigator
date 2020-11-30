@@ -19,6 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -558,10 +559,10 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	for i := range toScan {
 		err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
 		if err != nil {
-			switch err.(type) {
-			case ClairUnprocessableLayerError:
+			var cErr *ClairUnprocessableLayerError
+			if errors.As(err, &cErr) {
 				rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusUnprocessableEntity, "Error occured while scanning layers", err)
-			default:
+			} else {
 				rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
 			}
 			return
@@ -641,6 +642,17 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	}
 	scanTask.ScanReport = *report
 	rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
+	assetContainer, err := assets.FindContainerByImageDigest(ctx, rcSvc.mongodb, scanTask.ImageDigest)
+	if err != nil {
+		var aErr *AssetDoesntExistError
+		if errors.As(err, &aErr) {
+			zerolog.Ctx(ctx).Debug().Str("digest", scanTask.ImageDigest).Msg("No kube object in the cluster with given digest")
+		} else {
+			zerolog.Ctx(ctx).Error().Str("digest", scanTask.ImageDigest).Err(err).Msg("Failed to update kube object scan details")
+		}
+		return
+	}
+	assets.UpdateAssetScanningDetails(ctx, rcSvc.mongodb, assetContainer, &scanTask)
 }
 
 func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Registry, scanTask model.ScanTask, currentlyCachedLayers *map[string]*model.CachedLayer, digest string) error {
@@ -657,15 +669,12 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			scanTask.Repository,
 		)
 		if err != nil {
-			// TODO: bug prone if we add more error wrapping in the future. Prefer to use errors.As().
-			switch err.(type) {
-			default:
-				zerolog.Ctx(ctx).Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
-				time.Sleep(retryInterval)
-				retryCounter++
-			case ClairUnprocessableLayerError:
+			var cuErr *ClairUnprocessableLayerError
+			if errors.As(err, &cuErr) {
 				return err
-			case ClairMissingParentLayerError:
+			}
+			var cmErr *ClairMissingParentLayerError
+			if errors.As(err, &cmErr) {
 				zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 				layersBench = append(layersBench, currLayer)
 				parentLayerDigest := currLayer.Parent
@@ -675,6 +684,10 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 					zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
 					return err
 				}
+			} else {
+				zerolog.Ctx(ctx).Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
+				time.Sleep(retryInterval)
+				retryCounter++
 			}
 		} else {
 			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")

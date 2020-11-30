@@ -6,14 +6,16 @@ import (
 	"net/http"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -82,6 +84,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 	for cursor.Next(ctx) {
 		var container model.AssetContainer
 		err := cursor.Decode(&container)
+
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError,
 				fmt.Errorf("Couldn't decode document: %w", err))
@@ -92,9 +95,15 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 			continue
 		}
 
-		ownerStr := fmt.Sprintf("%s/%s/%s", container.Namespace, container.PodOwnerKind, container.PodOwnerName)
+		ownerStr := fmt.Sprintf(
+			"%s/%s/%s",
+			container.Namespace,
+			container.PodOwnerKind,
+			container.PodOwnerName,
+		)
 
 		if _, ok := onlineVulns[ownerStr]; !ok {
+			// TODO do we care about sensitive filenames in this
 			onlineVulns[ownerStr] = &onlineVulnListItem{
 				Namespace:            container.Namespace,
 				ResourceKind:         container.PodOwnerKind,
@@ -104,15 +113,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 				VulnerabilitiesSet:   make(map[string]redclair.VulnerabilityInfo),
 			}
 		}
-
-		// TODO do we care about sensitive filenames in this
-		scanTask, _, err := r.getScanTaskByDigest(ctx, container.Digest)
-		if err != nil {
-			return nil, NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Couldn't get scan task by digest: %w", err))
-		}
-
-		vulns := scanTask.ScanReport.Vulns.Vulnerabilities
+		vulns := container.Vulnerabilities
 
 		containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
 		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
@@ -123,24 +124,14 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 	}
 
 	for _, ov := range onlineVulns {
-		runningContainers := []string{}
-		for rcName := range ov.RunningContainersSet {
-			runningContainers = append(runningContainers, rcName)
-		}
-		ov.RunningContainers = runningContainers
-
-		runningPods := []string{}
-		for rpName := range ov.RunningPodsSet {
-			runningPods = append(runningPods, rpName)
-		}
-		ov.RunningPods = runningPods
-
 		vulns := make([]redclair.VulnerabilityInfo, len(ov.VulnerabilitiesSet))
 		i := 0
 		for _, v := range ov.VulnerabilitiesSet {
 			vulns[i] = v
 			i = i + 1
 		}
+
+		util.SortVulnsBySeverityAndStuff(vulns, false)
 
 		topVulnsNum := len(vulns)
 		if len(vulns) >= 5 {
@@ -153,6 +144,18 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 		} else {
 			ov.OverallSeverity = redclair.SeverityUnknown
 		}
+
+		runningContainers := []string{}
+		for rcName := range ov.RunningContainersSet {
+			runningContainers = append(runningContainers, rcName)
+		}
+		ov.RunningContainers = runningContainers
+
+		runningPods := []string{}
+		for rpName := range ov.RunningPodsSet {
+			runningPods = append(runningPods, rpName)
+		}
+		ov.RunningPods = runningPods
 	}
 
 	err = cursor.Err()
@@ -218,21 +221,6 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 		nameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
 
 		if _, ok := ovDetails.Containers[nameDigest]; !ok {
-			scanTask, wasScanned, err := r.getScanTaskByDigest(ctx, container.Digest)
-			if err != nil {
-				return nil, NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't get scan task by digest: %w", err))
-			}
-
-			vulns := scanTask.ScanReport.Vulns.Vulnerabilities
-			sensitives := scanTask.ScanReport.Vulns.Sensitives
-
-			if !wasScanned && (len(vulns) > 0 || len(sensitives) > 0) {
-				logging.GetLogger().Warn().Msg("We report that image wasn't scanned, but scan results are not empty. " +
-					"Weird, check logic. Assuming it was scanned.")
-				wasScanned = true
-			}
-
 			ovDetails.Containers[nameDigest] = onlineVulnDetailsContainer{
 				Name:                container.Name,
 				Repository:          container.Repository,
@@ -241,11 +229,11 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 				InstancesRunning:    &[]onlineVulnDetailsContainerInstance{},
 				InstancesWaiting:    &[]onlineVulnDetailsContainerInstance{},
 				InstancesTerminated: &[]onlineVulnDetailsContainerInstance{},
-				Vulnerabilities:     vulns,
-				SensitiveFiles:      sensitives,
-				WasScanned:          wasScanned,
-				HarborURL:           scanTask.HarborURL,
-				TaskID:              scanTask.ID,
+				Vulnerabilities:     container.Vulnerabilities,
+				SensitiveFiles:      container.SensitiveFiles,
+				WasScanned:          container.WasScanned,
+				HarborURL:           container.HarborURL,
+				TaskID:              container.TaskID,
 			}
 		}
 
@@ -263,6 +251,18 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 		}
 	}
 
+	for k := range ovDetails.Containers {
+		for i := range ovDetails.Containers[k].SensitiveFiles {
+			if lang.Language(ctx) == lang.LanguageZH {
+				description := ovDetails.Containers[k].SensitiveFiles[i].DescriptionZh
+				ovDetails.Containers[k].SensitiveFiles[i].Description = description
+			} else {
+				description := ovDetails.Containers[k].SensitiveFiles[i].DescriptionEn
+				ovDetails.Containers[k].SensitiveFiles[i].Description = description
+			}
+		}
+	}
+
 	err = cursor.Err()
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError,
@@ -275,47 +275,6 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 	}
 
 	return &ovDetails, nil
-}
-
-func (r *OnlineVulnsService) getScanTaskByDigest(ctx context.Context, digest string) (model.ScanTask, bool, error) {
-	filter := bson.M{
-		"$and": []bson.M{
-			{"stale": false},
-			{"status": model.ScanStatusSucceeded},
-			{"digest": digest},
-		},
-	}
-
-	findOptions := options.FindOne()
-
-	findOptions.SetMaxTime(time.Second * 10)
-
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-
-	wasScanned := false
-
-	singleResult := r.mongodb.Collection(model.ScanTasksCollection).FindOne(mongoCtx, filter, findOptions)
-	if singleResult.Err() == mongo.ErrNoDocuments {
-		// Maybe we haven't scanned this image yet, return no results, but indicate that we don't know
-		return model.ScanTask{}, wasScanned, nil
-	}
-
-	if singleResult.Err() != nil {
-		return model.ScanTask{}, wasScanned,
-			NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find freshest scan: %w", singleResult.Err()))
-	}
-
-	wasScanned = true
-
-	var scanTask model.ScanTask
-	err := singleResult.Decode(&scanTask)
-	if err != nil {
-		return model.ScanTask{}, wasScanned,
-			NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode scan task: %w", err))
-	}
-
-	return scanTask, wasScanned, nil
 }
 
 func (r *OnlineVulnsService) sortVulnListItemByOverallSeverity(onlineVulnsList []onlineVulnListItem, asc bool) {
@@ -444,74 +403,7 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 
 	// TODO: Do we care about InitContainer statuses?
 	for _, container := range pod.Status.ContainerStatuses {
-
-		// image: 192.168.1.203:5000/tensorsec-console:latest
-		repositoryTag := strings.Split(container.Image, ":")
-		repository := strings.Join(repositoryTag[0:len(repositoryTag)-1], ":")
-		tag := repositoryTag[len(repositoryTag)-1]
-
-		// imageID: docker-pullable://192.168.1.203:5000/tensorsec-console@sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
-		blablaShaDigest := strings.Split(container.ImageID, "@")
-		shaDigest := blablaShaDigest[len(blablaShaDigest)-1]
-
-		if shaDigest == "" {
-			// Not sure why but it sometimes happens. Hopefully subsequent events sort this out.
-			logging.GetLogger().Warn().Str("container", fmt.Sprintf("%+v", container.Name)).Msg("Container doesn't have digest. Skipping.")
-			continue
-		}
-
-		state := "UnknownState"
-		if container.State.Waiting != nil {
-			state = "Waiting"
-		} else if container.State.Running != nil {
-			state = "Running"
-		} else if container.State.Terminated != nil {
-			state = "Terminated"
-		}
-
-		assetContainer := model.AssetContainer{
-			IsDeleted:           isDeleteEvent,
-			PodName:             pod.Name,
-			Name:                container.Name,
-			Repository:          repository,
-			Tag:                 tag,
-			Digest:              shaDigest,
-			State:               state,
-			Namespace:           pod.Namespace,
-			Node:                pod.Spec.NodeName,
-			ContainerID:         container.ContainerID, // containerID: docker://b503f2b9c3c693805312a888f875974f54fdd5f7d6d76de31d18ff12e958b4e1
-			LastUpdateTimeEpoch: time.Now().Unix(),
-		}
-
-		if isDeleteEvent {
-			assetContainer.HistoricisedTimestamp = time.Now()
-		}
-
-		if owner == nil {
-			// owner can be nil e.g. when we run
-			//kubectl run curl --image=radial/busyboxplus:curl -i --tty -n tensorsec
-			assetContainer.PodOwnerKind = "NoOwner"
-			assetContainer.PodOwnerName = pod.Name
-		} else {
-			assetContainer.PodOwnerKind = owner.Kind
-			assetContainer.PodOwnerName = owner.Name
-		}
-
-		filter := bson.M{
-			"$and": []bson.M{
-				{"podName": assetContainer.PodName},
-				{"name": assetContainer.Name},
-			},
-		}
-		update := bson.M{"$set": assetContainer}
-		opts := options.Update().SetUpsert(true)
-
-		mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer mongoCtxCancel()
-		_, err := r.mongodb.Collection(model.AssetsContainerCollection).UpdateOne(mongoCtx, filter, update, opts)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
-		}
+		assets.UpdateAsset(r.mongodb, pod, &container, owner, isDeleteEvent)
 	}
 }
 
