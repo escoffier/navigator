@@ -18,26 +18,7 @@ const (
 	getLayerFeaturesURI = "http://%s:%d/v1/layers/%s?vulnerabilities"
 )
 
-// https://goharbor.io/docs/1.10/administration/vulnerability-scanning/import-vulnerability-data/#update-the-harbor-clair-database
-
-func (r *Redclair) analyzeLayers(ctx context.Context, pathToLayer string, imageName string, layerIDs []string) error {
-	for _, layerID := range layerIDs {
-		pathToLayer := fmt.Sprintf("http://%s:%d/%s/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayer, layerID)
-		zerolog.Ctx(ctx).Info().Str("image", imageName).Str("layerID", layerID).Str("pathToLayer", pathToLayer).Msg("Sending for analysis")
-
-		// TODO: we need to know what is the parent layer here:
-		// https://www.nearform.com/blog/static-analysis-of-docker-image-vulnerabilities-with-clair/
-		// ParentName – this field is optional and has to be used if we want to analyze a docker image with more than one layer. In such case we need to push these layers in the right order by referencing its parent layer; otherwise, Clair will not be able to provide us with results of the entire docker image.
-
-		err := r.analyzeLayer(ctx, pathToLayer, layerID, "")
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLayerName string) error {
+func (r *Redclair) scheduleLayerScanInClair(ctx context.Context, path, layerName, parentLayerName string) error {
 	payload := NewerLayerEnvelope{
 		Layer: NewerLayer{
 			Name:       layerName,
@@ -96,13 +77,12 @@ func (r *Redclair) analyzeLayer(ctx context.Context, path, layerName, parentLaye
 	return nil
 }
 
-func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string, []VulnerabilityInfo) {
+func (r *Redclair) getTransformedLayerScanResultFromClair(ctx context.Context, digest string) (string, []VulnerabilityInfo, error) {
 	var vulnerabilities = make([]VulnerabilityInfo, 0)
 	var vulnerabilitiesMap = make(map[string]VulnerabilityInfo)
-	rawVulnerabilities, err := r.fetchLayerVulnerabilities(ctx, digest)
+	rawVulnerabilities, err := r.fetchLayerVulnerabilitiesFromClair(ctx, digest)
 	if err != nil {
-		zerolog.Ctx(ctx).Warn().
-			Msgf("Could not fetch vulnerabilities of %s", digest)
+		return "", []VulnerabilityInfo{}, fmt.Errorf("Could not fetch vulnerabilities of %s: %w", digest, err)
 	}
 	zerolog.Ctx(ctx).Info().Msgf("Fetched vulnerabilities of %s", digest)
 
@@ -115,7 +95,8 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 				if err != nil {
 					zerolog.Ctx(ctx).Warn().Err(err).
 						Str("raw", fmt.Sprintf("%+v", vulnerability.Metadata)).
-						Msgf("Failed to unmarshall metadata of %s", digest)
+						Msgf("Failed to unmarshal metadata of %s", digest)
+					return "", []VulnerabilityInfo{}, fmt.Errorf("Failed to unmarshal metadata of %s: %w", digest, err)
 				}
 
 				newVuln := VulnerabilityInfo{
@@ -155,10 +136,10 @@ func (r Redclair) getVulnerabilities(ctx context.Context, digest string) (string
 	for _, vulnerability := range vulnerabilitiesMap {
 		vulnerabilities = append(vulnerabilities, vulnerability)
 	}
-	return rawVulnerabilities.NamespaceName, vulnerabilities
+	return rawVulnerabilities.NamespaceName, vulnerabilities, nil
 }
 
-func (r Redclair) fetchLayerVulnerabilities(ctx context.Context, layerID string) (NewerLayer, error) {
+func (r *Redclair) fetchLayerVulnerabilitiesFromClair(ctx context.Context, layerID string) (NewerLayer, error) {
 
 	reqPath := fmt.Sprintf(getLayerFeaturesURI, r.clairAddr, r.clairPort, layerID)
 	request, err := http.NewRequest("GET", reqPath, nil)

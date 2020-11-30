@@ -45,9 +45,6 @@ var rootCmd = &cobra.Command{
 			Int("clair-port", clairOpts.EndpointClairPort).
 			Str("clair-remote-address", clairOpts.RemoteClairAddress).
 			Int("clair-remote-port", clairOpts.RemoteClairPort).
-			Str("clair-ignorefile", clairOpts.IgnoreFileList).
-			Str("clair-ignorepackage", clairOpts.IgnorePackageList).
-			Str("clair-cvewhite", clairOpts.CVEWhitelist).
 			Str("clair-secretpattern", clairOpts.SecretPattern).
 			Bool("redclair-skipregistrytlsverify", clairOpts.SkipRegistryTLSVerify).
 			Int("redclair-numworkers", clairOpts.NumWorkers).

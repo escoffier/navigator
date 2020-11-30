@@ -1,13 +1,11 @@
 package redclair
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -41,240 +39,39 @@ type Pattern struct {
 	Regex       *regexp.Regexp
 }
 
-// ScannerConfig ...
-type ScannerConfig struct {
-	Experimental       bool
-	LayerID            string
-	LayerMetaData      string
-	LayerAll           bool
-	Repository         string
-	ImageName          string
-	WhitelistThreshold string
-	ReportAll          bool
-	LayerFile          string
-	JSONFormat         bool
-}
-
-// LayerTreeNode ...
-type LayerTreeNode struct {
-	Config   string
-	RepoTags []string
-	Layers   []string
-}
-
-// Contain ...
-func Contain(obj interface{}, target interface{}) bool {
-	targetValue := reflect.ValueOf(target)
-	switch reflect.TypeOf(target).Kind() {
-	case reflect.Slice, reflect.Array:
-		for i := 0; i < targetValue.Len(); i++ {
-			if targetValue.Index(i).Interface() == obj {
-				return true
-			}
-		}
-	case reflect.Map:
-		if targetValue.MapIndex(reflect.ValueOf(obj)).IsValid() {
-			return true
-		}
-	}
-
-	return false
-}
-
-// SoftwareType ...
-type SoftwareType string
-
-// SourcePackage ...
-const SourcePackage SoftwareType = "source"
-
-// BinaryPackage ...
-const BinaryPackage SoftwareType = "binary"
-
-// NpmPackage ...
-const NpmPackage SoftwareType = "npm"
-
-// InfoPackage ...
-const InfoPackage SoftwareType = "info"
-
-// Software ...
-type Software struct {
-	Name          string       `json:"name"`
-	Version       string       `json:"version"`
-	VersionFormat string       `json:"versionFormat"`
-	Type          SoftwareType `json:"type"`
-}
-
-// Sensitive ...
-type Sensitive struct {
-	Name          string `json:"name" bson:"name"`
-	Description   string `json:"description" bson:"description"`
-	DescriptionEn string `json:"description_en" bson:"description_en"`
-	DescriptionZh string `json:"description_zh" bson:"description_zh"`
-}
-
-var softwareRegExpRawMap = map[string]func([]byte) []Software{
-	"^var/lib/dpkg/status": parseDpkgList,
-	`(^|.*\/)package.json$|(^|.*\/)package-lock.json$|(^|.*\/)yarn.lock$`: parseNode,
-	`(^|.*\/)bootstrap.sh$`: parseBootstrap,
-}
-
-var nodeModuleRe = regexp.MustCompile(`.*node_module.*`)
-
-func parseDpkgSoftware(scanner *bufio.Scanner) (binaryPackage *Software, sourcePackage *Software) {
-	var SourcePackage SoftwareType = "source"
-	var BinaryPackage SoftwareType = "binary"
-
-	var dpkgSrcCaptureRegexp = regexp.MustCompile(`Source: (?P<name>[^\s]*)( \((?P<version>.*)\))?`)
-	var dpkgSrcCaptureRegexpNames = dpkgSrcCaptureRegexp.SubexpNames()
-
-	var name string
-	var version string
-	var sourceName string
-	var sourceVersion string
-
-	for {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			break
-		}
-
-		if strings.HasPrefix(line, "Package: ") {
-			name = strings.TrimSpace(strings.TrimPrefix(line, "Package: "))
-		} else if strings.HasPrefix(line, "Source: ") {
-			// Source line (Optional)
-			// Gives the name of the source package
-			// May also specifies a version
-
-			srcCapture := dpkgSrcCaptureRegexp.FindAllStringSubmatch(line, -1)[0]
-			md := map[string]string{}
-			for i, n := range srcCapture {
-				md[dpkgSrcCaptureRegexpNames[i]] = strings.TrimSpace(n)
-			}
-
-			sourceName = md["name"]
-			if md["version"] != "" {
-				sourceVersion = md["version"]
-			}
-		} else if strings.HasPrefix(line, "Version: ") {
-			// Version line
-			// Defines the version of the package
-			// This version is less important than a version retrieved from a Source line
-			// because the Debian vulnerabilities often skips the epoch from the Version field
-			// which is not present in the Source version, and because +bX revisions don't matter
-			version = strings.TrimPrefix(line, "Version: ")
-		}
-
-		if !scanner.Scan() {
-			break
-		}
-	}
-
-	if name != "" && version != "" {
-		binaryPackage = &Software{name, version, "dpkg", BinaryPackage}
-	}
-
-	// Source version and names are computed from binary package names and versions
-	// in dpkg.
-	// Source package name:
-	// https://git.dpkg.org/cgit/dpkg/dpkg.git/tree/lib/dpkg/pkg-format.c#n338
-	// Source package version:
-	// https://git.dpkg.org/cgit/dpkg/dpkg.git/tree/lib/dpkg/pkg-format.c#n355
-	if sourceName == "" {
-		sourceName = name
-	}
-
-	if sourceVersion == "" {
-		sourceVersion = version
-	}
-
-	if sourceName != "" && sourceVersion != "" {
-		sourcePackage = &Software{sourceName, sourceVersion, "dpkg", SourcePackage}
-	}
-
-	return
-}
-
-func parseDpkgList(data []byte) (DpkgList []Software) {
-	scanner := bufio.NewScanner(strings.NewReader(string(data)))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		binary, source := parseDpkgSoftware(scanner)
-		if binary != nil {
-			DpkgList = append(DpkgList, *binary)
-		}
-
-		if source != nil {
-			DpkgList = append(DpkgList, *source)
-		}
-	}
-	return
-}
-
-func parseNode(data []byte) []Software {
-	return []Software{
-		{
-			Name:          "node-config",
-			Version:       string(data),
-			VersionFormat: "",
-			Type:          InfoPackage,
-		},
-	}
-}
-
-func parseBootstrap(data []byte) []Software {
-	version := string(nvmVersionRegExp.Find(nvmRegExp.Find(data)))
-	return []Software{
-		{
-			Name:          "npm",
-			Version:       version,
-			VersionFormat: "",
-			Type:          NpmPackage,
-		},
-		{
-			Name:          "node-config",
-			Version:       string(data),
-			VersionFormat: "",
-			Type:          InfoPackage,
-		},
-	}
-}
-
-func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []VulnerabilityInfo, []FileSignature, []Software, []Sensitive, error) {
+func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []VulnerabilityInfo, []Sensitive, error) {
 	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
-		zerolog.Ctx(ctx).Error().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't make image temp dir")
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Couldn't make image temp dir in %s: %w", pathToLayersInFS, err)
 	}
 	defer func() {
 		err := os.RemoveAll(pathToLayersInFS)
 		if err != nil {
-			zerolog.Ctx(ctx).Warn().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't remove image temp dir")
+			zerolog.Ctx(ctx).Warn().Err(err).Str("path", pathToLayersInFS).Msg("Couldn't remove image temp dir, ignoring")
 		}
 	}()
 	d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
 
 	reader, err := hub.DownloadBlob(repository, d)
-	if reader != nil {
-		defer reader.Close()
-	}
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to download blob %s: %w", repository, err)
 	}
+	defer reader.Close()
 
 	outFile, err := os.Create(pathToLayersInFS + "/layer.tar")
+	if err != nil {
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to create layer.tar file: %w", err)
+	}
 	defer outFile.Close()
+
 	_, err = io.Copy(outFile, reader)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to copy file contents: %w", err)
 	}
 
 	info, err := os.Stat(pathToLayersInFS + "/layer.tar")
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("os.Stat failed: %w", err)
 	}
 
 	zerolog.Ctx(ctx).Info().
@@ -283,113 +80,42 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		Int64("size", info.Size()).
 		Str("path", pathToLayersInFS+"/layer.tar").
 		Msg("Layer saved locally")
-	if err != nil {
-		zerolog.Ctx(ctx).Error().
-			Err(err).
-			Msg("[Scanner]")
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
-	}
 
 	//Analyze the layers
 	pathToLayerInHTTP, err := filepath.Rel(r.httpRootDir, pathToLayersInFS)
 	if err != nil {
-		zerolog.Ctx(ctx).Error().
-			Err(err).
-			Str("httpServerRootDir", httpServerRootDir).
-			Str("pathToLayersInFS", pathToLayerInHTTP).
-			Msg("Failed to get relative path")
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to get relative path between %s and %s: %w", httpServerRootDir, pathToLayerInHTTP, err)
 	}
 
 	pathToLayer := fmt.Sprintf("http://%s:%d/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayerInHTTP)
-	err = r.analyzeLayer(ctx, pathToLayer, digest, parentDigest)
+	err = r.scheduleLayerScanInClair(ctx, pathToLayer, digest, parentDigest)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, err
-	}
-	var imageFileSignature []FileSignature
-	var imageSoftware []Software
-	layerFileSignature, softwareFiles, sensitiveFiles, err := walkTarFiles(
-		filepath.Join(pathToLayersInFS, "layer.tar"), 1<<30, 64, r.ignoreRegExp, r.softwareRegExp, r.sensitiveFilenameRegExp)
-	if err != nil {
-		zerolog.Ctx(ctx).Warn().Msgf("Fail to get layer signature : %s : %v",
-			filepath.Join(pathToLayersInFS, "layer.tar"), err)
-	}
-	for _, f := range softwareFiles {
-		for re, parse := range r.softwareRegExpMap {
-			if re.String() == `(^|.*\/)bootstrap.sh$` && re.MatchString(f.Name) {
-				tmp := parse(f.HeadContent)
-				if tmp[0].Version != "" {
-					imageSoftware = append(imageSoftware, tmp[0])
-					tmp[1].Name = f.Name
-					zerolog.Ctx(ctx).Info().Msgf("%v", tmp[0])
-					imageSoftware = append(imageSoftware, tmp...)
-					zerolog.Ctx(ctx).Info().Msgf("Added npm bootstrap.sh")
-				} else {
-					zerolog.Ctx(ctx).Info().Msgf("Ignored other bootstrap.sh")
-				}
-				continue
-			}
-			if re.String() ==
-				`(^|.*\/)package.json$|(^|.*\/)package-lock.json$|(^|.*\/)yarn.lock$` &&
-				re.MatchString(f.Name) {
-				if nodeModuleRe.MatchString(f.Name) { // ignore files in node_module
-					continue
-				}
-				tmp := parse(f.HeadContent)
-				tmp[0].Name = f.Name
-				imageSoftware = append(imageSoftware, tmp...)
-				zerolog.Ctx(ctx).Info().Msgf("Added node package: %s", f.Name)
-				continue
-			}
-			if re.MatchString(f.Name) {
-				imageSoftware = append(imageSoftware, parse(f.HeadContent)...)
-			}
-		}
-	}
-	var imageSensitiveFiles = r.getSensitiveFiles(sensitiveFiles)
-	for i := range imageSensitiveFiles {
-		zerolog.Ctx(ctx).Info().
-			Str("name", imageSensitiveFiles[i].Name).
-			Str("descriptionEn", imageSensitiveFiles[i].DescriptionEn).
-			Str("descriptionZh", imageSensitiveFiles[i].DescriptionZh).
-			Str("description", imageSensitiveFiles[i].Description).
-			Msg("Sensitive file found")
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to schedule layer scan in Clair: %w", err)
 	}
 
-	imageFileSignature = append(imageFileSignature, layerFileSignature...)
-	imageFileSignature = distinctFileHash(imageFileSignature)
-
-	namespaceName, vulnerabilities := r.getVulnerabilities(ctx, digest)
+	namespaceName, vulnerabilities, err := r.getTransformedLayerScanResultFromClair(ctx, digest)
+	if err != nil {
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to get vulnerabilities: %w", err)
+	}
 
 	if !r.offlineMode {
 		err = r.enrichWithCNNVD(ctx, vulnerabilities)
 		if err != nil {
-			return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
+			return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
 		}
 	}
 
 	err = r.recalculateSeverity(ctx, vulnerabilities)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []FileSignature{}, []Software{}, []Sensitive{}, fmt.Errorf("Failed to recalculate severity: %w", err)
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to recalculate severity: %w", err)
 	}
 
-	return namespaceName, vulnerabilities, imageFileSignature, imageSoftware, imageSensitiveFiles, nil
-}
-
-func (r *Redclair) getSensitiveFiles(sensitiveFiles []FileSignature) []Sensitive {
-	imageSensitiveFiles := make([]Sensitive, 0)
-	for _, f := range sensitiveFiles {
-		for re, description := range r.sensitiveFilenameRegExpMap {
-			if re.MatchString(f.Name) {
-				imageSensitiveFiles = append(imageSensitiveFiles, Sensitive{
-					Name:          f.Name,
-					DescriptionEn: description.En,
-					DescriptionZh: description.Zh,
-				})
-			}
-		}
+	sensitiveFiles, err := r.findSensitiveFileNamesInImage(filepath.Join(pathToLayersInFS, "layer.tar"), r.sensitiveFilenameRegExp)
+	if err != nil {
+		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to run search for sensitive filenames: %w", err)
 	}
-	return imageSensitiveFiles
+
+	return namespaceName, vulnerabilities, sensitiveFiles, nil
 }
 
 func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []VulnerabilityInfo) error {

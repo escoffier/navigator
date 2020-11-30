@@ -508,6 +508,14 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	scanCtx, scanCtxCancel := context.WithTimeout(ctx, scanOneTimeout)
 	defer scanCtxCancel()
 
+	zerolog.Ctx(ctx).Info().
+		Str("ID", scanTask.ID.Hex()).
+		Str("URL", scanTask.URL).
+		Str("Repository", scanTask.Repository).
+		Str("Tag", scanTask.Tag).
+		Str("ImageDigest", scanTask.ImageDigest).
+		Msg("Starting to process scan task")
+
 	username := ""
 	password := ""
 	if scanTask.Authorization != "" {
@@ -583,8 +591,6 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 			return
 		}
 
-		report.Files = append(report.Files, cachedLayer.ScanReport.Files...)
-		report.Software = append(report.Software, cachedLayer.ScanReport.Software...)
 		sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
 
 		addedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsAdded...)
@@ -642,6 +648,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	}
 	scanTask.ScanReport = *report
 	rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
+
 	assetContainer, err := assets.FindContainerByImageDigest(ctx, rcSvc.mongodb, scanTask.ImageDigest)
 	if err != nil {
 		var aErr *AssetDoesntExistError
@@ -653,6 +660,8 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		return
 	}
 	assets.UpdateAssetScanningDetails(ctx, rcSvc.mongodb, assetContainer, &scanTask)
+
+	zerolog.Ctx(ctx).Info().Msg("Processing of scan task finished")
 }
 
 func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Registry, scanTask model.ScanTask, currentlyCachedLayers *map[string]*model.CachedLayer, digest string) error {
@@ -661,13 +670,7 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	retryCounter := 0
 	currentMaxScanRetries := maxLayerScanRetires
 	for retryCounter <= currentMaxScanRetries {
-		layerNamespace, vulnInfo, fileSignatures, software, sensitive, err := rcSvc.redclairEngine.ScanLayer(
-			ctx,
-			hub,
-			currLayer.Digest,
-			currLayer.Parent,
-			scanTask.Repository,
-		)
+		layerNamespace, vulnInfo, sensitive, err := rcSvc.redclairEngine.ScanLayer(ctx, hub, currLayer.Digest, currLayer.Parent, scanTask.Repository)
 		if err != nil {
 			var cuErr *ClairUnprocessableLayerError
 			if errors.As(err, &cuErr) {
@@ -718,8 +721,6 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 				Vulns:              vulnInfo,
 				VulnsAdded:         vulnInfoAdded,
 				VulnsRemoved:       vulnInfoRemoved,
-				Files:              fileSignatures,
-				Software:           software,
 				Sensitive:          sensitive,
 				OverallSeverity:    overallSeverity,
 				OverallSeverityInt: redclair.SeverityToInt(overallSeverity),
