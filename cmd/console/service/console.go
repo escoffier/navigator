@@ -453,6 +453,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 				"isDeleted": 1,
 			}, Options: nil,
 		},
+		{
+			Keys: bson.M{
+				"digest": 1,
+			}, Options: nil,
+		},
 	}
 	neededIndexesPerCollection[model.AlertCollection] = []mongo.IndexModel{
 		{

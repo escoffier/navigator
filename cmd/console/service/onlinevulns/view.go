@@ -14,9 +14,9 @@ type onlineVulnListItem struct {
 	RunningContainers []string                     `json:"runningContainers"`
 	RunningPods       []string                     `json:"runningPods"`
 	// internal counters
+	VulnerabilitiesSet   map[string]redclair.VulnerabilityInfo `json:"-"`
 	RunningContainersSet map[string]bool                       `json:"-"`
 	RunningPodsSet       map[string]bool                       `json:"-"`
-	VulnerabilitiesSet   map[string]redclair.VulnerabilityInfo `json:"-"`
 }
 
 type onlineVulnDetailsContainerInstance struct {
