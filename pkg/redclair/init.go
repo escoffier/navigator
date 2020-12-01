@@ -2,6 +2,7 @@ package redclair
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -20,36 +21,6 @@ var (
 
 func init() {
 	log = logging.GetLogger()
-}
-
-// // IgnorePackage ...
-// type IgnorePackage struct {
-// 	Name   string `json:"name"`
-// 	Reason string `json:"reason,omitempty"`
-// }
-
-// IgnoreFile ...
-type IgnoreFile struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason,omitempty"`
-}
-
-// CveWhite ...
-type CveWhite struct {
-	CVE string `json:"name"`
-}
-
-// SecretPattern ...
-type SecretPattern struct {
-	DescriptionEn string `json:"descriptionEn"`
-	DescriptionZh string `json:"descriptionZh"`
-	Type          string `json:"secret_type"`
-	Value         string `json:"value"`
-}
-
-type SensitiveDescription struct {
-	En string `json:"en"`
-	Zh string `json:"zh"`
 }
 
 type Redclair struct {
@@ -71,10 +42,6 @@ type Redclair struct {
 
 	sensitiveFilenameRegExpMap map[*regexp.Regexp]*SensitiveDescription
 	sensitiveFilenameRegExp    *regexp.Regexp
-	softwareRegExp             *regexp.Regexp
-	softwareRegExpMap          map[*regexp.Regexp]func([]byte) []Software
-	ignoreRegExp               *regexp.Regexp
-	cveWhitelist               map[string]struct{}
 
 	offlineMode bool // if true, won't download CNNVD metadata
 }
@@ -88,7 +55,6 @@ func NewRedclair(opts *flag.ClairOpts, updateOpts *flag.UpdateOpts, mongodb *mon
 	if err := rc.initConfigFiles(opts); err != nil {
 		return nil, err
 	}
-	rc.initSoftwareRegexMap()
 	return rc, nil
 }
 
@@ -100,84 +66,37 @@ func (r *Redclair) initFlags(opts *flag.ClairOpts) {
 }
 
 func (r *Redclair) initConfigFiles(opts *flag.ClairOpts) error {
-	ignoreFiles := []IgnoreFile{}
-	if err := r.readJSONFile(opts.IgnoreFileList, &ignoreFiles); err != nil {
-		return err
-	} else {
-		var fileSignatureIgnore []string
-		for _, item := range ignoreFiles {
-			fileSignatureIgnore = append(fileSignatureIgnore, item.Name)
-		}
-		r.ignoreRegExp = regexp.MustCompile(strings.Join(fileSignatureIgnore, "|"))
-	}
-
-	// TODO:
-	// if err := readJSONFile(opts.IgnorePackageList, &meta.IgnorePackages); err != nil {
-	// 	return err
-	// }
 	r.sensitiveFilenameRegExpMap = make(map[*regexp.Regexp]*SensitiveDescription)
 	secretPatterns := []SecretPattern{}
 	if err := r.readJSONFile(opts.SecretPattern, &secretPatterns); err != nil {
 		return err
-	} else {
-		var sensitiveFilenameRegExpStrList []string
-		for _, item := range secretPatterns {
-			if item.Type == "Filename" {
-				r.sensitiveFilenameRegExpMap[regexp.MustCompile(item.Value)] = &SensitiveDescription{
-					En: item.DescriptionEn,
-					Zh: item.DescriptionZh,
-				}
-				sensitiveFilenameRegExpStrList = append(sensitiveFilenameRegExpStrList, item.Value)
+	}
+
+	var sensitiveFilenameRegExpStrList []string
+	for _, item := range secretPatterns {
+		if item.Type == "Filename" {
+			r.sensitiveFilenameRegExpMap[regexp.MustCompile(item.Value)] = &SensitiveDescription{
+				En: item.DescriptionEn,
+				Zh: item.DescriptionZh,
 			}
+			sensitiveFilenameRegExpStrList = append(sensitiveFilenameRegExpStrList, item.Value)
 		}
-		r.sensitiveFilenameRegExp = regexp.MustCompile(strings.Join(sensitiveFilenameRegExpStrList, "|"))
 	}
-
-	cveWhites := []CveWhite{}
-	if err := r.readJSONFile(opts.CVEWhitelist, &cveWhites); err != nil {
-		return err
-	} else {
-		r.cveWhitelist = make(map[string]struct{}, len(cveWhites))
-		for _, v := range cveWhites {
-			log.Debug().
-				Str("cve", v.CVE).
-				Msg("[whitelist cve]")
-			r.cveWhitelist[v.CVE] = struct{}{}
-		}
-		log.Info().Msgf("%+v\n", r.cveWhitelist)
-	}
+	r.sensitiveFilenameRegExp = regexp.MustCompile(strings.Join(sensitiveFilenameRegExpStrList, "|"))
 	return nil
-}
-
-func (r *Redclair) initSoftwareRegexMap() {
-	// TODO: this should be in config file as well
-	r.softwareRegExpMap = make(map[*regexp.Regexp]func([]byte) []Software, len(softwareRegExpRawMap))
-	var softwareRegExpStrList []string
-	for reStr, reFunc := range softwareRegExpRawMap {
-		r.softwareRegExpMap[regexp.MustCompile(reStr)] = reFunc
-		softwareRegExpStrList = append(softwareRegExpStrList, reStr)
-	}
-	r.softwareRegExp = regexp.MustCompile(strings.Join(softwareRegExpStrList, "|"))
 }
 
 func (r Redclair) readJSONFile(path string, fieldPtr interface{}) error {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("path", path).
-			Msg("failed to open file")
-		return err
+		return fmt.Errorf("Failed to open file %s: %w", path, err)
 	}
 	defer f.Close()
 
 	byteValue, _ := ioutil.ReadAll(f)
 	err = json.Unmarshal(byteValue, fieldPtr)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("failed to unmarshall file")
-		return err
+		return fmt.Errorf("Failed to unmarshal file %s: %w", path, err)
 	}
 	return nil
 }

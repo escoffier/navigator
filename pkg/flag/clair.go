@@ -10,9 +10,6 @@ const (
 	clairEndpointPort             = "clair-port"
 	clairRemoteAddress            = "clair-remote-address"
 	clairRemotePort               = "clair-remote-port"
-	clairIgnoreFileName           = "clair-ignorefile"
-	clairIgnorePackage            = "clair-ignorepackage"
-	clairCVEWhitelist             = "clair-cvewhite"
 	clairSecretPattern            = "clair-secretpattern"
 	redclairSkipRegistryTLSVerify = "redclair-skipregistrytlsverify"
 	redclairNumWorkers            = "redclair-numworkers"
@@ -25,9 +22,6 @@ type ClairOpts struct {
 	EndpointClairPort        int
 	RemoteClairAddress       string
 	RemoteClairPort          int
-	IgnoreFileList           string
-	IgnorePackageList        string
-	CVEWhitelist             string
 	SecretPattern            string
 	SkipRegistryTLSVerify    bool
 	NumWorkers               int
@@ -51,9 +45,6 @@ func NewDefaultClairOpts() *ClairOpts {
 		// Address of Clair service.
 		RemoteClairAddress:       "localhost",
 		RemoteClairPort:          6060,
-		IgnoreFileList:           string("configs/scanner/ignore_files.json"),
-		IgnorePackageList:        string("configs/scanner/ignore_packages.json"),
-		CVEWhitelist:             string("configs/scanner/white_cve.json"),
 		SecretPattern:            string("configs/scanner/patterns.json"),
 		SkipRegistryTLSVerify:    false,
 		NumWorkers:               4,
@@ -68,9 +59,6 @@ func GetClairOpts(cmd *cobra.Command) *ClairOpts {
 		EndpointClairPort:        viper.GetInt(clairEndpointPort),
 		RemoteClairAddress:       viper.GetString(clairRemoteAddress),
 		RemoteClairPort:          viper.GetInt(clairRemotePort),
-		IgnoreFileList:           viper.GetString(clairIgnoreFileName),
-		IgnorePackageList:        viper.GetString(clairIgnorePackage),
-		CVEWhitelist:             viper.GetString(clairCVEWhitelist),
 		SecretPattern:            viper.GetString(clairSecretPattern),
 		SkipRegistryTLSVerify:    viper.GetBool(redclairSkipRegistryTLSVerify),
 		NumWorkers:               viper.GetInt(redclairNumWorkers),
@@ -85,11 +73,6 @@ func AddClairFlags(cmd *cobra.Command) {
 	cmd.Flags().Int(clairEndpointPort, defaultOps.EndpointClairPort, "clair scanner port")
 	cmd.Flags().String(clairRemoteAddress, defaultOps.RemoteClairAddress, "clair remote address")
 	cmd.Flags().Int(clairRemotePort, defaultOps.RemoteClairPort, "clair remote port")
-	cmd.Flags().String(clairIgnoreFileName, defaultOps.IgnoreFileList,
-		"clair ignore file list file")
-	cmd.Flags().String(clairIgnorePackage, defaultOps.IgnorePackageList,
-		"clair ignore package list file")
-	cmd.Flags().String(clairCVEWhitelist, defaultOps.CVEWhitelist, "clair cve white list file")
 	cmd.Flags().String(clairSecretPattern, defaultOps.SecretPattern, "clair secret pattern file")
 	cmd.Flags().Bool(redclairSkipRegistryTLSVerify, defaultOps.SkipRegistryTLSVerify, "skip TLS cert verification step for remote docker registries")
 	cmd.Flags().Int(redclairNumWorkers, defaultOps.NumWorkers, "num scanner workers")
@@ -100,10 +83,7 @@ func AddClairFlags(cmd *cobra.Command) {
 		clairEndpointPort,
 		clairRemoteAddress,
 		clairRemotePort,
-		clairIgnoreFileName,
-		clairIgnorePackage,
 		clairSecretPattern,
-		clairCVEWhitelist,
 		redclairSkipRegistryTLSVerify,
 		redclairNumWorkers,
 		postgresConnectionString,
