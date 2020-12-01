@@ -9,31 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
-
 	"github.com/PuerkitoBio/goquery"
 	"github.com/rs/zerolog"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
-	cve2cnnvdCollection = "CVE2CNNVD"
-
 	cve2cnnvdStaleEntryTime = time.Hour * 24 * 7
 )
 
-type cve2cnnvdMapping struct {
-	metadata.MetadataEntry `json:"-" bson:",inline"`
-	ID                     primitive.ObjectID `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CVE                    string             `json:"cve" bson:"cve"`
-	CVNND                  string             `json:"cvnnd" bson:"cvnnd"`
-	CVNNDLink              string             `json:"cvnndLink" bson:"cvnndLink"`
-	UpdatedAt              int64              `json:"updatedAt" bson:"updatedAt"`
-}
-
-func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInfo) error {
+func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []model.VulnerabilityInfo) error {
 	// TODO: Inefficient use of lock, can be improved. Maybe we can use upsert instead of mutex altogether.
 	r.cve2cnnvdCollectionMux.Lock()
 	defer r.cve2cnnvdCollectionMux.Unlock()
@@ -50,10 +38,10 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 			continue
 		}
 
-		var cve2cnnvd cve2cnnvdMapping
+		var cve2cnnvd model.Cve2cnnvdMapping
 
 		filter := bson.M{"cve": cve}
-		queryResult := r.mongodb.Collection(cve2cnnvdCollection).FindOne(ctx, filter)
+		queryResult := r.mongodb.Collection(model.Cve2cnnvdCollection.String()).FindOne(ctx, filter)
 		if queryResult.Err() != nil && queryResult.Err() != mongo.ErrNoDocuments {
 			return fmt.Errorf("Unexpected error when getting collection: %w", queryResult.Err())
 		}
@@ -68,7 +56,7 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 				return fmt.Errorf("Failed to get CNNVD from cnnvd.org: %w", err)
 			}
 
-			newMapping := cve2cnnvdMapping{
+			newMapping := model.Cve2cnnvdMapping{
 				ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
 				CVE:       cve,
 				CVNND:     cnnvd,
@@ -76,12 +64,12 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 				UpdatedAt: time.Now().Unix(),
 			}
 
-			_, err = r.mongodb.Collection(cve2cnnvdCollection).InsertOne(ctx, newMapping)
+			_, err = r.mongodb.Collection(model.Cve2cnnvdCollection.String()).InsertOne(ctx, newMapping)
 			if err != nil {
 				return fmt.Errorf("Failed to insert new CVE to CNNVD mapping to mongo: %w", err)
 			}
 
-			vulns[i].CNNVDs = append(vulns[i].CNNVDs, CNNVDVulnerabilityInfo{
+			vulns[i].CNNVDs = append(vulns[i].CNNVDs, model.CNNVDVulnerabilityInfo{
 				Number:  cnnvd,
 				RefLink: link,
 			})
@@ -107,7 +95,7 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 			// TODO: if new cnnvd or link is different, then we should also invalide layer cache for all layers,
 			// which had this vulnerability.
 
-			newMapping := cve2cnnvdMapping{
+			newMapping := model.Cve2cnnvdMapping{
 				ID:        cve2cnnvd.ID,
 				CVE:       cve,
 				CVNND:     cnnvd,
@@ -120,19 +108,19 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []VulnerabilityInf
 			filter := bson.M{"_id": cve2cnnvd.ID}
 			update := bson.M{"$set": newMapping}
 
-			_, err = r.mongodb.Collection(cve2cnnvdCollection).UpdateOne(ctx, filter, update)
+			_, err = r.mongodb.Collection(model.Cve2cnnvdCollection.String()).UpdateOne(ctx, filter, update)
 			if err != nil {
 				return fmt.Errorf("Failed to update CVE to CNNVD mapping in mongo: %w", err)
 			}
 
-			vulns[i].CNNVDs = append(vulns[i].CNNVDs, CNNVDVulnerabilityInfo{
+			vulns[i].CNNVDs = append(vulns[i].CNNVDs, model.CNNVDVulnerabilityInfo{
 				Number:  cnnvd,
 				RefLink: link,
 			})
 			continue
 		}
 
-		vulns[i].CNNVDs = append(vulns[i].CNNVDs, CNNVDVulnerabilityInfo{
+		vulns[i].CNNVDs = append(vulns[i].CNNVDs, model.CNNVDVulnerabilityInfo{
 			Number:  cve2cnnvd.CVNND,
 			RefLink: cve2cnnvd.CVNNDLink,
 		})

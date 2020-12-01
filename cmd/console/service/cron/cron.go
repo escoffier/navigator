@@ -63,7 +63,7 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 		cluster.CronConfig.HostBenchCron.PrevRun = prev
 	}
 
-	filter := bson.M{"_id": clusterObjectID}
+	filter := bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 	cluster.ID = clusterObjectID
 	update := bson.M{"$set": cluster}
 
@@ -145,7 +145,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 			cluster.CronConfig.HostBenchCron.CronID = int(newCronID)
 		}
 	}
-	filter := bson.M{"_id": cluster.ID}
+	filter := bson.M{"_id": cluster.ID, "deleted_at": bson.M{"$exists": false}}
 	update := bson.M{"$set": cluster}
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
@@ -202,7 +202,7 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 		cluster.CronConfig.HostBenchCron.CronString = cronString
 	}
 
-	filter := bson.M{"_id": clusterObjectID}
+	filter := bson.M{"deleted_at": bson.M{"$exists": false}, "_id": clusterObjectID}
 	cluster.ID = clusterObjectID
 	update := bson.M{"$set": cluster}
 

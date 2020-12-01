@@ -30,7 +30,7 @@ func FindContainerByImageDigest(ctx context.Context, mongodb *mongo.Database, sh
 
 	findOptions.SetMaxTime(time.Second * 10)
 
-	singleResult := mongodb.Collection(model.AssetsContainerCollection).FindOne(ctx, filter, findOptions)
+	singleResult := mongodb.Collection(model.AssetsContainersCollection.String()).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewAssetDoesntExistError(http.StatusInternalServerError, fmt.Errorf("No document found: %w", singleResult.Err()))
@@ -54,7 +54,7 @@ func UpdateAssetScanningDetails(ctx context.Context, mongodb *mongo.Database, as
 	assetContainer.Vulnerabilities = scanTask.ScanReport.Vulns.Vulnerabilities
 	assetContainer.TaskID = scanTask.ID
 
-	vulns := make([]redclair.VulnerabilityInfo, len(scanTask.ScanReport.Vulns.Vulnerabilities))
+	vulns := make([]model.VulnerabilityInfo, len(scanTask.ScanReport.Vulns.Vulnerabilities))
 
 	topVulnsNum := len(scanTask.ScanReport.Vulns.Vulnerabilities)
 	if len(vulns) >= 5 {
@@ -139,7 +139,7 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	update := bson.M{"$set": assetContainer}
 	opts := options.Update().SetUpsert(true)
 
-	_, err := mongodb.Collection(model.AssetsContainerCollection).UpdateOne(mongoCtx, filter, update, opts)
+	_, err := mongodb.Collection(model.AssetsContainersCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
 	}
@@ -164,7 +164,7 @@ func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest st
 
 	wasScanned := false
 
-	singleResult := mongodb.Collection(model.ScanTasksCollection).FindOne(mongoCtx, filter, findOptions)
+	singleResult := mongodb.Collection(model.ScanTasksCollection.String()).FindOne(mongoCtx, filter, findOptions)
 	if singleResult.Err() == mongo.ErrNoDocuments {
 		// Maybe we haven't scanned this image yet, return no results, but indicate that we don't know
 		return model.ScanTask{}, wasScanned, nil

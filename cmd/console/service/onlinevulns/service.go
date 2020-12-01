@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -68,13 +69,13 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
-	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter, findOptions)
+	cursor, err := r.mongodb.Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
 	}
 	defer func() {
-		if err := cursor.Close(ctx); err != nil {
+		if err := cursor.Close(mongoCtx); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("When closing cursor, but ignoring.")
 		}
 	}()
@@ -110,7 +111,7 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 				ResourceName:         container.PodOwnerName,
 				RunningContainersSet: make(map[string]bool),
 				RunningPodsSet:       make(map[string]bool),
-				VulnerabilitiesSet:   make(map[string]redclair.VulnerabilityInfo),
+				VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),
 			}
 		}
 		vulns := container.Vulnerabilities
@@ -124,7 +125,20 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 	}
 
 	for _, ov := range onlineVulns {
-		vulns := make([]redclair.VulnerabilityInfo, len(ov.VulnerabilitiesSet))
+		runningContainers := []string{}
+		for rcName := range ov.RunningContainersSet {
+			runningContainers = append(runningContainers, rcName)
+		}
+		ov.RunningContainers = runningContainers
+
+		runningPods := []string{}
+		for rpName := range ov.RunningPodsSet {
+			runningPods = append(runningPods, rpName)
+		}
+		ov.RunningPods = runningPods
+
+		vulns := make([]model.VulnerabilityInfo, len(ov.VulnerabilitiesSet))
+
 		i := 0
 		for _, v := range ov.VulnerabilitiesSet {
 			vulns[i] = v
@@ -144,18 +158,6 @@ func (r *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Contex
 		} else {
 			ov.OverallSeverity = redclair.SeverityUnknown
 		}
-
-		runningContainers := []string{}
-		for rcName := range ov.RunningContainersSet {
-			runningContainers = append(runningContainers, rcName)
-		}
-		ov.RunningContainers = runningContainers
-
-		runningPods := []string{}
-		for rpName := range ov.RunningPodsSet {
-			runningPods = append(runningPods, rpName)
-		}
-		ov.RunningPods = runningPods
 	}
 
 	err = cursor.Err()
@@ -189,7 +191,7 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
-	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter, findOptions)
+	cursor, err := r.mongodb.Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
@@ -412,62 +414,76 @@ func (r *OnlineVulnsService) areAllFreshContainerEntriesAccountedFor(informer *c
 }
 
 func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Context, upTo time.Time) (int, error) {
-	numMarked := 0
+	var numMarked = 0
 
-	// mark all entries that we didn't witness at the start of watcher as deleted.
-	filter := bson.M{
-		"lastUpdateTime": bson.M{"$lt": upTo.Unix()},
-	}
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-	cursor, err := r.mongodb.Collection(model.AssetsContainerCollection).Find(mongoCtx, filter, findOptions)
-	if err != nil {
-		return numMarked, NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Couldn't get containers: %w", err))
-	}
-	defer func() {
-		if err := cursor.Close(ctx); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("When closing cursor, but ignoring.")
-		}
-	}()
+	err := r.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 
-	for cursor.Next(ctx) {
-		var container model.AssetContainer
-		err := cursor.Decode(&container)
-		if err != nil {
-			return numMarked, NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Couldn't decode document: %w", err))
+		var sessionError error
+
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
+		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
+
+		// mark all entries that we didn't witness at the start of watcher as deleted.
 		filter := bson.M{
-			"$and": []bson.M{
-				{"podName": container.PodName},
-				{"name": container.Name},
-			},
+			"lastUpdateTime": bson.M{"$lt": upTo.Unix()},
+		}
+		findOptions := options.Find().SetMaxTime(time.Second * 10)
+		var cursor *mongo.Cursor
+		cursor, sessionError = r.mongodb.Collection(model.AssetsContainersCollection.String()).Find(sessionContext, filter, findOptions)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't get containers: %w", sessionError))
+		}
+		defer func() {
+			if sessionError = cursor.Close(sessionContext); sessionError != nil {
+				logging.GetLogger().Error().Err(sessionError).Msg("When closing cursor, but ignoring.")
+			}
+		}()
+
+		for cursor.Next(sessionContext) {
+			var container model.AssetContainer
+			sessionError = cursor.Decode(&container)
+			if sessionError != nil {
+				return NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't decode document: %w", sessionError))
+			}
+
+			filter := bson.M{
+				"$and": []bson.M{
+					{"podName": container.PodName},
+					{"name": container.Name},
+				},
+			}
+
+			container.IsDeleted = true
+			container.HistoricisedTimestamp = time.Now()
+
+			update := bson.M{"$set": container}
+			opts := options.Update().SetUpsert(true)
+
+			_, sessionError = r.mongodb.Collection(model.AssetsContainersCollection.String()).UpdateOne(sessionContext, filter, update, opts)
+			if sessionError != nil {
+				return NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Failed to upsert assetContainer to mongo: %w", sessionError))
+			}
+
+			numMarked++
 		}
 
-		container.IsDeleted = true
-		container.HistoricisedTimestamp = time.Now()
-
-		update := bson.M{"$set": container}
-		opts := options.Update().SetUpsert(true)
-
-		mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-		defer mongoCtxCancel()
-		_, err = r.mongodb.Collection(model.AssetsContainerCollection).UpdateOne(mongoCtx, filter, update, opts)
-		if err != nil {
-			return numMarked, NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Failed to upsert assetContainer to mongo: %w", err))
+		sessionError = cursor.Err()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Cursor error: %w", sessionError))
 		}
-
-		numMarked++
-	}
-
-	err = cursor.Err()
+		return nil
+	})
 	if err != nil {
-		return numMarked, NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Cursor error: %w", err))
+		return 0, err
 	}
 
 	return numMarked, nil

@@ -146,7 +146,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 				{"exploitRiskAlert.elasticId": elasticID},
 			},
 		}
-		queryResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
+		queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 
 		if queryResult.Err() != nil && queryResult.Err() != mongo.ErrNoDocuments {
 			return NewMongoError(http.StatusInternalServerError,
@@ -271,7 +271,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 				numRaised++
 
 				alert.HistoricisedTimestamp = time.Now()
-				_, err = s.mongodb.Collection(model.AlertCollection).InsertOne(ctx, alert)
+				_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
@@ -299,7 +299,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 
 func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primitive.ObjectID) (*model.Alert, error) {
 	filter := bson.M{"_id": alertObjectID}
-	alertResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
+	alertResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 	if alertResult.Err() != nil {
 		if alertResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", alertResult.Err()))
@@ -322,12 +322,12 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 		"historicised_timestamp": time.Now(),
 	}}
 
-	_, err = s.mongodb.Collection(model.AlertCollection).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update: %w", err))
 	}
 
-	afterUpdateResult := s.mongodb.Collection(model.AlertCollection).FindOne(ctx, filter)
+	afterUpdateResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 	if afterUpdateResult.Err() != nil {
 		if afterUpdateResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", afterUpdateResult.Err()))
@@ -365,7 +365,7 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 		opts.SetSort(bson.D{{"severityInt", util.SortOrderToInt(sortOrder)}})
 	}
 
-	coll := s.mongodb.Collection(model.AlertCollection)
+	coll := s.mongodb.Collection(model.AlertsCollection.String())
 	cur, err := coll.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err))

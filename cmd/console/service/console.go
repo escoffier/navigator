@@ -205,7 +205,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
-	err = initializeAuditConfig(ctx, c.auditService)
+	err = initializeAuditConfig(ctx, c.mongodb, c.auditService)
 
 	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongodb)
 
@@ -251,7 +251,7 @@ func (c *Console) Run() func() {
 	}
 }
 
-func initializeAuditConfig(ctx context.Context, auditService *audit.AuditService) error {
+func initializeAuditConfig(ctx context.Context, mongodb *mongo.Database, auditService *audit.AuditService) error {
 	_, err := auditService.GetAuditConfig(ctx)
 	if err != nil {
 		switch err.(type) {
@@ -293,7 +293,7 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 		var ruleDefinition model.RuleDefinition
 		filter := bson.M{"name_en": ruleName}
 
-		queryResult := mongodb.Collection(model.RuleDefinitionCollection).FindOne(ctx, filter)
+		queryResult := mongodb.Collection(model.RulesDefinitionsCollection.String()).FindOne(ctx, filter)
 		if queryResult.Err() != nil {
 			if queryResult.Err() == mongo.ErrNoDocuments {
 				logging.GetLogger().Info().Str("rule", ruleName).Msg("Rule definition not present in the db")
@@ -308,7 +308,7 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 				logging.GetLogger().Info().Str("rule", file.Name()).Msg("Rule successfully parsed")
 
 				ruleDefinition.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = mongodb.Collection(model.RuleDefinitionCollection).InsertOne(ctx, ruleDefinition)
+				_, err = mongodb.Collection(model.RulesDefinitionsCollection.String()).InsertOne(ctx, ruleDefinition)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
 				}
@@ -326,7 +326,7 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 				newRule.Cvss2Score = ruleDefinition.Cvss2Score
 				newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
 				newRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = mongodb.Collection(model.RuleCollection).InsertOne(ctx, newRule)
+				_, err = mongodb.Collection(model.RulesCollection.String()).InsertOne(ctx, newRule)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
 				}
@@ -341,9 +341,8 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 }
 
 func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
-
 	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
-	neededIndexesPerCollection[model.ScanTasksCollection] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.ScanTasksCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"finishedAt": 1,
@@ -395,9 +394,9 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-	for _, col := range []string{model.ComplianceCheckKubeRecordsCollection,
-		model.ComplianceCheckDockerRecordsCollection,
-		model.ComplianceCheckHostRecordsCollection} {
+	for _, col := range []string{model.ComplianceCheckKubeRecordsCollection.String(),
+		model.ComplianceCheckDockerRecordsCollection.String(),
+		model.ComplianceCheckHostRecordsCollection.String()} {
 
 		neededIndexesPerCollection[col] = []mongo.IndexModel{
 			{
@@ -417,7 +416,7 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			},
 		}
 	}
-	neededIndexesPerCollection[model.AssetsContainerCollection] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.AssetsContainersCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"lastUpdateTime": 1,
@@ -459,7 +458,7 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[model.AlertCollection] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.AlertsCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"timestamp": 1,
@@ -476,7 +475,7 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[model.RuleCollection] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.RulesCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"name": 1,

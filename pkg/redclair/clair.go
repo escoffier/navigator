@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 const (
@@ -77,12 +78,12 @@ func (r *Redclair) scheduleLayerScanInClair(ctx context.Context, path, layerName
 	return nil
 }
 
-func (r *Redclair) getTransformedLayerScanResultFromClair(ctx context.Context, digest string) (string, []VulnerabilityInfo, error) {
-	var vulnerabilities = make([]VulnerabilityInfo, 0)
-	var vulnerabilitiesMap = make(map[string]VulnerabilityInfo)
+func (r *Redclair) getTransformedLayerScanResultFromClair(ctx context.Context, digest string) (string, []model.VulnerabilityInfo, error) {
+	var vulnerabilities = make([]model.VulnerabilityInfo, 0)
+	var vulnerabilitiesMap = make(map[string]model.VulnerabilityInfo)
 	rawVulnerabilities, err := r.fetchLayerVulnerabilitiesFromClair(ctx, digest)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, fmt.Errorf("Could not fetch vulnerabilities of %s: %w", digest, err)
+		return "", []model.VulnerabilityInfo{}, fmt.Errorf("Could not fetch vulnerabilities of %s: %w", digest, err)
 	}
 	zerolog.Ctx(ctx).Info().Msgf("Fetched vulnerabilities of %s", digest)
 
@@ -96,10 +97,10 @@ func (r *Redclair) getTransformedLayerScanResultFromClair(ctx context.Context, d
 					zerolog.Ctx(ctx).Warn().Err(err).
 						Str("raw", fmt.Sprintf("%+v", vulnerability.Metadata)).
 						Msgf("Failed to unmarshal metadata of %s", digest)
-					return "", []VulnerabilityInfo{}, fmt.Errorf("Failed to unmarshal metadata of %s: %w", digest, err)
+					return "", []model.VulnerabilityInfo{}, fmt.Errorf("Failed to unmarshal metadata of %s: %w", digest, err)
 				}
 
-				newVuln := VulnerabilityInfo{
+				newVuln := model.VulnerabilityInfo{
 					FeatureName:    feature.Name,
 					FeatureVersion: feature.Version,
 					ID:             vulnerability.Name,
@@ -109,7 +110,7 @@ func (r *Redclair) getTransformedLayerScanResultFromClair(ctx context.Context, d
 					Severity:       vulnerability.Severity,
 					FixedBy:        vulnerability.FixedBy,
 
-					CVSS: CVSSVulnerabilityInfo{
+					CVSS: model.CVSSVulnerabilityInfo{
 						CVSSv2Vector:              meta.NVD.CVSSv2.Vectors,
 						CVSSv2Score:               meta.NVD.CVSSv2.Score.String(),
 						CVSSv3Vector:              meta.NVD.CVSSv3.Vectors,
@@ -120,7 +121,7 @@ func (r *Redclair) getTransformedLayerScanResultFromClair(ctx context.Context, d
 				}
 
 				for _, cnvd := range meta.CNVD {
-					newVuln.CNVDs = append(newVuln.CNVDs, CNVDVulnerabilityInfo{
+					newVuln.CNVDs = append(newVuln.CNVDs, model.CNVDVulnerabilityInfo{
 						Number:      cnvd.Number,
 						Title:       cnvd.Title,
 						Severity:    cnvd.Severity,

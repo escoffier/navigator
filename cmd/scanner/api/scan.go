@@ -139,7 +139,7 @@ func (api *api) scanOne() http.HandlerFunc {
 
 		task.ID = primitive.NewObjectIDFromTimestamp(time.Now())
 		task.HistoricisedTimestamp = time.Now()
-		_, err = api.mongodb.Collection(model.ScanTasksCollection).InsertOne(mongoCtx, task)
+		_, err = api.mongodb.Collection(model.ScanTasksCollection.String()).InsertOne(mongoCtx, task)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
 			RespAndLog(w, ctx,

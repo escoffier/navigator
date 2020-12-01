@@ -15,7 +15,6 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -316,11 +315,11 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 
 func (s Scapper) GetMongoCollectionForCheckType(checkType model.ComplianceCheckType) string {
 	if checkType == model.ComplianceCheckTargetTypeKube {
-		return model.ComplianceCheckKubeRecordsCollection
+		return model.ComplianceCheckKubeRecordsCollection.String()
 	} else if checkType == model.ComplianceCheckTargetTypeDocker {
-		return model.ComplianceCheckDockerRecordsCollection
+		return model.ComplianceCheckDockerRecordsCollection.String()
 	} else if checkType == model.ComplianceCheckTargetTypeHost {
-		return model.ComplianceCheckHostRecordsCollection
+		return model.ComplianceCheckHostRecordsCollection.String()
 	} else {
 		return ""
 	}
@@ -446,7 +445,7 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scapper.Check, targetNodeName string) error {
 	now := time.Now()
 	secs := now.Unix()
-	entry := scap.JobEntry{
+	entry := model.JobEntry{
 		ID:        primitive.NewObjectIDFromTimestamp(now),
 		CheckID:   check.CheckUUID.String(),
 		NodeName:  targetNodeName,
@@ -712,7 +711,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 
 }
 
-func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, checkType model.ComplianceCheckType, checkID, nodeName, status string) ([]scap.JobEntry, error) {
+func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, checkType model.ComplianceCheckType, checkID, nodeName, status string) ([]model.JobEntry, error) {
 
 	filter := bson.M{"clusterId": clusterID}
 
@@ -727,7 +726,7 @@ func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, ch
 	if status != "" {
 		if status != model.ComplianceCheckStatusCompleted && status != model.ComplianceCheckStatusInProgress && status != model.ComplianceCheckStatusFailed {
 			allowed := strings.Join([]string{model.ComplianceCheckStatusCompleted, model.ComplianceCheckStatusInProgress, model.ComplianceCheckStatusFailed}, "/")
-			return []scap.JobEntry{}, NewFieldError(http.StatusBadRequest,
+			return []model.JobEntry{}, NewFieldError(http.StatusBadRequest,
 				fmt.Errorf("invalid status param value (allowed: %s)", allowed),
 				Suberror{"status", fmt.Sprintf("allowed: %s", allowed)})
 		}
@@ -736,17 +735,17 @@ func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, ch
 
 	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 	if err != nil {
-		return []scap.JobEntry{}, NewMongoError(http.StatusInternalServerError,
+		return []model.JobEntry{}, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find documents: %w", err))
 	}
 	defer cursor.Close(ctx)
 
-	var results []scap.JobEntry
+	var results []model.JobEntry
 	for cursor.Next(ctx) {
-		var result scap.JobEntry
+		var result model.JobEntry
 		err := cursor.Decode(&result)
 		if err != nil {
-			return []scap.JobEntry{}, NewMongoError(http.StatusInternalServerError,
+			return []model.JobEntry{}, NewMongoError(http.StatusInternalServerError,
 				fmt.Errorf("Couldn't decode document: %w", err))
 		}
 		// TODO: pagination, maybe https://github.com/gobeam/mongo-go-pagination?
@@ -755,7 +754,7 @@ func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, ch
 
 	err = cursor.Err()
 	if err != nil {
-		return []scap.JobEntry{}, NewMongoError(http.StatusInternalServerError,
+		return []model.JobEntry{}, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Cursor error: %w", err))
 	}
 
