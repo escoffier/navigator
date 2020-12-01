@@ -79,12 +79,6 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	shaDigestAndPullInfo := strings.Split(container.ImageID, "@")
 	shaDigest := shaDigestAndPullInfo[len(shaDigestAndPullInfo)-1]
 
-	if shaDigest == "" {
-		// Not sure why but it sometimes happens. Hopefully subsequent events sort this out.
-		logging.GetLogger().Warn().Str("container", fmt.Sprintf("%+v", container.Name)).Msg("Container doesn't have digest. Skipping.")
-		return
-	}
-
 	state := "UnknownState"
 	if container.State.Waiting != nil {
 		state = "Waiting"
@@ -98,17 +92,19 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	defer mongoCtxCancel()
 
 	assetContainer := model.AssetContainer{
-		IsDeleted:           isDeleteEvent,
-		PodName:             pod.Name,
-		Name:                container.Name,
-		Repository:          repository,
-		Tag:                 tag,
-		Digest:              shaDigest,
+		IsDeleted:  isDeleteEvent,
+		PodName:    pod.Name,
+		Name:       container.Name,
+		Repository: repository,
+		Tag:        tag,
 		State:               state,
 		Namespace:           pod.Namespace,
 		Node:                pod.Spec.NodeName,
 		ContainerID:         container.ContainerID, // containerID: docker://b503f2b9c3c693805312a888f875974f54fdd5f7d6d76de31d18ff12e958b4e1
 		LastUpdateTimeEpoch: time.Now().Unix(),
+	}
+	if shaDigest != "" {
+		assetContainer.Digest = shaDigest
 	}
 
 	if shaDigest != "" {
@@ -119,7 +115,6 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 		}
 		UpdateAssetScanningDetails(mongoCtx, mongodb, &assetContainer, &scanTask)
 	}
-
 	if isDeleteEvent {
 		assetContainer.HistoricisedTimestamp = time.Now()
 	}
@@ -140,6 +135,7 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 			{"name": assetContainer.Name},
 		},
 	}
+
 	update := bson.M{"$set": assetContainer}
 	opts := options.Update().SetUpsert(true)
 
@@ -147,6 +143,7 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
 	}
+
 }
 
 func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest string) (model.ScanTask, bool, error) {
