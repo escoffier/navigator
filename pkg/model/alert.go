@@ -9,15 +9,12 @@ import (
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type AlertKind string
 
 const (
-	AlertCollection = "alerts"
-
 	AlertKindAny              AlertKind = "any"
 	AlertKindRuntimeDetection AlertKind = "runtimeDetection"
 	AlertKindComplianceCheck  AlertKind = "complianceCheck"
@@ -40,19 +37,19 @@ func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
 }
 
 type Alert struct {
-	metadata.MetadataEntry `json:"-" bson:",inline"`
-	ID                     primitive.ObjectID     `json:"id" bson:"_id, omitempty"`
-	AlertKind              string                 `json:"kind" bson:"kind"`
-	Acknowledged           bool                   `json:"acknowledged" bson:"acknowledged"`
-	Timestamp              time.Time              `json:"timestamp" bson:"timestamp"`
-	Severity               string                 `json:"severity" bson:"severity"`
-	SeverityInt            int                    `json:"severityInt" bson:"severityInt"`
-	RuntimeDetectionAlert  *RuntimeDetectionAlert `json:"runtimeDetectionAlert,omitempty" bson:"runtimeDetectionAlert,omitempty"`
-	ComplianceCheckAlert   *ComplianceCheckAlert  `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
-	ExploitRiskAlert       *ExploitRiskAlert      `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
-	Message                string                 `json:"message" bson:"message"`
-	MessageEn              string                 `json:"-" bson:"message_en"`
-	MessageZh              string                 `json:"-" bson:"message_zh"`
+	MetadataEntry         `json:"-" bson:",inline"`
+	ID                    primitive.ObjectID     `json:"id" bson:"_id, omitempty"`
+	AlertKind             string                 `json:"kind" bson:"kind"`
+	Acknowledged          bool                   `json:"acknowledged" bson:"acknowledged"`
+	Timestamp             time.Time              `json:"timestamp" bson:"timestamp"`
+	Severity              string                 `json:"severity" bson:"severity"`
+	SeverityInt           int                    `json:"severityInt" bson:"severityInt"`
+	RuntimeDetectionAlert *RuntimeDetectionAlert `json:"runtimeDetectionAlert,omitempty" bson:"runtimeDetectionAlert,omitempty"`
+	ComplianceCheckAlert  *ComplianceCheckAlert  `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
+	ExploitRiskAlert      *ExploitRiskAlert      `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
+	Message               string                 `json:"message" bson:"message"`
+	MessageEn             string                 `json:"-" bson:"message_en"`
+	MessageZh             string                 `json:"-" bson:"message_zh"`
 }
 
 type RuntimeDetectionAlert struct {

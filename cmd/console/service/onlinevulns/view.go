@@ -1,22 +1,22 @@
 package onlinevulns
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type onlineVulnListItem struct {
-	Namespace         string                       `json:"namespace"`
-	ResourceKind      string                       `json:"resourceKind"`
-	ResourceName      string                       `json:"resourceName"`
-	TopVulns          []redclair.VulnerabilityInfo `json:"topVulnerabilities"`
-	OverallSeverity   string                       `json:"overallSeverity"`
-	RunningContainers []string                     `json:"runningContainers"`
-	RunningPods       []string                     `json:"runningPods"`
+	Namespace         string                    `json:"namespace"`
+	ResourceKind      string                    `json:"resourceKind"`
+	ResourceName      string                    `json:"resourceName"`
+	TopVulns          []model.VulnerabilityInfo `json:"topVulnerabilities"`
+	OverallSeverity   string                    `json:"overallSeverity"`
+	RunningContainers []string                  `json:"runningContainers"`
+	RunningPods       []string                  `json:"runningPods"`
 	// internal counters
-	VulnerabilitiesSet   map[string]redclair.VulnerabilityInfo `json:"-"`
-	RunningContainersSet map[string]bool                       `json:"-"`
-	RunningPodsSet       map[string]bool                       `json:"-"`
+	RunningContainersSet map[string]bool                    `json:"-"`
+	RunningPodsSet       map[string]bool                    `json:"-"`
+	VulnerabilitiesSet   map[string]model.VulnerabilityInfo `json:"-"`
 }
 
 type onlineVulnDetailsContainerInstance struct {
@@ -32,8 +32,8 @@ type onlineVulnDetailsContainer struct {
 	InstancesRunning    *[]onlineVulnDetailsContainerInstance `json:"instancesRunning"`
 	InstancesWaiting    *[]onlineVulnDetailsContainerInstance `json:"instancesWaiting"`
 	InstancesTerminated *[]onlineVulnDetailsContainerInstance `json:"instancesTerminated"`
-	Vulnerabilities     []redclair.VulnerabilityInfo          `json:"vulnerabilities"`
-	SensitiveFiles      []redclair.Sensitive                  `json:"sensitiveFiles"`
+	Vulnerabilities     []model.VulnerabilityInfo             `json:"vulnerabilities"`
+	SensitiveFiles      []model.Sensitive                     `json:"sensitiveFiles"`
 	WasScanned          bool                                  `json:"wasScanned"`
 	HarborURL           string                                `json:"harborURL"`
 	TaskID              primitive.ObjectID                    `json:"taskID"`

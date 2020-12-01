@@ -72,7 +72,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 
 		// from mongo
 		var scanTask model.ScanTask
-		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
+		err = api.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(
 			ctx, bson.M{"_id": taskObjectID}, findOneOptions).Decode(&scanTask)
 		if err != nil {
 			RespAndLog(w, r.Context(),
@@ -200,7 +200,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			findOptions.SetSort(bson.D{{"digest", util.SortOrderToInt(sortOrder)}})
 		}
 
-		docNum, err := api.mongodb.Collection(model.ScanTasksCollection).CountDocuments(ctx, filter)
+		docNum, err := api.mongodb.Collection(model.ScanTasksCollection.String()).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
@@ -208,7 +208,7 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter, &findOptions)
+		cursor, err := api.mongodb.Collection(model.ScanTasksCollection.String()).Find(ctx, filter, &findOptions)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
@@ -298,7 +298,7 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
 		// from mongo
 		var result model.ScanTask
-		err = api.mongodb.Collection(model.ScanTasksCollection).FindOne(
+		err = api.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(
 			ctx, bson.M{"_id": taskObjectID}, oneOptions).Decode(&result)
 		if err != nil {
 			RespAndLog(w, r.Context(),
@@ -320,7 +320,7 @@ type scanReportAffectedImage struct {
 }
 
 type scanReportListItem struct {
-	VulnInfo       redclair.VulnerabilityInfo `json:"vulnInfo"`
+	VulnInfo       model.VulnerabilityInfo    `json:"vulnInfo"`
 	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
 }
 
@@ -360,7 +360,9 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			return
 		}
 		offset, limit := api.getOffsetAndLimit(r)
+
 		resultItems, size, err := api.syncData.GetResultItem(ctx, riskFilter, offset, limit, sortOrder)
+
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError, err))

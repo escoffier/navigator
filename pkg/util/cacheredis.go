@@ -31,7 +31,7 @@ type scanReportAffectedImage struct {
 }
 
 type scanReportListItem struct {
-	VulnInfo       redclair.VulnerabilityInfo `json:"vulnInfo"`
+	VulnInfo       model.VulnerabilityInfo    `json:"vulnInfo"`
 	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
 }
 type ImageVulnerabilityCache struct {
@@ -83,7 +83,7 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) (*mongoQuery
 			{"status": model.ScanStatusSucceeded},
 		},
 	}
-	cursor, err := c.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter)
+	cursor, err := c.mongodb.Collection(model.ScanTasksCollection.String()).Find(ctx, filter)
 
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't find document:%w ", err)
@@ -92,7 +92,7 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) (*mongoQuery
 
 	type vulnInfoEx struct {
 		// Helper struct that creates one to one mapping between vulnerability and affected image.
-		redclair.VulnerabilityInfo
+		model.VulnerabilityInfo
 		AffectedRepository string
 		AffectedTag        string
 		AffectedDigest     string
@@ -139,7 +139,7 @@ func (c *ImageVulnerabilityCache) getMongoData(ctx context.Context) (*mongoQuery
 		}
 		for _, sens := range task.ScanReport.Vulns.Sensitives {
 			sens.Description = fmt.Sprintf("Potential file leak: %s", sens.Description)
-			vi := redclair.VulnerabilityInfo{
+			vi := model.VulnerabilityInfo{
 				Description: sens.Description,
 				FeatureName: sens.Name,
 				Severity:    redclair.SeverityUnknown,
@@ -373,12 +373,12 @@ func (c *ImageVulnerabilityCache) getMongoMaxFinishedAt(ctx context.Context) (in
 
 	ctx, cancel := context.WithTimeout(ctx, MongoTimeout)
 	defer cancel()
-	filter := bson.D{}
+	filter := bson.M{}
 
 	findOptions := options.FindOne()
 	findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
-	singleResult := c.mongodb.Collection(model.ScanTasksCollection).FindOne(ctx, filter, findOptions)
+	singleResult := c.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return -1, nil

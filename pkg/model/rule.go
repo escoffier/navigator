@@ -5,33 +5,27 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-const (
-	RuleCollection           = "rules"
-	RuleDefinitionCollection = "rulesDefinitions"
-)
-
 // Rule ...
 type Rule struct {
-	metadata.MetadataEntry `json:"-" bson:",inline"`
-	ID                     primitive.ObjectID `json:"id" bson:"_id, omitempty"`
-	CreatedAt              time.Time          `json:"-" bson:"created_at"`
-	DeletedAt              time.Time          `json:"-" bson:"deleted_at,omitempty"`
-	Description            string             `json:"description"`
-	DescriptionEn          string             `json:"-" bson:"description_en"`
-	DescriptionZh          string             `json:"-" bson:"description_zh"`
-	Name                   string             `json:"name"`
-	NameEn                 string             `json:"-" bson:"name_en"`
-	NameZh                 string             `json:"-" bson:"name_zh"`
-	Enabled                bool               `json:"enabled" bson:"enabled"`
-	Cvss3Vector            string             `json:"cvss3Vector" bson:"cvss3Vector"`
-	Cvss3Score             float64            `json:"cvss3Score" bson:"cvss3Score"`
-	Cvss2Vector            string             `json:"cvss2Vector" bson:"cvss2Vector"`
-	Cvss2Score             float64            `json:"cvss2Score" bson:"cvss2Score"`
+	MetadataEntry `json:"-" bson:",inline"`
+	ID            primitive.ObjectID `json:"id" bson:"_id, omitempty"`
+	CreatedAt     time.Time          `json:"-" bson:"created_at"`
+	DeletedAt     time.Time          `json:"-" bson:"deleted_at,omitempty"`
+	Description   string             `json:"description"`
+	DescriptionEn string             `json:"-" bson:"description_en"`
+	DescriptionZh string             `json:"-" bson:"description_zh"`
+	Name          string             `json:"name"`
+	NameEn        string             `json:"-" bson:"name_en"`
+	NameZh        string             `json:"-" bson:"name_zh"`
+	Enabled       bool               `json:"enabled" bson:"enabled"`
+	Cvss3Vector   string             `json:"cvss3Vector" bson:"cvss3Vector"`
+	Cvss3Score    float64            `json:"cvss3Score" bson:"cvss3Score"`
+	Cvss2Vector   string             `json:"cvss2Vector" bson:"cvss2Vector"`
+	Cvss2Score    float64            `json:"cvss2Score" bson:"cvss2Score"`
 }
 
 func (r *Rule) ApplyTranslation(ctx context.Context) {

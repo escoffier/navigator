@@ -149,7 +149,7 @@ func (rcSvc *RedClairService) failDanglingTasks(ctx context.Context) error {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
-	result, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateMany(mongoCtx, filter, update)
+	result, err := rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).UpdateMany(mongoCtx, filter, update)
 	if err != nil {
 		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
 	}
@@ -580,9 +580,9 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	zerolog.Ctx(ctx).Info().Msg("Redclair scan finished, processed all layers")
 
 	report := &model.ScanReport{}
-	vulns := make([]redclair.VulnerabilityInfo, 0)
-	sensitives := make([]redclair.Sensitive, 0)
-	perLayerReport := make([]redclair.VulnerabilityLayerReport, 0)
+	vulns := make([]model.VulnerabilityInfo, 0)
+	sensitives := make([]model.Sensitive, 0)
+	perLayerReport := make([]model.VulnerabilityLayerReport, 0)
 	report.OverallSeverity = redclair.SeverityUnknown
 	for layerNo, digest := range layers {
 		cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
@@ -593,14 +593,14 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 
 		sensitives = append(sensitives, cachedLayer.ScanReport.Sensitive...)
 
-		addedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsAdded...)
+		addedVulns := append([]model.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsAdded...)
 		overallSeverity := redclair.SeverityUnknown
 		if len(addedVulns) > 0 {
 			overallSeverity = addedVulns[0].Severity
 		}
 
-		removedVulns := append([]redclair.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsRemoved...)
-		perLayerReport = append(perLayerReport, redclair.VulnerabilityLayerReport{
+		removedVulns := append([]model.VulnerabilityInfo(nil), cachedLayer.ScanReport.VulnsRemoved...)
+		perLayerReport = append(perLayerReport, model.VulnerabilityLayerReport{
 			LayerNo:                layerNo,
 			LayerDigest:            digest,
 			VulnerabilitiesAdded:   addedVulns,
@@ -635,10 +635,9 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 
 		vulns = currentVulns
 	}
-
 	util.SortVulnsBySeverityAndStuff(vulns, false)
 
-	report.Vulns = redclair.VulnerabilityReport{
+	report.Vulns = model.VulnerabilityReport{
 		Repository:      scanTask.Repository,
 		Tag:             scanTask.Tag,
 		Digest:          scanTask.ImageDigest,
@@ -694,10 +693,10 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			}
 		} else {
 			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
-			var vulnInfoAdded, vulnInfoRemoved []redclair.VulnerabilityInfo
+			var vulnInfoAdded, vulnInfoRemoved []model.VulnerabilityInfo
 			if currLayer.Parent == "" {
 				vulnInfoAdded = vulnInfo
-				vulnInfoRemoved = make([]redclair.VulnerabilityInfo, 0)
+				vulnInfoRemoved = make([]model.VulnerabilityInfo, 0)
 			} else {
 				parentLayer, err := rcSvc.getParentLayerFromCache(ctx, currLayer.Parent, *currentlyCachedLayers)
 				if err != nil {
@@ -742,12 +741,12 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	return nil
 }
 
-func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []redclair.VulnerabilityInfo, currFullVulnsOrig []redclair.VulnerabilityInfo) ([]redclair.VulnerabilityInfo, []redclair.VulnerabilityInfo, error) {
+func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []model.VulnerabilityInfo, currFullVulnsOrig []model.VulnerabilityInfo) ([]model.VulnerabilityInfo, []model.VulnerabilityInfo, error) {
 	parentFullVulns := parentFullVulnsOrig
 	currFullVulns := currFullVulnsOrig
 
-	vulnLayerAdded := make([]redclair.VulnerabilityInfo, 0)
-	vulnLayerRemoved := make([]redclair.VulnerabilityInfo, 0)
+	vulnLayerAdded := make([]model.VulnerabilityInfo, 0)
+	vulnLayerRemoved := make([]model.VulnerabilityInfo, 0)
 	sort.Slice(parentFullVulns, func(i, j int) bool {
 		return parentFullVulns[i].ID < parentFullVulns[j].ID
 	})
@@ -953,7 +952,7 @@ func (rcSvc *RedClairService) doImageScanBookkeeping(ctx context.Context, scanTa
 			{"stale": false},
 		},
 	}
-	cursor, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).Find(ctx, filter)
+	cursor, err := rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).Find(ctx, filter)
 	if err != nil {
 		return firstScanAt, numMarked, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -976,7 +975,7 @@ func (rcSvc *RedClairService) doImageScanBookkeeping(ctx context.Context, scanTa
 
 		filter := bson.M{"_id": task.ID}
 		update := bson.M{"$set": task}
-		_, err = rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateOne(ctx, filter, update)
+		_, err = rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).UpdateOne(ctx, filter, update)
 		if err != nil {
 			return firstScanAt, numMarked, NewMongoError(http.StatusInternalServerError,
 				fmt.Errorf("Couldn't update document: %w", err))
@@ -1022,7 +1021,7 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 	filter := bson.M{"_id": scanTask.ID}
 	update := bson.M{"$set": scanTask}
 
-	_, err := rcSvc.mongodb.Collection(model.ScanTasksCollection).UpdateOne(mongoCtx, filter, update)
+	_, err := rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).UpdateOne(mongoCtx, filter, update)
 	if err != nil {
 		zerolog.Ctx(ctx).Error().
 			Err(err).

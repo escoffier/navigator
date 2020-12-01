@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -76,7 +77,7 @@ type HarborVulnerabilityReport struct {
 	Vulnerabilities []VulnerabilityItem `json:"vulnerabilities"`
 }
 
-func RedclairReportToHarborReport(redclairReport redclair.VulnerabilityReport) HarborVulnerabilityReport {
+func RedclairReportToHarborReport(redclairReport model.VulnerabilityReport) HarborVulnerabilityReport {
 	harborVulns := []VulnerabilityItem{}
 	highestSeveritySoFar := redclair.SeverityUnknown
 

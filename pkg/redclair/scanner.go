@@ -13,6 +13,7 @@ import (
 	"github.com/heroku/docker-registry-client/registry"
 	dig "github.com/opencontainers/go-digest"
 	"github.com/rs/zerolog"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 // VulnerabilitiesWhitelist ...
@@ -39,10 +40,10 @@ type Pattern struct {
 	Regex       *regexp.Regexp
 }
 
-func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []VulnerabilityInfo, []Sensitive, error) {
+func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest, parentDigest, repository string) (string, []model.VulnerabilityInfo, []model.Sensitive, error) {
 	pathToLayersInFS, err := r.CreateTempLayerDigestDir(digest)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Couldn't make image temp dir in %s: %w", pathToLayersInFS, err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Couldn't make image temp dir in %s: %w", pathToLayersInFS, err)
 	}
 	defer func() {
 		err := os.RemoveAll(pathToLayersInFS)
@@ -54,24 +55,24 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 
 	reader, err := hub.DownloadBlob(repository, d)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to download blob %s: %w", repository, err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to download blob %s: %w", repository, err)
 	}
 	defer reader.Close()
 
 	outFile, err := os.Create(pathToLayersInFS + "/layer.tar")
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to create layer.tar file: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to create layer.tar file: %w", err)
 	}
 	defer outFile.Close()
 
 	_, err = io.Copy(outFile, reader)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to copy file contents: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to copy file contents: %w", err)
 	}
 
 	info, err := os.Stat(pathToLayersInFS + "/layer.tar")
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("os.Stat failed: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("os.Stat failed: %w", err)
 	}
 
 	zerolog.Ctx(ctx).Info().
@@ -84,41 +85,41 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 	//Analyze the layers
 	pathToLayerInHTTP, err := filepath.Rel(r.httpRootDir, pathToLayersInFS)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to get relative path between %s and %s: %w", httpServerRootDir, pathToLayerInHTTP, err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to get relative path between %s and %s: %w", httpServerRootDir, pathToLayerInHTTP, err)
 	}
 
 	pathToLayer := fmt.Sprintf("http://%s:%d/%s/layer.tar", r.externalAddr, r.externalPort, pathToLayerInHTTP)
 	err = r.scheduleLayerScanInClair(ctx, pathToLayer, digest, parentDigest)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to schedule layer scan in Clair: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to schedule layer scan in Clair: %w", err)
 	}
 
 	namespaceName, vulnerabilities, err := r.getTransformedLayerScanResultFromClair(ctx, digest)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to get vulnerabilities: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to get vulnerabilities: %w", err)
 	}
 
 	if !r.offlineMode {
 		err = r.enrichWithCNNVD(ctx, vulnerabilities)
 		if err != nil {
-			return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
+			return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to enrich vuln info with CNNVD: %w", err)
 		}
 	}
 
 	err = r.recalculateSeverity(ctx, vulnerabilities)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to recalculate severity: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to recalculate severity: %w", err)
 	}
 
 	sensitiveFiles, err := r.findSensitiveFileNamesInImage(filepath.Join(pathToLayersInFS, "layer.tar"), r.sensitiveFilenameRegExp)
 	if err != nil {
-		return "", []VulnerabilityInfo{}, []Sensitive{}, fmt.Errorf("Failed to run search for sensitive filenames: %w", err)
+		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to run search for sensitive filenames: %w", err)
 	}
 
 	return namespaceName, vulnerabilities, sensitiveFiles, nil
 }
 
-func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []VulnerabilityInfo) error {
+func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []model.VulnerabilityInfo) error {
 	for i, vuln := range vulns {
 
 		if vuln.CVSS.CVSSv2Score == "" {

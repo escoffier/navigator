@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type SecretPattern struct {
@@ -22,15 +23,8 @@ type SensitiveDescription struct {
 	Zh string `json:"zh"`
 }
 
-type Sensitive struct {
-	Name          string `json:"name" bson:"name"`
-	Description   string `json:"description" bson:"description"`
-	DescriptionEn string `json:"description_en" bson:"description_en"`
-	DescriptionZh string `json:"description_zh" bson:"description_zh"`
-}
-
-func (r *Redclair) findSensitiveFileNamesInImage(tarFileName string, sensitiveRegExp *regexp.Regexp) ([]Sensitive, error) {
-	sensitiveFiles := []Sensitive{}
+func (r *Redclair) findSensitiveFileNamesInImage(tarFileName string, sensitiveRegExp *regexp.Regexp) ([]model.Sensitive, error) {
+	sensitiveFiles := []model.Sensitive{}
 
 	tarFile, err := os.Open(tarFileName)
 	if err != nil {
@@ -64,8 +58,8 @@ func (r *Redclair) findSensitiveFileNamesInImage(tarFileName string, sensitiveRe
 	return enrichedSensitiveFiles, nil
 }
 
-func (r *Redclair) enrichSensitiveFilesWithDescriptions(sensitiveFiles []string) []Sensitive {
-	imageSensitiveFiles := make([]Sensitive, 0)
+func (r *Redclair) enrichSensitiveFilesWithDescriptions(sensitiveFiles []string) []model.Sensitive {
+	imageSensitiveFiles := make([]model.Sensitive, 0)
 	for _, f := range sensitiveFiles {
 		for re, description := range r.sensitiveFilenameRegExpMap {
 			//
@@ -90,7 +84,7 @@ func (r *Redclair) enrichSensitiveFilesWithDescriptions(sensitiveFiles []string)
 			// it's very important.
 			//
 			if re.MatchString(f) {
-				imageSensitiveFiles = append(imageSensitiveFiles, Sensitive{
+				imageSensitiveFiles = append(imageSensitiveFiles, model.Sensitive{
 					Name:          f,
 					DescriptionEn: description.En,
 					DescriptionZh: description.Zh,

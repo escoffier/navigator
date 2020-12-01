@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 const (
@@ -63,7 +64,7 @@ func SeverityToInt(sev string) int {
 	}
 }
 
-func CompareVulnerabilities(left VulnerabilityInfo, right VulnerabilityInfo) bool {
+func CompareVulnerabilities(left model.VulnerabilityInfo, right model.VulnerabilityInfo) bool {
 
 	if left.CVSS.CVSSv2Score < right.CVSS.CVSSv2Score {
 		return true

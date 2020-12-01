@@ -1,7 +1,6 @@
 package model
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/metadata"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -9,10 +8,6 @@ const (
 	GCInProgress = "inprogress"
 	GCCompleted  = "completed"
 	GCFailed     = "failed"
-)
-
-const (
-	GCTaskCollection = "gc"
 )
 
 //HotStorageView ...
@@ -23,7 +18,7 @@ type HotStorageView struct {
 
 //GCTask ...
 type GCTask struct {
-	ID                     primitive.ObjectID `json:"id" bson:"_id"`
-	metadata.MetadataEntry `json:"-" bson:",inline"`
-	Status                 string `json:"status" bson:"status"`
+	MetadataEntry `json:"-" bson:",inline"`
+	ID            primitive.ObjectID `json:"id" bson:"_id"`
+	Status        string             `json:"status" bson:"status"`
 }

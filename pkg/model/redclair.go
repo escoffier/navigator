@@ -1,4 +1,4 @@
-package redclair
+package model
 
 type CNVDVulnerabilityInfo struct {
 	Number      string `json:"number" bson:"number"`
@@ -58,4 +58,12 @@ type VulnerabilityLayerReport struct {
 	Sensitives             []Sensitive         `json:"sensitives"`
 	OverallSeverity        string              `json:"overallSeverity"`
 	OverallSeverityInt     int                 `json:"overallSeverityInt"`
+}
+
+// FileSignature ...
+type FileSignature struct {
+	Name        string `json:"name"`
+	Digest      string `json:"digest"`
+	Size        int64  `json:"size"`
+	HeadContent []byte `json:"head_content"`
 }

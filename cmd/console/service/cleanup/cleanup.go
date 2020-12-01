@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -63,27 +64,44 @@ func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error
 		Status: model.GCInProgress,
 	}
 
-	collection := s.mongodb.Collection(model.GCTaskCollection)
+	collection := s.mongodb.Collection(model.GCCollection.String())
 
 	filter := bson.M{"status": model.GCInProgress}
 
-	queryResult := collection.FindOne(ctx, filter)
+	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		var sessionError error
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
 
-	if queryResult.Err() == nil {
-		return nil, NewGarbageCollectionInProgressError(http.StatusConflict, fmt.Errorf("GC in progress"))
-	}
+		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
 
-	_, err := collection.InsertOne(ctx, newGCTask)
+		queryResult := collection.FindOne(sessionContext, filter)
+
+		if queryResult.Err() == nil {
+			sessionError = fmt.Errorf("GC in progress")
+			return NewGarbageCollectionInProgressError(http.StatusConflict, sessionError)
+		}
+
+		_, sessionError = collection.InsertOne(sessionContext, newGCTask)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+		return nil, err
 	}
+
 	return newGCTask, nil
 }
 
 func (s *CleanupService) GetGCTask(ctx context.Context, gcTaskID primitive.ObjectID) (*model.GCTask, error) {
 	filter := bson.M{"_id": gcTaskID}
 
-	queryResult := s.mongodb.Collection(model.GCTaskCollection).FindOne(ctx, filter)
+	queryResult := s.mongodb.Collection(model.GCCollection.String()).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -108,7 +126,7 @@ func (s *CleanupService) updateGCStatus(ctx context.Context, gcTask *model.GCTas
 	update := bson.M{"$set": gcTask}
 	filter := bson.M{"_id": gcTask.ID}
 
-	_, err = s.mongodb.Collection(model.GCTaskCollection).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Collection(model.GCCollection.String()).UpdateOne(ctx, filter, update)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
@@ -129,38 +147,48 @@ func (s *CleanupService) updateFailedGCStatusUpdate(ctx context.Context, gcTask 
 }
 
 func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp time.Time, gcTask *model.GCTask) {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-	filter := bson.M{}
-	allCollectionsCursor, err := s.mongodb.ListCollections(mongoCtx, filter)
+	allCollectionsCursor, err := s.mongodb.ListCollections(ctx, bson.M{})
 	if err != nil {
-		s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to list collections: %w", err)))
+		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
 		return
 	}
 	defer allCollectionsCursor.Close(ctx)
 
-	filter = bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
+	err = s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		var sessionError error
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
 
-	for allCollectionsCursor.Next(ctx) {
-		collectionInfo := bson.D{}
-		err := allCollectionsCursor.Decode(&collectionInfo)
-		if err != nil {
-			s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not decode collection info: %w", err)))
-			return
+		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
+
+		filter := bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
+
+		for allCollectionsCursor.Next(sessionContext) {
+			collectionInfo := bson.D{}
+			sessionError = allCollectionsCursor.Decode(&collectionInfo)
+			if sessionError != nil {
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", sessionError))
+			}
+			colName := collectionInfo.Map()["name"].(string)
+			var deleteResult *mongo.DeleteResult
+			deleteResult, sessionError = s.mongodb.Collection(colName).DeleteMany(sessionContext, filter)
+			if sessionError != nil {
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't delete documents: %w", sessionError))
+			}
+			zerolog.Ctx(sessionContext).Info().
+				Int64("deletedCount", deleteResult.DeletedCount).
+				Str("collection", colName).
+				Str("fromTimestamp", fromTimestamp.String()).
+				Msg("Removed audit documents older than")
 		}
-		mongoColCtx, mongoColCtxCancel := context.WithTimeout(ctx, time.Second*60)
-		defer mongoColCtxCancel()
-		colName := collectionInfo.Map()["name"].(string)
-		deleteResult, err := s.mongodb.Collection(colName).DeleteMany(mongoColCtx, filter)
-		if err != nil {
-			s.updateFailedGCStatusUpdate(ctx, gcTask, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to delete documents: %w", err)))
-			return
-		}
-		zerolog.Ctx(ctx).Info().
-			Int64("deletedCount", deleteResult.DeletedCount).
-			Str("collection", colName).
-			Str("fromTimestamp", fromTimestamp.String()).
-			Msg("Removed audit documents older than")
+		return nil
+	})
+	if err != nil {
+		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
+		return
 	}
 	zerolog.Ctx(ctx).Info().Str("gcTaskId", gcTask.ID.Hex()).Msg("GC Task finished successfully")
 	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
