@@ -9,15 +9,17 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -87,6 +89,12 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		if atomic.LoadInt32(&api.abortAnyNewScansBool) != 0 {
+			e := harbor.NewHarborErrorAndLog(fmt.Errorf(""), "Not currently accepting any new scan tasks, aborted by an operator")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
+
 		var harborScanReq harbor.ScanRequest
 		err := json.NewDecoder(r.Body).Decode(&harborScanReq)
 		if err != nil {
@@ -106,12 +114,20 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			return
 		}
 
+		harborResultsLink, err := api.harborClient.GetHarborScanResultsLink(ctx, harborScanReq.Artifact.Repository, harborScanReq.Artifact.Digest)
+		if err != nil {
+			e := harbor.NewHarborErrorAndLog(err, "Failed to obtain harbor results link")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
+
 		tensorsecScannerReqPayload := model.ScannerReq{
 			URL:           harborScanReq.Registry.URL,
 			Authorization: harborScanReq.Registry.Authorization,
 			Repository:    harborScanReq.Artifact.Repository,
 			Digest:        harborScanReq.Artifact.Digest,
 			Tag:           harborScanReq.Artifact.Tag,
+			ResultsURL:    harborResultsLink,
 		}
 		tensorsecScannerReqPayloadBytes, err := json.Marshal(tensorsecScannerReqPayload)
 		if err != nil {
@@ -139,7 +155,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
-		defer tensorsecScannerResp.Body.Close()
+		defer util.CloseBodyWithLog(tensorsecScannerResp.Body)
 
 		if tensorsecScannerResp.StatusCode != http.StatusOK {
 			e := harbor.NewHarborErrorAndLog(err, "Failed to schedule scan")
@@ -176,6 +192,12 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
+
+		if atomic.LoadInt32(&api.abortAnyNewScansBool) != 0 {
+			e := harbor.NewHarborErrorAndLog(fmt.Errorf(""), "Scans aborted by an operator")
+			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
+			return
+		}
 
 		scanRequestID := chi.URLParam(r, "scan_request_id")
 		if scanRequestID == "" {

@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -60,6 +61,7 @@ type Console struct {
 	onlineVulnsService *onlinevulns.OnlineVulnsService
 	auditService       *audit.AuditService
 	cleanupService     *cleanup.CleanupService
+	harborClient       *harbor.HarborRESTClient
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -73,6 +75,7 @@ func NewConsole(
 	redisOpts *flag.RedisOpts,
 	elasticOpts *flag.ElasticOpts,
 	rulesOpts *flag.RulesOpts,
+	harborOpts *flag.HarborOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -137,6 +140,11 @@ func NewConsole(
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, ruleService, es, elasticOpts.Index, mongodb)
 
+	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -154,6 +162,7 @@ func NewConsole(
 				onlineVulnsSvc,
 				auditService,
 				cleanupService,
+				harborClient,
 			),
 		},
 		mongoClient:        mongoClient,
@@ -166,6 +175,7 @@ func NewConsole(
 		onlineVulnsService: onlineVulnsSvc,
 		auditService:       auditService,
 		cleanupService:     cleanupService,
+		harborClient:       harborClient,
 	}, nil
 }
 
@@ -197,6 +207,16 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When connecting to Mongo database: %w", err))
 	}
 
+	testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
+	defer testCancel()
+	err = c.harborClient.TestConnectionAndAdminPrivileges(testCtx)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("Harbor connection and admin privilege check failed")
+		panic(fmt.Errorf("Harbor connection and admin privilege check failed: %w", err))
+	}
+
 	err = createMongoIndices(ctx, c.mongodb)
 	if err != nil {
 		log.Error().
@@ -206,8 +226,20 @@ func (c *Console) Run() func() {
 	}
 
 	err = initializeAuditConfig(ctx, c.mongodb, c.auditService)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When initializing audit config")
+		panic(fmt.Errorf("When initializing audit config: %w", err))
+	}
 
 	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongodb)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When initializing rules definitions")
+		panic(fmt.Errorf("When initializing rules definitions: %w", err))
+	}
 
 	kubeClient, restConfig, err := getCurrentKubeClient(ctx, c.clusterService)
 	if err != nil {

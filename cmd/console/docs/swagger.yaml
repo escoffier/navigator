@@ -342,14 +342,22 @@ paths:
       produces:
       - application/json
       summary: Enable single rule
+  /api/v1/scanner/harbor/abortScanAll:
+    post:
+      description: Abort current and future scan tasks for currently running Harbor scan all job.
+      summary: Abort current and future scan tasks for currently running Harbor scan all job.
   /api/v1/scanner/harbor/scanAllNow:
     post:
       description: Trigger scan of all images in Harbor.
       summary: Trigger scan of all images in Harbor.
   /api/v1/scanner/harbor/scanConfig:
     get:
-      description: Redirect to scan config screen in Harbor.
-      summary: Redirect to scan config screen in Harbor.
+      description: Get link to scan configuration screen in Harbor.
+      summary: Get link to scan configuration screen in Harbor.
+  /api/v1/scanner/harbor/scanStatus:
+    get:
+      description: Get scan all status.
+      summary: Get scan all status.
   /api/v1/scanner/report/{taskID}:
     get:
       description: Get image and its vulnerabilities

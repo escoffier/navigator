@@ -17,6 +17,7 @@ type ScannerReq struct {
 	Repository    string `json:"repository"`
 	Digest        string `json:"digest,omitempty"`
 	Tag           string `json:"tag,omitempty"`
+	ResultsURL    string `json:"resultsUrl,omitempty"`
 }
 
 // ScanTask ...

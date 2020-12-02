@@ -8,14 +8,6 @@ paths:
       produces:
       - application/json
       summary: Force layer cache invalidation.
-  /api/v1/scan/harbor/scanAll:
-    post:
-      description: Trigger scan of all images in Harbor. This API is exposed for testing purpose.
-      summary: Trigger scan of all images in Harbor.
-  /api/v1/scan/harbor/scanConfigURL:
-    get:
-      description: Get link to scan configuration screen in Harbor.
-      summary: Get link to scan configuration screen in Harbor.
   /api/v1/scan/one:
     post:
       description: Scan one image

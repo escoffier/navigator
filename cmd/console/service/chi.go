@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 )
 
@@ -36,6 +37,7 @@ func setupChiRouter(
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
+	harborClient *harbor.HarborRESTClient,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -50,7 +52,20 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, 24*time.Hour, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc, auditService, cleanupService)
+	api.SetupRoutes(ctx, r, 24*time.Hour,
+		mongodb,
+		scapper,
+		scannerURL,
+		cronService,
+		clusterService,
+		redisClient,
+		ruleService,
+		alertService,
+		onlineVulnsSvc,
+		auditService,
+		cleanupService,
+		harborClient,
+	)
 
 	return r
 }

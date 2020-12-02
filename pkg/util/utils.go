@@ -3,11 +3,13 @@ package util
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
 
 	"github.com/golang/gddo/httputil/header"
+	"github.com/rs/zerolog/log"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -48,6 +50,13 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) err
 	}
 
 	return nil
+}
+
+func CloseBodyWithLog(body io.ReadCloser) {
+	err := body.Close()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to close body, but ignoring")
+	}
 }
 
 func AppendIfMissing(s []string, i string) []string {

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func setup(t *testing.T,
@@ -28,8 +29,14 @@ func setup(t *testing.T,
 	httpOpts.HTTPLoggerDisabled = true
 
 	console, err := NewConsole(
-		httpOpts, flag.NewDefaultMongoOpts(),
-		flag.NewDefaultVegetaScannerOpts(), flag.NewDefaultScapOpts(), flag.NewDefaultRedisOpts(), flag.NewDefaultElasticOpts(), flag.NewDefaultRulesOpts())
+		httpOpts,
+		flag.NewDefaultMongoOpts(),
+		flag.NewDefaultVegetaScannerOpts(),
+		flag.NewDefaultScapOpts(),
+		flag.NewDefaultRedisOpts(),
+		flag.NewDefaultElasticOpts(),
+		flag.NewDefaultRulesOpts(),
+		flag.NewDefaultHarborOpts())
 	require.NoError(t, err)
 
 	stop := console.Run()
@@ -49,7 +56,7 @@ func TestPing(t *testing.T) {
 	// Testing /ping with a trailing slash here to see if the StripSlashes middleware is effective
 	response, err := http.Get(fmt.Sprintf("http://127.0.0.1%s/ping/", gateway))
 	require.NoError(t, err)
-	defer response.Body.Close()
+	defer util.CloseBodyWithLog(response.Body)
 
 	contents, err := ioutil.ReadAll(response.Body)
 	require.NoError(t, err)

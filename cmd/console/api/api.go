@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"time"
@@ -52,7 +53,10 @@ type api struct {
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService
 	auditService   *audit.AuditService
 	cleanupService *cleanup.CleanupService
-	// For Harbor API
+	harborClient   *harbor.HarborRESTClient
+
+	// For managing state in Harbor plugin API
+	abortAnyNewScansBool           int32
 	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
 	scanResultLocalBackoffCacheMux sync.Mutex
 	unprocessableEntityCache       *cache.Cache
@@ -72,6 +76,7 @@ func newAPI(
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
+	harborClient *harbor.HarborRESTClient,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -89,6 +94,7 @@ func newAPI(
 		onlineVulnsSvc:              onlineVulnsSvc,
 		auditService:                auditService,
 		cleanupService:              cleanupService,
+		harborClient:                harborClient,
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 	}

@@ -22,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -56,10 +57,24 @@ func SetupRoutes(
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
+	harborClient *harbor.HarborRESTClient,
 ) {
 	log.Debug().Msg("setting up routes...")
 
-	api := newAPI(ctx, sessionExpiration, mongodb, scapper, scannerURL, cronService, clusterService, redisClient, ruleService, alertService, onlineVulnsSvc, auditService, cleanupService)
+	api := newAPI(ctx, sessionExpiration,
+		mongodb,
+		scapper,
+		scannerURL,
+		cronService,
+		clusterService,
+		redisClient,
+		ruleService,
+		alertService,
+		onlineVulnsSvc,
+		auditService,
+		cleanupService,
+		harborClient,
+	)
 
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))

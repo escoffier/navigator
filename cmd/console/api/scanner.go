@@ -37,6 +37,8 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Post("/harbor/scanAllNow", api.harborScanAllNow())
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
+		r.Get("/harbor/scanStatus", api.harborScanStatus())
+		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 	}
 }
 
@@ -415,7 +417,7 @@ func (api *api) scan() http.HandlerFunc {
 			bytes.NewBuffer(jsonValue),
 		)
 		if resp != nil {
-			defer resp.Body.Close()
+			defer util.CloseBodyWithLog(resp.Body)
 		}
 		if err != nil {
 			RespAndLog(w, r.Context(),
@@ -434,48 +436,6 @@ func (api *api) scan() http.HandlerFunc {
 	}
 }
 
-// @Summary Trigger scan of all images in Harbor.
-// @Description Trigger scan of all images in Harbor.
-// @Router /api/v1/scanner/harbor/scanAllNow [post]
-func (api *api) harborScanAllNow() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		type respT struct{}
-		var resp respT
-		err := api.quickReqToScanner(ctx, "POST", fmt.Sprintf("%s/api/v1/scan/harbor/scanAll", api.scannerURL), &resp)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		response.Ok(w)
-	}
-}
-
-// @Summary Redirect to scan config screen in Harbor.
-// @Description Redirect to scan config screen in Harbor.
-// @Router /api/v1/scanner/harbor/scanConfig [get]
-func (api *api) harborScanConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		type respT struct {
-			Href string `json:"href"`
-		}
-		var resp respT
-		err := api.quickReqToScanner(ctx, "GET", fmt.Sprintf("%s/api/v1/scan/harbor/scanConfigURL", api.scannerURL), &resp)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		response.Ok(w, response.WithItem(resp))
-	}
-}
-
 func (api *api) quickReqToScanner(ctx context.Context, method, url string, outData interface{}) error {
 	tensorsecScannerReq, err := http.NewRequest(method, url, nil)
 	if err != nil {
@@ -489,7 +449,7 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 		return NewAnError(http.StatusInternalServerError,
 			fmt.Errorf("Failed to send request to tensorsec scanner: %w", err))
 	}
-	defer resp.Body.Close()
+	defer util.CloseBodyWithLog(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusUnauthorized {

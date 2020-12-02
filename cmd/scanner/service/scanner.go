@@ -32,7 +32,6 @@ type Scanner struct {
 	server      *http.Server
 	etcd        *clientv3.Client
 	redclair    *component.RedClairService
-	harbor      *component.HarborRESTClient
 	mongoClient *mongo.Client
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -43,7 +42,6 @@ func NewScanner(
 	httpOpts *flag.HTTPOpts,
 	mongoOpts *flag.MongoOpts,
 	clairOpts *flag.ClairOpts,
-	harborOpts *flag.HarborOpts,
 	redisOpts *flag.RedisOpts,
 	updateOpts *flag.UpdateOpts,
 ) (*Scanner, error) {
@@ -83,18 +81,12 @@ func NewScanner(
 		return nil, err
 	}
 
-	harbor, err := component.NewHarborRESTClient(mainCtx, harborOpts)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Scanner{
 		server: &http.Server{
 			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, redclairSvc, harbor, mongodb, httpOpts.HTTPLoggerDisabled),
+			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled),
 		},
 		redclair:    redclairSvc,
-		harbor:      harbor,
 		mongoClient: mongoClient,
 		ctx:         mainCtx,
 		cancel:      mainCancel,
