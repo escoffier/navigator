@@ -567,7 +567,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	for i := range toScan {
 		err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
 		if err != nil {
-			var cErr *ClairUnprocessableLayerError
+			var cErr ClairUnprocessableLayerError
 			if errors.As(err, &cErr) {
 				rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusUnprocessableEntity, "Error occured while scanning layers", err)
 			} else {
@@ -650,7 +650,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 
 	assetContainer, err := assets.FindContainerByImageDigest(ctx, rcSvc.mongodb, scanTask.ImageDigest)
 	if err != nil {
-		var aErr *AssetDoesntExistError
+		var aErr AssetDoesntExistError
 		if errors.As(err, &aErr) {
 			zerolog.Ctx(ctx).Debug().Str("digest", scanTask.ImageDigest).Msg("No kube object in the cluster with given digest")
 		} else {
@@ -671,11 +671,11 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	for retryCounter <= currentMaxScanRetries {
 		layerNamespace, vulnInfo, sensitive, err := rcSvc.redclairEngine.ScanLayer(ctx, hub, currLayer.Digest, currLayer.Parent, scanTask.Repository)
 		if err != nil {
-			var cuErr *ClairUnprocessableLayerError
+			var cuErr ClairUnprocessableLayerError
 			if errors.As(err, &cuErr) {
 				return err
 			}
-			var cmErr *ClairMissingParentLayerError
+			var cmErr ClairMissingParentLayerError
 			if errors.As(err, &cmErr) {
 				zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 				layersBench = append(layersBench, currLayer)

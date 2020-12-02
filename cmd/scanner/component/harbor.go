@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -96,8 +97,11 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 
 		var errorResp harborHTTPErrorResp
-		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = json.NewDecoder(teeReader).Decode(&errorResp)
 		if err != nil {
+			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
 		}
 
@@ -150,8 +154,11 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 
 	if resp.StatusCode != http.StatusOK {
 		var errorResp harborHTTPErrorResp
-		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = json.NewDecoder(teeReader).Decode(&errorResp)
 		if err != nil {
+			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
 			return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
 		}
 
@@ -222,10 +229,12 @@ func (h HarborRESTClient) testConnectionAndAdminPrivileges(ctx context.Context) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-
 		var errorResp harborHTTPErrorResp
-		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = json.NewDecoder(teeReader).Decode(&errorResp)
 		if err != nil {
+			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
 			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
 		}
 

@@ -61,6 +61,10 @@ func (de detailedError) Unwrap() error {
 // if errors.As(err, &det) {
 // 	fmt.Println("detailedError:", det.http, det.Zhongwen)
 // }
+// var anerror AnError
+// if errors.As(err, &anerror) {
+// 	fmt.Println(anerror)
+// }
 func (de detailedError) As(target interface{}) bool {
 	tgt, ok := target.(*detailedError)
 	if ok {
