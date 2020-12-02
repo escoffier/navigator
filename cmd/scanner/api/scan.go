@@ -25,8 +25,6 @@ type ScanResultResponse struct {
 func (api *api) scan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/one", api.scanOne())
-		r.Post("/harbor/scanAll", api.harborScanAll())
-		r.Get("/harbor/scanConfigURL", api.harborGetScanConfigURL())
 		r.Post("/dev/forceInvalidateCache", api.forceInvalidateCache())
 	}
 }
@@ -53,46 +51,6 @@ func (api *api) forceInvalidateCache() http.HandlerFunc {
 	}
 }
 
-// @Summary Trigger scan of all images in Harbor.
-// @Description Trigger scan of all images in Harbor. This API is exposed for testing purpose.
-// @Router /api/v1/scan/harbor/scanAll [post]
-func (api *api) harborScanAll() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		err := api.harbor.ScanAll(ctx)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Failed to trigger full scan in Harbor: %w", err))
-			return
-		}
-
-		log.Info().Msg("Successfully triggered full scan in Harbor")
-		response.Ok(w)
-	}
-}
-
-// @Summary Get link to scan configuration screen in Harbor.
-// @Description Get link to scan configuration screen in Harbor.
-// @Router /api/v1/scan/harbor/scanConfigURL [get]
-func (api *api) harborGetScanConfigURL() http.HandlerFunc {
-	type respT struct {
-		Href string `json:"href"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		_, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		scanConfigLink := api.harbor.GetHarborFullScanConfigURL()
-
-		resp := respT{
-			Href: scanConfigLink,
-		}
-
-		response.Ok(w, response.WithItem(resp))
-	}
-}
-
 // @Summary Scan one image
 // @Description Scan one image
 // @ID v1-scan-one-post
@@ -116,19 +74,13 @@ func (api *api) scanOne() http.HandlerFunc {
 		scanReqRedacted.Authorization = "<redacted>"
 		log.Info().Str("request", fmt.Sprintf("%+v", scanReqRedacted)).Msgf("Received scan request")
 
-		harborResultsLink, err := api.harbor.GetHarborScanResultsLink(ctx, scanReq.Repository, scanReq.Digest)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Failed to obtain harbor results link: %w", err))
-			return
-		}
-
 		task := model.ScanTask{
 			Status:        model.ScanStatusInProgress,
 			StartedAt:     time.Now().Unix(),
 			Repository:    scanReq.Repository,
 			Tag:           scanReq.Tag,
 			URL:           scanReq.URL,
-			HarborURL:     harborResultsLink,
+			HarborURL:     scanReq.ResultsURL,
 			Authorization: scanReq.Authorization,
 			ImageDigest:   scanReq.Digest,
 		}

@@ -1,4 +1,4 @@
-package component
+package harbor
 
 import (
 	"bytes"
@@ -9,10 +9,11 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
+	"github.com/rs/zerolog/log"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type HarborRESTClient struct {
@@ -28,13 +29,6 @@ func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*Har
 		username:      harborOpts.Username,
 		password:      harborOpts.Password,
 		skipTLSVerify: harborOpts.SkipTLSVerify,
-	}
-
-	testCtx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	err := h.testConnectionAndAdminPrivileges(testCtx)
-	if err != nil {
-		return nil, fmt.Errorf("Harbor connection and admin privilege check failed: %w", err)
 	}
 
 	return h, nil
@@ -89,7 +83,7 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	if err != nil {
 		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send scan all request to Harbor: %w", err))
 	}
-	defer resp.Body.Close()
+	defer util.CloseBodyWithLog(resp.Body)
 
 	// Harbor's API doc doesn't mention 201 return code, but it is returned
 	// to Harbor portal upon pressing "Scan all" button.
@@ -122,6 +116,53 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	return nil
 }
 
+func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, error) {
+	var scanAllStatus ScanAllStatus
+
+	// if URL suddenly is wrong, they possibly changed it to /scans/schedule/metrics
+	url := fmt.Sprintf("%s/api/v2.0/scans/all/metrics", h.address)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return scanAllStatus, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get scan all status request to Harbor: %w", err))
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return scanAllStatus, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get scan all status request to Harbor: %w", err))
+	}
+	defer util.CloseBodyWithLog(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp harborHTTPErrorResp
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = json.NewDecoder(teeReader).Decode(&errorResp)
+		if err != nil {
+			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+			return scanAllStatus, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+		}
+
+		return scanAllStatus, NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&scanAllStatus)
+	if err != nil {
+		return scanAllStatus, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+	}
+
+	return scanAllStatus, nil
+}
+
 func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepoName, shaDigest string) (string, error) {
 
 	projectNameRepoName := strings.Split(fullRepoName, "/") // e.g. tensorsecns/tensorsec-console
@@ -150,7 +191,7 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 	if err != nil {
 		return "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
 	}
-	defer resp.Body.Close()
+	defer util.CloseBodyWithLog(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		var errorResp harborHTTPErrorResp
@@ -203,7 +244,7 @@ func (h HarborRESTClient) GetHarborFullScanConfigURL() string {
 	return fmt.Sprintf("%s/harbor/interrogation-services/vulnerability", h.address)
 }
 
-func (h HarborRESTClient) testConnectionAndAdminPrivileges(ctx context.Context) error {
+func (h HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context) error {
 	// GET /users endpoint requires admin role, so let's try to use it
 
 	url := fmt.Sprintf("%s/api/v2.0/users", h.address)
@@ -226,7 +267,7 @@ func (h HarborRESTClient) testConnectionAndAdminPrivileges(ctx context.Context) 
 	if err != nil {
 		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get users request to Harbor: %w", err))
 	}
-	defer resp.Body.Close()
+	defer util.CloseBodyWithLog(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		var errorResp harborHTTPErrorResp

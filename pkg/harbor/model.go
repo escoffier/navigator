@@ -77,6 +77,21 @@ type HarborVulnerabilityReport struct {
 	Vulnerabilities []VulnerabilityItem `json:"vulnerabilities"`
 }
 
+type ScanAllStatusMetrics struct {
+	Error   int `json:"error"`
+	Pending int `json:"pending"`
+	Running int `json:"running"`
+	Success int `json:"success"`
+}
+
+type ScanAllStatus struct {
+	Completed int                  `json:"completed"`
+	IsOngoing bool                 `json:"ongoing"`
+	Requester string               `json:"requester"` // no idea what this is for
+	Total     int                  `json:"total"`
+	Metrics   ScanAllStatusMetrics `json:"metrics"`
+}
+
 func RedclairReportToHarborReport(redclairReport model.VulnerabilityReport) HarborVulnerabilityReport {
 	harborVulns := []VulnerabilityItem{}
 	highestSeveritySoFar := redclair.SeverityUnknown

@@ -26,7 +26,6 @@ func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
 	redclair *component.RedClairService,
-	harbor *component.HarborRESTClient,
 	mongodb *mongo.Database,
 ) {
 	log.Debug().Msg("setting up routes...")
@@ -34,7 +33,7 @@ func SetupRoutes(
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
-	api := newAPI(ctx, redclair, harbor, mongodb)
+	api := newAPI(ctx, redclair, mongodb)
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
 			r.Route("/scan", api.scan())

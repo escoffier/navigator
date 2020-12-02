@@ -47,17 +47,9 @@ spec:
           "--clair-postgresconnectionstring={{ .Values.clair.postgresURI }}",
           "--clair-secretpattern=/config/patterns.json",
           "--redclair-skipregistrytlsverify", # Insecure
-          "--harbor-username={{ .Values.harbor.harborUsername }}",
-          "--harbor-url={{ .Values.harbor.harborURL }}",
-          "--harbor-skiptlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-master:6379",
           "-v"]
         env:
-          - name: TENSORSEC_HARBOR_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.harbor.harborSecretName }}
-                key: password
           - name: TENSORSEC_MONGO_PASSWORD
             valueFrom:
               secretKeyRef:

@@ -60,6 +60,14 @@ var rootCmd = &cobra.Command{
 			Str("endpoint", redisOpts.Endpoint).
 			Msg("Redis options")
 
+		harborOpts := flag.GetHarborOpts(cmd)
+		logging.GetLogger().Info().
+			Str("harbor-url", harborOpts.URL).
+			Str("harbor-username", harborOpts.Username).
+			Str("harbor-password", "***").
+			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
+			Msg("Harbor REST client options")
+
 		elasticOpts := flag.GetElasticOpts(cmd)
 		logging.GetLogger().Info().
 			Str("host", elasticOpts.Host).
@@ -73,7 +81,7 @@ var rootCmd = &cobra.Command{
 			Str("available-rules-folder", rulesOpts.AvailableRulesFolder).
 			Msg("Rules options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts)
+		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts, harborOpts)
 		if err != nil {
 			return err
 		}
@@ -105,6 +113,7 @@ func init() {
 	flag.AddRedisFlags(rootCmd)
 	flag.AddElasticFlags(rootCmd)
 	flag.AddRulesFlags(rootCmd)
+	flag.AddHarborFlags(rootCmd)
 
 	flag.ConfigViper()
 }
