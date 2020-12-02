@@ -17,18 +17,20 @@ import (
 )
 
 type HarborRESTClient struct {
-	address       string // like "https://localhost:30003"
-	username      string
-	password      string
-	skipTLSVerify bool
+	address          string // like "https://localhost:30003"
+	username         string
+	password         string
+	skipTLSVerify    bool
+	apiVersionString string
 }
 
 func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*HarborRESTClient, error) {
 	h := &HarborRESTClient{
-		address:       harborOpts.URL,
-		username:      harborOpts.Username,
-		password:      harborOpts.Password,
-		skipTLSVerify: harborOpts.SkipTLSVerify,
+		address:          harborOpts.URL,
+		username:         harborOpts.Username,
+		password:         harborOpts.Password,
+		skipTLSVerify:    harborOpts.SkipTLSVerify,
+		apiVersionString: "api/v2.0",
 	}
 
 	return h, nil
@@ -45,7 +47,7 @@ type harborHTTPErrorResp struct {
 
 func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	// Example curl request:
-	// curl -X POST -u tensorsec:Tensorsec123 -H "Content-type: application/json" -k -i -d '{"schedule": {"type": "Manual"}}'  https://localhost:30003/api/v2.0/system/scanAll/schedule
+	// curl -X POST -u tensorsec:Tensorsec123 -H "Content-type: application/json" -k -i -d '{"schedule": {"type": "Manual"}}'  https://localhost:30003/api/%s/system/scanAll/schedule
 
 	type ScheduleType struct {
 		Type string `json:"type"`
@@ -63,7 +65,7 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal scan all request to Harbor: %w", err))
 	}
 
-	url := fmt.Sprintf("%s/api/v2.0/system/scanAll/schedule", h.address)
+	url := fmt.Sprintf("%s/%s/system/scanAll/schedule", h.address, h.apiVersionString)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare scan all request to Harbor: %w", err))
@@ -172,7 +174,7 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 	projectName := projectNameRepoName[0]
 	repoName := projectNameRepoName[1]
 
-	url := fmt.Sprintf("%s/api/v2.0/projects", h.address)
+	url := fmt.Sprintf("%s/%s/projects", h.address, h.apiVersionString)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
@@ -244,10 +246,10 @@ func (h HarborRESTClient) GetHarborFullScanConfigURL() string {
 	return fmt.Sprintf("%s/harbor/interrogation-services/vulnerability", h.address)
 }
 
-func (h HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context) error {
+func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context, canDowngrade bool) error {
 	// GET /users endpoint requires admin role, so let's try to use it
 
-	url := fmt.Sprintf("%s/api/v2.0/users", h.address)
+	url := fmt.Sprintf("%s/%s/users", h.address, h.apiVersionString)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get users request to Harbor: %w", err))
@@ -270,6 +272,13 @@ func (h HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context) 
 	defer util.CloseBodyWithLog(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound && canDowngrade {
+			h.apiVersionString = "api"
+			canDowngrade = false
+			log.Warn().Err(err).Msgf("Harbor connectivity check got 404, will try to downgrade API version")
+			return h.TestConnectionAndAdminPrivileges(ctx, canDowngrade)
+		}
+
 		var errorResp harborHTTPErrorResp
 		var rawBodyBuf bytes.Buffer
 		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)

@@ -209,7 +209,8 @@ func (c *Console) Run() func() {
 
 	testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
 	defer testCancel()
-	err = c.harborClient.TestConnectionAndAdminPrivileges(testCtx)
+	canDowngrade := true
+	err = c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
 	if err != nil {
 		log.Error().
 			Err(err).
