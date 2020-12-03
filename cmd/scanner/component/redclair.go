@@ -582,8 +582,11 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	report := &model.ScanReport{}
 	vulns := make([]model.VulnerabilityInfo, 0)
 	sensitives := make([]model.Sensitive, 0)
+
 	perLayerReport := make([]model.VulnerabilityLayerReport, 0)
+
 	report.OverallSeverity = redclair.SeverityUnknown
+
 	for layerNo, digest := range layers {
 		cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 		if err != nil {
@@ -608,6 +611,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 			Sensitives:             cachedLayer.ScanReport.Sensitive,
 			OverallSeverity:        overallSeverity,
 			OverallSeverityInt:     redclair.SeverityToInt(overallSeverity),
+			SeverityHistogram:      cachedLayer.ScanReport.SeverityHistogram,
 		})
 
 		if redclair.SeverityGreaterThan(overallSeverity, report.OverallSeverity) {
@@ -629,21 +633,19 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 				currentVulns = append(currentVulns, v)
 			}
 		}
-		for _, v := range cachedLayer.ScanReport.VulnsAdded {
-			currentVulns = append(currentVulns, v)
-		}
-
+		currentVulns = append(currentVulns, cachedLayer.ScanReport.VulnsAdded...)
 		vulns = currentVulns
 	}
 	util.SortVulnsBySeverityAndStuff(vulns, false)
 
 	report.Vulns = model.VulnerabilityReport{
-		Repository:      scanTask.Repository,
-		Tag:             scanTask.Tag,
-		Digest:          scanTask.ImageDigest,
-		Vulnerabilities: vulns,
-		Sensitives:      sensitives,
-		PerLayerReport:  perLayerReport,
+		Repository:        scanTask.Repository,
+		Tag:               scanTask.Tag,
+		Digest:            scanTask.ImageDigest,
+		Vulnerabilities:   vulns,
+		Sensitives:        sensitives,
+		PerLayerReport:    perLayerReport,
+		SeverityHistogram: rcSvc.makeSeverityHistogram(vulns),
 	}
 	scanTask.ScanReport = *report
 	rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
@@ -692,6 +694,7 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 				retryCounter++
 			}
 		} else {
+
 			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
 			var vulnInfoAdded, vulnInfoRemoved []model.VulnerabilityInfo
 			if currLayer.Parent == "" {
@@ -700,31 +703,28 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			} else {
 				parentLayer, err := rcSvc.getParentLayerFromCache(ctx, currLayer.Parent, *currentlyCachedLayers)
 				if err != nil {
-					zerolog.Ctx(ctx).Info().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
+					zerolog.Ctx(ctx).Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
 					return err
 				}
 				vulnInfoAdded, vulnInfoRemoved, err = rcSvc.getLayerVulnDiff(parentLayer.ScanReport.Vulns, vulnInfo)
 				if err != nil {
-					zerolog.Ctx(ctx).Info().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
+					zerolog.Ctx(ctx).Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
 					return err
 				}
 			}
 
-			overallSeverity := redclair.SeverityUnknown
-			if len(vulnInfo) > 0 {
-				util.SortVulnsBySeverityAndStuff(vulnInfo, false)
-				overallSeverity = vulnInfo[0].Severity
+			scanWorkerResult := rcSvc.generateScanWorkerResult(vulnInfo, vulnInfoAdded, vulnInfoRemoved, sensitive)
+			if err != nil {
+				zerolog.Ctx(ctx).Error().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
+				return err
 			}
 
-			scanWorkerResult := &model.ScanWorkerReport{
-				Vulns:              vulnInfo,
-				VulnsAdded:         vulnInfoAdded,
-				VulnsRemoved:       vulnInfoRemoved,
-				Sensitive:          sensitive,
-				OverallSeverity:    overallSeverity,
-				OverallSeverityInt: redclair.SeverityToInt(overallSeverity),
-			}
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
+			if err != nil {
+				zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
+				return err
+			}
+
 			if len(layersBench) > 0 {
 				currLayer = layersBench[len(layersBench)-1]
 				layersBench = layersBench[:len(layersBench)-1]
@@ -739,6 +739,48 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 		return fmt.Errorf("Max retries reached for a single layer")
 	}
 	return nil
+}
+
+func (rcSvc *RedClairService) makeSeverityHistogram(vulns []model.VulnerabilityInfo) model.SeverityHistogramInfo {
+	sevHistorgram := model.SeverityHistogramInfo{}
+	for _, vuln := range vulns {
+		switch vuln.Severity {
+		case redclair.SeverityCritical:
+			sevHistorgram.NumCritical++
+		case redclair.SeverityHigh:
+			sevHistorgram.NumHigh++
+		case redclair.SeverityMedium:
+			sevHistorgram.NumMedium++
+		case redclair.SeverityLow:
+			sevHistorgram.NumLow++
+		case redclair.SeverityNegligible:
+			sevHistorgram.NumNegligible++
+		case redclair.SeverityUnknown:
+			sevHistorgram.NumUnknown++
+		}
+	}
+	return sevHistorgram
+}
+
+func (rcSvc *RedClairService) generateScanWorkerResult(
+	vulnInfo, vulnInfoAdded, vulnInfoRemoved []model.VulnerabilityInfo, sensitive []model.Sensitive) *model.CachedScanWorkerReport {
+	overallSeverity := redclair.SeverityUnknown
+	if len(vulnInfo) > 0 {
+		util.SortVulnsBySeverityAndStuff(vulnInfo, false)
+		overallSeverity = vulnInfo[0].Severity
+	}
+
+	sevHistorgram := rcSvc.makeSeverityHistogram(vulnInfo)
+
+	return &model.CachedScanWorkerReport{
+		Vulns:              vulnInfo,
+		VulnsAdded:         vulnInfoAdded,
+		VulnsRemoved:       vulnInfoRemoved,
+		Sensitive:          sensitive,
+		OverallSeverity:    overallSeverity,
+		OverallSeverityInt: redclair.SeverityToInt(overallSeverity),
+		SeverityHistogram:  sevHistorgram,
+	}
 }
 
 func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []model.VulnerabilityInfo, currFullVulnsOrig []model.VulnerabilityInfo) ([]model.VulnerabilityInfo, []model.VulnerabilityInfo, error) {
@@ -833,7 +875,7 @@ func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string,
 	}
 }
 
-func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *model.ScanWorkerReport, currentLayerCache *map[string]*model.CachedLayer, layer string, namespace string) error {
+func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *model.CachedScanWorkerReport, currentLayerCache *map[string]*model.CachedLayer, layer string, namespace string) error {
 	if _, exists := (*currentLayerCache)[layer]; !exists {
 		return fmt.Errorf("Layer exists neither in global, nor local cache")
 	}
