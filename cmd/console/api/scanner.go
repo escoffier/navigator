@@ -114,6 +114,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		}
 		result.PerLayerReport = report.PerLayerReport
 		result.TaskID = scanTask.ID
+		result.SeverityHistogram = scanTask.ScanReport.Vulns.SeverityHistogram
 
 		response.Ok(w, response.WithItem(*result))
 	}
@@ -254,15 +255,16 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 			}
 
 			imageScanResult := s.ImageScanSummaryResult{
-				TopVulns:        report.Vulnerabilities[:topVulnsNum],
-				SensitiveFiles:  report.Sensitives,
-				Repository:      report.Repository,
-				Tag:             report.Tag,
-				Digest:          report.Digest,
-				TaskID:          scanTask.ID,
-				StartedAt:       scanTask.StartedAt,
-				FinishedAt:      scanTask.FinishedAt,
-				OverallSeverity: scanTask.ScanReport.OverallSeverity,
+				TopVulns:          report.Vulnerabilities[:topVulnsNum],
+				SensitiveFiles:    report.Sensitives,
+				Repository:        report.Repository,
+				Tag:               report.Tag,
+				Digest:            report.Digest,
+				TaskID:            scanTask.ID,
+				StartedAt:         scanTask.StartedAt,
+				FinishedAt:        scanTask.FinishedAt,
+				OverallSeverity:   scanTask.ScanReport.OverallSeverity,
+				SeverityHistogram: scanTask.ScanReport.Vulns.SeverityHistogram,
 			}
 
 			items[scanTaskNo] = imageScanResult

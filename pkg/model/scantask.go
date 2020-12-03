@@ -22,60 +22,57 @@ type ScannerReq struct {
 
 // ScanTask ...
 type ScanTask struct {
-	MetadataEntry `json:"-" bson:",inline"`
-	ID            primitive.ObjectID `json:"dbId,omitempty" bson:"_id,omitempty"`
-	URL           string             `json:"url" bson:"url"`
-	Authorization string             `json:"-" bson:"-"` // Do NOT persist or return authorization
-	Status        string             `json:"status" bson:"status"`
-	Message       string             `json:"message" bson:"message"`
-	StartedAt     int64              `json:"startedAt" bson:"startedAt"`
-	FinishedAt    int64              `json:"finishedAt" bson:"finishedAt"`
-	Tag           string             `json:"tag" form:"tag" query:"tag"`
-	Repository    string             `json:"repository" bson:"repository"`
-	ImageDigest   string             `json:"digest,omitempty" bson:"digest,omitempty"` // sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
-	ScanReport    ScanReport         `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
-	HarborURL     string             `json:"harborURL,omitempty" bson:"harborURL,omitempty"`
-	FirstScanAt   int64              `json:"firstScanAt" bson:"firstScanAt"` // tracks the first ever scan of this image (digest)
-	Stale         bool               `json:"stale" bson:"stale"`             // if true, there are newer scans of this image (digest)
+	MetadataEntry     `json:"-" bson:",inline"`
+	ID                primitive.ObjectID    `json:"dbId,omitempty" bson:"_id,omitempty"`
+	URL               string                `json:"url" bson:"url"`
+	Authorization     string                `json:"-" bson:"-"` // Do NOT persist or return authorization
+	Status            string                `json:"status" bson:"status"`
+	Message           string                `json:"message" bson:"message"`
+	StartedAt         int64                 `json:"startedAt" bson:"startedAt"`
+	FinishedAt        int64                 `json:"finishedAt" bson:"finishedAt"`
+	Tag               string                `json:"tag" form:"tag" query:"tag"`
+	Repository        string                `json:"repository" bson:"repository"`
+	ImageDigest       string                `json:"digest,omitempty" bson:"digest,omitempty"` // sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
+	ScanReport        ScanReport            `json:"scan_report,omitempty" bson:"scan_report,omitempty"`
+	HarborURL         string                `json:"harborURL,omitempty" bson:"harborURL,omitempty"`
+	FirstScanAt       int64                 `json:"firstScanAt" bson:"firstScanAt"` // tracks the first ever scan of this image (digest)
+	Stale             bool                  `json:"stale" bson:"stale"`             // if true, there are newer scans of this image (digest)
+	SeverityHistogram SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
 }
 
-// ScanWorkerReport ...
-type ScanWorkerReport struct {
-	Vulns              []VulnerabilityInfo `json:"vulnerability" bson:"vulnerability"`
-	VulnsAdded         []VulnerabilityInfo `json:"vulnerabilityAdded" bson:"vulnerabilityAdded"`
-	VulnsRemoved       []VulnerabilityInfo `json:"vulnerabilityRemoved" bson:"vulnerabilityRemoved"`
-	Sensitive          []Sensitive         `json:"sensitive" bson:"sensitive"`
-	OverallSeverity    string              `json:"overallSeverity" bson:"overallSeverity"`
-	OverallSeverityInt int                 `json:"overallSeverityInt" bson:"overallSeverityInt"`
-}
-
-// ScanReport ...
 type ScanReport struct {
-	Vulns              VulnerabilityReport `json:"vulnerability" bson:"vulnerability"`
-	OverallSeverity    string              `json:"overallSeverity" bson:"overallSeverity"`
-	OverallSeverityInt int                 `json:"overallSeverityInt" bson:"overallSeverityInt"`
+	Vulns              VulnerabilityReport   `json:"vulnerability" bson:"vulnerability"`
+	OverallSeverity    string                `json:"overallSeverity" bson:"overallSeverity"`
+	OverallSeverityInt int                   `json:"overallSeverityInt" bson:"overallSeverityInt"`
+	SeverityHistogram  SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
 }
 
-// CachedLayer ...
-type CachedLayer struct {
-	Digest       string            `json:"digest,omitempty"`
-	Parent       string            `json:"parent,omitempty"`
-	Repositories []string          `json:"repositories,omitempty"`
-	Tags         []string          `json:"tag,omitempty"`
-	ImageDigests []string          `json:"image_digest,omitempty"`
-	NameSpace    string            `json:"namespace,omitempty"`
-	ScanReport   *ScanWorkerReport `json:"scan_report,omitempty"`
+type SeverityHistogramInfo struct {
+	NumCritical   int64 `json:"numCritical"`
+	NumHigh       int64 `json:"numHigh"`
+	NumMedium     int64 `json:"numMedium"`
+	NumLow        int64 `json:"numLow"`
+	NumNegligible int64 `json:"numNegligible"`
+	NumUnknown    int64 `json:"numUnknown"`
 }
 
-type DBUpdateTime struct {
-	Value int64 `json:"value"`
+type VulnerabilityReport struct {
+	Repository        string                     `json:"repository"`
+	Tag               string                     `json:"tag"`
+	Digest            string                     `json:"digest"`
+	Vulnerabilities   []VulnerabilityInfo        `json:"vulnerabilities"`
+	Sensitives        []Sensitive                `json:"sensitives"`
+	PerLayerReport    []VulnerabilityLayerReport `json:"perLayerReport"`
+	SeverityHistogram SeverityHistogramInfo      `json:"severityHistogram" bson:"severityHistogram"`
 }
 
-type DBVulnerabilityUpdateTime struct {
-	MaxCreatedAt string `json:"maxcreatedat"`
-}
-
-type DBVulnerabilityEntry struct {
-	Name      string `json:"name"`
-	NameSpace string `json:"namespace"`
+type VulnerabilityLayerReport struct {
+	LayerNo                int                   `json:"layerNo"`
+	LayerDigest            string                `json:"layerDigest"`
+	VulnerabilitiesAdded   []VulnerabilityInfo   `json:"vulnerabilitiesAdded"`
+	VulnerabilitiesRemoved []VulnerabilityInfo   `json:"vulnerabilitiesRemoved"`
+	Sensitives             []Sensitive           `json:"sensitives"`
+	OverallSeverity        string                `json:"overallSeverity"`
+	OverallSeverityInt     int                   `json:"overallSeverityInt"`
+	SeverityHistogram      SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
 }
