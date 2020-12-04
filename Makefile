@@ -62,11 +62,14 @@ scap-jobs:
 ifeq ($(USEMIRROR),true)
 	@echo "scap-jobs will use mirror"
 	cd configs/scap/jobs/kube-bench && \
-		docker build -t $(REPOPREFIX)/kube-bench:latest --build-arg MIRROR=mirrors.aliyun.com .
+		docker build -t $(REPOPREFIX)/kube-bench:latest \
+			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 	cd configs/scap/jobs/docker-bench-security && \
-		docker build -t $(REPOPREFIX)/docker-bench-security:latest --build-arg MIRROR=mirrors.aliyun.com .
+		docker build -t $(REPOPREFIX)/docker-bench-security:latest \
+			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 	cd configs/scap/jobs/host-bench && \
-		docker build -t $(REPOPREFIX)/host-bench:latest --build-arg MIRROR=mirrors.aliyun.com .
+		docker build -t $(REPOPREFIX)/host-bench:latest \
+			--build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "scap-jobs will not use mirror"
 	cd configs/scap/jobs/kube-bench && \
