@@ -66,10 +66,12 @@ func SeverityToInt(sev string) int {
 
 func CompareVulnerabilities(left model.VulnerabilityInfo, right model.VulnerabilityInfo) bool {
 
-	if left.CVSS.CVSSv2Score < right.CVSS.CVSSv2Score {
-		return true
-	} else if left.CVSS.CVSSv2Score > right.CVSS.CVSSv2Score {
-		return false
+	if left.CVSS.CVSSv2Score != "" && right.CVSS.CVSSv2Score != "" {
+		if left.CVSS.CVSSv2Score < right.CVSS.CVSSv2Score {
+			return true
+		} else if left.CVSS.CVSSv2Score > right.CVSS.CVSSv2Score {
+			return false
+		}
 	}
 	// else CVSSv2 was equal (usually the case when its empty string "" on both sides)
 
