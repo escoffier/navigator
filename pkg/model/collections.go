@@ -11,10 +11,12 @@ const (
 	RulesCollection
 	RulesDefinitionsCollection
 	ScanTasksCollection
+	ComplianceCheckResults
 	ComplianceCheckKubeRecordsCollection
 	ComplianceCheckDockerRecordsCollection
 	ComplianceCheckHostRecordsCollection
 	Cve2cnnvdCollection
+	CheckHistoryEntryCollection
 )
 
 func GetCollectionNames() []string {
@@ -27,10 +29,12 @@ func GetCollectionNames() []string {
 		"rules",
 		"rulesDefinitions",
 		"scantasks",
+		"complianceCheckResults",
 		"kube-bench-records",
 		"docker-bench-records",
 		"host-bench-records",
 		"CVE2CNNVD",
+		"checkHistoryEntry",
 	}
 }
 

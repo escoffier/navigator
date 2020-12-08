@@ -1,26 +1,72 @@
 package model
 
-// SoftwareType ...
-type SoftwareType string
+import "go.mongodb.org/mongo-driver/bson/primitive"
 
-// SourcePackage ...
-const SourcePackage SoftwareType = "source"
+var scannedImagesSortableFields = func() map[string]string {
+	return map[string]string{
+		"finishedAt":      "finishedAt",
+		"overallSeverity": "scan_report.overallSeverityInt",
+		"repository":      "repository",
+		"tag":             "tag",
+		"imageDigest":     "digest",
+	}
+}
 
-// BinaryPackage ...
-const BinaryPackage SoftwareType = "binary"
+func GetDefaultScannedImagesSortableName() string {
+	return "finishedAt"
+}
 
-// NpmPackage ...
-const NpmPackage SoftwareType = "npm"
+func GetScannedImagesSortableField(key string) string {
+	return scannedImagesSortableFields()[key]
+}
 
-// InfoPackage ...
-const InfoPackage SoftwareType = "info"
+func GetScannedImagesSortableNames() []string {
+	keys := make([]string, len(scannedImagesSortableFields()))
 
-// Software ...
-type Software struct {
-	Name          string       `json:"name"`
-	Version       string       `json:"version"`
-	VersionFormat string       `json:"versionFormat"`
-	Type          SoftwareType `json:"type"`
+	i := 0
+	for k := range scannedImagesSortableFields() {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
+type ImageScanSummaryResult struct {
+	TopVulns          []VulnerabilityInfo   `json:"topVulnerabilities"`
+	OverallSeverity   string                `json:"overallSeverity"`
+	Repository        string                `json:"repository"`
+	Tag               string                `json:"tag"`
+	Digest            string                `json:"digest"`
+	TaskID            primitive.ObjectID    `json:"taskID"`
+	SensitiveFiles    []Sensitive           `json:"sensitiveFiles"`
+	StartedAt         int64                 `json:"startedAt"`
+	FinishedAt        int64                 `json:"finishedAt"`
+	SeverityHistogram SeverityHistogramInfo `json:"severityHistogram"`
+}
+
+type ImageScanDetailedResult struct {
+	TopVulns          []VulnerabilityInfo        `json:"topVulnerabilities"`
+	OverallSeverity   string                     `json:"overallSeverity"`
+	Repository        string                     `json:"repository"`
+	Tag               string                     `json:"tag"`
+	Digest            string                     `json:"digest"`
+	PerLayerReport    []VulnerabilityLayerReport `json:"perLayerReport"`
+	TaskID            primitive.ObjectID         `json:"taskID"`
+	SeverityHistogram SeverityHistogramInfo      `json:"severityHistogram"`
+}
+
+type ScanReportAffectedImage struct {
+	Repository string             `json:"repository"`
+	Tag        string             `json:"tag"`
+	Digest     string             `json:"digest"`
+	HarborURL  string             `json:"harborURL"`
+	FinishedAt int64              `json:"finishedAt"`
+	TaskID     primitive.ObjectID `json:"taskID"`
+}
+
+type ScanReportListItem struct {
+	VulnInfo       VulnerabilityInfo          `json:"vulnInfo"`
+	AffectedImages *[]ScanReportAffectedImage `json:"affectedImages"`
 }
 
 // Sensitive ...

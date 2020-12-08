@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -19,35 +22,61 @@ import (
 type RuleService struct {
 	mongodb                  *mongo.Database
 	AvailableRulesFolderPath string
+	rulesCache               *rcache.RulesCache
 }
 
-func NewRuleService(availableRulesFolderPath string, mongodb *mongo.Database) *RuleService {
+func NewRuleService(ctx context.Context, availableRulesFolderPath string, mongodb *mongo.Database, redisClient *redis.Client) *RuleService {
 	return &RuleService{
 		mongodb:                  mongodb,
 		AvailableRulesFolderPath: availableRulesFolderPath,
+		rulesCache:               rcache.NewRulesCache(ctx, mongodb, redisClient),
 	}
 }
 
 func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) ([]model.Rule, int64, error) {
-	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
-
-	cursor, err := s.mongodb.Collection(model.RulesCollection.String()).Find(ctx, filter, findOptions)
+	rulesIds, docNum, err := s.rulesCache.GetItems(ctx, offset, limit)
 	if err != nil {
-		return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get documents: %w", err))
+		return nil, 0, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("Failed to get results from cache: %w", err))
 	}
-	defer cursor.Close(ctx)
 
-	rules := make([]model.Rule, 0)
-	for cursor.Next(ctx) {
-		var rule model.Rule
-		err := cursor.Decode(&rule)
-		if err != nil {
-			return []model.Rule{}, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
-		}
-		rules = append(rules, rule)
+	items := make([]model.Rule, len(rulesIds))
+
+	ids := make([]primitive.ObjectID, len(rulesIds))
+	for i := range rulesIds {
+		ids[i] = rulesIds[i].ID
 	}
-	return rules, int64(len(rules)), nil
+
+	filter := bson.D{{"_id", bson.D{{"$in", ids}}}}
+	opts := options.Find()
+	opts.SetMaxTime(time.Second * 10)
+	opts.SetSort(bson.D{{"created_at", util.SortOrderToInt("desc")}})
+
+	coll := s.mongodb.Collection(model.RulesCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	cur, err := coll.Find(mongoCtx, filter, opts)
+	if err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find documents: %w", err))
+	}
+	defer cur.Close(mongoCtx)
+	var ruleNo int = 0
+	for cur.Next(mongoCtx) {
+		var rule model.Rule
+		err := cur.Decode(&rule)
+		if err != nil {
+			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+
+		items[ruleNo] = rule
+		ruleNo++
+	}
+	err = cur.Err()
+	if err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Mongo cursor error: %w", err))
+	}
+
+	return items, docNum, nil
 }
 
 func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {

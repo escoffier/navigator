@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -43,7 +43,6 @@ type api struct {
 	tokenAuth      *jwtauth.JWTAuth
 	mongodb        *mongo.Database
 	scapper        *scapper.Scapper
-	syncData       *util.ImageVulnerabilityCache
 	scannerURL     string
 	cronService    *cron.CronService
 	clusterService *cluster.ClusterService
@@ -53,6 +52,8 @@ type api struct {
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService
 	auditService   *audit.AuditService
 	cleanupService *cleanup.CleanupService
+	scannerService *scanner.ScannerService
+	scapService    *scapper.ScapService
 	harborClient   *harbor.HarborRESTClient
 
 	// For managing state in Harbor plugin API
@@ -76,6 +77,8 @@ func newAPI(
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
+	scannerService *scanner.ScannerService,
+	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 ) *api {
 	return &api{
@@ -84,7 +87,6 @@ func newAPI(
 		tokenAuth:                   jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
 		mongodb:                     mongodb,
 		scapper:                     scapper,
-		syncData:                    util.NewImageVulnerabilityCache(mongodb, redisClient, ctx),
 		scannerURL:                  scannerURL,
 		cronService:                 cronService,
 		clusterService:              clusterService,
@@ -94,6 +96,8 @@ func newAPI(
 		onlineVulnsSvc:              onlineVulnsSvc,
 		auditService:                auditService,
 		cleanupService:              cleanupService,
+		scannerService:              scannerService,
+		scapService:                 scapService,
 		harborClient:                harborClient,
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),

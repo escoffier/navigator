@@ -6,14 +6,17 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -24,17 +27,21 @@ type ClusterService struct {
 	mongodb        *mongo.Database
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService
 	cleanupService *cleanup.CleanupService
+	clustersCache  *rcache.ClustersCache
 }
 
 func NewClusterService(
+	ctx context.Context,
 	mongodb *mongo.Database,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	cleanupService *cleanup.CleanupService,
+	redisClient *redis.Client,
 ) *ClusterService {
 	return &ClusterService{
 		mongodb:        mongodb,
 		onlineVulnsSvc: onlineVulnsSvc,
 		cleanupService: cleanupService,
+		clustersCache:  rcache.NewClustersCache(ctx, mongodb, redisClient),
 	}
 }
 
@@ -138,35 +145,49 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 }
 
 func (s *ClusterService) ListClusters(ctx context.Context, offset int64, limit int64) ([]model.Cluster, int64, error) {
-	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
-	var clusters []model.Cluster
+	clusterIds, docNum, err := s.clustersCache.GetItems(ctx, offset, limit)
+	if err != nil {
+		return nil, 0, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("Failed to get results from cache: %w", err))
+	}
+
+	items := make([]model.Cluster, len(clusterIds))
+
+	ids := make([]primitive.ObjectID, len(clusterIds))
+	for i := range clusterIds {
+		ids[i] = clusterIds[i].ID
+	}
+
+	filter := bson.D{{"_id", bson.D{{"$in", ids}}}}
 	opts := options.Find()
-	opts.SetSkip(offset)
-	opts.SetLimit(limit)
+	opts.SetMaxTime(time.Second * 10)
+	opts.SetSort(bson.D{{"createdAt", util.SortOrderToInt("desc")}})
 
 	coll := s.mongodb.Collection(model.ClusterCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
 
-	cur, err := coll.Find(ctx, filter, opts)
+	cur, err := coll.Find(mongoCtx, filter, opts)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find documents: %w", err))
 	}
-	defer cur.Close(ctx)
-
-	for cur.Next(ctx) {
-		//Create a value into which the single document can be decoded
-		var elem model.Cluster
-		err := cur.Decode(&elem)
+	defer cur.Close(mongoCtx)
+	var clusterNo int = 0
+	for cur.Next(mongoCtx) {
+		var cluster model.Cluster
+		err := cur.Decode(&cluster)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
-		clusters = append(clusters, elem)
+
+		items[clusterNo] = cluster
+		clusterNo++
+	}
+	err = cur.Err()
+	if err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Mongo cursor error: %w", err))
 	}
 
-	docNum, err := coll.CountDocuments(ctx, filter)
-	if err != nil {
-		return nil, 0, err
-	}
-	return clusters, docNum, err
+	return items, docNum, nil
 }
 
 func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID primitive.ObjectID, upCluster *model.Cluster) (*model.Cluster, error) {

@@ -10,12 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	r "gitlab.com/piccolo_su/vegeta/pkg/redclair"
 
@@ -36,16 +38,18 @@ type AlertService struct {
 	rs                *rule.RuleService
 	mongodb           *mongo.Database
 	lastPollTimestamp time.Time
+	alertsCache       *rcache.AlertsCache
 	ctx               context.Context
 }
 
-func NewAlertService(ctx context.Context, rs *rule.RuleService, es *elastic.Client, elasticIndex string, mongodb *mongo.Database) *AlertService {
+func NewAlertService(ctx context.Context, redisClient *redis.Client, rs *rule.RuleService, es *elastic.Client, elasticIndex string, mongodb *mongo.Database) *AlertService {
 	alertService := &AlertService{
 		elasticIndex:      elasticIndex,
 		elasticClient:     es,
 		rs:                rs,
 		mongodb:           mongodb,
 		lastPollTimestamp: time.Now(),
+		alertsCache:       rcache.NewAlertsCache(ctx, mongodb, redisClient),
 		ctx:               ctx,
 	}
 	go alertService.elasticsearchAlertPoller()
@@ -345,36 +349,33 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 }
 
 func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, kind model.AlertKind, sortBy string, sortOrder string, onlyNotAcknowledged bool) ([]model.Alert, int64, error) {
-	filter := bson.M{}
-	if onlyNotAcknowledged {
-		filter = bson.M{"acknowledged": false}
+	alertIds, docNum, err := s.alertsCache.GetItems(ctx, kind, offset, limit, sortBy, sortOrder, onlyNotAcknowledged)
+	if err != nil {
+		return nil, 0, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("Failed to get results from cache: %w", err))
 	}
 
-	if kind != model.AlertKindAny {
-		filter["kind"] = string(kind)
+	items := make([]model.Alert, len(alertIds))
+	ids := make([]primitive.ObjectID, len(alertIds))
+	for i := range alertIds {
+		ids[i] = alertIds[i].ID
 	}
 
+	filter := bson.D{{"_id", bson.D{{"$in", ids}}}}
 	opts := options.Find()
-	opts.SetSkip(offset)
-	opts.SetLimit(limit)
-
-	switch sortBy {
-	case "timestamp":
-		opts.SetSort(bson.D{{"timestamp", util.SortOrderToInt(sortOrder)}})
-	case "severity":
-		opts.SetSort(bson.D{{"severityInt", util.SortOrderToInt(sortOrder)}})
-	}
+	opts.SetMaxTime(time.Second * 10)
+	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
 
 	coll := s.mongodb.Collection(model.AlertsCollection.String())
-	cur, err := coll.Find(ctx, filter, opts)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	cur, err := coll.Find(mongoCtx, filter, opts)
 	if err != nil {
-		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err))
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find documents: %w", err))
 	}
-	defer cur.Close(ctx)
-
-	var alerts []model.Alert
-
-	for cur.Next(ctx) {
+	defer cur.Close(mongoCtx)
+	var alertNo int = 0
+	for cur.Next(mongoCtx) {
 		var alert model.Alert
 		err := cur.Decode(&alert)
 		if err != nil {
@@ -383,12 +384,14 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 
 		alert.ApplyTranslation(ctx)
 
-		alerts = append(alerts, alert)
+		items[alertNo] = alert
+		alertNo++
+	}
+	err = cur.Err()
+	if err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Mongo cursor error: %w", err))
 	}
 
-	docNum, err := coll.CountDocuments(ctx, filter)
-	if err != nil {
-		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't count documents: %w", err))
-	}
-	return alerts, docNum, err
+	return items, docNum, nil
+
 }

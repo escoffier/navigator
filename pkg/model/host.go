@@ -1,10 +1,8 @@
-package host
-
-import "gitlab.com/piccolo_su/vegeta/pkg/model"
+package model
 
 type HostJobEntry struct {
-	model.ComplianceCheckEntryBase `bson:",inline"`
-	Report                         HostReportResult `json:"report" bson:"report,omitempty"`
+	ComplianceCheckEntryBase `bson:",inline"`
+	Report                   HostReportResult `json:"report" bson:"report,omitempty"`
 }
 
 type HostReportResult struct {

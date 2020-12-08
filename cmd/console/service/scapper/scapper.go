@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"reflect"
@@ -20,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -453,13 +455,41 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		Status:    model.ComplianceCheckStatusInProgress,
 		CreatedAt: secs,
 	}
+	err := s.MongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		var sessionError error
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
 
-	_, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
+		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
+
+		_, sessionError = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %w", sessionError))
+		}
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update scap job document: %w", sessionError))
+		}
+		sessionError = s.updateScapReports(sessionContext, check, targetNodeName)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to update scap reports: %w", sessionError))
+			logging.GetLogger().Error().
+				Str("checkId", check.CheckUUID.String()).
+				Str("nodeName", targetNodeName).
+				Msg("Failed to update scap reports")
+		}
+		return nil
+	})
 	if err != nil {
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %w", err))
+		logging.GetLogger().Error().
+			Err(err).
+			Str("checkId", check.CheckUUID.String()).
+			Str("nodeName", targetNodeName).
+			Msg("Failed to commit scap update transaction")
 	}
-
-	return nil
+	return err
 }
 
 func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Check, nodeName, msg string, timeEpochSecs int64) {
@@ -471,13 +501,259 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 		"message":         msg,
 		"audit_timestamp": time.Now(),
 	}}
-	_, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
+	err := s.MongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		var sessionError error
+		sessionError = sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
+
+		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
+		defer sessionCommitter()
+
+		_, sessionError = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update scap job document: %w", sessionError))
+		}
+		sessionError = s.updateScapReports(sessionContext, check, nodeName)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to update scap reports: %w", sessionError))
+			logging.GetLogger().Error().
+				Str("checkId", check.CheckUUID.String()).
+				Str("nodeName", nodeName).
+				Msg("Failed to update scap reports")
+		}
+		return nil
+	})
 	if err != nil {
 		logging.GetLogger().Error().
+			Err(err).
 			Str("checkId", check.CheckUUID.String()).
 			Str("nodeName", nodeName).
-			Msg("Failed to update mongo entry status to failed")
+			Msg("Failed to commit scap update transaction")
 	}
+}
+
+func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, nodeName string) error {
+	filter := bson.M{"checkId": check.CheckUUID.String()}
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
+	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).Find(ctx, filter, findOptions)
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to find documents: %w", err))
+	}
+	defer cursor.Close(ctx)
+
+	checkFindOneOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	var oldCheckHistory model.CheckHistoryEntry
+	res := s.MongoDB.Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, checkFindOneOptions)
+	var checkHistory model.CheckHistoryEntry
+	if res.Err() != nil {
+		if res.Err() == mongo.ErrNoDocuments {
+			checkHistory = model.CheckHistoryEntry{
+				ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
+				CheckID:   check.CheckUUID.String(),
+				ClusterID: check.ClusterID,
+				CreatedAt: math.MaxInt64,
+				CheckType: string(check.CheckType),
+			}
+		} else {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", res.Err()))
+		}
+	} else {
+		err = res.Decode(&oldCheckHistory)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		checkHistory = model.CheckHistoryEntry{
+			ID:        oldCheckHistory.ID,
+			CheckID:   check.CheckUUID.String(),
+			ClusterID: check.ClusterID,
+			CreatedAt: math.MaxInt64,
+			CheckType: string(check.CheckType),
+		}
+	}
+
+	for cursor.Next(ctx) {
+		var result model.ComplianceCheckEntryBase
+		err = cursor.Decode(&result)
+		switch check.CheckType {
+		case model.ComplianceCheckTargetTypeKube:
+			var complianceTest model.KubeJobEntry
+			err := cursor.Decode(&complianceTest)
+			if err != nil {
+				return err
+			}
+			if complianceTest.CreatedAt < checkHistory.CreatedAt {
+				checkHistory.CreatedAt = complianceTest.CreatedAt
+			}
+			if checkHistory.FinishedAt != -1 {
+				if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+					// Set to -1 not to 0, because 0 is the starting value.
+					checkHistory.FinishedAt = -1
+				} else {
+					if checkHistory.FinishedAt < complianceTest.FinishedAt {
+						checkHistory.FinishedAt = complianceTest.FinishedAt
+					}
+				}
+			}
+			if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+				checkHistory.NumWaiting++
+				continue
+			}
+			if complianceTest.Status == model.ComplianceCheckStatusFailed {
+				checkHistory.NumError++
+				continue
+			}
+			policiesFailed := int64(0)
+			policiesInconclusive := int64(0)
+			policiesPassed := int64(0)
+			for _, reportDetails := range complianceTest.Report {
+				for _, section := range reportDetails.Tests {
+					policiesFailed += section.Fail
+					policiesPassed += section.Pass
+					policiesInconclusive += section.Info
+					policiesInconclusive += section.Warn
+				}
+			}
+
+			checkHistory.TotalPoliciesPassed += policiesPassed
+			checkHistory.TotalPoliciesTried += policiesFailed + policiesInconclusive + policiesPassed
+
+			if policiesFailed != 0 {
+				checkHistory.NumFailed++
+			} else if policiesInconclusive != 0 {
+				checkHistory.NumInconclusive++
+			} else {
+				checkHistory.NumSuccessful++
+			}
+
+		case model.ComplianceCheckTargetTypeDocker:
+			var complianceTest model.DockerJobEntry
+			err := cursor.Decode(&complianceTest)
+			if err != nil {
+				return err
+			}
+			if complianceTest.CreatedAt < checkHistory.CreatedAt {
+				checkHistory.CreatedAt = complianceTest.CreatedAt
+			}
+			if checkHistory.FinishedAt != -1 {
+				if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+					// Set to -1 not to 0, because 0 is the starting value.
+					checkHistory.FinishedAt = -1
+				} else {
+					if checkHistory.FinishedAt < complianceTest.FinishedAt {
+						checkHistory.FinishedAt = complianceTest.FinishedAt
+					}
+				}
+			}
+			if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+				checkHistory.NumWaiting++
+				continue
+			}
+			if complianceTest.Status == model.ComplianceCheckStatusFailed {
+				checkHistory.NumError++
+				continue
+			}
+			policiesFailed := int64(0)
+			policiesInconclusive := int64(0)
+			policiesPassed := int64(0)
+			for _, test := range complianceTest.Report.Tests {
+				for _, result := range test.Results {
+					if result.Result == "INFO" {
+						policiesInconclusive++
+					} else if result.Result == "NOTE" {
+						policiesInconclusive++
+					} else if result.Result == "PASS" {
+						policiesPassed++
+					} else {
+						policiesFailed++
+					}
+				}
+			}
+
+			checkHistory.TotalPoliciesPassed += policiesPassed
+			checkHistory.TotalPoliciesTried += policiesFailed + policiesInconclusive + policiesPassed
+
+			if policiesFailed != 0 {
+				checkHistory.NumFailed++
+			} else if policiesInconclusive != 0 {
+				checkHistory.NumInconclusive++
+			} else {
+				checkHistory.NumSuccessful++
+			}
+
+		case model.ComplianceCheckTargetTypeHost:
+			var complianceTest model.HostJobEntry
+			err := cursor.Decode(&complianceTest)
+			if err != nil {
+				return err
+			}
+			if complianceTest.CreatedAt < checkHistory.CreatedAt {
+				checkHistory.CreatedAt = complianceTest.CreatedAt
+			}
+			if checkHistory.FinishedAt != -1 {
+				if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+					// Set to -1 not to 0, because 0 is the starting value.
+					checkHistory.FinishedAt = -1
+				} else {
+					if checkHistory.FinishedAt < complianceTest.FinishedAt {
+						checkHistory.FinishedAt = complianceTest.FinishedAt
+					}
+				}
+			}
+			if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+				checkHistory.NumWaiting++
+				continue
+			}
+			if complianceTest.Status == model.ComplianceCheckStatusFailed {
+				checkHistory.NumError++
+				continue
+			}
+			policiesFailed := int64(0)
+			policiesInconclusive := int64(0)
+			policiesPassed := int64(0)
+			for _, test := range complianceTest.Report.Results {
+				if test.Result == "notselected" {
+					policiesInconclusive++
+				} else if test.Result == "pass" {
+					policiesPassed++
+				} else if test.Result == "fail" {
+					policiesFailed++
+				}
+			}
+
+			checkHistory.TotalPoliciesPassed += policiesPassed
+			checkHistory.TotalPoliciesTried += policiesFailed + policiesInconclusive + policiesPassed
+
+			if policiesFailed != 0 {
+				checkHistory.NumFailed++
+			} else if policiesInconclusive != 0 {
+				checkHistory.NumInconclusive++
+			} else {
+				checkHistory.NumSuccessful++
+			}
+		default:
+			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Unexpected checkType %s", check.CheckType))
+		}
+	}
+	finishedNodesNum := checkHistory.NumFailed + checkHistory.NumInconclusive + checkHistory.NumSuccessful
+	if finishedNodesNum != 0 {
+		checkHistory.Score = float32(checkHistory.TotalPoliciesPassed) / float32(finishedNodesNum)
+		checkHistory.MaxScore = float32(checkHistory.TotalPoliciesTried) / float32(finishedNodesNum)
+	}
+	if checkHistory.NumWaiting == 0 {
+		checkHistory.HistoricisedTimestamp = time.Now()
+	}
+	filter = bson.M{"checkId": check.CheckUUID.String()}
+	update := bson.M{"$set": checkHistory}
+	opts := options.Update().SetUpsert(true)
+
+	_, err = s.MongoDB.Collection(model.CheckHistoryEntryCollection.String()).UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
+	}
+
+	return nil
 }
 
 func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, maxNumJobs int) (chan string, chan struct{}, bool) {
@@ -686,6 +962,10 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 			}
 			runningNodeNames = removeElement(finishedNodeName, runningNodeNames)
 			logging.GetLogger().Info().Str("node-name", finishedNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job finished")
+
+			mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer mongoCtxCancel()
+			s.updateScapReports(mongoCtx, check, finishedNodeName)
 
 			if len(runningNodeNames) == 0 {
 				logging.GetLogger().Info().
