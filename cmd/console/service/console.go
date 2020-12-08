@@ -33,7 +33,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
+	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -98,13 +99,16 @@ func NewConsole(
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	// rule service
-	ruleService := rule.NewRuleService(rulesOpts.AvailableRulesFolder, mongodb)
+	ruleService := rule.NewRuleService(mainCtx, rulesOpts.AvailableRulesFolder, mongodb, redisClient)
 
 	// audit service
 	auditService := audit.NewAuditService(mongodb)
 
 	// cleanup service
 	cleanupService := cleanup.NewCleanupService(mongodb, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath)
+
+	// scanner service
+	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongodb)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -118,10 +122,10 @@ func NewConsole(
 	onlineVulnsSvc := onlinevulns.NewOnlineVulnsService(mongodb)
 
 	// cluster service
-	clusterService := cluster.NewClusterService(mongodb, onlineVulnsSvc, cleanupService)
+	clusterService := cluster.NewClusterService(mainCtx, mongodb, onlineVulnsSvc, cleanupService, redisClient)
 
 	// scap service
-	scapper := &scapper.Scapper{
+	scapper := &sp.Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
 		DockerRepoScapTag:  scapOpts.ImageTag,
 		MongoDB:            mongodb,
@@ -138,7 +142,13 @@ func NewConsole(
 	cronService := cron.NewCronService(c, mongodb, scapper, clusterService, mainCtx)
 
 	// alert service
-	alertService := alert.NewAlertService(mainCtx, ruleService, es, elasticOpts.Index, mongodb)
+	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
+
+	// scap service
+	scapService, err := sp.NewScapService(mainCtx, redisClient, mongodb)
+	if err != nil {
+		return nil, err
+	}
 
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
 	if err != nil {
@@ -162,6 +172,8 @@ func NewConsole(
 				onlineVulnsSvc,
 				auditService,
 				cleanupService,
+				scannerService,
+				scapService,
 				harborClient,
 			),
 		},
@@ -448,6 +460,48 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 				}, Options: nil,
 			},
 		}
+	}
+	neededIndexesPerCollection[model.CheckHistoryEntryCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"createdAt": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"finishedAt": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"checkID": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"numSuccessful": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"numFailed": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"numError": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"numWaiting": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"numInconclusive": 1,
+			}, Options: nil,
+		},
 	}
 	neededIndexesPerCollection[model.AssetsContainersCollection.String()] = []mongo.IndexModel{
 		{

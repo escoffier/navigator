@@ -77,7 +77,7 @@ func (api *api) listAlerts() http.HandlerFunc {
 			onlyNotAcknowledged = false
 		}
 
-		sortBy, err := api.sortByFromQuery(r, "timestamp", "severity")
+		sortBy, err := api.sortByFromQuery(r, model.GetDefaultAlertSortableName(), model.GetAlertSortableNames()...)
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
@@ -95,7 +95,7 @@ func (api *api) listAlerts() http.HandlerFunc {
 			return
 		}
 
-		alerts, docNum, err := api.alertService.ListAlerts(ctx, offset, limit, kind, sortBy, sortOrder, onlyNotAcknowledged)
+		alerts, docNum, err := api.alertService.ListAlerts(ctx, offset, limit, kind, model.GetAlertSortableField(sortBy), sortOrder, onlyNotAcknowledged)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,

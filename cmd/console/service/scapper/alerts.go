@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/docker"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/host"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/kube"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -240,7 +237,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 
 		switch check.CheckType {
 		case model.ComplianceCheckTargetTypeKube:
-			var reports map[string]kube.KubeReportResult
+			var reports map[string]model.KubeReportResult
 			err = json.Unmarshal(jsonbody, &reports)
 			if err != nil {
 				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to unmarshal into %T: %w", reports, err))
@@ -257,7 +254,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 			}
 
 		case model.ComplianceCheckTargetTypeDocker:
-			var report docker.DockerReportResult
+			var report model.DockerReportResult
 			err = json.Unmarshal(jsonbody, &report)
 			if err != nil {
 				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to unmarshal into %T: %w", report, err))
@@ -271,7 +268,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 			}
 
 		case model.ComplianceCheckTargetTypeHost:
-			var report host.HostReportResult
+			var report model.HostReportResult
 			err = json.Unmarshal(jsonbody, &report)
 			if err != nil {
 				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to unmarshal into %T: %w", report, err))

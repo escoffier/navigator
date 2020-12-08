@@ -1,10 +1,8 @@
-package docker
-
-import "gitlab.com/piccolo_su/vegeta/pkg/model"
+package model
 
 type DockerJobEntry struct {
-	model.ComplianceCheckEntryBase `bson:",inline"`
-	Report                         DockerReportResult `json:"report" bson:"report,omitempty"`
+	ComplianceCheckEntryBase `bson:",inline"`
+	Report                   DockerReportResult `json:"report" bson:"report,omitempty"`
 }
 
 type DockerReportResult struct {

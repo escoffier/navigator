@@ -1,10 +1,8 @@
-package kube
-
-import "gitlab.com/piccolo_su/vegeta/pkg/model"
+package model
 
 type KubeJobEntry struct {
-	model.ComplianceCheckEntryBase `bson:",inline"`
-	Report                         map[string]KubeReportResult `json:"report" bson:"report,omitempty"`
+	ComplianceCheckEntryBase `bson:",inline"`
+	Report                   map[string]KubeReportResult `json:"report" bson:"report,omitempty"`
 }
 
 type KubeReportResult struct {

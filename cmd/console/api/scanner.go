@@ -17,7 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	s "gitlab.com/piccolo_su/vegeta/cmd/console/model/scanner"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -31,7 +30,7 @@ func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/task/{taskID}", api.getScannerTask())
 		r.Get("/reportsBySeverity", api.listScanReportsBySeverity())
-		r.Get("/reportsByImage", api.listScannerImageVulnerabilities())
+		r.Get("/reportsByImage", api.listScannedImages())
 		r.Get("/report/{taskID}", api.getScannerImageVulnerabilities())
 		r.Post("/scan", api.scan())
 
@@ -83,7 +82,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 			return
 		}
 
-		result := &s.ImageScanDetailedResult{}
+		result := &model.ImageScanDetailedResult{}
 		report := scanTask.ScanReport.Vulns
 
 		topVulnsNum := len(report.Vulnerabilities)
@@ -129,15 +128,15 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 // @Param maxImageAgeInHours query int false "return only images that have only scans younger than this number; 0 or empty disables"
 // @Param sortBy query string false "finishedAt/overallSeverity/repository/tag/imageDigest"
 // @Router /api/v1/scanner/reportsByImage [get]
-func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
+func (api *api) listScannedImages() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		var maxImageAgeInHours int
 		maxImageAgeInHoursRaw := r.URL.Query().Get("maxImageAgeInHours")
-		var imageTimeFilter time.Time
-		if maxImageAgeInHoursRaw != "" && maxImageAgeInHoursRaw != "0" {
-			maxImageAgeInHours, err := strconv.Atoi(maxImageAgeInHoursRaw)
+		if maxImageAgeInHoursRaw != "" {
+			m, err := strconv.Atoi(maxImageAgeInHoursRaw)
 			if err != nil {
 				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
 					fmt.Errorf("failed to convert to int: %w", err),
@@ -150,10 +149,18 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 					Suberror{"maxImageAgeInHours", "uint"}))
 				return
 			}
-			imageTimeFilter = time.Now().Add(time.Duration(-1*maxImageAgeInHours) * time.Hour)
+			if maxImageAgeInHours != 1 && maxImageAgeInHours != 24 && maxImageAgeInHours != 0 {
+				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+					fmt.Errorf("must be equal to 0, 1 or 24"),
+					Suberror{"maxImageAgeInHours", "uint"}))
+				return
+			}
+			maxImageAgeInHours = m
+		} else {
+			maxImageAgeInHours = 0
 		}
 
-		sortBy, err := api.sortByFromQuery(r, "finishedAt", "overallSeverity", "repository", "tag", "imageDigest")
+		sortBy, err := api.sortByFromQuery(r, model.GetDefaultScannedImagesSortableName(), model.GetScannedImagesSortableNames()...)
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
@@ -167,107 +174,10 @@ func (api *api) listScannerImageVulnerabilities() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		filter := bson.M{
-			"$and": []bson.M{
-				{"stale": false},
-				{"status": model.ScanStatusSucceeded},
-			},
-		}
-		if !imageTimeFilter.IsZero() {
-			filter = bson.M{
-				"$and": []bson.M{
-					{"stale": false},
-					{"status": model.ScanStatusSucceeded},
-					{"firstScanAt": bson.M{"$gt": imageTimeFilter.Unix()}},
-				},
-			}
-		}
-
-		mt := time.Second * 10
-		findOptions := options.FindOptions{
-			Skip:    &offset,
-			Limit:   &limit,
-			MaxTime: &mt,
-		}
-
-		switch sortBy {
-		case "finishedAt":
-			findOptions.SetSort(bson.D{{"finishedAt", util.SortOrderToInt(sortOrder)}})
-		case "overallSeverity":
-			findOptions.SetSort(bson.D{{"scan_report.overallSeverityInt", util.SortOrderToInt(sortOrder)}})
-		case "repository":
-			findOptions.SetSort(bson.D{{"repository", util.SortOrderToInt(sortOrder)}})
-		case "tag":
-			findOptions.SetSort(bson.D{{"tag", util.SortOrderToInt(sortOrder)}})
-		case "imageDigest":
-			findOptions.SetSort(bson.D{{"digest", util.SortOrderToInt(sortOrder)}})
-		}
-
-		docNum, err := api.mongodb.Collection(model.ScanTasksCollection.String()).CountDocuments(ctx, filter)
+		items, docNum, err := api.scannerService.GetScannedImages(ctx, maxImageAgeInHours, offset, limit, model.GetScannedImagesSortableField(sortBy), sortOrder)
 		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to count documents: %w", err)))
+			RespAndLog(w, r.Context(), err)
 			return
-		}
-
-		cursor, err := api.mongodb.Collection(model.ScanTasksCollection.String()).Find(ctx, filter, &findOptions)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-		defer cursor.Close(ctx)
-
-		scanTasks := []model.ScanTask{}
-		for cursor.Next(ctx) {
-			var task model.ScanTask
-			err := cursor.Decode(&task)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't decode document: %w", err)))
-				return
-			}
-
-			scanTasks = append(scanTasks, task)
-		}
-
-		items := make([]s.ImageScanSummaryResult, len(scanTasks))
-		for scanTaskNo, scanTask := range scanTasks {
-
-			report := scanTask.ScanReport.Vulns
-
-			topVulnsNum := len(report.Vulnerabilities)
-			if len(report.Vulnerabilities) >= 5 {
-				topVulnsNum = 5
-			}
-
-			for j := range report.Sensitives {
-				if lang.Language(ctx) == lang.LanguageZH {
-					description := report.Sensitives[j].DescriptionZh
-					report.Sensitives[j].Description = description
-				} else {
-					description := report.Sensitives[j].DescriptionEn
-					report.Sensitives[j].Description = description
-				}
-			}
-
-			imageScanResult := s.ImageScanSummaryResult{
-				TopVulns:          report.Vulnerabilities[:topVulnsNum],
-				SensitiveFiles:    report.Sensitives,
-				Repository:        report.Repository,
-				Tag:               report.Tag,
-				Digest:            report.Digest,
-				TaskID:            scanTask.ID,
-				StartedAt:         scanTask.StartedAt,
-				FinishedAt:        scanTask.FinishedAt,
-				OverallSeverity:   scanTask.ScanReport.OverallSeverity,
-				SeverityHistogram: scanTask.ScanReport.Vulns.SeverityHistogram,
-			}
-
-			items[scanTaskNo] = imageScanResult
 		}
 
 		response.Ok(w,
@@ -314,20 +224,6 @@ func (api *api) getScannerTask() http.HandlerFunc {
 	}
 }
 
-type scanReportAffectedImage struct {
-	Repository string             `json:"repository"`
-	Tag        string             `json:"tag"`
-	Digest     string             `json:"digest"`
-	HarborURL  string             `json:"harborURL"`
-	FinishedAt int64              `json:"finishedAt"`
-	TaskID     primitive.ObjectID `json:"taskID"`
-}
-
-type scanReportListItem struct {
-	VulnInfo       model.VulnerabilityInfo    `json:"vulnInfo"`
-	AffectedImages *[]scanReportAffectedImage `json:"affectedImages"`
-}
-
 // @Summary List reports by severity
 // @Description List reports by severity
 // @Produce json
@@ -364,9 +260,7 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			return
 		}
 		offset, limit := api.getOffsetAndLimit(r)
-
-		resultItems, size, err := api.syncData.GetResultItem(ctx, riskFilter, offset, limit, sortOrder)
-
+		resultItems, size, err := api.scannerService.GetImageVulnerabilities(ctx, riskFilter, offset, limit, sortOrder)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError, err))

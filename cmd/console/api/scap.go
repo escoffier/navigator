@@ -12,9 +12,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/docker"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/host"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kube"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -92,7 +89,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 
 		nodeCheckDetails := &scap.NodeCheckDetails{}
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := api.scapService.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -100,7 +97,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := api.scapService.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -108,7 +105,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := api.scapService.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -166,7 +163,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			return
 		}
 
-		sortBy, err := api.sortByFromQuery(r, "createdAt", "finishedAt", "checkID", "numSuccessful", "numFailed", "numError", "numWaiting", "numInconclusive")
+		sortBy, err := api.sortByFromQuery(r, model.GetDefaultScapSortableName(), model.GetScapSortableNames()...)
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
@@ -180,58 +177,27 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		findOptions := options.Find().SetMaxTime(time.Second * 10)
-
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
+		items, docNum, err := api.scapService.GetCheckHistory(ctx, checkType, clusterID, offset, limit, model.GetScapSortableField(sortBy), sortOrder)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find document: %w", err)))
+					fmt.Errorf("Couldn't get host history entries: %w", err)))
 			return
 		}
-		defer cursor.Close(ctx)
-
-		checkMap := make(map[string]*scap.CheckHistoryEntry)
-		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeHistoryEntries(ctx, checkMap, cursor)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't get kube history entries: %w", err)))
-				return
-			}
-		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerHistoryEntries(ctx, checkMap, cursor)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't get docker history entries: %w", err)))
-				return
-			}
-		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostHistoryEntries(ctx, checkMap, cursor)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't get host history entries: %w", err)))
-				return
-			}
-		}
-
 		// We want to return cluster names to frontend for nice rendering
 		clusterNames := make(map[string]string)
 		inactiveClusters := make(map[string]bool)
-		for _, v := range checkMap {
-			if _, ok := inactiveClusters[v.ClusterID]; ok {
+		for i := range items {
+			if _, ok := inactiveClusters[items[i].ClusterID]; ok {
 				// Scap check references to deleted cluster
 				continue
 			}
-			if _, ok := clusterNames[v.ClusterID]; !ok {
-				clusterIDPrimitive, err := primitive.ObjectIDFromHex(v.ClusterID)
+			if _, ok := clusterNames[items[i].ClusterID]; !ok {
+				clusterIDPrimitive, err := primitive.ObjectIDFromHex(items[i].ClusterID)
 				if err != nil {
 					RespAndLog(w, ctx,
 						NewFieldError(http.StatusInternalServerError,
-							fmt.Errorf("Cluster with invalid ID %s: %w", v.ClusterID, err)))
+							fmt.Errorf("Cluster with invalid ID %s: %w", items[i].ClusterID, err)))
 					return
 				}
 
@@ -240,7 +206,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 					switch err.(type) {
 					case ClusterDoesntExistError:
 						// Scap check references a deleted cluster
-						inactiveClusters[v.ClusterID] = true
+						inactiveClusters[items[i].ClusterID] = true
 						continue
 					default:
 						RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
@@ -248,41 +214,16 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 					}
 				}
 
-				clusterNames[v.ClusterID] = queryCluster.ClusterName
+				clusterNames[items[i].ClusterID] = queryCluster.ClusterName
 			}
-			v.ClusterName = clusterNames[v.ClusterID]
+			items[i].ClusterName = clusterNames[items[i].ClusterID]
+			if items[i].FinishedAt == -1 {
+				items[i].FinishedAt = 0
+			}
 		}
 
-		err = cursor.Err()
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Cursor error: %w", err)))
-			return
-		}
-
-		docNum := int64(len(checkMap))
-
-		var results []*scap.CheckHistoryEntry
-		for _, v := range checkMap {
-			if _, ok := inactiveClusters[v.ClusterID]; ok {
-				continue
-			}
-			// Convert -1 to 0 to omit the FinishedAt field
-			if v.FinishedAt == -1 {
-				v.FinishedAt = 0
-			}
-			results = append(results, v)
-		}
-
-		sort.Slice(results, func(i, j int) bool {
-			return api.sortBy(results[i], results[j], sortBy, sortOrder)
-		})
-
-		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
-		resultsLimit := int(math.Min(float64(offset+limit), float64(len(results))))
 		response.Ok(w,
-			response.WithItems(results[resultsOffset:resultsLimit]),
+			response.WithItems(items),
 			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
@@ -384,7 +325,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := api.scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -392,7 +333,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := api.scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -400,7 +341,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := api.scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -523,7 +464,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		policyDetails := &scap.PolicyDetails{}
 
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := kube.GetKubePolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := api.scapService.GetKubePolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -531,7 +472,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := docker.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := api.scapService.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,
@@ -539,7 +480,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := host.GetHostPolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := api.scapService.GetHostPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx,
 					NewMongoError(http.StatusInternalServerError,

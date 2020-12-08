@@ -1,22 +1,5 @@
 package scap
 
-type CheckHistoryEntry struct {
-	CheckID             string  `json:"checkId"`
-	ClusterID           string  `json:"clusterId"`
-	ClusterName         string  `json:"clusterName"`
-	CreatedAt           int64   `json:"createdAt"`
-	FinishedAt          int64   `json:"finishedAt,omitempty"`
-	NumSuccessful       int64   `json:"numSuccessful"`
-	NumFailed           int64   `json:"numFailed"`
-	NumError            int64   `json:"numError"`
-	NumWaiting          int64   `json:"numWaiting"`
-	NumInconclusive     int64   `json:"numInconclusive"`
-	Score               float32 `json:"score"`
-	MaxScore            float32 `json:"maxScore"`
-	TotalPoliciesPassed int64   `json:"-"`
-	TotalPoliciesTried  int64   `json:"-"`
-}
-
 type CheckBreakdown struct {
 	PolicyNumber  string `json:"policyNumber"`
 	Section       string `json:"section"`

@@ -39,6 +39,7 @@ type AuditConfigDoesntExistError struct{ detailedError }
 type GarbageCollectionError struct{ detailedError }
 type GarbageCollectionInProgressError struct{ detailedError }
 type AssetDoesntExistError struct{ detailedError }
+type RedisCacheError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -628,6 +629,22 @@ func NewAssetDoesntExistError(httpCode int, err error, suberrors ...Suberror) er
 			err:       err,
 			English:   "Asset does not exist",
 			Zhongwen:  "資產不存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewRedisCacheError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return RedisCacheError{
+		detailedError{
+			err:       err,
+			English:   "Redis cache error",
+			Zhongwen:  "Redis緩存錯誤",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
