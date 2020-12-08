@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v2"
@@ -224,6 +226,19 @@ func (c *Console) Run() func() {
 			Err(err).
 			Msg("When creating mongo indices")
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
+	}
+
+	err = mongoAdminCheck(ctx, c.mongodb)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When check admin data in mongo")
+		panic(fmt.Errorf("When check admin data in mongo: %w", err))
+	}
+
+	if routeCompareWithURL(c.server.Handler) == false {
+		logging.GetLogger().Debug().Msg("{all-route} -> panic")
+		panic(fmt.Errorf("Some route is not in Access or Ignore URL list"))
 	}
 
 	err = initializeAuditConfig(ctx, c.mongodb, c.auditService)
@@ -585,4 +600,111 @@ func initializeOnlineVulnsWatch(ctx context.Context, onlineVulnsSvc *onlinevulns
 	}
 
 	return nil
+}
+
+// On 2020.12.07(UTC+8), all route is:
+//     "/api/v1/alerts/",
+//     "/api/v1/alerts/{alertID}/acknowledge",
+//     "/api/v1/audit/config",
+//     "/api/v1/auth/login",
+//     "/api/v1/auth/logout",
+//     "/api/v1/auth/user",
+//     "/api/v1/cleanup/gc",
+//     "/api/v1/cleanup/gc/{gcID}",
+//     "/api/v1/cleanup/hotStorage",
+//     "/api/v1/config/cluster",
+//     "/api/v1/config/cluster/{clusterID}",
+//     "/api/v1/config/clusters",
+//     "/api/v1/onlineVulnerabilities/current",
+//     "/api/v1/onlineVulnerabilities/details/{namespace}/{resourceKind}/{resourceName}",
+//     "/api/v1/runtimeDetectionConfig/rules",
+//     "/api/v1/runtimeDetectionConfig/rules/{ruleID}/disable",
+//     "/api/v1/runtimeDetectionConfig/rules/{ruleID}/enable",
+//     "/api/v1/scanner/harbor/abortScanAll",
+//     "/api/v1/scanner/harbor/scanAllNow",
+//     "/api/v1/scanner/harbor/scanConfig",
+//     "/api/v1/scanner/harbor/scanStatus",
+//     "/api/v1/scanner/report/{taskID}",
+//     "/api/v1/scanner/reportsByImage",
+//     "/api/v1/scanner/reportsBySeverity",
+//     "/api/v1/scanner/scan",
+//     "/api/v1/scanner/task/{taskID}",
+//     "/api/v1/scap/crons",
+//     "/api/v1/scap/{checkType}/breakdown/{checkID}",
+//     "/api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details",
+//     "/api/v1/scap/{checkType}/history",
+//     "/api/v1/scap/{checkType}/{clusterID}",
+//     "/api/v1/scap/{checkType}/{clusterID}/cron",
+//     "/api/v1/scap/{checkType}/{clusterID}/reports",
+//     "/api/v1/scap/{checkType}/{nodeName}/{checkID}/details",
+//     "/api/v1/superAdmin/accessList",
+//     "/api/v1/superAdmin/addUser",
+//     "/api/v1/superAdmin/roleList",
+//     "/api/v1/superAdmin/setRoleAccess",
+//     "/api/v1/superAdmin/setUserRole",
+//     "/api/v1/superAdmin/userList",
+//     "/harbor/api/v1/metadata",
+//     "/harbor/api/v1/scan",
+//     "/harbor/api/v1/scan/{scan_request_id}/report",
+//     "/ping",
+//     "/swagger/*"
+//
+// If add new url,
+//    the prefix of url should be exist in the return by pkg/model/admin.go -> AllAccessURL() or AllIgnoreAccessURL()
+//
+func routeCompareWithURL(h http.Handler) bool {
+	mux, _ := h.(*chi.Mux)
+
+	routes := mux.Routes()
+
+	allRoute := make([]string, 0, 30)
+	for _, e := range routes {
+		recurRouteTree(&allRoute, "", e)
+	}
+
+	{
+		bts, _ := json.Marshal(allRoute)
+		logging.GetLogger().Debug().Msg("{all-route} allRoute: " + string(bts))
+	}
+
+	accessURLs, _ := model.AllAccessURL()
+	ignoreAccessURLs, _ := model.AllIgnoreAccessURL()
+	compareURLs := append(accessURLs, ignoreAccessURLs...)
+
+	matchURLCount := 0
+
+	for _, e := range allRoute {
+		for i := range compareURLs {
+			if strings.HasPrefix(e, compareURLs[i]) {
+				matchURLCount = matchURLCount + 1
+				break
+			}
+		}
+	}
+
+	if matchURLCount < len(allRoute) {
+		return false
+	} else {
+		return true
+	}
+
+}
+
+func recurRouteTree(result *[]string, prefix string, routeNode chi.Route) {
+	p := ""
+	if strings.HasSuffix(prefix, "/*") {
+		p = prefix[:len(prefix)-2]
+	} else {
+		p = prefix
+	}
+
+	if routeNode.SubRoutes == nil {
+		*result = append(*result, p+routeNode.Pattern)
+		return
+	} else {
+		children := routeNode.SubRoutes.Routes()
+		for _, e := range children {
+			recurRouteTree(result, p+routeNode.Pattern, e)
+		}
+	}
 }

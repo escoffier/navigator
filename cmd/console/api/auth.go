@@ -11,11 +11,16 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
+
+const JWT_KEY_USERNAME = "user_name"
 
 // User defines the obj in the userCache
 type User struct {
@@ -45,7 +50,7 @@ func (api *api) restAuth() func(chi.Router) {
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAuthenticator(api.userCache))
+			r.Use(jwtAccessCheck(api.mongodb, api.userCache))
 			r.Get("/user", user)
 		})
 	}
@@ -104,36 +109,45 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
+		var (
+			findUser *model.User
+			ok       bool
+		)
+
 		// compare the password, defaults to admin:admin till Mongo integration
 		hashed, _ := bcrypt.GenerateFromPassword([]byte("admin"), 8)
 		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
 		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
-		if errUsername != nil || errPassword != nil {
-			RespAndLog(w, r.Context(),
-				NewInvalidUsernameOrPasswordError(http.StatusUnauthorized,
-					fmt.Errorf("Invalid username or password'")))
-			return
+
+		if errUsername == nil && errPassword == nil {
+			findUser = &model.User{
+				UserName: creds.Username,
+			}
+		} else {
+			// login use mongo, the username and password is Plaintext
+			ok, findUser, err = loginCheckByMongo(api, creds.Username, creds.Password)
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("mongo err: %w", err)))
+				return
+			} else if !ok {
+				RespAndLog(w, r.Context(),
+					NewMongoError(http.StatusInternalServerError,
+						fmt.Errorf("Couldn't find document: %w", err)))
+				return
+			}
 		}
 
 		// matched password
 		// generated a jwt, set cookie and put it in the userCache
-		jwtmc := jwt.MapClaims{"username": creds.Username}
+		jwtmc := jwt.MapClaims{
+			JWT_KEY_USERNAME: creds.Username,
+		}
 		jwtauth.SetIssuedNow(jwtmc)
 		_, tokenString, _ := api.tokenAuth.Encode(jwtmc)
 
-		api.userCache.Set(
-			creds.Username,
-			&User{
-				Username: creds.Username,
-				Name:     "管理员",
-				UserID:   "00000001",
-				Email:    "admin@tensorsecurity.io",
-				Title:    "系统管理员",
-				Group:    "事业群－平台部－技术部－集群管理",
-				Avatar: "http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/48/" +
-					"Places-user-identity-icon.png",
-			},
-			cache.DefaultExpiration)
+		api.userCache.Set(creds.Username, findUser, cache.DefaultExpiration)
 
 		response.Ok(w, response.WithItem(LoginResponse{
 			CurrentAuthority: "admin",
@@ -162,7 +176,7 @@ func (api *api) logout() http.HandlerFunc {
 		}
 
 		// check if we can find the user's session
-		username := claims["username"].(string)
+		username := claims[JWT_KEY_USERNAME].(string)
 		api.userCache.Delete(username)
 		response.Ok(w)
 	}
@@ -177,4 +191,41 @@ func (api *api) logout() http.HandlerFunc {
 func user(w http.ResponseWriter, r *http.Request) {
 	u := r.Context().Value(userKey).(*User)
 	response.Ok(w, response.WithItem(*u))
+}
+
+func loginCheckByMongo(api *api, userName, pwd string) (ok bool, u *model.User, err error) {
+	ctx, cancel := api.getTimeoutCtx(time.Second * 20)
+	defer cancel()
+
+	filter := bson.M{
+		"user_name": userName,
+	}
+	var user model.User
+	err = api.mongodb.Collection(model.UserCollection).FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		return false, nil, err
+	}
+
+	if pwd == user.Pwd {
+		return true, &user, nil
+	} else {
+		return false, nil, nil
+	}
+}
+
+func testWithLog(middle, msg string) {
+	pre := "{super-admin} -> "
+	middle = middle + " -> "
+	logging.GetLogger().Debug().Msg(pre + middle + msg)
+}
+
+func testWithLogJson(middle string, payload interface{}) {
+	pre := "{super-admin} -> "
+	middle = middle + " -> "
+	jso, err := json.Marshal(payload)
+	if err != nil {
+		logging.GetLogger().Debug().Msg(pre + middle + " json err:" + err.Error())
+	} else {
+		logging.GetLogger().Debug().Msg(pre + middle + string(jso))
+	}
 }

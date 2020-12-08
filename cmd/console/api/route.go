@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -24,6 +25,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -87,7 +89,7 @@ func SetupRoutes(
 			r.Use(jwtauth.Verifier(api.tokenAuth))
 
 			// custom authenticator
-			r.Use(jwtAuthenticator(api.userCache))
+			r.Use(jwtAccessCheck(api.mongodb, api.userCache))
 
 			r.Route("/config", api.config())
 			r.Route("/scanner", api.scanner())
@@ -97,6 +99,15 @@ func SetupRoutes(
 			r.Route("/alerts", api.alert())
 			r.Route("/audit", api.audit())
 			r.Route("/cleanup", api.cleanup())
+		})
+
+		// need Lv0 authentication
+		r.Group(func(r chi.Router) {
+			r.Use(jwtauth.Verifier(api.tokenAuth))
+			r.Use(jwtAccessCheck(api.mongodb, api.userCache))
+
+			r.Route("/superAdmin", api.superAdmin())
+
 		})
 	})
 }
@@ -141,6 +152,97 @@ func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
 			ctx = context.WithValue(r.Context(), userKey, userPtr)
 
 			// Token is authenticated, pass it through
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func jwtAccessCheck(mongodb *mongo.Database, userCache *cache.Cache) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, claims, err := jwtauth.FromContext(r.Context())
+
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewInvalidAuthToken(http.StatusUnauthorized,
+						fmt.Errorf("Error when getting token & claims from context: %w", err)))
+				return
+			}
+			if token == nil || !token.Valid {
+				RespAndLog(w, r.Context(),
+					NewInvalidAuthToken(http.StatusUnauthorized,
+						fmt.Errorf("Token empty or invalid")))
+				return
+			}
+
+			username, _ := claims[JWT_KEY_USERNAME].(string)
+			userPtr, ok := userCache.Get(username)
+			if !ok {
+				testWithLogJson("jwt-jwtAccessCheck()", "user get error")
+				RespAndLog(w, r.Context(),
+					NewSessionExpired(http.StatusUnauthorized,
+						fmt.Errorf("User not in cache")))
+				return
+			}
+
+			if username == "admin" {
+				ctx := context.WithValue(r.Context(), userKey, userPtr)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			u, _ := userPtr.(*model.User)
+			userCache.Set(username, u, cache.DefaultExpiration)
+
+			c, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
+			_, roleNames, err := model.SelectRelaUserRole(c, mongodb, username, "")
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewMongoError(http.StatusInsufficientStorage,
+						fmt.Errorf("select User error: %w", err)))
+				return
+			}
+
+			accessNameList := make([]string, 0, 100)
+			for _, e := range roleNames {
+				_, accessNames, err := model.SelectRelaRoleAccess(c, mongodb, e, "")
+				if err != nil {
+					RespAndLog(w, r.Context(),
+						NewMongoError(http.StatusInsufficientStorage,
+							fmt.Errorf("select Role Access relation error: %w", err)))
+					return
+				}
+				accessNameList = append(accessNameList, accessNames...)
+			}
+
+			accessList, err := model.SelectAccessMulti(c, mongodb, accessNameList)
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewMongoError(http.StatusInsufficientStorage,
+						fmt.Errorf("select access error: %w", err)))
+				return
+			}
+
+			hasAccess := false
+			currentURL := strings.ToLower(r.URL.Path)
+			for i := range accessList {
+				url := strings.ToLower(accessList[i].URL)
+				if strings.HasPrefix(currentURL, url) {
+					hasAccess = true
+					break
+				}
+			}
+
+			if !hasAccess {
+				RespAndLog(w, r.Context(),
+					NewInvalidAuthToken(http.StatusUnauthorized,
+						fmt.Errorf("access invalid")))
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), userKey, userPtr)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

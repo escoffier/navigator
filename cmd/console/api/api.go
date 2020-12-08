@@ -40,6 +40,7 @@ import (
 type api struct {
 	ctx            context.Context
 	userCache      *cache.Cache
+	rbacCache      *cache.Cache /* Role-Based-Access-Control */
 	tokenAuth      *jwtauth.JWTAuth
 	mongodb        *mongo.Database
 	scapper        *scapper.Scapper
@@ -81,6 +82,7 @@ func newAPI(
 	return &api{
 		ctx:                         ctx,
 		userCache:                   cache.New(sessionExpiration, time.Minute),
+		rbacCache:                   cache.New(sessionExpiration, time.Minute),
 		tokenAuth:                   jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
 		mongodb:                     mongodb,
 		scapper:                     scapper,
