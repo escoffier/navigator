@@ -1128,6 +1128,7 @@ func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []strin
 
 func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, hub *registry.Registry, scanTask model.ScanTask) ([]string, error) {
 	layers := make([]string, 0)
+	uniqueLayers := make(map[string]bool)
 	if version == "v1" {
 		manifest, err := hub.Manifest(scanTask.Repository, scanTask.ImageDigest)
 		if err != nil {
@@ -1135,6 +1136,10 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 		}
 		for _, layer := range manifest.Manifest.FSLayers {
 			layerDigest := layer.BlobSum.String()
+			if _, ok := uniqueLayers[layerDigest]; ok {
+				return []string{}, fmt.Errorf("Found duplicate layer digest in V1 manifest")
+			}
+			uniqueLayers[layerDigest] = true
 			layers = append([]string{layerDigest}, layers...)
 		}
 	} else if version == "v2" {
@@ -1144,6 +1149,10 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 		}
 		for _, layer := range manifest.Manifest.Layers {
 			layerDigest := layer.Digest.String()
+			if _, ok := uniqueLayers[layerDigest]; ok {
+				return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
+			}
+			uniqueLayers[layerDigest] = true
 			layers = append(layers, layerDigest)
 		}
 	}
