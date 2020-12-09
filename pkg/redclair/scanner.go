@@ -129,13 +129,12 @@ func (r *Redclair) recalculateSeverity(ctx context.Context, vulns []model.Vulner
 		// It's a string that contains one decimal place.
 		// Convert to an int without decimals by removing the "."
 		// (effectively multiplies by 10)
-		s := strings.ReplaceAll(vuln.CVSS.CVSSv2Score, ".", "")
-		score, err := strconv.ParseInt(s, 10, 64)
+
+		score, err := strconv.ParseFloat(vuln.CVSS.CVSSv2Score, 64)
 		if err != nil {
 			return fmt.Errorf("Failed to parse CVSSv2 score: %w", err)
 		}
-
-		severity := GetSeverityFromScore(score)
+		severity := GetSeverityFromScore(int64(score * 10))
 		vulns[i].Severity = severity
 	}
 	return nil
