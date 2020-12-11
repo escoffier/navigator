@@ -456,14 +456,12 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		CreatedAt: secs,
 	}
 	err := s.MongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		_, sessionError = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
 		if sessionError != nil {
@@ -502,14 +500,12 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 		"audit_timestamp": time.Now(),
 	}}
 	err := s.MongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		_, sessionError = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
 		if sessionError != nil {

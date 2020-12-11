@@ -417,16 +417,12 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 	var numMarked = 0
 
 	err := r.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-
-		var sessionError error
-
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		// mark all entries that we didn't witness at the start of watcher as deleted.
 		filter := bson.M{

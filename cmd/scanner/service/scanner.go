@@ -10,6 +10,8 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -48,7 +50,11 @@ func NewScanner(
 	// mongo client
 	// TODO: authSource database should be a separate argument.
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
-	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(mongoString))
+	mongoClientOptions := options.Client().ApplyURI(mongoString)
+	mongoClientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
+	mongoClientOptions.SetReadConcern(readconcern.Majority())
+	mongoClient, err := mongo.NewClient(mongoClientOptions)
+
 	if err != nil {
 		return nil, err
 	}

@@ -41,7 +41,6 @@ func NewAlertsCache(
 		redisClient,
 		c.getAlertsNewestEntryTimestamp,
 		util.TimestampKey,
-		true,
 	)
 
 	for _, onlyNotAcknowledged := range []bool{true, false} {
@@ -76,7 +75,29 @@ func (c *AlertsCache) getAlertsNewestEntryTimestamp() (int64, error) {
 	if err != nil {
 		return -1, NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode scan task: %w ", err))
 	}
-	return alert.Timestamp.Unix(), nil
+
+	createdAt := alert.Timestamp.Unix()
+
+	findOptions = options.FindOne()
+	findOptions.SetSort(bson.D{{"historicised_timestamp", -1}})
+
+	singleResult = c.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter, findOptions)
+	if singleResult.Err() != nil {
+		if singleResult.Err() == mongo.ErrNoDocuments {
+			return -1, nil
+		}
+		return -1, NewAnError(http.StatusInternalServerError, fmt.Errorf("singleResult error: %w", singleResult.Err()))
+	}
+
+	err = singleResult.Decode(&alert)
+	if err != nil {
+		return -1, NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode scan task: %w ", err))
+	}
+	acknowledgedAt := alert.HistoricisedTimestamp.Unix()
+	if acknowledgedAt > createdAt {
+		return acknowledgedAt, nil
+	}
+	return createdAt, nil
 }
 
 func (c *AlertsCache) getAlertsData(onlyNotAcknowledged bool, kind model.AlertKind, sortBy string) func() ([]model.CacheEntry, error) {

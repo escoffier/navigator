@@ -26,6 +26,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
@@ -83,7 +85,10 @@ func NewConsole(
 	// mongo client
 	// TODO: authSource database should be a separate argument.
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
-	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(mongoString))
+	mongoClientOptions := options.Client().ApplyURI(mongoString)
+	mongoClientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
+	mongoClientOptions.SetReadConcern(readconcern.Majority())
+	mongoClient, err := mongo.NewClient(mongoClientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -581,6 +586,23 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		{
 			Keys: bson.M{
 				"name": 1,
+			}, Options: nil,
+		},
+	}
+	neededIndexesPerCollection[model.VulnerabilitiesInImagesCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"vulnInfo.id": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"historicised_timestamp": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"scanType": 1,
 			}, Options: nil,
 		},
 	}

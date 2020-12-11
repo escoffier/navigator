@@ -83,14 +83,12 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 	var newRule model.Rule
 
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		var queryRule model.Rule
 
@@ -172,17 +170,14 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	var newRule model.Rule
 
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-
-		var sessionError error
-		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
-
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
+
+		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
 
 		var queryRule model.Rule
 		filter := bson.M{"_id": ruleObjectID, "deleted_at": bson.M{"$exists": false}}

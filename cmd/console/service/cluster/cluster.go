@@ -92,14 +92,12 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 	var id primitive.ObjectID
 
 	err = s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		// find if this cluster already there
 		filter := bson.M{"name": newCluster.ClusterName, "deleted_at": bson.M{"$exists": false}}
@@ -196,14 +194,12 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 	var queryCluster model.Cluster
 
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		queryResult := s.mongodb.Collection(model.ClusterCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
@@ -246,14 +242,12 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (int64, error) {
 	var res int64
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		filter := bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 

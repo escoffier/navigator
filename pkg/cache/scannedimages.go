@@ -43,12 +43,13 @@ func NewScannedImagesCache(
 		redisClient,
 		c.getScannedImagesMaxEntryTimestamp,
 		util.FinishedAtKey,
-		true,
 	)
 
 	for _, maxImageAgeInHours := range []int{0, 1, 24} {
-		for _, sortBy := range model.GetScannedImagesSortableNames() {
-			c.ch.AddToRegistry(c.getScannedImagesData(maxImageAgeInHours, model.GetScannedImagesSortableField(sortBy)), strconv.Itoa(maxImageAgeInHours), model.GetScannedImagesSortableField(sortBy))
+		for _, mongoFieldSortBy := range model.ScannedImagesSortableFields {
+			c.ch.AddToRegistry(
+				c.getScannedImagesData(maxImageAgeInHours, mongoFieldSortBy),
+				strconv.Itoa(maxImageAgeInHours), mongoFieldSortBy)
 		}
 	}
 
@@ -68,7 +69,8 @@ func (c *ScannedImagesCache) getScannedImagesMaxEntryTimestamp() (int64, error) 
 	findOptions := options.FindOne()
 	findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
-	singleResult := c.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(ctx, filter, findOptions)
+	coll := c.mongodb.Collection(model.ScanTasksCollection.String())
+	singleResult := coll.FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return -1, nil
@@ -84,7 +86,8 @@ func (c *ScannedImagesCache) getScannedImagesMaxEntryTimestamp() (int64, error) 
 	return scanTask.FinishedAt, nil
 }
 
-func (c *ScannedImagesCache) getScannedImagesData(maxImageAgeInHours int, sortBy string) func() ([]model.CacheEntry, error) {
+func (c *ScannedImagesCache) getScannedImagesData(
+	maxImageAgeInHours int, sortBy string) func() ([]model.CacheEntry, error) {
 	return func() ([]model.CacheEntry, error) {
 		filter := bson.M{
 			"$and": []bson.M{
@@ -93,7 +96,8 @@ func (c *ScannedImagesCache) getScannedImagesData(maxImageAgeInHours int, sortBy
 			},
 		}
 		if maxImageAgeInHours != 0 {
-			imageTimeFilter := time.Now().Add(time.Duration(-1*maxImageAgeInHours) * time.Hour)
+			imageTimeFilter := time.Now().Add(
+				time.Duration(-1*maxImageAgeInHours) * time.Hour)
 			filter = bson.M{
 				"$and": []bson.M{
 					{"stale": false},
@@ -105,7 +109,9 @@ func (c *ScannedImagesCache) getScannedImagesData(maxImageAgeInHours int, sortBy
 		findOptions := options.FindOptions{}
 		findOptions.SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}})
 
-		scannedImagesIds, err := dataToIds(c.ctx, filter, &findOptions, c.mongodb.Collection(model.ScanTasksCollection.String()))
+		coll := c.mongodb.Collection(model.ScanTasksCollection.String())
+		scannedImagesIds, err := dataToIds(
+			c.ctx, filter, &findOptions, coll)
 		if err != nil {
 			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not get ids to cache: %w", err))
 		}
@@ -113,10 +119,7 @@ func (c *ScannedImagesCache) getScannedImagesData(maxImageAgeInHours int, sortBy
 	}
 }
 
-func (c *ScannedImagesCache) GetItems(ctx context.Context, maxImageAgeInHours int, offset int64, limit int64, sortBy string, sortOrder string) ([]model.CacheEntry, int64, error) {
-	err := c.ch.CheckVersionAndSyncData()
-	if err != nil {
-		return nil, 0, err
-	}
+func (c *ScannedImagesCache) GetItems(
+	ctx context.Context, maxImageAgeInHours int, offset int64, limit int64, sortBy string, sortOrder string) ([]model.CacheEntry, int64, error) {
 	return c.ch.GetItems(offset, limit, sortOrder, strconv.Itoa(maxImageAgeInHours), sortBy)
 }

@@ -69,14 +69,12 @@ func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error
 	filter := bson.M{"status": model.GCInProgress}
 
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		queryResult := collection.FindOne(sessionContext, filter)
 
@@ -155,14 +153,12 @@ func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp
 	defer allCollectionsCursor.Close(ctx)
 
 	err = s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		filter := bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
 
