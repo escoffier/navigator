@@ -12,7 +12,9 @@ source /mnt/root/etc/os-release
 #
 # NAME="CentOS Linux"
 # VERSION_ID="8"
-
+#
+# NAME="Red Hat Enterprise Linux Server"
+# VERSION_ID="7.6"
 
 case $NAME in 
   *Ubuntu*)
@@ -23,9 +25,9 @@ case $NAME in
     # WARNING: Datastream component 'scap_org.open-scap_cref_-ubuntu-security-oval-com.ubuntu.xenial.cve.oval.xml' points out to the remote 'https://people.canonical.com/~ubuntu-security/oval/com.ubuntu.xenial.cve.oval.xml'. Use '--fetch-remote-resources' option to download it.
     # We have to prefetch offline resource in dockerfile, similar to centos.
   ;;
-  *CentOS*)
+  *CentOS*|*Red*Hat*)
     # Use offline ds (use resources prefetched during dockerfile build)
-    DSPATH="./ssg-rhel$VERSION_ID-offline-ds.xml"
+    DSPATH="./ssg-rhel${VERSION_ID%.*}-offline-ds.xml"
     TAILORINGPATH="./tailoring/tailoring-file-centos.xml"
     # PROFILE="xccdf_org.ssgproject.content_profile_standard"
 
