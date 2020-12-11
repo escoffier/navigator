@@ -1,30 +1,36 @@
 package model
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
-var scannedImagesSortableFields = func() map[string]string {
-	return map[string]string{
-		"finishedAt":      "finishedAt",
-		"overallSeverity": "scan_report.overallSeverityInt",
-		"repository":      "repository",
-		"tag":             "tag",
-		"imageDigest":     "digest",
-	}
+var VulnerabilityInImagesRiskFilters = map[string]int{
+	"default":      ScanTypeBySeverity,
+	"medToCrit":    ScanTypeByMedToCritical,
+	"networkBased": ScanTypeNetWorkBased,
+}
+
+func GetDefaultVulnerabilityInImagesRiskFilterName() string {
+	return "default"
+}
+
+var ScannedImagesSortableFields = map[string]string{
+	"finishedAt":      "finishedAt",
+	"overallSeverity": "scan_report.overallSeverityInt",
+	"repository":      "repository",
+	"tag":             "tag",
+	"imageDigest":     "digest",
 }
 
 func GetDefaultScannedImagesSortableName() string {
 	return "finishedAt"
 }
 
-func GetScannedImagesSortableField(key string) string {
-	return scannedImagesSortableFields()[key]
-}
-
 func GetScannedImagesSortableNames() []string {
-	keys := make([]string, len(scannedImagesSortableFields()))
+	keys := make([]string, len(ScannedImagesSortableFields))
 
 	i := 0
-	for k := range scannedImagesSortableFields() {
+	for k := range ScannedImagesSortableFields {
 		keys[i] = k
 		i++
 	}
@@ -64,9 +70,12 @@ type ScanReportAffectedImage struct {
 	TaskID     primitive.ObjectID `json:"taskID"`
 }
 
-type ScanReportListItem struct {
-	VulnInfo       VulnerabilityInfo          `json:"vulnInfo"`
-	AffectedImages *[]ScanReportAffectedImage `json:"affectedImages"`
+type VulnerabilityInImages struct {
+	MetadataEntry  `json:"-" bson:",inline"`
+	ID             primitive.ObjectID         `json:"id,omitempty" bson:"_id,omitempty"`
+	VulnInfo       VulnerabilityInfo          `json:"vulnInfo" bson:"vulnInfo"`
+	AffectedImages *[]ScanReportAffectedImage `json:"affectedImages" bson:"affectedImages"`
+	ScanType       int                        `json:"-" bson:"scanType"` //By Severity 1 Med to Critical 2 Network based 3
 }
 
 // Sensitive ...
@@ -75,4 +84,21 @@ type Sensitive struct {
 	Description   string `json:"description" bson:"description"`
 	DescriptionEn string `json:"description_en" bson:"description_en"`
 	DescriptionZh string `json:"description_zh" bson:"description_zh"`
+}
+
+const (
+	ScanTypeBySeverity      = 1
+	ScanTypeByMedToCritical = 2
+	ScanTypeNetWorkBased    = 3
+)
+
+type VulnInfoEx struct {
+	// Helper struct that creates one to one mapping between vulnerability and affected image.
+	VulnerabilityInfo
+	AffectedRepository string
+	AffectedTag        string
+	AffectedDigest     string
+	AffectedHarborURL  string
+	FinishedAt         int64
+	TaskID             primitive.ObjectID
 }

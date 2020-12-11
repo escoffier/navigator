@@ -49,14 +49,12 @@ func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.Au
 	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		queryResult := s.mongodb.Collection(model.AuditCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
@@ -96,14 +94,12 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 	}
 
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		var sessionError error
-		sessionError = sessionContext.StartTransaction()
+		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		sessionCommitter := repository.MongoSessionCommitter(sessionContext, &sessionError)
-		defer sessionCommitter()
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
 		queryResult := s.mongodb.Collection(model.AuditCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {

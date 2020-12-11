@@ -43,7 +43,6 @@ func NewCacheHelper(
 	redisClient *redis.Client,
 	getNewestEntryTimestamp func() (int64, error),
 	redisNewestEntryTimestampKey string,
-	runGenericSync bool,
 ) *CacheHelper {
 	c := CacheHelper{
 		ctx:                          ctx,
@@ -53,9 +52,7 @@ func NewCacheHelper(
 		redisNewestEntryTimestampKey: redisNewestEntryTimestampKey,
 		registry:                     make(map[string]func() ([]model.CacheEntry, error)),
 	}
-	if runGenericSync {
-		go c.bgSync()
-	}
+	go c.bgSync()
 	return &c
 }
 
@@ -100,7 +97,7 @@ func (c *CacheHelper) bgSync() {
 		select {
 		case <-time.After(CacheRefreshInterval):
 			logging.GetLogger().Info().Str("name", c.keyPrefix).Msg("Starting data sync")
-			err := c.CheckVersionAndSyncData()
+			err := c.checkVersionAndSyncData()
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Str("name", c.keyPrefix).Msg("Failed data sync")
 			}
@@ -108,7 +105,7 @@ func (c *CacheHelper) bgSync() {
 	}
 }
 
-func (c *CacheHelper) CheckVersionAndSyncData() error {
+func (c *CacheHelper) checkVersionAndSyncData() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -211,6 +208,11 @@ func (c *CacheHelper) reverse(s []model.CacheEntry) []model.CacheEntry {
 }
 
 func (c *CacheHelper) GetItems(offset int64, limit int64, sortOrder string, keyElements ...string) ([]model.CacheEntry, int64, error) {
+	err := c.checkVersionAndSyncData()
+	if err != nil {
+		return nil, 0, err
+	}
+
 	key := c.KeyFrom(keyElements...)
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -174,7 +174,7 @@ func (api *api) listScannedImages() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		items, docNum, err := api.scannerService.GetScannedImages(ctx, maxImageAgeInHours, offset, limit, model.GetScannedImagesSortableField(sortBy), sortOrder)
+		items, docNum, err := api.scannerService.GetScannedImages(ctx, maxImageAgeInHours, offset, limit, model.ScannedImagesSortableFields[sortBy], sortOrder)
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
@@ -239,13 +239,14 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 
 		riskFilter := r.URL.Query().Get("riskFilter")
 		if riskFilter == "" {
-			riskFilter = "none"
+			riskFilter = model.GetDefaultVulnerabilityInImagesRiskFilterName()
 		}
-		if riskFilter != "none" && riskFilter != "medToCrit" && riskFilter != "networkBased" {
+
+		if _, ok := model.VulnerabilityInImagesRiskFilters[riskFilter]; !ok {
 			RespAndLog(w, r.Context(),
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid riskFilter param value (allowed: none(default)/medToCrit/networkBased)"),
-					Suberror{"riskFilter", "allowed: none(default)/medToCrit/networkBased"}))
+					fmt.Errorf("invalid riskFilter param value (allowed: default/medToCrit/networkBased)"),
+					Suberror{"riskFilter", "allowed: default/medToCrit/networkBased"}))
 			return
 		}
 		sortOrder := r.URL.Query().Get("sortOrder")
@@ -260,7 +261,8 @@ func (api *api) listScanReportsBySeverity() http.HandlerFunc {
 			return
 		}
 		offset, limit := api.getOffsetAndLimit(r)
-		resultItems, size, err := api.scannerService.GetImageVulnerabilities(ctx, riskFilter, offset, limit, sortOrder)
+		resultItems, size, err := api.scannerService.GetImageVulnerabilities(
+			ctx, riskFilter, offset, limit, sortOrder)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError, err))

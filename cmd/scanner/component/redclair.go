@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -24,6 +26,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"database/sql"
@@ -1046,30 +1049,326 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 	scanTask.HistoricisedTimestamp = time.Now()
 	scanTask.Status = status
 
-	if status == model.ScanStatusSucceeded {
-		firstScanAt, numMarked, err := rcSvc.doImageScanBookkeeping(ctx, scanTask)
-		if err != nil {
-			zerolog.Ctx(ctx).Error().
-				Err(err).
-				Str("scanTask", fmt.Sprintf("%+v", scanTask)).
-				Int("numMarked", numMarked).
-				Msg("error in marking tasks as stale in Mongo")
+	err := rcSvc.mongodb.Client().UseSession(mongoCtx, func(sessionContext mongo.SessionContext) error {
+		sessionError := sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
 		}
 
-		scanTask.FirstScanAt = firstScanAt
-		scanTask.Stale = false
-	}
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
-	filter := bson.M{"_id": scanTask.ID}
-	update := bson.M{"$set": scanTask}
+		if status == model.ScanStatusSucceeded {
+			var firstScanAt int64
+			var numMarked int
+			sessionError = rcSvc.removeStaleVulnerabilitiesInImages(sessionContext, &scanTask)
+			if sessionError != nil {
+				zerolog.Ctx(sessionContext).Error().
+					Err(sessionError).
+					Msg("error in removing vulnerabilities in images from stale scan tasks")
+				return sessionError
+			}
 
-	_, err := rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).UpdateOne(mongoCtx, filter, update)
+			firstScanAt, numMarked, sessionError = rcSvc.doImageScanBookkeeping(sessionContext, scanTask)
+			if sessionError != nil {
+				zerolog.Ctx(sessionContext).Error().
+					Err(sessionError).
+					Str("scanTask", fmt.Sprintf("%+v", scanTask)).
+					Int("numMarked", numMarked).
+					Msg("error in marking tasks as stale in Mongo")
+				return sessionError
+			}
+
+			scanTask.FirstScanAt = firstScanAt
+			scanTask.Stale = false
+		}
+
+		filter := bson.M{"_id": scanTask.ID}
+		update := bson.M{"$set": scanTask}
+
+		_, sessionError = rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).UpdateOne(sessionContext, filter, update)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update scantask: %w", sessionError))
+		}
+
+		if status == model.ScanStatusSucceeded {
+			sessionError = rcSvc.addVulnerabilitiesInImages(sessionContext, &scanTask)
+			if sessionError != nil {
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't update vulnerabilities in images: %w", sessionError))
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
 			Msg("error in updating task in Mongo")
 	}
+}
+
+func (rcSvc *RedClairService) removeStaleVulnerabilitiesInImages(
+	ctx context.Context,
+	scanTask *model.ScanTask,
+) error {
+	filter := bson.M{
+		"$and": []bson.M{
+			{"_id": bson.M{"$ne": scanTask.ID}},
+			{"digest": scanTask.ImageDigest},
+			{"stale": false},
+		},
+	}
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
+
+	cursor, err := rcSvc.mongodb.Collection(
+		model.ScanTasksCollection.String()).Find(ctx, filter, findOptions)
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+	}
+	defer cursor.Close(ctx)
+
+	coll := rcSvc.mongodb.Collection(
+		model.VulnerabilitiesInImagesCollection.String())
+
+	for cursor.Next(ctx) {
+		var task model.ScanTask
+		err := cursor.Decode(&task)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		vulnSize := len(task.ScanReport.Vulns.Vulnerabilities)
+		sensitiveSize := len(task.ScanReport.Vulns.Sensitives)
+		vulnIds := make([]string, vulnSize+sensitiveSize)
+		for i, vuln := range task.ScanReport.Vulns.Vulnerabilities {
+			vulnIds[i] = vuln.ID
+		}
+		for i, sens := range task.ScanReport.Vulns.Sensitives {
+			vulnIds[len(task.ScanReport.Vulns.Vulnerabilities)+i] = sens.Name
+		}
+		vulnsInImagesFilter := bson.M{
+			"$and": []bson.M{
+				{"vulnInfo.id": bson.M{"$in": vulnIds}},
+				{"historicised_timestamp": bson.M{"$exists": false}},
+			},
+		}
+		vulnsInImagesCursor, err := coll.Find(ctx, vulnsInImagesFilter, findOptions)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't find document: %w", err))
+		}
+		defer vulnsInImagesCursor.Close(ctx)
+		for vulnsInImagesCursor.Next(ctx) {
+			var vulnerabilityInImages model.VulnerabilityInImages
+			err := vulnsInImagesCursor.Decode(&vulnerabilityInImages)
+			if err != nil {
+				return NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't decode document: %w", err))
+			}
+			newAffectedImages := make([]model.ScanReportAffectedImage, 0)
+			for _, ai := range *vulnerabilityInImages.AffectedImages {
+				if ai.TaskID != task.ID {
+					newAffectedImages = append(newAffectedImages, ai)
+				}
+			}
+			vulnInImagesFilter := bson.M{"_id": vulnerabilityInImages.ID}
+			vulnerabilityInImages.HistoricisedTimestamp = time.Now()
+			update := bson.M{"$set": vulnerabilityInImages}
+			_, err = coll.UpdateOne(ctx, vulnInImagesFilter, update)
+			if err != nil {
+				return NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't update document: %w", err))
+			}
+			newVulnerabilityInImages := &model.VulnerabilityInImages{
+				ID:             primitive.NewObjectIDFromTimestamp(time.Now()),
+				AffectedImages: &newAffectedImages,
+				VulnInfo:       vulnerabilityInImages.VulnInfo,
+				ScanType:       vulnerabilityInImages.ScanType,
+			}
+			_, err = coll.InsertOne(ctx, newVulnerabilityInImages)
+			if err != nil {
+				return NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't insert document: %w", err))
+			}
+		}
+		err = vulnsInImagesCursor.Err()
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Cursor error: %w", err))
+		}
+	}
+	err = cursor.Err()
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Cursor error: %w", err))
+	}
+	return nil
+}
+
+func (rcSvc *RedClairService) updateVulnWithNewImageAndBookkeepPreviousState(
+	ctx context.Context, cursor *mongo.Cursor,
+	coll *mongo.Collection, af *model.ScanReportAffectedImage) (string, error) {
+	var vulnerabilityInImages model.VulnerabilityInImages
+	err := cursor.Decode(&vulnerabilityInImages)
+	if err != nil {
+		return "", NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't decode document: %w", err))
+	}
+	vulnInImagesFilter := bson.M{"_id": vulnerabilityInImages.ID}
+	vulnerabilityInImages.HistoricisedTimestamp = time.Now()
+	update := bson.M{"$set": vulnerabilityInImages}
+	_, err = coll.UpdateOne(ctx, vulnInImagesFilter, update)
+	if err != nil {
+		return "", NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't update document: %w", err))
+	}
+	newAffectedImages := make(
+		[]model.ScanReportAffectedImage,
+		len(*vulnerabilityInImages.AffectedImages))
+	copy(newAffectedImages, *vulnerabilityInImages.AffectedImages)
+	newAffectedImages = append(newAffectedImages, *af)
+	newVulnerabilityInImages := &model.VulnerabilityInImages{
+		ID:             primitive.NewObjectIDFromTimestamp(time.Now()),
+		AffectedImages: &newAffectedImages,
+		VulnInfo:       vulnerabilityInImages.VulnInfo,
+		ScanType:       vulnerabilityInImages.ScanType,
+	}
+	_, err = coll.InsertOne(ctx, newVulnerabilityInImages)
+	if err != nil {
+		return "", NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't insert document: %w", err))
+	}
+	return vulnerabilityInImages.VulnInfo.ID, nil
+}
+
+func (rcSvc *RedClairService) addVulnerabilitiesInImages(
+	ctx context.Context, task *model.ScanTask) error {
+	af := model.ScanReportAffectedImage{
+		Repository: task.Repository,
+		Tag:        task.Tag,
+		Digest:     task.ImageDigest,
+		HarborURL:  task.HarborURL,
+		FinishedAt: task.FinishedAt,
+		TaskID:     task.ID,
+	}
+	vulnsLen := len(task.ScanReport.Vulns.Vulnerabilities)
+	sensitivesLen := len(task.ScanReport.Vulns.Sensitives)
+	vulnIds := make([]string, vulnsLen+sensitivesLen)
+	vulnIdsExist := make(map[string]bool)
+	for i, vuln := range task.ScanReport.Vulns.Vulnerabilities {
+		vulnIds[i] = vuln.ID
+		vulnIdsExist[vuln.ID] = false
+	}
+	for i, sens := range task.ScanReport.Vulns.Sensitives {
+		vulnIds[len(task.ScanReport.Vulns.Vulnerabilities)+i] = sens.Name
+		vulnIdsExist[sens.Name] = false
+	}
+	vulnsInImagesFilter := bson.M{
+		"$and": []bson.M{
+			{"vulnInfo.id": bson.M{"$in": vulnIds}},
+			{"historicised_timestamp": bson.M{"$exists": false}},
+		},
+	}
+
+	findOptions := options.Find().SetMaxTime(time.Second * 30)
+
+	coll := rcSvc.mongodb.Collection(
+		model.VulnerabilitiesInImagesCollection.String())
+	vulnsInImagesCursor, err := coll.Find(
+		ctx, vulnsInImagesFilter, findOptions)
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+	}
+	defer vulnsInImagesCursor.Close(ctx)
+	for vulnsInImagesCursor.Next(ctx) {
+		vulnID, err := rcSvc.updateVulnWithNewImageAndBookkeepPreviousState(
+			ctx, vulnsInImagesCursor, coll, &af)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to update vuln with new image: %w", err))
+		}
+		vulnIdsExist[vulnID] = true
+	}
+	err = vulnsInImagesCursor.Err()
+	if err != nil {
+		return NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Cursor error: %w", err))
+	}
+
+	for _, vuln := range task.ScanReport.Vulns.Vulnerabilities {
+		err = rcSvc.addNewVulnWithImages(ctx, coll, vulnIdsExist, &vuln, &af)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to add vuln with new image: %w", err))
+		}
+	}
+	for _, sens := range task.ScanReport.Vulns.Sensitives {
+		err = rcSvc.addNewSensitiveVulnWithImages(
+			ctx, coll, vulnIdsExist, sens, &af)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to add sensitive vuln with new image: %w", err))
+		}
+	}
+	return nil
+}
+
+func (rcSvc *RedClairService) addNewVulnWithImages(
+	ctx context.Context, coll *mongo.Collection,
+	vulnIdsExist map[string]bool, vuln *model.VulnerabilityInfo,
+	af *model.ScanReportAffectedImage) error {
+
+	exists, found := vulnIdsExist[vuln.ID]
+	if !found {
+		return NewAnError(http.StatusInternalServerError,
+			fmt.Errorf("Trying to update vulnerabilityInImages by ID not found in scantask"))
+	}
+	if !exists {
+		newVulnerabilityInImages := model.VulnerabilityInImages{
+			ID:             primitive.NewObjectIDFromTimestamp(time.Now()),
+			VulnInfo:       *vuln,
+			AffectedImages: &[]model.ScanReportAffectedImage{*af},
+			ScanType:       redclair.GetVulnerabilityScanType(vuln),
+		}
+		_, err := coll.InsertOne(ctx, newVulnerabilityInImages)
+		if err != nil {
+			return NewMongoError(
+				http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+		}
+	}
+	return nil
+}
+
+func (rcSvc *RedClairService) addNewSensitiveVulnWithImages(
+	ctx context.Context, coll *mongo.Collection,
+	vulnIdsExist map[string]bool, sens model.Sensitive,
+	af *model.ScanReportAffectedImage) error {
+	exists, found := vulnIdsExist[sens.Name]
+	if !found {
+		return NewAnError(http.StatusInternalServerError,
+			fmt.Errorf("Trying to update vulnerabilityInImages by ID not found in scantask"))
+	}
+	if !exists {
+		newVulnerabilityInImages := model.VulnerabilityInImages{
+			ID: primitive.NewObjectIDFromTimestamp(time.Now()),
+			VulnInfo: model.VulnerabilityInfo{
+				ID:          sens.Name,
+				Description: sens.DescriptionEn, // TODO: Add translation to VulnerabilityInfo when sensitive file
+				FeatureName: sens.Name,
+				Severity:    redclair.SeverityUnknown,
+				Links:       []string{},
+			},
+			AffectedImages: &[]model.ScanReportAffectedImage{*af},
+			ScanType:       model.ScanTypeBySeverity,
+		}
+		_, err := coll.InsertOne(ctx, newVulnerabilityInImages)
+		if err != nil {
+			return NewMongoError(
+				http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
+		}
+	}
+	return nil
 }
 
 func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []string, scanTask model.ScanTask) (map[string]*model.CachedLayer, []string, error) {

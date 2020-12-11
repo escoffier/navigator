@@ -17,6 +17,7 @@ const (
 	ComplianceCheckHostRecordsCollection
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
+	VulnerabilitiesInImagesCollection
 )
 
 func GetCollectionNames() []string {
@@ -35,6 +36,7 @@ func GetCollectionNames() []string {
 		"host-bench-records",
 		"CVE2CNNVD",
 		"checkHistoryEntry",
+		"vulnerabilitiesInImages",
 	}
 }
 

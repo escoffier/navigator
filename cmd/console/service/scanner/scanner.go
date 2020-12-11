@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
@@ -109,6 +110,50 @@ func (s *ScannerService) GetScannedImages(ctx context.Context, maxImageAgeInHour
 	return items, docNum, nil
 }
 
-func (s *ScannerService) GetImageVulnerabilities(ctx context.Context, riskFilter string, offset int64, limit int64, sortOrder string) ([]model.ScanReportListItem, int64, error) {
-	return s.imageVulnerabilityCache.GetItems(ctx, riskFilter, offset, limit, sortOrder)
+func (s *ScannerService) GetImageVulnerabilities(ctx context.Context, riskFilter string, offset int64, limit int64, sortOrder string) ([]model.VulnerabilityInImages, int64, error) {
+	vulnerabilityInImagesIds, docNum, err := s.imageVulnerabilityCache.GetItems(ctx, riskFilter, offset, limit, sortOrder)
+	if err != nil {
+		return nil, 0, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("Failed to get results from cache: %w", err))
+	}
+
+	items := make([]model.VulnerabilityInImages, len(vulnerabilityInImagesIds))
+
+	ids := make([]primitive.ObjectID, len(vulnerabilityInImagesIds))
+	for i := range vulnerabilityInImagesIds {
+		ids[i] = vulnerabilityInImagesIds[i].ID
+	}
+
+	filter := bson.D{{"_id", bson.D{{"$in", ids}}}}
+	opts := options.Find()
+	opts.SetMaxTime(time.Second * 10)
+	opts.SetSort(bson.D{{"createdAt", util.SortOrderToInt("desc")}})
+
+	coll := s.mongodb.Collection(model.VulnerabilitiesInImagesCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	cur, err := coll.Find(mongoCtx, filter, opts)
+	if err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find documents: %w", err))
+	}
+	defer cur.Close(mongoCtx)
+	var vulnerabilityInImagesNo int = 0
+	for cur.Next(mongoCtx) {
+		var vulnerabilityInImages model.VulnerabilityInImages
+		err := cur.Decode(&vulnerabilityInImages)
+		if err != nil {
+			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+
+		items[vulnerabilityInImagesNo] = vulnerabilityInImages
+		vulnerabilityInImagesNo++
+	}
+	err = cur.Err()
+	if err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Mongo cursor error: %w", err))
+	}
+
+	redclair.SortVulnerabilitiesInImagesBySeverityAndStuff(items, sortOrder == "asc")
+
+	return items, docNum, nil
 }

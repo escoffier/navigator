@@ -45,7 +45,6 @@ func NewScapCache(
 		redisClient,
 		c.getScapMaxEntryTimestamp(checkType),
 		util.FinishedAtKey,
-		true,
 	)
 
 	for _, checkType := range []model.ComplianceCheckType{model.ComplianceCheckTargetTypeDocker, model.ComplianceCheckTargetTypeHost, model.ComplianceCheckTargetTypeKube} {
@@ -175,9 +174,5 @@ func (c *ScapCache) getScapData(checkType model.ComplianceCheckType, clusterID s
 }
 
 func (c *ScapCache) GetItems(ctx context.Context, checkType string, clusterID string, offset int64, limit int64, sortBy string, sortOrder string) ([]model.CacheEntry, int64, error) {
-	err := c.ch.CheckVersionAndSyncData()
-	if err != nil {
-		return nil, 0, err
-	}
 	return c.ch.GetItems(offset, limit, sortOrder, string(checkType), clusterID, sortBy)
 }

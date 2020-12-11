@@ -37,7 +37,6 @@ func NewClustersCache(
 		redisClient,
 		c.getClustersNewestEntryTimestamp,
 		util.TimestampKey,
-		true,
 	)
 	c.ch.AddToRegistry(c.getClustersData)
 	return c
@@ -104,9 +103,5 @@ func (c *ClustersCache) getClustersData() ([]model.CacheEntry, error) {
 }
 
 func (c *ClustersCache) GetItems(ctx context.Context, offset int64, limit int64) ([]model.CacheEntry, int64, error) {
-	err := c.ch.CheckVersionAndSyncData()
-	if err != nil {
-		return nil, 0, err
-	}
 	return c.ch.GetItems(offset, limit, "desc")
 }

@@ -2,6 +2,8 @@ package redclair
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -38,6 +40,16 @@ func GetSeverityFromScore(score int64) string {
 	}
 }
 
+func GetVulnerabilityScanType(vuln *model.VulnerabilityInfo) int {
+	if SeverityGreaterThan(vuln.Severity, SeverityLow) {
+		if strings.Contains(vuln.CVSS.CVSSv2Vector, "AV:L") {
+			return model.ScanTypeNetWorkBased
+		}
+		return model.ScanTypeByMedToCritical
+	}
+	return model.ScanTypeBySeverity
+}
+
 func SeverityGreaterThan(this, other string) bool {
 	return SeverityToInt(this) > SeverityToInt(other)
 }
@@ -64,14 +76,39 @@ func SeverityToInt(sev string) int {
 	}
 }
 
-func CompareVulnerabilities(left model.VulnerabilityInfo, right model.VulnerabilityInfo) bool {
-
-	if left.CVSS.CVSSv2Score != "" && right.CVSS.CVSSv2Score != "" {
-		if left.CVSS.CVSSv2Score < right.CVSS.CVSSv2Score {
-			return true
-		} else if left.CVSS.CVSSv2Score > right.CVSS.CVSSv2Score {
-			return false
+func SortVulnerabilitiesInImagesBySeverityAndStuff(vulnerabilities []model.VulnerabilityInImages, asc bool) {
+	sort.Slice(vulnerabilities, func(i, j int) bool {
+		if !asc {
+			i, j = j, i
 		}
+		return CompareVulnerabilities(vulnerabilities[i].VulnInfo, vulnerabilities[j].VulnInfo)
+	})
+}
+
+func CompareVulnerabilities(left model.VulnerabilityInfo, right model.VulnerabilityInfo) bool {
+	if left.CVSS.CVSSv2Score != "" && right.CVSS.CVSSv2Score != "" {
+		leftCvssv2Score, leftErr := strconv.ParseFloat(left.CVSS.CVSSv2Score, 64)
+		rightCvssv2Score, rightErr := strconv.ParseFloat(right.CVSS.CVSSv2Score, 64)
+		if leftErr == nil && rightErr == nil {
+			if leftCvssv2Score < rightCvssv2Score {
+				return true
+			} else if leftCvssv2Score > rightCvssv2Score {
+				return false
+			}
+		}
+		if leftErr != nil {
+			logging.GetLogger().Warn().
+				Str("left", fmt.Sprintf("%+v", left)).
+				Err(leftErr).
+				Msg("Could not parse cvssv2score as float")
+		}
+		if rightErr != nil {
+			logging.GetLogger().Warn().
+				Str("right", fmt.Sprintf("%+v", right)).
+				Err(rightErr).
+				Msg("Could not parse cvssv2score as float")
+		}
+		// if at least one parsing error or values are equal, then move to other comparison methods
 	}
 	// else CVSSv2 was equal (usually the case when its empty string "" on both sides)
 

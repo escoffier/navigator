@@ -41,7 +41,6 @@ func NewRulesCache(
 		redisClient,
 		c.getRulesMaxEntryTimestamp,
 		util.CreatedAtKey,
-		true,
 	)
 	c.ch.AddToRegistry(c.getRulesData)
 	return c
@@ -108,9 +107,5 @@ func (c *RulesCache) getRulesData() ([]model.CacheEntry, error) {
 }
 
 func (c *RulesCache) GetItems(ctx context.Context, offset int64, limit int64) ([]model.CacheEntry, int64, error) {
-	err := c.ch.CheckVersionAndSyncData()
-	if err != nil {
-		return nil, 0, err
-	}
 	return c.ch.GetItems(offset, limit, "desc")
 }
