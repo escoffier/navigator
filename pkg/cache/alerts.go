@@ -124,3 +124,8 @@ func (c *AlertsCache) getAlertsData(onlyNotAcknowledged bool, kind model.AlertKi
 func (c *AlertsCache) GetItems(ctx context.Context, kind model.AlertKind, offset int64, limit int64, sortBy string, sortOrder string, onlyNotAcknowledged bool) ([]model.CacheEntry, int64, error) {
 	return c.ch.GetItems(offset, limit, sortOrder, strconv.FormatBool(onlyNotAcknowledged), string(kind), sortBy)
 }
+
+func (c *AlertsCache) RefreshCache() error {
+	err := c.ch.CheckVersionAndSyncData()
+	return err
+}

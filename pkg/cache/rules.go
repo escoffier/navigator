@@ -109,3 +109,8 @@ func (c *RulesCache) getRulesData() ([]model.CacheEntry, error) {
 func (c *RulesCache) GetItems(ctx context.Context, offset int64, limit int64) ([]model.CacheEntry, int64, error) {
 	return c.ch.GetItems(offset, limit, "desc")
 }
+
+func (c *RulesCache) RefreshCache() error {
+	err := c.ch.CheckVersionAndSyncData()
+	return err
+}

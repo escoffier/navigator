@@ -345,6 +345,11 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", afterUpdateResult.Err()))
 	}
 
+	err = s.alertsCache.RefreshCache()
+	if err != nil {
+		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
+	}
+
 	return &updatedAlert, nil
 }
 

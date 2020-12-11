@@ -114,8 +114,14 @@ func NewConsole(
 	// cleanup service
 	cleanupService := cleanup.NewCleanupService(mongodb, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath)
 
+	// harbor client
+	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	// scanner service
-	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongodb)
+	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongodb, harborClient)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -132,6 +138,12 @@ func NewConsole(
 	clusterService := cluster.NewClusterService(mainCtx, mongodb, onlineVulnsSvc, cleanupService, redisClient)
 
 	// scap service
+	scapService, err := sp.NewScapService(mainCtx, redisClient, mongodb)
+	if err != nil {
+		return nil, err
+	}
+
+	// scapper
 	scapper := &sp.Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
 		DockerRepoScapTag:  scapOpts.ImageTag,
@@ -141,6 +153,7 @@ func NewConsole(
 		MongoPassword:      mongoOpts.Password,
 		MongoDatabase:      mongoOpts.Database,
 		MongoSecretName:    mongoOpts.SecretName,
+		ScapService:        scapService,
 	}
 
 	// cron service
@@ -150,17 +163,6 @@ func NewConsole(
 
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
-
-	// scap service
-	scapService, err := sp.NewScapService(mainCtx, redisClient, mongodb)
-	if err != nil {
-		return nil, err
-	}
-
-	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
-	if err != nil {
-		return nil, err
-	}
 
 	return &Console{
 		server: &http.Server{

@@ -53,6 +53,23 @@ func NewScapService(
 	}, nil
 }
 
+func (s *ScapService) RefreshCache(checkType model.ComplianceCheckType) error {
+	var err error
+	switch checkType {
+	case model.ComplianceCheckTargetTypeKube:
+		err = s.kubeScapCache.RefreshCache()
+	case model.ComplianceCheckTargetTypeDocker:
+		err = s.dockerScapCache.RefreshCache()
+	case model.ComplianceCheckTargetTypeHost:
+		err = s.hostScapCache.RefreshCache()
+	}
+	if err != nil {
+		return NewAnError(
+			http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
+	}
+	return nil
+}
+
 func (s *ScapService) GetCheckHistory(ctx context.Context, checkType model.ComplianceCheckType, clusterID string, offset int64, limit int64, sortBy string, sortOrder string) ([]model.CheckHistoryEntry, int64, error) {
 	var docNum int64
 	var checkHistoryEntryIds []model.CacheEntry
