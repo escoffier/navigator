@@ -3,10 +3,11 @@ package kuberneteshelper
 import (
 	"bufio"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"os"
 	"regexp"
 	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	gocache "github.com/patrickmn/go-cache"
 )
@@ -63,12 +64,12 @@ func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, p
 			PodName:       "",
 			PodUID:        "",
 			PodLabels:     map[string]string{},
-			ContainerID:   cid,
+			ContainerID:   "",
 			ContainerName: "",
 			DockerPID:     -1,
 			ProcessPID:    pid,
 			Syscall:       syscall,
-		}, nil
+		}, fmt.Errorf("Not found k8s context for given syscall")
 	}
 
 	logging.GetLogger().Debug().Msg("Finding corresponding pod")

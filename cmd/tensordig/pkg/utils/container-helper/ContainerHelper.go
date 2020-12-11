@@ -21,13 +21,7 @@ func (cu ContainerUtil) Init() error {
 }
 
 func (cu ContainerUtil) GetContainerPid(pid int) (int, error) {
-	log.Debug("Checking container cache")
-	dockerPID, err := cu.pidCache.Get(pid)
-
-	if err == nil {
-		log.Debugf("Found docker pid %d in cache for %d process", dockerPID, pid)
-		return dockerPID, nil
-	}
+	var dockerPID int
 
 	p, err := ps.FindProcess(pid)
 	if err != nil || p == nil {
