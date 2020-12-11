@@ -208,10 +208,6 @@ func (c *CacheHelper) reverse(s []model.CacheEntry) []model.CacheEntry {
 }
 
 func (c *CacheHelper) GetItems(offset int64, limit int64, sortOrder string, keyElements ...string) ([]model.CacheEntry, int64, error) {
-	err := c.checkVersionAndSyncData()
-	if err != nil {
-		return nil, 0, err
-	}
 
 	key := c.KeyFrom(keyElements...)
 	c.mu.Lock()
