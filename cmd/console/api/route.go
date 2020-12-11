@@ -241,7 +241,7 @@ func jwtAccessCheck(mongodb *mongo.Database, userCache *cache.Cache) func(http.H
 
 			if !hasAccess {
 				RespAndLog(w, r.Context(),
-					NewInvalidAuthToken(http.StatusForbidden,
+					NewNoAccess(http.StatusForbidden,
 						fmt.Errorf("access invalid")))
 				return
 			}

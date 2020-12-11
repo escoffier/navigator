@@ -15,6 +15,7 @@ type FieldError struct{ detailedError }
 type ClusterAlreadyExists struct{ detailedError }
 type MaxNumberOfClustersReached struct{ detailedError }
 type InvalidAuthToken struct{ detailedError }
+type NoAccess struct{ detailedError }
 type SessionExpired struct{ detailedError }
 type ClairError struct{ detailedError }
 type DockerError struct{ detailedError }
@@ -325,6 +326,22 @@ func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Invalid auth token",
 			Zhongwen:  "无效的身份验证令牌",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewNoAccess(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return NoAccess{
+		detailedError{
+			err:       err,
+			English:   "Access is Invalid",
+			Zhongwen:  "没有此权限",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
