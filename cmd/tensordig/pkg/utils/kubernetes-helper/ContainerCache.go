@@ -25,7 +25,7 @@ type ContainerCache struct {
 //cleanupLoop that keeps calling cleanupCache() in a loop every scheduled interval
 func (cc ContainerCache) cleanupLoop() {
 	//Hardcoded to run once a minute. TODO: make this configurable
-	for range time.Tick(time.Minute * 1) {
+	for range time.Tick(time.Second * 5) {
 		cc.cleanupCache()
 	}
 
