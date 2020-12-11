@@ -48,6 +48,7 @@ type Scapper struct {
 	MongoPassword      string
 	MongoDatabase      string
 	MongoSecretName    string
+	ScapService        *ScapService
 }
 
 const (
@@ -126,6 +127,8 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	// async context is rooted in application context
 	asyncCtx, _ := context.WithTimeout(rootCtx, checkTimeout)
 	go s.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes)
+
+	s.ScapService.RefreshCache(check.CheckType)
 
 	return checkUUID, nil
 }

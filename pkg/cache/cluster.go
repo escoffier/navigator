@@ -105,3 +105,8 @@ func (c *ClustersCache) getClustersData() ([]model.CacheEntry, error) {
 func (c *ClustersCache) GetItems(ctx context.Context, offset int64, limit int64) ([]model.CacheEntry, int64, error) {
 	return c.ch.GetItems(offset, limit, "desc")
 }
+
+func (c *ClustersCache) RefreshCache() error {
+	err := c.ch.CheckVersionAndSyncData()
+	return err
+}

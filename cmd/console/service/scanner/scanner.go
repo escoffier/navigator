@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
@@ -26,11 +27,11 @@ type ScannerService struct {
 	scannedImagesCache      *rcache.ScannedImagesCache
 }
 
-func NewScannerService(ctx context.Context, redisClient *redis.Client, mongodb *mongo.Database) *ScannerService {
+func NewScannerService(ctx context.Context, redisClient *redis.Client, mongodb *mongo.Database, harborClient *harbor.HarborRESTClient) *ScannerService {
 	return &ScannerService{
 		mongodb:                 mongodb,
 		imageVulnerabilityCache: rcache.NewImageVulnerabilityCache(ctx, mongodb, redisClient),
-		scannedImagesCache:      rcache.NewScannedImagesCache(ctx, mongodb, redisClient),
+		scannedImagesCache:      rcache.NewScannedImagesCache(ctx, mongodb, redisClient, harborClient),
 	}
 }
 

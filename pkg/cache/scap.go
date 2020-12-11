@@ -176,3 +176,8 @@ func (c *ScapCache) getScapData(checkType model.ComplianceCheckType, clusterID s
 func (c *ScapCache) GetItems(ctx context.Context, checkType string, clusterID string, offset int64, limit int64, sortBy string, sortOrder string) ([]model.CacheEntry, int64, error) {
 	return c.ch.GetItems(offset, limit, sortOrder, string(checkType), clusterID, sortBy)
 }
+
+func (c *ScapCache) RefreshCache() error {
+	err := c.ch.CheckVersionAndSyncData()
+	return err
+}

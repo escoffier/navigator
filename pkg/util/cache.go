@@ -97,7 +97,7 @@ func (c *CacheHelper) bgSync() {
 		select {
 		case <-time.After(CacheRefreshInterval):
 			logging.GetLogger().Info().Str("name", c.keyPrefix).Msg("Starting data sync")
-			err := c.checkVersionAndSyncData()
+			err := c.CheckVersionAndSyncData()
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Str("name", c.keyPrefix).Msg("Failed data sync")
 			}
@@ -105,7 +105,7 @@ func (c *CacheHelper) bgSync() {
 	}
 }
 
-func (c *CacheHelper) checkVersionAndSyncData() error {
+func (c *CacheHelper) CheckVersionAndSyncData() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -208,7 +208,6 @@ func (c *CacheHelper) reverse(s []model.CacheEntry) []model.CacheEntry {
 }
 
 func (c *CacheHelper) GetItems(offset int64, limit int64, sortOrder string, keyElements ...string) ([]model.CacheEntry, int64, error) {
-
 	key := c.KeyFrom(keyElements...)
 	c.mu.Lock()
 	defer c.mu.Unlock()

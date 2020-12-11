@@ -139,6 +139,13 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 	if err != nil {
 		return primitive.NilObjectID, err
 	}
+
+	err = s.clustersCache.RefreshCache()
+	if err != nil {
+		return primitive.NilObjectID, NewAnError(
+			http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
+	}
+
 	return id, nil
 }
 
@@ -289,6 +296,11 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 	})
 	if err != nil {
 		return 0, err
+	}
+
+	err = s.clustersCache.RefreshCache()
+	if err != nil {
+		return 0, NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
 	}
 
 	return res, nil

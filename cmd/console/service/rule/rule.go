@@ -163,6 +163,12 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 		return nil, err
 	}
 
+	err = s.rulesCache.RefreshCache()
+	if err != nil {
+		return nil, NewAnError(
+			http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
+	}
+
 	return &newRule, nil
 }
 
@@ -249,6 +255,12 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	err = s.rulesCache.RefreshCache()
+	if err != nil {
+		return nil, NewAnError(
+			http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
 	}
 
 	return &newRule, nil

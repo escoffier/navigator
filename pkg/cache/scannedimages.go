@@ -2,12 +2,14 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -18,24 +20,30 @@ import (
 )
 
 const (
-	scannedImagesKey = "ScannedImages"
+	scannedImagesKey           = "ScannedImages"
+	ScannedImagesCountCacheKey = "ScannedImagesCount"
 )
 
 type ScannedImagesCache struct {
-	ctx     context.Context
-	mongodb *mongo.Database
-	ch      *util.CacheHelper
+	ctx          context.Context
+	redisClient  *redis.Client
+	mongodb      *mongo.Database
+	ch           *util.CacheHelper
+	harborClient *harbor.HarborRESTClient
 }
 
 func NewScannedImagesCache(
 	ctx context.Context,
 	mongodb *mongo.Database,
 	redisClient *redis.Client,
+	harborClient *harbor.HarborRESTClient,
 ) *ScannedImagesCache {
 
 	c := &ScannedImagesCache{
-		ctx:     ctx,
-		mongodb: mongodb,
+		ctx:          ctx,
+		mongodb:      mongodb,
+		redisClient:  redisClient,
+		harborClient: harborClient,
 	}
 	c.ch = util.NewCacheHelper(
 		ctx,
@@ -115,6 +123,27 @@ func (c *ScannedImagesCache) getScannedImagesData(
 		if err != nil {
 			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not get ids to cache: %w", err))
 		}
+
+		harborCtx, harborCtxCancel := context.WithTimeout(c.ctx, time.Second*10)
+		defer harborCtxCancel()
+
+		status, err := c.harborClient.GetScanAllStatus(harborCtx)
+		if err != nil {
+			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to get harbor scan status: %w", err))
+		}
+
+		redisCtx, redisCtxCancel := context.WithTimeout(c.ctx, util.RedisTimeout)
+		defer redisCtxCancel()
+
+		statusBytes, err := json.Marshal(status)
+		if err != nil {
+			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal harbor response: %w", err))
+		}
+		err = c.redisClient.Set(redisCtx, ScannedImagesCountCacheKey, statusBytes, 0).Err()
+		if err != nil {
+			return nil, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("Set redis maxEntryTimestamp error: %w", err))
+		}
+
 		return scannedImagesIds, nil
 	}
 }
