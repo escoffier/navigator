@@ -41,6 +41,7 @@ type ImageScanSummaryResult struct {
 	TopVulns          []VulnerabilityInfo   `json:"topVulnerabilities"`
 	OverallSeverity   string                `json:"overallSeverity"`
 	Repository        string                `json:"repository"`
+	HarborURL         string                `json:"harborURL"`
 	Tag               string                `json:"tag"`
 	Digest            string                `json:"digest"`
 	TaskID            primitive.ObjectID    `json:"taskID"`
@@ -54,6 +55,7 @@ type ImageScanDetailedResult struct {
 	TopVulns          []VulnerabilityInfo        `json:"topVulnerabilities"`
 	OverallSeverity   string                     `json:"overallSeverity"`
 	Repository        string                     `json:"repository"`
+	HarborURL         string                     `json:"harborURL"`
 	Tag               string                     `json:"tag"`
 	Digest            string                     `json:"digest"`
 	PerLayerReport    []VulnerabilityLayerReport `json:"perLayerReport"`
