@@ -84,6 +84,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 
 		result := &model.ImageScanDetailedResult{}
 		report := scanTask.ScanReport.Vulns
+		result.HarborURL = scanTask.HarborURL
 
 		topVulnsNum := len(report.Vulnerabilities)
 		if len(report.Vulnerabilities) >= 5 {

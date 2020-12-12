@@ -90,6 +90,7 @@ func (s *ScannerService) GetScannedImages(ctx context.Context, maxImageAgeInHour
 			TopVulns:          report.Vulnerabilities[:topVulnsNum],
 			SensitiveFiles:    report.Sensitives,
 			Repository:        report.Repository,
+			HarborURL:         scanTask.HarborURL,
 			Tag:               report.Tag,
 			Digest:            report.Digest,
 			TaskID:            scanTask.ID,
