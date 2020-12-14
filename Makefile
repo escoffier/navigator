@@ -215,6 +215,8 @@ redeploy:
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
 		kubectl -n tensorsec patch pvc datadir-tensorsec-mongodb-secondary-0 -p '{"metadata":{"finalizers":null}}'; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
+		kubectl -n tensorsec delete pvc redis-data-tensorsec-redis-master-0; \
+		kubectl -n tensorsec delete pvc redis-data-tensorsec-redis-slave-0; \
 		kubectl -n tensorsec patch pvc audit-pvc -p '{"metadata":{"finalizers":null}}'; \
 		kubectl -n tensorsec delete pvc audit-pvc; \
 		kubectl --namespace tensorsec get job --namespace tensorsec | grep "-bench" | awk '{print $2}' | xargs kubectl --namespace tensorsec delete job; \
