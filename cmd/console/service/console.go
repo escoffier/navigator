@@ -646,6 +646,10 @@ func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterServic
 	// TODO when support multiple clusters, just loop?
 	firstCluster := clusters[0]
 
+	logging.GetLogger().Info().
+		Str("cluster", fmt.Sprintf("%+v", firstCluster)).
+		Msg("Cluster already exists")
+
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(firstCluster.KubeConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to create kube client from config: %w", err)
