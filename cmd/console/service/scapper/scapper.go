@@ -54,7 +54,7 @@ type Scapper struct {
 const (
 	// Potentially move to config file.
 
-	checkTimeout           = time.Minute * 10
+	checkTimeout           = time.Minute * 30
 	historicalChecksToKeep = 3
 )
 
