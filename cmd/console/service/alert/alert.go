@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -399,4 +400,46 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 
 	return items, docNum, nil
 
+}
+
+func (s *AlertService) OneNodeAlert(ctx context.Context, nodeName string, action string) (alerts []model.Alert, count int, err error) {
+	c, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	coll := s.mongodb.Collection(model.AlertsCollection.String())
+
+	filter := bson.M{
+		"runtimeDetectionAlert.containerId": nodeName,
+	}
+
+	var cur *mongo.Cursor
+	cur, err = coll.Find(c, filter)
+	if err != nil {
+		return
+	}
+
+	switch action {
+	case "count":
+		for cur.Next(c) {
+			var alert model.Alert
+			err = cur.Decode(&alert)
+			cur.Current.Elements()
+			if err != nil {
+				return
+			} else {
+				count++
+			}
+		}
+
+	default:
+		err = errors.New("action error")
+		return
+	}
+
+	if c.Err() != nil {
+		err = c.Err()
+		return
+	}
+
+	return
 }

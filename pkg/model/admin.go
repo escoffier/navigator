@@ -62,6 +62,7 @@ const (
 	URL_SUPER_ADMIN        = "/api/v1/superAdmin"
 
 	IGNORE_ACCESS_URL_AUTH    = "/api/v1/auth"
+	IGNORE_ACCESS_URL_USER    = "/api/v1/user"
 	IGNORE_ACCESS_URL_PING    = "/ping"
 	IGNORE_ACCESS_URL_SWAGGER = "/swagger"
 	IGNORE_ACCESS_URL_HARBOR  = "/harbor"
@@ -213,12 +214,14 @@ func AllAccessURL() ([]string, map[string]struct{}) {
 func AllIgnoreAccessURL() ([]string, map[string]struct{}) {
 	return []string{
 			IGNORE_ACCESS_URL_AUTH,
+			IGNORE_ACCESS_URL_USER,
 			IGNORE_ACCESS_URL_PING,
 			IGNORE_ACCESS_URL_SWAGGER,
 			IGNORE_ACCESS_URL_HARBOR,
 		},
 		map[string]struct{}{
 			IGNORE_ACCESS_URL_AUTH:    {},
+			IGNORE_ACCESS_URL_USER:    {},
 			IGNORE_ACCESS_URL_PING:    {},
 			IGNORE_ACCESS_URL_SWAGGER: {},
 			IGNORE_ACCESS_URL_HARBOR:  {},

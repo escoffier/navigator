@@ -583,6 +583,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 				"imageScanAlert.elasticId": 1,
 			}, Options: nil,
 		},
+		{
+			Keys: bson.M{
+				"runtimeDetectionAlert.containerId": 1,
+			}, Options: nil,
+		},
 	}
 	neededIndexesPerCollection[model.RulesCollection.String()] = []mongo.IndexModel{
 		{
