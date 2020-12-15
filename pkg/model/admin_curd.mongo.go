@@ -40,6 +40,26 @@ func SelectUser(ctx context.Context, mongodb *mongo.Database, userName string) (
 
 }
 
+func UpdateUserPwd(ctx context.Context, mongodb *mongo.Database, userName string, pwd string) (int64, error) {
+	filter := bson.M{
+		"user_name": bson.M{
+			"$eq": userName,
+		},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"pwd": pwd,
+		},
+	}
+
+	updateResult, err := mongodb.Collection(UserCollection).UpdateOne(ctx, filter, update)
+
+	if err != nil {
+		return 0, errors.New("UpdateUserPwd() -> mongodb.Collection().UpdateOne() err : " + err.Error())
+	}
+	return updateResult.UpsertedCount, nil
+}
+
 func SelectUserAll(ctx context.Context, mongodb *mongo.Database, limit, page int64) ([]User, error) {
 
 	filter := bson.M{}

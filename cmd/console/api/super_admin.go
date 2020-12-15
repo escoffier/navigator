@@ -23,6 +23,7 @@ const (
 func (api *api) superAdmin() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/userList", api.userList())
+		r.Post("/resetPassword", api.resetPassword())
 		r.Post("/roleList", api.roleList())
 		r.Post("/accessList", api.accessList())
 		r.Post("/addUser", api.addUser())
@@ -41,7 +42,6 @@ func (api *api) userList() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		rq := reqUserList{}
 		err := json.NewDecoder(r.Body).Decode(&rq)
 		if err != nil {
@@ -75,6 +75,42 @@ func (api *api) userList() http.HandlerFunc {
 		response.Ok(w, response.WithItems(userList))
 	}
 }
+
+// func (api *api) resetPassword() http.HandlerFunc {
+// 	type reqResetPwd struct {
+// 		Pwd string `json:"pwd"`
+// 	}
+// 	type ResetPwdResponse struct {
+// 		Success bool `json:"success"`
+// 	}
+
+// 	return func(w http.ResponseWriter, r *http.Request) {
+// 		rq := reqResetPwd{}
+// 		err := json.NewDecoder(r.Body).Decode(&rq)
+// 		if err != nil {
+// 			RespAndLog(w, r.Context(),
+// 				NewMalformedRequestError(http.StatusBadRequest,
+// 					fmt.Errorf("failed to decode json: %w", err)))
+// 			return
+// 		}
+
+// 		user := r.Context().Value(userKey).(*User)
+
+// 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+// 		defer cancel()
+
+// 		_, err = model.UpdateUserPwd(ctx, api.mongodb, user.Username, rq.Pwd)
+// 		if err != nil {
+// 			RespAndLog(w, ctx,
+// 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
+// 			return
+// 		}
+
+// 		response.Ok(w, response.WithItem(ResetPwdResponse{
+// 			Success: true,
+// 		}))
+// 	}
+// }
 
 func (api *api) roleList() http.HandlerFunc {
 	type reqRoleList struct {

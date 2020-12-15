@@ -18,6 +18,7 @@ import (
 func (api *api) alert() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/", api.listAlerts())
+		r.Get("/node", api.nodeAlert())
 		r.Post("/{alertID}/acknowledge", api.acknowledgeAlert())
 	}
 }
@@ -108,6 +109,33 @@ func (api *api) listAlerts() http.HandlerFunc {
 			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
+	}
+}
+
+func (api *api) nodeAlert() http.HandlerFunc {
+
+	type resp struct {
+		Count int `json:"count"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		values, ok := r.URL.Query()["nodeName"]
+		if !ok {
+			RespAndLog(w, r.Context(), errors.New("param nodeName not found"))
+			return
+		}
+		nodeName := values[0]
+
+		_, count, err := api.alertService.OneNodeAlert(ctx, nodeName, "count")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		response.Ok(w,
+			response.WithItem(resp{count}))
 	}
 }
 
