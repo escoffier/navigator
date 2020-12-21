@@ -33,6 +33,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sed -i s#gitlab.com:tensorsecurity-rd/xccdfparser#10.77.107.13:root/xccdfparser#g .gitmodules
                 git submodule init
                 git submodule update
+                git submodule update --init --recursive
                 echo test-webhook
                 go get -u github.com/swaggo/swag/cmd/swag
                 go get -u golang.org/x/lint/golint
