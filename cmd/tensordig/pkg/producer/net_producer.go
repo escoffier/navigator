@@ -6,8 +6,8 @@ import (
 	"encoding/binary"
 	"strings"
 
-	bpf "github.com/iovisor/gobpf/bcc"
 	log "github.com/sirupsen/logrus"
+	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 import (
 	"sync"

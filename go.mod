@@ -36,7 +36,7 @@ require (
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/imdario/mergo v0.3.5 // indirect
-	github.com/iovisor/gobpf v0.0.0-20200614202714-e6b321d32103
+	gitlab.com/tensorsecurity-rd/gobpf v0.0.0-20200614202714-e6b321d32103 // indirect
 	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
@@ -62,6 +62,7 @@ require (
 	github.com/tidwall/pretty v1.0.0 // indirect
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
+	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.4.4
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
@@ -78,3 +79,5 @@ require (
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
+
+replace gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf

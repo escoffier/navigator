@@ -1,4 +1,4 @@
-FROM ubuntu:eoan
+FROM ubuntu:18.04
 
 ARG GOPROXY=
 RUN export GOPROXY=$GOPROXY
@@ -7,23 +7,31 @@ ARG MIRROR=archive.ubuntu.com
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends \
-        libelf1 libtinfo5 golang-1.13 ca-certificates build-essential
+	libelf1 libtinfo5 ca-certificates build-essential bison build-essential cmake flex git libedit-dev \
+	libllvm7 llvm-7-dev libclang-7-dev python zlib1g-dev libelf-dev libfl-dev wget
+
+WORKDIR /tmp
+
+RUN wget https://dl.google.com/go/go1.13.9.linux-amd64.tar.gz
+RUN tar xf go1.13.9.linux-amd64.tar.gz
 
 WORKDIR /bcc
-# aquasec/bcc-builder is built from the upstream bcc dockerfile using:
-# docker build --target=builder -t aquasec/bcc-builder:latest --file Dockerfile.ubuntu .
-# TODO: change this dependency
-COPY --from=aquasec/bcc-builder:latest /root/bcc/libbcc_*.deb /bcc/
-RUN DEBIAN_FRONTEND=noninteractive dpkg -i libbcc_*.deb && rm -rf /bcc
+
+COPY configs/tensordig/bcc bcc
+RUN mkdir bcc/build
+
+WORKDIR /bcc/bcc/build
+RUN cmake ..
+RUN make
+RUN make install
 
 WORKDIR /go/src/app
 COPY . .
 
-
-RUN PATH=$PATH:/usr/lib/go-1.13/bin GO111MODULE=on go build -v -a \
-		-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
-		# Be careful when adding LDFLAGS because they conflict with CGO
-		# Remove them for now.
-		# --ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \ 
+RUN PATH=$PATH:/tmp/go/bin GO111MODULE=on go build -v -a \
+	-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
+# Be careful when adding LDFLAGS because they conflict with CGO
+# Remove them for now.
+# --ldflags "$LDFLAGS -X gitlab.com/piccolo_su/vegeta/cmd/tensordig/cmd.Version=$VERSION" \ 
 
 CMD configs/tensordig/entrypoint.sh

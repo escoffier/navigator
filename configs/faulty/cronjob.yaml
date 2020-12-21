@@ -16,7 +16,7 @@ spec:
               args:
                 - /bin/bash
                 - -c
-                - /app/entrypoint.sh
+                - ( /app/entrypoint.sh ; exit 0 )
           restartPolicy: Never
           imagePullSecrets:
             - name: harbor-admin-secret

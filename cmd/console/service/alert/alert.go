@@ -13,14 +13,13 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	r "gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -64,13 +63,26 @@ func (s *AlertService) elasticsearchAlertPoller() {
 	defer wg.Done()
 	wg.Add(1)
 	ticker := time.NewTicker(alertPollInterval)
+	elastAlertCleanup, err := s.elasticClient.BulkProcessor().
+		Name("ElastAlert cleaner").
+		Workers(2).
+		BulkActions(1000).
+		BulkSize(5 << 20).
+		FlushInterval(30 * time.Second).
+		Stats(true).
+		Do(s.ctx)
+	if err != nil {
+		logging.GetLogger().Error().Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not start elastalert cleanup: %w", err)))
+	}
+	defer elastAlertCleanup.Close()
+
 loop:
 	for {
 		select {
 		case <-ticker.C:
 			pollCtx, pollCtxCancel := context.WithTimeout(s.ctx, alertPollTimeout)
 			defer pollCtxCancel()
-			err := s.pollRuntimeDetectionAlerts(pollCtx)
+			err := s.pollRuntimeDetectionAlerts(pollCtx, elastAlertCleanup)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Error when polling image scan alerts")
 			}
@@ -81,7 +93,7 @@ loop:
 	logging.GetLogger().Info().Msg("Shutting down image scan alert poller")
 }
 
-func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
+func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAlertCleanup *elastic.BulkProcessor) error {
 	lastPollTimestampFrom := s.lastPollTimestamp.Add(time.Duration(-5) * time.Minute)
 	lastPollTimestampTo := time.Now()
 	defer func() {
@@ -99,7 +111,8 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 						"lt": "%s"
 					}
 				}
-			}
+			},
+			"size": 5000
 		}`, lastPollTimestampFrom.Format(time.RFC3339), lastPollTimestampTo.Format(time.RFC3339))
 
 	var b strings.Builder
@@ -135,8 +148,16 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 		return nil
 	}
 
+	logging.GetLogger().Info().Int("hits", len(searchResult.Hits.Hits)).Msg("Found alert entries in ES")
+
 	for _, hit := range searchResult.Hits.Hits {
 		elasticID := hit.Id
+
+		deleteRequest := elastic.NewBulkDeleteRequest().
+			Index(s.elasticIndex).
+			Id(elasticID)
+		elastAlertCleanup.Add(deleteRequest)
+
 		var elasticAlert map[string]interface{}
 		err := json.Unmarshal(hit.Source, &elasticAlert)
 		if err != nil {
@@ -144,6 +165,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 				fmt.Errorf("Failed to parse elasticsearch result: %w", err),
 				Suberror{"elasticID", elasticID})
 		}
+		logging.GetLogger().Debug().Str("elastalert", fmt.Sprintf("%+v", elasticAlert)).Msg("Analysing alert entry")
 
 		filter := bson.M{
 			"$or": []bson.M{
@@ -180,15 +202,11 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 		if _, ok := elasticAlert["reverse_shell_socket_dup2"]; ok {
 			vulnerability = "RS-SOCKET_DUP2"
 		}
-		if val, ok := elasticAlert["openat__filename"]; ok {
-			if val.(string) == "/proc/self/exe" {
-				vulnerability = "CVE-2019-5736"
-			}
+		if _, ok := elasticAlert["openat__filename"]; ok {
+			vulnerability = "CVE-2019-5736"
 		}
-		if val, ok := elasticAlert["open__filename"]; ok {
-			if val.(string) == "/proc/self/exe" {
-				vulnerability = "CVE-2019-5736"
-			}
+		if _, ok := elasticAlert["open__filename"]; ok {
+			vulnerability = "CVE-2019-5736"
 		}
 		if val, ok := elasticAlert["execve__filename"]; ok {
 			if val.(string) == "/usr/bin/sudo" {
@@ -287,13 +305,10 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context) error {
 
 		if numRaised == 0 {
 			logging.GetLogger().Info().
-				Str("elasticID", elasticID).
-				Str("vulnerability", vulnerability).
 				Msg("Didn't raise any alert to mongo, because no matched vulnerability was enabled")
 		} else {
 			logging.GetLogger().Info().
 				Int("numRaised", numRaised).
-				Str("vulnerability", vulnerability).
 				Msg("Raised alerts to mongo")
 		}
 	}

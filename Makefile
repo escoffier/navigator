@@ -99,7 +99,7 @@ scanner: generate		## Build scanner binary
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: tensordig
-tensordig: generate ## Build tensordig binary
+tensordig: ## Build tensordig binary
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "tensordig will use mirror"
