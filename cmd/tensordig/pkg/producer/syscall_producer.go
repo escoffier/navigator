@@ -8,8 +8,8 @@ import (
 
 	"fmt"
 
-	bpf "github.com/iovisor/gobpf/bcc"
 	log "github.com/sirupsen/logrus"
+	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 
 const syscallBasicProg string = `
@@ -216,7 +216,7 @@ const syscallTemplate string = `
 	BPF_HASH(start_%s, u64, %s, 1);
 
 	// perf_enter_arg
-	int syscall_enter_%s(%s *ctx) {
+	int kprobe__sys_%s(%s) {
 		// sys_call_type_args
 		u64 pid = bpf_get_current_pid_tgid();
 		char name[] = "%s";
@@ -241,11 +241,11 @@ const syscallTemplate string = `
 		d.event_info.uid = gid_uid;
 		d.event_info.ptid = ts->real_parent->pid;
 		d.event_info.ptgid = ts->real_parent->tgid;
-		char *argv;
+		// char *argv;
 		// assign value
 		%s
 
-		// ealy fd info. Like close, we need to hook it in the syscall enter rather than exit.
+		// early fd info. Like close, we need to hook it in the syscall enter rather than exit.
 		%s
 
 out:
@@ -254,7 +254,7 @@ out:
 		return 0;
 	}
 
-	int syscall_exit_%s(ret_t *ctx) {
+	int kretprobe__sys_%s(struct pt_regs *ctx) {
 		u64 pid = bpf_get_current_pid_tgid();
 		%s *data = start_%s.lookup(&pid);
 		if (data == 0) {
@@ -262,11 +262,16 @@ out:
 		}
 		%s d = *data;
 		// d.event_info.ts = bpf_ktime_get_ns();
+		
 		int flag = 0; 
 		%s
 		if (flag == 1){
-			d.event_info.ret = ctx->ret;
-
+			d.event_info.ret = PT_REGS_RC(ctx);
+			events_output.perf_submit(ctx, &d, sizeof(d));
+		}
+		// Commenting out, as on 4.10 we have the following:
+		// bpf: Argument list too long. Program  too large (941 insns), at most 4096 insns
+		/*
 			struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
 			d.event_info.euid = ts->real_cred->euid.val;
 			d.event_info.egid = ts->real_cred->egid.val;
@@ -302,7 +307,8 @@ out:
 			if (sffd){
 				events_output.perf_submit(ctx, &d, sizeof(d));
 			}
-	    }
+		}
+		*/
 		start_%s.delete(&pid);
 		return 0;
 	}
@@ -356,43 +362,29 @@ func NewSyscallProducer(producerInfo *ProducerInfoT) *SyscallProducer {
 
 func (p *SyscallProducer) Init(module *bpf.Module) {
 	// load program to module
-	enterFd, err := module.LoadTracepoint("syscall_enter_" + p.Syscall)
+	kprobe, err := module.LoadKprobe("kprobe__sys_" + p.Syscall)
 	if err != nil {
-		log.Fatalf("Could not load tracepoint: syscall_enter of syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
-	}
-	exitFd, err := module.LoadTracepoint("syscall_exit_" + p.Syscall)
-	if err != nil {
-		log.Fatalf("Could not load tracepoint: syscall_exit of syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+		log.Fatalf("Could not load kprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
 	}
 
-	// attach program to sys_call
-	enterTracepoint := "syscalls:sys_enter_" + p.Syscall
-	err = module.AttachTracepoint(enterTracepoint, enterFd)
+	syscallName := bpf.GetSyscallFnName(p.Syscall)
+
+	err = module.AttachKprobe(syscallName, kprobe, -1)
 	if err != nil {
-		log.Fatalf("Could not attach to enter tracepoint of syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
-	}
-	exitTracepoint := "syscalls:sys_exit_" + p.Syscall
-	err = module.AttachTracepoint(exitTracepoint, exitFd)
-	if err != nil {
-		log.Fatalf("Could not attach to exit tracepoint of syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+		log.Fatalf("Could not attach kprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
 	}
 
-	// // create table
-	// p.Table = bpf.NewTable(module.TableId("events_"+p.Syscall), module)
+	kretprobe, err := module.LoadKprobe("kretprobe__sys_" + p.Syscall)
+	if err != nil {
+		log.Fatalf("Could not load kretprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+	}
 
-	// // create channel to receive from the bpf perf
-	// p.byteChan = make(chan []byte)
-
-	// // Create perMap from table and channel
-	// p.PerfMap, err = bpf.InitPerfMap(p.Table, p.byteChan)
-	// if err != nil {
-	// 	log.Fatalf("Counld not create perMap of syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
-	// }
-
-	// if err != nil {
-	// 	log.Fatalf("Attach tracepoint of syscall %s failed. Error: %s\n", strings.ToUpper(p.Syscall), err)
-	// }
-
+	// passing -1 for maxActive signifies to use the default
+	// according to the kernel kretprobes documentation
+	err = module.AttachKretprobe(syscallName, kretprobe, -1)
+	if err != nil {
+		log.Fatalf("Could not attach kretprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+	}
 }
 
 func (p *SyscallProducer) getFieldsAbbr() map[string]string {

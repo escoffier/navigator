@@ -1,5 +1,13 @@
 package constant
 
+var SyscallIoArgsMap = map[string]string{
+	"execve": "const char *filename, const char *const *argv, const char *const *envp",
+	"open":   "char *filename, int flags, umode_t mode",
+	"openat": "int dfd, const char *filename, int flags, umode_t mode",
+	"socket": "int family, int type, int protocol",
+	"dup2":   "unsigned int oldfd, unsigned int newfd",
+}
+
 var SyscallIoStructMap = map[string]string{
 	"time_args":                    "typedef struct {u64 __unused__; int __syscall_nr; time_t * tloc;} time_args;",
 	"time_data":                    "typedef struct {event_info_t event_info; u64 tloc;} time_data;",

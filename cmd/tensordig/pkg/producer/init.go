@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	bpf "github.com/iovisor/gobpf/bcc"
 	log "github.com/sirupsen/logrus"
+	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 
 type Producer interface {
@@ -406,11 +406,11 @@ func AssignGenerator(fieldsMap map[string]string, syscall *string) (string, stri
 				continue
 			} else {
 				assign.WriteString(
-					fmt.Sprintf("bpf_probe_read(&d.%s, sizeof(d.%s), (void *)ctx->%s);\n",
+					fmt.Sprintf("bpf_probe_read(&d.%s, sizeof(d.%s), (void *)%s);\n",
 						fieldName, fieldName, fieldName))
 			}
 		} else if !("readfd" == fieldName || "writefd" == fieldName) { // pipe support
-			assign.WriteString(fmt.Sprintf("d.%s=ctx->%s;\n", fieldName, fieldName))
+			assign.WriteString(fmt.Sprintf("d.%s=%s;\n", fieldName, fieldName))
 		}
 		position := fdVariation[fieldName]
 		if position > 0 {
@@ -564,23 +564,25 @@ func AssignGenerator(fieldsMap map[string]string, syscall *string) (string, stri
 	if *syscall == "execve" {
 		assign.WriteString(fmt.Sprintf(
 			`
-				argv = NULL;
-				bpf_probe_read(&argv, sizeof(argv), (void *)&ctx->argv[1]);
-				if (argv){
-					bpf_probe_read(d.argv1, sizeof(d.argv1), argv);
+				char *arg;
+				arg = NULL;
+				bpf_probe_read(&arg, sizeof(arg), (void *)&argv[1]);
+				if (arg){
+					bpf_probe_read(d.argv1, sizeof(d.argv1), arg);
 				}else{
 					goto out;
 				}
-				argv = NULL;
-				bpf_probe_read(&argv, sizeof(argv), (void *)&ctx->argv[2]);
-				if (argv){
-					bpf_probe_read(d.argv2, sizeof(d.argv2), argv);
+				arg = NULL;
+				bpf_probe_read(&arg, sizeof(arg), (void *)&argv[2]);
+				if (arg){
+					bpf_probe_read(d.argv2, sizeof(d.argv2), arg);
 				}else{goto out;}
-				argv = NULL;
-				bpf_probe_read(&argv, sizeof(argv), (void *)&ctx->argv[3]);
-				if (argv){
-					bpf_probe_read(d.argv3, sizeof(d.argv3), argv);
+				arg = NULL;
+				bpf_probe_read(&arg, sizeof(arg), (void *)&argv[3]);
+				if (arg){
+					bpf_probe_read(d.argv3, sizeof(d.argv3), arg);
 				}else{goto out;}
+	
 			`))
 	}
 	if hit == 0 {

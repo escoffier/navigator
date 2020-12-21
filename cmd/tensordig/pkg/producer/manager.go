@@ -8,9 +8,9 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
 
-	bpf "github.com/iovisor/gobpf/bcc"
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
+	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 
 type Manager struct {
@@ -332,11 +332,10 @@ func (m *Manager) progGenerator() string {
 	for _, p := range m.SyscallProducers {
 		s := p.Syscall
 		perfData := s + "_data"
-		perfArgs := s + "_args"
+		perfArgs := "struct pt_regs* ctx, " + constant.SyscallIoArgsMap[s]
 		cArgs := constant.SyscallIoStructMap[perfArgs]
 		cData := constant.SyscallIoStructMap[perfData]
 		fieldsMap := p.getFieldsAbbr()
-		assignCode, _ := AssignGenerator(fieldsMap, &p.Syscall)
 		assignCode, fdCode := AssignGenerator(fieldsMap, &p.Syscall)
 		CheckFilters(p.Filters, fieldsMap, p.Syscall)
 		// 		myPid := os.Getpid()
@@ -443,12 +442,12 @@ func (m *Manager) Start() {
 			m.QuitChan <- struct{}{}
 		}
 
-		// if len(m.NetProducers) > 0 {
-		// 	for _, p := range m.NetProducers {
-		// 		go p.Start()
-		// 		log.Infof("%s started", *p.GetName())
-		// 	}
-		// }
+		if len(m.NetProducers) > 0 {
+			for _, p := range m.NetProducers {
+				go p.Start()
+				log.Infof("%s started", *p.GetName())
+			}
+		}
 	}()
 
 }

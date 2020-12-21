@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	bpf "github.com/iovisor/gobpf/bcc"
+	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 
 func TestExit(t *testing.T) {

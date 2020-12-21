@@ -1,8 +1,8 @@
 package producer
 
 import (
-	bpf "github.com/iovisor/gobpf/bcc"
 	log "github.com/sirupsen/logrus"
+	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 
 const exitCode = `
