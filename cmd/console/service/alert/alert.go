@@ -122,7 +122,9 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 	if err := json.NewEncoder(&buf).Encode(read); err != nil {
 		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to marshal elasticsearch query: %w", err))
 	}
-
+	if s.elasticClient == nil {
+		return NewElasticError(http.StatusInternalServerError, fmt.Errorf("elasticsearch client is nil"))
+	}
 	searchResult, err := s.elasticClient.Search().
 		Index(s.elasticIndex).
 		Source(query).

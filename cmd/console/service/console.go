@@ -117,7 +117,7 @@ func NewConsole(
 	// harbor client
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
 	if err != nil {
-		return nil, err
+		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	}
 
 	// scanner service
@@ -128,7 +128,7 @@ func NewConsole(
 		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
 	)
 	if err != nil {
-		return nil, err
+		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
 	}
 
 	// online vulns service
@@ -140,7 +140,7 @@ func NewConsole(
 	// scap service
 	scapService, err := sp.NewScapService(mainCtx, redisClient, mongodb)
 	if err != nil {
-		return nil, err
+		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}
 
 	// scapper
@@ -236,7 +236,6 @@ func (c *Console) Run() func() {
 		log.Error().
 			Err(err).
 			Msg("Harbor connection and admin privilege check failed")
-		panic(fmt.Errorf("Harbor connection and admin privilege check failed: %w", err))
 	}
 
 	err = createMongoIndices(ctx, c.mongodb)
@@ -281,7 +280,6 @@ func (c *Console) Run() func() {
 		log.Error().
 			Err(err).
 			Msg("When validating kube client")
-		panic(fmt.Errorf("When validating kube client: %w", err))
 	}
 	if kubeClient != nil {
 		err = initializeOnlineVulnsWatch(ctx, c.onlineVulnsService, kubeClient)
@@ -289,7 +287,6 @@ func (c *Console) Run() func() {
 			log.Error().
 				Err(err).
 				Msg("When initializing online vulns watch")
-			panic(fmt.Errorf("When initializing online vulns watch: %w", err))
 		}
 		c.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
 	}
@@ -297,7 +294,6 @@ func (c *Console) Run() func() {
 	err = c.cronService.StartCrons(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("When starting cron jobs")
-		panic(fmt.Errorf("When starting cron jobs: %w", err))
 	}
 
 	log.Info().Msg("TensorNavigator started")
