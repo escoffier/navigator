@@ -61,7 +61,7 @@ volumePermissions:
   resources:
     limits:
       cpu: 100m
-      memory: 500Mi
+      memory: 200Mi
     requests:
       cpu: 100m
       memory: 500Mi
@@ -200,8 +200,8 @@ resources:
     cpu: 500m
     memory: 1000Mi
   requests:
-    cpu: 500m
-    memory: 1000Mi
+    cpu: 100m
+    memory: 200Mi
 
 # Define separate resources per arbiter, which are less then primary or secondary
 # used only when replica set is enabled

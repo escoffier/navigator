@@ -19,8 +19,8 @@ apiInstallLabel: "scanner.tensorsec/install"
 
 resources:
   requests:
-    cpu: "1000m"
-    memory: "2000Mi"
+    cpu: "100m"
+    memory: "200Mi"
   limits:
     cpu: "1000m"
     memory: "2000Mi"
