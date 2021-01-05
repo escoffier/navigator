@@ -31,10 +31,9 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sed -i s#gitlab.com:tensorsecurity-rd/docker-bench-security#10.77.107.13:root/docker-bench-security#g .gitmodules
                 sed -i s#gitlab.com:tensorsecurity-rd/kube-bench#10.77.107.13:root/kube-bench#g .gitmodules
                 sed -i s#gitlab.com:tensorsecurity-rd/xccdfparser#10.77.107.13:root/xccdfparser#g .gitmodules
-                git submodule init
-                git submodule update
+                sed -i s#gitlab.com:tensorsecurity-rd/bcc#10.77.107.13:root/bcc#g .gitmodules
+                sed -i s#gitlab.com:tensorsecurity-rd/gobpf#10.77.107.13:root/gobpf#g .gitmodules
                 git submodule update --init --recursive
-                echo test-webhook
                 go get -u github.com/swaggo/swag/cmd/swag
                 go get -u golang.org/x/lint/golint
                 sed -i  's#GO111MODULE=on#GO111MODULE=on GOPROXY=https://goproxy.cn#g' configs/scap/jobs/kube-bench/Dockerfile
