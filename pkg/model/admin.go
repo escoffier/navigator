@@ -203,6 +203,7 @@ func AllAccessURL() ([]string, map[string]struct{}) {
 			URL_ALERTS,
 			URL_AUDIT,
 			URL_CLEANUP,
+			URL_MICROSERVICE,
 		},
 		map[string]struct{}{
 			URL_COMPLIANCE:         {},
