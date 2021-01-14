@@ -40,6 +40,7 @@ const (
 	ACCESS_AUDIT              = "audit"
 	ACCESS_CLEANUP            = "cleanup"
 	ACCESS_SUPER_ADMIN        = "super-admin"
+	ACCESS_MICROSERVICE       = "microservice"
 
 	ACCESS_COMPLIANCE_ZH         = "安全合规"
 	ACCESS_SETTING_ZH            = "设置"
@@ -50,6 +51,7 @@ const (
 	ACCESS_AUDIT_ZH              = "审查"
 	ACCESS_CLEANUP_ZH            = "清理"
 	ACCESS_SUPER_ADMIN_ZH        = "超级管理员"
+	ACCESS_MICROSERVICE_ZH       = "微服务安全"
 
 	URL_SETTING            = "/api/v1/config"
 	URL_IMAGE_VULNERBILTY  = "/api/v1/scanner"
@@ -60,6 +62,7 @@ const (
 	URL_AUDIT              = "/api/v1/audit"
 	URL_CLEANUP            = "/api/v1/cleanup"
 	URL_SUPER_ADMIN        = "/api/v1/superAdmin"
+	URL_MICROSERVICE       = "/api/v1/microservice"
 
 	IGNORE_ACCESS_URL_AUTH    = "/api/v1/auth"
 	IGNORE_ACCESS_URL_USER    = "/api/v1/user"
@@ -179,6 +182,9 @@ func AllAccess() []interface{} {
 	all = append(all, NewAccessBson(ACCESS_IMAGE_VULNERBILTY, ACCESS_IMAGE_VULNERBILTY_ZH, URL_IMAGE_VULNERBILTY))
 	all = append(all, NewAccessBson(ACCESS_ONLINE_VULNERBILTY, ACCESS_ONLINE_VULNERBILTY_ZH, URL_ONLINE_VULNERBILTY))
 	all = append(all, NewAccessBson(ACCESS_SUPER_ADMIN, ACCESS_SUPER_ADMIN_ZH, URL_SUPER_ADMIN))
+
+	all = append(all, NewAccessBson(ACCESS_MICROSERVICE, ACCESS_MICROSERVICE_ZH, URL_MICROSERVICE))
+
 	all = append(all, NewAccessBson(ACCESS_ALERTS, ACCESS_ALERTS_ZH, URL_ALERTS))
 	all = append(all, NewAccessBson(ACCESS_AUDIT, ACCESS_AUDIT_ZH, URL_AUDIT))
 	all = append(all, NewAccessBson(ACCESS_CLEANUP, ACCESS_CLEANUP_ZH, URL_CLEANUP))
@@ -237,6 +243,7 @@ func DefaultRoleAccessRela() []interface{} {
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_IMAGE_VULNERBILTY))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_ONLINE_VULNERBILTY))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_SUPER_ADMIN))
+	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_MICROSERVICE))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_ALERTS))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_AUDIT))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_CLEANUP))

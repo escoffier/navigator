@@ -33,3 +33,10 @@ type AssetContainer struct {
 	TopVulns        []VulnerabilityInfo `json:"topVulnerabilities,omitempty" bson:"topVulnerabilities,omitempty"`
 	OverallSeverity string              `json:"overallSeverity,omitempty" bson:"overallSeverity,omitempty"`
 }
+
+type Service struct {
+	Namespace string `json:"namespace" bson:"namespace"`
+	Name      string `json:"name" bson:"name"`
+	PodName   string `json:"podName" bson:"podName"`
+	IP        string `json:"ip"  bson:"ip"`
+}

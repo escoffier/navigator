@@ -96,7 +96,6 @@ func (c *CacheHelper) bgSync() {
 	for {
 		select {
 		case <-time.After(CacheRefreshInterval):
-			logging.GetLogger().Info().Str("name", c.keyPrefix).Msg("Starting data sync")
 			err := c.CheckVersionAndSyncData()
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Str("name", c.keyPrefix).Msg("Failed data sync")

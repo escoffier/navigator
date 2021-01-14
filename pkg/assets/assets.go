@@ -92,11 +92,11 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	defer mongoCtxCancel()
 
 	assetContainer := model.AssetContainer{
-		IsDeleted:  isDeleteEvent,
-		PodName:    pod.Name,
-		Name:       container.Name,
-		Repository: repository,
-		Tag:        tag,
+		IsDeleted:           isDeleteEvent,
+		PodName:             pod.Name,
+		Name:                container.Name,
+		Repository:          repository,
+		Tag:                 tag,
 		State:               state,
 		Namespace:           pod.Namespace,
 		Node:                pod.Spec.NodeName,
@@ -128,10 +128,10 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 		assetContainer.PodOwnerKind = owner.Kind
 		assetContainer.PodOwnerName = owner.Name
 	}
-
 	filter := bson.M{
 		"$and": []bson.M{
 			{"podName": assetContainer.PodName},
+			{"namespace": assetContainer.Namespace},
 			{"name": assetContainer.Name},
 		},
 	}
@@ -144,6 +144,60 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
 	}
 
+}
+
+func UpdateEpt(mongodb *mongo.Database, ept *corev1.Endpoints, isDeleteEvent bool) {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+
+	assetService := model.Service{
+		Namespace: ept.Namespace,
+		Name:      ept.Name,
+	}
+
+	if isDeleteEvent {
+		for _, v := range ept.Subsets {
+			for _, address := range v.Addresses {
+
+				filter := bson.M{
+					"$and": []bson.M{
+						{"namespace": assetService.Namespace},
+						{"name": assetService.Name},
+						{"ip": address.IP},
+					},
+				}
+				_, err := mongodb.Collection(model.ServiceCollection.String()).DeleteOne(mongoCtx, filter)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to delete  EndPoints to mongo")
+				}
+			}
+		}
+	} else {
+
+		for _, v := range ept.Subsets {
+			for _, address := range v.Addresses {
+				assetService.IP = address.IP
+				if address.TargetRef == nil {
+					assetService.PodName = ""
+				} else {
+					assetService.PodName = address.TargetRef.Name
+				}
+				filter := bson.M{
+					"$and": []bson.M{
+						{"namespace": assetService.Namespace},
+						{"name": assetService.Name},
+						{"ip": address.IP},
+					},
+				}
+				update := bson.M{"$set": assetService}
+				opts := options.Update().SetUpsert(true)
+				_, err := mongodb.Collection(model.ServiceCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to upsert assetService to mongo")
+				}
+			}
+		}
+	}
 }
 
 func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest string) (model.ScanTask, bool, error) {
@@ -185,4 +239,36 @@ func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest st
 	}
 
 	return scanTask, wasScanned, nil
+}
+
+func GetPodNameFromService(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+	filter := bson.M{
+		"$and": []bson.M{
+			{"namespace": namespace},
+			{"name": snvName},
+		},
+	}
+	// from mongo
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(10 * time.Second)
+
+	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+		return nil, err
+	}
+	serviceClice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var endpoint model.Service
+		err := cur.Decode(&endpoint)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		serviceClice = append(serviceClice, endpoint.PodName)
+	}
+	return serviceClice, nil
 }

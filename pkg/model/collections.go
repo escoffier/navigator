@@ -18,6 +18,7 @@ const (
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
 	VulnerabilitiesInImagesCollection
+	ServiceCollection
 )
 
 func GetCollectionNames() []string {
@@ -37,6 +38,7 @@ func GetCollectionNames() []string {
 		"CVE2CNNVD",
 		"checkHistoryEntry",
 		"vulnerabilitiesInImages",
+		"service",
 	}
 }
 
