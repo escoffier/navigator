@@ -187,8 +187,21 @@ func (r *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, 
 		},
 	}
 
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
+	if resourceKind == "service" {
+		//get pod name
+		podNameSlice, err := assets.GetPodNameFromService(r.mongodb, namespace, resourceName)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("Couldn't get podName from service info : %w", err))
+		}
+		filter = bson.M{
+			"isDeleted": false,
+			"namespace": namespace,
+			"podName":   bson.D{{"$in", podNameSlice}},
+		}
+	}
 
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 	cursor, err := r.mongodb.Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
@@ -303,6 +316,7 @@ func (r *OnlineVulnsService) refreshInformer(ctx context.Context, newClient *kub
 	// To consider: maybe it's better to watch StatefulSets, Deployments, ReplicaSets, Jobs, etc
 	// instead of watching pods?
 	// statefulsetInformer := informerFactory.Apps().V1().StatefulSets()
+
 	informerFactory := informers.NewSharedInformerFactory(newClient, time.Minute*2)
 	podInformer := informerFactory.Core().V1().Pods().Informer()
 
@@ -313,7 +327,6 @@ func (r *OnlineVulnsService) refreshInformer(ctx context.Context, newClient *kub
 				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
 				return
 			}
-
 			r.onPodEvent(pod, false)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -331,8 +344,35 @@ func (r *OnlineVulnsService) refreshInformer(ctx context.Context, newClient *kub
 				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
 				return
 			}
-
 			r.onPodEvent(pod, false)
+		},
+	})
+	r.removeAllServiceExpire()
+	endPointsInformer := informerFactory.Core().V1().Endpoints().Informer()
+	endPointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(newObj interface{}) {
+			ept, ok := newObj.(*corev1.Endpoints)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+				return
+			}
+			r.onEptEvent(ept, false)
+		},
+		DeleteFunc: func(newObj interface{}) {
+			ept, ok := newObj.(*corev1.Endpoints)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+				return
+			}
+			r.onEptEvent(ept, false)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			ept, ok := newObj.(*corev1.Endpoints)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+				return
+			}
+			r.onEptEvent(ept, false)
 		},
 	})
 
@@ -398,6 +438,10 @@ func (r *OnlineVulnsService) refreshInformer(ctx context.Context, newClient *kub
 
 	logging.GetLogger().Info().Int64("freshEntriesFromCp", freshEntriesFromCp.Unix()).Msg("Kubernetes informer cache synced")
 	return nil
+}
+
+func (r *OnlineVulnsService) onEptEvent(ept *corev1.Endpoints, isDeleteEvent bool) {
+	assets.UpdateEpt(r.mongodb, ept, isDeleteEvent)
 }
 
 func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
@@ -483,4 +527,12 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 	}
 
 	return numMarked, nil
+}
+func (r *OnlineVulnsService) removeAllServiceExpire() {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	err := r.mongodb.Collection(model.ServiceCollection.String()).Drop(mongoCtx)
+	if err != nil {
+		logging.GetLogger().Info().Msg(fmt.Sprintf("delete endpoints collections   error：%+v \n", err))
+	}
 }

@@ -609,6 +609,29 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
+	neededIndexesPerCollection[model.ServiceCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podname": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"ip": 1,
+			}, Options: nil,
+		},
+	}
+
 	for collectionName, indexModel := range neededIndexesPerCollection {
 		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
 
@@ -764,7 +787,6 @@ func routeCompareWithURL(h http.Handler) bool {
 			}
 		}
 	}
-
 	if matchURLCount < len(allRoute) {
 		return false
 	} else {
