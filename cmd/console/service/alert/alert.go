@@ -252,6 +252,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 						Timestamp:   timestamp,
 						MessageEn:   "Potential " + enabledRule.NameEn,
 						MessageZh:   "潛在 " + enabledRule.NameZh,
+						Active:      true,
 						RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
 							ElasticID:     elasticID,
 							ContainerID:   elasticAlert["ContainerID"].(string),
@@ -278,6 +279,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 						SeverityInt: util.SeverityToInt(string(sev)),
 						MessageEn:   "Potential exploit",
 						MessageZh:   "潛在利用",
+						Active:      true,
 						ExploitRiskAlert: &model.ExploitRiskAlert{
 							ElasticID:     elasticID,
 							ContainerID:   elasticAlert["ContainerID"].(string),
@@ -459,4 +461,8 @@ func (s *AlertService) OneNodeAlert(ctx context.Context, nodeName string, action
 	}
 
 	return
+}
+
+func (s *AlertService) RefreshCache() error {
+	return s.alertsCache.RefreshCache()
 }

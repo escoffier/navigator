@@ -7,10 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-
-	"github.com/go-chi/chi"
 )
 
 func (api *api) onlineVulnerabilities() func(chi.Router) {

@@ -164,6 +164,9 @@ func NewConsole(
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
 
+	// add refreshCache to onlineVulnsSvc
+	onlineVulnsSvc.AddRefreshCache(alertService.RefreshCache)
+
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -582,6 +585,11 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		{
 			Keys: bson.M{
 				"runtimeDetectionAlert.containerId": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"active": 1,
 			}, Options: nil,
 		},
 	}

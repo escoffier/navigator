@@ -10,18 +10,16 @@ import (
 	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -36,6 +34,8 @@ type OnlineVulnsService struct {
 	freshEntriesFrom      time.Time
 
 	stopCh chan struct{}
+
+	refreshCache func() error
 }
 
 func NewOnlineVulnsService(mongodb *mongo.Database) *OnlineVulnsService {
@@ -447,10 +447,15 @@ func (r *OnlineVulnsService) onEptEvent(ept *corev1.Endpoints, isDeleteEvent boo
 func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 	owner := metav1.GetControllerOf(pod)
 
+	podNamesForMarkAlert := make([]string, 0)
 	// TODO: Do we care about InitContainer statuses?
 	for _, container := range pod.Status.ContainerStatuses {
 		assets.UpdateAsset(r.mongodb, pod, &container, owner, isDeleteEvent)
+		if isDeleteEvent {
+			podNamesForMarkAlert = append(podNamesForMarkAlert, pod.Name)
+		}
 	}
+	go r.markAllAlertEntriesOfPodAsNotActive(podNamesForMarkAlert)
 }
 
 func (r *OnlineVulnsService) areAllFreshContainerEntriesAccountedFor(informer *cache.SharedIndexInformer) bool {
@@ -459,7 +464,7 @@ func (r *OnlineVulnsService) areAllFreshContainerEntriesAccountedFor(informer *c
 
 func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Context, upTo time.Time) (int, error) {
 	var numMarked = 0
-
+	podNamesForMarkAlert := make([]string, 0)
 	err := r.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
@@ -470,8 +475,11 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 
 		// mark all entries that we didn't witness at the start of watcher as deleted.
 		filter := bson.M{
+			"isDeleted":      false,
 			"lastUpdateTime": bson.M{"$lt": upTo.Unix()},
 		}
+
+		// TODO why find all entries and then update one by one?
 		findOptions := options.Find().SetMaxTime(time.Second * 10)
 		var cursor *mongo.Cursor
 		cursor, sessionError = r.mongodb.Collection(model.AssetsContainersCollection.String()).Find(sessionContext, filter, findOptions)
@@ -493,6 +501,7 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 					fmt.Errorf("Couldn't decode document: %w", sessionError))
 			}
 
+			podNamesForMarkAlert = append(podNamesForMarkAlert, container.PodName)
 			filter := bson.M{
 				"$and": []bson.M{
 					{"podName": container.PodName},
@@ -526,6 +535,8 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 		return 0, err
 	}
 
+	go r.markAllAlertEntriesOfPodAsNotActive(podNamesForMarkAlert)
+
 	return numMarked, nil
 }
 func (r *OnlineVulnsService) removeAllServiceExpire() {
@@ -534,5 +545,32 @@ func (r *OnlineVulnsService) removeAllServiceExpire() {
 	err := r.mongodb.Collection(model.ServiceCollection.String()).Drop(mongoCtx)
 	if err != nil {
 		logging.GetLogger().Info().Msg(fmt.Sprintf("delete endpoints collections   error：%+v \n", err))
+	}
+}
+
+func (r *OnlineVulnsService) AddRefreshCache(f func() error) {
+	r.refreshCache = f
+}
+
+// mark all the alert entries of the pod as not active
+func (r *OnlineVulnsService) markAllAlertEntriesOfPodAsNotActive(podNames []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	for _, podName := range podNames {
+		if podName == "" {
+			continue
+		}
+		// TODO 1.if need mark exploitRiskAlert pod not active by exploitRiskAlert.podName 2.if no need mark the alert that has ack
+		filter := bson.M{"runtimeDetectionAlert.podName": podName}
+		update := bson.M{"$set": bson.M{"active": false}}
+
+		_, err := r.mongodb.Collection(model.AlertsCollection.String()).UpdateMany(ctx, filter, update)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Mark pod's alert not active, but ignoring.")
+		}
+	}
+	err := r.refreshCache()
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("refresh cache, but ignoring.")
 	}
 }

@@ -197,6 +197,7 @@ func (s *Scapper) appendComplianceAlert(alertsToReport map[string]model.Alert, c
 			SeverityInt: util.SeverityToInt(string(sev)),
 			MessageEn:   util.RemoveScoredNotScoredFrom(descriptionEn),
 			MessageZh:   util.RemoveScoredNotScoredFrom(descriptionZh),
+			Active:      true,
 			ComplianceCheckAlert: &model.ComplianceCheckAlert{
 				AffectedNodes: &[]string{},
 				ClusterID:     check.ClusterID,
