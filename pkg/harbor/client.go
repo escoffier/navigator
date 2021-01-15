@@ -167,12 +167,12 @@ func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, 
 
 func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepoName, shaDigest string) (string, error) {
 
-	projectNameRepoName := strings.Split(fullRepoName, "/") // e.g. tensorsecns/tensorsec-console
-	if len(projectNameRepoName) != 2 {
-		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Unexpected number of elements after splitting fullRepoName"))
-	}
+	// if fullRepoName == tensorsecns/tensorsec-console then returns something like https://localhost:30003/harbor/projects/2/repositories/tensorsec-console/artifacts/sha256:ebf90b1ae8550ec6962e070344c857cf4a510477eadaf83988bae043156c4465
+	// if fullRepoName == library/ccc/dddd then returns something like https://registry.tensorsecurity.cn/harbor/projects/1/repositories/ccc%2Fdddd/artifacts/sha256:fb73cb48778e98f59eb2857e028c9e97efb26862a109ff885a8a8402baa75e14
+	projectNameRepoName := strings.SplitN(fullRepoName, "/", 2)
 	projectName := projectNameRepoName[0]
 	repoName := projectNameRepoName[1]
+	repoName = strings.ReplaceAll(repoName, "/", "%2F")
 
 	url := fmt.Sprintf("%s/%s/projects", h.address, h.apiVersionString)
 	req, err := http.NewRequest("GET", url, nil)
@@ -228,7 +228,6 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 
 	for _, item := range respItems {
 		if item.Name == projectName {
-			// https://localhost:30003/harbor/projects/2/repositories/tensorsec-console/artifacts/sha256:ebf90b1ae8550ec6962e070344c857cf4a510477eadaf83988bae043156c4465
 			return fmt.Sprintf("%s/harbor/projects/%d/repositories/%s/artifacts/%s", h.address, item.ProjectID, repoName, shaDigest), nil
 		}
 	}
