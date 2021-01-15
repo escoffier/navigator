@@ -76,6 +76,7 @@ type Alert struct {
 	Message               string                 `json:"message" bson:"message"`
 	MessageEn             string                 `json:"-" bson:"message_en"`
 	MessageZh             string                 `json:"-" bson:"message_zh"`
+	Active                bool                   `json:"-" bson:"active,omitempty"`
 }
 
 type RuntimeDetectionAlert struct {

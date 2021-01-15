@@ -102,9 +102,15 @@ func (c *AlertsCache) getAlertsNewestEntryTimestamp() (int64, error) {
 
 func (c *AlertsCache) getAlertsData(onlyNotAcknowledged bool, kind model.AlertKind, sortBy string) func() ([]model.CacheEntry, error) {
 	return func() ([]model.CacheEntry, error) {
-		var filter bson.M = bson.M{}
+		// filter the field of active not exist or be true if exist
+		var filter bson.M = bson.M{
+			"$or": []bson.M{
+				{"active": bson.M{"$exists": false}},
+				{"active": true},
+			},
+		}
 		if onlyNotAcknowledged {
-			filter = bson.M{"acknowledged": false}
+			filter["acknowledged"] = false
 		}
 		if kind != model.AlertKindAny {
 			filter["kind"] = kind
