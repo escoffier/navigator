@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"net/http"
 	"strings"
 	"time"
@@ -63,6 +64,7 @@ func SetupRoutes(
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
+	microService *microservice.MicroService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
@@ -81,6 +83,7 @@ func SetupRoutes(
 		scannerService,
 		scapService,
 		harborClient,
+		microService,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))

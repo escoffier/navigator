@@ -263,12 +263,223 @@ func GetPodNameFromService(mongodb *mongo.Database, namespace, snvName string) (
 	}
 	serviceClice := make([]string, 0)
 	for cur.Next(mongoCtx) {
-		var endpoint model.Service
-		err := cur.Decode(&endpoint)
+		var service model.Service
+		err := cur.Decode(&service)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
-		serviceClice = append(serviceClice, endpoint.PodName)
+		serviceClice = append(serviceClice, service.PodName)
 	}
 	return serviceClice, nil
+}
+
+func GetResNameFromServiceRelation(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+	filter := bson.M{
+		"namespace": namespace,
+		"name":      snvName,
+		"resName":   bson.D{{"$ne", ""}, {"$exists", true}},
+	}
+	// from mongo
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(10 * time.Second)
+
+	cur, err := mongodb.Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+		return nil, err
+	}
+	ResNameSlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var serviceRl model.ServiceRelation
+		err := cur.Decode(&serviceRl)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		if serviceRl.ResName != "" {
+			ResNameSlice = append(ResNameSlice, serviceRl.ResName)
+		}
+	}
+	return ResNameSlice, nil
+}
+
+func GetFocusFromServiceRelation(mongodb *mongo.Database, namespace, snvName, username string) (bool, error) {
+
+	filter := bson.M{
+		"namespace": namespace,
+		"name":      snvName,
+		"focusName": username,
+	}
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(10 * time.Second)
+
+	cur, err := mongodb.Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("couldn't find document: %w", err))
+		return false, err
+	}
+	for cur.Next(mongoCtx) {
+		var serviceRl model.ServiceRelation
+		err := cur.Decode(&serviceRl)
+		if err != nil {
+			return false, NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", err))
+		}
+		if serviceRl.FocusName == username {
+			return true, nil
+		}
+	}
+	return false, nil
+
+}
+
+func GetServiceSha256Val(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+
+	filter := bson.M{
+		"$and": []bson.M{
+			{"namespace": namespace},
+			{"name": snvName},
+		},
+	}
+	// from mongo
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(10 * time.Second)
+
+	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+		return nil, err
+	}
+	podNameSlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var service model.Service
+		err := cur.Decode(&service)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		podNameSlice = append(podNameSlice, service.PodName)
+	}
+
+	filter = bson.M{
+		"isDeleted": false,
+		"namespace": namespace,
+		"podName":   bson.D{{"$in", podNameSlice}},
+	}
+
+	opts := options.Find()
+	opts.SetMaxTime(time.Second * 10)
+
+	coll := mongodb.Collection(model.AssetsContainersCollection.String())
+
+	cur, err = coll.Find(mongoCtx, filter, opts)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find %s documents: %w", model.AssetsContainersCollection.String(), err))
+	}
+	defer cur.Close(mongoCtx)
+	shaSlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var container model.AssetContainer
+		err := cur.Decode(&container)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		if container.Digest != "" {
+			shaSlice = append(shaSlice, container.Digest)
+		}
+	}
+	return shaSlice, nil
+
+}
+
+func GetServiceRepository(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+
+	filter := bson.M{
+		"$and": []bson.M{
+			{"namespace": namespace},
+			{"name": snvName},
+		},
+	}
+	// from mongo
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(10 * time.Second)
+
+	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+		return nil, err
+	}
+	podNameSlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var service model.Service
+		err := cur.Decode(&service)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		podNameSlice = append(podNameSlice, service.PodName)
+	}
+
+	filter = bson.M{
+		"isDeleted": false,
+		"namespace": namespace,
+		"podName":   bson.D{{"$in", podNameSlice}},
+	}
+
+	opts := options.Find()
+	opts.SetMaxTime(time.Second * 10)
+
+	coll := mongodb.Collection(model.AssetsContainersCollection.String())
+
+	cur, err = coll.Find(mongoCtx, filter, opts)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find %s documents: %w", model.AssetsContainersCollection.String(), err))
+	}
+	defer cur.Close(mongoCtx)
+	RepositorySlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var container model.AssetContainer
+		err := cur.Decode(&container)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		if container.Digest != "" {
+			RepositorySlice = append(RepositorySlice, container.Repository)
+		}
+	}
+	return RepositorySlice, nil
+
+}
+
+func GetAliasName(mongodb *mongo.Database, namespace, snvName string) (string, error) {
+	filter := bson.M{
+		"namespace": namespace,
+		"name":      snvName,
+	}
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	opt := options.FindOne()
+	opt.SetMaxTime(10 * time.Second)
+	var alias model.ServiceAlias
+	err := mongodb.Collection(model.ServiceAliasCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&alias)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+		return "", err
+	}
+
+	return alias.AliasName, nil
 }

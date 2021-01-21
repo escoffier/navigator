@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
@@ -56,6 +57,7 @@ type api struct {
 	scannerService *scanner.ScannerService
 	scapService    *scapper.ScapService
 	harborClient   *harbor.HarborRESTClient
+	microService   *microservice.MicroService
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -81,6 +83,7 @@ func newAPI(
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
+	microService *microservice.MicroService,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -101,6 +104,7 @@ func newAPI(
 		scannerService:              scannerService,
 		scapService:                 scapService,
 		harborClient:                harborClient,
+		microService:                microService,
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 	}
