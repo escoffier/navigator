@@ -134,11 +134,5 @@ func CompareVulnerabilities(left model.VulnerabilityInfo, right model.Vulnerabil
 		return false
 	}
 
-	// this must be some duplicate...
-	logging.GetLogger().Warn().
-		Str("left", fmt.Sprintf("%+v", left)).
-		Str("right", fmt.Sprintf("%+v", right)).
-		Msg("Encountered potential duplicate during vulnerability comparison")
-
 	return false
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"time"
 
@@ -162,89 +161,18 @@ func (s *ScannerService) GetImageVulnerabilities(ctx context.Context, riskFilter
 	return items, docNum, nil
 }
 
-func (s *ScannerService) GetPodShaVal(ctx context.Context, namespace, svcname int) ([]string, error) {
-
-	filter := bson.M{
-		"$and": []bson.M{
-			{"isDeleted": false},
-			{"namespace": namespace},
-			{"svcname": svcname},
-		},
-	}
-
-	opts := options.Find()
-	opts.SetMaxTime(time.Second * 10)
-
-	coll := s.mongodb.Collection(model.AssetsContainersCollection.String())
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-
-	cur, err := coll.Find(mongoCtx, filter, opts)
-	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find %s documents: %w", model.AssetsContainersCollection.String(), err))
-	}
-	defer cur.Close(mongoCtx)
-	shaSlice := make([]string, 0)
-	for cur.Next(mongoCtx) {
-		var container model.AssetContainer
-		err := cur.Decode(&container)
-		if err != nil {
-			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
-		}
-		if container.Digest != "" {
-			shaSlice = append(shaSlice)
-		}
-	}
-	err = cur.Err()
-	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Mongo cursor error: %w", err))
-	}
-
-	return shaSlice, nil
-}
-
 func (s *ScannerService) GetServiceScannedImages(ctx context.Context, offset int64, limit int64, sortBy, namespace, svcname string, sortOrder string) ([]model.ImageScanSummaryResult, int64, error) {
 
-	podNameSlice, err := assets.GetPodNameFromService(s.mongodb, namespace, svcname)
-	logging.GetLogger().Info().Msg(fmt.Sprintf("获取的podname slice ：%+v", podNameSlice))
+	shaSlice, err := assets.GetServiceSha256Val(s.mongodb, namespace, svcname)
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get podName from service info : %w", err))
 	}
 
-	filter := bson.M{
-		"isDeleted": false,
-		"namespace": namespace,
-		"podName":   bson.D{{"$in", podNameSlice}},
-	}
-
-	opts := options.Find()
-	opts.SetMaxTime(time.Second * 10)
-
-	coll := s.mongodb.Collection(model.AssetsContainersCollection.String())
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-
-	cur, err := coll.Find(mongoCtx, filter, opts)
-	if err != nil {
-		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find %s documents: %w", model.AssetsContainersCollection.String(), err))
-	}
-	defer cur.Close(mongoCtx)
-	shaSlice := make([]string, 0)
-	for cur.Next(mongoCtx) {
-		var container model.AssetContainer
-		err := cur.Decode(&container)
-		if err != nil {
-			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
-		}
-		if container.Digest != "" {
-			shaSlice = append(shaSlice, container.Digest)
-		}
-	}
-
 	items := make([]model.ImageScanSummaryResult, 0)
 
-	filter = bson.M{"digest": bson.D{{"$in", shaSlice}}, "scan_report.vulnerability.repository": bson.D{{"$ne", ""}, {"$exists", true}}}
+	filter := bson.M{"digest": bson.D{{"$in", shaSlice}}, "scan_report.vulnerability.repository": bson.D{{"$ne", ""}, {"$exists", true}}}
+	opts := options.Find()
 	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
 	opts.SetMaxTime(time.Second * 10)
 	opts.SetSkip(offset)
@@ -253,15 +181,15 @@ func (s *ScannerService) GetServiceScannedImages(ctx context.Context, offset int
 	copt := options.Count()
 	copt.SetMaxTime(time.Second * 10)
 
-	coll = s.mongodb.Collection(model.ScanTasksCollection.String())
-	mongoCtx, mongoCtxCancel = context.WithTimeout(ctx, time.Second*10)
+	coll := s.mongodb.Collection(model.ScanTasksCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
-	itemcount, err := coll.CountDocuments(mongoCtx, filter, copt)
+	itemCount, err := coll.CountDocuments(mongoCtx, filter, copt)
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find count  documents: %w", err))
 	}
-	cur, err = coll.Find(mongoCtx, filter, opts)
+	cur, err := coll.Find(mongoCtx, filter, opts)
 
 	defer cur.Close(mongoCtx)
 	for cur.Next(mongoCtx) {
@@ -305,8 +233,8 @@ func (s *ScannerService) GetServiceScannedImages(ctx context.Context, offset int
 	}
 	err = cur.Err()
 	if err != nil {
-		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Mongo cursor error: %w", err))
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("mongo cursor error: %w", err))
 	}
 
-	return items, itemcount, nil
+	return items, itemCount, nil
 }

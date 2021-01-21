@@ -40,3 +40,16 @@ type Service struct {
 	PodName   string `json:"podName" bson:"podName"`
 	IP        string `json:"ip"  bson:"ip"`
 }
+
+type ServiceRelation struct {
+	Namespace string `json:"namespace" bson:"namespace"`
+	Name      string `json:"name" bson:"name"`
+	FocusName string `json:"focusName,omitempty" bson:"focusName,omitempty"`
+	ResName   string `json:"resName,omitempty"  bson:"resName,omitempty"`
+}
+
+type ServiceAlias struct {
+	Namespace string `json:"namespace" bson:"namespace"`
+	Name      string `json:"name" bson:"name"`
+	AliasName string `json:"aliasName,omitempty" bson:"aliasName,omitempty"`
+}

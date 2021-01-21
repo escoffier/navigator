@@ -35,6 +35,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
@@ -163,6 +164,9 @@ func NewConsole(
 
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
+	//microService *microservice.MicroService,
+	//micro service
+	microService := microservice.NewMicroService(mongodb)
 
 	// add refreshCache to onlineVulnsSvc
 	onlineVulnsSvc.AddRefreshCache(alertService.RefreshCache)
@@ -187,6 +191,7 @@ func NewConsole(
 				scannerService,
 				scapService,
 				harborClient,
+				microService,
 			),
 		},
 		mongoClient:        mongoClient,
@@ -636,6 +641,47 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		{
 			Keys: bson.M{
 				"ip": 1,
+			}, Options: nil,
+		},
+	}
+
+	neededIndexesPerCollection[model.ServiceRelationCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"focusName": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"resName": 1,
+			}, Options: nil,
+		},
+	}
+
+	neededIndexesPerCollection[model.ServiceAliasCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"aliasName": 1,
 			}, Options: nil,
 		},
 	}

@@ -19,6 +19,8 @@ const (
 	CheckHistoryEntryCollection
 	VulnerabilitiesInImagesCollection
 	ServiceCollection
+	ServiceRelationCollection
+	ServiceAliasCollection
 )
 
 func GetCollectionNames() []string {
@@ -39,6 +41,8 @@ func GetCollectionNames() []string {
 		"checkHistoryEntry",
 		"vulnerabilitiesInImages",
 		"service",
+		"serviceRelation",
+		"serviceAlias",
 	}
 }
 

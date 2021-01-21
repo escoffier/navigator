@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
@@ -41,6 +42,7 @@ func setupChiRouter(
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
+	microService *microservice.MicroService,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -70,6 +72,7 @@ func setupChiRouter(
 		scannerService,
 		scapService,
 		harborClient,
+		microService,
 	)
 
 	return r
