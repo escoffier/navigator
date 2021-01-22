@@ -114,7 +114,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			return
 		}
 
-		harborResultsLink, err := api.harborClient.GetHarborScanResultsLink(ctx, harborScanReq.Artifact.Repository, harborScanReq.Artifact.Digest)
+		harborResultsLink, err := api.harborClient.GetHarborScanResultsLink(ctx, harborScanReq.Artifact.Repository, harborScanReq.Artifact.Digest, harborScanReq.Artifact.Tag)
 		if err != nil {
 			e := harbor.NewHarborErrorAndLog(err, "Failed to obtain harbor results link")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
