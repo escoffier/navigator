@@ -10,11 +10,10 @@ import (
 	"sync"
 	"time"
 
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-
 	"github.com/go-redis/redis/v8"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 const (
@@ -241,6 +240,9 @@ func (c *CacheHelper) GetItems(offset int64, limit int64, sortOrder string, keyE
 
 	result, err = c.redisClient.LRange(c.ctx, key, start, end).Result()
 
+	if err == redis.Nil {
+		return ids, 0, nil
+	}
 	if err != nil {
 		return ids, 0, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("get redis %s cache error: %w", key, err))
 	}
