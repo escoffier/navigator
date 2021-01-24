@@ -101,7 +101,7 @@ func isAlertContextAlmostTheSame(newCtx model.AlertContext, oldCtx model.AlertCo
 		return true
 	}
 	if newCtx.ContainerID == oldCtx.ContainerID && newCtx.PodUID == newCtx.PodUID {
-		delta := (newCtx.Timestamp.Unix() - ctxCtx.Timestamp.Unix())
+		delta := (newCtx.Timestamp.Unix() - oldCtx.Timestamp.Unix())
 		return delta > -60 || delta < 60
 	}
 	return false
