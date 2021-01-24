@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -18,6 +19,7 @@ import (
 func (api *api) alert() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/", api.listAlerts())
+		r.Get("/updates", api.alertsCheck())
 		r.Get("/node", api.nodeAlert())
 		r.Post("/{alertID}/acknowledge", api.acknowledgeAlert())
 	}
@@ -52,6 +54,42 @@ func (api *api) acknowledgeAlert() http.HandlerFunc {
 		queryAlert.ApplyTranslation(ctx)
 
 		response.Ok(w, response.WithItem(*queryAlert))
+	}
+}
+
+func (api *api) alertsCheck() http.HandlerFunc {
+	type alertsCheckResp struct {
+		HasUpdates    bool   `json:"hasUpdates"`
+		NewCursor     string `json:"newCursor"`
+		UpdatesNumStr string `json:"updatesNumStr"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*1)
+		defer cancel()
+
+		currentCursor, err := param.QueryString(r, "cursor")
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		newCursor, updatesNum, err := api.alertService.QuickCheckAlertsUpdates(ctx, currentCursor)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+		ustr := ""
+		if updatesNum >= 10 {
+			ustr = "10+"
+		} else {
+			ustr = strconv.FormatInt(int64(updatesNum), 10)
+		}
+		resp := alertsCheckResp{
+			HasUpdates:    updatesNum > 0,
+			NewCursor:     newCursor,
+			UpdatesNumStr: ustr,
+		}
+		response.Ok(w, response.WithItem(resp))
 	}
 }
 

@@ -455,7 +455,7 @@ func (r *OnlineVulnsService) onPodEvent(pod *corev1.Pod, isDeleteEvent bool) {
 			podNamesForMarkAlert = append(podNamesForMarkAlert, pod.Name)
 		}
 	}
-	go r.markAllAlertEntriesOfPodAsNotActive(podNamesForMarkAlert)
+	// go r.deleteAllAlertEntriesOfInactivePods(podNamesForMarkAlert)
 }
 
 func (r *OnlineVulnsService) areAllFreshContainerEntriesAccountedFor(informer *cache.SharedIndexInformer) bool {
@@ -535,7 +535,8 @@ func (r *OnlineVulnsService) markStaleContainerEntriesAsDeleted(ctx context.Cont
 		return 0, err
 	}
 
-	go r.markAllAlertEntriesOfPodAsNotActive(podNamesForMarkAlert)
+	//
+	// go r.deleteAllAlertEntriesOfInactivePods(podNamesForMarkAlert)
 
 	return numMarked, nil
 }
@@ -553,7 +554,7 @@ func (r *OnlineVulnsService) AddRefreshCache(f func() error) {
 }
 
 // mark all the alert entries of the pod as not active
-func (r *OnlineVulnsService) markAllAlertEntriesOfPodAsNotActive(podNames []string) {
+func (r *OnlineVulnsService) deleteAllAlertEntriesOfInactivePods(podNames []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	for _, podName := range podNames {
@@ -562,9 +563,8 @@ func (r *OnlineVulnsService) markAllAlertEntriesOfPodAsNotActive(podNames []stri
 		}
 		// TODO 1.if need mark exploitRiskAlert pod not active by exploitRiskAlert.podName 2.if no need mark the alert that has ack
 		filter := bson.M{"runtimeDetectionAlert.podName": podName}
-		update := bson.M{"$set": bson.M{"active": false}}
 
-		_, err := r.mongodb.Collection(model.AlertsCollection.String()).UpdateMany(ctx, filter, update)
+		_, err := r.mongodb.Collection(model.AlertsCollection.String()).DeleteMany(ctx, filter)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("Mark pod's alert not active, but ignoring.")
 		}

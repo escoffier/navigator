@@ -20,7 +20,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	r "gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,6 +29,8 @@ import (
 const (
 	alertPollInterval = time.Second * 30
 	alertPollTimeout  = time.Second * 15
+	cacheWriteTTLSec  = 60 * 60 // 1 hour
+	cacheReadTTLSec   = 5 * 60  // 5 minutes
 )
 
 type AlertService struct {
@@ -76,13 +77,15 @@ func (s *AlertService) elasticsearchAlertPoller() {
 	}
 	defer elastAlertCleanup.Close()
 
+	aggrCache := NewAlertAggrCache(10, cacheReadTTLSec, cacheWriteTTLSec)
+
 loop:
 	for {
 		select {
 		case <-ticker.C:
 			pollCtx, pollCtxCancel := context.WithTimeout(s.ctx, alertPollTimeout)
 			defer pollCtxCancel()
-			err := s.pollRuntimeDetectionAlerts(pollCtx, elastAlertCleanup)
+			err := s.pollRuntimeDetectionAlerts(pollCtx, elastAlertCleanup, aggrCache)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Error when polling image scan alerts")
 			}
@@ -93,7 +96,7 @@ loop:
 	logging.GetLogger().Info().Msg("Shutting down image scan alert poller")
 }
 
-func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAlertCleanup *elastic.BulkProcessor) error {
+func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAlertCleanup *elastic.BulkProcessor, aggrCache *AlertAggrCache) error {
 	lastPollTimestampFrom := s.lastPollTimestamp.Add(time.Duration(-5) * time.Minute)
 	lastPollTimestampTo := time.Now()
 	defer func() {
@@ -169,27 +172,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		}
 		logging.GetLogger().Debug().Str("elastalert", fmt.Sprintf("%+v", elasticAlert)).Msg("Analysing alert entry")
 
-		filter := bson.M{
-			"$or": []bson.M{
-				{"runtimeDetectionAlert.elasticId": elasticID},
-				{"exploitRiskAlert.elasticId": elasticID},
-			},
-		}
-		queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
-
-		if queryResult.Err() != nil && queryResult.Err() != mongo.ErrNoDocuments {
-			return NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Failed to check if alert is already recognized by the system: %w", err),
-				Suberror{"elasticID", elasticID})
-		}
-
-		if queryResult.Err() == nil {
-			logging.GetLogger().Info().Str("elasticID", elasticID).Msg("Alert already reported into mongo, skipping")
-			continue
-		}
-
-		// else queryResult.Err() == mongo.ErrNoDocuments
-
 		vulnerability := ""
 		if val, ok := elasticAlert["socket__protocol"]; ok {
 			if int(val.(float64)) == 132 {
@@ -227,89 +209,197 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 
 		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Checking if vulnerability supported")
 
+		timestamp, err := time.Parse(time.RFC3339, elasticAlert["@timestamp"].(string))
+		if err != nil {
+			return NewElasticError(http.StatusInternalServerError,
+				fmt.Errorf("Failed to parse timestamp as RFC3339: %w", err),
+				Suberror{"elasticID", elasticID},
+				Suberror{"timestamp", elasticAlert["@timestamp"].(string)})
+		}
+		alertCtx := model.AlertContext{
+			ElasticID:   elasticID,
+			ContainerID: elasticAlert["ContainerID"].(string),
+			PodName:     elasticAlert["PodName"].(string),
+			PodUID:      elasticAlert["PodUID"].(string),
+			Timestamp:   timestamp,
+		}
+
 		numRaised := 0
-		for _, enabledRule := range enabledRules {
-			if enabledRule.NameEn == vulnerability {
+		idPtr, cacheExist := aggrCache.GetByKey(vulnerability, timestamp.Unix())
+		var alert *model.Alert
+		if cacheExist && idPtr != nil {
+			logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s and got value: %v", vulnerability, *idPtr)
+			filter := bson.M{"_id": *idPtr}
 
-				logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
+			queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 
-				timestamp, err := time.Parse(time.RFC3339, elasticAlert["@timestamp"].(string))
-				if err != nil {
-					return NewElasticError(http.StatusInternalServerError,
-						fmt.Errorf("Failed to parse timestamp as RFC3339: %w", err),
-						Suberror{"elasticID", elasticID},
-						Suberror{"timestamp", elasticAlert["@timestamp"].(string)})
+			if queryResult.Err() == nil {
+				alert = new(model.Alert)
+				decErr := queryResult.Decode(alert)
+				if decErr != nil {
+					logging.GetLogger().Err(decErr).Msgf("query alerts collection id %v err", *idPtr)
+					alert = nil
 				}
+			} else {
+				logging.GetLogger().Err(queryResult.Err()).Msgf("query alerts collection id %v err", *idPtr)
+			}
+		}
+		var enabledRule *model.Rule
+		for _, rule := range enabledRules {
+			if rule.NameEn == vulnerability {
+				enabledRule = &rule
+				break
+			}
+		}
 
-				var alert model.Alert
+		if enabledRule == nil {
+			logging.GetLogger().Info().
+				Msg("Didn't raise any alert to mongo, because no matched vulnerability was enabled")
+			return nil
+		}
+
+		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
+
+		if alert != nil { // There are aggregated Alert instance.
+			// if this history exists, don't update
+			existed := false
+			for _, his := range alert.Histories {
+				if his.ElasticID == elasticID {
+					existed = true
+					break
+				}
+			}
+
+			if !existed {
+				alert.Timestamp = timestamp
 				if strings.HasPrefix(vulnerability, "CVE") {
-					sev := r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10))
-					alert = model.Alert{
-						ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-						AlertKind:   string(model.AlertKindRuntimeDetection),
-						Severity:    sev,
-						SeverityInt: util.SeverityToInt(sev),
-						Timestamp:   timestamp,
-						MessageEn:   "Potential " + enabledRule.NameEn,
-						MessageZh:   "潛在 " + enabledRule.NameZh,
-						Active:      true,
-						RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
-							ElasticID:     elasticID,
-							ContainerID:   elasticAlert["ContainerID"].(string),
-							PodName:       elasticAlert["PodName"].(string),
-							PodUID:        elasticAlert["PodUID"].(string),
-							DescriptionEn: enabledRule.DescriptionEn,
-							DescriptionZh: enabledRule.DescriptionZh,
-							RuleID:        enabledRule.ID,
-							RuleNameEn:    enabledRule.NameEn,
-							RuleNameZh:    enabledRule.NameZh,
-							Cvss2Score:    enabledRule.Cvss2Score,
-							Cvss2Vector:   enabledRule.Cvss2Vector,
-							Cvss3Score:    enabledRule.Cvss3Score,
-							Cvss3Vector:   enabledRule.Cvss3Vector,
-						},
+					if alert.RuntimeDetectionAlert == nil {
+						alert.RuntimeDetectionAlert = new(model.RuntimeDetectionAlert)
+						alert.RuntimeDetectionAlert.DescriptionEn = enabledRule.DescriptionEn
+						alert.RuntimeDetectionAlert.DescriptionZh = enabledRule.DescriptionZh
+						alert.RuntimeDetectionAlert.RuleID = enabledRule.ID
+						alert.RuntimeDetectionAlert.RuleNameEn = enabledRule.NameEn
+						alert.RuntimeDetectionAlert.RuleNameZh = enabledRule.NameZh
+						alert.RuntimeDetectionAlert.Cvss2Score = enabledRule.Cvss2Score
+						alert.RuntimeDetectionAlert.Cvss2Vector = enabledRule.Cvss2Vector
+						alert.RuntimeDetectionAlert.Cvss3Score = enabledRule.Cvss3Score
+						alert.RuntimeDetectionAlert.Cvss3Vector = enabledRule.Cvss3Vector
 					}
+					alert.RuntimeDetectionAlert.ElasticID = elasticID
+					alert.RuntimeDetectionAlert.ContainerID = elasticAlert["ContainerID"].(string)
+					alert.RuntimeDetectionAlert.PodName = elasticAlert["PodName"].(string)
+					alert.RuntimeDetectionAlert.PodUID = elasticAlert["PodUID"].(string)
 				} else {
-					sev := r.SeverityHigh
-					alert = model.Alert{
-						ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-						AlertKind:   string(model.AlertKindExploitRisk),
-						Timestamp:   timestamp,
-						Severity:    sev,
-						SeverityInt: util.SeverityToInt(string(sev)),
-						MessageEn:   "Potential exploit",
-						MessageZh:   "潛在利用",
-						Active:      true,
-						ExploitRiskAlert: &model.ExploitRiskAlert{
-							ElasticID:     elasticID,
-							ContainerID:   elasticAlert["ContainerID"].(string),
-							PodName:       elasticAlert["PodName"].(string),
-							PodUID:        elasticAlert["PodUID"].(string),
-							RuleID:        enabledRule.ID,
-							DescriptionEn: enabledRule.DescriptionEn,
-							DescriptionZh: enabledRule.DescriptionZh,
-							RuleNameEn:    enabledRule.NameEn,
-							RuleNameZh:    enabledRule.NameZh,
-							PID:           int(elasticAlert["Pid"].(float64)),
-						},
+					if alert.ExploitRiskAlert == nil {
+						alert.ExploitRiskAlert = new(model.ExploitRiskAlert)
+						alert.ExploitRiskAlert.ElasticID = elasticID
+
+						alert.ExploitRiskAlert.RuleID = enabledRule.ID
+						alert.ExploitRiskAlert.DescriptionEn = enabledRule.DescriptionEn
+						alert.ExploitRiskAlert.DescriptionZh = enabledRule.DescriptionZh
+						alert.ExploitRiskAlert.RuleNameEn = enabledRule.NameEn
+						alert.ExploitRiskAlert.RuleNameZh = enabledRule.NameZh
+						alert.ExploitRiskAlert.PID = int(elasticAlert["Pid"].(float64))
 					}
+					alert.ExploitRiskAlert.ContainerID = elasticAlert["ContainerID"].(string)
+					alert.ExploitRiskAlert.PodName = elasticAlert["PodName"].(string)
+					alert.ExploitRiskAlert.PodUID = elasticAlert["PodUID"].(string)
+
 				}
-
-				numRaised++
-
-				alert.HistoricisedTimestamp = time.Now()
+				alert.Histories = append(alert.Histories, alertCtx)
+				filter := bson.M{"_id": *idPtr}
+				// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
+				alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+				_, err = s.mongodb.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("Failed to delete alert from elastic to mongo: %w", err)
+				}
 				_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
 						Suberror{"elasticID", elasticID})
+				} else {
+					earlist := timestamp
+					if len(alert.Histories) > 0 {
+						earlist = alert.Histories[0].Timestamp
+					}
+					aggrCache.Put(vulnerability, alert.ID, earlist.Unix(), timestamp.Unix()) // set the previous write timestamp and read timestap
 				}
+			}
+		} else {
+			if strings.HasPrefix(vulnerability, "CVE") {
+				sev := r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10))
+				alert = &model.Alert{
+					ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+					AlertKind:   string(model.AlertKindRuntimeDetection),
+					Severity:    sev,
+					SeverityInt: util.SeverityToInt(sev),
+					Timestamp:   timestamp,
+					MessageEn:   "Potential " + enabledRule.NameEn,
+					MessageZh:   "潜在 " + enabledRule.NameZh,
+					Active:      true,
+					RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
+						ElasticID:     elasticID,
+						ContainerID:   elasticAlert["ContainerID"].(string),
+						PodName:       elasticAlert["PodName"].(string),
+						PodUID:        elasticAlert["PodUID"].(string),
+						DescriptionEn: enabledRule.DescriptionEn,
+						DescriptionZh: enabledRule.DescriptionZh,
+						RuleID:        enabledRule.ID,
+						RuleNameEn:    enabledRule.NameEn,
+						RuleNameZh:    enabledRule.NameZh,
+						Cvss2Score:    enabledRule.Cvss2Score,
+						Cvss2Vector:   enabledRule.Cvss2Vector,
+						Cvss3Score:    enabledRule.Cvss3Score,
+						Cvss3Vector:   enabledRule.Cvss3Vector,
+					},
+				}
+			} else {
+				sev := r.SeverityHigh
+				alert = &model.Alert{
+					ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+					AlertKind:   string(model.AlertKindExploitRisk),
+					Timestamp:   timestamp,
+					Severity:    sev,
+					SeverityInt: util.SeverityToInt(string(sev)),
+					MessageEn:   "Other Runtime ",
+					MessageZh:   "潛在利用",
+					Active:      true,
+					ExploitRiskAlert: &model.ExploitRiskAlert{
+						ElasticID:     elasticID,
+						ContainerID:   elasticAlert["ContainerID"].(string),
+						PodName:       elasticAlert["PodName"].(string),
+						PodUID:        elasticAlert["PodUID"].(string),
+						RuleID:        enabledRule.ID,
+						DescriptionEn: enabledRule.DescriptionEn,
+						DescriptionZh: enabledRule.DescriptionZh,
+						RuleNameEn:    enabledRule.NameEn,
+						RuleNameZh:    enabledRule.NameZh,
+						PID:           int(elasticAlert["Pid"].(float64)),
+					},
+				}
+			}
+			alert.Histories = []model.AlertContext{
+				alertCtx,
+			}
+			now := time.Now()
+			alert.HistoricisedTimestamp = now
+			_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
+			if err != nil {
+				return NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
+					Suberror{"elasticID", elasticID})
+			} else {
+				// put them to cache
+				aggrCache.Put(vulnerability, alert.ID, timestamp.Unix(), timestamp.Unix())
 			}
 		}
 
+		numRaised++
+
 		if numRaised == 0 {
-			logging.GetLogger().Info().
-				Msg("Didn't raise any alert to mongo, because no matched vulnerability was enabled")
+
 		} else {
 			logging.GetLogger().Info().
 				Int("numRaised", numRaised).
@@ -373,6 +463,28 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 	return &updatedAlert, nil
 }
 
+// QuickCheckAlertsUpdates if there are more than 10 updates, it will return updateNum = 11, not a correct actual number.
+func (s *AlertService) QuickCheckAlertsUpdates(ctx context.Context, givenCuror string) (cursor string, updateNum int, err error) {
+	alertIDs, _, cacheErr := s.alertsCache.GetItems(ctx, model.AlertKindAny, 0, 10, "timestamp", "desc", true)
+	if cacheErr != nil {
+		logging.GetLogger().Err(cacheErr).Msgf("CheckAlertsUpdate query cache error. given cursor: %s", givenCuror)
+		return "", 0, cacheErr
+	}
+	if len(alertIDs) == 0 {
+		if len(givenCuror) == 0 {
+			return "", 0, nil
+		} else {
+			return "", 0, errors.New("no cache found for alerts")
+		}
+	}
+	cursor = alertIDs[0].ID.Hex()
+	for i, aid := range alertIDs {
+		if aid.ID.Hex() == givenCuror {
+			return cursor, i, nil
+		}
+	}
+	return cursor, 10, nil
+}
 func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, kind model.AlertKind, sortBy string, sortOrder string, onlyNotAcknowledged bool) ([]model.Alert, int64, error) {
 	alertIds, docNum, err := s.alertsCache.GetItems(ctx, kind, offset, limit, sortBy, sortOrder, onlyNotAcknowledged)
 	if err != nil {
