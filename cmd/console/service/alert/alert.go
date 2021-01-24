@@ -29,8 +29,8 @@ import (
 const (
 	alertPollInterval = time.Second * 30
 	alertPollTimeout  = time.Second * 15
-	cacheWriteTTLSec  = 60 * 60 // 1 hour
-	cacheReadTTLSec   = 5 * 60  // 5 minutes
+	cacheWriteTTLSec  = 30 * 60
+	cacheReadTTLSec   = 5 * 60
 )
 
 type AlertService struct {
@@ -94,6 +94,17 @@ loop:
 		}
 	}
 	logging.GetLogger().Info().Msg("Shutting down image scan alert poller")
+}
+
+func isAlertContextAlmostTheSame(newCtx model.AlertContext, oldCtx model.AlertContext) bool {
+	if newCtx.ElasticID == oldCtx.ElasticID {
+		return true
+	}
+	if newCtx.ContainerID == oldCtx.ContainerID && newCtx.PodUID == newCtx.PodUID {
+		delta := (newCtx.Timestamp.Unix() - ctxCtx.Timestamp.Unix())
+		return delta > -60 || delta < 60
+	}
+	return false
 }
 
 func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAlertCleanup *elastic.BulkProcessor, aggrCache *AlertAggrCache) error {
@@ -221,7 +232,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 			ContainerID: elasticAlert["ContainerID"].(string),
 			PodName:     elasticAlert["PodName"].(string),
 			PodUID:      elasticAlert["PodUID"].(string),
-			Timestamp:   timestamp,
+			Timestamp:   timestamp.Local(), // use local time; should do it in frontend; FIXME
 		}
 
 		numRaised := 0
@@ -263,8 +274,8 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		if alert != nil { // There are aggregated Alert instance.
 			// if this history exists, don't update
 			existed := false
-			for _, his := range alert.Histories {
-				if his.ElasticID == elasticID {
+			for _, histCtx := range alert.Histories {
+				if isAlertContextAlmostTheSame(alertCtx, histCtx) {
 					existed = true
 					break
 				}

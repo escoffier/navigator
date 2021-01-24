@@ -86,13 +86,12 @@ func (c *AlertAggrCache) ttlCheck(now time.Time) {
 	if len(toDel) > 0 {
 		func() {
 			c.Lock()
+			defer c.Unlock()
+
 			for _, delKey := range toDel {
 				delete(c.cache, delKey)
 			}
-
-			c.Unlock()
 		}()
-
 	}
 }
 func (c *AlertAggrCache) asyncLoop() {
