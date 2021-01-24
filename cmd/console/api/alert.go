@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -75,7 +76,13 @@ func (api *api) alertsCheck() http.HandlerFunc {
 
 		newCursor, updatesNum, err := api.alertService.QuickCheckAlertsUpdates(ctx, currentCursor)
 		if err != nil {
-			RespAndLog(w, r.Context(), err)
+			logging.GetLogger().Warn().Msgf("get quick updates error: %v", err)
+			resp := alertsCheckResp{
+				HasUpdates:    false,
+				NewCursor:     "",
+				UpdatesNumStr: "0",
+			}
+			response.Ok(w, response.WithItem(resp))
 			return
 		}
 		ustr := ""
