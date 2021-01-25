@@ -356,6 +356,16 @@
                 ]
             }
         },
+        "/api/v1/driftPrevention/raiseAlert": {
+            "post": {
+                "description": "Raise a drift prevention alert",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Raise a drift prevention alert",
+                "operationId": "v1-raise-alert-post"
+            }
+        },
         "/api/v1/onlineVulnerabilities/current": {
             "get": {
                 "description": "List current online vulnerabilities",

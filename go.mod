@@ -38,7 +38,6 @@ require (
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/lib/pq v1.8.0
-	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/minio/minio v0.0.0-20201122074850-39f3d5493bc9 // indirect
 	github.com/mitchellh/go-ps v0.0.0-20170309133038-4fdf99ab2936 // indirect
@@ -59,9 +58,6 @@ require (
 	github.com/swaggo/http-swagger v0.0.0-20190614090009-c2865af9083e
 	github.com/swaggo/swag v1.6.7 // indirect
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
-	github.com/tidwall/pretty v1.0.0 // indirect
-	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
-	github.com/xdg/stringprep v1.0.0 // indirect
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.4.4
@@ -77,7 +73,6 @@ require (
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/klog v0.3.3 // indirect
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
-	sigs.k8s.io/yaml v1.1.0 // indirect
 )
 
 replace gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf

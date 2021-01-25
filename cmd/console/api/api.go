@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
@@ -39,25 +40,26 @@ import (
 )
 
 type api struct {
-	ctx            context.Context
-	userCache      *cache.Cache
-	rbacCache      *cache.Cache /* Role-Based-Access-Control */
-	tokenAuth      *jwtauth.JWTAuth
-	mongodb        *mongo.Database
-	scapper        *scapper.Scapper
-	scannerURL     string
-	cronService    *cron.CronService
-	clusterService *cluster.ClusterService
-	redisClient    *redis.Client
-	ruleService    *rule.RuleService
-	alertService   *alert.AlertService
-	onlineVulnsSvc *onlinevulns.OnlineVulnsService
-	auditService   *audit.AuditService
-	cleanupService *cleanup.CleanupService
-	scannerService *scanner.ScannerService
-	scapService    *scapper.ScapService
-	harborClient   *harbor.HarborRESTClient
-	microService   *microservice.MicroService
+	ctx                    context.Context
+	userCache              *cache.Cache
+	rbacCache              *cache.Cache /* Role-Based-Access-Control */
+	tokenAuth              *jwtauth.JWTAuth
+	mongodb                *mongo.Database
+	scapper                *scapper.Scapper
+	scannerURL             string
+	cronService            *cron.CronService
+	clusterService         *cluster.ClusterService
+	redisClient            *redis.Client
+	ruleService            *rule.RuleService
+	alertService           *alert.AlertService
+	driftPreventionService *driftprevention.DriftPreventionService
+	onlineVulnsSvc         *onlinevulns.OnlineVulnsService
+	auditService           *audit.AuditService
+	cleanupService         *cleanup.CleanupService
+	scannerService         *scanner.ScannerService
+	scapService            *scapper.ScapService
+	harborClient           *harbor.HarborRESTClient
+	microService           *microservice.MicroService
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -77,6 +79,7 @@ func newAPI(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
+	driftPreventionService *driftprevention.DriftPreventionService,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
@@ -97,6 +100,7 @@ func newAPI(
 		clusterService:              clusterService,
 		redisClient:                 redisClient,
 		ruleService:                 ruleService,
+		driftPreventionService:      driftPreventionService,
 		alertService:                alertService,
 		onlineVulnsSvc:              onlineVulnsSvc,
 		auditService:                auditService,

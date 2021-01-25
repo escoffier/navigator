@@ -35,6 +35,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
@@ -162,6 +163,9 @@ func NewConsole(
 	c.Start()
 	cronService := cron.NewCronService(c, mongodb, scapper, clusterService, mainCtx)
 
+	// drift prevention service
+	driftPreventionService := driftprevention.NewDriftPreventionService(mongodb)
+
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
 	//microService *microservice.MicroService,
@@ -185,6 +189,7 @@ func NewConsole(
 				redisClient,
 				ruleService,
 				alertService,
+				driftPreventionService,
 				onlineVulnsSvc,
 				auditService,
 				cleanupService,

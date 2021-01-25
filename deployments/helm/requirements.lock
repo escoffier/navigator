@@ -23,5 +23,8 @@ dependencies:
 - name: elasticsearch
   repository: file://./subcharts/elasticsearch
   version: 7.9.1
-digest: sha256:e25f8b4ddd21cdd6e19822a702ce7a9e30340dd964da8f03273f2352b179f2ac
-generated: "2020-11-09T18:29:40.025417521+08:00"
+- name: drift-prevention
+  repository: file://./subcharts/drift-prevention
+  version: 0.1.0
+digest: sha256:463b8dc3d9ae2a944b0d8dc354251edaeb12417ee71711ff1b6742da37c83967
+generated: "2021-01-20T10:24:30.11832029+01:00"

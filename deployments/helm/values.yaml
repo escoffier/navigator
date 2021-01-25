@@ -70,6 +70,9 @@ elasticsearch:
   #     requests:
   #       storage: 100M
 
+drift-prevention:
+  enabled: true
+
 postgresql:
   # Note for maintainers:
   # Some confusion may appear here because we use docker image created from "official" dockerhub base image postgresql
@@ -120,7 +123,5 @@ mongodb:
   replicaSet:
     enabled: true
 
-  # mongodbDatabase: elasticalert
-  # NOTE: we need to create elasticalert database as well.
   volumePermissions:
     enabled: true

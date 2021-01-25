@@ -45,6 +45,7 @@ const (
 	AlertKindRuntimeDetection AlertKind = "runtimeDetection"
 	AlertKindComplianceCheck  AlertKind = "complianceCheck"
 	AlertKindExploitRisk      AlertKind = "exploitRisk"
+	AlertKindDriftPrevention  AlertKind = "driftPrevention"
 )
 
 func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
@@ -53,8 +54,8 @@ func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
 		return AlertKindAny, nil
 	}
 	kind := AlertKind(kindRaw)
-	if kind != AlertKindComplianceCheck && kind != AlertKindExploitRisk && kind != AlertKindRuntimeDetection {
-		allowed := fmt.Sprintf("allowed: %s/%s/%s", AlertKindComplianceCheck, AlertKindExploitRisk, AlertKindRuntimeDetection)
+	if kind != AlertKindComplianceCheck && kind != AlertKindExploitRisk && kind != AlertKindRuntimeDetection && kind != AlertKindDriftPrevention {
+		allowed := fmt.Sprintf("allowed: %s/%s/%s/%s", AlertKindComplianceCheck, AlertKindExploitRisk, AlertKindRuntimeDetection, AlertKindDriftPrevention)
 		return AlertKindAny, NewFieldError(http.StatusBadRequest,
 			fmt.Errorf("invalid kind param value (%s)", allowed),
 			Suberror{"kind", allowed})
@@ -73,6 +74,7 @@ type Alert struct {
 	RuntimeDetectionAlert *RuntimeDetectionAlert `json:"runtimeDetectionAlert,omitempty" bson:"runtimeDetectionAlert,omitempty"`
 	ComplianceCheckAlert  *ComplianceCheckAlert  `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
 	ExploitRiskAlert      *ExploitRiskAlert      `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
+	DriftPreventionAlert  *DriftPreventionAlert  `json:"driftPreventionAlert,omitempty" bson:"driftPreventionAlert,omitempty"`
 	Message               string                 `json:"message" bson:"message"`
 	MessageEn             string                 `json:"-" bson:"message_en"`
 	MessageZh             string                 `json:"-" bson:"message_zh"`
@@ -129,6 +131,16 @@ type ComplianceCheckAlert struct {
 	PolicyID      string    `json:"policyID" bson:"policyID"`
 }
 
+type DriftPreventionAlert struct {
+	AffectedPod   string `json:"affectedPod" bson:"affectedPod"`
+	Filepath      string `json:"filepath" bson:"filepath"`
+	CRC32Expected uint32 `json:"crc32Expected,omitempty" bson:"crc32Expected,omitempty"`
+	CRC32Actual   uint32 `json:"crc32Actual,omitempty" bson:"crc32Actual,omitempty"`
+	Reason        string `json:"reason" bson:"reason"`
+	Action        string `json:"action" bson:"action"`
+	Syscall       string `json:"syscall" bson:"syscall"`
+}
+
 func (a *Alert) ApplyTranslation(ctx context.Context) {
 	if lang.Language(ctx) == lang.LanguageZH {
 		a.Message = a.MessageZh
@@ -136,10 +148,10 @@ func (a *Alert) ApplyTranslation(ctx context.Context) {
 		a.Message = a.MessageEn
 	}
 	if a.ExploitRiskAlert != nil {
-		a.ExploitRiskAlert.ApplyTranslation((ctx))
+		a.ExploitRiskAlert.ApplyTranslation(ctx)
 	}
 	if a.RuntimeDetectionAlert != nil {
-		a.RuntimeDetectionAlert.ApplyTranslation((ctx))
+		a.RuntimeDetectionAlert.ApplyTranslation(ctx)
 	}
 }
 
@@ -223,6 +235,24 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Severity:         a.Severity,
 			ExploitRiskAlert: a.ExploitRiskAlert,
 			Histories:        a.Histories,
+		})
+	} else if a.DriftPreventionAlert != nil {
+		return json.Marshal(&struct {
+			ID                   primitive.ObjectID    `json:"id"`
+			AlertKind            string                `json:"kind"`
+			Acknowledged         bool                  `json:"acknowledged"`
+			Timestamp            time.Time             `json:"timestamp"`
+			Severity             string                `json:"severity"`
+			Message              string                `json:"message"`
+			DriftPreventionAlert *DriftPreventionAlert `json:"data"`
+		}{
+			ID:                   a.ID,
+			AlertKind:            a.AlertKind,
+			Acknowledged:         a.Acknowledged,
+			Message:              a.Message,
+			Timestamp:            a.Timestamp,
+			Severity:             a.Severity,
+			DriftPreventionAlert: a.DriftPreventionAlert,
 		})
 	}
 	return json.Marshal(&struct {
