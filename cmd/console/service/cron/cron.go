@@ -78,7 +78,7 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 
 func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, checkType model.ComplianceCheckType) error {
 	logging.GetLogger().Info().
-		Str("cluster", fmt.Sprintf("%+v", cluster)).
+		Str("cluster", fmt.Sprintf("%+v", cluster.ClusterName)).
 		Str("checkType", fmt.Sprintf("%s", checkType)).
 		Msg("Registering compliance cron")
 

@@ -1,0 +1,23 @@
+apiVersion: settings.k8s.io/v1alpha1
+kind: PodPreset
+metadata:
+  name: drift-prevention-prevent
+spec:
+  selector:
+    matchLabels:
+      tensorsec.driftprevent: "prevent"
+  env:
+    - name: DRIFT_PREVENT
+      value: "true"
+    - name: TENSORSEC_CONSOLE_ADDR
+      value: "{{ .Values.console.addr }}"
+    - name: TENSORSEC_CONSOLE_PORT
+      value: "{{ .Values.console.port }}"
+    - name: MY_POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: MY_POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace

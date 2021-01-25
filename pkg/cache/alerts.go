@@ -44,7 +44,7 @@ func NewAlertsCache(
 	)
 
 	for _, onlyNotAcknowledged := range []bool{true, false} {
-		for _, kind := range []model.AlertKind{model.AlertKindAny, model.AlertKindComplianceCheck, model.AlertKindRuntimeDetection, model.AlertKindExploitRisk} {
+		for _, kind := range []model.AlertKind{model.AlertKindAny, model.AlertKindComplianceCheck, model.AlertKindRuntimeDetection, model.AlertKindExploitRisk, model.AlertKindDriftPrevention} {
 			for _, sortBy := range model.GetAlertSortableNames() {
 				c.ch.AddToRegistry(c.getAlertsData(onlyNotAcknowledged, kind, model.GetAlertSortableField(sortBy)), strconv.FormatBool(onlyNotAcknowledged), string(kind), model.GetAlertSortableField(sortBy))
 			}

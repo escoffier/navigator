@@ -1,0 +1,3 @@
+console:
+  addr: tensorsec-console.tensorsec.svc.cluster.local
+  port: "8889"

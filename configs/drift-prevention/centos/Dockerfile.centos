@@ -1,0 +1,18 @@
+FROM centos:7
+
+ARG MIRROR
+
+COPY centos/Centos-7.repo /tmp/CentOS-Base.repo
+RUN if ! [[ -z "$MIRROR" ]] ; then cp /tmp/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo ; fi
+
+RUN yum update -y && yum install -y \
+    gcc \
+    make
+
+ADD src /src
+
+WORKDIR /src
+
+RUN gcc -shared -std=c11 -D_XOPEN_SOURCE=700 -fPIC -o dp.so preload.c log.c -ldl
+
+CMD ["tail", "-f", "/dev/null"]

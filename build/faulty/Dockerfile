@@ -1,4 +1,5 @@
-from ubuntu:18.04
+FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention:test AS drift-prevention
+FROM ubuntu:18.04
 
 ARG MIRROR=archive.ubuntu.com
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
@@ -11,13 +12,21 @@ RUN apt-get update && apt-get install -y \
     vim \
     netcat \
     net-tools \
+    strace \
     software-properties-common \
     python3.6 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN export PATH="/usr/lib/go-1.10/bin:$PATH"
+ENV PATH="/usr/lib/go-1.10/bin:$PATH"
 
 ADD configs/faulty /app
 ADD test/ /test
+
+COPY --from=drift-prevention /drift-prevention/ubuntu/dp.so /tensorsec/dp.so
+COPY --from=drift-prevention /drift-prevention/file-checker /tensorsec/file-checker
+
+WORKDIR /tensorsec 
+RUN /tensorsec/file-checker
+ENV LD_PRELOAD="/tensorsec/dp.so"
 
 CMD ["/app/entrypoint.sh"]

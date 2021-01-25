@@ -270,6 +270,13 @@ paths:
       produces:
       - application/json
       summary: Update single cluster information
+  /api/v1/driftPrevention/raiseAlert:
+    post:
+      description: Raise a drift prevention alert
+      operationId: v1-raise-alert-post
+      produces:
+      - application/json
+      summary: Raise a drift prevention alert
   /api/v1/onlineVulnerabilities/current:
     get:
       description: List current online vulnerabilities

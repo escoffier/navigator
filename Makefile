@@ -111,11 +111,12 @@ else
 endif
 
 .PHONY: faulty
-faulty:     ## Build faulty docker to test CVEs
+faulty: drift-prevention     ## Build faulty docker to test CVEs
 	@echo "+ $@" 		
 ifeq ($(USEMIRROR),true)
 	@echo "faulty will use mirror"
-	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
+		--build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "faulty will not use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile .
@@ -126,7 +127,8 @@ audit:     ## Build audit docker
 	@echo "+ $@" 		
 ifeq ($(USEMIRROR),true)
 	@echo "audit will use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile \
+		--build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "audit will not use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile .
@@ -137,14 +139,29 @@ audit-cleanup:     ## Build audit-cleanup docker
 	@echo "+ $@" 		
 ifeq ($(USEMIRROR),true)
 	@echo "audit-cleanup will use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile --build-arg MIRROR=mirrors.aliyun.com .
+	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile \
+		--build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "audit-cleanup will not use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile .
 endif
 
+.PHONY: drift-prevention
+drift-prevention:	## Build drift prevention binary
+	@echo "+ $@"
+ifeq ($(USEMIRROR),true)
+	@echo "drift-prevention will use mirror"
+	(cd configs/drift-prevention && ./run.sh mirrors.aliyun.com)
+	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention:latest -f ./build/drift-prevention/Dockerfile \
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "drift-prevention will not use mirror"
+	(cd configs/drift-prevention && ./run.sh)
+	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention:latest -f ./build/drift-prevention/Dockerfile .
+endif
+
 .PHONY: all
-all: tensordig scanner scap-jobs console faulty audit audit-cleanup
+all: drift-prevention tensordig scanner scap-jobs console faulty audit audit-cleanup 
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -159,6 +176,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-audit:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-audit-cleanup:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
@@ -170,6 +188,7 @@ else
 	docker push $(REPOPREFIX)/tensordig:latest
 	docker push $(REPOPREFIX)/tensorsec-audit:latest
 	docker push $(REPOPREFIX)/tensorsec-audit-cleanup:latest
+	docker push $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker push $(REPOPREFIX)/faulty:latest
 endif
 
@@ -185,6 +204,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-audit:latest $(REPOPREFIX)/tensorsec-audit:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-audit-cleanup:latest $(REPOPREFIX)/tensorsec-audit-cleanup:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
@@ -196,6 +216,7 @@ else
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-audit:latest $(REPOPREFIX)/tensorsec-audit:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-audit-cleanup:latest $(REPOPREFIX)/tensorsec-audit-cleanup:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
 endif
 

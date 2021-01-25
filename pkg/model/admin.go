@@ -64,11 +64,12 @@ const (
 	URL_SUPER_ADMIN        = "/api/v1/superAdmin"
 	URL_MICROSERVICE       = "/api/v1/microservice"
 
-	IGNORE_ACCESS_URL_AUTH    = "/api/v1/auth"
-	IGNORE_ACCESS_URL_USER    = "/api/v1/user"
-	IGNORE_ACCESS_URL_PING    = "/ping"
-	IGNORE_ACCESS_URL_SWAGGER = "/swagger"
-	IGNORE_ACCESS_URL_HARBOR  = "/harbor"
+	IGNORE_ACCESS_URL_AUTH            = "/api/v1/auth"
+	IGNORE_ACCESS_URL_USER            = "/api/v1/user"
+	IGNORE_ACCESS_URL_PING            = "/ping"
+	IGNORE_ACCESS_URL_SWAGGER         = "/swagger"
+	IGNORE_ACCESS_URL_HARBOR          = "/harbor"
+	IGNORE_ACCESS_URL_DRIFTPREVENTION = "/api/v1/driftPrevention"
 )
 
 type User struct {
@@ -225,13 +226,15 @@ func AllIgnoreAccessURL() ([]string, map[string]struct{}) {
 			IGNORE_ACCESS_URL_PING,
 			IGNORE_ACCESS_URL_SWAGGER,
 			IGNORE_ACCESS_URL_HARBOR,
+			IGNORE_ACCESS_URL_DRIFTPREVENTION,
 		},
 		map[string]struct{}{
-			IGNORE_ACCESS_URL_AUTH:    {},
-			IGNORE_ACCESS_URL_USER:    {},
-			IGNORE_ACCESS_URL_PING:    {},
-			IGNORE_ACCESS_URL_SWAGGER: {},
-			IGNORE_ACCESS_URL_HARBOR:  {},
+			IGNORE_ACCESS_URL_AUTH:            {},
+			IGNORE_ACCESS_URL_USER:            {},
+			IGNORE_ACCESS_URL_PING:            {},
+			IGNORE_ACCESS_URL_SWAGGER:         {},
+			IGNORE_ACCESS_URL_HARBOR:          {},
+			IGNORE_ACCESS_URL_DRIFTPREVENTION: {},
 		}
 }
 

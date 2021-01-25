@@ -18,11 +18,11 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/daemon"
     condition: daemon.enabled
- 
+
   - name: postgresql
-    version: "6.3.9"
+    version: 6.3.9
     repository: "file://./subcharts/postgresql"
-    condition: postgresql.enabled 
+    condition: postgresql.enabled
 
   - name: mongodb
     version: 7.2.10
@@ -32,10 +32,15 @@ dependencies:
   # TODO: https://github.com/bitnami/charts/tree/master/bitnami/redis#tldr
   - name: redis
     version: 11.2.1
-    repository: "file://./subcharts/redis" 
-    condition: redis.enabled 
+    repository: "file://./subcharts/redis"
+    condition: redis.enabled
 
   - name: elasticsearch
     version: 7.9.1
-    repository: "file://./subcharts/elasticsearch" 
+    repository: "file://./subcharts/elasticsearch"
     condition: elasticsearch.enabled
+
+  - name: drift-prevention
+    version: 0.1.0
+    repository: "file://./subcharts/drift-prevention"
+    condition: drift-prevention.enabled

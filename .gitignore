@@ -4,7 +4,9 @@ node_modules/
 *egg-info/
 *docs.go
 charts/
-
+target/
+ld-preload/
+.DS_Store
 
 ## Frontend related ignores
 

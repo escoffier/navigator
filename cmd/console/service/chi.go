@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
@@ -36,6 +37,7 @@ func setupChiRouter(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
+	driftPreventionService *driftprevention.DriftPreventionService,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
@@ -66,6 +68,7 @@ func setupChiRouter(
 		redisClient,
 		ruleService,
 		alertService,
+		driftPreventionService,
 		onlineVulnsSvc,
 		auditService,
 		cleanupService,

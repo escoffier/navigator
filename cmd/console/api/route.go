@@ -20,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
@@ -58,6 +59,7 @@ func SetupRoutes(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
+	driftPreventionService *driftprevention.DriftPreventionService,
 	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
@@ -77,6 +79,7 @@ func SetupRoutes(
 		redisClient,
 		ruleService,
 		alertService,
+		driftPreventionService,
 		onlineVulnsSvc,
 		auditService,
 		cleanupService,
@@ -90,6 +93,7 @@ func SetupRoutes(
 	r.Route("/harbor/api/v1", api.harbor())
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", api.restAuth())
+		r.Route("/driftPrevention", api.driftPrevention())
 
 		// needs authentication
 		r.Group(func(r chi.Router) {
