@@ -254,24 +254,6 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Severity:             a.Severity,
 			DriftPreventionAlert: a.DriftPreventionAlert,
 		})
-	} else if a.DriftPreventionAlert != nil {
-		return json.Marshal(&struct {
-			ID                   primitive.ObjectID    `json:"id"`
-			AlertKind            string                `json:"kind"`
-			Acknowledged         bool                  `json:"acknowledged"`
-			Timestamp            time.Time             `json:"timestamp"`
-			Severity             string                `json:"severity"`
-			Message              string                `json:"message"`
-			DriftPreventionAlert *DriftPreventionAlert `json:"data"`
-		}{
-			ID:                   a.ID,
-			AlertKind:            a.AlertKind,
-			Acknowledged:         a.Acknowledged,
-			Message:              a.Message,
-			Timestamp:            a.Timestamp,
-			Severity:             a.Severity,
-			DriftPreventionAlert: a.DriftPreventionAlert,
-		})
 	}
 	return json.Marshal(&struct {
 		ID           primitive.ObjectID `json:"id"`
