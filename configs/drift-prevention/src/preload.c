@@ -16,7 +16,6 @@
 #include <stdarg.h>
 
 #include "log.h"
-#include "hash_search.c"
 
 #include "config.c"
 #include "crc32.c"
@@ -41,7 +40,6 @@ typedef struct {
 static shm_whitelist_entry *g_whitelist;
 static size_t g_whitelist_size;
 static Whitelist g_whitelist_config;
-static hash_tbl_t *g_whitelist_table;
 
 static void init() __attribute__((constructor));
 
@@ -50,7 +48,6 @@ static void finish() __attribute__((destructor));
 void finish() {
     free(g_whitelist);
     whitelist_free(&g_whitelist_config);
-    hashtbl_node_free(g_whitelist_table);
 }
 
 /*
@@ -58,22 +55,20 @@ void finish() {
  * to minimize additional latency. Here we assumed, that in the first load we create a shared memory,
  * which later on is accessed by consecutive loads of the shared object by the 
  * SHM_WHITELIST_SIZE_NAME and SHM_WHITELIST_NAME.
- *
+ * 
  * One drawback of this solution is that we never free shared memory in this case.
  */
-
-void init()
-{
+void init() {
     void* shm_ref;
-    int shm_file_size_fd;
+    int shm_file_size_fd; 
     int* shm_file_size_ptr;
-    int shm_whitelist_fd;
+    int shm_whitelist_fd; 
     shm_whitelist_entry *shm_whitelist_ptr;
-    shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), S_IRUSR);
+    shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), S_IRUSR); 
     if (shm_file_size_fd < 0) {
         whitelist_init(&g_whitelist_config, 32);
         read_config(&g_whitelist_config);
-        shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR);
+        shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR); 
         if (shm_file_size_fd < 0) {
             write_log(ERROR, "Could not create shared memory for whitelist size: %s\n", strerror(errno));
             goto use_data_from_file;
@@ -82,11 +77,11 @@ void init()
         size_t *shmaddr = (size_t *) shmat (shm_file_size_fd, 0, 0);
         memcpy(shmaddr, &g_whitelist_config.used, sizeof (size_t));
         int shm_whitelist_size = sizeof(shm_whitelist_entry) * g_whitelist_config.used;
-        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, shm_whitelist_size, IPC_CREAT | S_IRUSR | S_IWUSR);
+        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, shm_whitelist_size, IPC_CREAT | S_IRUSR | S_IWUSR); 
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *) shmat (shm_whitelist_fd, 0, 0);
-        whitelist_hash_config.n_entries = g_whitelist_config.used;
-        g_whitelist_table = hashtbl_init(&whitelist_hash_config);
-        if (!g_whitelist_table) {
+        g_whitelist = malloc(shm_whitelist_size * sizeof(shm_whitelist_entry));
+        g_whitelist_size = g_whitelist_config.used;
+        if (!g_whitelist) {
             write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
             goto use_data_from_file;
         }
@@ -94,33 +89,24 @@ void init()
             shm_whitelist_entry file = { .checksum = g_whitelist_config.checksums[i]};
             strncpy(file.filename, g_whitelist_config.filenames[i], PATH_MAX * sizeof(char));
             memcpy(file_shmaddr, &file, sizeof(shm_whitelist_entry));
-            entry * node = hashtbl_node_insert(g_whitelist_config.filenames[i], g_whitelist_table);
-            if(!node) {
-                write_log(ERROR, "filename if null %s\n", strerror(errno));
-                goto read_data_from_file;
-            }
-            node->checksum = g_whitelist_config.checksums[i];
+            strncpy(g_whitelist[i].filename, file_shmaddr[0].filename, PATH_MAX * sizeof(char));
+            g_whitelist[i].checksum = file_shmaddr[0].checksum;
             file_shmaddr += 1;
         }
         goto finish;
     } else {
         size_t *shm_whitelist_size = (size_t *) shmat (shm_file_size_fd, 0, 0);
         g_whitelist_size = *shm_whitelist_size;
-        whitelist_hash_config.n_entries = g_whitelist_size;
-        g_whitelist_table = hashtbl_init(&whitelist_hash_config);
+        g_whitelist = malloc(*shm_whitelist_size * sizeof(shm_whitelist_entry));
         if (!g_whitelist) {
             write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
             goto read_data_from_file;
         }
-        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, *shm_whitelist_size, S_IRUSR);
+        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, *shm_whitelist_size, S_IRUSR); 
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *) shmat (shm_whitelist_fd, 0, 0);
         for (int i = 0; i < *shm_whitelist_size; i++) {
-            entry * node = hashtbl_node_insert(g_whitelist_config.filenames[i], g_whitelist_table);
-            if(!node) {
-                write_log(ERROR, "filename if null %s\n", strerror(errno));
-                goto read_data_from_file;
-            }
-            node->checksum = g_whitelist_config.checksums[i];
+            strncpy(g_whitelist[i].filename, file_shmaddr[0].filename, PATH_MAX * sizeof(char));
+            g_whitelist[i].checksum = file_shmaddr[0].checksum;
             file_shmaddr += 1;
         }
         goto finish;
@@ -129,35 +115,16 @@ read_data_from_file:
     whitelist_init(&g_whitelist_config, 32);
     read_config(&g_whitelist_config);
 use_data_from_file:
-    whitelist_hash_config.n_entries = g_whitelist_config.used;
-    hashtbl_node_free(g_whitelist_table);
-    g_whitelist_table = hashtbl_init(&whitelist_hash_config);
-    if(!g_whitelist_table) {
-        write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
-        goto finish;
-    }
+    g_whitelist = malloc(g_whitelist_config.used * sizeof(shm_whitelist_entry));
     for (int i = 0; i < g_whitelist_config.used; i++) {
-        entry * node = hashtbl_node_insert(g_whitelist_config.filenames[i], g_whitelist_table);
-        if(!node) {
-            write_log(ERROR, "filename if null %s\n", strerror(errno));
-            goto finish;
-        }
-        node->checksum = g_whitelist_config.checksums[i];
+        shm_whitelist_entry file = { .checksum = g_whitelist_config.checksums[i]};
+        strncpy(g_whitelist[i].filename, g_whitelist_config.filenames[i], PATH_MAX * sizeof(char));
+        g_whitelist[i].checksum = file.checksum;
     }
 finish:
     return;
 }
 
-entry *hash_search(hash_tbl_t * table, void *key) {
-    if(!table) {
-        return NULL;
-    }
-    entry *node = (entry *) hashtbl_node_get(key, table);
-    if(!node) {
-        return NULL;
-    }
-    return node;
-}
 
 int binary_search(shm_whitelist_entry *list_of_files, int size, const char *target) {
     int bottom= 0;
@@ -315,12 +282,13 @@ int exec_name(input_str)                                                        
         goto cleanup;                                                                   \
     }                                                                                   \
                                                                                         \
-    entry *node = hash_search(g_whitelist_table, pre_data.real_path);                   \
-    if (!node) {                                                                        \
+    int location = binary_search(g_whitelist, g_whitelist_size, pre_data.real_path);    \
+                                                                                        \
+    if (location == -1) {                                                               \
         reason = malloc(strlen(REASON_NOT_IN_WHITELIST)+1);                             \
         strcpy(reason, REASON_NOT_IN_WHITELIST);                                        \
         if (NULL != pre_data.drift_detect) {                                            \
-            action = malloc(strlen(REASON_NOT_IN_WHITELIST)+1);                         \
+            action = malloc(strlen(ACTION_NOTIFIED)+1);                                 \
             strcpy(action, ACTION_NOTIFIED);                                            \
             goto send_alert;                                                            \
         }                                                                               \
@@ -334,8 +302,9 @@ int exec_name(input_str)                                                        
         if (l_size < 0) {                                                               \
             goto cleanup;                                                               \
         }                                                                               \
-        expected_crc32 = node->checksum;                                                \
+        expected_crc32 = g_whitelist[location].checksum;                                \
         calculated_crc32 = rc_crc32(0, content, l_size);                                \
+                                                                                        \
         if (calculated_crc32 != expected_crc32) {                                       \
             reason = malloc(strlen(REASON_CHECKSUM_MISMATCH)+1);                        \
             strcpy(reason, REASON_CHECKSUM_MISMATCH);                                   \
