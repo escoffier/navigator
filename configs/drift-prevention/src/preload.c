@@ -148,7 +148,7 @@ finish:
     return;
 }
 
-entry *hash_search(hash_tbl_t * table, const char *key) {
+entry *hash_search(hash_tbl_t * table, void *key) {
     if(!table) {
         return NULL;
     }
