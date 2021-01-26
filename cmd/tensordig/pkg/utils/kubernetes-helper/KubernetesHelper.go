@@ -15,6 +15,8 @@ import (
 var (
 	// pattern found on microk8s
 	kubePattern = regexp.MustCompile(`/kubepods/[^/]+/pod([^/]+)/([0-9a-f]{64})`)
+	// pattern found on v1.17.2
+	kubePattern2 = regexp.MustCompile(`/kubepods\/pod([^\/]+)\/([0-9a-f]{64})`)
 	// E.g. cgroup hierarchy: https://github.com/kubernetes/kubernetes/issues/62896
 	// kubelet cgroup v1 schema - guaranteed QoS
 	kubePatternCgroupV1Guaranteed = regexp.MustCompile(`/kubepods\.slice/kubepods-[^-]+-pod([^/]+)\.slice/docker-([0-9a-f]{64})`)
@@ -155,6 +157,15 @@ func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, stri
 			return parts[2], foundKid, nil
 		}
 		logging.GetLogger().Debug().Str("pattern", kubePattern.String()).Msg("Match not found")
+		parts = kubePattern2.FindStringSubmatch(line)
+		if parts != nil {
+			logging.GetLogger().Debug().Int("pid", pid).Str("pattern", kubePattern2.String()).Msg("Found match")
+			logging.GetLogger().Debug().Str("cid", parts[2]).Str("kid", parts[1]).Msg("Match")
+			foundKid := strings.ReplaceAll(parts[1], "_", "-")
+			ku.containerCache.Set(dockerPID, parts[2], foundKid)
+			return parts[2], foundKid, nil
+		}
+		logging.GetLogger().Debug().Str("pattern", kubePattern2.String()).Msg("Match not found")
 		parts = kubePatternCgroupV1.FindStringSubmatch(line)
 		if parts != nil {
 			logging.GetLogger().Debug().Int("pid", pid).Str("pattern", kubePatternCgroupV1.String()).Msg("Found match")
