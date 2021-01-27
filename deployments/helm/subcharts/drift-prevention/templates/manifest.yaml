@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-config
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+data:
+  presets.yaml: |
+    env:
+    - name: LD_PRELOAD
+      value: "/tensorsec/dp.so"
+    - name: TENSORSEC_CONSOLE_ADDR
+      value: "{{ .Values.console.addr }}"
+    - name: TENSORSEC_CONSOLE_PORT
+      value: "{{ .Values.console.port }}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-cluster-role
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch", "patch"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-service-account
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-cluster-role-binding
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "driftPrevention.fullname" . }}-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "driftPrevention.fullname" . }}-service-account
+    namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-service
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  ports:
+  - port: 443
+    targetPort: 8443
+  selector:
+    app: {{ template "driftPrevention.fullname" . }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "driftPrevention.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "driftPrevention.fullname" . }}
+    spec:
+      serviceAccountName: {{ template "driftPrevention.fullname" . }}-service-account
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ template "driftPrevention.fullname" . }}-webhook
+        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+        # command: ["/bin/sh", "-c", "sleep 360000"]
+        args:
+        - --preset=/etc/config/presets.yaml
+        - --cert=/etc/certs/tls.crt
+        - --key=/etc/certs/tls.key
+        - --port=8443
+        volumeMounts:
+        - name: certs
+          mountPath: /etc/certs
+          readOnly: true
+        - name: config
+          mountPath: /etc/config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ template "driftPrevention.fullname" . }}-config
+      - name: certs
+        secret:
+          secretName: {{ template "driftPrevention.fullname" . }}-certs

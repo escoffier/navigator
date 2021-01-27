@@ -1,4 +1,4 @@
-FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention:test AS drift-prevention
+FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention-client:test AS drift-prevention
 FROM ubuntu:18.04
 
 ARG MIRROR=archive.ubuntu.com
@@ -25,8 +25,6 @@ ADD test/ /test
 COPY --from=drift-prevention /drift-prevention/ubuntu/dp.so /tensorsec/dp.so
 COPY --from=drift-prevention /drift-prevention/file-checker /tensorsec/file-checker
 
-WORKDIR /tensorsec 
 RUN /tensorsec/file-checker
-ENV LD_PRELOAD="/tensorsec/dp.so"
 
 CMD ["/app/entrypoint.sh"]
