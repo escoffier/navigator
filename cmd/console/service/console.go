@@ -14,23 +14,10 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
-	cr "github.com/robfig/cron/v3"
-	"gopkg.in/yaml.v2"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-
 	"github.com/olivere/elastic/v7"
+	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
+	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
@@ -41,15 +28,30 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var (
 	log *logging.Logger
+)
+
+const (
+	defaultK8sClusterName = "default"
 )
 
 func init() {
@@ -65,7 +67,8 @@ type Console struct {
 	cronService        *cron.CronService
 	ruleService        *rule.RuleService
 	clusterService     *cluster.ClusterService
-	onlineVulnsService *onlinevulns.OnlineVulnsService
+	onlineVulnsService *onlinevulns.OnlineVulnerabilitiesService
+	svcAssetsService   *assetsSvc.ServiceAssetsService
 	auditService       *audit.AuditService
 	cleanupService     *cleanup.CleanupService
 	harborClient       *harbor.HarborRESTClient
@@ -134,7 +137,13 @@ func NewConsole(
 	}
 
 	// online vulns service
-	onlineVulnsSvc := onlinevulns.NewOnlineVulnsService(mongodb)
+	onlineVulnsSvc := onlinevulns.NewOnlineVulnerabilitiesService(mongodb)
+
+	// service assets service
+	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongodb)
+	if svcErr != nil {
+		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
+	}
 
 	// cluster service
 	clusterService := cluster.NewClusterService(mainCtx, mongodb, onlineVulnsSvc, cleanupService, redisClient)
@@ -172,9 +181,6 @@ func NewConsole(
 	//micro service
 	microService := microservice.NewMicroService(mongodb)
 
-	// add refreshCache to onlineVulnsSvc
-	onlineVulnsSvc.AddRefreshCache(alertService.RefreshCache)
-
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -207,6 +213,7 @@ func NewConsole(
 		clusterService:     clusterService,
 		ruleService:        ruleService,
 		onlineVulnsService: onlineVulnsSvc,
+		svcAssetsService:   svcAssetsSvc,
 		auditService:       auditService,
 		cleanupService:     cleanupService,
 		harborClient:       harborClient,
@@ -295,12 +302,18 @@ func (c *Console) Run() func() {
 			Msg("When validating kube client")
 	}
 	if kubeClient != nil {
-		err = initializeOnlineVulnsWatch(ctx, c.onlineVulnsService, kubeClient)
-		if err != nil {
-			log.Error().
-				Err(err).
-				Msg("When initializing online vulns watch")
+		watcher, werr := assetsSvc.Watcher(c.svcAssetsService, c.onlineVulnsService)
+		if werr != nil {
+			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
+		} else {
+			err := watcher.StartsToWatch(ctx, map[string]*kubernetes.Clientset{
+				defaultK8sClusterName: kubeClient,
+			})
+			if err != nil {
+				log.Error().Err(err).Msg("Watch kube clients error")
+			}
 		}
+
 		c.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
 	}
 
@@ -640,7 +653,12 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		},
 		{
 			Keys: bson.M{
-				"podname": 1,
+				"cluster": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podUid": 1,
 			}, Options: nil,
 		},
 		{
@@ -746,25 +764,6 @@ func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterServic
 		return nil, nil, fmt.Errorf("Kube client connection check failed: %w", err)
 	}
 	return kubeClient, restConfig, nil
-}
-
-func initializeOnlineVulnsWatch(ctx context.Context, onlineVulnsSvc *onlinevulns.OnlineVulnsService, kubeClient *kubernetes.Clientset) error {
-	// TODO: to do this properly, this should be a method of OnlineVulns
-	// however, ClusterService already has dependency on OnlineVulns, so this leads to
-	// 1. spaghetti
-	// 2. import (dependency) loop
-	// Ideally, ClusterService doesn't have dependency on OnlineVulns, and instead
-	// has dependency on some Hook interface.
-	// However, I will leave this implementation and design when we know more about alerting hooks etc,
-	// since it will greatly impact the design of the hook thingy.
-
-	// to get things started, call OnKubeConfigUpdate
-	err := onlineVulnsSvc.OnKubeConfigUpdate(ctx, kubeClient)
-	if err != nil {
-		return fmt.Errorf("Failed OnKubeConfigUpdate: %w", err)
-	}
-
-	return nil
 }
 
 // On 2020.12.07(UTC+8), all route is:

@@ -25,6 +25,7 @@ func (api *api) onlineVulnerabilities() func(chi.Router) {
 // @Router /api/v1/onlineVulnerabilities/current [get]
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
+// @Param cluster string false "case sensitive cluster name"
 func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
@@ -32,7 +33,12 @@ func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		vulns, err := api.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, offset, limit)
+		cluster := chi.URLParam(r, "cluster")
+		if len(cluster) == 0 {
+			cluster = "default"
+		}
+
+		vulns, err := api.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, cluster, offset, limit)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return
@@ -55,6 +61,7 @@ func (api *api) getCurrentOnlineVulnerabilities() http.HandlerFunc {
 // @Router /api/v1/onlineVulnerabilities/details/{namespace}/{resourceKind}/{resourceName} [get]
 // @Param resourceKind query string false "case-sensitive resource kind"
 // @Param resourceName query string false "case-sensitive resource name"
+// @Param cluster query string false "case-sensitive k8s cluster name"
 func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
@@ -69,6 +76,10 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 			return
 		}
 
+		cluster := chi.URLParam(r, "cluster")
+		if cluster == "" {
+			cluster = "default"
+		}
 		resourceName := chi.URLParam(r, "resourceName")
 		if resourceName == "" {
 			RespAndLog(w, ctx,
@@ -87,7 +98,7 @@ func (api *api) getOnlineVulnerabilityDetails() http.HandlerFunc {
 			return
 		}
 
-		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, namespace, resourceKind, resourceName)
+		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, cluster, namespace, resourceKind, resourceName)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return

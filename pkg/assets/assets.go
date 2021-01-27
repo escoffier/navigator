@@ -2,13 +2,13 @@ package assets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
@@ -69,7 +69,7 @@ func UpdateAssetScanningDetails(ctx context.Context, mongodb *mongo.Database, as
 	}
 }
 
-func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.ContainerStatus, owner *metav1.OwnerReference, isDeleteEvent bool) {
+func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, container *corev1.ContainerStatus, owner *metav1.OwnerReference, isDeleteEvent bool) {
 	// image: 192.168.1.203:5000/tensorsec-console:latest
 	repositoryTag := strings.Split(container.Image, ":")
 	repository := strings.Join(repositoryTag[0:len(repositoryTag)-1], ":")
@@ -92,6 +92,7 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	defer mongoCtxCancel()
 
 	assetContainer := model.AssetContainer{
+		Cluster:             cluster,
 		IsDeleted:           isDeleteEvent,
 		PodName:             pod.Name,
 		Name:                container.Name,
@@ -142,62 +143,187 @@ func UpdateAsset(mongodb *mongo.Database, pod *corev1.Pod, container *corev1.Con
 	_, err := mongodb.Collection(model.AssetsContainersCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
+	} else {
+		logging.GetLogger().Info().Msgf("update onlinevulns assets: %+v", assetContainer)
 	}
 
 }
 
-func UpdateEpt(mongodb *mongo.Database, ept *corev1.Endpoints, isDeleteEvent bool) {
+func getIPPort(ip string, port int32) string {
+	return fmt.Sprintf("%s:%d", ip, port)
+}
+
+func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, oldPod *corev1.Pod, action AssetsAction) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer mongoCtxCancel()
+
+	if action == ActionDelete {
+		if oldPod == nil {
+			return errors.New("no old pods given")
+		}
+
+		filter := bson.M{
+			"$and": []bson.M{
+				{"cluster": kubeCluster},
+				{"namespace": oldPod.Namespace},
+				{"podUid": string(oldPod.UID)},
+			},
+		}
+		_, err := mongodb.Collection(model.ServiceCollection.String()).DeleteMany(mongoCtx, filter)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("delete service collection error for pod event")
+		}
+	}
+	if action == ActionUpdate || action == ActionAdd {
+		if newPod == nil {
+			return errors.New("no new pods given")
+		}
+		owner := metav1.GetControllerOf(newPod)
+		svcName := newPod.Name
+		svcKind := ""
+		if owner != nil {
+			svcName = owner.Name
+			svcKind = owner.Kind
+		}
+
+		filter := bson.M{
+			"$and": []bson.M{
+				{"cluster": kubeCluster},
+				{"namespace": newPod.Namespace},
+				{"podUid": string(newPod.UID)},
+			},
+		}
+
+		update := bson.M{
+			"$set": bson.M{
+				"kind": svcKind,
+			},
+		}
+
+		// if exists, update its kind field; if not, insert.
+		res, err := mongodb.Collection(model.ServiceCollection.String()).UpdateMany(mongoCtx, filter, update)
+		if err == nil && res.MatchedCount >= 1 { // if the document exists for filter, we only update the kind.
+			return nil
+		}
+
+		assetService := model.Service{
+			Namespace: newPod.Namespace,
+			Name:      svcName,
+			Cluster:   kubeCluster,
+			Type:      "byController",
+			Kind:      svcKind,
+		}
+		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
+		_, insertErr := mongodb.Collection(model.ServiceCollection.String()).InsertOne(mongoCtx, assetService)
+		if insertErr != nil {
+			logging.GetLogger().Error().Err(insertErr).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to insert service to mongo")
+			return insertErr
+		}
+
+	}
+	return nil
+}
+
+// OnEndpointsEvent updates the mongo according to the event
+func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 
-	assetService := model.Service{
-		Namespace: ept.Namespace,
-		Name:      ept.Name,
-	}
-
-	if isDeleteEvent {
-		for _, v := range ept.Subsets {
+	if action == ActionDelete {
+		if oldEpt == nil {
+			return errors.New("no old endpoints given")
+		}
+		for _, v := range oldEpt.Subsets {
 			for _, address := range v.Addresses {
-
-				filter := bson.M{
-					"$and": []bson.M{
-						{"namespace": assetService.Namespace},
-						{"name": assetService.Name},
-						{"ip": address.IP},
-					},
+				podUID := ""
+				if address.TargetRef != nil {
+					podUID = string(address.TargetRef.UID)
 				}
-				_, err := mongodb.Collection(model.ServiceCollection.String()).DeleteOne(mongoCtx, filter)
+				var filter bson.M
+				if len(podUID) > 0 {
+					filter = bson.M{
+						"$and": []bson.M{
+							{"cluster": kubeCluster},
+							{"namespace": oldEpt.Namespace},
+							{"name": oldEpt.Name},
+							{"podUid": podUID},
+						},
+					}
+				} else {
+					filter = bson.M{
+						"$and": []bson.M{
+							{"cluster": kubeCluster},
+							{"namespace": oldEpt.Namespace},
+							{"name": oldEpt.Name},
+							{"ip": address.IP},
+						},
+					}
+				}
+
+				_, err := mongodb.Collection(model.ServiceCollection.String()).DeleteMany(mongoCtx, filter)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to delete  EndPoints to mongo")
+					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", filter)).Msg("Failed to delete  EndPoints to mongo")
+					return err
 				}
 			}
 		}
-	} else {
+	}
 
-		for _, v := range ept.Subsets {
+	if action == ActionAdd || action == ActionUpdate {
+		if newEpt == nil {
+			return errors.New("no new endpoints given")
+		}
+		assetService := model.Service{
+			Namespace: newEpt.Namespace,
+			Name:      newEpt.Name,
+			Cluster:   kubeCluster,
+			Type:      "byEndpoints",
+		}
+		assetService.HistoricisedTimestamp = time.Now()
+
+		for _, v := range newEpt.Subsets {
 			for _, address := range v.Addresses {
 				assetService.IP = address.IP
 				if address.TargetRef == nil {
 					assetService.PodName = ""
+					assetService.PodUID = ""
 				} else {
 					assetService.PodName = address.TargetRef.Name
+					assetService.PodUID = string(address.TargetRef.UID)
 				}
-				filter := bson.M{
-					"$and": []bson.M{
-						{"namespace": assetService.Namespace},
-						{"name": assetService.Name},
-						{"ip": address.IP},
-					},
+
+				var filter bson.M
+				if len(assetService.PodUID) > 0 {
+					filter = bson.M{
+						"$and": []bson.M{
+							{"cluster": kubeCluster},
+							{"namespace": newEpt.Namespace},
+							{"name": newEpt.Name},
+							{"podUid": assetService.PodUID},
+						},
+					}
+				} else {
+					filter = bson.M{
+						"$and": []bson.M{
+							{"cluster": kubeCluster},
+							{"namespace": newEpt.Namespace},
+							{"name": newEpt.Name},
+							{"ip": address.IP},
+						},
+					}
 				}
 				update := bson.M{"$set": assetService}
 				opts := options.Update().SetUpsert(true)
 				_, err := mongodb.Collection(model.ServiceCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to upsert assetService to mongo")
+					return err
 				}
 			}
 		}
 	}
+
+	return nil
 }
 
 func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest string) (model.ScanTask, bool, error) {

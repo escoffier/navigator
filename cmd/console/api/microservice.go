@@ -3,14 +3,15 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"net/http"
-	"time"
 )
 
 //@Router /api/v1/microservice
@@ -34,6 +35,7 @@ func (api *api) Microservice() func(chi.Router) {
 // @Router /api/v1/microservice/vulnerabilities/details/{namespace}/{resourceKind}/{resourceName} [get]
 // @Param resourceKind query string false "case-sensitive resource kind"
 // @Param resourceName query string false "case-sensitive resource name"
+// @Param cluster query string false "case-sensitive k8s cluster name"
 func (api *api) getMicroOnlineVulnerabilityDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
@@ -46,6 +48,11 @@ func (api *api) getMicroOnlineVulnerabilityDetails() http.HandlerFunc {
 					fmt.Errorf("Missing param 'namespace'"),
 					Suberror{"namespace", ""}))
 			return
+		}
+
+		cluster := chi.URLParam(r, "cluster")
+		if cluster == "" {
+			cluster = "default"
 		}
 
 		resourceName := chi.URLParam(r, "resourceName")
@@ -66,7 +73,7 @@ func (api *api) getMicroOnlineVulnerabilityDetails() http.HandlerFunc {
 			return
 		}
 
-		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, namespace, resourceKind, resourceName)
+		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, cluster, namespace, resourceKind, resourceName)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return
