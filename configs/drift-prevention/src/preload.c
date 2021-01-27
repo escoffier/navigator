@@ -126,23 +126,6 @@ finish:
 }
 
 
-int binary_search(shm_whitelist_entry *list_of_files, int size, const char *target) {
-    int bottom= 0;
-    int mid;
-    int top = size - 1;
-    while(bottom <= top){
-        mid = (bottom + top)/2;
-        if (strcmp(list_of_files[mid].filename, target) == 0 && strlen(list_of_files[mid].filename) == strlen(target)){
-            return mid;
-        } else if (strcmp(list_of_files[mid].filename, target) > 0){
-            top    = mid - 1;
-        } else if (strcmp(list_of_files[mid].filename, target) < 0){
-            bottom = mid + 1;
-        }
-    }
-    return -1;
-}
-
 // CRC fields will be ignored if reason is not checksum related.
 int send_alert(const char* filepath, const char* syscall, const char* reason, const char* action, const uint32_t crc32_expected, const uint32_t crc32_actual) {
     char* podname = getenv("MY_POD_NAME");

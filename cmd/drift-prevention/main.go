@@ -1,150 +1,73 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"hash/crc32"
-	"io/ioutil"
+	"net/http"
 	"os"
-	"path/filepath"
-	"sort"
+	"os/signal"
+	"syscall"
+	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/gin-gonic/gin"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/drift-prevention/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/drift-prevention/mutation"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/spf13/cobra"
 )
 
-type WhitelistFile struct {
-	Name     string
-	Checksum string
-}
+func main() {
+	preset := "preset.yaml"
+	port := 8080
+	failureRetryInterval := time.Second * 30
+	reloadInterval := time.Minute
+	certFile := "/etc/webhook/certs/cert.pem"
+	keyFile := "/etc/webhook/certs/key.pem"
 
-var table [256]uint32
+	cmd := &cobra.Command{
+		Use:  "drift-prevention",
+		Long: "drift-prevention",
+		Run: func(cmd *cobra.Command, args []string) {
+			holder, err := config.NewReloadingConfig(preset, &config.ReloadConfig{
+				FailureRetryInterval: failureRetryInterval,
+				ReloadInterval:       reloadInterval,
+			})
 
-func calculateChecksum(file *os.File) (uint32, error) {
-	stats, err := file.Stat()
-	if err != nil {
-		log.Errorf("Failed to stat file: %w\n", err)
-		return uint32(0), err
-	}
-
-	var size int64 = stats.Size()
-	content := make([]byte, size)
-
-	bufr := bufio.NewReader(file)
-	_, err = bufr.Read(content)
-	if err != nil {
-		log.Errorf("Failed to read file: %w\n", err)
-		return uint32(0), err
-	}
-
-	return crc32.ChecksumIEEE(content), nil
-}
-
-func isExec(mode os.FileMode) bool {
-	return mode&0111 != 0
-}
-
-func unique(slice []WhitelistFile) []WhitelistFile {
-	keys := make(map[string]bool)
-	list := []WhitelistFile{}
-	for _, entry := range slice {
-		if _, value := keys[entry.Name]; !value {
-			keys[entry.Name] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
-func listDirContents(path string, whitelist *[]WhitelistFile) {
-	files, _ := ioutil.ReadDir(path)
-
-	for _, f := range files {
-		var newPath string
-		if path != "/" {
-			newPath = fmt.Sprintf("%s/%s", path, f.Name())
-		} else {
-			newPath = fmt.Sprintf("%s%s", path, f.Name())
-		}
-		resolvedSymlink, err := filepath.EvalSymlinks(newPath)
-		if err != nil {
-			log.Errorf("Failed to resolve symlink: path %s resolvedPath %s err %w\n", newPath, resolvedSymlink, err)
-			continue
-		}
-		if f.IsDir() {
-			listDirContents(newPath, whitelist)
-		} else if f.Mode().IsRegular() && isExec(f.Mode()) {
-			file, err := os.Open(resolvedSymlink)
 			if err != nil {
-				log.Errorf("Failed to open file: path %s resolvedPath %s err %w\n", newPath, resolvedSymlink, err)
-				continue
+				panic(err.Error())
 			}
-			defer func() {
-				if err = file.Close(); err != nil {
-					log.Errorf("Failed to close file: path %s resolvedPath %s err %w\n", newPath, resolvedSymlink, err)
+
+			server := gin.New()
+
+			mutation.RegisterMutateWebhook(server, holder)
+
+			go func() {
+				address := fmt.Sprintf("0.0.0.0:%d", port)
+				if err := http.ListenAndServeTLS(address, certFile, keyFile, server); err != nil {
+					panic(err.Error())
 				}
 			}()
 
-			checksum, err := calculateChecksum(file)
-			if err != nil {
-				log.Errorf("Failed to calculate checksum: path %s resolvedPath %s err %w\n", newPath, resolvedSymlink, err)
-				continue
-			}
-			*whitelist = append(*whitelist, WhitelistFile{
-				Name:     newPath,
-				Checksum: fmt.Sprintf("%X", checksum),
-			})
-		}
-	}
-}
+			// listening OS shutdown singal
+			signalChan := make(chan os.Signal, 1)
+			signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+			<-signalChan
 
-func main() {
-	for i := range table {
-		word := uint32(i)
-		for j := 0; j < 8; j++ {
-			if word&1 == 1 {
-				word = (word >> 1) ^ 0xedb88320
-			} else {
-				word >>= 1
-			}
-		}
-		table[i] = word
+			logrus.Info("received OS shutdown signal, shutting down webhook server gracefully...")
+		},
 	}
 
-	whitelist := make([]WhitelistFile, 0)
+	flags := cmd.Flags()
+	flags.StringVar(&preset, "preset", preset, "(optional) path to the file container cluster presets")
+	flags.IntVar(&port, "port", port, "(optional) the port to bind to")
+	flags.DurationVar(&failureRetryInterval, "retry-interval", failureRetryInterval, "(optional) specify the duration between reloads on failure")
+	flags.DurationVar(&reloadInterval, "reload-interval", reloadInterval, "(optional) specify the duration between reloads on success")
+	flags.StringVar(&certFile, "cert", certFile, "(optional) file containing the x509 Certificate for HTTPS")
+	flags.StringVar(&keyFile, "key", keyFile, "(optional) file containing the x509 private key to --cert")
 
-	listDirContents("/", &whitelist)
-
-	whitelist = unique(whitelist)
-	sort.Slice(whitelist, func(i, j int) bool {
-		return whitelist[i].Name < whitelist[j].Name
-	})
-
-	file, err := os.OpenFile(
-		"/tensorsec/whitelist.txt",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Errorf("Failed to open whitelist file: %w\n", err)
-		return
-	}
-
-	defer func() {
-		if err = file.Close(); err != nil {
-			log.Errorf("Failed to close whitelist file: %w\n", err)
-		}
-	}()
-
-	datawriter := bufio.NewWriter(file)
-
-	defer func() {
-		if err = datawriter.Flush(); err != nil {
-			log.Errorf("Failed to flush to whitelist file: %w\n", err)
-		}
-	}()
-
-	for _, file := range whitelist {
-		_, err = datawriter.WriteString(file.Name + " " + fmt.Sprint(file.Checksum) + "\n")
-		if err != nil {
-			log.Errorf("Failed to append to whitelist file: %w\n", err)
-		}
+	if err := cmd.Execute(); err != nil {
+		panic(err.Error())
 	}
 }

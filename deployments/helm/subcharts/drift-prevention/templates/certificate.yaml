@@ -1,0 +1,58 @@
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Issuer
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-selfsign
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  selfSigned: {}
+---
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-ca
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  secretName: {{ template "driftPrevention.fullname" . }}-ca
+  issuerRef:
+    name: {{ template "driftPrevention.fullname" . }}-selfsign
+  commonName: ca.webhook.{{ template "driftPrevention.fullname" . }}
+  isCA: true
+---
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Issuer
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-ca
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  ca:
+    secretName: {{ template "driftPrevention.fullname" . }}-ca
+---
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-certificate
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  secretName: {{ template "driftPrevention.fullname" . }}-certs
+  issuerRef:
+    name: {{ template "driftPrevention.fullname" . }}-ca
+  dnsNames:
+  - {{ template "driftPrevention.fullname" . }}-service
+  - {{ template "driftPrevention.fullname" . }}-service.{{ .Release.Namespace }}
+  - {{ template "driftPrevention.fullname" . }}-service.{{ .Release.Namespace }}.svc
