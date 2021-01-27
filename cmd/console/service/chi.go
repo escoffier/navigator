@@ -8,8 +8,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-redis/redis/v8"
-	"go.mongodb.org/mongo-driver/mongo"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
@@ -24,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func setupChiRouter(
@@ -38,7 +37,7 @@ func setupChiRouter(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	driftPreventionService *driftprevention.DriftPreventionService,
-	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
 	scannerService *scanner.ScannerService,

@@ -5,7 +5,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type onlineVulnListItem struct {
+type OnlineVulnListItem struct {
 	Namespace         string                    `json:"namespace"`
 	ResourceKind      string                    `json:"resourceKind"`
 	ResourceName      string                    `json:"resourceName"`
@@ -19,19 +19,19 @@ type onlineVulnListItem struct {
 	VulnerabilitiesSet   map[string]model.VulnerabilityInfo `json:"-"`
 }
 
-type onlineVulnDetailsContainerInstance struct {
+type OnlineVulnDetailsContainerInstance struct {
 	PodName string `json:"podName"`
 	Node    string `json:"node"`
 }
 
-type onlineVulnDetailsContainer struct {
+type OnlineVulnDetailsContainer struct {
 	Name                string                                `json:"containerName"`
 	Digest              string                                `json:"digest"`
 	Repository          string                                `json:"repository"`
 	Tag                 string                                `json:"tag"`
-	InstancesRunning    *[]onlineVulnDetailsContainerInstance `json:"instancesRunning"`
-	InstancesWaiting    *[]onlineVulnDetailsContainerInstance `json:"instancesWaiting"`
-	InstancesTerminated *[]onlineVulnDetailsContainerInstance `json:"instancesTerminated"`
+	InstancesRunning    *[]OnlineVulnDetailsContainerInstance `json:"instancesRunning"`
+	InstancesWaiting    *[]OnlineVulnDetailsContainerInstance `json:"instancesWaiting"`
+	InstancesTerminated *[]OnlineVulnDetailsContainerInstance `json:"instancesTerminated"`
 	Vulnerabilities     []model.VulnerabilityInfo             `json:"vulnerabilities"`
 	SensitiveFiles      []model.Sensitive                     `json:"sensitiveFiles"`
 	WasScanned          bool                                  `json:"wasScanned"`
@@ -39,9 +39,9 @@ type onlineVulnDetailsContainer struct {
 	TaskID              primitive.ObjectID                    `json:"taskID"`
 }
 
-type onlineVulnDetails struct {
+type OnlineVulnDetails struct {
 	Namespace    string                                `json:"namespace"`
 	ResourceKind string                                `json:"resourceKind"`
 	ResourceName string                                `json:"resourceName"`
-	Containers   map[string]onlineVulnDetailsContainer `json:"containers"`
+	Containers   map[string]OnlineVulnDetailsContainer `json:"containers"`
 }

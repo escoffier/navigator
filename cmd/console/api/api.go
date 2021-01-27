@@ -9,11 +9,15 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-
 	"time"
 
+	"github.com/go-chi/chi"
+	"github.com/go-chi/jwtauth"
+	"github.com/go-redis/redis/v8"
+	"github.com/gorilla/securecookie"
+	version "github.com/mcuadros/go-version"
+	param "github.com/oceanicdev/chi-param"
+	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
@@ -26,15 +30,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-
-	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
-	"github.com/go-redis/redis/v8"
-	"github.com/gorilla/securecookie"
-	version "github.com/mcuadros/go-version"
-	param "github.com/oceanicdev/chi-param"
-	"github.com/patrickmn/go-cache"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -53,7 +50,7 @@ type api struct {
 	ruleService            *rule.RuleService
 	alertService           *alert.AlertService
 	driftPreventionService *driftprevention.DriftPreventionService
-	onlineVulnsSvc         *onlinevulns.OnlineVulnsService
+	onlineVulnsSvc         *onlinevulns.OnlineVulnerabilitiesService
 	auditService           *audit.AuditService
 	cleanupService         *cleanup.CleanupService
 	scannerService         *scanner.ScannerService
@@ -80,7 +77,7 @@ func newAPI(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	driftPreventionService *driftprevention.DriftPreventionService,
-	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
 	scannerService *scanner.ScannerService,

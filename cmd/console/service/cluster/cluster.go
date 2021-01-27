@@ -7,25 +7,25 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
-
-	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"k8s.io/client-go/kubernetes"
 )
 
 type ClusterService struct {
 	mongodb        *mongo.Database
-	onlineVulnsSvc *onlinevulns.OnlineVulnsService
+	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService
 	cleanupService *cleanup.CleanupService
 	clustersCache  *rcache.ClustersCache
 }
@@ -33,7 +33,7 @@ type ClusterService struct {
 func NewClusterService(
 	ctx context.Context,
 	mongodb *mongo.Database,
-	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService,
 	cleanupService *cleanup.CleanupService,
 	redisClient *redis.Client,
 ) *ClusterService {
@@ -123,7 +123,14 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 		// TODO: maybe a hook mechanism so cluster service doesn't depend on onlinevulns service?
 		// TODO: doesn't support multiple clusters yet.
-		err = s.onlineVulnsSvc.OnKubeConfigUpdate(sessionContext, kubeClient)
+		sa, _ := assetsSvc.GetServiceAssetsService()
+		watcher, werr := assetsSvc.Watcher(sa, s.onlineVulnsSvc)
+		if werr != nil {
+			return werr
+		}
+		err = watcher.StartsToWatch(sessionContext, map[string]*kubernetes.Clientset{
+			"default": kubeClient,
+		})
 		if err != nil {
 			return err
 		}
@@ -285,7 +292,12 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't remove document: %w", sessionError))
 		}
 
-		sessionError = s.onlineVulnsSvc.OnKubeConfigUpdate(sessionContext, nil)
+		svcService, _ := assetsSvc.GetServiceAssetsService()
+		watcher, werr := assetsSvc.Watcher(svcService, s.onlineVulnsSvc)
+		if werr != nil {
+			return werr
+		}
+		sessionError = watcher.StopWatch(sessionContext, []string{"default"})
 		if sessionError != nil {
 			return sessionError
 		}

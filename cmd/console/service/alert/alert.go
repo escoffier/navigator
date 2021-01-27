@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
+	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
@@ -29,7 +30,7 @@ import (
 const (
 	alertPollInterval = time.Second * 30
 	alertPollTimeout  = time.Second * 15
-	cacheWriteTTLSec  = 30 * 60
+	cacheWriteTTLSec  = 24 * 60 * 60
 	cacheReadTTLSec   = 5 * 60
 )
 
@@ -236,25 +237,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		}
 
 		numRaised := 0
-		idPtr, cacheExist := aggrCache.GetByKey(vulnerability, timestamp.Unix())
-		var alert *model.Alert
-		if cacheExist && idPtr != nil {
-			logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s and got value: %v", vulnerability, *idPtr)
-			filter := bson.M{"_id": *idPtr}
 
-			queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
-
-			if queryResult.Err() == nil {
-				alert = new(model.Alert)
-				decErr := queryResult.Decode(alert)
-				if decErr != nil {
-					logging.GetLogger().Err(decErr).Msgf("query alerts collection id %v err", *idPtr)
-					alert = nil
-				}
-			} else {
-				logging.GetLogger().Err(queryResult.Err()).Msgf("query alerts collection id %v err", *idPtr)
-			}
-		}
 		var enabledRule *model.Rule
 		for _, rule := range enabledRules {
 			if rule.NameEn == vulnerability {
@@ -271,140 +254,194 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 
 		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
 
-		if alert != nil { // There are aggregated Alert instance.
-			// if this history exists, don't update
-			existed := false
-			for _, histCtx := range alert.Histories {
-				if isAlertContextAlmostTheSame(alertCtx, histCtx) {
-					existed = true
-					break
+		podUID := elasticAlert["PodUID"].(string)
+		podName := elasticAlert["PodName"].(string)
+		cluster := "default"
+		var services []string
+		var namespace string
+		var svcOK bool
+		saService, saOk := assetsSvc.GetServiceAssetsService()
+		if saOk && saService.IsClusterSynced(cluster) {
+			svcs, ns, ok := saService.GetServiceInfoOfPod(cluster, podName)
+			if ok {
+				services = svcs
+				namespace = ns
+				svcOK = true
+			}
+		}
+		if !svcOK {
+			services = []string{"unknown"}
+			namespace = "unknown"
+		}
+
+		for _, service := range services {
+			aggrKey := fmt.Sprintf("%s:%s:%s:%s", cluster, namespace, service, vulnerability) // cached by cluster:namespace:service:vulnerability_rule
+			idPtr, cacheExist := aggrCache.GetByKey(aggrKey, timestamp.Unix())
+			var alert *model.Alert
+			if cacheExist && idPtr != nil {
+				logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s and got value: %v", vulnerability, *idPtr)
+				filter := bson.M{"_id": *idPtr}
+
+				queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+
+				if queryResult.Err() == nil {
+					alert = new(model.Alert)
+					decErr := queryResult.Decode(alert)
+					if decErr != nil {
+						logging.GetLogger().Err(decErr).Msgf("query alerts collection id %v err", *idPtr)
+						alert = nil
+					}
+				} else {
+					logging.GetLogger().Err(queryResult.Err()).Msgf("query alerts collection id %v err", *idPtr)
 				}
 			}
 
-			if !existed {
-				alert.Timestamp = timestamp
+			if alert != nil { // There are aggregated Alert instance.
+				// if this history exists, don't update
+				existed := false
+				for _, histCtx := range alert.Histories {
+					if isAlertContextAlmostTheSame(alertCtx, histCtx) {
+						existed = true
+						break
+					}
+				}
+
+				if !existed {
+					alert.Timestamp = timestamp
+					if strings.HasPrefix(vulnerability, "CVE") {
+						if alert.RuntimeDetectionAlert == nil {
+							alert.RuntimeDetectionAlert = new(model.RuntimeDetectionAlert)
+							alert.RuntimeDetectionAlert.DescriptionEn = enabledRule.DescriptionEn
+							alert.RuntimeDetectionAlert.DescriptionZh = enabledRule.DescriptionZh
+							alert.RuntimeDetectionAlert.RuleID = enabledRule.ID
+							alert.RuntimeDetectionAlert.RuleNameEn = enabledRule.NameEn
+							alert.RuntimeDetectionAlert.RuleNameZh = enabledRule.NameZh
+							alert.RuntimeDetectionAlert.Cvss2Score = enabledRule.Cvss2Score
+							alert.RuntimeDetectionAlert.Cvss2Vector = enabledRule.Cvss2Vector
+							alert.RuntimeDetectionAlert.Cvss3Score = enabledRule.Cvss3Score
+							alert.RuntimeDetectionAlert.Cvss3Vector = enabledRule.Cvss3Vector
+						}
+						alert.RuntimeDetectionAlert.ElasticID = elasticID
+						alert.RuntimeDetectionAlert.ContainerID = elasticAlert["ContainerID"].(string)
+						alert.RuntimeDetectionAlert.PodName = podName
+						alert.RuntimeDetectionAlert.PodUID = podUID
+					} else {
+						if alert.ExploitRiskAlert == nil {
+							alert.ExploitRiskAlert = new(model.ExploitRiskAlert)
+							alert.ExploitRiskAlert.ElasticID = elasticID
+
+							alert.ExploitRiskAlert.RuleID = enabledRule.ID
+							alert.ExploitRiskAlert.DescriptionEn = enabledRule.DescriptionEn
+							alert.ExploitRiskAlert.DescriptionZh = enabledRule.DescriptionZh
+							alert.ExploitRiskAlert.RuleNameEn = enabledRule.NameEn
+							alert.ExploitRiskAlert.RuleNameZh = enabledRule.NameZh
+							alert.ExploitRiskAlert.PID = int(elasticAlert["Pid"].(float64))
+						}
+						alert.ExploitRiskAlert.ContainerID = elasticAlert["ContainerID"].(string)
+						alert.ExploitRiskAlert.PodName = podName
+						alert.ExploitRiskAlert.PodUID = podUID
+
+					}
+					alert.Histories = append(alert.Histories, alertCtx)
+					alert.Service = service
+					alert.Namespace = namespace
+					alert.Cluster = cluster
+					filter := bson.M{"_id": *idPtr}
+					// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
+					alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+					_, err = s.mongodb.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
+					if err != nil {
+						logging.GetLogger().Err(err).Msgf("Failed to delete alert from elastic to mongo: %w", err)
+					}
+
+					_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
+					if err != nil {
+						return NewMongoError(http.StatusInternalServerError,
+							fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
+							Suberror{"elasticID", elasticID})
+					} else {
+						earlist := timestamp
+						if len(alert.Histories) > 0 {
+							earlist = alert.Histories[0].Timestamp
+						}
+						aggrCache.Put(aggrKey, alert.ID, earlist.Unix(), timestamp.Unix()) // set the previous write timestamp and read timestap
+					}
+				}
+			} else {
 				if strings.HasPrefix(vulnerability, "CVE") {
-					if alert.RuntimeDetectionAlert == nil {
-						alert.RuntimeDetectionAlert = new(model.RuntimeDetectionAlert)
-						alert.RuntimeDetectionAlert.DescriptionEn = enabledRule.DescriptionEn
-						alert.RuntimeDetectionAlert.DescriptionZh = enabledRule.DescriptionZh
-						alert.RuntimeDetectionAlert.RuleID = enabledRule.ID
-						alert.RuntimeDetectionAlert.RuleNameEn = enabledRule.NameEn
-						alert.RuntimeDetectionAlert.RuleNameZh = enabledRule.NameZh
-						alert.RuntimeDetectionAlert.Cvss2Score = enabledRule.Cvss2Score
-						alert.RuntimeDetectionAlert.Cvss2Vector = enabledRule.Cvss2Vector
-						alert.RuntimeDetectionAlert.Cvss3Score = enabledRule.Cvss3Score
-						alert.RuntimeDetectionAlert.Cvss3Vector = enabledRule.Cvss3Vector
+					sev := r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10))
+					alert = &model.Alert{
+						ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+						AlertKind:   string(model.AlertKindRuntimeDetection),
+						Severity:    sev,
+						SeverityInt: util.SeverityToInt(sev),
+						Timestamp:   timestamp,
+						MessageEn:   "Potential " + enabledRule.NameEn,
+						MessageZh:   "潜在 " + enabledRule.NameZh,
+						Active:      true,
+						Service:     service,
+						Namespace:   namespace,
+						Cluster:     cluster,
+						RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
+							ElasticID:     elasticID,
+							ContainerID:   elasticAlert["ContainerID"].(string),
+							PodName:       podName,
+							PodUID:        podUID,
+							DescriptionEn: enabledRule.DescriptionEn,
+							DescriptionZh: enabledRule.DescriptionZh,
+							RuleID:        enabledRule.ID,
+							RuleNameEn:    enabledRule.NameEn,
+							RuleNameZh:    enabledRule.NameZh,
+							Cvss2Score:    enabledRule.Cvss2Score,
+							Cvss2Vector:   enabledRule.Cvss2Vector,
+							Cvss3Score:    enabledRule.Cvss3Score,
+							Cvss3Vector:   enabledRule.Cvss3Vector,
+						},
 					}
-					alert.RuntimeDetectionAlert.ElasticID = elasticID
-					alert.RuntimeDetectionAlert.ContainerID = elasticAlert["ContainerID"].(string)
-					alert.RuntimeDetectionAlert.PodName = elasticAlert["PodName"].(string)
-					alert.RuntimeDetectionAlert.PodUID = elasticAlert["PodUID"].(string)
 				} else {
-					if alert.ExploitRiskAlert == nil {
-						alert.ExploitRiskAlert = new(model.ExploitRiskAlert)
-						alert.ExploitRiskAlert.ElasticID = elasticID
-
-						alert.ExploitRiskAlert.RuleID = enabledRule.ID
-						alert.ExploitRiskAlert.DescriptionEn = enabledRule.DescriptionEn
-						alert.ExploitRiskAlert.DescriptionZh = enabledRule.DescriptionZh
-						alert.ExploitRiskAlert.RuleNameEn = enabledRule.NameEn
-						alert.ExploitRiskAlert.RuleNameZh = enabledRule.NameZh
-						alert.ExploitRiskAlert.PID = int(elasticAlert["Pid"].(float64))
+					sev := r.SeverityHigh
+					alert = &model.Alert{
+						ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+						AlertKind:   string(model.AlertKindExploitRisk),
+						Timestamp:   timestamp,
+						Severity:    sev,
+						SeverityInt: util.SeverityToInt(string(sev)),
+						MessageEn:   "Other Runtime ",
+						MessageZh:   "潛在利用",
+						Active:      true,
+						Service:     service,
+						Namespace:   namespace,
+						Cluster:     cluster,
+						ExploitRiskAlert: &model.ExploitRiskAlert{
+							ElasticID:     elasticID,
+							ContainerID:   elasticAlert["ContainerID"].(string),
+							PodName:       podName,
+							PodUID:        podUID,
+							RuleID:        enabledRule.ID,
+							DescriptionEn: enabledRule.DescriptionEn,
+							DescriptionZh: enabledRule.DescriptionZh,
+							RuleNameEn:    enabledRule.NameEn,
+							RuleNameZh:    enabledRule.NameZh,
+							PID:           int(elasticAlert["Pid"].(float64)),
+						},
 					}
-					alert.ExploitRiskAlert.ContainerID = elasticAlert["ContainerID"].(string)
-					alert.ExploitRiskAlert.PodName = elasticAlert["PodName"].(string)
-					alert.ExploitRiskAlert.PodUID = elasticAlert["PodUID"].(string)
-
 				}
-				alert.Histories = append(alert.Histories, alertCtx)
-				filter := bson.M{"_id": *idPtr}
-				// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
-				alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = s.mongodb.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
-				if err != nil {
-					logging.GetLogger().Err(err).Msgf("Failed to delete alert from elastic to mongo: %w", err)
+				alert.Histories = []model.AlertContext{
+					alertCtx,
 				}
+				now := time.Now()
+				alert.HistoricisedTimestamp = now
 				_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
 						Suberror{"elasticID", elasticID})
 				} else {
-					earlist := timestamp
-					if len(alert.Histories) > 0 {
-						earlist = alert.Histories[0].Timestamp
-					}
-					aggrCache.Put(vulnerability, alert.ID, earlist.Unix(), timestamp.Unix()) // set the previous write timestamp and read timestap
+					// put them to cache
+					aggrCache.Put(aggrKey, alert.ID, timestamp.Unix(), timestamp.Unix())
 				}
 			}
-		} else {
-			if strings.HasPrefix(vulnerability, "CVE") {
-				sev := r.GetSeverityFromScore(int64(enabledRule.Cvss3Score * 10))
-				alert = &model.Alert{
-					ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-					AlertKind:   string(model.AlertKindRuntimeDetection),
-					Severity:    sev,
-					SeverityInt: util.SeverityToInt(sev),
-					Timestamp:   timestamp,
-					MessageEn:   "Potential " + enabledRule.NameEn,
-					MessageZh:   "潜在 " + enabledRule.NameZh,
-					Active:      true,
-					RuntimeDetectionAlert: &model.RuntimeDetectionAlert{
-						ElasticID:     elasticID,
-						ContainerID:   elasticAlert["ContainerID"].(string),
-						PodName:       elasticAlert["PodName"].(string),
-						PodUID:        elasticAlert["PodUID"].(string),
-						DescriptionEn: enabledRule.DescriptionEn,
-						DescriptionZh: enabledRule.DescriptionZh,
-						RuleID:        enabledRule.ID,
-						RuleNameEn:    enabledRule.NameEn,
-						RuleNameZh:    enabledRule.NameZh,
-						Cvss2Score:    enabledRule.Cvss2Score,
-						Cvss2Vector:   enabledRule.Cvss2Vector,
-						Cvss3Score:    enabledRule.Cvss3Score,
-						Cvss3Vector:   enabledRule.Cvss3Vector,
-					},
-				}
-			} else {
-				sev := r.SeverityHigh
-				alert = &model.Alert{
-					ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-					AlertKind:   string(model.AlertKindExploitRisk),
-					Timestamp:   timestamp,
-					Severity:    sev,
-					SeverityInt: util.SeverityToInt(string(sev)),
-					MessageEn:   "Other Runtime ",
-					MessageZh:   "潛在利用",
-					Active:      true,
-					ExploitRiskAlert: &model.ExploitRiskAlert{
-						ElasticID:     elasticID,
-						ContainerID:   elasticAlert["ContainerID"].(string),
-						PodName:       elasticAlert["PodName"].(string),
-						PodUID:        elasticAlert["PodUID"].(string),
-						RuleID:        enabledRule.ID,
-						DescriptionEn: enabledRule.DescriptionEn,
-						DescriptionZh: enabledRule.DescriptionZh,
-						RuleNameEn:    enabledRule.NameEn,
-						RuleNameZh:    enabledRule.NameZh,
-						PID:           int(elasticAlert["Pid"].(float64)),
-					},
-				}
-			}
-			alert.Histories = []model.AlertContext{
-				alertCtx,
-			}
-			now := time.Now()
-			alert.HistoricisedTimestamp = now
-			_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
-			if err != nil {
-				return NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
-					Suberror{"elasticID", elasticID})
-			} else {
-				// put them to cache
-				aggrCache.Put(vulnerability, alert.ID, timestamp.Unix(), timestamp.Unix())
-			}
+
 		}
 
 		numRaised++
@@ -496,6 +533,21 @@ func (s *AlertService) QuickCheckAlertsUpdates(ctx context.Context, givenCuror s
 	}
 	return cursor, 10, nil
 }
+
+func (s *AlertService) alertCheckHistoriesActive(alert *model.Alert) {
+	saService, ok := assetsSvc.GetServiceAssetsService()
+	if !ok || saService == nil || !saService.IsClusterSynced(alert.Cluster) {
+		return
+	}
+
+	newHistories := make([]model.AlertContext, len(alert.Histories))
+	for i, history := range alert.Histories {
+		_, _, active := saService.GetServiceInfoOfPod(alert.Cluster, history.PodName)
+		newHistories[i] = history
+		newHistories[i].Active = active
+	}
+	alert.Histories = newHistories
+}
 func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64, kind model.AlertKind, sortBy string, sortOrder string, onlyNotAcknowledged bool) ([]model.Alert, int64, error) {
 	alertIds, docNum, err := s.alertsCache.GetItems(ctx, kind, offset, limit, sortBy, sortOrder, onlyNotAcknowledged)
 	if err != nil {
@@ -530,6 +582,7 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
 
+		s.alertCheckHistoriesActive(&alert)
 		alert.ApplyTranslation(ctx)
 
 		items[alertNo] = alert

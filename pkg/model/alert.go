@@ -79,6 +79,9 @@ type Alert struct {
 	MessageEn             string                 `json:"-" bson:"message_en"`
 	MessageZh             string                 `json:"-" bson:"message_zh"`
 	Active                bool                   `json:"-" bson:"active,omitempty"`
+	Cluster               string                 `json:"cluster" bson:"cluster"`
+	Namespace             string                 `json:"namespace" bson:"namespace,omitempty"`
+	Service               string                 `json:"service" bson:"service,omitempty"`
 	Histories             []AlertContext         `json:"histories" bson:"histories,omitempty"`
 }
 
@@ -87,6 +90,7 @@ type AlertContext struct {
 	ContainerID string    `json:"containerId" bson:"containerId"`
 	PodName     string    `json:"podName" bson:"podName"`
 	PodUID      string    `json:"podUid" bson:"podUid"`
+	Active      bool      `json:"active" bson:"active"`
 	Timestamp   time.Time `json:"timestamp" bson:"timestamp"`
 }
 
@@ -117,6 +121,7 @@ type ExploitRiskAlert struct {
 	RuleID        primitive.ObjectID `json:"-" bson:"rule_id"`
 	PodUID        string             `json:"podUid" bson:"podUid"`
 	PodName       string             `json:"podName" bson:"podName"`
+	Cluster       string             `json:"cluster" bson:"cluster"`
 	RuleName      string             `json:"ruleName" bson:"ruleName"`
 	RuleNameEn    string             `json:"-" bson:"ruleName_en"`
 	RuleNameZh    string             `json:"-" bson:"ruleName_zh"`
@@ -185,6 +190,9 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Severity              string                 `json:"severity"`
 			Message               string                 `json:"message"`
 			RuntimeDetectionAlert *RuntimeDetectionAlert `json:"data"`
+			Cluster               string                 `json:"cluster"`
+			Namespace             string                 `json:"namespace"`
+			Service               string                 `json:"service"`
 			Histories             []AlertContext         `json:"histories,omitempty"`
 		}{
 			ID:                    a.ID,
@@ -193,6 +201,9 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Timestamp:             a.Timestamp,
 			Severity:              a.Severity,
 			Message:               a.Message,
+			Cluster:               a.Cluster,
+			Namespace:             a.Namespace,
+			Service:               a.Service,
 			RuntimeDetectionAlert: a.RuntimeDetectionAlert,
 			Histories:             a.Histories,
 		})
@@ -225,6 +236,9 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Severity         string             `json:"severity"`
 			Message          string             `json:"message"`
 			ExploitRiskAlert *ExploitRiskAlert  `json:"data"`
+			Cluster          string             `json:"cluster"`
+			Namespace        string             `json:"namespace"`
+			Service          string             `json:"service"`
 			Histories        []AlertContext     `json:"histories,omitempty"`
 		}{
 			ID:               a.ID,
@@ -234,6 +248,9 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Timestamp:        a.Timestamp,
 			Severity:         a.Severity,
 			ExploitRiskAlert: a.ExploitRiskAlert,
+			Cluster:          a.Cluster,
+			Namespace:        a.Namespace,
+			Service:          a.Service,
 			Histories:        a.Histories,
 		})
 	} else if a.DriftPreventionAlert != nil {
@@ -244,7 +261,11 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Timestamp            time.Time             `json:"timestamp"`
 			Severity             string                `json:"severity"`
 			Message              string                `json:"message"`
+			Cluster              string                `json:"cluster"`
+			Namespace            string                `json:"namespace"`
+			Service              string                `json:"service"`
 			DriftPreventionAlert *DriftPreventionAlert `json:"data"`
+			Histories            []AlertContext        `json:"histories,omitempty"`
 		}{
 			ID:                   a.ID,
 			AlertKind:            a.AlertKind,
@@ -253,6 +274,10 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Timestamp:            a.Timestamp,
 			Severity:             a.Severity,
 			DriftPreventionAlert: a.DriftPreventionAlert,
+			Cluster:              a.Cluster,
+			Namespace:            a.Namespace,
+			Service:              a.Service,
+			Histories:            a.Histories,
 		})
 	}
 	return json.Marshal(&struct {
@@ -263,6 +288,9 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 		Timestamp    time.Time          `json:"timestamp"`
 		Severity     string             `json:"severity"`
 		EmptyPayload *struct{}          `json:"data"`
+		Cluster      string             `json:"cluster"`
+		Namespace    string             `json:"namespace"`
+		Service      string             `json:"service"`
 		Histories    []AlertContext     `json:"histories,omitempty"`
 	}{
 		ID:           a.ID,
@@ -271,6 +299,9 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 		Timestamp:    a.Timestamp,
 		Message:      a.Message,
 		Severity:     a.Severity,
+		Cluster:      a.Cluster,
+		Namespace:    a.Namespace,
+		Service:      a.Service,
 		EmptyPayload: &struct{}{},
 		Histories:    a.Histories,
 	})

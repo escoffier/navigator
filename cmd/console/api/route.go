@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"net/http"
 	"strings"
 	"time"
@@ -13,14 +12,13 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"go.mongodb.org/mongo-driver/mongo"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
@@ -30,6 +28,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type key int
@@ -60,7 +59,7 @@ func SetupRoutes(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	driftPreventionService *driftprevention.DriftPreventionService,
-	onlineVulnsSvc *onlinevulns.OnlineVulnsService,
+	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
 	scannerService *scanner.ScannerService,

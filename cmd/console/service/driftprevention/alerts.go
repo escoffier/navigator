@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
@@ -44,28 +45,47 @@ func NewDriftPreventionService(mongodb *mongo.Database) *DriftPreventionService 
 
 func (dp *DriftPreventionService) RaiseAlert(ctx context.Context, rawAlert *DriftPreventionAlertRequest) error {
 	sev := redclair.SeverityHigh
-	newAlert := model.Alert{
-		ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-		AlertKind:   string(model.AlertKindDriftPrevention),
-		Timestamp:   time.Now(),
-		Severity:    string(sev),
-		SeverityInt: util.SeverityToInt(string(sev)),
-		MessageEn:   "Drift Prevention detected suspicious activity",
-		MessageZh:   "Drift Prevention检测到可疑活动",
-		DriftPreventionAlert: &model.DriftPreventionAlert{
-			AffectedPod:   rawAlert.Podname,
-			Filepath:      rawAlert.Filepath,
-			CRC32Expected: rawAlert.CRC32Expected,
-			CRC32Actual:   rawAlert.CRC32Actual,
-			Syscall:       rawAlert.Syscall,
-			Reason:        rawAlert.Reason,
-			Action:        rawAlert.Action,
-		},
+
+	services := []string{"unknown"}
+	namespace := "unknown"
+	cluster := "default"
+	saService, saOk := assetsSvc.GetServiceAssetsService()
+	if saOk && saService.IsClusterSynced(cluster) {
+		svcs, ns, ok := saService.GetServiceInfoOfPod(cluster, rawAlert.Podname)
+		if ok {
+			services = svcs
+			namespace = ns
+		}
 	}
 
-	_, err := dp.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
-	if err != nil {
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", newAlert, err))
+	for _, service := range services {
+		newAlert := model.Alert{
+			ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+			AlertKind:   string(model.AlertKindDriftPrevention),
+			Timestamp:   time.Now(),
+			Severity:    string(sev),
+			SeverityInt: util.SeverityToInt(string(sev)),
+			MessageEn:   "Drift Prevention detected suspicious activity",
+			MessageZh:   "Drift Prevention检测到可疑活动",
+			Service:     service,
+			Namespace:   namespace,
+			Cluster:     cluster,
+			DriftPreventionAlert: &model.DriftPreventionAlert{
+				AffectedPod:   rawAlert.Podname,
+				Filepath:      rawAlert.Filepath,
+				CRC32Expected: rawAlert.CRC32Expected,
+				CRC32Actual:   rawAlert.CRC32Actual,
+				Syscall:       rawAlert.Syscall,
+				Reason:        rawAlert.Reason,
+				Action:        rawAlert.Action,
+			},
+		}
+
+		_, err := dp.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", newAlert, err))
+		}
+
 	}
 
 	return nil
