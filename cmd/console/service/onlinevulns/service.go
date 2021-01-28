@@ -194,7 +194,7 @@ func (cb *OnlineVulnerabilitiesService) GetOnlineVulnerabilityDetails(ctx contex
 			"isDeleted": false,
 			"cluster":   cluster,
 			"namespace": namespace,
-			"podName":   bson.D{{"$in", podNameSlice}},
+			"podName":   bson.M{"$in": podNameSlice},
 		}
 	}
 
