@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultStartWatchTimeout = 150 * time.Second
+	defaultStartWatchTimeout = 10 * time.Second
 )
 
 type AssetsAction uint8
@@ -254,7 +254,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				time.Sleep(2 * time.Second)
 			}
 
-			logging.GetLogger().Info().Msgf("cluster %s synced status: %")
+			logging.GetLogger().Info().Msgf("cluster %s synced status: pods-%v endpoisnts-%v", clusterName, podSynced, eptSynced)
 
 			// callbacks after sync
 			for _, cb := range callbacks {
