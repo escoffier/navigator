@@ -10,18 +10,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	sourceTypeEndpoints  = "endpoints"
+	sourceTypeController = "controller"
+)
+
 var defaultInfo = ServiceInfo{}
 
 type ServiceInfo struct {
 	sync.RWMutex
 	svcList   map[string]struct{}
 	Namespace string
+	source    string
 }
 
-func newServiceInfo(namespace string) *ServiceInfo {
+func newServiceInfo(namespace string, src string) *ServiceInfo {
 	return &ServiceInfo{
 		svcList:   make(map[string]struct{}, 1),
 		Namespace: namespace,
+		source:    src,
 	}
 }
 func (s *ServiceInfo) Services() []string {
@@ -47,6 +54,7 @@ func (s *ServiceInfo) removeService(svcName string) int {
 		s.RUnlock()
 		return 0
 	}
+	s.RUnlock()
 
 	s.Lock()
 	defer s.Unlock()
@@ -129,7 +137,7 @@ func (c *PodServiceCache) OnPodForServiceEvent(kubeCluster string, newPod, oldPo
 		if owner != nil {
 			svcName = owner.Name
 		}
-		sinfo := newServiceInfo(newPod.Namespace)
+		sinfo := newServiceInfo(newPod.Namespace, sourceTypeController)
 		sinfo.appendService(svcName)
 		data.LoadOrStore(newPod.Name, sinfo)
 	}
@@ -169,7 +177,7 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 		if newEpt == nil {
 			return errors.New("no new endpoints given")
 		}
-		svcInfo := newServiceInfo(newEpt.Namespace)
+		svcInfo := newServiceInfo(newEpt.Namespace, sourceTypeEndpoints)
 		svcInfo.appendService(newEpt.Name)
 		for _, v := range newEpt.Subsets {
 			for _, address := range v.Addresses {
@@ -184,7 +192,11 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 				logging.GetLogger().Info().Msgf("add service %s in podname %s", newEpt.Name, podName)
 				o, _ := data.LoadOrStore(podName, svcInfo)
 				sinfo := o.(*ServiceInfo)
-				sinfo.appendService(newEpt.Name)
+				if sinfo.source != sourceTypeEndpoints { // endpoints data is first priority to set, just to replace existing serviceinfo
+					data.Store(podName, svcInfo)
+				} else {
+					sinfo.appendService(newEpt.Name)
+				}
 			}
 		}
 	}
