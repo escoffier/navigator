@@ -31,7 +31,7 @@ const (
 	alertPollInterval = time.Second * 30
 	alertPollTimeout  = time.Second * 15
 	cacheWriteTTLSec  = 24 * 60 * 60
-	cacheReadTTLSec   = 5 * 60
+	cacheReadTTLSec   = 60 * 60
 )
 
 type AlertService struct {
