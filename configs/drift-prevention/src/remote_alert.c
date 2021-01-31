@@ -11,11 +11,11 @@
 
 #include "log.h"
 
-const char* REASON_CHECKSUM_MISMATCH = "ChecksumMismatch";
-const char* REASON_NOT_IN_WHITELIST = "NotInWhitelist";
+static const char* REASON_CHECKSUM_MISMATCH = "ChecksumMismatch";
+static const char* REASON_NOT_IN_WHITELIST = "NotInWhitelist";
 
-const char* ACTION_NOTIFIED = "Notified";
-const char* ACTION_BLOCKED = "Blocked";
+static const char* ACTION_NOTIFIED = "Notified";
+static const char* ACTION_BLOCKED = "Blocked";
 
 typedef struct alert_t {
     char filepath[PATH_MAX];
@@ -28,7 +28,7 @@ typedef struct alert_t {
     uint32_t crc32_actual;
 } alert_t;
 
-int send_request(const char* host, int port, const char* method, const char* path, const char* body, char* response, const int resp_size) {
+static int send_request(const char* host, int port, const char* method, const char* path, const char* body, char* response, const int resp_size) {
     // function based on https://stackoverflow.com/a/22135885
 
     int return_code = 1;
@@ -59,7 +59,7 @@ int send_request(const char* host, int port, const char* method, const char* pat
 
     char *message = malloc(message_size);
     if (!message) {
-        write_log(ERROR, "When allocating buffer for message to send: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When allocating buffer for message to send: %s", strerror(errno)); 
         goto cleanup_msg;
     }
 
@@ -69,13 +69,13 @@ int send_request(const char* host, int port, const char* method, const char* pat
 
     const int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        write_log(ERROR, "When creating socket: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When creating socket: %s", strerror(errno)); 
         goto cleanup_sock;
     }
 
     struct hostent *server = gethostbyname(host);
     if (server == NULL) {
-        write_log(ERROR, "When getting host by name: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When getting host by name: %s", strerror(errno)); 
         goto cleanup_sock;
     }
 
@@ -97,7 +97,7 @@ int send_request(const char* host, int port, const char* method, const char* pat
     // Connect
 
     if (connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        write_log(ERROR, "When connecting socket: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When connecting socket: %s", strerror(errno)); 
         goto cleanup_sock;
     }
 
@@ -108,7 +108,7 @@ int send_request(const char* host, int port, const char* method, const char* pat
     do {
         const int nbytes = write(sockfd, message + sent, message_size - sent);
         if (nbytes < 0) {
-            write_log(ERROR, "When writing to socket: %s", strerror(errno)); 
+            drift_prevent_write_log(ERROR, "When writing to socket: %s", strerror(errno)); 
             goto cleanup_sock;
         }
         if (nbytes == 0) {
@@ -125,7 +125,7 @@ int send_request(const char* host, int port, const char* method, const char* pat
     do {
         const int nbytes = read(sockfd, response + received, resp_size - received);
         if (nbytes < 0) {
-            write_log(ERROR, "When reading from socket. \
+            drift_prevent_write_log(ERROR, "When reading from socket. \
                               Received the following bytes up to this point: \n%s\n---\n", response); 
             goto cleanup_sock;
         }
@@ -136,7 +136,7 @@ int send_request(const char* host, int port, const char* method, const char* pat
     } while (received < resp_size);
 
     if (received == resp_size) {
-        write_log(WARN, "Buffer too small, response was truncated"); 
+        drift_prevent_write_log(WARN, "Buffer too small, response was truncated"); 
     }
 
     // Done
@@ -151,7 +151,7 @@ cleanup_msg:
     return return_code;
 }
 
-int raise_remote_alert(const char* host, int port, const struct alert_t *alert) {
+static int raise_remote_alert(const char* host, int port, const struct alert_t *alert) {
 
     int return_code = 1;
 
@@ -252,18 +252,18 @@ int raise_remote_alert(const char* host, int port, const struct alert_t *alert) 
     // Handle response status code
 
     if (sc == '1' || sc == '3') {
-        write_log(ERROR, "Failed to raise alert - unhandled HTTP status code, " \
+        drift_prevent_write_log(ERROR, "Failed to raise alert - unhandled HTTP status code, " \
             "this simple client doesn't handle 1xx and 3xx status codes: \n%s\n---\n", resp_copy);
         goto cleanup;
     }
 
     if (sc == '4' || sc == '5') {
-        write_log(ERROR, "Failed to raise alert - status code: \n%s\n---\n", resp_copy); 
+        drift_prevent_write_log(ERROR, "Failed to raise alert - status code: \n%s\n---\n", resp_copy); 
         goto cleanup;
     }
 
     if (sc != '2') {
-        write_log(ERROR, "Failed to raise alert - unexpected status code: \n%s\n---\n", resp_copy); 
+        drift_prevent_write_log(ERROR, "Failed to raise alert - unexpected status code: \n%s\n---\n", resp_copy); 
         goto cleanup;
     }
 
@@ -271,7 +271,7 @@ int raise_remote_alert(const char* host, int port, const struct alert_t *alert) 
 
     return_code = 0;
 
-    write_log(INFO, "Alert with action %s and reason %s raised to collector successfuly\n", alert->action, alert->reason);
+    drift_prevent_write_log(INFO, "Alert with action %s and reason %s raised to collector successfuly\n", alert->action, alert->reason);
 
 cleanup:
     free(body);
