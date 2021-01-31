@@ -17,9 +17,29 @@
 
 #include "log.h"
 
+#include "hash_search.c"
 #include "config.c"
 #include "crc32.c"
 #include "remote_alert.c"
+
+/*
+* In order to avoid overwrite function calls in other executable files
+* please try to add "static" before the function name
+*
+* use "nm -D " query what function has been overwrite
+*
+* Currently, the functions being overwrite are
+* T drift_prevent_init_log
+* T drift_prevent_teardown_log
+* T drift_prevent_write_log
+* T execl
+* T execle
+* T execlp
+* T execv
+* T execve
+* T execvp
+* 
+*/
 
 extern char **environ;
 
@@ -29,25 +49,24 @@ typedef struct {
     char *drift_detect;
 } pre_info;
 
-const key_t SHM_WHITELIST_SIZE_NAME = 512;
-const key_t SHM_WHITELIST_NAME = 1024; 
+static const key_t SHM_WHITELIST_SIZE_NAME = 512;
+static const key_t SHM_WHITELIST_NAME = 1024; 
 
 typedef struct {
     char filename[PATH_MAX];
     uint32_t checksum;
 } shm_whitelist_entry;
 
-static shm_whitelist_entry *g_whitelist;
-static size_t g_whitelist_size;
 static Whitelist g_whitelist_config;
+static hash_tbl_t *g_whitelist_hash;
 
 static void init() __attribute__((constructor));
 
 static void finish() __attribute__((destructor));
 
-void finish() {
-    free(g_whitelist);
+static void finish() {
     whitelist_free(&g_whitelist_config);
+    hashtbl_node_free(g_whitelist_hash);
 }
 
 /*
@@ -58,7 +77,7 @@ void finish() {
  * 
  * One drawback of this solution is that we never free shared memory in this case.
  */
-void init() {
+static void init() {
     void* shm_ref;
     int shm_file_size_fd; 
     int* shm_file_size_ptr;
@@ -70,7 +89,7 @@ void init() {
         read_config(&g_whitelist_config);
         shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR); 
         if (shm_file_size_fd < 0) {
-            write_log(ERROR, "Could not create shared memory for whitelist size: %s\n", strerror(errno));
+            drift_prevent_write_log(ERROR, "Could not create shared memory for whitelist size: %s\n", strerror(errno));
             goto use_data_from_file;
         }
         ftruncate(shm_file_size_fd, sizeof(size_t));
@@ -79,34 +98,42 @@ void init() {
         int shm_whitelist_size = sizeof(shm_whitelist_entry) * g_whitelist_config.used;
         shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, shm_whitelist_size, IPC_CREAT | S_IRUSR | S_IWUSR); 
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *) shmat (shm_whitelist_fd, 0, 0);
-        g_whitelist = malloc(shm_whitelist_size * sizeof(shm_whitelist_entry));
-        g_whitelist_size = g_whitelist_config.used;
-        if (!g_whitelist) {
-            write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
+        g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
+        if (!g_whitelist_hash) {
+            drift_prevent_write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
             goto use_data_from_file;
         }
         for (int i = 0; i < g_whitelist_config.used; i++) {
             shm_whitelist_entry file = { .checksum = g_whitelist_config.checksums[i]};
             strncpy(file.filename, g_whitelist_config.filenames[i], PATH_MAX * sizeof(char));
             memcpy(file_shmaddr, &file, sizeof(shm_whitelist_entry));
-            strncpy(g_whitelist[i].filename, file_shmaddr[0].filename, PATH_MAX * sizeof(char));
-            g_whitelist[i].checksum = file_shmaddr[0].checksum;
+            entry *node = hashtbl_node_insert(file_shmaddr[0].filename, g_whitelist_hash);
+            if(!node) {
+                drift_prevent_write_log(ERROR, "node is null %s\n", strerror(errno));
+                file_shmaddr += 1;
+                continue;
+            }
+            node->checksum = file_shmaddr[0].checksum;
             file_shmaddr += 1;
         }
         goto finish;
     } else {
         size_t *shm_whitelist_size = (size_t *) shmat (shm_file_size_fd, 0, 0);
-        g_whitelist_size = *shm_whitelist_size;
-        g_whitelist = malloc(*shm_whitelist_size * sizeof(shm_whitelist_entry));
-        if (!g_whitelist) {
-            write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
+        g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
+        if (!g_whitelist_hash) {
+            drift_prevent_write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
             goto read_data_from_file;
         }
         shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, *shm_whitelist_size, S_IRUSR); 
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *) shmat (shm_whitelist_fd, 0, 0);
         for (int i = 0; i < *shm_whitelist_size; i++) {
-            strncpy(g_whitelist[i].filename, file_shmaddr[0].filename, PATH_MAX * sizeof(char));
-            g_whitelist[i].checksum = file_shmaddr[0].checksum;
+            entry *node = hashtbl_node_insert(file_shmaddr[0].filename, g_whitelist_hash);
+            if(!node) {
+                drift_prevent_write_log(ERROR, "node is null %s\n", strerror(errno));
+                file_shmaddr += 1;
+                continue;
+            }
+            node->checksum = file_shmaddr[0].checksum;
             file_shmaddr += 1;
         }
         goto finish;
@@ -115,52 +142,50 @@ read_data_from_file:
     whitelist_init(&g_whitelist_config, 32);
     read_config(&g_whitelist_config);
 use_data_from_file:
-    g_whitelist = malloc(g_whitelist_config.used * sizeof(shm_whitelist_entry));
+    g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
     for (int i = 0; i < g_whitelist_config.used; i++) {
         shm_whitelist_entry file = { .checksum = g_whitelist_config.checksums[i]};
-        strncpy(g_whitelist[i].filename, g_whitelist_config.filenames[i], PATH_MAX * sizeof(char));
-        g_whitelist[i].checksum = file.checksum;
+        entry *node = hashtbl_node_insert(g_whitelist_config.filenames, g_whitelist_hash);
+        if(!node) {
+            drift_prevent_write_log(ERROR, "node is null %s\n", strerror(errno));
+            continue;
+        }
+        node->checksum = file.checksum;
     }
 finish:
     return;
 }
 
-int binary_search(shm_whitelist_entry *list_of_files, int size, const char *target) {
-    int bottom= 0;
-    int mid;
-    int top = size - 1;
-    while(bottom <= top){
-        mid = (bottom + top)/2;
-        if (strcmp(list_of_files[mid].filename, target) == 0 && strlen(list_of_files[mid].filename) == strlen(target)){
-            return mid;
-        } else if (strcmp(list_of_files[mid].filename, target) > 0){
-            top    = mid - 1;
-        } else if (strcmp(list_of_files[mid].filename, target) < 0){
-            bottom = mid + 1;
-        }
+static void * hash_search(hash_tbl_t * table, void *key) {
+    if(!table||!key) {
+        return NULL;
     }
-    return -1;
+    entry *node = (entry *) hashtbl_node_get(key, table);
+    if(!node) {
+        return NULL;
+    }
+    return node;
 }
 
 // CRC fields will be ignored if reason is not checksum related.
-int send_alert(const char* filepath, const char* syscall, const char* reason, const char* action, const uint32_t crc32_expected, const uint32_t crc32_actual) {
+static int send_alert(const char* filepath, const char* syscall, const char* reason, const char* action, const uint32_t crc32_expected, const uint32_t crc32_actual) {
     char* podname = getenv("MY_POD_NAME");
 
     char *host = getenv("TENSORSEC_CONSOLE_ADDR");
     if (host == NULL) {
-        write_log(ERROR, "Env var TENSORSEC_CONSOLE_ADDR not found: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Env var TENSORSEC_CONSOLE_ADDR not found: %s\n", strerror(errno));
         return 1;
     }
 
     char *port = getenv("TENSORSEC_CONSOLE_PORT");
     if (port == NULL) {
-        write_log(ERROR, "Env var TENSORSEC_CONSOLE_PORT not found: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Env var TENSORSEC_CONSOLE_PORT not found: %s\n", strerror(errno));
         return 1;
     }
 
     const int port_int = atoi(port);
     if (port_int == 0) {
-        write_log(ERROR, "Atoi converted port number to 0, check env var TENSORSEC_CONSOLE_PORT: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Atoi converted port number to 0, check env var TENSORSEC_CONSOLE_PORT: %s\n", strerror(errno));
         return 1;
     }
 
@@ -175,7 +200,7 @@ int send_alert(const char* filepath, const char* syscall, const char* reason, co
 
     int rc = raise_remote_alert(host, port_int, &alert);
     if (rc > 0) {
-        write_log(ERROR, "Failed to raise remote alert with reason %s and action %s: %s\n", reason, action, strerror(errno));
+        drift_prevent_write_log(ERROR, "Failed to raise remote alert with reason %s and action %s: %s\n", reason, action, strerror(errno));
         return 1;
     }
     return 0;
@@ -214,7 +239,7 @@ undo:
     return NULL;
 }
 
-char *init_pre_data(const char* path, pre_info* pre_data)
+static char *init_pre_data(const char* path, pre_info* pre_data)
 {
     pre_data->real_path[0] = '\0';
     pre_data->drift_prevent = NULL;
@@ -226,13 +251,13 @@ char *init_pre_data(const char* path, pre_info* pre_data)
     return ret;
 }
 
-long file_opt(const char* path, char **buffer) {
+static long file_opt(const char* path, char **buffer) {
     FILE *fp;
     long l_size;
 
     fp = fopen(path, "rb");
     if (!fp) {
-        write_log(ERROR, "Open failed: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Open failed: %s\n", strerror(errno));
         return -1;
     }
     fseek(fp, 0L, SEEK_END);
@@ -240,11 +265,11 @@ long file_opt(const char* path, char **buffer) {
     rewind(fp);
     *buffer = calloc(1, l_size+1);
     if (!*buffer) {
-        write_log(ERROR, "Memory allocation for file content failed: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Memory allocation for file content failed: %s\n", strerror(errno));
         goto cleanup_file;
     }
     if (1 != fread(*buffer, l_size, 1, fp)) {
-        write_log(ERROR, "File content read failed: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "File content read failed: %s\n", strerror(errno));
         goto cleanup_content;
     }
     return l_size;
@@ -252,7 +277,7 @@ cleanup_content:
     free(*buffer);
 cleanup_file:
     if (fclose(fp) != 0) {
-        write_log(ERROR, "could not close file: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "could not close file: %s\n", strerror(errno));
     }
     return -1;
 }
@@ -266,8 +291,9 @@ typedef ssize_t (*exec_name##_func_t)(input_str);                               
 static exec_name##_func_t old_##exec_name = NULL;                                       \
 int exec_name(input_str)                                                                \
 {                                                                                       \
-    if (init_log() != 0) {                                                              \
-        write_log(WARN, "Failed to fully initialize log: %s\n", strerror(errno));       \
+    if (drift_prevent_init_log() != 0) {                                                \
+        drift_prevent_write_log(WARN, "Failed to fully initialize log: %s\n",           \
+                          strerror(errno));                                             \
     }                                                                                   \
                                                                                         \
     pre_info pre_data = {"", NULL, NULL};                                               \
@@ -277,13 +303,13 @@ int exec_name(input_str)                                                        
     uint32_t expected_crc32 = 0;                                                        \
     uint32_t calculated_crc32 = 0;                                                      \
     if (!init_pre_data(file_path, &pre_data)) {                                         \
-        write_log(ERROR, "Failed to get real path: %s\n", strerror(errno));             \
+        drift_prevent_write_log(ERROR, "Failed to get real path: %s\n",                 \
+                                strerror(errno));                                       \
         goto cleanup;                                                                   \
     }                                                                                   \
                                                                                         \
-    int location = binary_search(g_whitelist, g_whitelist_size, pre_data.real_path);    \
-                                                                                        \
-    if (location == -1) {                                                               \
+    entry *node = (entry *)hash_search(g_whitelist_hash, pre_data.real_path);           \
+    if (!node) {                                                                        \
         reason = malloc(strlen(REASON_NOT_IN_WHITELIST)+1);                             \
         strcpy(reason, REASON_NOT_IN_WHITELIST);                                        \
         if (NULL != pre_data.drift_detect) {                                            \
@@ -301,9 +327,8 @@ int exec_name(input_str)                                                        
         if (l_size < 0) {                                                               \
             goto cleanup;                                                               \
         }                                                                               \
-        expected_crc32 = g_whitelist[location].checksum;                                \
+        expected_crc32 = node->checksum;                                                \
         calculated_crc32 = rc_crc32(0, content, l_size);                                \
-                                                                                        \
         if (calculated_crc32 != expected_crc32) {                                       \
             reason = malloc(strlen(REASON_CHECKSUM_MISMATCH)+1);                        \
             strcpy(reason, REASON_CHECKSUM_MISMATCH);                                   \
@@ -325,12 +350,13 @@ send_alert:                                                                     
         pre_data.real_path, exec_str, reason,                                           \
         action, calculated_crc32, expected_crc32                                        \
     ) > 0) {                                                                            \
-        write_log(ERROR, "Could not send alert: %s\n", strerror(errno));                \
+        drift_prevent_write_log(ERROR, "Could not send alert: %s\n", strerror(errno));  \
     }                                                                                   \
     if (NULL != pre_data.drift_prevent) {                                               \
         free(content);                                                                  \
-        if (teardown_log() != 0) {                                                      \
-            write_log(WARN, "Failed to properly teardown log: %s\n", strerror(errno));  \
+        if (drift_prevent_teardown_log() != 0) {                                        \
+            drift_prevent_write_log(WARN, "Failed to properly teardown log: %s\n",      \
+                                    strerror(errno));                                   \
         }                                                                               \
         errno = EACCES;                                                                 \
         return errno;                                                                   \
@@ -339,8 +365,9 @@ cleanup:                                                                        
     free(content);                                                                      \
     free(reason);                                                                       \
     free(action);                                                                       \
-    if (teardown_log() != 0) {                                                          \
-        write_log(WARN, "Failed to properly teardown log: %s\n", strerror(errno));      \
+    if (drift_prevent_teardown_log() != 0) {                                            \
+        drift_prevent_write_log(WARN, "Failed to properly teardown log: %s\n",          \
+                                strerror(errno));                                       \
     }                                                                                   \
 old_ret:                                                                                \
     old_##exec_name = dlsym(RTLD_NEXT, exec_str);                                       \
@@ -375,5 +402,3 @@ CHECKPROCESS("execve", execve, filename, VA_STR(const char *filename, char *cons
 CHECKPROCESS_VA("execl", execl, path, VA_STR(const char *path, const char *arg, ...), VA_STR(path, argv, environ))
 CHECKPROCESS_VA("execlp", execlp, file, VA_STR(const char *file, const char *arg, ...), VA_STR(file, argv, environ))
 CHECKPROCESS_VA("execle", execle, path, VA_STR(const char *path, const char *arg, .../*, (char *)0, char *const envp[] */), VA_STR(path, argv, envp))
-
-

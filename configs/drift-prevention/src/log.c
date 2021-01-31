@@ -9,9 +9,9 @@
 
 #include "log.h"
 
-FILE* g_log_dest = NULL;
+static FILE* g_log_dest = NULL;
 
-int init_log() {
+int drift_prevent_init_log() {
     g_log_dest = fopen("/var/log/drift-prevention.log", "a+");
     if (g_log_dest == NULL) {
         g_log_dest = stderr;
@@ -20,7 +20,7 @@ int init_log() {
     return 0;
 }
 
-int teardown_log() {
+int drift_prevent_teardown_log() {
     if (g_log_dest != NULL) {
         if (!fclose(g_log_dest)) {
             return 1;
@@ -29,7 +29,7 @@ int teardown_log() {
     return 0;
 }
 
-int write_log(int level, const char *fmt, ...) {
+int drift_prevent_write_log(int level, const char *fmt, ...) {
     if (g_log_dest == NULL) {
         return 1;
     }

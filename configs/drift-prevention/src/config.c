@@ -7,7 +7,7 @@
 
 #include "log.h"
 
-int CHECKSUM_LEN = 8;
+static int CHECKSUM_LEN = 8;
 
 typedef struct {
     char **filenames;
@@ -16,14 +16,14 @@ typedef struct {
     size_t size;
 } Whitelist;
 
-void whitelist_init(Whitelist *a, size_t initial_size) {
+static void whitelist_init(Whitelist *a, size_t initial_size) {
     a->filenames = malloc(initial_size * sizeof(char*));
     a->checksums = malloc(initial_size * sizeof(uint32_t));
     a->used = 0;
     a->size = initial_size;
 }
 
-void whitelist_insert(Whitelist *a, char* filename, uint32_t checksum) {
+static void whitelist_insert(Whitelist *a, char* filename, uint32_t checksum) {
     if (a->used == a->size) {
         a->size *= 2;
         a->filenames = realloc(a->filenames, a->size * sizeof(char*));
@@ -35,7 +35,7 @@ void whitelist_insert(Whitelist *a, char* filename, uint32_t checksum) {
     a->used++;
 }
 
-void whitelist_free(Whitelist *whitelist) {
+static void whitelist_free(Whitelist *whitelist) {
     free(whitelist->filenames);
     free(whitelist->checksums);
     whitelist->filenames = NULL;
@@ -43,7 +43,7 @@ void whitelist_free(Whitelist *whitelist) {
     whitelist->used = whitelist->size = 0;
 }
 
-int read_config(Whitelist *whitelist) {
+static int read_config(Whitelist *whitelist) {
     FILE *fp;
     char line[PATH_MAX + CHECKSUM_LEN + 1];
 
@@ -51,7 +51,7 @@ int read_config(Whitelist *whitelist) {
 
     fp = fopen(whitelist_file, "r");
     if (fp == NULL){
-        write_log(ERROR, "Could not open config file: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "Could not open config file: %s", strerror(errno)); 
         return 1;  
     }
 
@@ -62,7 +62,7 @@ int read_config(Whitelist *whitelist) {
         whitelist_insert(whitelist, filename, checksum);
     }
     if (fclose(fp) != 0) {
-        write_log(ERROR, "Could not close config file: %s", strerror(errno));
+        drift_prevent_write_log(ERROR, "Could not close config file: %s", strerror(errno));
         return 1;
     }
     return 0;

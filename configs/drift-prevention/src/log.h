@@ -9,10 +9,10 @@ enum log_level {
     ERROR
 };
 
-extern int init_log();
+extern int drift_prevent_init_log();
 
-extern int teardown_log();
+extern int drift_prevent_teardown_log();
 
-extern int write_log(int level, const char *fmt, ...);
+extern int drift_prevent_write_log(int level, const char *fmt, ...);
 
 #endif // LOG_H_
