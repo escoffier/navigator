@@ -709,6 +709,19 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		},
 	}
 
+	neededIndexesPerCollection[model.HarborProjectConfigCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"CheckID": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"CreatedAt": 1,
+			}, Options: nil,
+		},
+	}
+
 	for collectionName, indexModel := range neededIndexesPerCollection {
 		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
 

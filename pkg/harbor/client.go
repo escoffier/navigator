@@ -10,11 +10,23 @@ import (
 	"net/http"
 	"strings"
 
+	jsoniter "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+
 	"github.com/rs/zerolog/log"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
+
+const AUTOSCANCNDESCRIBE = "当镜像上传后，自动进行扫描漏洞"
+const AUTOSCANENDESCRIBE = "Automatically scan for vulnerabilities when the image is uploaded"
+const TRUSTCNDESCRIBE = "仅允许部署通过认证的镜像"
+const TRUSTENDESCRIBE = "Only certified images are allowed to be deployed"
+const PREVENTVULCNDESCRIBE = "阻止潜在漏洞的镜像被拉取"
+const PREVENTVULENDESCRIBE = "Prevent images of potential vulnerabilities from being pulled"
+const PUBLICCNDESCRIBE = "所有人都可访问公开的项目仓库。"
+const PUBLICENDESCRIBE = "Everyone can access the public project repository."
 
 type HarborRESTClient struct {
 	address          string // like "https://localhost:30003"
@@ -32,7 +44,6 @@ func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*Har
 		skipTLSVerify:    harborOpts.SkipTLSVerify,
 		apiVersionString: "api/v2.0",
 	}
-
 	return h, nil
 }
 
@@ -153,7 +164,6 @@ func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, 
 			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
 			return scanAllStatus, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
 		}
-
 		return scanAllStatus, NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
 	}
 
@@ -249,6 +259,60 @@ func (h HarborRESTClient) GetHarborFullScanConfigURL() string {
 	return fmt.Sprintf("%s/harbor/interrogation-services/vulnerability", h.address)
 }
 
+func (h HarborRESTClient) GetHarborProjectConfig(ctx context.Context, projectId int) ([]model.CfgScan, error) {
+	var projectConfig model.ProjectCfg
+	cfgScanData := make([]model.CfgScan, 0)
+	url := fmt.Sprintf("%s/%s/projects/%d", h.address, h.apiVersionString, projectId)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return cfgScanData, NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to prepare get projects request to Harbor: %w", err))
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return cfgScanData, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get projects config request to Harbor: %w", err))
+	}
+	defer util.CloseBodyWithLog(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp harborHTTPErrorResp
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+		if err != nil {
+			return cfgScanData, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+		}
+		return cfgScanData, NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+	}
+	err = json.NewDecoder(resp.Body).Decode(&projectConfig)
+
+	if err != nil {
+		return cfgScanData, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+	}
+	//set Describe
+
+	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "Public", RuleDescEn: PUBLICENDESCRIBE, RuleDescCn: PUBLICCNDESCRIBE, Status: projectConfig.Metadata.Public, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
+	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "AutoScan", RuleDescEn: AUTOSCANENDESCRIBE, RuleDescCn: AUTOSCANCNDESCRIBE, Status: projectConfig.Metadata.AutoScan, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
+	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "EnableContentTrust", RuleDescEn: TRUSTENDESCRIBE, RuleDescCn: TRUSTCNDESCRIBE, Status: projectConfig.Metadata.EnableContentTrust, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
+	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "PreventVul", RuleDescEn: PREVENTVULENDESCRIBE, RuleDescCn: PREVENTVULCNDESCRIBE, Status: projectConfig.Metadata.PreventVul, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
+
+	return cfgScanData, nil
+}
+
+func (h HarborRESTClient) GetHarborProjectConfigLink(projectId int) string {
+	return fmt.Sprintf("%sharbor/projects/%d/configs", h.address, projectId)
+}
+
 func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context, canDowngrade bool) error {
 	// GET /users endpoint requires admin role, so let's try to use it
 
@@ -301,4 +365,48 @@ func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context,
 	}
 
 	return nil
+}
+
+func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, string, error) {
+
+	url := fmt.Sprintf("%s/%s/projects", h.address, h.apiVersionString)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
+	}
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
+	}
+	defer util.CloseBodyWithLog(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp harborHTTPErrorResp
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = json.NewDecoder(teeReader).Decode(&errorResp)
+		if err != nil {
+			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+		}
+
+		return nil, "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+	}
+
+	var respItems []respItemT
+	err = json.NewDecoder(resp.Body).Decode(&respItems)
+	if err != nil {
+		return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+	}
+	return respItems, h.address, nil
 }

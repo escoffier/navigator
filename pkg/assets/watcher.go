@@ -134,7 +134,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				}
 
 				for _, cb := range callbacks {
-					logging.GetLogger().Info().Msgf("cluster %s On pod event (delete) for callback %s: %+v", clusterName, cb.Name(), pod)
 					evtErr := cb.OnPodEvent(nil, pod, ActionDelete)
 					if evtErr != nil {
 						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
@@ -144,7 +143,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				newPod, ok := newObj.(*corev1.Pod)
 				if !ok {
-					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
 					return
 				}
 				oldPod, ok := oldObj.(*corev1.Pod)
@@ -153,7 +151,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					return
 				}
 				for _, cb := range callbacks {
-					logging.GetLogger().Info().Msgf("cluster %s On pod event (update) for callback %s: %+v / %+v", clusterName, cb.Name(), newPod, oldPod)
 					evtErr := cb.OnPodEvent(newPod, oldPod, ActionUpdate)
 					if evtErr != nil {
 						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
@@ -206,7 +203,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					return
 				}
 				for _, cb := range callbacks {
-					logging.GetLogger().Info().Msgf("cluster %s On endpoints event (update) for callback %s: %+v / %+v", clusterName, cb.Name(), newEpt, oldEpt)
 					eptErr := cb.OnEndPointEvent(newEpt, oldEpt, ActionUpdate)
 					if eptErr != nil {
 						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))

@@ -1,6 +1,8 @@
 package model
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 var scapSortableFields = func() map[string]string {
 	return map[string]string{
@@ -65,4 +67,31 @@ type CheckHistoryEntry struct {
 	MaxScore            float32            `json:"maxScore" bson:"maxScore"`
 	TotalPoliciesPassed int64              `json:"-" bson:"totalPoliciesPassed"`
 	TotalPoliciesTried  int64              `json:"-" bson:"totalPoliciesTried"`
+}
+
+type HarborConfigScan struct {
+	CheckID    string               `json:"check_id" bson:"checkId"`
+	Harbor     string               `json:"harbor" bson:"harbor"`
+	CreatedAt  int64                `json:"created_at" bson:"createdAt,omitempty"`
+	FinishedAt int64                `json:"finished_at" bson:"finishedAt,omitempty"`
+	Report     map[string][]CfgScan `json:"report" bson:"report,omitempty"`
+}
+
+type ProjectCfg struct {
+	Metadata struct {
+		AutoScan             string `json:"auto_scan"`
+		EnableContentTrust   string `json:"enable_content_trust"`
+		PreventVul           string `json:"prevent_vul"`
+		Public               string `json:"public"`
+		ReuseSysCveWhitelist string `json:"reuse_sys_cve_whitelist"`
+		Severity             string `json:"severity"`
+		HarborConfigLink     string `json:"harbor_config_link"`
+	} `json:"metadata"`
+}
+type CfgScan struct {
+	RuleName         string `json:"rule_name"`
+	RuleDescEn       string `json:"rule_desc_en"`
+	RuleDescCn       string `json:"rule_desc_cn"`
+	Status           string `json:"status"`
+	HarborConfigLink string `json:"harbor_config_link"`
 }

@@ -32,6 +32,7 @@ require (
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/imdario/mergo v0.3.5 // indirect
+	github.com/json-iterator/go v1.1.10
 	github.com/lib/pq v1.8.0
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/minio/minio v0.0.0-20201122074850-39f3d5493bc9 // indirect

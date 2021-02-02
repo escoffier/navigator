@@ -21,6 +21,7 @@ const (
 	ServiceCollection
 	ServiceRelationCollection
 	ServiceAliasCollection
+	HarborProjectConfigCollection
 )
 
 func GetCollectionNames() []string {
@@ -43,6 +44,7 @@ func GetCollectionNames() []string {
 		"service",
 		"serviceRelation",
 		"serviceAlias",
+		"harborProjectConfig",
 	}
 }
 
