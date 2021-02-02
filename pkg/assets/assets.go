@@ -91,6 +91,15 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 
+	//get pod container image
+	Image := ""
+	for _, c := range pod.Spec.Containers {
+		if c.Name == container.Name {
+			Image = c.Image
+		}
+
+	}
+
 	assetContainer := model.AssetContainer{
 		Cluster:             cluster,
 		IsDeleted:           isDeleteEvent,
@@ -102,6 +111,7 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 		Namespace:           pod.Namespace,
 		Node:                pod.Spec.NodeName,
 		ContainerID:         container.ContainerID, // containerID: docker://b503f2b9c3c693805312a888f875974f54fdd5f7d6d76de31d18ff12e958b4e1
+		Image:               Image,
 		LastUpdateTimeEpoch: time.Now().Unix(),
 	}
 	if shaDigest != "" {
@@ -608,4 +618,66 @@ func GetAliasName(mongodb *mongo.Database, namespace, snvName string) (string, e
 	}
 
 	return alias.AliasName, nil
+}
+
+func GetServiceImages(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+
+	filter := bson.M{
+		"$and": []bson.M{
+			{"namespace": namespace},
+			{"name": snvName},
+		},
+	}
+	// from mongo
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(10 * time.Second)
+
+	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("Couldn't find document: %w", err))
+		return nil, err
+	}
+	podNameSlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var service model.Service
+		err := cur.Decode(&service)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		podNameSlice = append(podNameSlice, service.PodName)
+	}
+
+	filter = bson.M{
+		"isDeleted": false,
+		"namespace": namespace,
+		"podName":   bson.D{{"$in", podNameSlice}},
+	}
+
+	opts := options.Find()
+	opts.SetMaxTime(time.Second * 10)
+
+	coll := mongodb.Collection(model.AssetsContainersCollection.String())
+
+	cur, err = coll.Find(mongoCtx, filter, opts)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find %s documents: %w", model.AssetsContainersCollection.String(), err))
+	}
+	defer cur.Close(mongoCtx)
+	imageSlice := make([]string, 0)
+	for cur.Next(mongoCtx) {
+		var container model.AssetContainer
+		err := cur.Decode(&container)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		if container.Image != "" {
+			imageSlice = append(imageSlice, container.Image)
+		}
+	}
+	return imageSlice, nil
+
 }

@@ -25,6 +25,7 @@ type AssetContainer struct {
 	Node        string `json:"node" bson:"node"`
 	State       string `json:"state" bson:"state"`
 	ContainerID string `json:"containerID" bson:"containerID"` // optional
+	Image       string `json:"image" bson:"image"`
 
 	Vulnerabilities []VulnerabilityInfo `json:"vulnerabilities,omitempty" bson:"vulnerabilities,omitempty"`
 	SensitiveFiles  []Sensitive         `json:"sensitiveFiles,omitempty" bson:"sensitiveFiles,omitempty"`
