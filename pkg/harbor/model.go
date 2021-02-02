@@ -92,6 +92,18 @@ type ScanAllStatus struct {
 	Metrics   ScanAllStatusMetrics `json:"metrics"`
 }
 
+type ScanOneStatus struct {
+	Digest       string   `json:"digest"`
+	ScanOverview ScanView `json:"scan_overview"`
+}
+
+type ScanView struct {
+	Version VersionAdapter `json:"application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0"`
+}
+
+type VersionAdapter struct {
+	ScanStatus string `json:"scan_status"`
+}
 type respItemT struct {
 	Name      string `json:"name"`
 	ProjectID int    `json:"project_id"`

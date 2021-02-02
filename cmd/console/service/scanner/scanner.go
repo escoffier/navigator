@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -22,10 +24,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+const SCAN_SERVICE = "service"
+
 type ScannerService struct {
 	mongodb                 *mongo.Database
 	imageVulnerabilityCache *rcache.ImageVulnerabilityCache
 	scannedImagesCache      *rcache.ScannedImagesCache
+	harborClient            *harbor.HarborRESTClient
 }
 
 func NewScannerService(ctx context.Context, redisClient *redis.Client, mongodb *mongo.Database, harborClient *harbor.HarborRESTClient) *ScannerService {
@@ -33,6 +38,7 @@ func NewScannerService(ctx context.Context, redisClient *redis.Client, mongodb *
 		mongodb:                 mongodb,
 		imageVulnerabilityCache: rcache.NewImageVulnerabilityCache(ctx, mongodb, redisClient),
 		scannedImagesCache:      rcache.NewScannedImagesCache(ctx, mongodb, redisClient, harborClient),
+		harborClient:            harborClient,
 	}
 }
 
@@ -237,4 +243,119 @@ func (s *ScannerService) GetServiceScannedImages(ctx context.Context, offset int
 	}
 
 	return items, itemCount, nil
+}
+
+//service scan
+func (s *ScannerService) SetServiceScanImages(ctx context.Context, namespace, resourcesName, selecter string) error {
+	var imageSlice []string
+	var err error
+
+	if selecter == SCAN_SERVICE {
+		imageSlice, err = assets.GetServiceImages(s.mongodb, namespace, resourcesName)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("couldn't get imageSlice from service info : %w", err))
+		}
+	}
+
+	imageSet := make(map[string]struct{})
+	for _, v := range imageSlice {
+		imageSet[v] = struct{}{}
+	}
+
+	for k, _ := range imageSet {
+		projectName, repositoryName, tag := s.getImageInfo(k)
+		if projectName == "" || repositoryName == "" || tag == "" {
+			continue
+		} else {
+			err := s.harborClient.ScanOne(ctx, projectName, repositoryName, tag)
+			if err != nil {
+				logging.GetLogger().Info().Msgf("service  scan image  error:%+v", err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *ScannerService) getImageInfo(image string) (projectName, repositoryName, tag string) {
+
+	subStr := "/"
+	idx := strings.Index(image, subStr)
+	idx1 := strings.Index(image[idx+1:], subStr)
+	if idx+1+idx1 > len(image) || idx == -1 || idx1 == -1 {
+		projectName = ""
+	} else {
+		projectName = image[idx+1 : idx+1+idx1]
+	}
+	lastIndex := strings.LastIndex(image, ":")
+	if lastIndex == -1 || lastIndex > len(image) {
+		repositoryName = ""
+		tag = ""
+	} else {
+		repositoryName = image[idx+2+idx1 : lastIndex]
+		tag = image[lastIndex+1:]
+	}
+	return projectName, repositoryName, tag
+
+}
+
+//service scan
+func (s *ScannerService) GetServiceScanImagesStatus(ctx context.Context, namespace, svcname, selecter string) (harbor.ScanAllStatus, error) {
+	var status harbor.ScanAllStatus
+	var imageSlice []string
+	var err error
+	if selecter == SCAN_SERVICE {
+		imageSlice, err = assets.GetServiceImages(s.mongodb, namespace, svcname)
+		if err != nil {
+			return status, NewMongoError(http.StatusInternalServerError,
+				fmt.Errorf("couldn't get imageSlice from service info : %w", err))
+		}
+
+	}
+
+	imageMap := make(map[string]struct{})
+	for _, v := range imageSlice {
+		imageMap[v] = struct{}{}
+	}
+
+	for k, _ := range imageMap {
+
+		projectName, repositoryName, tag := s.getImageInfo(k)
+		if projectName == "" || repositoryName == "" || tag == "" {
+			continue
+		} else {
+			status.Total += 1
+			imageStatus, err := s.harborClient.ScanOneStatus(ctx, projectName, repositoryName, tag)
+			if err != nil {
+				logging.GetLogger().Info().Msgf("scan one  error :%+v", err)
+			}
+			if imageStatus == "Running" {
+				status.IsOngoing = true
+				status.Metrics.Running = +1
+			} else if imageStatus == "Success" {
+				status.Completed = +1
+				status.Metrics.Success = +1
+				if status.Total == status.Completed+status.Metrics.Error {
+					status.IsOngoing = false
+				}
+			} else if imageStatus == "Error" {
+				status.Metrics.Error = +1
+				if status.Total == status.Completed+status.Metrics.Error {
+					status.IsOngoing = false
+				}
+			} else if imageStatus == "Pending" {
+				status.IsOngoing = true
+				status.Metrics.Pending = +1
+			} else if imageStatus == "" {
+				status.Metrics.Error = +1
+				if status.Total == status.Completed+status.Metrics.Error {
+					status.IsOngoing = false
+				}
+			}
+		}
+	}
+
+	return status, nil
 }

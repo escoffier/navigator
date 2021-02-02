@@ -6,11 +6,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
-	jsoniter "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"github.com/rs/zerolog/log"
@@ -173,6 +174,111 @@ func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, 
 	}
 
 	return scanAllStatus, nil
+}
+
+func (h HarborRESTClient) ScanOne(ctx context.Context, projectName, repositoryName, tag string) error {
+
+	//v2 :/projects/{project_name}/repositories/{repository_name}/artifacts/{reference}/scan
+	//v1 :/api/repositories/docker_contenttrust/myshop/tags/v1/scan
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s/scan", h.address, h.apiVersionString, projectName, repositoryName, tag)
+	if h.apiVersionString == "api" {
+		url = fmt.Sprintf("%s/%s/repositories/%s/%s/tags/%s/scan", h.address, h.apiVersionString, projectName, repositoryName, tag)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(nil))
+	if err != nil {
+		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to prepare scan all request to Harbor: %w", err))
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send scan all request to Harbor: %w", err))
+	}
+	defer util.CloseBodyWithLog(resp.Body)
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		var errorResp harborHTTPErrorResp
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+		if err != nil {
+			return NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %w", err))
+		}
+
+		if resp.StatusCode == http.StatusUnauthorized {
+			return NewHarborUnauthorizedError(http.StatusInternalServerError, fmt.Errorf("harbor API returned status Unauthorized: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusForbidden {
+			return NewHarborForbiddenError(http.StatusInternalServerError, fmt.Errorf("harbor API returned status Forbidden: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusConflict {
+			return NewHarborScanAllInProgressError(http.StatusInternalServerError, fmt.Errorf("harbor scan already in progress: %+v", errorResp))
+		} else if resp.StatusCode == http.StatusServiceUnavailable {
+			return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error, potentially no scanners detected: %+v", errorResp))
+		} else {
+			return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
+		}
+	}
+	return nil
+}
+
+func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, repositoryName, tag string) (string, error) {
+	// v2: /api/v2.0/projects/docker_contenttrust/repositories/myshop/artifacts/v1?with_scan_overview=t
+	// v1: /api/repositories/docker_contenttrust/myshop/tags/v1
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s?with_scan_overview=true", h.address, h.apiVersionString, projectName, repositoryName, tag)
+	if h.apiVersionString == "api" {
+		url = fmt.Sprintf("%s/%s/repositories/%s/%s/tags/%s", h.address, h.apiVersionString, projectName, repositoryName, tag)
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.SetBasicAuth(h.username, h.password)
+
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return "", NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
+	}
+	defer util.CloseBodyWithLog(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		var errorResp harborHTTPErrorResp
+		var rawBodyBuf bytes.Buffer
+		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+		if err != nil {
+			return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %+v", err))
+		}
+		return "", NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
+	}
+
+	result, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		return "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to readall  message from body: %w", err))
+	}
+	var scanOneStatus ScanOneStatus
+	err = jsoniter.Unmarshal(result, &scanOneStatus)
+	if err != nil {
+		return "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("json Unmarshal error: %w", err))
+	}
+	return scanOneStatus.ScanOverview.Version.ScanStatus, nil
 }
 
 func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepoName, shaDigest, tag string) (string, error) {

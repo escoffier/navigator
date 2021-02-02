@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -25,6 +26,8 @@ func (api *api) Microservice() func(chi.Router) {
 		r.Get("/responsibleSearch", api.responsibleSearch())
 		r.Post("/responsibleSubmit", api.responsibleSubmit())
 		r.Post("/setServiceAlias", api.setServiceAlias())
+		r.Post("/serviceScan", api.setServiceScan())
+		r.Get("/serviceScan", api.getServiceScan())
 
 	}
 }
@@ -412,5 +415,89 @@ func (api *api) setServiceAlias() http.HandlerFunc {
 		response.Ok(w, response.WithItem(resp{
 			Status: fmt.Sprintf("%v", "OK"),
 		}))
+	}
+}
+
+// @Summary service scan image
+// @POST
+// @Produce json
+// @Router  /api/v1/microservice/serviceScan
+func (api *api) setServiceScan() http.HandlerFunc {
+	type resp struct {
+		Status string `json:"status"`
+	}
+	type param struct {
+		Namespace string `json:"namespace" bson:"namespace"`
+		SvcName   string `json:"svcname" bson:"svcname"`
+		Selecter  string `json:"selecter" bason:"selecter"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		param := param{Selecter: "service"}
+
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10) // long timeout because onlineVulnerabilities need sync
+		defer cancel()
+
+		err := util.DecodeJSONBody(w, r, &param)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		err = api.scannerService.SetServiceScanImages(ctx, param.Namespace, param.SvcName, param.Selecter)
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("scanservice error: %w", err))
+			return
+		}
+
+		response.Ok(w, response.WithItem(resp{
+			Status: fmt.Sprintf("%v", "OK"),
+		}))
+	}
+}
+
+// @Summary get service scan status
+// @GET
+// @Produce json
+// @Router  /api/v1/microservice/serviceScan
+func (api *api) getServiceScan() http.HandlerFunc {
+	type respT struct {
+		ScanStatus harbor.ScanAllStatus `json:"harborStatus"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+		namespace := r.URL.Query().Get("namespace")
+		if namespace == "" {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("should not be empty"),
+				Suberror{"namespace", "string"}))
+			return
+		}
+		svcname := r.URL.Query().Get("svcname")
+		if svcname == "" {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("should not be empty"),
+				Suberror{"svcname", "string"}))
+			return
+		}
+
+		selecter := r.URL.Query().Get("selecter")
+		if selecter == "" {
+			selecter = "service"
+		}
+
+		status, err := api.scannerService.GetServiceScanImagesStatus(ctx, namespace, svcname, selecter)
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("scannerService error: %w", err))
+			return
+		}
+		resp := respT{
+			ScanStatus: status,
+		}
+
+		response.Ok(w, response.WithItem(resp))
+
 	}
 }
