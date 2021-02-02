@@ -92,6 +92,11 @@ type ScanAllStatus struct {
 	Metrics   ScanAllStatusMetrics `json:"metrics"`
 }
 
+type respItemT struct {
+	Name      string `json:"name"`
+	ProjectID int    `json:"project_id"`
+}
+
 func RedclairReportToHarborReport(redclairReport model.VulnerabilityReport) HarborVulnerabilityReport {
 	harborVulns := []VulnerabilityItem{}
 	highestSeveritySoFar := redclair.SeverityUnknown

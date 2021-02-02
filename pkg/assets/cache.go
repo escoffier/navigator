@@ -144,7 +144,6 @@ func (c *PodServiceCache) OnPodForServiceEvent(kubeCluster string, newPod, oldPo
 	return nil
 }
 func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error {
-	logging.GetLogger().Info().Msgf("cache OnEndpointsEvent %s - %+v - %v", kubeCluster, newEpt, action)
 	data := c.getOrCreateData(kubeCluster)
 	if action == ActionDelete {
 		if oldEpt == nil {

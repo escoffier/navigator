@@ -29,6 +29,8 @@ func (api *api) scap() func(chi.Router) {
 		r.Get("/{checkType}/breakdown/{checkID}", api.getCheckBreakdown())
 		r.Get("/{checkType}/history", api.getCheckHistory())
 		r.Get("/crons", api.listAllCrons())
+		r.Post("/harborScan", api.harborScan())
+		r.Get("/harborScanList", api.harborScanList())
 		r.Get("/{checkType}/{clusterID}/cron", api.getCron())
 		r.Put("/{checkType}/{clusterID}/cron", api.putCron())
 	}
@@ -135,7 +137,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		defer cancel()
 
 		filter := bson.M{}
-
 		checkID := r.URL.Query().Get("checkID")
 		if checkID != "" {
 			filter["checkId"] = checkID
@@ -614,4 +615,51 @@ func (api *api) scapCheck() http.HandlerFunc {
 			CheckUUID: checkUUID.String(),
 		}))
 	}
+}
+
+// @Router /api/v1/scap/harborScan [post]
+func (api *api) harborScan() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+		defer cancel()
+
+		checkUUID, err := api.scapper.RunHarborCheck(ctx, api.harborClient)
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
+			return
+		}
+
+		type resp struct {
+			CheckUUID string `json:"checkUUID"`
+		}
+
+		response.Ok(w, response.WithItem(resp{
+			CheckUUID: checkUUID.String(),
+		}))
+
+	}
+
+}
+
+// @Router /api/v1/scap/harborScanList  {get}
+func (api *api) harborScanList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+		defer cancel()
+
+		projectName := r.URL.Query().Get("projectname")
+		checkID := r.URL.Query().Get("checkid")
+		offset, limit := api.getOffsetAndLimit(r)
+		items, docNum, err := api.scapper.HarborConfigList(ctx, offset, limit, projectName, checkID)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+		response.Ok(w,
+			response.WithItems(items),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
+	}
+
 }
