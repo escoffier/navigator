@@ -188,6 +188,10 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 		if newPod == nil {
 			return errors.New("no new pods given")
 		}
+		if newPod.UID == "" {
+			logging.GetLogger().Warn().Msgf("pod action %s no uid for pod: %+v", action, newPod)
+			return errors.New("no uid for newPod")
+		}
 		owner := metav1.GetControllerOf(newPod)
 		svcName := newPod.Name
 		svcKind := ""
@@ -223,7 +227,7 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 			Type:      "byController",
 			Kind:      svcKind,
 			PodUID:    string(newPod.UID),
-			PodName:   string(newPod.Name),
+			PodName:   newPod.Name,
 		}
 		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
 		_, insertErr := mongodb.Collection(model.ServiceCollection.String()).InsertOne(mongoCtx, assetService)
