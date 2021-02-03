@@ -127,6 +127,9 @@ func (c *PodServiceCache) OnPodForServiceEvent(kubeCluster string, newPod, oldPo
 		if newPod == nil {
 			return errors.New("no new pods given")
 		}
+		if newPod.UID == "" {
+			return nil
+		}
 		_, exist := data.Load(newPod.Name)
 		if exist {
 			return nil

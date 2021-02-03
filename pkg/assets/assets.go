@@ -189,8 +189,7 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 			return errors.New("no new pods given")
 		}
 		if newPod.UID == "" {
-			logging.GetLogger().Warn().Msgf("pod action %s no uid for pod: %+v", action, newPod)
-			return errors.New("no uid for newPod")
+			return nil
 		}
 		owner := metav1.GetControllerOf(newPod)
 		svcName := newPod.Name
