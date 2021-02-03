@@ -222,6 +222,8 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 			Cluster:   kubeCluster,
 			Type:      "byController",
 			Kind:      svcKind,
+			PodUID:    string(newPod.UID),
+			PodName:   string(newPod.Name),
 		}
 		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
 		_, insertErr := mongodb.Collection(model.ServiceCollection.String()).InsertOne(mongoCtx, assetService)
