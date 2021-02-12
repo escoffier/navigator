@@ -42,6 +42,8 @@ spec:
           "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
+          "--microsegmentation-host=tensorsec-calico-core",
+          "--microsegmentation-port=2137",
           "--redis-endpoint=tensorsec-redis-master:6379",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
           "--scap-job-tag={{ .Values.scap.tag }}",

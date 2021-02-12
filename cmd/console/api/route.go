@@ -53,6 +53,7 @@ func SetupRoutes(
 	mongodb *mongo.Database,
 	scapper *scapper.Scapper,
 	scannerURL string,
+	microsegmentationCoreURL string,
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
@@ -73,6 +74,7 @@ func SetupRoutes(
 		mongodb,
 		scapper,
 		scannerURL,
+		microsegmentationCoreURL,
 		cronService,
 		clusterService,
 		redisClient,
@@ -85,8 +87,7 @@ func SetupRoutes(
 		scannerService,
 		scapService,
 		harborClient,
-		microService,
-	)
+		microService)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 	r.Route("/harbor/api/v1", api.harbor())
@@ -110,6 +111,7 @@ func SetupRoutes(
 			r.Route("/alerts", api.alert())
 			r.Route("/audit", api.audit())
 			r.Route("/cleanup", api.cleanup())
+			r.Handle("/microsegmentation/*", api.microSegmentation())
 		})
 
 		r.Group(func(r chi.Router) {
