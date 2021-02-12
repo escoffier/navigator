@@ -36,7 +36,8 @@ func setup(t *testing.T,
 		flag.NewDefaultRedisOpts(),
 		flag.NewDefaultElasticOpts(),
 		flag.NewDefaultRulesOpts(),
-		flag.NewDefaultHarborOpts())
+		flag.NewDefaultHarborOpts(),
+		flag.NewDefaultMicrosegmentationOpts())
 	require.NoError(t, err)
 
 	stop := console.Run()

@@ -37,26 +37,27 @@ import (
 )
 
 type api struct {
-	ctx                    context.Context
-	userCache              *cache.Cache
-	rbacCache              *cache.Cache /* Role-Based-Access-Control */
-	tokenAuth              *jwtauth.JWTAuth
-	mongodb                *mongo.Database
-	scapper                *scapper.Scapper
-	scannerURL             string
-	cronService            *cron.CronService
-	clusterService         *cluster.ClusterService
-	redisClient            *redis.Client
-	ruleService            *rule.RuleService
-	alertService           *alert.AlertService
-	driftPreventionService *driftprevention.DriftPreventionService
-	onlineVulnsSvc         *onlinevulns.OnlineVulnerabilitiesService
-	auditService           *audit.AuditService
-	cleanupService         *cleanup.CleanupService
-	scannerService         *scanner.ScannerService
-	scapService            *scapper.ScapService
-	harborClient           *harbor.HarborRESTClient
-	microService           *microservice.MicroService
+	ctx                      context.Context
+	userCache                *cache.Cache
+	rbacCache                *cache.Cache /* Role-Based-Access-Control */
+	tokenAuth                *jwtauth.JWTAuth
+	mongodb                  *mongo.Database
+	scapper                  *scapper.Scapper
+	scannerURL               string
+	microsegmentationCoreURL string
+	cronService              *cron.CronService
+	clusterService           *cluster.ClusterService
+	redisClient              *redis.Client
+	ruleService              *rule.RuleService
+	alertService             *alert.AlertService
+	driftPreventionService   *driftprevention.DriftPreventionService
+	onlineVulnsSvc           *onlinevulns.OnlineVulnerabilitiesService
+	auditService             *audit.AuditService
+	cleanupService           *cleanup.CleanupService
+	scannerService           *scanner.ScannerService
+	scapService              *scapper.ScapService
+	harborClient             *harbor.HarborRESTClient
+	microService             *microservice.MicroService
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -71,6 +72,7 @@ func newAPI(
 	mongodb *mongo.Database,
 	scapper *scapper.Scapper,
 	scannerURL string,
+	microsegmentationCoreURL string,
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
@@ -93,6 +95,7 @@ func newAPI(
 		mongodb:                     mongodb,
 		scapper:                     scapper,
 		scannerURL:                  scannerURL,
+		microsegmentationCoreURL:    microsegmentationCoreURL,
 		cronService:                 cronService,
 		clusterService:              clusterService,
 		redisClient:                 redisClient,

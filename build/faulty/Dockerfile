@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     strace \
     software-properties-common \
     python3.6 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/lib/go-1.10/bin:$PATH"

@@ -41,6 +41,7 @@ const (
 	ACCESS_CLEANUP            = "cleanup"
 	ACCESS_SUPER_ADMIN        = "super-admin"
 	ACCESS_MICROSERVICE       = "microservice"
+	ACCESS_MICROSEGMENTATION  = "microsegmentation"
 
 	ACCESS_COMPLIANCE_ZH         = "安全合规"
 	ACCESS_SETTING_ZH            = "设置"
@@ -52,6 +53,7 @@ const (
 	ACCESS_CLEANUP_ZH            = "清理"
 	ACCESS_SUPER_ADMIN_ZH        = "超级管理员"
 	ACCESS_MICROSERVICE_ZH       = "微服务安全"
+	ACCESS_MICROSEGMENTATION_ZH  = "微隔离"
 
 	URL_SETTING            = "/api/v1/config"
 	URL_IMAGE_VULNERBILTY  = "/api/v1/scanner"
@@ -63,6 +65,7 @@ const (
 	URL_CLEANUP            = "/api/v1/cleanup"
 	URL_SUPER_ADMIN        = "/api/v1/superAdmin"
 	URL_MICROSERVICE       = "/api/v1/microservice"
+	URL_MICROSEGMENTATION  = "/api/v1/microsegmentation/*"
 
 	IGNORE_ACCESS_URL_AUTH            = "/api/v1/auth"
 	IGNORE_ACCESS_URL_USER            = "/api/v1/user"
@@ -186,6 +189,8 @@ func AllAccess() []interface{} {
 
 	all = append(all, NewAccessBson(ACCESS_MICROSERVICE, ACCESS_MICROSERVICE_ZH, URL_MICROSERVICE))
 
+	all = append(all, NewAccessBson(ACCESS_MICROSEGMENTATION, ACCESS_MICROSEGMENTATION_ZH, URL_MICROSEGMENTATION))
+
 	all = append(all, NewAccessBson(ACCESS_ALERTS, ACCESS_ALERTS_ZH, URL_ALERTS))
 	all = append(all, NewAccessBson(ACCESS_AUDIT, ACCESS_AUDIT_ZH, URL_AUDIT))
 	all = append(all, NewAccessBson(ACCESS_CLEANUP, ACCESS_CLEANUP_ZH, URL_CLEANUP))
@@ -193,49 +198,31 @@ func AllAccess() []interface{} {
 	return all
 }
 
-func AllAccessURL() ([]string, map[string]struct{}) {
+func AllAccessURL() []string {
 	return []string{
-			URL_COMPLIANCE,
-			URL_SETTING,
-			URL_RUNTIME_DETECTION,
-			URL_IMAGE_VULNERBILTY,
-			URL_ONLINE_VULNERBILTY,
-			URL_SUPER_ADMIN,
-			URL_ALERTS,
-			URL_AUDIT,
-			URL_CLEANUP,
-			URL_MICROSERVICE,
-		},
-		map[string]struct{}{
-			URL_COMPLIANCE:         {},
-			URL_SETTING:            {},
-			URL_RUNTIME_DETECTION:  {},
-			URL_IMAGE_VULNERBILTY:  {},
-			URL_ONLINE_VULNERBILTY: {},
-			URL_SUPER_ADMIN:        {},
-			URL_ALERTS:             {},
-			URL_AUDIT:              {},
-			URL_CLEANUP:            {},
-		}
+		URL_COMPLIANCE,
+		URL_SETTING,
+		URL_RUNTIME_DETECTION,
+		URL_IMAGE_VULNERBILTY,
+		URL_ONLINE_VULNERBILTY,
+		URL_SUPER_ADMIN,
+		URL_ALERTS,
+		URL_AUDIT,
+		URL_CLEANUP,
+		URL_MICROSERVICE,
+		URL_MICROSEGMENTATION,
+	}
 }
 
-func AllIgnoreAccessURL() ([]string, map[string]struct{}) {
+func AllIgnoreAccessURL() []string {
 	return []string{
-			IGNORE_ACCESS_URL_AUTH,
-			IGNORE_ACCESS_URL_USER,
-			IGNORE_ACCESS_URL_PING,
-			IGNORE_ACCESS_URL_SWAGGER,
-			IGNORE_ACCESS_URL_HARBOR,
-			IGNORE_ACCESS_URL_DRIFTPREVENTION,
-		},
-		map[string]struct{}{
-			IGNORE_ACCESS_URL_AUTH:            {},
-			IGNORE_ACCESS_URL_USER:            {},
-			IGNORE_ACCESS_URL_PING:            {},
-			IGNORE_ACCESS_URL_SWAGGER:         {},
-			IGNORE_ACCESS_URL_HARBOR:          {},
-			IGNORE_ACCESS_URL_DRIFTPREVENTION: {},
-		}
+		IGNORE_ACCESS_URL_AUTH,
+		IGNORE_ACCESS_URL_USER,
+		IGNORE_ACCESS_URL_PING,
+		IGNORE_ACCESS_URL_SWAGGER,
+		IGNORE_ACCESS_URL_HARBOR,
+		IGNORE_ACCESS_URL_DRIFTPREVENTION,
+	}
 }
 
 func DefaultRoleAccessRela() []interface{} {
@@ -248,6 +235,7 @@ func DefaultRoleAccessRela() []interface{} {
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_ONLINE_VULNERBILTY))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_SUPER_ADMIN))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_MICROSERVICE))
+	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_MICROSEGMENTATION))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_ALERTS))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_AUDIT))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_CLEANUP))

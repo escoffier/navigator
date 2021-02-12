@@ -86,6 +86,7 @@ func NewConsole(
 	elasticOpts *flag.ElasticOpts,
 	rulesOpts *flag.RulesOpts,
 	harborOpts *flag.HarborOpts,
+	microsegmentationOpts *flag.MicrosegmentationOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -189,6 +190,7 @@ func NewConsole(
 				mongodb,
 				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
+				fmt.Sprintf("http://%s:%d", microsegmentationOpts.Host, microsegmentationOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				cronService,
 				clusterService,
@@ -236,7 +238,7 @@ func (c *Console) Run() func() {
 	}()
 
 	// ctx for initialization steps
-	ctx, cancel := context.WithTimeout(c.ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(c.ctx, 300*time.Second)
 
 	// connect the mongo client
 	defer cancel()
@@ -276,7 +278,7 @@ func (c *Console) Run() func() {
 
 	if routeCompareWithURL(c.server.Handler) == false {
 		logging.GetLogger().Debug().Msg("{all-route} -> panic")
-		panic(fmt.Errorf("Some route is not in Access or Ignore URL list"))
+		panic(fmt.Errorf("Some route is not in Access or Ignore URL list in pkg/model/admin.go"))
 	}
 
 	err = initializeAuditConfig(ctx, c.mongodb, c.auditService)
@@ -844,8 +846,8 @@ func routeCompareWithURL(h http.Handler) bool {
 		logging.GetLogger().Debug().Msg("{all-route} allRoute: " + string(bts))
 	}
 
-	accessURLs, _ := model.AllAccessURL()
-	ignoreAccessURLs, _ := model.AllIgnoreAccessURL()
+	accessURLs := model.AllAccessURL()
+	ignoreAccessURLs := model.AllIgnoreAccessURL()
 	compareURLs := append(accessURLs, ignoreAccessURLs...)
 
 	matchURLCount := 0
