@@ -29,16 +29,15 @@ yes | sudo yum install jq
 
 
 echo "Configuring insecure registry"
-echo $(cat /etc/docker/daemon.json | jq ". + {\"insecure-registries\": [\"192.168.1.152:5000\"]}") > /etc/docker/daemon.json
+echo $(cat /etc/docker/daemon.json | jq ". + {\"insecure-registries\": [\"192.168.1.203:5000\"]}") > /etc/docker/daemon.json
 sudo systemctl restart docker
 
 
 # Only on master, so disable -e for now
 set +e
 
-NodeRestriction,DefaultStorageClass,
-
-sed -i 's/NodeRestriction/NodeRestriction,DefaultStorageClass,MutatingAdmissionWebhook,ValidatingAdmissionWebhook/g' /etc/kubernetes/manifests/kube-apiserver.yaml
+echo "Enabling DefaultStorageClass"
+sed -i 's/NodeRestriction/NodeRestriction,DefaultStorageClass/g' /etc/kubernetes/manifests/kube-apiserver.yaml
 sudo systemctl restart kubelet.service
 
 set -e

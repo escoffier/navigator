@@ -81,13 +81,7 @@ var rootCmd = &cobra.Command{
 			Str("available-rules-folder", rulesOpts.AvailableRulesFolder).
 			Msg("Rules options")
 
-		microsegmentationOpts := flag.GetMicrosegmentationOpts(cmd)
-		logging.GetLogger().Info().
-			Str("host", microsegmentationOpts.Host).
-			Int("port", microsegmentationOpts.Port).
-			Msg("microsegmentation options")
-
-		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts, harborOpts, microsegmentationOpts)
+		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts, harborOpts)
 		if err != nil {
 			return err
 		}
@@ -120,7 +114,6 @@ func init() {
 	flag.AddElasticFlags(rootCmd)
 	flag.AddRulesFlags(rootCmd)
 	flag.AddHarborFlags(rootCmd)
-	flag.AddMicrosegmentationFlags(rootCmd)
 
 	flag.ConfigViper()
 }
