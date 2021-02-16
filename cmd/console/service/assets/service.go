@@ -84,9 +84,9 @@ func (cb *ServiceAssetsService) BeforWatchNewCluster(ctx context.Context, cluste
 	}
 }
 
-func (cb *ServiceAssetsService) GetServiceInfoOfPod(cluster, podName string) (services []string, namespace string, ok bool) {
+func (cb *ServiceAssetsService) GetServiceInfoOfPod(cluster, podUID string) (services []string, namespace string, ok bool) {
 	var sinfo *assets.ServiceInfo
-	sinfo, ok = cb.psCache.GetServiceInfoBy(cluster, podName)
+	sinfo, ok = cb.psCache.GetServiceInfoBy(cluster, podUID)
 	if !ok || sinfo == nil {
 		ok = false
 		return

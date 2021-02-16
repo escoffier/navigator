@@ -3,6 +3,9 @@ package microservice
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -10,8 +13,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"net/http"
-	"time"
 )
 
 type MicroService struct {
@@ -46,25 +47,56 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 			fmt.Errorf("couldn't find document: %w", err))
 		return nil, 0, err
 	}
-	serviceClice := make([]ServiceInfoDetails, 0)
-	servideNameMap := make(map[string]string, 0)
+	defer func() {
+		if err := cur.Close(mongoCtx); err != nil {
+			logging.GetLogger().Err(err).Msgf("close cursor error: %v", err)
+		}
+	}()
+
+	svcList := make([]*model.Service, 0, 50)
+	podMap := make(map[string]struct{}, len(svcList))
 	for cur.Next(mongoCtx) {
 		var service model.Service
 		err := cur.Decode(&service)
 		if err != nil {
-			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+			logging.GetLogger().Err(err).Msgf("mongo decode error: %v", err)
+			continue
 		}
-		key := service.Namespace + service.Name
-		_, ok := servideNameMap[key]
+
+		if service.Type == "byEndpoints" && len(service.PodUID) > 0 {
+			podMap[service.PodUID] = struct{}{}
+		}
+
+		svcList = append(svcList, &service)
+	}
+
+	// filter out the service elements that already having a byEndpoints element
+	filteredSvcList := make([]*model.Service, 0, len(svcList))
+	for _, svc := range svcList {
+		if svc.Type != "byEndpoints" && len(svc.PodUID) > 0 {
+			if _, exist := podMap[svc.PodUID]; exist {
+				continue
+			}
+		}
+		filteredSvcList = append(filteredSvcList, svc)
+	}
+
+	svcMap := make(map[string]struct{}, len(filteredSvcList)/2)
+	serviceSlice := make([]ServiceInfoDetails, 0, len(filteredSvcList)/2)
+	for _, service := range filteredSvcList {
+
+		key := fmt.Sprintf("%s-%s-%s", service.Cluster, service.Namespace, service.Name)
+		_, ok := svcMap[key]
 		if ok {
 			continue
 		} else {
-			servideNameMap[key] = key
+			svcMap[key] = struct{}{}
 		}
 		result := ServiceInfoDetails{
 			Namespace: service.Namespace,
 			Name:      service.Name,
 		}
+
 		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb, service.Namespace, service.Name)
 		result.ResName = ResNameSlice
 		if err != nil {
@@ -76,13 +108,14 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 		}
-		serviceClice = append(serviceClice, result)
+		serviceSlice = append(serviceSlice, result)
 	}
+
 	end := offset + limit
-	if int64(len(serviceClice)) <= offset+limit {
-		end = int64(len(serviceClice))
+	if int64(len(serviceSlice)) <= offset+limit {
+		end = int64(len(serviceSlice))
 	}
-	return serviceClice[offset:end], int64(len(serviceClice)), nil
+	return serviceSlice[offset:end], int64(len(serviceSlice)), nil
 }
 
 func (m *MicroService) GetMyFocusServiceInfo(ctx context.Context, offset, limit int64, username, search string) ([]ServiceInfoDetails, int64, error) {

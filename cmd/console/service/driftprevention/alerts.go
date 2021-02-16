@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
@@ -49,14 +48,7 @@ func (dp *DriftPreventionService) RaiseAlert(ctx context.Context, rawAlert *Drif
 	services := []string{"unknown"}
 	namespace := "unknown"
 	cluster := "default"
-	saService, saOk := assetsSvc.GetServiceAssetsService()
-	if saOk && saService.IsClusterSynced(cluster) {
-		svcs, ns, ok := saService.GetServiceInfoOfPod(cluster, rawAlert.Podname)
-		if ok {
-			services = svcs
-			namespace = ns
-		}
-	}
+	// by only podName we cannot get service.
 
 	for _, service := range services {
 		newAlert := model.Alert{

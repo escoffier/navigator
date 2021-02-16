@@ -97,17 +97,17 @@ func (c *PodServiceCache) getOrCreateData(cluster string) *sync.Map {
 	return m
 }
 
-func (c *PodServiceCache) GetServiceInfoBy(cluster, podName string) (*ServiceInfo, bool) {
+func (c *PodServiceCache) GetServiceInfoBy(cluster, podUID string) (*ServiceInfo, bool) {
 	m, exist := c.getData(cluster)
 	if !exist {
 		return nil, false
 	}
-	val, exist := m.Load(podName)
+	val, exist := m.Load(podUID)
 	if !exist {
 		return nil, false
 	}
 	sinfo := val.(*ServiceInfo)
-	logging.GetLogger().Info().Msgf("assets service cache GetServiceInfoBy %s and %s: %+v", cluster, podName, sinfo)
+	logging.GetLogger().Info().Msgf("assets service cache GetServiceInfoBy %s and %s: %+v", cluster, podUID, sinfo)
 	return sinfo, true
 }
 
@@ -155,21 +155,21 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 
 		for _, v := range oldEpt.Subsets {
 			for _, address := range v.Addresses {
-				podName := ""
+				podUID := ""
 				if address.TargetRef != nil {
-					podName = address.TargetRef.Name
+					podUID = string(address.TargetRef.UID)
 				}
-				if len(podName) == 0 {
+				if len(podUID) == 0 {
 					continue
 				}
-				o, exist := data.Load(podName)
+				o, exist := data.Load(podUID)
 				if exist {
 					atomic.AddInt32(&c.size, -1)
 					svcInfo := o.(*ServiceInfo)
-					logging.GetLogger().Info().Msgf("remove service %s in podname %s", oldEpt.Name, podName)
+					logging.GetLogger().Info().Msgf("remove service %s in podUID %s", oldEpt.Name, podUID)
 					size := svcInfo.removeService(oldEpt.Name)
 					if size == 0 {
-						data.Delete(podName)
+						data.Delete(podUID)
 					}
 				}
 			}
@@ -183,19 +183,19 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 		svcInfo.appendService(newEpt.Name)
 		for _, v := range newEpt.Subsets {
 			for _, address := range v.Addresses {
-				podName := ""
+				podUID := ""
 				if address.TargetRef != nil {
-					podName = address.TargetRef.Name
+					podUID = string(address.TargetRef.UID)
 				}
-				if len(podName) == 0 {
+				if len(podUID) == 0 {
 					continue
 				}
 				atomic.AddInt32(&c.size, 1)
-				logging.GetLogger().Info().Msgf("add service %s in podname %s", newEpt.Name, podName)
-				o, _ := data.LoadOrStore(podName, svcInfo)
+				logging.GetLogger().Info().Msgf("add service %s in podname %s", newEpt.Name, podUID)
+				o, _ := data.LoadOrStore(podUID, svcInfo)
 				sinfo := o.(*ServiceInfo)
 				if sinfo.source != sourceTypeEndpoints { // endpoints data is first priority to set, just to replace existing serviceinfo
-					data.Store(podName, svcInfo)
+					data.Store(podUID, svcInfo)
 				} else {
 					sinfo.appendService(newEpt.Name)
 				}
