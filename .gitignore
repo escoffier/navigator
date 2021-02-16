@@ -7,9 +7,6 @@ charts/
 target/
 ld-preload/
 .DS_Store
-venv/
-*.pyc
-settings.json
 
 ## Frontend related ignores
 
