@@ -343,7 +343,7 @@ func (api *api) responsibleSearch() http.HandlerFunc {
 // @Summary Add service alias
 // @POST
 // @Produce json
-// @Router  /api/v1/microservice//setServiceAlias
+// @Router  /api/v1/microservice/setServiceAlias
 func (api *api) responsibleSubmit() http.HandlerFunc {
 	type resp struct {
 		Status string `json:"status"`
