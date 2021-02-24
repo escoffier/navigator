@@ -5,7 +5,6 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -16,7 +15,7 @@ var (
 )
 
 // Watcher singleton
-func Watcher(sa *ServiceAssetsService, ov *onlinevulns.OnlineVulnerabilitiesService) (*assets.Watcher, error) {
+func Watcher(sa *ServiceAssetsService, ov *OnlineVulnsService) (*assets.Watcher, error) {
 	if sa == nil || ov == nil {
 		return nil, errors.New("arguments exist nil")
 	}

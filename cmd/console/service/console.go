@@ -24,7 +24,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -67,7 +67,7 @@ type Console struct {
 	cronService        *cron.CronService
 	ruleService        *rule.RuleService
 	clusterService     *cluster.ClusterService
-	onlineVulnsService *onlinevulns.OnlineVulnerabilitiesService
+	onlineVulnsService *assetsSvc.OnlineVulnsService
 	svcAssetsService   *assetsSvc.ServiceAssetsService
 	auditService       *audit.AuditService
 	cleanupService     *cleanup.CleanupService
@@ -137,7 +137,7 @@ func NewConsole(
 	}
 
 	// online vulns service
-	onlineVulnsSvc := onlinevulns.NewOnlineVulnerabilitiesService(mongodb)
+	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongodb)
 
 	// service assets service
 	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongodb)
@@ -180,6 +180,8 @@ func NewConsole(
 	//microService *microservice.MicroService,
 	//micro service
 	microService := microservice.NewMicroService(mongodb)
+
+	riskexplorer.InitAndGetRiskExplorerService(mongodb, onlineVulnsSvc)
 
 	return &Console{
 		server: &http.Server{

@@ -1,4 +1,4 @@
-package onlinevulns
+package assets
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 
 var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
 
-type OnlineVulnerabilitiesService struct {
+type OnlineVulnsService struct {
 	sync.RWMutex
 
 	mongoDB          *mongo.Database
@@ -37,19 +37,19 @@ type OnlineVulnerabilitiesService struct {
 
 type OnlineVulnsClusterCallback struct {
 	cluster          string
-	parent           *OnlineVulnerabilitiesService
+	parent           *OnlineVulnsService
 	refreshTimestamp int64
 }
 
-func NewOnlineVulnerabilitiesService(mongo *mongo.Database) *OnlineVulnerabilitiesService {
-	return &OnlineVulnerabilitiesService{
+func NewOnlineVulnsService(mongo *mongo.Database) *OnlineVulnsService {
+	return &OnlineVulnsService{
 		mongoDB:          mongo,
 		clusterCallbacks: make(map[string]*OnlineVulnsClusterCallback, 2),
 		syncedClusters:   make(map[string]struct{}),
 	}
 }
 
-func (cb *OnlineVulnerabilitiesService) ListCurrentOnlineVulnerabilities(ctx context.Context, cluster string, offset, limit int64) ([]OnlineVulnListItem, error) {
+func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Context, cluster string, offset, limit int64) ([]OnlineVulnListItem, error) {
 	refreshTimestamp, ok := cb.getClusterRefreshTimestamp(cluster)
 	if !ok {
 		refreshTimestamp = defaultRefreshTime
@@ -92,31 +92,43 @@ func (cb *OnlineVulnerabilitiesService) ListCurrentOnlineVulnerabilities(ctx con
 			continue
 		}
 
-		ownerStr := fmt.Sprintf(
-			"%s/%s/%s",
-			container.Namespace,
-			container.PodOwnerKind,
-			container.PodOwnerName,
-		)
-
-		if _, ok := onlineVulns[ownerStr]; !ok {
-			// TODO do we care about sensitive filenames in this
-			onlineVulns[ownerStr] = &OnlineVulnListItem{
-				Namespace:            container.Namespace,
-				ResourceKind:         container.PodOwnerKind,
-				ResourceName:         container.PodOwnerName,
-				RunningContainersSet: make(map[string]bool),
-				RunningPodsSet:       make(map[string]bool),
-				VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),
+		services := []string{container.PodOwnerName}
+		svcService, svcOk := GetServiceAssetsService()
+		if svcOk {
+			ss, _, exist := svcService.GetServiceInfoOfPod(cluster, container.PodName)
+			if exist && len(services) > 0 {
+				services = ss
 			}
 		}
-		vulns := container.Vulnerabilities
 
-		containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
-		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
-		onlineVulns[ownerStr].RunningPodsSet[container.PodName] = true
-		for _, vuln := range vulns {
-			onlineVulns[ownerStr].VulnerabilitiesSet[vuln.ID] = vuln
+		for _, service := range services {
+			ownerStr := fmt.Sprintf(
+				"%s/%s/%s",
+				container.Namespace,
+				container.PodOwnerKind,
+				service,
+			)
+
+			if _, ok := onlineVulns[ownerStr]; !ok {
+				// TODO do we care about sensitive filenames in this
+				onlineVulns[ownerStr] = &OnlineVulnListItem{
+					Namespace:            container.Namespace,
+					ResourceKind:         container.PodOwnerKind,
+					ResourceName:         container.PodOwnerName,
+					ServiceName:          service,
+					RunningContainersSet: make(map[string]bool),
+					RunningPodsSet:       make(map[string]bool),
+					VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),
+				}
+			}
+			vulns := container.Vulnerabilities
+
+			containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
+			onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
+			onlineVulns[ownerStr].RunningPodsSet[container.PodName] = true
+			for _, vuln := range vulns {
+				onlineVulns[ownerStr].VulnerabilitiesSet[vuln.ID] = vuln
+			}
 		}
 	}
 
@@ -172,8 +184,7 @@ func (cb *OnlineVulnerabilitiesService) ListCurrentOnlineVulnerabilities(ctx con
 	return onlineVulnsList, nil
 }
 
-func (cb *OnlineVulnerabilitiesService) GetOnlineVulnerabilityDetails(ctx context.Context, cluster, namespace, resourceKind, resourceName string) (*OnlineVulnDetails, error) {
-
+func (cb *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, cluster, namespace, resourceKind, resourceName string) (*OnlineVulnDetails, error) {
 	filter := bson.M{
 		"$and": []bson.M{
 			{"isDeleted": false},
@@ -185,7 +196,7 @@ func (cb *OnlineVulnerabilitiesService) GetOnlineVulnerabilityDetails(ctx contex
 
 	if resourceKind == "service" {
 		//get pod name
-		podNameSlice, err := assets.GetPodNameFromService(cb.mongoDB, namespace, resourceName)
+		podNameSlice, err := assets.GetPodNamesFromService(cb.mongoDB, cluster, namespace, resourceName)
 		if err != nil {
 			return nil, apperror.NewMongoError(http.StatusInternalServerError,
 				fmt.Errorf("Couldn't get podName from service info : %w", err))
@@ -289,7 +300,7 @@ func (cb *OnlineVulnerabilitiesService) GetOnlineVulnerabilityDetails(ctx contex
 	return &ovDetails, nil
 }
 
-func (cb *OnlineVulnerabilitiesService) sortVulnListItemByOverallSeverity(onlineVulnsList []OnlineVulnListItem, asc bool) {
+func (cb *OnlineVulnsService) sortVulnListItemByOverallSeverity(onlineVulnsList []OnlineVulnListItem, asc bool) {
 	sort.Slice(onlineVulnsList, func(i, j int) bool {
 		if !asc {
 			i, j = j, i
@@ -297,14 +308,14 @@ func (cb *OnlineVulnerabilitiesService) sortVulnListItemByOverallSeverity(online
 		return onlineVulnsList[i].OverallSeverity < onlineVulnsList[j].OverallSeverity
 	})
 }
-func (cb *OnlineVulnerabilitiesService) setClusterDataSynced(cluster string) {
+func (cb *OnlineVulnsService) setClusterDataSynced(cluster string) {
 	cb.Lock()
 	defer cb.Unlock()
 
 	cb.syncedClusters[cluster] = struct{}{}
 }
 
-func (cb *OnlineVulnerabilitiesService) getClusterRefreshTimestamp(clusterName string) (int64, bool) {
+func (cb *OnlineVulnsService) getClusterRefreshTimestamp(clusterName string) (int64, bool) {
 	cb.RLock()
 	defer cb.RUnlock()
 
@@ -317,7 +328,7 @@ func (cb *OnlineVulnerabilitiesService) getClusterRefreshTimestamp(clusterName s
 }
 
 // BeforWatchNewCluster called before watch events
-func (cb *OnlineVulnerabilitiesService) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
+func (cb *OnlineVulnsService) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
 	logging.GetLogger().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
 
 	ccb := &OnlineVulnsClusterCallback{
@@ -333,7 +344,7 @@ func (cb *OnlineVulnerabilitiesService) BeforWatchNewCluster(ctx context.Context
 }
 
 // Name returns the name
-func (cb *OnlineVulnerabilitiesService) Name() string {
+func (cb *OnlineVulnsService) Name() string {
 	return "onlineVulns"
 }
 

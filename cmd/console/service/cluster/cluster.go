@@ -9,7 +9,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/onlinevulns"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -25,7 +24,7 @@ import (
 
 type ClusterService struct {
 	mongodb        *mongo.Database
-	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService
+	onlineVulnsSvc *assetsSvc.OnlineVulnsService
 	cleanupService *cleanup.CleanupService
 	clustersCache  *rcache.ClustersCache
 }
@@ -33,7 +32,7 @@ type ClusterService struct {
 func NewClusterService(
 	ctx context.Context,
 	mongodb *mongo.Database,
-	onlineVulnsSvc *onlinevulns.OnlineVulnerabilitiesService,
+	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	cleanupService *cleanup.CleanupService,
 	redisClient *redis.Client,
 ) *ClusterService {

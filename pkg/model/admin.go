@@ -41,6 +41,7 @@ const (
 	ACCESS_CLEANUP            = "cleanup"
 	ACCESS_SUPER_ADMIN        = "super-admin"
 	ACCESS_MICROSERVICE       = "microservice"
+	ACCESS_RISKEXPLORER       = "risk-explorer"
 
 	ACCESS_COMPLIANCE_ZH         = "安全合规"
 	ACCESS_SETTING_ZH            = "设置"
@@ -52,6 +53,7 @@ const (
 	ACCESS_CLEANUP_ZH            = "清理"
 	ACCESS_SUPER_ADMIN_ZH        = "超级管理员"
 	ACCESS_MICROSERVICE_ZH       = "微服务安全"
+	ACCESS_RISKEXPLORER_ZH       = "风险探索"
 
 	URL_SETTING            = "/api/v1/config"
 	URL_IMAGE_VULNERBILTY  = "/api/v1/scanner"
@@ -63,6 +65,7 @@ const (
 	URL_CLEANUP            = "/api/v1/cleanup"
 	URL_SUPER_ADMIN        = "/api/v1/superAdmin"
 	URL_MICROSERVICE       = "/api/v1/microservice"
+	URL_RISKEXPLORER       = "/api/v1/riskExplorer"
 
 	IGNORE_ACCESS_URL_AUTH            = "/api/v1/auth"
 	IGNORE_ACCESS_URL_USER            = "/api/v1/user"
@@ -205,6 +208,7 @@ func AllAccessURL() ([]string, map[string]struct{}) {
 			URL_AUDIT,
 			URL_CLEANUP,
 			URL_MICROSERVICE,
+			URL_RISKEXPLORER,
 		},
 		map[string]struct{}{
 			URL_COMPLIANCE:         {},
@@ -216,6 +220,7 @@ func AllAccessURL() ([]string, map[string]struct{}) {
 			URL_ALERTS:             {},
 			URL_AUDIT:              {},
 			URL_CLEANUP:            {},
+			URL_RISKEXPLORER:       {},
 		}
 }
 
@@ -251,12 +256,16 @@ func DefaultRoleAccessRela() []interface{} {
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_ALERTS))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_AUDIT))
 	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_CLEANUP))
+	all = append(all, NewRelationRoleAccess(ROLE_SUPERADMIN, ACCESS_RISKEXPLORER))
 
 	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_COMPLIANCE))
 	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_SETTING))
 	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_RUNTIME_DETECTION))
 	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_COMPLIANCE))
 	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_ONLINE_VULNERBILTY))
+	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_MICROSERVICE))
+	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_RISKEXPLORER))
+	all = append(all, NewRelationRoleAccess(ROLE_ADMIN, ACCESS_ALERTS))
 
 	return all
 }

@@ -1,4 +1,4 @@
-package onlinevulns
+package assets
 
 import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -9,6 +9,7 @@ type OnlineVulnListItem struct {
 	Namespace         string                    `json:"namespace"`
 	ResourceKind      string                    `json:"resourceKind"`
 	ResourceName      string                    `json:"resourceName"`
+	ServiceName       string                    `json:"serviceName"`
 	TopVulns          []model.VulnerabilityInfo `json:"topVulnerabilities"`
 	OverallSeverity   string                    `json:"overallSeverity"`
 	RunningContainers []string                  `json:"runningContainers"`

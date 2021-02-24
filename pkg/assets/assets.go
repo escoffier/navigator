@@ -382,11 +382,12 @@ func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest st
 	return scanTask, wasScanned, nil
 }
 
-func GetPodNameFromService(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+func GetPodNamesFromService(mongodb *mongo.Database, cluster, namespace, snvName string) ([]string, error) {
 	filter := bson.M{
 		"$and": []bson.M{
 			{"namespace": namespace},
 			{"name": snvName},
+			{"cluster": cluster},
 		},
 	}
 	// from mongo
@@ -402,16 +403,22 @@ func GetPodNameFromService(mongodb *mongo.Database, namespace, snvName string) (
 			fmt.Errorf("Couldn't find document: %w", err))
 		return nil, err
 	}
-	serviceClice := make([]string, 0)
+	podsMap := make(map[string]struct{}, 2)
 	for cur.Next(mongoCtx) {
 		var service model.Service
 		err := cur.Decode(&service)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
-		serviceClice = append(serviceClice, service.PodName)
+		podsMap[service.PodName] = struct{}{}
 	}
-	return serviceClice, nil
+	podsSlice := make([]string, len(podsMap))
+	i := 0
+	for podName := range podsMap {
+		podsSlice[i] = podName
+		i++
+	}
+	return podsSlice, nil
 }
 
 func GetResNameFromServiceRelation(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
