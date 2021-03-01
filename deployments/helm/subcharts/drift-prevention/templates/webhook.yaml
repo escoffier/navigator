@@ -22,7 +22,8 @@ webhooks:
         apiGroups: [ "" ]
         apiVersions: [ "v1" ]
         resources: [ "pods" ]
-    failurePolicy: Fail
+    failurePolicy: Ignore
+    timeoutSeconds: 10
     namespaceSelector:
       matchExpressions:
         - key: "name"
