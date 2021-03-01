@@ -8,6 +8,9 @@ spec:
     spec:
       completions: 1
       template:
+        metadata:
+          labels:
+            tensorsec.driftprevent: "prevent"
         spec:
           containers:
             - name: faulty
