@@ -192,6 +192,7 @@ func AllAccess() []interface{} {
 	all = append(all, NewAccessBson(ACCESS_ALERTS, ACCESS_ALERTS_ZH, URL_ALERTS))
 	all = append(all, NewAccessBson(ACCESS_AUDIT, ACCESS_AUDIT_ZH, URL_AUDIT))
 	all = append(all, NewAccessBson(ACCESS_CLEANUP, ACCESS_CLEANUP_ZH, URL_CLEANUP))
+	all = append(all, NewAccessBson(ACCESS_RISKEXPLORER, ACCESS_RISKEXPLORER, URL_RISKEXPLORER))
 
 	return all
 }

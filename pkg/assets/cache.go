@@ -107,7 +107,6 @@ func (c *PodServiceCache) GetServiceInfoBy(cluster, podUID string) (*ServiceInfo
 		return nil, false
 	}
 	sinfo := val.(*ServiceInfo)
-	logging.GetLogger().Info().Msgf("assets service cache GetServiceInfoBy %s and %s: %+v", cluster, podUID, sinfo)
 	return sinfo, true
 }
 
@@ -191,7 +190,6 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 					continue
 				}
 				atomic.AddInt32(&c.size, 1)
-				logging.GetLogger().Info().Msgf("add service %s in podname %s", newEpt.Name, podUID)
 				o, _ := data.LoadOrStore(podUID, svcInfo)
 				sinfo := o.(*ServiceInfo)
 				if sinfo.source != sourceTypeEndpoints { // endpoints data is first priority to set, just to replace existing serviceinfo
