@@ -263,7 +263,7 @@ func (m *MicroService) GetServiceInfo(ctx context.Context, namespace, svcname, u
 	}
 
 	//service edit
-	if username == "admin" || username == "SuperAdminUser" {
+	if username == "admin" || username == "SuperAdmin" {
 		result.ServiceEdit = true
 	} else {
 		result.ServiceEdit = false

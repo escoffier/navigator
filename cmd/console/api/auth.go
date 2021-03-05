@@ -11,13 +11,11 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/patrickmn/go-cache"
-	"go.mongodb.org/mongo-driver/bson"
-	"golang.org/x/crypto/bcrypt"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 const JWT_KEY_USERNAME = "user_name"
@@ -114,29 +112,18 @@ func (api *api) login() http.HandlerFunc {
 			ok       bool
 		)
 
-		// compare the password, defaults to admin:admin till Mongo integration
-		hashed, _ := bcrypt.GenerateFromPassword([]byte("admin"), 8)
-		errUsername := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Username))
-		errPassword := bcrypt.CompareHashAndPassword(hashed, []byte(creds.Password))
-
-		if errUsername == nil && errPassword == nil {
-			findUser = &model.User{
-				UserName: creds.Username,
-			}
-		} else {
-			// login use mongo, the username and password is Plaintext
-			ok, findUser, err = loginCheckByMongo(api, creds.Username, creds.Password)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("mongo err: %w", err)))
-				return
-			} else if !ok {
-				RespAndLog(w, r.Context(),
-					NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Couldn't find document: %w", err)))
-				return
-			}
+		// login use mongo, the username and password is Plaintext
+		ok, findUser, err = loginCheckByMongo(api, creds.Username, creds.Password)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("mongo err: %w", err)))
+			return
+		} else if !ok {
+			RespAndLog(w, r.Context(),
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't find document: %w", err)))
+			return
 		}
 
 		// matched password

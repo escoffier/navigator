@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	DEFAULT_SUPER_ADMIN_USER = "SuperAdminUser"
+	DEFAULT_SUPER_ADMIN_USER = "SuperAdmin"
 
 	ROLE_SUPERADMIN = "super-admin"
 	ROLE_ADMIN      = "admin"
@@ -160,7 +160,7 @@ func NewRelationRoleAccess(roleName, accessName string) bson.M {
 }
 
 func SuperAdminBson() bson.M {
-	return NewUserBson(DEFAULT_SUPER_ADMIN_USER, "12345", "超级管理员")
+	return NewUserBson(DEFAULT_SUPER_ADMIN_USER, "9a39820591e511160e9f993d30d92b19", "超级管理员")
 }
 
 func SuperAdminRela() bson.M {
