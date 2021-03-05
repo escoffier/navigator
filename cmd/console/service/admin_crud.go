@@ -13,6 +13,7 @@ import (
 )
 
 func mongoAdminCheck(ctx context.Context, mongodb *mongo.Database) error {
+	checkSuperAdmin(ctx, mongodb)
 	ok, err := checkRBACCollection(ctx, mongodb)
 	if err != nil {
 		return err
@@ -85,6 +86,25 @@ func checkRBACCollection(ctx context.Context, mongodb *mongo.Database) (bool, er
 	}
 
 	return true, nil
+}
+
+func checkSuperAdmin(ctx context.Context, mongodb *mongo.Database) (err error) {
+	find := bson.M{
+		"user_name": model.DEFAULT_SUPER_ADMIN_USER,
+	}
+	res := mongodb.Collection(model.UserCollection).FindOne(ctx, find)
+	if res.Err() == mongo.ErrNoDocuments {
+		superAdmin := model.SuperAdminBson()
+		_, err := mongodb.Collection(model.UserCollection).InsertOne(ctx, superAdmin)
+		if err != nil {
+			return err
+		}
+		relpSA := model.SuperAdminRela()
+		_, err = mongodb.Collection(model.RelaUserRoleCollection).InsertOne(ctx, relpSA)
+
+		return err
+	}
+	return nil
 }
 
 func setupRBAC(ctx context.Context, mongodb *mongo.Database) (err error) {

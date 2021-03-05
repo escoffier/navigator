@@ -13,9 +13,9 @@ import (
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
@@ -233,12 +233,6 @@ func jwtAccessCheck(mongodb *mongo.Database, userCache *cache.Cache) func(http.H
 				RespAndLog(w, r.Context(),
 					NewSessionExpired(http.StatusUnauthorized,
 						fmt.Errorf("User not in cache")))
-				return
-			}
-
-			if username == "admin" {
-				ctx := context.WithValue(r.Context(), userKey, userPtr)
-				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
