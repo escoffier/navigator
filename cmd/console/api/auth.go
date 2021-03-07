@@ -119,7 +119,7 @@ func (api *api) login() http.HandlerFunc {
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("mongo err: %w", err)))
 			return
-		} else if !ok {
+		} else if !ok || findUser == nil {
 			RespAndLog(w, r.Context(),
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Couldn't find document: %w", err)))
@@ -137,7 +137,7 @@ func (api *api) login() http.HandlerFunc {
 		api.userCache.Set(creds.Username, findUser, cache.DefaultExpiration)
 
 		response.Ok(w, response.WithItem(LoginResponse{
-			CurrentAuthority: "admin",
+			CurrentAuthority: findUser.Name,
 			Status:           "ok",
 			Type:             "account",
 			Token:            tokenString,
