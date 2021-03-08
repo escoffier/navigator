@@ -137,7 +137,7 @@ func (api *api) login() http.HandlerFunc {
 		api.userCache.Set(creds.Username, findUser, cache.DefaultExpiration)
 
 		response.Ok(w, response.WithItem(LoginResponse{
-			CurrentAuthority: findUser.Name,
+			CurrentAuthority: findUser.UserName,
 			Status:           "ok",
 			Type:             "account",
 			Token:            tokenString,
