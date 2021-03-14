@@ -153,8 +153,6 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 	_, err := mongodb.Collection(model.AssetsContainersCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
-	} else {
-		logging.GetLogger().Info().Msgf("update onlinevulns assets: %+v", assetContainer)
 	}
 
 }
@@ -230,6 +228,65 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 		}
 		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
 		_, insertErr := mongodb.Collection(model.ServiceCollection.String()).InsertOne(mongoCtx, assetService)
+		if insertErr != nil {
+			logging.GetLogger().Error().Err(insertErr).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to insert service to mongo")
+			return insertErr
+		}
+
+	}
+	return nil
+}
+
+func OnServiceEvent(mongodb *mongo.Database, kubeCluster string, newSvc, oldSvc *corev1.Service, action AssetsAction) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer mongoCtxCancel()
+
+	if action == ActionDelete {
+		if oldSvc == nil {
+			return errors.New("no old svc given")
+		}
+
+		filter := bson.M{
+			"$and": []bson.M{
+				{"cluster": kubeCluster},
+				{"namespace": oldSvc.Namespace},
+				{"serviceName": oldSvc.Name},
+			},
+		}
+		_, err := mongodb.Collection(model.TensorServiceCollection.String()).DeleteMany(mongoCtx, filter)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("delete service collection error for pod event")
+		}
+	}
+	if action == ActionUpdate || action == ActionAdd {
+		if newSvc == nil {
+			return errors.New("no new svc given")
+		}
+
+		filter := bson.M{
+			"$and": []bson.M{
+				{"cluster": kubeCluster},
+				{"namespace": newSvc.Namespace},
+				{"serviceName": newSvc.Name},
+			},
+		}
+
+		assetService := model.TensorService{
+			Namespace:   newSvc.Namespace,
+			ServiceName: newSvc.Name,
+			Cluster:     kubeCluster,
+			Selectors:   newSvc.Spec.Selector,
+			UpdatedAt:   time.Now().Unix(),
+		}
+		if action == ActionAdd {
+			assetService.CreatedAt = time.Now().Unix()
+		}
+		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
+
+		update := bson.M{"$set": assetService}
+		opts := options.Update().SetUpsert(true)
+		_, insertErr := mongodb.Collection(model.TensorServiceCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+
 		if insertErr != nil {
 			logging.GetLogger().Error().Err(insertErr).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to insert service to mongo")
 			return insertErr

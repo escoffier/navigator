@@ -118,6 +118,11 @@ func (cb *ServiceAssetsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, a
 	}
 	return nil
 }
+func (cb *ServiceAssetsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
+	// update mongo storage if there are no service from endpoints.
+	err := assets.OnServiceEvent(cb.parent.mongoDB, cb.cluster, newSvc, oldEvc, action)
+	return err
+}
 func (cb *ServiceAssetsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
 	// update mongo storage
 	err := assets.OnEndpointsEvent(cb.parent.mongoDB, cb.cluster, newEpt, oldEpt, action)
@@ -150,6 +155,17 @@ func (cb *ServiceAssetsClusterCallback) expireInactiveServiceEndpoints(ctx conte
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("delete service collections error for cluster %s", cb.cluster)
 	}
+
+	filter = bson.M{
+		"cluster":   cb.cluster,
+		"updatedAt": bson.M{"$lt": cb.refreshTime()},
+	}
+
+	_, err = cb.parent.mongoDB.Collection(model.TensorServiceCollection.String()).DeleteMany(ctx, filter)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("delete Tensor service collections error for cluster %s", cb.cluster)
+	}
+
 }
 
 func (cb *ServiceAssetsClusterCallback) Name() string {

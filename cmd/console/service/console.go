@@ -724,6 +724,30 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		},
 	}
 
+	neededIndexesPerCollection[model.TensorServiceCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"cluster": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"serviceName": 1,
+			}, Options: nil,
+		},
+
+		{
+			Keys: bson.M{
+				"updatedAt": 1,
+			}, Options: nil,
+		},
+	}
+
 	for collectionName, indexModel := range neededIndexesPerCollection {
 		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
 

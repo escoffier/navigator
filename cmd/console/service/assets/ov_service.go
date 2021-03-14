@@ -384,6 +384,9 @@ func (cb *OnlineVulnsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.End
 	// ignore endpoint events
 	return nil
 }
+func (cb *OnlineVulnsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
+	return nil
+}
 
 func (cb *OnlineVulnsClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
 	if dataSynced {
