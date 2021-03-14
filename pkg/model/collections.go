@@ -22,6 +22,7 @@ const (
 	ServiceRelationCollection
 	ServiceAliasCollection
 	HarborProjectConfigCollection
+	TensorServiceCollection
 )
 
 func GetCollectionNames() []string {
@@ -45,6 +46,7 @@ func GetCollectionNames() []string {
 		"serviceRelation",
 		"serviceAlias",
 		"harborProjectConfig",
+		"tensor-service",
 	}
 }
 

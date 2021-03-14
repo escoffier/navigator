@@ -63,3 +63,25 @@ type ServiceAlias struct {
 	Name          string `json:"name" bson:"name"`
 	AliasName     string `json:"aliasName,omitempty" bson:"aliasName,omitempty"`
 }
+
+type TensorService struct {
+	TensorServiceName string `json:"tensorServiceName" bson:"tensorServiceName"`
+	Namespace         string `json:"namespace" bson:"namespace"`
+	Cluster           string `json:"cluster" bson:"cluster"`
+	OwnerReferences   []struct {
+		UID  string `json:"uid" bson:"uid"`
+		Name string `json:"name" bson:"name"`
+		Kind string `json:"kind" bson:"kind"`
+	} `json:"ownerReferences" bson:"ownerReferences"`
+	Selectors   map[string]string `json:"selectors" bson:"selectors"`
+	ServiceName string            `json:"serviceName" bson:"serviceName"`
+	ServiceUID  string            `json:"serviceUID" bson:"serviceUID"`
+	Ports       []struct {
+		Port       int    `json:"port" bson:"port"`
+		Protocol   string `json:"protocol" bson:"protocol"`
+		TargetPort int    `json:"targetPort" bson:"targetPort"`
+	} `json:"ports" bson:"ports"`
+	ServiceType string `json:"serviceType" bson:"serviceType"`
+	CreatedAt   int64  `json:"createdAt" bson:"createdAt"`
+	UpdatedAt   int64  `json:"updatedAt" bson:"updatedAt"`
+}

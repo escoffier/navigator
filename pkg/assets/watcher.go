@@ -37,6 +37,7 @@ type AssetsCallback interface {
 type ClusterCallback interface {
 	OnPodEvent(newPod, oldPod *corev1.Pod, action AssetsAction) error
 	OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error
+	OnServiceEvent(newSvc, oldEvc *corev1.Service, action AssetsAction) error
 	AfterDataSynced(ctx context.Context, dataSynced bool)
 	Name() string
 }
@@ -120,7 +121,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				}
 				for _, cb := range callbacks {
 					evtErr := cb.OnPodEvent(pod, nil, ActionAdd)
-					logging.GetLogger().Info().Msgf("cluster %s On pod event (add) for callback %s: %+v", clusterName, cb.Name(), pod)
 					if evtErr != nil {
 						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
 					}
@@ -211,14 +211,63 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			},
 		})
 
+		servicesInformer := informerFactory.Core().V1().Services().Informer()
+		servicesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newSvc, ok := newObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnServiceEvent(newSvc, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldSvc, ok := oldObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnServiceEvent(nil, oldSvc, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newSvc, ok := newObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				oldSvc, ok := oldObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+
+				for _, cb := range callbacks {
+					eptErr := cb.OnServiceEvent(newSvc, oldSvc, ActionUpdate)
+					if eptErr != nil {
+						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+
 		stopChan = make(chan struct{})
 		w.putClusterStopChan(clusterName, stopChan)
 
 		informerFactory.Start(stopChan)
 
 		// async wait for cache sync
-		go func(cname string, ifactory informers.SharedInformerFactory, podInformer, eptInformer *cache.SharedIndexInformer, stopChan chan struct{}) {
-			var podSynced, eptSynced bool
+		go func(cname string, ifactory informers.SharedInformerFactory, podInformer, eptInformer, svcInformer *cache.SharedIndexInformer, stopChan chan struct{}) {
+			var podSynced, eptSynced, svcSynced bool
 			defer func() {
 				if r := recover(); r != nil {
 					logging.GetLogger().Error().Msgf("panic when wait for cluster %s informers cache synced: %v. stack: %s", cname, r, debug.Stack())
@@ -226,20 +275,25 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 				syncChan <- informerSyncMsg{
 					ClusterName: cname,
-					Errored:     !podSynced || !eptSynced,
+					Errored:     !podSynced || !eptSynced || !svcSynced,
 				}
 			}()
 
 			syncedStatus := ifactory.WaitForCacheSync(stopChan)
 			var podType *corev1.Pod
 			var eptType *corev1.Endpoints
+			var svcType *corev1.Service
 			podSynced = syncedStatus[reflect.TypeOf(podType)]
 			eptSynced = syncedStatus[reflect.TypeOf(eptType)]
+			svcSynced = syncedStatus[reflect.TypeOf(svcType)]
 			if !podSynced {
 				logging.GetLogger().Warn().Msgf("Cluster %s pod synced failed", cname)
 			}
 			if !eptSynced {
 				logging.GetLogger().Warn().Msgf("Cluster %s Endpoints synced failed", cname)
+			}
+			if !svcSynced {
+				logging.GetLogger().Warn().Msgf("Cluster %s service synced failed", cname)
 			}
 
 			for {
@@ -257,7 +311,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				cb.AfterDataSynced(ctx, podSynced && eptSynced)
 			}
 
-		}(clusterName, informerFactory, &podInformer, &endPointsInformer, stopChan)
+		}(clusterName, informerFactory, &podInformer, &endPointsInformer, &servicesInformer, stopChan)
 
 		logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterName))
 
