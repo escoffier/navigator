@@ -169,7 +169,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					return
 				}
 				for _, cb := range callbacks {
-					logging.GetLogger().Info().Msgf("cluster %s On endpoints event (add) for callback %s: %+v", clusterName, ept)
 					eptErr := cb.OnEndPointEvent(ept, nil, ActionAdd)
 					if eptErr != nil {
 						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))

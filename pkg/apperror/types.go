@@ -494,6 +494,22 @@ func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suber
 	}
 }
 
+func HarborGetProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return HarborScanAllInProgressError{
+		detailedError{
+			err:       err,
+			English:   "Harbor get  progress error",
+			Zhongwen:  "Harbor 获取project 错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 

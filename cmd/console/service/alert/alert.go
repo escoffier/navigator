@@ -115,7 +115,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		s.lastPollTimestamp = lastPollTimestampTo
 	}()
 
-	logging.GetLogger().Info().Str("fromTimestamp", lastPollTimestampFrom.Format(time.RFC3339)).Str("timetsampTo", lastPollTimestampTo.Format(time.RFC3339)).Msg("Searching for new detections")
 	var buf bytes.Buffer
 	query := fmt.Sprintf(
 		`{
@@ -157,7 +156,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 	for _, rule := range rules {
 		if rule.Enabled {
 			enabledRules = append(enabledRules, rule)
-			logging.GetLogger().Info().Str("rule", rule.NameEn).Msg("Enabled rule")
 		}
 	}
 
