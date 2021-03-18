@@ -38,6 +38,7 @@ func (s *Scapper) RunHarborCheck(ctx context.Context, harborClient *harbor.Harbo
 			continue
 		}
 		harborCfg.Report[v.Name] = projectCfg
+		time.Sleep(time.Millisecond * 200)
 	}
 
 	harborCfg.FinishedAt = time.Now().Unix()

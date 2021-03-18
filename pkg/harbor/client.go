@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -289,57 +290,11 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 	projectName := projectNameRepoName[0]
 	repoName := projectNameRepoName[1]
 	repoName = strings.ReplaceAll(repoName, "/", "%2F")
-
-	url := fmt.Sprintf("%s/%s/projects", h.address, h.apiVersionString)
-	req, err := http.NewRequest("GET", url, nil)
+	//?name=a
+	//url := fmt.Sprintf("%s/%s/projects?name=%s", h.address, h.apiVersionString, projectName)
+	respItems, _, err := h.GetHarborProject(ctx)
 	if err != nil {
-		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
-	}
-	req.SetBasicAuth(h.username, h.password)
-
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		httpClient.Transport = tr
-	}
-
-	resp, err := httpClient.Do(req.WithContext(ctx))
-	if err != nil {
-		return "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = json.NewDecoder(teeReader).Decode(&errorResp)
-		if err != nil {
-			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
-			return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
-		}
-
-		return "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
-	}
-
-	// Relevant response bit:
-	// [
-	//   {
-	//     "name": "library",
-	//     "project_id": 1,
-	//   },
-	// ]
-	type respItemT struct {
-		Name      string `json:"name"`
-		ProjectID int    `json:"project_id"`
-	}
-
-	var respItems []respItemT
-	err = json.NewDecoder(resp.Body).Decode(&respItems)
-	if err != nil {
-		return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+		return "", HarborGetProgressError(http.StatusInternalServerError, fmt.Errorf("Get project in Harbor error"))
 	}
 
 	for _, item := range respItems {
@@ -358,7 +313,7 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 		Str("repoName", fmt.Sprintf("%+v", repoName)).
 		Msgf("Didn't match project")
 
-	return "", NewHarborForbiddenError(http.StatusForbidden, fmt.Errorf("Didn't find such project in Harbor, make sure user has Admin pemissions"))
+	return "", NewHarborForbiddenError(http.StatusInternalServerError, fmt.Errorf("Didn't find such project in Harbor, get item error"))
 }
 
 func (h HarborRESTClient) GetHarborFullScanConfigURL() string {
@@ -475,44 +430,58 @@ func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context,
 
 func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, string, error) {
 
-	url := fmt.Sprintf("%s/%s/projects", h.address, h.apiVersionString)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
-	}
-	req.SetBasicAuth(h.username, h.password)
-
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		httpClient.Transport = tr
-	}
-
-	resp, err := httpClient.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = json.NewDecoder(teeReader).Decode(&errorResp)
+	var (
+		respItems []respItemT
+		page      = 1
+		loop      = true
+	)
+	for loop {
+		url := fmt.Sprintf("%s/%s/projects?page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString)
+		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
-			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
+		}
+		req.SetBasicAuth(h.username, h.password)
+
+		httpClient := http.Client{}
+		if h.skipTLSVerify {
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			httpClient.Transport = tr
 		}
 
-		return nil, "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		resp, err := httpClient.Do(req.WithContext(ctx))
+		if err != nil {
+			return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
+		}
+		defer util.CloseBodyWithLog(resp.Body)
+
+		if resp.StatusCode != http.StatusOK {
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = json.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+				return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			}
+
+			return nil, "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		}
+		var respItemsTmp []respItemT
+		err = json.NewDecoder(resp.Body).Decode(&respItemsTmp)
+		if err != nil {
+			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+		}
+
+		respItems = append(respItems, respItemsTmp...)
+		if len(respItemsTmp) < 100 {
+			loop = false
+		} else {
+			page++
+		}
 	}
 
-	var respItems []respItemT
-	err = json.NewDecoder(resp.Body).Decode(&respItems)
-	if err != nil {
-		return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
-	}
 	return respItems, h.address, nil
 }

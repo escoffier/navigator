@@ -620,7 +620,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 // @Router /api/v1/scap/harborScan [post]
 func (api *api) harborScan() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 		defer cancel()
 
 		checkUUID, err := api.scapper.RunHarborCheck(ctx, api.harborClient)

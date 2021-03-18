@@ -95,7 +95,6 @@ func (c *CacheHelper) bgSync() {
 	for {
 		select {
 		case <-time.After(CacheRefreshInterval):
-			logging.GetLogger().Debug().Str("name", c.keyPrefix).Msg("Starting pagination cache sync")
 			err := c.CheckVersionAndSyncData()
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Str("name", c.keyPrefix).Msg("Failed pagination cache sync")
