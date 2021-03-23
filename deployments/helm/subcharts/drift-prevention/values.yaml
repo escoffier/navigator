@@ -1,5 +1,5 @@
 console:
-  addr: tensorsec-console.tensorsec.svc.cluster.local
+  addr: tensorsec-console.tensorsec-test.svc.cluster.local
   port: "8889"
 
 nameOverride: "drift-prevention"

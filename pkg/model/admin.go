@@ -73,6 +73,8 @@ const (
 	IGNORE_ACCESS_URL_SWAGGER         = "/swagger"
 	IGNORE_ACCESS_URL_HARBOR          = "/harbor"
 	IGNORE_ACCESS_URL_DRIFTPREVENTION = "/api/v1/driftPrevention"
+	IGNORE_ACCESS_URL_SECCOMP         = "/api/v1/seccomp"
+	IGNORE_ACCESS_URL_FALCO           = "/api/v1/falco"
 )
 
 type User struct {
@@ -233,6 +235,8 @@ func AllIgnoreAccessURL() ([]string, map[string]struct{}) {
 			IGNORE_ACCESS_URL_SWAGGER,
 			IGNORE_ACCESS_URL_HARBOR,
 			IGNORE_ACCESS_URL_DRIFTPREVENTION,
+			IGNORE_ACCESS_URL_SECCOMP,
+			IGNORE_ACCESS_URL_FALCO,
 		},
 		map[string]struct{}{
 			IGNORE_ACCESS_URL_AUTH:            {},
@@ -241,6 +245,8 @@ func AllIgnoreAccessURL() ([]string, map[string]struct{}) {
 			IGNORE_ACCESS_URL_SWAGGER:         {},
 			IGNORE_ACCESS_URL_HARBOR:          {},
 			IGNORE_ACCESS_URL_DRIFTPREVENTION: {},
+			IGNORE_ACCESS_URL_SECCOMP:         {},
+			IGNORE_ACCESS_URL_FALCO:           {},
 		}
 }
 

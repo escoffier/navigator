@@ -95,6 +95,7 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 		services := []string{container.PodOwnerName}
 		svcService, svcOk := GetServiceAssetsService()
 		if svcOk {
+			// TODO: This should be PodUid, not PodName
 			ss, _, exist := svcService.GetServiceInfoOfPod(cluster, container.PodName)
 			if exist && len(services) > 0 {
 				services = ss
@@ -261,8 +262,10 @@ func (cb *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context,
 		}
 
 		ovInstance := OnlineVulnDetailsContainerInstance{
-			PodName: container.PodName,
-			Node:    container.Node,
+			PodName:         container.PodName,
+			Node:            container.Node,
+			SeccompProfile:  container.SeccompProfile,
+			DriftPrevention: container.DriftPrevention,
 		}
 
 		if container.State == "Terminated" {

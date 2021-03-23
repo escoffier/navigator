@@ -1,14 +1,348 @@
 package constant
 
-var SyscallIoArgsMap = map[string]string{
-	"execve": "const char *filename, const char *const *argv, const char *const *envp",
-	"open":   "char *filename, int flags, umode_t mode",
-	"openat": "int dfd, const char *filename, int flags, umode_t mode",
-	"socket": "int family, int type, int protocol",
-	"dup2":   "unsigned int oldfd, unsigned int newfd",
+var SyscallIoArgsMap = map[string]string{ //0
+	"accept":                 "int fd, struct sockaddr * upeer_sockaddr, int * upeer_addrlen",                                          //285
+	"accept4":                "int fd, struct sockaddr * upeer_sockaddr, int *upeer_addrlen, int flags",                                //366                                                                                               //366
+	"access":                 "const char * filename, int mode",                                                                        //33
+	"acct":                   "const char * filename",                                                                                  //51
+	"add_key":                "const char * _type, const char * _description, const void * _payload, size_t plen, key_serial_t ringid", //309
+	"adjtimex":               "struct __kernel_timex * txc_p",                                                                          //124
+	"arch_prctl":             "int code, unsigned long *addr",                                                                          //401
+	"bdflush":                "int func, long data",                                                                                    //134
+	"bind":                   "int fd, struct sockaddr * umyaddr, int addrlen",                                                         //282
+	"brk":                    "unsigned long brk",                                                                                      //45
+	"bpf":                    "int cmd, union bpf_attr *attr, unsigned int size",
+	"capget":                 "cap_user_header_t header, cap_user_data_t dataptr",                                                              //184
+	"capset":                 "cap_user_header_t header, const cap_user_data_t data",                                                           //185
+	"chdir":                  "const char * filename",                                                                                          //12
+	"chmod":                  "const char * filename, umode_t mode",                                                                            //15
+	"chown":                  "const char * filename, uid_t user, gid_t group",                                                                 //182
+	"chroot":                 "const char * filename",                                                                                          //61
+	"clock_adjtime":          "const clockid_t which_clock, struct __kernel_timex * utx",                                                       //372
+	"clock_nanosleep":        "const clockid_t which_clock, int flags, const struct __kernel_timespec * rqtp, struct __kernel_timespec * rmtp", //265
+	"clock_getres":           "const clockid_t which_clock, struct __kernel_timespec * tp",                                                     //264
+	"clock_gettime":          "const clockid_t which_clock, struct __kernel_timespec * tp",                                                     //263
+	"clock_settime":          "const clockid_t which_clock, const struct __kernel_timespec * tp",                                               //262
+	"clone":                  "unsigned long clone_flags, unsigned long newsp, int * parent_tidptr, unsigned long tls, int * child_tidptr",     //120
+	"close":                  "unsigned int fd",                                                                                                //6
+	"connect":                "int fd, struct sockaddr * uservaddr, int addrlen",                                                               //283
+	"creat":                  "const char * pathname, umode_t mode",                                                                            //8
+	"create_module":          "const char * name, size_t size",                                                                                 //129
+	"delete_module":          "const char * name_user, unsigned int flags",                                                                     //129
+	"dup":                    "unsigned int fildes",                                                                                            //41
+	"dup2":                   "unsigned int oldfd, unsigned int newfd",                                                                         //63
+	"dup3":                   "unsigned int oldfd, unsigned int newfd, int flags",                                                              //358
+	"epoll_create":           "int size",                                                                                                       //250
+	"epoll_create1":          "int flags",                                                                                                      //357
+	"epoll_ctl":              "int epfd, int op, int fd, struct epoll_event * event",                                                           //251
+	"epoll_pwait":            "int epfd, struct epoll_event * events, int maxevents, int timeout, const sigset_t * sigmask, size_t sigsetsize", //346
+	"epoll_wait":             "int epfd, struct epoll_event * events, int maxevents, int timeout",                                              //252
+	"eventfd":                "unsigned int count",                                                                                             //351
+	"eventfd2":               "unsigned int count, int flags",                                                                                  //356
+	"execve":                 "const char * filename, const char *const * argv, const char *const * envp",                                      //11
+	"exit":                   "int error_code",                                                                                                 //1
+	"exit_group":             "int error_code",                                                                                                 //248
+	"faccessat":              "int dfd, const char * filename, int mode",                                                                       //334
+	"fadvise64":              "int fd, off_t offset, off_t len, int advice",                                                                    //402
+	"fallocate":              "int fd, int mode, loff_t offset, loff_t len",                                                                    //352
+	"fanotify_init":          "unsigned int flags, unsigned int event_f_flags",                                                                 //367
+	"fanotify_mark":          "int fanotify_fd, unsigned int flags, __u64 mask, int dfd, const char * pathname",                                //368
+	"fchdir":                 "unsigned int fd",                                                                                                //133
+	"fchmod":                 "unsigned int fd, umode_t mode",                                                                                  //94
+	"fchmodat":               "int dfd, const char * filename, umode_t mode",                                                                   //333
+	"fchown":                 "unsigned int fd, uid_t user, gid_t group",                                                                       //95
+	"fchownat":               "int dfd, const char * filename, uid_t user, gid_t group, int flag",                                              //325
+	"fcntl":                  "unsigned int fd, unsigned int cmd, unsigned long arg",                                                           //55
+	"fcntl64":                "unsigned int fd, unsigned int cmd, unsigned long arg",                                                           //221
+	"fdatasync":              "unsigned int fd",                                                                                                //148
+	"flistxattr":             "int fd, char * list, size_t size",                                                                               //234
+	"finit_module":           "int fd, const char * uargs, int flags",                                                                          //379
+	"flock":                  "unsigned int fd, unsigned int cmd",                                                                              //143
+	"fork":                   "",                                                                                                               //2
+	"fgetxattr":              "int fd, const char * name, void * value, size_t size",                                                           //231
+	"fremovexattr":           "int fd, const char * name",                                                                                      //237
+	"fsetxattr":              "int fd, const char * name, const void * value, size_t size, int flags",                                          //228
+	"fstat":                  "unsigned long fd, struct stat64 *statbuf",                                                                       //108
+	"fstat64":                "unsigned long fd, struct stat64 *statbuf",                                                                       //197
+	"fstatat64":              "int dfd, const char *filename, struct stat64 *statbuf, int flag",                                                //327
+	"fstatfs":                "unsigned int fd, struct statfs * buf",                                                                           //100
+	"fstatfs64":              "unsigned int fd, size_t sz, struct statfs64 *buf",                                                               //267
+	"fsync":                  "unsigned int fd",                                                                                                //118
+	"ftruncate":              "unsigned int fd, unsigned long length",                                                                          //93
+	"ftruncate64":            "unsigned int fd, loff_t length",                                                                                 //194
+	"futex":                  "u32 * uaddr, int op, u32 val, struct __kernel_timespec * utime, u32 * uaddr2, u32 val3",                         //240
+	"futimesat":              "int dfd, const char * filename, struct timeval * utimes",                                                        //326
+	"getxattr":               "const char * pathname, const char * name, void * value, size_t size",                                            //229
+	"getcpu":                 "unsigned * cpup, unsigned * nodep, struct getcpu_cache * unused",                                                //345
+	"getcwd":                 "char * buf, unsigned long size",                                                                                 //183
+	"getdents":               "unsigned int fd, struct linux_dirent * dirent, unsigned int count",                                              //141
+	"getdents64":             "unsigned int fd, struct linux_dirent64 *dirent, unsigned int count",                                             //217
+	"getegid":                "",                                                                                                               //50
+	"geteuid":                "",                                                                                                               //49
+	"getgid":                 "",                                                                                                               //47
+	"getgroups":              "int gidsetsize, gid_t * grouplist",                                                                              //80
+	"getitimer":              "int which, struct itimerval * value",                                                                            //105
+	"get_kernel_syms":        "struct kernel_sym *table",                                                                                       //50
+	"get_mempolicy":          "int * policy, unsigned long * nmask, unsigned long maxnode, unsigned long addr, unsigned long flags",            //320
+	"getpeername":            "int fd, struct sockaddr * usockaddr, int * usockaddr_len",                                                       //287
+	"getpgid":                "pid_t pid",                                                                                                      //132
+	"getpgrp":                "",                                                                                                               //65
+	"getpid":                 "",                                                                                                               //20
+	"getppid":                "",                                                                                                               //64
+	"getpriority":            "int which, int who",                                                                                             //96
+	"getresgid":              "gid_t * rgidp, gid_t * egidp, gid_t * sgidp",                                                                    //171
+	"getresuid":              "uid_t * ruidp, uid_t * euidp, uid_t * suidp",                                                                    //165
+	"getrlimit":              "int resource, struct rlimit *rlim",
+	"get_robust_list":        "int pid, struct robust_list_head * * head_ptr, size_t * len_ptr",                                          //339
+	"getrusage":              "int who, struct rusage * ru",                                                                              //77
+	"getsid":                 "pid_t pid",                                                                                                //147
+	"getsockname":            "int fd, struct sockaddr * usockaddr, int * usockaddr_len",                                                 //286
+	"getsockopt":             "int fd, int level, int optname, char * optval, int * optlen",                                              //295
+	"gettid":                 "",                                                                                                         //224
+	"gettimeofday":           "struct timeval * tv, struct timezone * tz",                                                                //78
+	"getuid":                 "",                                                                                                         //24
+	"init_module":            "void * umod, unsigned long len, const char * uargs",                                                       //128
+	"inotify_add_watch":      "int fd, const char * pathname, u32 mask",                                                                  //317
+	"inotify_init":           "",                                                                                                         //316
+	"inotify_init1":          "int flags",                                                                                                //360
+	"inotify_rm_watch":       "int fd, __s32 wd",                                                                                         //318
+	"io_cancel":              "aio_context_t ctx_id, struct iocb * iocb, struct io_event * result",                                       //247
+	"ioctl":                  "unsigned int fd, unsigned int cmd, unsigned long arg",                                                     //54
+	"io_destroy":             "aio_context_t ctx",                                                                                        //244
+	"io_getevents":           "aio_context_t ctx_id, long min_nr, long nr, struct io_event * events, struct __kernel_timespec * timeout", //245
+	"ioperm":                 "unsigned long from, unsigned long num, long turn_on",
+	"iopl":                   "int level",
+	"ioprio_set":             "int which, int who, int ioprio",                                                                                                     //314
+	"ioprio_get":             "int which, int who",                                                                                                                 //315
+	"io_setup":               "unsigned nr_events, aio_context_t * ctxp",                                                                                           //243
+	"io_submit":              "aio_context_t ctx_id, long nr, struct iocb * * iocbpp",                                                                              //246
+	"kcmp":                   "pid_t pid1, pid_t pid2, int type, unsigned long idx1, unsigned long idx2",                                                           //378
+	"keyctl":                 "int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5",                                         //311
+	"kexec_load":             "unsigned long entry, unsigned long nr_segments, struct kexec_segment * segments, unsigned long flags",                               //347
+	"kexec_file_load":        "long kernel_fd, long initrd_fd, unsigned long cmdline_len, char * cmdline_ptr, unsigned long flags",                                 //347
+	"kill":                   "pid_t pid, int sig",                                                                                                                 //37
+	"lchown":                 "const char * filename, uid_t user, gid_t group",                                                                                     //16
+	"lgetxattr":              "const char * pathname, const char * name, void * value, size_t size",                                                                //230
+	"link":                   "const char * oldname, const char * newname",                                                                                         //9
+	"linkat":                 "int olddfd, const char * oldname, int newdfd, const char * newname, int flags",                                                      //330
+	"listen":                 "int fd, int backlog",                                                                                                                //284
+	"listxattr":              "const char * pathname, char * list, size_t size",                                                                                    //232
+	"llistxattr":             "const char * pathname, char * list, size_t size",                                                                                    //233
+	"lookup_dcookie":         "u64 cookie64, char * buf, size_t len",                                                                                               //249
+	"lremovexattr":           "const char * pathname, const char * name",                                                                                           //236
+	"lseek":                  "unsigned int fd, off_t offset, unsigned int whence",                                                                                 //19
+	"lsetxattr":              "const char * pathname, const char * name, const void * value, size_t size, int flags",                                               //227
+	"lstat":                  "const char * filename, struct __old_kernel_stat * statbuf",                                                                          //107
+	"lstat64":                "const char *filename, struct stat64 *statbuf",                                                                                       //196
+	"madvise":                "unsigned long start, size_t len_in, int behavior",                                                                                   //220
+	"mbind":                  "unsigned long start, unsigned long len, unsigned long mode, const unsigned long * nmask, unsigned long maxnode, unsigned int flags", //319
+	"migrate_pages":          "pid_t pid, unsigned long maxnode, const unsigned long * old_nodes, const unsigned long * new_nodes",                                 //400
+	"mincore":                "unsigned long start, size_t len, unsigned char * vec",                                                                               //219
+	"mkdir":                  "const char * pathname, umode_t mode",                                                                                                //39
+	"mkdirat":                "int dfd, const char * pathname, umode_t mode",                                                                                       //323
+	"mknod":                  "const char * filename, umode_t mode, unsigned dev",                                                                                  //14
+	"mknodat":                "int dfd, const char * filename, umode_t mode, unsigned int dev",                                                                     //324
+	"mlock":                  "unsigned long start, size_t len",                                                                                                    //150
+	"mlockall":               "int flags",                                                                                                                          //152
+	"mmap":                   "void *addr, size_t len, int prot, int flags, int fd, off_t off",                                                                     //404
+	"mount":                  "char * dev_name, char * dir_name, char * type, unsigned long flags, void * data",                                                    //21
+	"move_pages":             "pid_t pid, unsigned long nr_pages, const void * * pages, const int * nodes, int * status, int flags",                                //344
+	"mprotect":               "unsigned long start, size_t len, unsigned long prot",                                                                                //125
+	"mq_getsetattr":          "mqd_t mqdes, const struct mq_attr * u_mqstat, struct mq_attr * u_omqstat",                                                           //279
+	"mq_notify":              "mqd_t mqdes, const struct sigevent * u_notification",                                                                                //278
+	"mq_open":                "const char * u_name, int oflag, umode_t mode, struct mq_attr * u_attr",                                                              //274
+	"mq_timedreceive":        "mqd_t mqdes, char * u_msg_ptr, size_t msg_len, unsigned int * u_msg_prio, const struct __kernel_timespec * u_abs_timeout",           //277
+	"mq_timedsend":           "mqd_t mqdes, const char * u_msg_ptr, size_t msg_len, unsigned int msg_prio, const struct __kernel_timespec * u_abs_timeout",         //276
+	"mq_unlink":              "const char * u_name",                                                                                                                //275
+	"mremap":                 "unsigned long addr, unsigned long old_len, unsigned long new_len, unsigned long flags, unsigned long new_addr",                      //163
+	"msgctl":                 "int msqid, int cmd, struct msqid_ds * buf",                                                                                          //304
+	"msgget":                 "key_t key, int msgflg",                                                                                                              //303
+	"msgrcv":                 "int msqid, struct msgbuf * msgp, size_t msgsz, long msgtyp, int msgflg",                                                             //302
+	"msgsnd":                 "int msqid, struct msgbuf * msgp, size_t msgsz, int msgflg",                                                                          //301
+	"msync":                  "unsigned long start, size_t len, int flags",                                                                                         //144
+	"munlock":                "unsigned long start, size_t len",                                                                                                    //151
+	"munlockall":             "",                                                                                                                                   //153
+	"munmap":                 "unsigned long addr, size_t len",                                                                                                     //91
+	"name_to_handle_at":      "int dfd, const char * name, struct file_handle * handle, int * mnt_id, int flag",                                                    //370
+	"nanosleep":              "struct __kernel_timespec * rqtp, struct __kernel_timespec * rmtp",                                                                   //162
+	"newfstatat":             "int dirfd, const char *pathname, struct stat *statbuf, int flags",
+	"nfsservctl":             "int cmd, struct nfsctl_arg *argp, union nfsctl_res *resp",
+	"nice":                   "int increment",                                                                                                        //34
+	"open":                   "const char * filename, int flags, umode_t mode",                                                                       //5
+	"openat":                 "int dfd, const char * filename, int flags, umode_t mode",                                                              //322
+	"open_by_handle_at":      "int mountdirfd, struct file_handle * handle, int flags",                                                               //371
+	"pause":                  "",                                                                                                                     //29
+	"pciconfig_iobase":       "long which, unsigned long bus, unsigned long devfn",                                                                   //271
+	"pciconfig_read":         "unsigned long bus, unsigned long dfn, unsigned long off, unsigned long len, void * buf",                               //272
+	"pciconfig_write":        "unsigned long bus, unsigned long dfn, unsigned long off, unsigned long len, void * buf",                               //273
+	"perf_event_open":        "struct perf_event_attr * attr_uptr, pid_t pid, int cpu, int group_fd, unsigned long flags",                            //364
+	"personality":            "unsigned int personality",                                                                                             //136
+	"pipe":                   "int * fildes",                                                                                                         //42
+	"pipe2":                  "int *fildes, int flags",                                                                                               //359
+	"pivot_root":             "const char * new_root, const char * put_old",                                                                          //218
+	"poll":                   "struct pollfd * ufds, unsigned int nfds, int timeout_msecs",                                                           //168
+	"ppoll":                  "struct pollfd * ufds, unsigned int nfds, struct __kernel_timespec * tsp, const sigset_t * sigmask, size_t sigsetsize", //336
+	"prctl":                  "int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5",                           //172
+	"pread":                  "int fd, void *buf, size_t count, off_t offset",
+	"pread64":                "unsigned int fd, loff_t length",                                                                                                     //180
+	"preadv":                 "unsigned long fd, const struct iovec * vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h",                           //361
+	"prlimit64":              "pid_t pid, unsigned int resource, const struct rlimit64 *new_rlim, struct rlimit64 *old_rlim",                                       //369
+	"process_vm_readv":       "pid_t pid, const struct iovec * lvec, unsigned long liovcnt, const struct iovec * rvec, unsigned long riovcnt, unsigned long flags", //376
+	"process_vm_writev":      "pid_t pid, const struct iovec * lvec, unsigned long liovcnt, const struct iovec * rvec, unsigned long riovcnt, unsigned long flags", //377
+	"pselect6":               "int n, fd_set  *inp, fd_set  *outp, fd_set  *exp, struct timespec *tsp, void *sig",                                                  //335
+	"ptrace":                 "long request, long pid, unsigned long addr, unsigned long data",                                                                     //26
+	"pwrite":                 "int fd, const void *buf, size_t count, off_t offset",
+	"pwrite64":               "unsigned int fd, const char *buf, size_t count, loff_t pos",                                               //181
+	"pwritev":                "unsigned long fd, const struct iovec * vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h", //362
+	"quotactl":               "unsigned int cmd, const char * special, qid_t id, void * addr",                                            //131
+	"query_module":           "const char *name, int which, void *buf, size_t bufsize, size_t *ret",
+	"read":                   "unsigned int fd, char * buf, size_t count",                                                                //3
+	"readahead":              "int fd, loff_t offset, size_t count",                                                                      //225
+	"readlink":               "const char * path, char * buf, int bufsiz",                                                                //85
+	"readlinkat":             "int dfd, const char * pathname, char * buf, int bufsiz",                                                   //332
+	"readv":                  "unsigned long fd, const struct iovec * vec, unsigned long vlen",                                           //145
+	"reboot":                 "int magic1, int magic2, unsigned int cmd, void * arg",                                                     //88
+	"recv":                   "int sockfd, void *buf, size_t len, int flags",                                                             //291
+	"recvfrom":               "int fd, void * ubuf, size_t size, unsigned int flags, struct sockaddr * addr, int * addr_len",             //292
+	"recvmsg":                "int fd, struct user_msghdr * msg, unsigned int flags",                                                     //297
+	"recvmmsg":               "int fd, struct mmsghdr * mmsg, unsigned int vlen, unsigned int flags, struct __kernel_timespec * timeout", //365
+	"remap_file_pages":       "unsigned long start, unsigned long size, unsigned long prot, unsigned long pgoff, unsigned long flags",    //253
+	"removexattr":            "const char * pathname, const char * name",                                                                 //235
+	"rename":                 "const char * oldname, const char * newname",                                                               //38
+	"renameat":               "int olddfd, const char * oldname, int newdfd, const char * newname",                                       //329
+	"request_key":            "const char * _type, const char * _description, const char * _callout_info, key_serial_t destringid",       //310
+	"rmdir":                  "const char * pathname",                                                                                    //40
+	"rt_sigaction":           "int sig, const struct sigaction * act, struct sigaction * oact, size_t sigsetsize, void * restorer",       //174
+	"rt_sigpending":          "sigset_t * uset, size_t sigsetsize",                                                                       //176
+	"rt_sigprocmask":         "int how, sigset_t * nset, sigset_t * oset, size_t sigsetsize",                                             //175
+	"rt_sigqueueinfo":        "pid_t pid, int sig, siginfo_t * uinfo",                                                                    //178
+	"rt_sigreturn":           "",                                                                                                         //173
+	"rt_sigtimedwait":        "const sigset_t * uthese, siginfo_t * uinfo, const struct __kernel_timespec * uts, size_t sigsetsize",      //177
+	"rt_sigsuspend":          "sigset_t * unewset, size_t sigsetsize",                                                                    //179
+	"rt_tgsigqueueinfo":      "pid_t tgid, pid_t pid, int sig, siginfo_t * uinfo",                                                        //363
+	"sched_getaffinity":      "pid_t pid, unsigned int len, unsigned long * user_mask_ptr",                                               //242
+	"sched_getattr":          "pid_t pid, struct sched_attr *attr, unsigned int size, unsigned int flags",                                //381
+	"sched_getparam":         "pid_t pid, struct sched_param * param",                                                                    //155
+	"sched_get_priority_max": "int policy",                                                                                               //159
+	"sched_get_priority_min": "int policy",                                                                                               //160
+	"sched_getscheduler":     "pid_t pid",                                                                                                //157
+	"sched_rr_get_interval":  "pid_t pid, struct __kernel_timespec * interval",                                                           //161
+	"sched_setaffinity":      "pid_t pid, unsigned int len, unsigned long * user_mask_ptr",                                               //241
+	"sched_setattr":          "pid_t pid, struct sched_attr *attr, unsigned int flags",                                                   //380
+	"sched_setparam":         "pid_t pid, struct sched_param * param",                                                                    //154
+	"sched_setscheduler":     "pid_t pid, int policy, struct sched_param * param",                                                        //156
+	"sched_yield":            "",                                                                                                         //158
+	"semctl":                 "int semid, int semnum, int cmd, unsigned long arg",                                                        //300
+	"semget":                 "key_t key, int nsems, int semflg",                                                                         //299
+	"semop":                  "int semid, struct sembuf * tsops, unsigned nsops",                                                         //298
+	"semtimedop":             "int semid, struct sembuf * tsops, unsigned int nsops, const struct __kernel_timespec * timeout",           //312
+	"send":                   "int fd, void * buff, size_t len, unsigned int flags",                                                      //289
+	"sendfile":               "int out_fd, int in_fd, off_t * offset, size_t count",                                                      //187
+	"sendfile64":             "int out_fd, int in_fd, loff_t *offset, size_t count",                                                      //239
+	"sendmsg":                "int fd, struct user_msghdr * msg, unsigned int flags",                                                     //296
+	"sendmmsg":               "int fd, struct mmsghdr * mmsg, unsigned int vlen, unsigned int flags",                                     //374
+	"sendto":                 "int fd, void * buff, size_t len, unsigned int flags, struct sockaddr * addr, int addr_len",                //290
+	"setdomainname":          "char * name, int len",                                                                                     //121
+	"setfsgid":               "gid_t gid",                                                                                                //139
+	"setfsuid":               "uid_t uid",                                                                                                //138
+	"setgid":                 "gid_t gid",                                                                                                //46
+	"setgroups":              "int gidsetsize, gid_t * grouplist",                                                                        //81
+	"sethostname":            "char * name, int len",                                                                                     //74
+	"setitimer":              "int which, struct itimerval * value, struct itimerval * ovalue",                                           //104
+	"set_mempolicy":          "int mode, const unsigned long * nmask, unsigned long maxnode",                                             //321
+	"setns":                  "int fd, int nstype",                                                                                       //375
+	"setpgid":                "pid_t pid, pid_t pgid",                                                                                    //57
+	"setpriority":            "int which, int who, int niceval",                                                                          //97
+	"setregid":               "gid_t rgid, gid_t egid",                                                                                   //71
+	"setresgid":              "gid_t rgid, gid_t egid, gid_t sgid",                                                                       //170
+	"setresuid":              "uid_t ruid, uid_t euid, uid_t suid",                                                                       //164
+	"setreuid":               "uid_t ruid, uid_t euid",                                                                                   //70
+	"setrlimit":              "unsigned int resource, struct rlimit * rlim",                                                              //75
+	"set_robust_list":        "struct robust_list_head * head, size_t len",                                                               //338
+	"setsid":                 "",                                                                                                         //66
+	"setsockopt":             "int fd, int level, int optname, char * optval, int optlen",                                                //294
+	"set_tid_address":        "int * tidptr",                                                                                             //256
+	"settimeofday":           "struct timeval * tv, struct timezone * tz",                                                                //79
+	"setuid":                 "uid_t uid",                                                                                                //23
+	"setxattr":               "const char * pathname, const char * name, const void * value, size_t size, int flags",                     //226
+	"shmat":                  "int shmid, char * shmaddr, int shmflg",                                                                    //305
+	"shmctl":                 "int shmid, int cmd, struct shmid_ds * buf",                                                                //308
+	"shmdt":                  "char * shmaddr",                                                                                           //306
+	"shmget":                 "key_t key, size_t size, int shmflg",                                                                       //307
+	"shutdown":               "int fd, int how",                                                                                          //293
+	"sigaction":              "int sig, const struct sigaction * act, struct sigaction * oact",                                           //67
+	"sigaltstack":            "const stack_t * uss, stack_t * uoss",                                                                      //186
+	"signalfd":               "int ufd, sigset_t * user_mask, size_t sizemask",                                                           //349
+	"signalfd4":              "int ufd, sigset_t *user_mask, size_t sizemask, int flags",                                                 //355
+	"sigsuspend":             "sigset_t * uset",                                                                                          //72
+	"sigpending":             "old_sigset_t * uset",                                                                                      //73
+	"sigprocmask":            "int how, old_sigset_t * nset, old_sigset_t * oset",                                                        //126
+	"sigreturn":              "",                                                                                                         //119
+	"socket":                 "int family, int type, int protocol",                                                                       //281
+	"socketpair":             "int family, int type, int protocol, int * usockvec",                                                       //288
+	"splice":                 "int fd_in, loff_t * off_in, int fd_out, loff_t * off_out, size_t len, unsigned int flags",                 //340
+	"stat":                   "const char * filename, struct __old_kernel_stat * statbuf",                                                //106
+	"stat64":                 "const char *filename, struct stat64 *statbuf",                                                             //195
+	"statfs":                 "const char * pathname, struct statfs * buf",                                                               //99
+	"statfs64":               "const char *path, size_t sz, struct statfs64 *buf",                                                        //266
+	"stime":                  "const time_t *t",
+	"swapoff":                "const char * specialfile",                                                                                              //115
+	"swapon":                 "const char * specialfile, int swap_flags",                                                                              //87
+	"symlink":                "const char * oldname, const char * newname",                                                                            //83
+	"symlinkat":              "const char * oldname, int newdfd, const char * newname",                                                                //331
+	"sync":                   "",                                                                                                                      //36
+	"sync_file_range":        "int fd, unsigned int flags, loff_t offset, loff_t nbytes",                                                              //341
+	"syncfs":                 "int fd",                                                                                                                //373
+	"sysfs":                  "int option, unsigned long arg1, unsigned long arg2",                                                                    //135
+	"sysinfo":                "struct sysinfo * info",                                                                                                 //116
+	"syslog":                 "int type, char * buf, int len",                                                                                         //103
+	"tee":                    "int fdin, int fdout, size_t len, unsigned int flags",                                                                   //342
+	"tgkill":                 "pid_t tgid, pid_t pid, int sig",                                                                                        //268
+	"timer_create":           "const clockid_t which_clock, struct sigevent * timer_event_spec, timer_t * created_timer_id",                           //257
+	"timer_delete":           "timer_t timer_id",                                                                                                      //261
+	"timerfd_create":         "int clockid, int flags",                                                                                                //350
+	"timerfd_settime":        "int ufd, int flags, const struct __kernel_itimerspec * utmr, struct __kernel_itimerspec * otmr",                        //353
+	"timerfd_gettime":        "int ufd, struct __kernel_itimerspec * otmr",                                                                            //354
+	"timer_getoverrun":       "timer_t timer_id",                                                                                                      //260
+	"timer_gettime":          "timer_t timer_id, struct __kernel_itimerspec * setting",                                                                //259
+	"timer_settime":          "timer_t timer_id, int flags, const struct __kernel_itimerspec * new_setting, struct __kernel_itimerspec * old_setting", //258
+	"times":                  "struct tms * tbuf",                                                                                                     //43
+	"tkill":                  "pid_t pid, int sig",                                                                                                    //238
+	"truncate":               "const char * path, long length",                                                                                        //92
+	"truncate64":             "const char *path, loff_t length",                                                                                       //193
+	"uname":                  "struct old_utsname * name",                                                                                             //122
+	"umask":                  "int mask",                                                                                                              //60
+	"umount":                 "char * name, long flags",
+	"umount2":                "char * name, long flags",
+	"unlink":                 "const char * pathname",                    //10
+	"unlinkat":               "int dfd, const char * pathname, int flag", //328
+	"unshare":                "unsigned long unshare_flags",              //337
+	"uselib":                 "const char * library",                     //86
+	"userfaultfd":            "int flags",
+	"ustat":                  "unsigned dev, struct ustat * ubuf",                                              //62
+	"utimensat":              "int dfd, const char * filename, struct __kernel_timespec * utimes, int flags",   //348
+	"utimes":                 "char * filename, struct timeval * utimes",                                       //269
+	"wait4":                  "pid_t pid, int *stat_addr, int options, struct rusage *ru",                      //114
+	"waitid":                 "int which, pid_t upid, struct siginfo * infop, int options, struct rusage * ru", //280
+	"write":                  "unsigned int fd, const char * buf, size_t count",                                //4
+	"writev":                 "unsigned long fd, const struct iovec * vec, unsigned long vlen",                 //146
+	"vfork":                  "",                                                                               //190
+	"vhangup":                "",                                                                               //111
+	"vm86":                   "unsigned long fn, struct vm86plus_struct *v86",
+	"vm86old":                "struct vm86_struct *info",
+	"vmsplice":               "int fd, const struct iovec * uiov, unsigned long nr_segs, unsigned int flags", //343
 }
 
 var SyscallIoStructMap = map[string]string{
+	"nice_args":                    "typedef struct {u64 __unused__; int __syscall_nr; int increment;} nice_args;",
+	"nice_data":                    "typedef struct {event_info_t event_info; int increment;} nice_data;",
+	"nice_split":                   "increment:integer",
+	"uselib_args":                  "typedef struct {u64 __unused__; int __syscall_nr; const char* library;} uselib_args;",
+	"uselib_data":                  "typedef struct {event_info_t event_info; char library[64];} uselib_data;",
+	"uselib_split":                 "library:string",
+	"bdflush_args":                 "typedef struct {u64 __unused__; int __syscall_nr; int func; long data;} bdflush_args;",
+	"bdflush_data":                 "typedef struct {event_info_t event_info; u64 func; u64 data;} bdflush_data;",
+	"bdflush_split":                "func:integer data:integer",
 	"time_args":                    "typedef struct {u64 __unused__; int __syscall_nr; time_t * tloc;} time_args;",
 	"time_data":                    "typedef struct {event_info_t event_info; u64 tloc;} time_data;",
 	"time_split":                   "tloc:pointer",
@@ -42,7 +376,7 @@ var SyscallIoStructMap = map[string]string{
 	"set_robust_list_args":         "typedef struct {u64 __unused__; int __syscall_nr; struct robust_list_head * head; size_t len;} set_robust_list_args;",
 	"set_robust_list_data":         "typedef struct {event_info_t event_info; u64 head; u64 len;} set_robust_list_data;",
 	"set_robust_list_split":        "head:pointer len:integer",
-	"iopl_args":                    "typedef struct {u64 __unused__; int __syscall_nr; u64 level;} iopl_args;",
+	"iopl_args":                    "typedef struct {u64 __unused__; int __syscall_nr; int level;} iopl_args;",
 	"iopl_data":                    "typedef struct {event_info_t event_info; u64 level;} iopl_data;",
 	"iopl_split":                   "level:integer",
 	"lgetxattr_args":               "typedef struct {u64 __unused__; int __syscall_nr; char * pathname; char * name; void * value; size_t size;} lgetxattr_args;",
@@ -51,12 +385,27 @@ var SyscallIoStructMap = map[string]string{
 	"kill_args":                    "typedef struct {u64 __unused__; int __syscall_nr; pid_t pid; long sig;} kill_args;",
 	"kill_data":                    "typedef struct {event_info_t event_info; u64 pid; u64 sig;} kill_data;",
 	"kill_split":                   "pid:integer sig:integer",
+	"pread_args":                   "typedef struct {u64 __unused__; int __syscall_nr; u64 fd; char * buf; size_t count; off_t offset;} pread_args;",
+	"pread_data":                   "typedef struct {event_info_t event_info; u64 fd; char buf[64]; u64 count; u64 offset;} pread_data;",
+	"pread_split":                  "fd:integer buf:string count:integer offset:integer",
 	"pread64_args":                 "typedef struct {u64 __unused__; int __syscall_nr; u64 fd; char * buf; size_t count; loff_t pos;} pread64_args;",
 	"pread64_data":                 "typedef struct {event_info_t event_info; u64 fd; char buf[64]; u64 count; u64 pos;} pread64_data;",
 	"pread64_split":                "fd:integer buf:string count:integer pos:integer",
+	"stat_args":                    "typedef struct {u64 __unused__; int __syscall_nr; const char * filename; struct __old_kernel_stat * statbuf;} stat_args;",
+	"stat_data":                    "typedef struct {event_info_t event_info; char filename[64]; u64 statbuf;} stat_data;",
+	"stat_split":                   "fd:integer buf:pointer",
+	"fstat_args":                   "typedef struct {u64 __unused__; int __syscall_nr; int fd; struct stat64 *statbuf;} fstat_args;",
+	"fstat_data":                   "typedef struct {event_info_t event_info; int fd; struct stat64 *statbuf;} fstat_data;",
+	"fstat_split":                  "fd:integer statbuf:pointer",
+	"fstat64_args":                 "typedef struct {u64 __unused__; int __syscall_nr; int fd; struct stat64 *statbuf;} fstat64_args;",
+	"fstat64_data":                 "typedef struct {event_info_t event_info; int fd; struct stat64 *statbuf;} fstat64_data;",
+	"fstat64_split":                "fd:integer statbuf:pointer",
 	"newfstatat_args":              "typedef struct {u64 __unused__; int __syscall_nr; long dfd; char * filename; struct stat * statbuf; long flag;} newfstatat_args;",
 	"newfstatat_data":              "typedef struct {event_info_t event_info; u64 dfd; char filename[64]; u64 statbuf; u64 flag;} newfstatat_data;",
 	"newfstatat_split":             "dfd:integer filename:string statbuf:pointer flag:integer",
+	"nfsservctl_args":              "typedef struct {u64 __unused__; int __syscall_nr; int cmd; struct nfsctl_arg * argp; union nfsctl_res * resp;} nfsservctl_args;",
+	"nfsservctl_data":              "typedef struct {event_info_t event_info; u64 cmd; u64 argp; u64 resp;} nfsservctl_data;",
+	"nfsservctl_split":             "cmd:integer argp:pointer resp:pointer",
 	"newlstat_args":                "typedef struct {u64 __unused__; int __syscall_nr; char * filename; struct stat * statbuf;} newlstat_args;",
 	"newlstat_data":                "typedef struct {event_info_t event_info; char filename[64]; u64 statbuf;} newlstat_data;",
 	"newlstat_split":               "filename:string statbuf:pointer",
@@ -72,6 +421,15 @@ var SyscallIoStructMap = map[string]string{
 	"pause_args":                   "typedef struct {u64 __unused__; int __syscall_nr;} pause_args;",
 	"pause_data":                   "typedef struct {event_info_t event_info;} pause_data;",
 	"pause_split":                  "",
+	"pciconfig_iobase_args":        "typedef struct {u64 __unused__; int __syscall_nr; long which; unsigned long bus; unsigned long devfn;} pciconfig_iobase_args;",
+	"pciconfig_iobase_data":        "typedef struct {event_info_t event_info; u64 which; u64 bus; u64 devfn;} pciconfig_iobase_data;",
+	"pciconfig_iobase_split":       "which:integer bus:integer devfn:integer",
+	"pciconfig_read_args":          "typedef struct {u64 __unused__; int __syscall_nr; unsigned long bus; unsigned long dfn; unsigned long off; void * buf;}  pciconfig_read_args;",
+	"pciconfig_read_data":          "typedef struct {event_info_t event_info; u64 bus; u64 dfn; u64 off; u64 buf} pciconfig_read_data;",
+	"pciconfig_read_split":         "bus:integer dfn:integer off:integer buf:pointer",
+	"pciconfig_write_args":         "typedef struct {u64 __unused__; int __syscall_nr; unsigned long bus; unsigned long dfn; unsigned long off; void * buf;}  pciconfig_write_args;",
+	"pciconfig_write_data":         "typedef struct {event_info_t event_info; u64 bus; u64 dfn; u64 off; u64 buf} pciconfig_write_data;",
+	"pciconfig_write_split":        "bus:integer dfn:integer off:integer buf:pointer",
 	"getrlimit_args":               "typedef struct {u64 __unused__; int __syscall_nr; u64 resource; struct rlimit * rlim;} getrlimit_args;",
 	"getrlimit_data":               "typedef struct {event_info_t event_info; u64 resource; u64 rlim;} getrlimit_data;",
 	"getrlimit_split":              "resource:integer rlim:pointer",
@@ -195,8 +553,8 @@ var SyscallIoStructMap = map[string]string{
 	"signalfd_args":                "typedef struct {u64 __unused__; int __syscall_nr; long ufd; sigset_t * user_mask; size_t sizemask;} signalfd_args;",
 	"signalfd_data":                "typedef struct {event_info_t event_info; u64 ufd; u64 user_mask; u64 sizemask;} signalfd_data;",
 	"signalfd_split":               "ufd:integer user_mask:pointer sizemask:integer",
-	"accept4_args":                 "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct sockaddr * upeer_sockaddr; long * upeer_addrlen; long flags;} accept4_args;",
-	"accept4_data":                 "typedef struct {event_info_t event_info; u64 fd; u64 upeer_sockaddr; u64 upeer_addrlen; u64 flags;} accept4_data;",
+	"accept4_args":                 "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct sockaddr * upeer_sockaddr; int * upeer_addrlen; long flags;} accept4_args;",
+	"accept4_data":                 "typedef struct {event_info_t event_info; u64 fd; struct sockaddr * upeer_sockaddr; int * upeer_addrlen; u64 flags;} accept4_data;",
 	"accept4_split":                "fd:integer upeer_sockaddr:pointer upeer_addrlen:pointer flags:integer",
 	"io_destroy_args":              "typedef struct {u64 __unused__; int __syscall_nr; aio_context_t ctx;} io_destroy_args;",
 	"io_destroy_data":              "typedef struct {event_info_t event_info; u64 ctx;} io_destroy_data;",
@@ -205,7 +563,7 @@ var SyscallIoStructMap = map[string]string{
 	"shutdown_data":                "typedef struct {event_info_t event_info; u64 fd; u64 how;} shutdown_data;",
 	"shutdown_split":               "fd:integer how:integer",
 	"execveat_args":                "typedef struct {u64 __unused__; int __syscall_nr; long fd; char * filename; char ** argv; char ** envp; long flags;} execveat_args;",
-	"execveat_data":                "typedef struct {event_info_t event_info; u64 fd; char filename[64]; char argv1[16]; char argv2[16]; char argv3[16]; u64 envp; u64 flags;} execveat_data;",
+	"execveat_data":                "typedef struct {event_info_t event_info; u64 fd; char filename[64]; char argv1[16]; char argv2[16]; char argv3[16]; 'const char *const * envp; u64 flags;} execveat_data;",
 	"execveat_split":               "fd:integer filename:string argv1:string argv2:string argv3:string envp:pointer flags:integer",
 	"readahead_args":               "typedef struct {u64 __unused__; int __syscall_nr; long fd; loff_t offset; size_t count;} readahead_args;",
 	"readahead_data":               "typedef struct {event_info_t event_info; u64 fd; u64 offset; u64 count;} readahead_data;",
@@ -237,6 +595,9 @@ var SyscallIoStructMap = map[string]string{
 	"symlink_args":                 "typedef struct {u64 __unused__; int __syscall_nr; char * oldname; char * newname;} symlink_args;",
 	"symlink_data":                 "typedef struct {event_info_t event_info; char oldname[64]; char newname[64];} symlink_data;",
 	"symlink_split":                "oldname:string newname:string",
+	"sigpending_args":              "typedef struct {u64 __unused__; int __syscall_nr; old_sigset_t * uset;} sigpending_args;",
+	"sigpending_data":              "typedef struct {event_info_t event_info; u64 uset;} sigpending_data;",
+	"sigpending_split":             "uset:pointer",
 	"rt_sigpending_args":           "typedef struct {u64 __unused__; int __syscall_nr; sigset_t * uset; size_t sigsetsize;} rt_sigpending_args;",
 	"rt_sigpending_data":           "typedef struct {event_info_t event_info; u64 uset; u64 sigsetsize;} rt_sigpending_data;",
 	"rt_sigpending_split":          "uset:pointer sigsetsize:integer",
@@ -250,11 +611,11 @@ var SyscallIoStructMap = map[string]string{
 	"getpeername_data":             "typedef struct {event_info_t event_info; u64 fd; u64 usockaddr; u64 usockaddr_len;} getpeername_data;",
 	"getpeername_split":            "fd:integer usockaddr:pointer usockaddr_len:pointer",
 	"fsetxattr_args":               "typedef struct {u64 __unused__; int __syscall_nr; long fd; char * name; void * value; size_t size; long flags;} fsetxattr_args;",
-	"fsetxattr_data":               "typedef struct {event_info_t event_info; u64 fd; char name[64]; u64 value; u64 size; u64 flags;} fsetxattr_data;",
+	"fsetxattr_data":               "typedef struct {event_info_t event_info; u64 fd; char name[64]; void * value; u64 size; u64 flags;} fsetxattr_data;",
 	"fsetxattr_split":              "fd:integer name:string value:pointer size:integer flags:integer",
-	"acct_args":                    "typedef struct {u64 __unused__; int __syscall_nr; char * name;} acct_args;",
-	"acct_data":                    "typedef struct {event_info_t event_info; char name[64];} acct_data;",
-	"acct_split":                   "name:string",
+	"acct_args":                    "typedef struct {u64 __unused__; int __syscall_nr; char * filename;} acct_args;",
+	"acct_data":                    "typedef struct {event_info_t event_info; char filename[64];} acct_data;",
+	"acct_split":                   "filename:string",
 	"times_args":                   "typedef struct {u64 __unused__; int __syscall_nr; struct tms * tbuf;} times_args;",
 	"times_data":                   "typedef struct {event_info_t event_info; u64 tbuf;} times_data;",
 	"times_split":                  "tbuf:pointer",
@@ -289,7 +650,7 @@ var SyscallIoStructMap = map[string]string{
 	"adjtimex_data":                "typedef struct {event_info_t event_info; u64 txc_p;} adjtimex_data;",
 	"adjtimex_split":               "txc_p:pointer",
 	"fgetxattr_args":               "typedef struct {u64 __unused__; int __syscall_nr; long fd; char * name; void * value; size_t size;} fgetxattr_args;",
-	"fgetxattr_data":               "typedef struct {event_info_t event_info; u64 fd; char name[64]; u64 value; u64 size;} fgetxattr_data;",
+	"fgetxattr_data":               "typedef struct {event_info_t event_info; u64 fd; char name[64]; void * value; u64 size;} fgetxattr_data;",
 	"fgetxattr_split":              "fd:integer name:string value:pointer size:integer",
 	"pkey_mprotect_args":           "typedef struct {u64 __unused__; int __syscall_nr; unsigned long start; size_t len; unsigned long prot; long pkey;} pkey_mprotect_args;",
 	"pkey_mprotect_data":           "typedef struct {event_info_t event_info; u64 start; u64 len; u64 prot; u64 pkey;} pkey_mprotect_data;",
@@ -301,7 +662,7 @@ var SyscallIoStructMap = map[string]string{
 	"mq_notify_data":               "typedef struct {event_info_t event_info; u64 mqdes; u64 u_notification;} mq_notify_data;",
 	"mq_notify_split":              "mqdes:integer u_notification:pointer",
 	"epoll_pwait_args":             "typedef struct {u64 __unused__; int __syscall_nr; long epfd; struct epoll_event * events; long maxevents; long timeout; sigset_t * sigmask; size_t sigsetsize;} epoll_pwait_args;",
-	"epoll_pwait_data":             "typedef struct {event_info_t event_info; u64 epfd; u64 events; u64 maxevents; u64 timeout; u64 sigmask; u64 sigsetsize;} epoll_pwait_data;",
+	"epoll_pwait_data":             "typedef struct {event_info_t event_info; u64 epfd; struct epoll_event * events; u64 maxevents; u64 timeout; sigset_t * sigmask; u64 sigsetsize;} epoll_pwait_data;",
 	"epoll_pwait_split":            "epfd:integer events:pointer maxevents:integer timeout:integer sigmask:pointer sigsetsize:integer",
 	"syncfs_args":                  "typedef struct {u64 __unused__; int __syscall_nr; long fd;} syncfs_args;",
 	"syncfs_data":                  "typedef struct {event_info_t event_info; u64 fd;} syncfs_data;",
@@ -379,7 +740,7 @@ var SyscallIoStructMap = map[string]string{
 	"name_to_handle_at_data":       "typedef struct {event_info_t event_info; u64 dfd; char name[64]; u64 handle; u64 mnt_id; u64 flag;} name_to_handle_at_data;",
 	"name_to_handle_at_split":      "dfd:integer name:string handle:pointer mnt_id:pointer flag:integer",
 	"bind_args":                    "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct sockaddr * umyaddr; long addrlen;} bind_args;",
-	"bind_data":                    "typedef struct {event_info_t event_info; u64 fd; u64 umyaddr; u64 addrlen;} bind_data;",
+	"bind_data":                    "typedef struct {event_info_t event_info; u64 fd; struct sockaddr * umyaddr; long addrlen;} bind_data;",
 	"bind_split":                   "fd:integer umyaddr:pointer addrlen:integer",
 	"readlink_args":                "typedef struct {u64 __unused__; int __syscall_nr; char * path; char * buf; long bufsiz;} readlink_args;",
 	"readlink_data":                "typedef struct {event_info_t event_info; char path[64]; char buf[64]; u64 bufsiz;} readlink_data;",
@@ -399,12 +760,18 @@ var SyscallIoStructMap = map[string]string{
 	"pselect6_args":                "typedef struct {u64 __unused__; int __syscall_nr; long n; fd_set * inp; fd_set * outp; fd_set * exp; struct timespec * tsp; void * sig;} pselect6_args;",
 	"pselect6_data":                "typedef struct {event_info_t event_info; u64 n; u64 inp; u64 outp; u64 exp; u64 tsp; u64 sig;} pselect6_data;",
 	"pselect6_split":               "n:integer inp:pointer outp:pointer exp:pointer tsp:pointer sig:pointer",
+	"create_module_args":           "typedef struct {u64 __unused__; int __syscall_nr; char * name; u64 size;} create_module_args;",
+	"create_module_data":           "typedef struct {event_info_t event_info; char name; u64 size;} create_module_data;",
+	"create_module_split":          "name:string size:integer",
 	"delete_module_args":           "typedef struct {u64 __unused__; int __syscall_nr; char * name_user; u64 flags;} delete_module_args;",
 	"delete_module_data":           "typedef struct {event_info_t event_info; char name_user[64]; u64 flags;} delete_module_data;",
 	"delete_module_split":          "name_user:string flags:integer",
 	"utimensat_args":               "typedef struct {u64 __unused__; int __syscall_nr; long dfd; char * filename; struct timespec * utimes; long flags;} utimensat_args;",
 	"utimensat_data":               "typedef struct {event_info_t event_info; u64 dfd; char filename[64]; u64 utimes; u64 flags;} utimensat_data;",
 	"utimensat_split":              "dfd:integer filename:string utimes:pointer flags:integer",
+	"get_kernel_syms_args":         "typedef struct {u64 __unused__; int __syscall_nr; struct kernel_sym *table;} get_kernel_syms_args;",
+	"get_kernel_syms_data":         "typedef struct {event_info_t event_info; u64 table;} get_kernel_syms_data;",
+	"get_kernel_syms_split":        "table:pointer",
 	"get_mempolicy_args":           "typedef struct {u64 __unused__; int __syscall_nr; long * policy; unsigned long * nmask; unsigned long maxnode; unsigned long addr; unsigned long flags;} get_mempolicy_args;",
 	"get_mempolicy_data":           "typedef struct {event_info_t event_info; u64 policy; u64 nmask; u64 maxnode; u64 addr; u64 flags;} get_mempolicy_data;",
 	"get_mempolicy_split":          "policy:pointer nmask:pointer maxnode:integer addr:integer flags:integer",
@@ -420,6 +787,9 @@ var SyscallIoStructMap = map[string]string{
 	"statx_args":                   "typedef struct {u64 __unused__; int __syscall_nr; long dfd; char * filename; unsigned flags; u64 mask; struct statx * buffer;} statx_args;",
 	"statx_data":                   "typedef struct {event_info_t event_info; u64 dfd; char filename[64]; u64 flags; u64 mask; u64 buffer;} statx_data;",
 	"statx_split":                  "dfd:integer filename:string flags:integer mask:integer buffer:pointer",
+	"sigaction_args":               "typedef struct {u64 __unused__; int __syscall_nr; long sig; struct sigaction * act; struct sigaction * oact;} sigaction_args;",
+	"sigaction_data":               "typedef struct {event_info_t event_info; u64 sig; u64 act; u64 oact;} sigaction_data;",
+	"sigaction_split":              "sig:integer act:pointer oact:pointer",
 	"rt_sigaction_args":            "typedef struct {u64 __unused__; int __syscall_nr; long sig; struct sigaction * act; struct sigaction * oact; size_t sigsetsize;} rt_sigaction_args;",
 	"rt_sigaction_data":            "typedef struct {event_info_t event_info; u64 sig; u64 act; u64 oact; u64 sigsetsize;} rt_sigaction_data;",
 	"rt_sigaction_split":           "sig:integer act:pointer oact:pointer sigsetsize:integer",
@@ -432,9 +802,9 @@ var SyscallIoStructMap = map[string]string{
 	"epoll_create1_args":           "typedef struct {u64 __unused__; int __syscall_nr; long flags;} epoll_create1_args;",
 	"epoll_create1_data":           "typedef struct {event_info_t event_info; u64 flags;} epoll_create1_data;",
 	"epoll_create1_split":          "flags:integer",
-	"wait4_args":                   "typedef struct {u64 __unused__; int __syscall_nr; pid_t upid; long * stat_addr; long options; struct rusage * ru;} wait4_args;",
-	"wait4_data":                   "typedef struct {event_info_t event_info; u64 upid; u64 stat_addr; u64 options; u64 ru;} wait4_data;",
-	"wait4_split":                  "upid:integer stat_addr:pointer options:integer ru:pointer",
+	"wait4_args":                   "typedef struct {u64 __unused__; int __syscall_nr; pid_t pid; long * stat_addr; long options; struct rusage * ru;} wait4_args;",
+	"wait4_data":                   "typedef struct {event_info_t event_info; u64 pid; u64 stat_addr; u64 options; u64 ru;} wait4_data;",
+	"wait4_split":                  "pid:integer stat_addr:pointer options:integer ru:pointer",
 	"sched_yield_args":             "typedef struct {u64 __unused__; int __syscall_nr;} sched_yield_args;",
 	"sched_yield_data":             "typedef struct {event_info_t event_info;} sched_yield_data;",
 	"sched_yield_split":            "",
@@ -505,7 +875,7 @@ var SyscallIoStructMap = map[string]string{
 	"getgid_data":                  "typedef struct {event_info_t event_info;} getgid_data;",
 	"getgid_split":                 "",
 	"capset_args":                  "typedef struct {u64 __unused__; int __syscall_nr; cap_user_header_t header; cap_user_data_t data;} capset_args;",
-	"capset_data":                  "typedef struct {event_info_t event_info; u64 header; u64 data;} capset_data;",
+	"capset_data":                  "typedef struct {event_info_t event_info; cap_user_header_t header; cap_user_data_t data;} capset_data;",
 	"capset_split":                 "header:integer data:integer",
 	"semget_args":                  "typedef struct {u64 __unused__; int __syscall_nr; key_t key; long nsems; long semflg;} semget_args;",
 	"semget_data":                  "typedef struct {event_info_t event_info; u64 key; u64 nsems; u64 semflg;} semget_data;",
@@ -588,8 +958,8 @@ var SyscallIoStructMap = map[string]string{
 	"execve_args":                  "typedef struct {u64 __unused__; int __syscall_nr; char * filename; char ** argv; char ** envp;} execve_args;",
 	"execve_data":                  "typedef struct {event_info_t event_info; char filename[64]; char argv1[16]; char argv2[16]; char argv3[16]; u64 envp;} execve_data;",
 	"execve_split":                 "filename:string argv1:string argv2:string argv3:string envp:pointer",
-	"clone_args":                   "typedef struct {u64 __unused__; int __syscall_nr; unsigned long clone_flags; unsigned long newsp; long * parent_tidptr; long * child_tidptr; unsigned long tls;} clone_args;",
-	"clone_data":                   "typedef struct {event_info_t event_info; u64 clone_flags; u64 newsp; u64 parent_tidptr; u64 child_tidptr; u64 tls;} clone_data;",
+	"clone_args":                   "typedef struct {u64 __unused__; int __syscall_nr; unsigned long clone_flags; unsigned long newsp; int * parent_tidptr; int * child_tidptr; unsigned long tls;} clone_args;",
+	"clone_data":                   "typedef struct {event_info_t event_info; u64 clone_flags; u64 newsp; int * parent_tidptr; int * child_tidptr; u64 tls;} clone_data;",
 	"clone_split":                  "clone_flags:integer newsp:integer parent_tidptr:pointer child_tidptr:pointer tls:integer",
 	"rseq_args":                    "typedef struct {u64 __unused__; int __syscall_nr; struct rseq * rseq; u32 rseq_len; long flags; u32 sig;} rseq_args;",
 	"rseq_data":                    "typedef struct {event_info_t event_info; u64 rseq; u64 rseq_len; u64 flags; u64 sig;} rseq_data;",
@@ -597,6 +967,9 @@ var SyscallIoStructMap = map[string]string{
 	"rt_sigreturn_args":            "typedef struct {u64 __unused__; int __syscall_nr;} rt_sigreturn_args;",
 	"rt_sigreturn_data":            "typedef struct {event_info_t event_info;} rt_sigreturn_data;",
 	"rt_sigreturn_split":           "",
+	"sigreturn_args":               "typedef struct {u64 __unused__; int __syscall_nr;} sigreturn_args;",
+	"sigreturn_data":               "typedef struct {event_info_t event_info;} sigreturn_data;",
+	"sigreturn_split":              "",
 	"finit_module_args":            "typedef struct {u64 __unused__; int __syscall_nr; long fd; char * uargs; long flags;} finit_module_args;",
 	"finit_module_data":            "typedef struct {event_info_t event_info; u64 fd; char uargs[64]; u64 flags;} finit_module_data;",
 	"finit_module_split":           "fd:integer uargs:string flags:integer",
@@ -609,6 +982,9 @@ var SyscallIoStructMap = map[string]string{
 	"setresuid_args":               "typedef struct {u64 __unused__; int __syscall_nr; uid_t ruid; uid_t euid; uid_t suid;} setresuid_args;",
 	"setresuid_data":               "typedef struct {event_info_t event_info; u64 ruid; u64 euid; u64 suid;} setresuid_data;",
 	"setresuid_split":              "ruid:integer euid:integer suid:integer",
+	"sigsuspend_args":              "typedef struct {u64 __unused__; int __syscall_nr; sigset_t * uset;} sigsuspend_args;",
+	"sigsuspend_data":              "typedef struct {event_info_t event_info; u64 uset;} sigsuspend_data;",
+	"sigsuspend_split":             "uset:pointer",
 	"rt_sigsuspend_args":           "typedef struct {u64 __unused__; int __syscall_nr; sigset_t * unewset; size_t sigsetsize;} rt_sigsuspend_args;",
 	"rt_sigsuspend_data":           "typedef struct {event_info_t event_info; u64 unewset; u64 sigsetsize;} rt_sigsuspend_data;",
 	"rt_sigsuspend_split":          "unewset:pointer sigsetsize:integer",
@@ -669,6 +1045,9 @@ var SyscallIoStructMap = map[string]string{
 	"perf_event_open_args":         "typedef struct {u64 __unused__; int __syscall_nr; struct perf_event_attr * attr_uptr; pid_t pid; long cpu; long group_fd; unsigned long flags;} perf_event_open_args;",
 	"perf_event_open_data":         "typedef struct {event_info_t event_info; u64 attr_uptr; u64 pid; u64 cpu; u64 group_fd; u64 flags;} perf_event_open_data;",
 	"perf_event_open_split":        "attr_uptr:pointer pid:integer cpu:integer group_fd:integer flags:integer",
+	"uname_args":                   "typedef struct {u64 __unused__; int __syscall_nr; struct old_utsname * name;} uname_args;",
+	"uname_data":                   "typedef struct {event_info_t event_info; u64 name;} uname_data;",
+	"uname_split":                  "name:pointer",
 	"newuname_args":                "typedef struct {u64 __unused__; int __syscall_nr; struct new_utsname * name;} newuname_args;",
 	"newuname_data":                "typedef struct {event_info_t event_info; u64 name;} newuname_data;",
 	"newuname_split":               "name:pointer",
@@ -712,7 +1091,7 @@ var SyscallIoStructMap = map[string]string{
 	"syslog_data":                  "typedef struct {event_info_t event_info; u64 type; char buf[64]; u64 len;} syslog_data;",
 	"syslog_split":                 "type:integer buf:string len:integer",
 	"accept_args":                  "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct sockaddr * upeer_sockaddr; long * upeer_addrlen;} accept_args;",
-	"accept_data":                  "typedef struct {event_info_t event_info; u64 fd; u64 upeer_sockaddr; u64 upeer_addrlen;} accept_data;",
+	"accept_data":                  "typedef struct {event_info_t event_info; u64 fd; struct sockaddr * upeer_sockaddr; long * upeer_addrlen;} accept_data;",
 	"accept_split":                 "fd:integer upeer_sockaddr:pointer upeer_addrlen:pointer",
 	"set_mempolicy_args":           "typedef struct {u64 __unused__; int __syscall_nr; long mode; unsigned long * nmask; unsigned long maxnode;} set_mempolicy_args;",
 	"set_mempolicy_data":           "typedef struct {event_info_t event_info; u64 mode; u64 nmask; u64 maxnode;} set_mempolicy_data;",
@@ -727,7 +1106,7 @@ var SyscallIoStructMap = map[string]string{
 	"mkdir_data":                   "typedef struct {event_info_t event_info; char pathname[64]; u64 mode;} mkdir_data;",
 	"mkdir_split":                  "pathname:string mode:integer",
 	"mount_args":                   "typedef struct {u64 __unused__; int __syscall_nr; char * dev_name; char * dir_name; char * type; unsigned long flags; void * data;} mount_args;",
-	"mount_data":                   "typedef struct {event_info_t event_info; char dev_name[64]; char dir_name[64]; char type[64]; u64 flags; u64 data;} mount_data;",
+	"mount_data":                   "typedef struct {event_info_t event_info; char dev_name[32]; char dir_name[32]; char type[32]; u64 flags; u64 data;} mount_data;",
 	"mount_split":                  "dev_name:string dir_name:string type:string flags:integer data:pointer",
 	"sched_setaffinity_args":       "typedef struct {u64 __unused__; int __syscall_nr; pid_t pid; u64 len; unsigned long * user_mask_ptr;} sched_setaffinity_args;",
 	"sched_setaffinity_data":       "typedef struct {event_info_t event_info; u64 pid; u64 len; u64 user_mask_ptr;} sched_setaffinity_data;",
@@ -742,7 +1121,7 @@ var SyscallIoStructMap = map[string]string{
 	"unshare_data":                 "typedef struct {event_info_t event_info; u64 unshare_flags;} unshare_data;",
 	"unshare_split":                "unshare_flags:integer",
 	"capget_args":                  "typedef struct {u64 __unused__; int __syscall_nr; cap_user_header_t header; cap_user_data_t dataptr;} capget_args;",
-	"capget_data":                  "typedef struct {event_info_t event_info; u64 header; u64 dataptr;} capget_data;",
+	"capget_data":                  "typedef struct {event_info_t event_info; cap_user_header_t header; cap_user_data_t dataptr;} capget_data;",
 	"capget_split":                 "header:integer dataptr:integer",
 	"linkat_args":                  "typedef struct {u64 __unused__; int __syscall_nr; long olddfd; char * oldname; long newdfd; char * newname; long flags;} linkat_args;",
 	"linkat_data":                  "typedef struct {event_info_t event_info; u64 olddfd; char oldname[64]; u64 newdfd; char newname[64]; u64 flags;} linkat_data;",
@@ -760,7 +1139,7 @@ var SyscallIoStructMap = map[string]string{
 	"getcwd_data":                  "typedef struct {event_info_t event_info; char buf[64]; u64 size;} getcwd_data;",
 	"getcwd_split":                 "buf:string size:integer",
 	"epoll_wait_args":              "typedef struct {u64 __unused__; int __syscall_nr; long epfd; struct epoll_event * events; long maxevents; long timeout;} epoll_wait_args;",
-	"epoll_wait_data":              "typedef struct {event_info_t event_info; u64 epfd; u64 events; u64 maxevents; u64 timeout;} epoll_wait_data;",
+	"epoll_wait_data":              "typedef struct {event_info_t event_info; u64 epfd; struct epoll_event * events; u64 maxevents; u64 timeout;} epoll_wait_data;",
 	"epoll_wait_split":             "epfd:integer events:pointer maxevents:integer timeout:integer",
 	"ioperm_args":                  "typedef struct {u64 __unused__; int __syscall_nr; unsigned long from; unsigned long num; long turn_on;} ioperm_args;",
 	"ioperm_data":                  "typedef struct {event_info_t event_info; u64 from; u64 num; u64 turn_on;} ioperm_data;",
@@ -769,7 +1148,7 @@ var SyscallIoStructMap = map[string]string{
 	"flock_data":                   "typedef struct {event_info_t event_info; u64 fd; u64 cmd;} flock_data;",
 	"flock_split":                  "fd:integer cmd:integer",
 	"epoll_ctl_args":               "typedef struct {u64 __unused__; int __syscall_nr; long epfd; long op; long fd; struct epoll_event * event;} epoll_ctl_args;",
-	"epoll_ctl_data":               "typedef struct {event_info_t event_info; u64 epfd; u64 op; u64 fd; u64 event;} epoll_ctl_data;",
+	"epoll_ctl_data":               "typedef struct {event_info_t event_info; u64 epfd; u64 op; u64 fd; struct epoll_event * event;} epoll_ctl_data;",
 	"epoll_ctl_split":              "epfd:integer op:integer fd:integer event:pointer",
 	"clock_gettime_args":           "typedef struct {u64 __unused__; int __syscall_nr; clockid_t which_clock; struct timespec * tp;} clock_gettime_args;",
 	"clock_gettime_data":           "typedef struct {event_info_t event_info; u64 which_clock; u64 tp;} clock_gettime_data;",
@@ -780,6 +1159,9 @@ var SyscallIoStructMap = map[string]string{
 	"rt_sigprocmask_args":          "typedef struct {u64 __unused__; int __syscall_nr; long how; sigset_t * nset; sigset_t * oset; size_t sigsetsize;} rt_sigprocmask_args;",
 	"rt_sigprocmask_data":          "typedef struct {event_info_t event_info; u64 how; u64 nset; u64 oset; u64 sigsetsize;} rt_sigprocmask_data;",
 	"rt_sigprocmask_split":         "how:integer nset:pointer oset:pointer sigsetsize:integer",
+	"sigprocmask_args":             "typedef struct {u64 __unused__; int __syscall_nr; long how; old_sigset_t * nset; old_sigset_t * oset;} sigprocmask_args;",
+	"sigprocmask_data":             "typedef struct {event_info_t event_info; u64 how; u64 nset; u64 oset;} sigprocmask_data;",
+	"sigprocmask_split":            "how:integer nset:pointer oset:pointer",
 	"personality_args":             "typedef struct {u64 __unused__; int __syscall_nr; u64 personality;} personality_args;",
 	"personality_data":             "typedef struct {event_info_t event_info; u64 personality;} personality_data;",
 	"personality_split":            "personality:integer",
@@ -799,8 +1181,8 @@ var SyscallIoStructMap = map[string]string{
 	"vhangup_data":                 "typedef struct {event_info_t event_info;} vhangup_data;",
 	"vhangup_split":                "",
 	"arch_prctl_args":              "typedef struct {u64 __unused__; int __syscall_nr; long option; unsigned long arg2;} arch_prctl_args;",
-	"arch_prctl_data":              "typedef struct {event_info_t event_info; u64 option; u64 arg2;} arch_prctl_data;",
-	"arch_prctl_split":             "option:integer arg2:integer",
+	"arch_prctl_data":              "typedef struct {event_info_t event_info; int code; unsigned long* addr;} arch_prctl_data;",
+	"arch_prctl_split":             "code:integer addr:integer",
 	"recvmsg_args":                 "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct user_msghdr * msg; u64 flags;} recvmsg_args;",
 	"recvmsg_data":                 "typedef struct {event_info_t event_info; u64 fd; u64 msg; u64 flags;} recvmsg_data;",
 	"recvmsg_split":                "fd:integer msg:pointer flags:integer",
@@ -810,6 +1192,9 @@ var SyscallIoStructMap = map[string]string{
 	"fcntl_args":                   "typedef struct {u64 __unused__; int __syscall_nr; u64 fd; u64 cmd; unsigned long arg;} fcntl_args;",
 	"fcntl_data":                   "typedef struct {event_info_t event_info; u64 fd; u64 cmd; u64 arg;} fcntl_data;",
 	"fcntl_split":                  "fd:integer cmd:integer arg:integer",
+	"fcntl64_args":                 "typedef struct {u64 __unused__; int __syscall_nr; u64 fd; u64 cmd; unsigned long arg;} fcntl64_args;",
+	"fcntl64_data":                 "typedef struct {event_info_t event_info; u64 fd; u64 cmd; u64 arg;} fcntl64_data;",
+	"fcntl64_split":                "fd:integer cmd:integer arg:integer",
 	"io_cancel_args":               "typedef struct {u64 __unused__; int __syscall_nr; aio_context_t ctx_id; struct iocb * iocb; struct io_event * result;} io_cancel_args;",
 	"io_cancel_data":               "typedef struct {event_info_t event_info; u64 ctx_id; u64 iocb; u64 result;} io_cancel_data;",
 	"io_cancel_split":              "ctx_id:integer iocb:pointer result:pointer",
@@ -879,12 +1264,21 @@ var SyscallIoStructMap = map[string]string{
 	"umount_args":                  "typedef struct {u64 __unused__; int __syscall_nr; char * name; long flags;} umount_args;",
 	"umount_data":                  "typedef struct {event_info_t event_info; char name[64]; u64 flags;} umount_data;",
 	"umount_split":                 "name:string flags:integer",
+	"umount2_args":                 "typedef struct {u64 __unused__; int __syscall_nr; char * name; long flags;} umount2_args;",
+	"umount2_data":                 "typedef struct {event_info_t event_info; char name[64]; u64 flags;} umount2_data;",
+	"umount2_split":                "name:string flags:integer",
 	"preadv_args":                  "typedef struct {u64 __unused__; int __syscall_nr; unsigned long fd; struct iovec * vec; unsigned long vlen; unsigned long pos_l; unsigned long pos_h;} preadv_args;",
 	"preadv_data":                  "typedef struct {event_info_t event_info; u64 fd; u64 vec; u64 vlen; u64 pos_l; u64 pos_h;} preadv_data;",
 	"preadv_split":                 "fd:integer vec:pointer vlen:integer pos_l:integer pos_h:integer",
 	"vmsplice_args":                "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct iovec * uiov; unsigned long nr_segs; u64 flags;} vmsplice_args;",
 	"vmsplice_data":                "typedef struct {event_info_t event_info; u64 fd; u64 uiov; u64 nr_segs; u64 flags;} vmsplice_data;",
 	"vmsplice_split":               "fd:integer uiov:pointer nr_segs:integer flags:integer",
+	"vm86_args":                    "typedef struct {u64 __unused__; int __syscall_nr; unsigned long fn; struct vm86plus_struct * v86;} vm86_args;",
+	"vm86_data":                    "typedef struct {event_info_t event_info; u64 fn; u64 v86;} vm86_data;",
+	"vm86_split":                   "fn:integer v86:pointer",
+	"vm86old_args":                 "typedef struct {u64 __unused__; int __syscall_nr; struct vm86_struct * info;} vm86old_args;",
+	"vm86old_data":                 "typedef struct {event_info_t event_info; u64 info;} vm86old_data;",
+	"vm86old_split":                "info:pointer",
 	"sysinfo_args":                 "typedef struct {u64 __unused__; int __syscall_nr; struct sysinfo * info;} sysinfo_args;",
 	"sysinfo_data":                 "typedef struct {event_info_t event_info; u64 info;} sysinfo_data;",
 	"sysinfo_split":                "info:pointer",
@@ -894,6 +1288,9 @@ var SyscallIoStructMap = map[string]string{
 	"quotactl_args":                "typedef struct {u64 __unused__; int __syscall_nr; u64 cmd; char * special; qid_t id; void * addr;} quotactl_args;",
 	"quotactl_data":                "typedef struct {event_info_t event_info; u64 cmd; char special[64]; u64 id; u64 addr;} quotactl_data;",
 	"quotactl_split":               "cmd:integer special:string id:integer addr:pointer",
+	"query_module_args":            "typedef struct {u64 __unused__; int __syscall_nr; const char* name; int which; void *buf; size_t bufsize; size_t * ret;} query_module_args;",
+	"query_module_data":            "typedef struct {event_info_t event_info; char name[64]; u64 which; u64 buf; u64 bufsize; u64 ret;} query_module_data;",
+	"query_module_split":           "name:string which:integer buf:pointer bufsize:integer ret:pointer",
 	"getgroups_args":               "typedef struct {u64 __unused__; int __syscall_nr; long gidsetsize; gid_t * grouplist;} getgroups_args;",
 	"getgroups_data":               "typedef struct {event_info_t event_info; u64 gidsetsize; u64 grouplist;} getgroups_data;",
 	"getgroups_split":              "gidsetsize:integer grouplist:pointer",
@@ -931,14 +1328,14 @@ var SyscallIoStructMap = map[string]string{
 	"setsid_data":                  "typedef struct {event_info_t event_info;} setsid_data;",
 	"setsid_split":                 "",
 	"connect_args":                 "typedef struct {u64 __unused__; int __syscall_nr; long fd; struct sockaddr * uservaddr; long addrlen;} connect_args;",
-	"connect_data":                 "typedef struct {event_info_t event_info; u64 fd; u64 uservaddr; u64 addrlen;} connect_data;",
+	"connect_data":                 "typedef struct {event_info_t event_info; u64 fd; struct sockaddr * uservaddr; u64 addrlen;} connect_data;",
 	"connect_split":                "fd:integer uservaddr:pointer addrlen:integer",
 	"sendto_args":                  "typedef struct {u64 __unused__; int __syscall_nr; long fd; void * buff; size_t len; u64 flags; struct sockaddr * addr; long addr_len;} sendto_args;",
 	"sendto_data":                  "typedef struct {event_info_t event_info; u64 fd; u64 buff; u64 len; u64 flags; u64 addr; u64 addr_len;} sendto_data;",
 	"sendto_split":                 "fd:integer buff:pointer len:integer flags:integer addr:pointer addr_len:integer",
-	"bpf_args":                     "typedef struct {u64 __unused__; int __syscall_nr; long cmd; union bpf_attr * uattr; u64 size;} bpf_args;",
-	"bpf_data":                     "typedef struct {event_info_t event_info; u64 cmd; u64 uattr; u64 size;} bpf_data;",
-	"bpf_split":                    "cmd:integer uattr:pointer size:integer",
+	"bpf_args":                     "typedef struct {u64 __unused__; int __syscall_nr; int cmd; union bpf_attr *attr; unsigned int size;} bpf_args;",
+	"bpf_data":                     "typedef struct {event_info_t event_info; u64 cmd; u64 attr; u64 size;} bpf_data;",
+	"bpf_split":                    "cmd:integer attr:pointer size:integer",
 	"kcmp_args":                    "typedef struct {u64 __unused__; int __syscall_nr; pid_t pid1; pid_t pid2; long type; unsigned long idx1; unsigned long idx2;} kcmp_args;",
 	"kcmp_data":                    "typedef struct {event_info_t event_info; u64 pid1; u64 pid2; u64 type; u64 idx1; u64 idx2;} kcmp_data;",
 	"kcmp_split":                   "pid1:integer pid2:integer type:integer idx1:integer idx2:integer",
@@ -954,11 +1351,14 @@ var SyscallIoStructMap = map[string]string{
 	"swapoff_args":                 "typedef struct {u64 __unused__; int __syscall_nr; char * specialfile;} swapoff_args;",
 	"swapoff_data":                 "typedef struct {event_info_t event_info; char specialfile[64];} swapoff_data;",
 	"swapoff_split":                "specialfile:string",
+	"stime_args":                   "typedef struct {u64 __unused__; int __syscall_nr; const time_t * t;} stime_args;",
+	"stime_data":                   "typedef struct {event_info_t event_info; u64 t;} stime_data;",
+	"stime_split":                  "t:pointer",
 	"userfaultfd_args":             "typedef struct {u64 __unused__; int __syscall_nr; long flags;} userfaultfd_args;",
 	"userfaultfd_data":             "typedef struct {event_info_t event_info; u64 flags;} userfaultfd_data;",
 	"userfaultfd_split":            "flags:integer",
 	"io_pgetevents_args":           "typedef struct {u64 __unused__; int __syscall_nr; aio_context_t ctx_id; long min_nr; long nr; struct io_event * events; struct timespec * timeout; struct __aio_sigset * usig;} io_pgetevents_args;",
-	"io_pgetevents_data":           "typedef struct {event_info_t event_info; u64 ctx_id; u64 min_nr; u64 nr; u64 events; u64 timeout; u64 usig;} io_pgetevents_data;",
+	"io_pgetevents_data":           "typedef struct {event_info_t event_info; u64 ctx_id; u64 min_nr; u64 nr; struct epoll_event * events; u64 timeout; u64 usig;} io_pgetevents_data;",
 	"io_pgetevents_split":          "ctx_id:integer min_nr:integer nr:integer events:pointer timeout:pointer usig:pointer",
 	"listen_args":                  "typedef struct {u64 __unused__; int __syscall_nr; long fd; long backlog;} listen_args;",
 	"listen_data":                  "typedef struct {event_info_t event_info; u64 fd; u64 backlog;} listen_data;",

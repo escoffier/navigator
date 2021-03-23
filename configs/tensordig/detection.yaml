@@ -132,5 +132,700 @@ producers:
             - v: 0
             - v: 1
             - v: 2
+# seccomp
+    # - syscallAccept:
+    #   name: accept
+    # - syscallAccept4:
+    #   name: accept4
+    # - syscallAccess:
+    #   name: access
+    - syscallAcct:
+      name: acct
+    - syscallAdd_key:
+      name: add_key
+    - syscallAdjtimex:
+      name: adjtimex
+    # - syscallArch_prctl:
+    #   name: arch_prctl
+    - syscallBdflush:
+      name: bdflush
+    # - syscallBind:
+    #   name: bind
+    # - syscallBrk:
+    #   name: brk
+    - syscallBpf:
+      name: bpf
+    # - syscallCapget:
+    #   name: capget
+    # - syscallCapset:
+    #   name: capset
+    # - syscallChdir:
+    #   name: chdir
+    - syscallChown:
+      name: chown
+    - syscallChmod:
+      name: chmod
+    - syscallChroot:
+      name: chroot
+    - syscallClock_adjtime:
+      name: clock_adjtime
+    - syscallClock_nanosleep:
+      name: clock_nanosleep
+    - syscallClock_getres:
+      name: clock_getres
+    - syscallGet_robust_list:
+      name: get_robust_list
+    # - syscallClock_gettime:
+    #   name: clock_gettime
+    - syscallClock_settime:
+      name: clock_settime
+    - syscallClone:
+      name: clone
+    # - syscallClose:
+    #   name: close
+    # - syscallConnect:
+    #   name: connect
+    - syscallCreat:
+      name: creat
+    # TODO: IMPORTANT
+    # - syscallCreate_module:
+    #   name: create_module
+    - syscallDelete_module:
+      name: delete_module
+    - syscallDup:
+      name: dup
+    # - syscallDup2:
+    #   name: dup2
+    - syscallDup3:
+      name: dup3
+    - syscallEpoll_create:
+      name: epoll_create
+    - syscallEpoll_create1:
+      name: epoll_create1
+    # - syscallEpoll_ctl:
+    #   name: epoll_ctl
+    # - syscallEpoll_pwait:
+    #   name: epoll_pwait
+    # - syscallEpoll_wait:
+    #   name: epoll_wait
+    - syscallEventfd:
+      name: eventfd
+    - syscallEventfd2:
+      name: eventfd2
+    # - syscallExec:
+    #   name: exec
+    # - syscallExecve:
+    #   name: execve
+    # - syscallExit_group:
+    #   name: exit_group
+    - syscallFaccessat:
+      name: faccessat
+    - syscallFadvise64:
+      name: fadvise64
+    - syscallFallocate:
+      name: fallocate
+    - syscallFanotify_init:
+      name: fanotify_init
+    - syscallFanotify_mark:
+      name: fanotify_mark
+    - syscallFchdir:
+      name: fchdir
+    - syscallFchmod:
+      name: fchmod
+    - syscallFchmodat:
+      name: fchmodat
+    - syscallFchown:
+      name: fchown
+    - syscallFchownat:
+      name: fchownat
+    # - syscallFcntl:
+    #   name: fcntl
+    # TODO:
+    # - syscallFcntl64:
+    #   name: fcntl64
+    - syscallFdatasync:
+      name: fdatasync
+    - syscallFgetxattr:
+      name: fgetxattr
+    - syscallFremovexattr:
+      name: fremovexattr
+    - syscallFsetxattr:
+      name: fsetxattr
+    - syscallFlistxattr:
+      name: flistxattr
+    - syscallFinit_module:
+      name: finit_module
+    - syscallFlock:
+      name: flock
+    - syscallFork:
+      name: fork
+    # TODO: runtime not working
+    # - syscallFstat:
+    #   name: fstat
+    # TODO: runtime not working
+    # - syscallFstat64:
+    #   name: fstat64
+    # TODO - uncomment:
+    # - syscallFstatat64:
+    #   name: fstatat64
+    # - syscallFstatfs:
+    #   name: fstatfs
+    # TODO - uncomment:
+    # - syscallFstatfs64:
+    #   name: fstatfs64
+    - syscallFsync:
+      name: fsync
+    - syscallFtruncate:
+      name: ftruncate
+    # TODO - uncomment:
+    # - syscallFtruncate64:
+    #   name: ftruncate64
+    # - syscallFutex:
+    #   name: futex
+    - syscallFutimesat:
+      name: futimesat
+    - syscallGetxattr:
+      name: getxattr
+    - syscallGetcpu:
+      name: getcpu
+    # - syscallGetcwd:
+    #   name: getcwd
+    # - syscallGetdents:
+    #   name: getdents
+    # - syscallGetdents64:
+    #   name: getdents64
+    # - syscallGetegid:
+    #   name: getegid
+    # - syscallGeteuid:
+    #   name: geteuid
+    # - syscallGetgid:
+    #   name: getgid
+    # - syscallGetgroups:
+    #   name: getgroups
+    # - syscallGetitimer:
+    #   name: getitimer
+    # TODO: IMPORTANT 
+    # - syscallGet_kernel_syms:
+    #   name: get_kernel_syms
+    - syscallGet_mempolicy:
+      name: get_mempolicy
+    - syscallGetpeername:
+      name: getpeername
+    # - syscallGetpgid:
+    #   name: getpgid
+    # - syscallGetpgrp:
+    #   name: getpgrp
+    # - syscallGetpid:
+    #   name: getpid
+    # - syscallGetppid:
+    #   name: getppid
+    - syscallGetpriority:
+      name: getpriority
+    - syscallGetresgid:
+      name: getresgid
+    - syscallGetresuid:
+      name: getresuid
+    - syscallGetrlimit:
+      name: getrlimit
+    - syscallGetrusage:
+      name: getrusage
+    # - syscallGetsid:
+    #   name: getsid
+    # - syscallGetsockopt:
+    #   name: getsockopt
+    # - syscallGetsockname:
+    #   name: getsockname
+    # - syscallGettid:
+    #   name: gettid
+    # - syscallGettimeofday:
+    #   name: gettimeofday
+    # - syscallGetuid:
+    #   name: getuid
+    - syscallInit_module:
+      name: init_module
+    - syscallInotify_add_watch:
+      name: inotify_add_watch
+    - syscallInotify_init:
+      name: inotify_init
+    - syscallInotify_init1:
+      name: inotify_init1
+    - syscallInotify_rm_watch:
+      name: inotify_rm_watch
+    - syscallIo_cancel:
+      name: io_cancel
+    # - syscallIoctl:
+    #   name: ioctl
+    - syscallIo_destroy:
+      name: io_destroy
+    - syscallIo_getevents:
+      name: io_getevents
+    - syscallIoperm:
+      name: ioperm
+    - syscallIopl:
+      name: iopl
+    - syscallIoprio_get:
+      name: ioprio_get
+    - syscallIoprio_set:
+      name: ioprio_set
+    - syscallIo_setup:
+      name: io_setup
+    - syscallIo_submit:
+      name: io_submit
+    - syscallKcmp:
+      name: kcmp
+    - syscallKeyctl:
+      name: keyctl
+    - syscallKexec_file_load:
+      name: kexec_file_load
+    - syscallKexec_load:
+      name: kexec_load
+    - syscallKill:
+      name: kill
+    - syscallLchown:
+      name: lchown
+    - syscallLgetxattr:
+      name: lgetxattr
+    # - syscallLink:
+    #   name: link
+    # - syscallLinkat:
+    #   name: linkat
+    # - syscallListen:
+    #   name: listen
+    # - syscallListxattr:
+    #   name: listxattr
+    # - syscallLlistxattr:
+    #   name: llistxattr
+    - syscallLookup_dcookie:
+      name: lookup_dcookie
+    - syscalllRemovexattr:
+      name: lremovexattr
+    # - syscallLseek:
+    #   name: lseek
+    - syscallLsetxattr:
+      name: lsetxattr
+    # TODO - uncomment:
+    # - syscallLstat64:
+    #   name: lstat64
+    # TODO:
+    # - syscallLstat:
+    #   name: lstat
+    # - syscallMadvise:
+    #   name: madvise
+    - syscallMbind:
+      name: mbind
+    - syscallMigrate_pages:
+      name: migrate_pages
+    - syscallMincore:
+      name: mincore
+    - syscallMkdir:
+      name: mkdir
+    - syscallMkdirat:
+      name: mkdirat
+    - syscallMknod:
+      name: mknod
+    - syscallMknodat:
+      name: mknodat
+    - syscallMlock:
+      name: mlock
+    - syscallMlockall:
+      name: mlockall
+    # - syscallMmap:
+    #   name: mmap
+    - syscallMount:
+      name: mount
+    - syscallMove_pages:
+      name: move_pages
+    # - syscallMprotect:
+    #   name: mprotect
+    - syscallMq_getsetattr:
+      name: mq_getsetattr
+    - syscallMq_notify:
+      name: mq_notify
+    - syscallMq_open:
+      name: mq_open
+    - syscallMq_timedreceive:
+      name: mq_timedreceive
+    - syscallMq_timedsend:
+      name: mq_timedsend
+    - syscallMq_unlink:
+      name: mq_unlink
+    - syscallMremap:
+      name: mremap
+    - syscallMsgctl:
+      name: msgctl
+    - syscallMsgget:
+      name: msgget
+    - syscallMsgrcv:
+      name: msgrcv
+    - syscallMsgsnd:
+      name: msgsnd
+    - syscallMsync:
+      name: msync
+    - syscallMunlock:
+      name: munlock
+    - syscallMunlockall:
+      name: munlockall
+    # - syscallMunmap:
+    #   name: munmap
+    - syscallName_to_handle_at:
+      name: name_to_handle_at
+    # - syscallNanosleep:
+    #   name: nanosleep
+    # TODO:
+    # - syscallNewfstatat:
+    #   name: newfstatat
+    # TODO: IMPORTANT
+    # - syscallNfsservctl:
+    #   name: nfsservctl
+    - syscallNice:
+      name: nice
+    # - syscallOpen:
+    #   name: open
+    # - syscallOpenat:
+    #   name: openat
+    - syscallOpen_by_handle_at:
+      name: open_by_handle_at
+    - syscallPause:
+      name: pause
+    - syscallPciconfig_iobase:
+      name: pciconfig_iobase
+    - syscallPciconfig_read:
+      name: pciconfig_read
+    - syscallPciconfig_write:
+      name: pciconfig_write
+    # TODO: IMPORTANTf
+    # - syscallPerf_event_open:
+    #   name: perf_event_open
+    - syscallPersonality:
+      name: personality
+    - syscallPipe:
+      name: pipe
+    - syscallPipe2:
+      name: pipe2
+    - syscallPivot_root:
+      name: pivot_root
+    # - syscallPoll:
+    #   name: poll
+    # - syscallPpoll:
+    #   name: ppoll
+    # - syscallPrctl:
+    #   name: prctl
+    # - syscallPread:
+    #   name: pread
+    # TODO:
+    # - syscallPread64:
+    #   name: pread64
+    - syscallPreadv:
+      name: preadv
+    - syscallPrlimit64:
+      name: prlimit64
+    - syscallProcess_vm_readv:
+      name: process_vm_readv
+    - syscallProcess_vm_writev:
+      name: process_vm_writev
+    # - syscallPselect6:
+    #   name: pselect6
+    - syscallPtrace:
+      name: ptrace
+    # TODO - uncomment:
+    # - syscallPwrite:
+    #   name: pwrite
+    # - syscallPwrite64:
+    #   name: pwrite64
+    - syscallPwritev:
+      name: pwritev
+    # TODO: IMPORTANT
+    # - syscallQuery_module:
+    #   name: query_module
+    - syscallQuotactl:
+      name: quotactl
+    # - syscallRead:
+    #   name: read
+    - syscallReadahead:
+      name: readahead
+    - syscallReadv:
+      name: readv
+    # - syscallReadlink:
+    #   name: readlink
+    # - syscallReadlinkat:
+    #   name: readlinkat
+    - syscallReboot:
+      name: reboot
+    # - syscallRecv:
+    #   name: recv
+    # - syscallRecvfrom:
+    #   name: recvfrom
+    # - syscallRecvmsg:
+    #   name: recvmsg
+    # - syscallRecvmmsg:
+    #   name: recvmmsg
+    - syscallRemap_file_pages:
+      name: remap_file_pages
+    - syscallRemovexattr:
+      name: removexattr
+    - syscallRename:
+      name: rename
+    - syscallRenameat:
+      name: renameat
+    # TODO: IMPORTANT
+    # - syscallRequest_key:
+    #   name: request_key
+    - syscallRmdir:
+      name: rmdir
+    # - syscallRt_sigaction:
+    #   name: rt_sigaction
+    - syscallRt_sigpending:
+      name: rt_sigpending
+    # - syscallRt_sigprocmask:
+    #   name: rt_sigprocmask
+    - syscallRt_sigqueueinfo:
+      name: rt_sigqueueinfo
+    # - syscallRt_sigreturn:
+    #   name: rt_sigreturn
+    - syscallRt_sigtimedwait:
+      name: rt_sigtimedwait
+    - syscallRt_sigsuspend:
+      name: rt_sigsuspend
+    - syscallRt_tgsigqueueinfo:
+      name: rt_tgsigqueueinfo
+    - syscallSched_getaffinity:
+      name: sched_getaffinity
+    # TODO - uncomment:
+    # - syscallSched_getattr:
+    #   name: sched_getattr
+    - syscallSched_getparam:
+      name: sched_getparam
+    - syscallSched_get_priority_max:
+      name: sched_get_priority_max
+    - syscallSched_get_priority_min:
+      name: sched_get_priority_min
+    - syscallSched_getscheduler:
+      name: sched_getscheduler
+    - syscallSched_rr_get_interval:
+      name: sched_rr_get_interval
+    - syscallSched_setaffinity:
+      name: sched_setaffinity
+    # TODO - uncomment:
+    # - syscallSched_setattr:
+    #   name: sched_setattr
+    - syscallSched_setparam:
+      name: sched_setparam
+    - syscallSched_setscheduler:
+      name: sched_setscheduler
+    # - syscallSched_yield:
+    #   name: sched_yield
+    - syscallSemctl:
+      name: semctl
+    - syscallSemget:
+      name: semget
+    - syscallSemop:
+      name: semop
+    - syscallSemtimedop:
+      name: semtimedop
+    # TODO:
+    # - syscallSeccomp:
+    #   name: seccomp
+    # TODO - uncomment:
+    # - syscallSend:
+    #   name: send
+    # TODO:
+    # - syscallSendfile:
+    #   name: sendfile
+    # TODO - uncomment:
+    # - syscallSendfile64:
+    #   name: sendfile64
+    # - syscallSendmsg:
+    #   name: sendmsg
+    # - syscallSendmmsg:
+    #   name: sendmmsg
+    # - syscallSendto:
+    #   name: sendto
+    - syscallSetdomainname:
+      name: setdomainname
+    - syscallSetfsgid:
+      name: setfsgid
+    - syscallSetfsuid:
+      name: setfsuid
+    # - syscallSetgid:
+    #   name: setgid
+    # - syscallSetgroups:
+    #   name: setgroups
+    - syscallSethostname:
+      name: sethostname
+    - syscallSet_mempolicy:
+      name: set_mempolicy
+    - syscallSetpgid:
+      name: setpgid
+    - syscallSetregid:
+      name: setregid
+    - syscallSetresgid:
+      name: setresgid
+    - syscallSetresuid:
+      name: setresuid
+    - syscallSetreuid:
+      name: setreuid
+    # - syscallSetitimer:
+    #   name: setitimer
+    - syscallSetns:
+      name: setns
+    - syscallSetpriority:
+      name: setpriority
+    - syscallSetrlimit:
+      name: setrlimit
+    # - syscallSet_robust_list:
+    #   name: set_robust_list
+    - syscallSettimeofday:
+      name: settimeofday
+    - syscallSetsid:
+      name: setsid
+    # - syscallSetsockopt:
+    #   name: setsockopt
+    - syscallSet_tid_address:
+      name: set_tid_address
+    # - syscallSetuid:
+    #   name: setuid
+    - syscallSetxattr:
+      name: setxattr
+    - syscallShmat:
+      name: shmat
+    - syscallShmctl:
+      name: shmctl
+    - syscallShmdt:
+      name: shmdt
+    - syscallShmget:
+      name: shmget
+    - syscallShutdown:
+      name: shutdown
+    # - syscallSigaction:
+    #   name: sigaction
+    # - syscallSigaltstack:
+    #   name: sigaltstack
+    # - syscallSignalfd:
+    #   name: signalfd
+    # - syscallSignalfd4:
+    #   name: signalfd4
+    - syscallSigprocmask:
+      name: sigprocmask
+    # - syscallSigreturn:
+    #   name: sigreturn
+    # - syscallSigsuspend:
+    #   name: sigsuspend
+    # - syscallSigpending:
+    #   name: sigpending
+    # - syscallSocket:
+    #   name: socket
+    # - syscallSocketpair:
+    #   name: socketpair
+    # - syscallSplice:
+    #   name: splice
+    # TODO:
+    # - syscallStat:
+    #   name: stat
+    # TODO - uncomment:
+    # - syscallStat64:
+    #   name: stat64
+    # TODO:
+    # - syscallStatfs:
+    #   name: statfs
+    # TODO - uncomment:
+    # - syscallStatfs64:
+    #   name: statfs64
+    - syscallStime:
+      name: stime
+    - syscallSwapoff:
+      name: swapoff
+    - syscallSwapon:
+      name: swapon
+    - syscallSymlink:
+      name: symlink
+    - syscallSymlinkat:
+      name: symlinkat
+    - syscallSync:
+      name: sync
+    - syscallSync_file_range:
+      name: sync_file_range
+    - syscallSyncfs:
+      name: syncfs
+    - syscallSysfs:
+      name: sysfs
+    - syscallSysinfo:
+      name: sysinfo
+    - syscallSyslog:
+      name: syslog
+    - syscallTee:
+      name: tee
+    - syscallTgkill:
+      name: tgkill
+    # - syscallTimes:
+    #   name: times
+    - syscallTimer_create:
+      name: timer_create
+    - syscallTimer_delete:
+      name: timer_delete
+    - syscallTimerfd_create:
+      name: timerfd_create
+    # - syscallTimerfd_gettime:
+    #   name: timerfd_gettime
+    - syscallTimerfd_settime:
+      name: timerfd_settime
+    - syscallTimer_getoverrun:
+      name: timer_getoverrun
+    # - syscallTimer_gettime:
+    #   name: timer_gettime
+    - syscallTimer_settime:
+      name: timer_settime
+    # - syscallTkill:
+    #   name: tkill
+    # - syscallTruncate:
+    #   name: truncate
+    # TODO - uncomment:
+    # - syscallTruncate64:
+    #   name: truncate64
+    - syscallUmount:
+      name: umount
+    # TODO - uncomment
+    # - syscallUmount2:
+    #   name: umount2
+    - syscallUmask:
+      name: umask
+    - syscallUname:
+      name: uname
+    # - syscallUnlink:
+    #   name: unlink
+    # - syscallUnlinkat:
+    #   name: unlinkat
+    - syscallUnshare:
+      name: unshare
+    - syscallUselib:
+      name: uselib
+    - syscallUserfaultfd:
+      name: userfaultfd
+    - syscallUstat:
+      name: ustat
+    # - syscallUtimensat:
+    #   name: utimensat
+    # - syscallUtimes:
+    #   name: utimes
+    # - syscallUtimensat:
+    #   name: utimensat
+    # - syscallWait4:
+    #   name: wait4
+    # - syscallWaitid:
+    #   name: waitid
+    # - syscallWrite:
+    #   name: write
+    # - syscallWritev:
+    #   name: writev
+    - syscallVhangup:
+      name: vhangup
+    # - syscallVfork:
+    #   name: vfork
+    - syscallVm86:
+      name: vm86
+    - syscallVm86old:
+      name: vm86old
+    # - syscallVmsplice:
+    #   name: vmsplice
 consumers:
   - File
+  - SeccompPrevent

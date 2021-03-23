@@ -17,3 +17,7 @@
 	path = configs/tensordig/gobpf
 	url = git@gitlab.com:tensorsecurity-rd/gobpf.git
 	branch = tensordig
+[submodule "cmd/go-audit"]
+	path = cmd/go-audit
+	url = git@gitlab.com:tensorsecurity-rd/go-audit.git
+	branch = tensorsec

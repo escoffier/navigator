@@ -21,8 +21,10 @@ type OnlineVulnListItem struct {
 }
 
 type OnlineVulnDetailsContainerInstance struct {
-	PodName string `json:"podName"`
-	Node    string `json:"node"`
+	PodName         string `json:"podName"`
+	Node            string `json:"node"`
+	SeccompProfile  string `json:"seccompProfile"`
+	DriftPrevention string `json:"driftPrevention"`
 }
 
 type OnlineVulnDetailsContainer struct {

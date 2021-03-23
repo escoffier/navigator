@@ -32,6 +32,8 @@ generate:
 	@echo "+ $@"
 	cd cmd/console; go generate; cd -
 	cd cmd/scanner; go generate; cd -
+	# go get -u sigs.k8s.io/controller-tools/cmd/controller-gen
+	# cd cmd/seccomp-generator; controller-gen object paths=./api/types/v1/seccompProfile.go; cd -
 
 .PHONY: test
 test: generate			## Run golint, staticcheck, and go test for all the sub-directories
@@ -172,8 +174,40 @@ else
 	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention:latest -f ./build/drift-prevention/Dockerfile .
 endif
 
+.PHONY: seccomp-generator
+seccomp-generator: generate	## Build seccomp-generator docker
+	@echo "+ $@" 		
+	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator/cmd.Version=$(VERSION)" \
+		-o dist/vegeta-seccomp-generator gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator
+	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator:latest -f ./build/seccomp-generator/Dockerfile .
+
+.PHONY: seccomp-generator-webhook
+seccomp-generator-webhook:     ## Build seccomp-generator-webhook docker
+	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	@echo "seccomp-generator-webhook will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest -f ./build/seccomp-generator-webhook/Dockerfile \
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "seccomp-generator-webhook will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest -f ./build/seccomp-generator-webhook/Dockerfile .
+endif
+
+.PHONY: go-audit
+go-audit:     ## Build go-audit docker
+	@echo "+ $@" 		
+ifeq ($(USEMIRROR),true)
+	@echo "go-audit will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-go-audit:latest -f ./build/go-audit/Dockerfile \
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "go-audit will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-go-audit:latest -f ./build/go-audit/Dockerfile .
+endif
+
 .PHONY: all
-all: drift-prevention-client tensordig scanner scap-jobs console faulty audit audit-cleanup drift-prevention 
+all: drift-prevention-client faulty tensordig scanner scap-jobs console audit audit-cleanup drift-prevention seccomp-generator seccomp-generator-webhook
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -191,6 +225,9 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
+	# docker push $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -204,6 +241,9 @@ else
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
+	docker push $(REPOPREFIX)/tensorsec-seccomp-generator:latest
+	docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
+	# docker push $(REPOPREFIX)/tensorsec-go-audit:latest
 endif
 
 .PHONY: retag
@@ -221,6 +261,9 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
+	# docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
@@ -234,6 +277,9 @@ else
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
+	# docker tag $(REPOPREFIXOLD)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:latest
 endif
 
 .PHONY: redeploy

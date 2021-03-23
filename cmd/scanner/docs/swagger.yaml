@@ -1,6 +1,5 @@
 info:
   contact: {}
-  license: {}
 paths:
   /api/v1/scan/dev/forceInvalidateCache:
     post:

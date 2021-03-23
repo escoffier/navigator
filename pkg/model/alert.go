@@ -46,6 +46,9 @@ const (
 	AlertKindComplianceCheck  AlertKind = "complianceCheck"
 	AlertKindExploitRisk      AlertKind = "exploitRisk"
 	AlertKindDriftPrevention  AlertKind = "driftPrevention"
+	AlertKindSeccompProfile   AlertKind = "seccompProfile"
+	AlertKindInternal         AlertKind = "internal"
+	AlertKindFalco            AlertKind = "falco"
 )
 
 func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
@@ -54,8 +57,8 @@ func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
 		return AlertKindAny, nil
 	}
 	kind := AlertKind(kindRaw)
-	if kind != AlertKindComplianceCheck && kind != AlertKindExploitRisk && kind != AlertKindRuntimeDetection && kind != AlertKindDriftPrevention {
-		allowed := fmt.Sprintf("allowed: %s/%s/%s/%s", AlertKindComplianceCheck, AlertKindExploitRisk, AlertKindRuntimeDetection, AlertKindDriftPrevention)
+	if kind != AlertKindComplianceCheck && kind != AlertKindExploitRisk && kind != AlertKindRuntimeDetection && kind != AlertKindDriftPrevention && kind != AlertKindSeccompProfile && kind != AlertKindInternal && kind != AlertKindFalco {
+		allowed := fmt.Sprintf("allowed: %s/%s/%s/%s/%s", AlertKindComplianceCheck, AlertKindExploitRisk, AlertKindRuntimeDetection, AlertKindDriftPrevention, AlertKindSeccompProfile, AlertKindInternal)
 		return AlertKindAny, NewFieldError(http.StatusBadRequest,
 			fmt.Errorf("invalid kind param value (%s)", allowed),
 			Suberror{"kind", allowed})
@@ -75,6 +78,9 @@ type Alert struct {
 	ComplianceCheckAlert  *ComplianceCheckAlert  `json:"complianceCheckAlert,omitempty" bson:"complianceCheckAlert,omitempty"`
 	ExploitRiskAlert      *ExploitRiskAlert      `json:"exploitRiskAlert,omitempty" bson:"exploitRiskAlert,omitempty"`
 	DriftPreventionAlert  *DriftPreventionAlert  `json:"driftPreventionAlert,omitempty" bson:"driftPreventionAlert,omitempty"`
+	SeccompProfileAlert   *SeccompProfileAlert   `json:"seccompAlert,omitempty" bson:"seccompAlert,omitempty"`
+	InternalAlert         *InternalAlert         `json:"internalAlert,omitempty" bson:"internalAlert,omitempty"`
+	FalcoAlert            *FalcoAlert            `json:"falcoAlert,omitempty" bson:"falcoAlert,omitempty"`
 	Message               string                 `json:"message" bson:"message"`
 	MessageEn             string                 `json:"-" bson:"message_en"`
 	MessageZh             string                 `json:"-" bson:"message_zh"`
@@ -144,6 +150,25 @@ type DriftPreventionAlert struct {
 	Reason        string `json:"reason" bson:"reason"`
 	Action        string `json:"action" bson:"action"`
 	Syscall       string `json:"syscall" bson:"syscall"`
+}
+
+type InternalAlert struct{}
+
+type SeccompProfileAlert struct {
+	AffectedPod string `json:"affectedPod" bson:"affectedPod"`
+	Phase       string `json:"phase" bson:"phase"`
+	Action      string `json:"action" bson:"action"`
+	Syscall     string `json:"syscall" bson:"syscall"`
+}
+
+type FalcoAlert struct {
+	AffectedPod string `json:"affectedPod,omitempty" bson:"affectedPod,omitempty"`
+	User        string `json:"user,omitempty" bson:"user,omitempty"`
+	Container   string `json:"container,omitempty" bson:"container,omitempty"`
+	Command     string `json:"command,omitempty" bson:"command,omitempty"`
+	Image       string `json:"image,omitempty" bson:"image,omitempty"`
+	Syscall		string `json:"syscall,omitempty" bson:"syscall,omitempty"`
+	RuleType	string `json:"ruleType,omitempty" bson:"ruletype,omitempty"`
 }
 
 func (a *Alert) ApplyTranslation(ctx context.Context) {
@@ -278,6 +303,84 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 			Namespace:            a.Namespace,
 			Service:              a.Service,
 			Histories:            a.Histories,
+		})
+	} else if a.SeccompProfileAlert != nil {
+		return json.Marshal(&struct {
+			ID                  primitive.ObjectID   `json:"id"`
+			AlertKind           string               `json:"kind"`
+			Acknowledged        bool                 `json:"acknowledged"`
+			Timestamp           time.Time            `json:"timestamp"`
+			Severity            string               `json:"severity"`
+			Message             string               `json:"message"`
+			Cluster             string               `json:"cluster"`
+			Namespace           string               `json:"namespace"`
+			Service             string               `json:"service"`
+			SeccompProfileAlert *SeccompProfileAlert `json:"data"`
+			Histories           []AlertContext       `json:"histories,omitempty"`
+		}{
+			ID:                  a.ID,
+			AlertKind:           a.AlertKind,
+			Acknowledged:        a.Acknowledged,
+			Message:             a.Message,
+			Timestamp:           a.Timestamp,
+			Severity:            a.Severity,
+			SeccompProfileAlert: a.SeccompProfileAlert,
+			Cluster:             a.Cluster,
+			Namespace:           a.Namespace,
+			Service:             a.Service,
+			Histories:           a.Histories,
+		})
+	} else if a.InternalAlert != nil {
+		return json.Marshal(&struct {
+			ID            primitive.ObjectID `json:"id"`
+			AlertKind     string             `json:"kind"`
+			Acknowledged  bool               `json:"acknowledged"`
+			Timestamp     time.Time          `json:"timestamp"`
+			Severity      string             `json:"severity"`
+			Message       string             `json:"message"`
+			Cluster       string             `json:"cluster"`
+			Namespace     string             `json:"namespace"`
+			Service       string             `json:"service"`
+			InternalAlert *InternalAlert     `json:"data"`
+			Histories     []AlertContext     `json:"histories,omitempty"`
+		}{
+			ID:            a.ID,
+			AlertKind:     a.AlertKind,
+			Acknowledged:  a.Acknowledged,
+			Message:       a.Message,
+			Timestamp:     a.Timestamp,
+			Severity:      a.Severity,
+			InternalAlert: a.InternalAlert,
+			Cluster:       a.Cluster,
+			Namespace:     a.Namespace,
+			Service:       a.Service,
+			Histories:     a.Histories,
+		})
+	} else if a.FalcoAlert != nil {
+		return json.Marshal(&struct {
+			ID           primitive.ObjectID `json:"id"`
+			AlertKind    string             `json:"kind"`
+			Acknowledged bool               `json:"acknowledged"`
+			Timestamp    time.Time          `json:"timestamp"`
+			Severity     string             `json:"severity"`
+			Message      string             `json:"message"`
+			Cluster      string             `json:"cluster"`
+			Namespace    string             `json:"namespace"`
+			Service      string             `json:"service"`
+			FalcoAlert   *FalcoAlert        `json:"data"`
+			Histories    []AlertContext     `json:"histories,omitempty"`
+		}{
+			ID:           a.ID,
+			AlertKind:    a.AlertKind,
+			Acknowledged: a.Acknowledged,
+			Message:      a.Message,
+			Timestamp:    a.Timestamp,
+			Severity:     a.Severity,
+			FalcoAlert:   a.FalcoAlert,
+			Cluster:      a.Cluster,
+			Namespace:    a.Namespace,
+			Service:      a.Service,
+			Histories:    a.Histories,
 		})
 	}
 	return json.Marshal(&struct {

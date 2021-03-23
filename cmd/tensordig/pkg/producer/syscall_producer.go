@@ -5,11 +5,17 @@ import (
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
+)
+import (
+	"net/http"
+	"os"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/alert"
 )
 
 const syscallBasicProg string = `
@@ -218,12 +224,12 @@ const syscallTemplate string = `
 	// perf_enter_arg
 	int kprobe__sys_%s(%s) {
 		// sys_call_type_args
-		u64 pid = bpf_get_current_pid_tgid();
-		char name[] = "%s";
+		u64 curr_pid = bpf_get_current_pid_tgid();
+		char syscall_name[] = "%s";
 		%s d = {};
 		struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
 		bpf_probe_read(&d.event_info.procname, sizeof(d.event_info.procname), (void *)ts->comm);
-		bpf_probe_read(&d.event_info.event_name, sizeof(d.event_info.event_name), (void *)name);
+		bpf_probe_read(&d.event_info.event_name, sizeof(d.event_info.event_name), (void *)syscall_name);
 
 		// [#146] Not sure about specific version here. I just know that it doesn't work on 3.10.0
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
@@ -235,8 +241,8 @@ const syscallTemplate string = `
 
 		d.event_info.ts = bpf_ktime_get_ns();
 		u64 gid_uid = bpf_get_current_uid_gid();
-		d.event_info.pid = pid >> 32;
-		d.event_info.tid = pid;
+		d.event_info.pid = curr_pid >> 32;
+		d.event_info.tid = curr_pid;
 		d.event_info.gid = gid_uid >> 32;
 		d.event_info.uid = gid_uid;
 		d.event_info.ptid = ts->real_parent->pid;
@@ -250,7 +256,7 @@ const syscallTemplate string = `
 
 out:
 		// Write data to BPF_MAP
-		start_%s.update(&pid, &d);
+		start_%s.update(&curr_pid, &d);
 		return 0;
 	}
 
@@ -350,41 +356,88 @@ type SyscallProducer struct {
 	Syscall     string
 	Filters     []FilterT
 	FilterLogic string
+	ConsoleAddr string
+	HTTPClient  *http.Client
 }
 
 func NewSyscallProducer(producerInfo *ProducerInfoT) *SyscallProducer {
+	consoleHost := os.Getenv("TENSORSEC_CONSOLE_HOST")
+	consolePort := os.Getenv("TENSORSEC_CONSOLE_PORT")
+	var consoleAddr = ""
+	if consolePort != "" && consoleHost != "" {
+		consoleAddr = fmt.Sprintf("http://%s:%s", consoleHost, consolePort)
+	}
 	return &SyscallProducer{
 		Syscall:     producerInfo.ProducerName,
 		Filters:     producerInfo.ProducerFilters,
 		FilterLogic: producerInfo.FilterLogic,
+		ConsoleAddr: consoleAddr,
+		HTTPClient:  &http.Client{},
 	}
 }
 
-func (p *SyscallProducer) Init(module *bpf.Module) {
+func (p *SyscallProducer) Init(module *bpf.Module) error {
 	// load program to module
 	kprobe, err := module.LoadKprobe("kprobe__sys_" + p.Syscall)
 	if err != nil {
-		log.Fatalf("Could not load kprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not load kprobe")
+		if p.ConsoleAddr != "" {
+			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not load kprobe %s", p.Syscall))
+			if err2 != nil {
+				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
+			} else {
+				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
+			}
+		}
+		return err
 	}
 
 	syscallName := bpf.GetSyscallFnName(p.Syscall)
 
 	err = module.AttachKprobe(syscallName, kprobe, -1)
 	if err != nil {
-		log.Fatalf("Could not attach kprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not attach kprobe")
+		if p.ConsoleAddr != "" {
+			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not attach kprobe %s", p.Syscall))
+			if err2 != nil {
+				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
+			} else {
+				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
+			}
+		}
+		return err
 	}
 
 	kretprobe, err := module.LoadKprobe("kretprobe__sys_" + p.Syscall)
 	if err != nil {
-		log.Fatalf("Could not load kretprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not load kretprobe")
+		if err != nil {
+			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not load kretprobe %s", p.Syscall))
+			if err2 != nil {
+				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
+			} else {
+				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
+			}
+		}
+		return err
 	}
 
 	// passing -1 for maxActive signifies to use the default
 	// according to the kernel kretprobes documentation
 	err = module.AttachKretprobe(syscallName, kretprobe, -1)
 	if err != nil {
-		log.Fatalf("Could not attach kretprobe: syscall %s. Error: %s\n", strings.ToUpper(p.Syscall), err)
+		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not attach kretprobe")
+		if p.ConsoleAddr != "" {
+			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not attach kretprobe %s", p.Syscall))
+			if err2 != nil {
+				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
+			} else {
+				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
+			}
+		}
+		return err
 	}
+	return nil
 }
 
 func (p *SyscallProducer) getFieldsAbbr() map[string]string {

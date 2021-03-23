@@ -20,6 +20,16 @@ spec:
                 - /bin/bash
                 - -c
                 - ( /app/entrypoint.sh ; exit 0 )
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              volumeMounts:
+                - name: tmp
+                  mountPath: /host/tmp
           restartPolicy: Never
           imagePullSecrets:
-            - name: harbor-admin-secret
+          - name: harbor-admin-secret
+          volumes:
+          - name: tmp
+            hostPath:
+              path: /tmp

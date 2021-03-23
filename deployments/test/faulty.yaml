@@ -1,7 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: tensorsec
   name: faulty
   labels:
     app: faulty
@@ -14,11 +13,23 @@ spec:
     metadata:
       labels:
         app: faulty
+        # tensorsec.seccompgenerate.prevent: "faulty-profile"
+        tensorsec.seccompprotect: "faulty-profile"
         tensorsec.driftprevent: "prevent"
     spec:
       containers:
       - name: faulty
         image: registry.t-appagile.com/tensorsecurity/faulty
         command: ["/bin/bash", "-c", "sleep 99999"]
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+          - name: tmp
+            mountPath: /host/tmp
       imagePullSecrets:
       - name: harbor-admin-secret
+      volumes:
+      - name: tmp
+        hostPath:
+          path: /tmp

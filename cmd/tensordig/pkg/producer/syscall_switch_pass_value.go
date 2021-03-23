@@ -1372,6 +1372,20 @@ func (m *Manager) Deserialize(byteData []byte) (*constant.TotalData, error) {
 		data.AdjtimexTxcP = event.TxcP
 		return &data, nil
 
+	case "bdflush":
+		var event constant.BdFlush
+
+		err := binary.Read(bytes.NewBuffer(byteData), binary.LittleEndian, &event)
+		if err != nil {
+			err := fmt.Errorf("Failed to decode received data: %s\n", err)
+			return nil, err
+		}
+		data.EventInfo = event.EventInfo
+		data.IsSyscall = true
+		data.BdFlushFunc = event.Func
+		data.BdFlushData = event.Data
+		return &data, nil
+
 	case "fgetxattr":
 		var event constant.FgetxattrData
 

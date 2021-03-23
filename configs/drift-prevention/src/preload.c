@@ -171,6 +171,10 @@ static void * hash_search(hash_tbl_t * table, void *key) {
 static int send_alert(const char* filepath, const char* syscall, const char* reason, const char* action, const uint32_t crc32_expected, const uint32_t crc32_actual) {
     char* podname = getenv("MY_POD_NAME");
 
+    char* poduid = getenv("MY_POD_UID");
+
+    char* podnamespace = getenv("MY_POD_NAMESPACE");
+
     char *host = getenv("TENSORSEC_CONSOLE_ADDR");
     if (host == NULL) {
         drift_prevent_write_log(ERROR, "Env var TENSORSEC_CONSOLE_ADDR not found: %s\n", strerror(errno));
@@ -192,6 +196,8 @@ static int send_alert(const char* filepath, const char* syscall, const char* rea
     struct alert_t alert;
     strcpy(alert.filepath, filepath);
     strcpy(alert.podname, podname);
+    strcpy(alert.poduid, poduid);
+    strcpy(alert.podnamespace, podnamespace);
     strcpy(alert.syscall, syscall);
     strcpy(alert.reason, reason);
     strcpy(alert.action, action);

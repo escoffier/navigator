@@ -11,10 +11,13 @@ metadata:
 rules:
 - apiGroups:
   - ""
+  - "security-profiles-operator.x-k8s.io"
   resources:
+  - seccompprofiles
   - namespaces
   - pods
   verbs:
   - list
   - watch
+  - get
 {{- end -}}

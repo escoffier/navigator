@@ -34,6 +34,9 @@ type AssetContainer struct {
 	TaskID          primitive.ObjectID  `json:"taskID,omitempty" bson:"taskID,omitempty"`
 	TopVulns        []VulnerabilityInfo `json:"topVulnerabilities,omitempty" bson:"topVulnerabilities,omitempty"`
 	OverallSeverity string              `json:"overallSeverity,omitempty" bson:"overallSeverity,omitempty"`
+
+	DriftPrevention string `json:"driftPrevention" bson:"driftPrevention"`
+	SeccompProfile  string `json:"seccompProfile" bson:"seccompProfile"`
 }
 
 type Service struct {

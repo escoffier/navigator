@@ -21,7 +21,7 @@ func (api *api) driftPrevention() func(chi.Router) {
 
 // @Summary Raise a drift prevention alert
 // @Description Raise a drift prevention alert
-// @ID v1-raise-alert-post
+// @ID v1-raise-drift-prevention-alert-post
 // @Produce json
 // @Router /api/v1/driftPrevention/raiseAlert [post]
 func (api *api) raiseDriftPreventionAlert() http.HandlerFunc {

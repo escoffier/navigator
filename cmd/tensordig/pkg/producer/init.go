@@ -12,7 +12,7 @@ import (
 
 type Producer interface {
 	// Init Producer
-	Init(*bpf.Module)
+	Init(*bpf.Module) error
 	// Start Producer
 	// Start()
 	// Stop Producer

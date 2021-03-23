@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  namespace: default
+  annotations:
+    seccomp.security.alpha.kubernetes.io/pod: "localhost/operator/my-namespace/custom-profiles/profile1.json"
+spec:
+  containers:
+    - name: test-container
+      image: localhost:32000/faulty:latest
+
