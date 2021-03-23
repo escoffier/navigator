@@ -1,0 +1,111 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "seccompGenerator.serviceAccount" . }}-webhook-cluster-role
+  labels:
+    app: "{{ template "seccompGenerator.fullname" . }}-webhook"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch", "patch"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "seccompGenerator.serviceAccount" . }}-webhook-service-account
+  labels:
+    app: "{{ template "seccompGenerator.fullname" . }}-webhook"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "seccompGenerator.serviceAccount" . }}-webhook-cluster-role-binding
+  labels:
+    app: "{{ template "seccompGenerator.fullname" . }}-webhook"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "seccompGenerator.serviceAccount" . }}-webhook-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "seccompGenerator.serviceAccount" . }}-webhook-service-account
+    namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "seccompGenerator.fullname" . }}-webhook-service
+  labels:
+    app: "{{ template "seccompGenerator.fullname" . }}-webhook"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  ports:
+  - port: 443
+    targetPort: 8443
+  selector:
+    app: {{ template "seccompGenerator.fullname" . }}-webhook
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "seccompGenerator.fullname" . }}-webhook
+  labels:
+    app: "{{ template "seccompGenerator.fullname" . }}-webhook"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "seccompGenerator.fullname" . }}-webhook
+  template:
+    metadata:
+      labels:
+        app: {{ template "seccompGenerator.fullname" . }}-webhook
+    spec:
+      serviceAccountName: {{ template "seccompGenerator.serviceAccount" . }}-webhook-service-account
+      imagePullSecrets:
+      - name: {{ .Values.webhook.image.pullSecret }}
+      containers:
+      - name: {{ template "seccompGenerator.fullname" . }}-webhook
+        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.webhook.image.name }}:{{ .Values.webhook.image.tag }}"
+        imagePullPolicy: "{{ .Values.webhook.image.pullPolicy }}"
+        # command: ["/bin/sh", "-c", "sleep 360000"]
+        args:
+        - --cert=/etc/certs/tls.crt
+        - --key=/etc/certs/tls.key
+        - --port=8443
+        volumeMounts:
+        - name: certs
+          mountPath: /etc/certs
+          readOnly: true
+        env:
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+      volumes:
+      - name: certs
+        secret:
+          secretName: {{ template "seccompGenerator.fullname" . }}-webhook-certs

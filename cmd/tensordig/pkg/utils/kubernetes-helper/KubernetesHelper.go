@@ -47,6 +47,7 @@ type SyscallContext struct {
 	PodUID        string            `json:"podUID"`
 	PodLabels     map[string]string `json:"podLabels"`
 	ContainerID   string            `json:"containerId"`
+	ImageID       string            `json:"imageId"`
 	ContainerName string            `json:"containerName"`
 	ProcessPID    int               `json:"processPid"`
 	DockerPID     int               `json:"dockerPid"`
@@ -68,6 +69,7 @@ func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, p
 			PodLabels:     map[string]string{},
 			ContainerID:   "",
 			ContainerName: "",
+			ImageID:       "",
 			DockerPID:     -1,
 			ProcessPID:    pid,
 			Syscall:       syscall,
@@ -76,7 +78,7 @@ func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, p
 
 	logging.GetLogger().Debug().Msg("Finding corresponding pod")
 
-	x, found := clusterCache.Get("docker://" + cid)
+	x, found := clusterCache.Get(cid)
 	if found {
 		logging.GetLogger().Debug().Str("container", cid).Msg("Found docker in k8s\n")
 		kubeSelectedInfo := x.(*KubeSelectedInfo)
@@ -87,22 +89,7 @@ func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, p
 			PodLabels:     kubeSelectedInfo.PodLabels,
 			ContainerID:   cid,
 			ContainerName: kubeSelectedInfo.ContainerName,
-			DockerPID:     dockerPID,
-			ProcessPID:    pid,
-			Syscall:       syscall,
-		}, nil
-	}
-	x, found = clusterCache.Get("containerd://" + cid)
-	if found {
-		logging.GetLogger().Debug().Str("container", cid).Msg("Found docker in k8s\n")
-		kubeSelectedInfo := x.(*KubeSelectedInfo)
-		return &SyscallContext{
-			Namespace:     kubeSelectedInfo.Namespace,
-			PodName:       kubeSelectedInfo.PodName,
-			PodUID:        kubeSelectedInfo.PodUID,
-			PodLabels:     kubeSelectedInfo.PodLabels,
-			ContainerID:   cid,
-			ContainerName: kubeSelectedInfo.ContainerName,
+			ImageID:       kubeSelectedInfo.ImageID,
 			DockerPID:     dockerPID,
 			ProcessPID:    pid,
 			Syscall:       syscall,
@@ -115,6 +102,7 @@ func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, p
 		PodUID:        "",
 		PodLabels:     map[string]string{},
 		ContainerName: "",
+		ImageID:       "",
 		ContainerID:   cid,
 		DockerPID:     dockerPID,
 		ProcessPID:    pid,
@@ -123,10 +111,11 @@ func (ku KubernetesUtil) LookupPod(clusterCache *gocache.Cache, dockerPID int, p
 }
 
 func (ku KubernetesUtil) LookupDockerPodID(dockerPID int, pid int) (string, string, error) {
-	cid, kid, err := ku.containerCache.Get(dockerPID)
-	if err == nil {
-		return cid, kid, nil
-	}
+	// TODO: disabling cache check, because when there are many processes running new processes under the same PID can take cached entries that are no longer valid.
+	// cid, kid, err := ku.containerCache.Get(dockerPID)
+	// if err == nil {
+	// 	return cid, kid, nil
+	// }
 
 	f, err := os.Open(fmt.Sprintf("/host/proc/%d/cpuset", pid))
 	if err != nil {

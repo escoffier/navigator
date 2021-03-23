@@ -25,10 +25,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -50,6 +52,8 @@ type api struct {
 	ruleService            *rule.RuleService
 	alertService           *alert.AlertService
 	driftPreventionService *driftprevention.DriftPreventionService
+	seccompProfileService  *seccomp.SeccompProfileService
+	falcoService           *falco.FalcoService
 	onlineVulnsSvc         *assetsSvc.OnlineVulnsService
 	auditService           *audit.AuditService
 	cleanupService         *cleanup.CleanupService
@@ -77,6 +81,8 @@ func newAPI(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	driftPreventionService *driftprevention.DriftPreventionService,
+	seccompProfileService *seccomp.SeccompProfileService,
+	falcoService *falco.FalcoService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
@@ -98,6 +104,8 @@ func newAPI(
 		redisClient:                 redisClient,
 		ruleService:                 ruleService,
 		driftPreventionService:      driftPreventionService,
+		seccompProfileService:       seccompProfileService,
+		falcoService:                falcoService,
 		alertService:                alertService,
 		onlineVulnsSvc:              onlineVulnsSvc,
 		auditService:                auditService,

@@ -1,0 +1,267 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: security-profiles-operator
+  name: security-profiles-operator
+  namespace: security-profiles-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: security-profiles-operator
+  name: config-map-reader
+  namespace: security-profiles-operator
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - security-profiles-operator.x-k8s.io
+  resources:
+  - seccompprofiles
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - security-profiles-operator.x-k8s.io
+  resources:
+  - seccompprofiles/status
+  verbs:
+  - get
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: security-profiles-operator
+  name: config-map-reader-binding
+  namespace: security-profiles-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: config-map-reader
+subjects:
+- kind: ServiceAccount
+  name: security-profiles-operator
+  namespace: security-profiles-operator
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: security-profiles-operator
+  name: security-profiles-operator
+  namespace: security-profiles-operator
+spec:
+  selector:
+    matchLabels:
+      app: security-profiles-operator
+      name: security-profiles-operator
+  template:
+    metadata:
+      # annotations:
+        # container.seccomp.security.alpha.kubernetes.io/security-profiles-operator: localhost/security-profiles-operator.json
+      labels:
+        app: security-profiles-operator
+        name: security-profiles-operator
+    spec:
+      containers:
+      - env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: k8s.gcr.io/security-profiles-operator/security-profiles-operator:v0.2.0
+        imagePullPolicy: Always
+        name: security-profiles-operator
+        resources:
+          limits:
+            cpu: 300m
+            ephemeral-storage: 200Mi
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            ephemeral-storage: 50Mi
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 2000
+          runAsUser: 2000
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/seccomp/operator
+          name: host-operator-volume
+      initContainers:
+      - args:
+        - |
+          set -euo pipefail
+
+          if [ ! -d $KUBELET_SECCOMP_ROOT ]; then
+            /bin/mkdir -m 0744 -p $KUBELET_SECCOMP_ROOT
+          fi
+
+          /bin/mkdir -p $OPERATOR_ROOT
+          /bin/chmod 0744 $OPERATOR_ROOT
+
+          if [ ! -L $OPERATOR_SYMLINK ]; then
+            /bin/ln -s $OPERATOR_ROOT $OPERATOR_SYMLINK
+          fi
+
+          /bin/chown -R 2000:2000 $OPERATOR_ROOT
+          cp -f -v /opt/seccomp-profiles/* $KUBELET_SECCOMP_ROOT
+        command:
+        - bash
+        - -c
+        env:
+        - name: KUBELET_SECCOMP_ROOT
+          value: /var/lib/kubelet/seccomp
+        - name: OPERATOR_SYMLINK
+          value: $(KUBELET_SECCOMP_ROOT)/operator
+        - name: OPERATOR_ROOT
+          value: /var/lib/security-profiles-operator
+        image: bash:5.0
+        name: non-root-enabler
+        resources:
+          limits:
+            cpu: 250m
+            ephemeral-storage: 50Mi
+            memory: 64Mi
+          requests:
+            cpu: 100m
+            ephemeral-storage: 10Mi
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - FOWNER
+            - FSETID
+            - DAC_OVERRIDE
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /var/lib
+          name: host-varlib-volume
+        - mountPath: /opt/seccomp-profiles
+          name: profile-configmap-volume
+          readOnly: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: security-profiles-operator
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /var/lib
+          type: Directory
+        name: host-varlib-volume
+      - hostPath:
+          path: /var/lib/security-profiles-operator
+          type: DirectoryOrCreate
+        name: host-operator-volume
+      - configMap:
+          name: security-profiles-operator-profile
+        name: profile-configmap-volume
+---
+apiVersion: v1
+data:
+  security-profiles-operator.json: |
+    {
+      "defaultAction": "SCMP_ACT_ERRNO",
+      "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
+      "syscalls": [
+        {
+          "names": [
+            "accept4",
+            "arch_prctl",
+            "bind",
+            "brk",
+            "clone",
+            "close",
+            "connect",
+            "epoll_create1",
+            "epoll_ctl",
+            "epoll_pwait",
+            "execve",
+            "exit",
+            "exit_group",
+            "fcntl",
+            "fstat",
+            "futex",
+            "getcwd",
+            "getgid",
+            "getpeername",
+            "getpgrp",
+            "getpid",
+            "getppid",
+            "getrandom",
+            "getsockname",
+            "getsockopt",
+            "gettid",
+            "getuid",
+            "listen",
+            "madvise",
+            "membarrier",
+            "mkdirat",
+            "mlock",
+            "mmap",
+            "mprotect",
+            "nanosleep",
+            "newfstatat",
+            "open",
+            "openat",
+            "pipe2",
+            "pread64",
+            "read",
+            "readlinkat",
+            "rt_sigaction",
+            "rt_sigprocmask",
+            "rt_sigreturn",
+            "sched_getaffinity",
+            "sched_yield",
+            "setgid",
+            "setsockopt",
+            "set_tid_address",
+            "setuid",
+            "sigaltstack",
+            "socket",
+            "tgkill",
+            "uname",
+            "write"
+          ],
+          "action": "SCMP_ACT_ALLOW"
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    app: security-profiles-operator
+  name: security-profiles-operator-profile
+  namespace: security-profiles-operator

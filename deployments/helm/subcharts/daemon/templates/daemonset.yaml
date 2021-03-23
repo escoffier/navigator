@@ -154,8 +154,21 @@ spec:
           - -c
           - "/go/src/app/configs/tensordig/entrypoint.sh"
         resources:
+          requests:
+            memory: "2048Mi"
+            cpu: "1.5"
           limits:
-            memory: 200Mi
+            memory: "2048Mi"
+            cpu: "1.5"
+        env:
+          - name: TENSORSEC_CONSOLE_HOST
+            value: "{{ .Values.console.addr }}"
+          - name: TENSORSEC_CONSOLE_PORT
+            value: "{{ .Values.console.port }}"
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace            
         volumeMounts:
           - name: modules
             mountPath: /lib/modules

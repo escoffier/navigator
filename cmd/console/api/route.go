@@ -19,10 +19,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -59,6 +61,8 @@ func SetupRoutes(
 	ruleService *rule.RuleService,
 	alertService *alert.AlertService,
 	driftPreventionService *driftprevention.DriftPreventionService,
+	seccompProfileService *seccomp.SeccompProfileService,
+	falcoService *falco.FalcoService,
 	onlineVulnsSvc *assets.OnlineVulnsService,
 	auditService *audit.AuditService,
 	cleanupService *cleanup.CleanupService,
@@ -79,6 +83,8 @@ func SetupRoutes(
 		ruleService,
 		alertService,
 		driftPreventionService,
+		seccompProfileService,
+		falcoService,
 		onlineVulnsSvc,
 		auditService,
 		cleanupService,
@@ -92,7 +98,9 @@ func SetupRoutes(
 	r.Route("/harbor/api/v1", api.harbor())
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", api.restAuth())
-		r.Route("/driftPrevention", api.driftPrevention())
+		r.Route("/driftPrevention", api.driftPrevention()) // TODO: Add API token
+		r.Route("/seccomp", api.seccomp())                 // TODO: Add API token
+		r.Route("/falco", api.falco())                     // TODO: Add API token
 
 		// needs authentication
 		r.Group(func(r chi.Router) {

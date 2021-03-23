@@ -19,6 +19,7 @@ import (
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	r "gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
@@ -42,6 +43,7 @@ type AlertService struct {
 	lastPollTimestamp time.Time
 	alertsCache       *rcache.AlertsCache
 	ctx               context.Context
+	mutex             *sync.Mutex
 }
 
 func NewAlertService(ctx context.Context, redisClient *redis.Client, rs *rule.RuleService, es *elastic.Client, elasticIndex string, mongodb *mongo.Database) *AlertService {
@@ -53,6 +55,7 @@ func NewAlertService(ctx context.Context, redisClient *redis.Client, rs *rule.Ru
 		lastPollTimestamp: time.Now(),
 		alertsCache:       rcache.NewAlertsCache(ctx, mongodb, redisClient),
 		ctx:               ctx,
+		mutex:             &sync.Mutex{},
 	}
 	go alertService.elasticsearchAlertPoller()
 	return alertService
@@ -101,11 +104,44 @@ func isAlertContextAlmostTheSame(newCtx model.AlertContext, oldCtx model.AlertCo
 	if newCtx.ElasticID == oldCtx.ElasticID {
 		return true
 	}
-	if newCtx.ContainerID == oldCtx.ContainerID && newCtx.PodUID == newCtx.PodUID {
+	if newCtx.ContainerID == oldCtx.ContainerID && newCtx.PodUID == oldCtx.PodUID {
 		delta := (newCtx.Timestamp.Unix() - oldCtx.Timestamp.Unix())
 		return delta > -60 && delta < 60
 	}
 	return false
+}
+
+func (s *AlertService) RaiseInternalAlert(ctx context.Context, rawAlert *model.InternalAlertRequest) error {
+	sev := redclair.SeverityHigh
+
+	services := []string{"unknown"}
+	namespace := "unknown"
+	cluster := "default"
+	// by only podName we cannot get service.
+
+	for _, service := range services {
+		newAlert := model.Alert{
+			ID:            primitive.NewObjectIDFromTimestamp(time.Now()),
+			AlertKind:     string(model.AlertKindInternal),
+			Timestamp:     time.Now(),
+			Severity:      string(sev),
+			SeverityInt:   util.SeverityToInt(string(sev)),
+			MessageEn:     rawAlert.Msg,
+			MessageZh:     rawAlert.Msg,
+			Service:       service,
+			Namespace:     namespace,
+			Cluster:       cluster,
+			InternalAlert: &model.InternalAlert{},
+		}
+
+		_, err := s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
+		if err != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", newAlert, err))
+		}
+
+	}
+
+	return nil
 }
 
 func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAlertCleanup *elastic.BulkProcessor, aggrCache *AlertAggrCache) error {
@@ -165,6 +201,9 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 
 	logging.GetLogger().Info().Int("hits", len(searchResult.Hits.Hits)).Msg("Found alert entries in ES")
 
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	for _, hit := range searchResult.Hits.Hits {
 		elasticID := hit.Id
 
@@ -195,6 +234,9 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		}
 		if _, ok := elasticAlert["reverse_shell_socket_dup2"]; ok {
 			vulnerability = "RS-SOCKET_DUP2"
+		}
+		if _, ok := elasticAlert["chroot_container_escape"]; ok {
+			vulnerability = "CHROOT-CONTAINER-ESCAPE"
 		}
 		if _, ok := elasticAlert["openat__filename"]; ok {
 			vulnerability = "CVE-2019-5736"
@@ -247,7 +289,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		if enabledRule == nil {
 			logging.GetLogger().Info().
 				Msg("Didn't raise any alert to mongo, because no matched vulnerability was enabled")
-			return nil
+			continue
 		}
 
 		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
@@ -445,7 +487,8 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		numRaised++
 
 		if numRaised == 0 {
-
+			logging.GetLogger().Info().
+				Msg("No alerts raised to mongo")
 		} else {
 			logging.GetLogger().Info().
 				Int("numRaised", numRaised).

@@ -20,7 +20,7 @@ data:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ template "driftPrevention.fullname" . }}-cluster-role
+  name: {{ template "driftPrevention.serviceAccount" . }}-cluster-role
   labels:
     app: "{{ template "driftPrevention.fullname" . }}"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
@@ -35,7 +35,7 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ template "driftPrevention.fullname" . }}-service-account
+  name: {{ template "driftPrevention.serviceAccount" . }}-service-account
   labels:
     app: "{{ template "driftPrevention.fullname" . }}"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
@@ -46,7 +46,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ template "driftPrevention.fullname" . }}-cluster-role-binding
+  name: {{ template "driftPrevention.serviceAccount" . }}-cluster-role-binding
   labels:
     app: "{{ template "driftPrevention.fullname" . }}"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
@@ -55,10 +55,10 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ template "driftPrevention.fullname" . }}-cluster-role
+  name: {{ template "driftPrevention.serviceAccount" . }}-cluster-role
 subjects:
   - kind: ServiceAccount
-    name: {{ template "driftPrevention.fullname" . }}-service-account
+    name: {{ template "driftPrevention.serviceAccount" . }}-service-account
     namespace: {{ .Release.Namespace }}
 
 ---
@@ -102,13 +102,13 @@ spec:
       labels:
         app: {{ template "driftPrevention.fullname" . }}
     spec:
-      serviceAccountName: {{ template "driftPrevention.fullname" . }}-service-account
+      serviceAccountName: {{ template "driftPrevention.serviceAccount" . }}-service-account
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
 {{ toYaml .Values.imagePullSecrets | indent 8 }}
       {{- end }}
       containers:
-      - name: {{ template "driftPrevention.fullname" . }}-webhook
+      - name: {{ template "driftPrevention.serviceAccount" . }}-webhook
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         # command: ["/bin/sh", "-c", "sleep 360000"]

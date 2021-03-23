@@ -26,5 +26,11 @@ dependencies:
 - name: drift-prevention
   repository: file://./subcharts/drift-prevention
   version: 0.1.0
-digest: sha256:463b8dc3d9ae2a944b0d8dc354251edaeb12417ee71711ff1b6742da37c83967
-generated: "2021-01-20T10:24:30.11832029+01:00"
+- name: seccomp-generator
+  repository: file://./subcharts/seccomp-generator
+  version: 0.1.0
+- name: falco
+  repository: file://./subcharts/falco
+  version: 1.7.4
+digest: sha256:d94525c00af9cd7317931b2bef9cf027a00229ac53945de42709925a35f8a893
+generated: "2021-03-03T00:06:42.31520504+01:00"

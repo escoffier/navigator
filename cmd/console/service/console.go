@@ -23,11 +23,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -175,6 +177,12 @@ func NewConsole(
 	// drift prevention service
 	driftPreventionService := driftprevention.NewDriftPreventionService(mongodb)
 
+	// drift prevention service
+	seccompProfileService := seccomp.NewSeccompProfileService(mongodb)
+
+	// falco service
+	falcoService := falco.NewFalcoService(mongodb)
+
 	// alert service
 	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
 	//microService *microservice.MicroService,
@@ -198,6 +206,8 @@ func NewConsole(
 				ruleService,
 				alertService,
 				driftPreventionService,
+				seccompProfileService,
+				falcoService,
 				onlineVulnsSvc,
 				auditService,
 				cleanupService,

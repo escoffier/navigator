@@ -33,6 +33,10 @@ func (cs *CombineSchedule) newConumsers(consumersInfo []string) error {
 			c = consumer.NewJsonConsumer()
 		case "File":
 			c = consumer.NewFileConsumer()
+		case "SeccompGenerate":
+			c = consumer.NewSeccompGeneration()
+		case "SeccompPrevent":
+			c = consumer.NewSeccompPrevent()
 		}
 
 		// consumer init at "Schedule" method using "consumer.Init(cs.combinedChan[i])"
@@ -45,13 +49,14 @@ func (cs *CombineSchedule) newConumsers(consumersInfo []string) error {
 func (cs *CombineSchedule) Stop() {
 	cs.Manager.Stop()
 
-	for _, cc := range cs.combinedChan {
-		close(cc)
+	for i := range cs.combinedChan {
+		log.Infof("Closing customer data channel %d", i)
+		close(cs.combinedChan[i])
 	}
 
 	for i, c := range cs.consumers {
+		log.Infof("Stop consumer %d", i)
 		c.Stop()
-		log.Errorf("Stop consumer %d", i)
 	}
 	<-cs.quitChan
 }

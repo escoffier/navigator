@@ -91,13 +91,27 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 
+	driftPrevention := ""
+	seccompProfile := ""
+	for k, v := range pod.Labels {
+		if k == "tensorsec.driftprevent" {
+			if v == "prevent" || v == "detect" {
+				driftPrevention = v
+			} else {
+				driftPrevention = fmt.Sprintf("Invalid value, no effect: %s", v)
+			}
+		}
+		if k == "tensorsec.seccompprotect" {
+			seccompProfile = v
+		}
+	}
+
 	//get pod container image
 	Image := ""
 	for _, c := range pod.Spec.Containers {
 		if c.Name == container.Name {
 			Image = c.Image
 		}
-
 	}
 
 	assetContainer := model.AssetContainer{
@@ -113,6 +127,8 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 		ContainerID:         container.ContainerID, // containerID: docker://b503f2b9c3c693805312a888f875974f54fdd5f7d6d76de31d18ff12e958b4e1
 		Image:               Image,
 		LastUpdateTimeEpoch: time.Now().Unix(),
+		DriftPrevention:     driftPrevention,
+		SeccompProfile:      seccompProfile,
 	}
 	if shaDigest != "" {
 		assetContainer.Digest = shaDigest

@@ -59,7 +59,7 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 		envs = append(envs, myPodNameEnvVar)
 
 		myPodNamespaceEnvVar := corev1.EnvVar{
-			Name: "MY_POD_NAME",
+			Name: "MY_POD_NAMESPACE",
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
 					FieldPath: "metadata.namespace",
@@ -67,6 +67,16 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 			},
 		}
 		envs = append(envs, myPodNamespaceEnvVar)
+
+		myPodUIDEnvVar := corev1.EnvVar{
+			Name: "MY_POD_UID",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.uid",
+				},
+			},
+		}
+		envs = append(envs, myPodUIDEnvVar)
 
 		for i, container := range pod.Spec.Containers {
 			envPatch := PatchEnvVar(container.Env, envs, fmt.Sprintf(envPatchTemplate, i))

@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -23,6 +24,37 @@ func (api *api) alert() func(chi.Router) {
 		r.Get("/updates", api.alertsCheck())
 		r.Get("/node", api.nodeAlert())
 		r.Post("/{alertID}/acknowledge", api.acknowledgeAlert())
+		r.Post("/raiseInternalAlert", api.raiseInternalAlert())
+	}
+}
+
+// @Summary Raise a drift prevention alert
+// @Description Raise a drift prevention alert
+// @ID v1-raise-drift-prevention-alert-post
+// @Produce json
+// @Router /api/v1/driftPrevention/raiseAlert [post]
+func (api *api) raiseInternalAlert() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		var rawAlert model.InternalAlertRequest
+
+		err := util.DecodeJSONBody(w, r, &rawAlert)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
+			return
+		}
+
+		err = api.alertService.RaiseInternalAlert(ctx, &rawAlert)
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("Couldn't raise drift prevention alert: %w", err))
+			return
+		}
+
+		response.Ok(w)
 	}
 }
 

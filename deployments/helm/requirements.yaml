@@ -44,3 +44,13 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/drift-prevention"
     condition: drift-prevention.enabled
+
+  - name: seccomp-generator
+    version: 0.1.0
+    repository: "file://./subcharts/seccomp-generator"
+    condition: seccompGenerator.enabled
+
+  - name: falco
+    version: 1.7.4
+    repository: "file://./subcharts/falco"
+    condition: falco.enabled

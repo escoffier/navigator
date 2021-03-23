@@ -31,7 +31,7 @@ type Manager struct {
 var bufferRemain = 0
 
 //DataChanBufferSize 32
-const DataChanBufferSize = 1000
+const DataChanBufferSize = 10000
 
 type SortBuffer []*constant.TotalData
 
@@ -332,7 +332,10 @@ func (m *Manager) progGenerator() string {
 	for _, p := range m.SyscallProducers {
 		s := p.Syscall
 		perfData := s + "_data"
-		perfArgs := "struct pt_regs* ctx, " + constant.SyscallIoArgsMap[s]
+		perfArgs := "struct pt_regs* curr_ctx"
+		if len(constant.SyscallIoArgsMap[s]) > 0 {
+			perfArgs += ", " + constant.SyscallIoArgsMap[s]
+		}
 		cArgs := constant.SyscallIoStructMap[perfArgs]
 		cData := constant.SyscallIoStructMap[perfData]
 		fieldsMap := p.getFieldsAbbr()
@@ -378,7 +381,6 @@ func (m *Manager) progGenerator() string {
 			}
 		}
 	}
-
 	// Exit Code
 	// prog.WriteString(exitCode)
 	return prog.String()

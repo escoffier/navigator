@@ -19,7 +19,9 @@ static const char* ACTION_BLOCKED = "Blocked";
 
 typedef struct alert_t {
     char filepath[PATH_MAX];
+    char podnamespace[256];
     char podname[256];
+    char poduid[256];
     char syscall[256];
     char reason[64];
     char action[64];
@@ -59,7 +61,7 @@ static int send_request(const char* host, int port, const char* method, const ch
 
     char *message = malloc(message_size);
     if (!message) {
-        drift_prevent_write_log(ERROR, "When allocating buffer for message to send: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When allocating buffer for message to send: %s\n", strerror(errno)); 
         goto cleanup_msg;
     }
 
@@ -69,13 +71,13 @@ static int send_request(const char* host, int port, const char* method, const ch
 
     const int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        drift_prevent_write_log(ERROR, "When creating socket: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When creating socket: %s\n", strerror(errno)); 
         goto cleanup_sock;
     }
 
     struct hostent *server = gethostbyname(host);
     if (server == NULL) {
-        drift_prevent_write_log(ERROR, "When getting host by name: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When getting host by name: %s\n", strerror(errno)); 
         goto cleanup_sock;
     }
 
@@ -97,7 +99,7 @@ static int send_request(const char* host, int port, const char* method, const ch
     // Connect
 
     if (connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        drift_prevent_write_log(ERROR, "When connecting socket: %s", strerror(errno)); 
+        drift_prevent_write_log(ERROR, "When connecting socket: %s\n", strerror(errno)); 
         goto cleanup_sock;
     }
 
@@ -108,7 +110,7 @@ static int send_request(const char* host, int port, const char* method, const ch
     do {
         const int nbytes = write(sockfd, message + sent, message_size - sent);
         if (nbytes < 0) {
-            drift_prevent_write_log(ERROR, "When writing to socket: %s", strerror(errno)); 
+            drift_prevent_write_log(ERROR, "When writing to socket: %s\n", strerror(errno)); 
             goto cleanup_sock;
         }
         if (nbytes == 0) {
@@ -136,7 +138,7 @@ static int send_request(const char* host, int port, const char* method, const ch
     } while (received < resp_size);
 
     if (received == resp_size) {
-        drift_prevent_write_log(WARN, "Buffer too small, response was truncated"); 
+        drift_prevent_write_log(WARN, "Buffer too small, response was truncated\n"); 
     }
 
     // Done
@@ -164,7 +166,9 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
 
     if (strcmp(alert->reason, REASON_CHECKSUM_MISMATCH) == 0) {
         const char *body_fmt = "{"
+            "\"podnamespace\": \"%s\","
             "\"podname\": \"%s\","
+            "\"poduid\": \"%s\","
             "\"filepath\": \"%s\","
             "\"crc32Expected\": %u,"
             "\"crc32Actual\": %u,"
@@ -174,7 +178,9 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
 
         const int max_body_size = 
             strlen(body_fmt) +
+            strlen(alert->podnamespace) +
             strlen(alert->podname) +
+            strlen(alert->poduid) +
             strlen(alert->filepath) +
             sizeof(uint32_t) +
             sizeof(uint32_t) +
@@ -189,7 +195,9 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
         }
 
         sprintf(body, body_fmt,
+            alert->podnamespace,
             alert->podname,
+            alert->poduid,
             alert->filepath,
             alert->crc32_expected,
             alert->crc32_actual,
@@ -199,7 +207,9 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
         
     } else if (strcmp(alert->reason, REASON_NOT_IN_WHITELIST) == 0) {
         const char *body_fmt = "{"
+            "\"podnamespace\": \"%s\","
             "\"podname\": \"%s\","
+            "\"poduid\": \"%s\","
             "\"filepath\": \"%s\","
             "\"reason\": \"%s\","
             "\"action\": \"%s\","
@@ -207,7 +217,9 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
 
         const int max_body_size = 
             strlen(body_fmt) +
+            strlen(alert->podnamespace) +
             strlen(alert->podname) +
+            strlen(alert->poduid) +
             strlen(alert->filepath) +
             strlen(alert->reason) +
             strlen(alert->action) +
@@ -220,7 +232,9 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
         }
 
         sprintf(body, body_fmt,
+            alert->podnamespace,
             alert->podname,
+            alert->poduid,
             alert->filepath,
             alert->reason,
             alert->action,

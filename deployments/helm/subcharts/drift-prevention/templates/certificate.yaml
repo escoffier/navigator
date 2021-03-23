@@ -56,3 +56,4 @@ spec:
   - {{ template "driftPrevention.fullname" . }}-service
   - {{ template "driftPrevention.fullname" . }}-service.{{ .Release.Namespace }}
   - {{ template "driftPrevention.fullname" . }}-service.{{ .Release.Namespace }}.svc
+  - {{ template "driftPrevention.fullname" . }}-service.{{ .Release.Namespace }}.svc.cluster.local
