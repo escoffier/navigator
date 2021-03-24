@@ -8,7 +8,8 @@ type AssetContainer struct {
 	MetadataEntry `json:"-" bson:",inline"`
 	// PodName-Name is a "primary key"
 	PodName string `json:"podName" bson:"podName"` // ind
-	Name    string `json:"name" bson:"name"`       // ind
+	PodUID  string `json:"podUID" bson:"podUID"`
+	Name    string `json:"name" bson:"name"` // ind
 
 	LastUpdateTimeEpoch int64 `json:"lastUpdateTime" bson:"lastUpdateTime"` // ind
 
@@ -40,15 +41,15 @@ type AssetContainer struct {
 }
 
 type Service struct {
-	MetadataEntry `json:"-" bson:",inline"`
-	Cluster       string `json:"cluster" bson:"cluster"`
-	Namespace     string `json:"namespace" bson:"namespace"`
-	Name          string `json:"name" bson:"name"`
-	PodName       string `json:"podName" bson:"podName"`
-	PodUID        string `json:"podUid" bson:"podUid"`
-	IP            string `json:"ip"  bson:"ip"`
-	Type          string `json:"type" bson:"type"`
-	Kind          string `json:"kind" bson:"kind"`
+	MetadataEntry      `json:"-" bson:",inline"`
+	Cluster            string `json:"cluster" bson:"cluster"`
+	Namespace          string `json:"namespace" bson:"namespace"`
+	Name               string `json:"name" bson:"name"`
+	OwnerReferenceName string `json:"ownerReferenceName" bson:"ownerReferenceName"`
+	PodName            string `json:"podName" bson:"podName"`
+	PodUID             string `json:"podUid" bson:"podUid"`
+	IP                 string `json:"ip"  bson:"ip"`
+	Kind               string `json:"kind" bson:"kind"`
 }
 
 type ServiceRelation struct {

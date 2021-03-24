@@ -302,10 +302,15 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		var svcOK bool
 		saService, saOk := assetsSvc.GetServiceAssetsService()
 		if saOk && saService.IsClusterSynced(cluster) {
-			svcs, ns, ok := saService.GetServiceInfoOfPod(cluster, podUID)
-			if ok {
-				services = svcs
-				namespace = ns
+			sinfo, ok := saService.GetServiceInfoOfPod(cluster, podUID)
+			if ok && sinfo != nil {
+				svcs := sinfo.Services()
+				if len(svcs) > 0 {
+					services = svcs
+				} else {
+					services = append(services, sinfo.OwnerReferenceName())
+				}
+				namespace = sinfo.Namespace
 				svcOK = true
 			}
 		}
@@ -583,7 +588,7 @@ func (s *AlertService) alertCheckHistoriesActive(alert *model.Alert) {
 
 	newHistories := make([]model.AlertContext, len(alert.Histories))
 	for i, history := range alert.Histories {
-		_, _, active := saService.GetServiceInfoOfPod(alert.Cluster, history.PodUID)
+		_, active := saService.GetServiceInfoOfPod(alert.Cluster, history.PodUID)
 		newHistories[i] = history
 		newHistories[i].Active = active
 	}

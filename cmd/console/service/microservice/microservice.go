@@ -37,7 +37,10 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 	filter := bson.M{}
 	if search != "" {
 		filter = bson.M{
-			"name": bson.M{"$regex": search},
+			"$or": []bson.M{
+				{"name": bson.M{"$regex": search}},
+				{"ownerReferenceName": bson.M{"$regex": search}},
+			},
 		}
 	}
 
@@ -53,39 +56,25 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 		}
 	}()
 
-	svcList := make([]*model.Service, 0, 50)
-	podMap := make(map[string]struct{}, len(svcList))
+	svcMap := make(map[string]struct{}, 100)
+	serviceSlice := make([]ServiceInfoDetails, 0, 100)
 	for cur.Next(mongoCtx) {
 		var service model.Service
 		err := cur.Decode(&service)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("mongo decode error: %v", err)
+		svcName := service.Name
+		stype := TypeService
+		ownerKind := ""
+		if len(svcName) == 0 {
+			svcName = service.OwnerReferenceName
+			stype = TypeOwnerReference
+			ownerKind = service.Kind
+		}
+		if len(svcName) == 0 {
+			logging.GetLogger().Error().Msgf("no service name or ownerReferenceName given in data: %+v", service)
 			continue
 		}
 
-		if service.Type == "byEndpoints" && len(service.PodUID) > 0 {
-			podMap[service.PodUID] = struct{}{}
-		}
-
-		svcList = append(svcList, &service)
-	}
-
-	// filter out the service elements that already having a byEndpoints element
-	filteredSvcList := make([]*model.Service, 0, len(svcList))
-	for _, svc := range svcList {
-		if svc.Type != "byEndpoints" && len(svc.PodUID) > 0 {
-			if _, exist := podMap[svc.PodUID]; exist {
-				continue
-			}
-		}
-		filteredSvcList = append(filteredSvcList, svc)
-	}
-
-	svcMap := make(map[string]struct{}, len(filteredSvcList)/2)
-	serviceSlice := make([]ServiceInfoDetails, 0, len(filteredSvcList)/2)
-	for _, service := range filteredSvcList {
-
-		key := fmt.Sprintf("%s-%s-%s", service.Cluster, service.Namespace, service.Name)
+		key := fmt.Sprintf("%s-%s-%s", service.Cluster, service.Namespace, svcName)
 		_, ok := svcMap[key]
 		if ok {
 			continue
@@ -94,16 +83,18 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 		}
 		result := ServiceInfoDetails{
 			Namespace: service.Namespace,
-			Name:      service.Name,
+			Name:      svcName,
+			Type:      stype,
+			OwnerKind: ownerKind,
 		}
 
-		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb, service.Namespace, service.Name)
+		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb, service.Namespace, svcName)
 		result.ResName = ResNameSlice
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 		}
 
-		IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb, service.Namespace, service.Name, username)
+		IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb, service.Namespace, svcName, username)
 		result.IsFocus = IsFocus
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))

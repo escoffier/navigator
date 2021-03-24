@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/PuerkitoBio/goquery v1.6.0
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/apex/log v1.9.0 // indirect
 	github.com/containerd/containerd v1.3.1 // indirect
 	github.com/containerd/continuity v0.0.0-20191214063359-1097c8bae83b // indirect
@@ -17,6 +17,7 @@ require (
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
 	github.com/elazarl/goproxy v0.0.0-20201021153353-00ad82a08272 // indirect
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
+	github.com/gin-gonic/gin v1.4.0
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-chi/jwtauth v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.9 // indirect
@@ -44,12 +45,12 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.6.1
 	github.com/swaggo/http-swagger v0.0.0-20190614090009-c2865af9083e
-	github.com/swaggo/swag v1.6.7
+	github.com/swaggo/swag v1.6.7 // indirect
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.4.4
-	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0
+	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2

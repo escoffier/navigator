@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,16 +18,15 @@ var defaultInfo = ServiceInfo{}
 
 type ServiceInfo struct {
 	sync.RWMutex
-	svcList   map[string]struct{}
-	Namespace string
-	source    string
+	svcList            map[string]struct{}
+	Namespace          string
+	ownerReferenceName string
 }
 
-func newServiceInfo(namespace string, src string) *ServiceInfo {
+func newServiceInfo(namespace string) *ServiceInfo {
 	return &ServiceInfo{
 		svcList:   make(map[string]struct{}, 1),
 		Namespace: namespace,
-		source:    src,
 	}
 }
 func (s *ServiceInfo) Services() []string {
@@ -42,6 +40,21 @@ func (s *ServiceInfo) Services() []string {
 	}
 	return l
 }
+
+func (s *ServiceInfo) setOwnerReferenceName(name string) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.ownerReferenceName = name
+}
+
+func (s *ServiceInfo) OwnerReferenceName() string {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.ownerReferenceName
+}
+
 func (s *ServiceInfo) appendService(svcName string) {
 	s.Lock()
 	defer s.Unlock()
@@ -120,7 +133,7 @@ func (c *PodServiceCache) OnPodForServiceEvent(kubeCluster string, newPod, oldPo
 		if oldPod == nil {
 			return errors.New("no old endpoints given")
 		}
-		data.Delete(oldPod.Name)
+		data.Delete(string(oldPod.UID))
 	}
 	if action == ActionAdd || action == ActionUpdate {
 		if newPod == nil {
@@ -129,22 +142,27 @@ func (c *PodServiceCache) OnPodForServiceEvent(kubeCluster string, newPod, oldPo
 		if newPod.UID == "" {
 			return nil
 		}
-		_, exist := data.Load(newPod.Name)
-		if exist {
-			return nil
-		}
 
 		owner := metav1.GetControllerOf(newPod)
-		svcName := newPod.Name
-		if owner != nil {
-			svcName = owner.Name
+		if owner == nil {
+			return errors.New("get owner ref error")
 		}
-		sinfo := newServiceInfo(newPod.Namespace, sourceTypeController)
-		sinfo.appendService(svcName)
-		data.LoadOrStore(newPod.Name, sinfo)
+		sobj, exist := data.Load(string(newPod.UID))
+		if exist {
+			sinfo := sobj.(*ServiceInfo)
+			sinfo.setOwnerReferenceName(owner.Name)
+		} else {
+			sinfo := newServiceInfo(newPod.Namespace)
+			sinfo.setOwnerReferenceName(owner.Name)
+			existing, existed := data.LoadOrStore(string(newPod.UID), sinfo)
+			if existed {
+				existing.(*ServiceInfo).setOwnerReferenceName(owner.Name)
+			}
+		}
 	}
 	return nil
 }
+
 func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error {
 	data := c.getOrCreateData(kubeCluster)
 	if action == ActionDelete {
@@ -165,7 +183,6 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 				if exist {
 					atomic.AddInt32(&c.size, -1)
 					svcInfo := o.(*ServiceInfo)
-					logging.GetLogger().Info().Msgf("remove service %s in podUID %s", oldEpt.Name, podUID)
 					size := svcInfo.removeService(oldEpt.Name)
 					if size == 0 {
 						data.Delete(podUID)
@@ -178,7 +195,7 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 		if newEpt == nil {
 			return errors.New("no new endpoints given")
 		}
-		svcInfo := newServiceInfo(newEpt.Namespace, sourceTypeEndpoints)
+		svcInfo := newServiceInfo(newEpt.Namespace)
 		svcInfo.appendService(newEpt.Name)
 		for _, v := range newEpt.Subsets {
 			for _, address := range v.Addresses {
@@ -192,11 +209,7 @@ func (c *PodServiceCache) OnEndpointsEvent(kubeCluster string, newEpt, oldEpt *c
 				atomic.AddInt32(&c.size, 1)
 				o, _ := data.LoadOrStore(podUID, svcInfo)
 				sinfo := o.(*ServiceInfo)
-				if sinfo.source != sourceTypeEndpoints { // endpoints data is first priority to set, just to replace existing serviceinfo
-					data.Store(podUID, svcInfo)
-				} else {
-					sinfo.appendService(newEpt.Name)
-				}
+				sinfo.appendService(newEpt.Name)
 			}
 		}
 	}
