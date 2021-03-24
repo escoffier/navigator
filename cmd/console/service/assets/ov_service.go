@@ -99,7 +99,7 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 			sinfo, exist := svcService.GetServiceInfoOfPod(cluster, container.PodUID)
 			if exist && sinfo != nil {
 				if len(sinfo.Services()) > 0 {
-					services = sinfo.Services()
+					// services = sinfo.Services()
 				}
 			}
 		}
