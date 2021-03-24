@@ -162,17 +162,11 @@ func (dp *DriftPreventionService) RaiseAlert(ctx context.Context, rawAlert *Drif
 				alert.HistoricisedTimestamp = timestamp
 				alert.Histories = append(alert.Histories, alertCtx)
 				filter := bson.M{"_id": *idPtr}
-				// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
-				alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err := dp.mongo.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
-				if err != nil {
-					logging.GetLogger().Err(err).Msgf("Failed to delete drift prevention alert: %w", err)
-				}
 
-				_, err = dp.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
+				update := bson.M{"$set": alert}
+				_, err := dp.mongo.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 				if err != nil {
-					return NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Failed to insert drift prevention alert: %w", err))
+					logging.GetLogger().Err(err).Msgf("Failed to update drift prevention alert: %w", err)
 				} else {
 					earlist := timestamp
 					if len(alert.Histories) > 0 {

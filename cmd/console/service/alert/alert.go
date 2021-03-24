@@ -392,18 +392,10 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 					alert.Namespace = namespace
 					alert.Cluster = cluster
 					filter := bson.M{"_id": *idPtr}
-					// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
-					alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-					_, err = s.mongodb.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
+					update := bson.M{"$set": alert}
+					_, err := s.mongodb.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 					if err != nil {
 						logging.GetLogger().Err(err).Msgf("Failed to delete alert from elastic to mongo: %w", err)
-					}
-
-					_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
-					if err != nil {
-						return NewMongoError(http.StatusInternalServerError,
-							fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
-							Suberror{"elasticID", elasticID})
 					} else {
 						earlist := timestamp
 						if len(alert.Histories) > 0 {
