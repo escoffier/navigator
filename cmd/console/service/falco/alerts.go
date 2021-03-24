@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
-
 	"sync"
+	"time"
 
 	alertsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -221,17 +220,11 @@ func (f *FalcoService) RaiseAlert(ctx context.Context, rawAlert *FalcoAlertReque
 				alert.HistoricisedTimestamp = timestamp
 				alert.Histories = append(alert.Histories, alertCtx)
 				filter := bson.M{"_id": *idPtr}
-				// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
-				alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err := f.mongo.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
-				if err != nil {
-					logging.GetLogger().Err(err).Msgf("Failed to delete falco alert: %w", err)
-				}
+				update := bson.M{"$set": alert}
 
-				_, err = f.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
+				_, err := f.mongo.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 				if err != nil {
-					return NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Failed to insert falco alert: %w", err))
+					logging.GetLogger().Err(err).Msgf("Failed to update falco alert: %w", err)
 				} else {
 					earlist := timestamp
 					if len(alert.Histories) > 0 {

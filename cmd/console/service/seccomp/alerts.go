@@ -139,17 +139,10 @@ func (sp *SeccompProfileService) RaiseAlert(ctx context.Context, rawAlert *model
 				alert.HistoricisedTimestamp = timestamp
 				alert.Histories = append(alert.Histories, alertCtx)
 				filter := bson.M{"_id": *idPtr}
-				// delete the previous one and insert into the new one. So the Mongo _id will be updated after merging.
-				alert.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err := sp.mongo.Collection(model.AlertsCollection.String()).DeleteOne(ctx, filter)
+				update := bson.M{"$set": alert}
+				_, err := sp.mongo.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("Failed to delete seccomp alert: %w", err)
-				}
-
-				_, err = sp.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
-				if err != nil {
-					return NewMongoError(http.StatusInternalServerError,
-						fmt.Errorf("Failed to insert seccomp alert: %w", err))
+					logging.GetLogger().Err(err).Msgf("Failed to update seccomp alert: %w", err)
 				} else {
 					earlist := timestamp
 					if len(alert.Histories) > 0 {
