@@ -345,6 +345,7 @@ func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEp
 						"name": "",
 					},
 				}
+				logging.GetLogger().Info().Msgf("delete endpoints: %+v", oldEpt)
 				_, err := mongodb.Collection(model.ServiceCollection.String()).UpdateMany(mongoCtx, filter, update)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", filter)).Msg("Failed to delete  EndPoints to mongo")
@@ -376,29 +377,7 @@ func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEp
 					assetService.PodUID = string(address.TargetRef.UID)
 				}
 
-				var filter bson.M
-				if len(assetService.PodUID) > 0 {
-					filter = bson.M{
-						"$and": []bson.M{
-							{"cluster": kubeCluster},
-							{"namespace": newEpt.Namespace},
-							{"name": newEpt.Name},
-							{"podUid": assetService.PodUID},
-						},
-					}
-				} else {
-					filter = bson.M{
-						"$and": []bson.M{
-							{"cluster": kubeCluster},
-							{"namespace": newEpt.Namespace},
-							{"name": newEpt.Name},
-							{"ip": address.IP},
-						},
-					}
-				}
-				update := bson.M{"$set": assetService}
-				opts := options.Update().SetUpsert(true)
-				_, err := mongodb.Collection(model.ServiceCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+				_, err := mongodb.Collection(model.ServiceCollection.String()).InsertOne(mongoCtx, assetService)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to upsert assetService to mongo")
 					return err
