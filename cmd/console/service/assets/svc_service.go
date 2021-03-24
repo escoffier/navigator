@@ -84,14 +84,13 @@ func (cb *ServiceAssetsService) BeforWatchNewCluster(ctx context.Context, cluste
 	}
 }
 
-func (cb *ServiceAssetsService) GetServiceInfoOfPod(cluster, podUID string) (services []string, namespace string, ok bool) {
-	var sinfo *assets.ServiceInfo
+func (cb *ServiceAssetsService) GetServiceInfoOfPod(cluster, podUID string) (sinfo *assets.ServiceInfo, ok bool) {
 	sinfo, ok = cb.psCache.GetServiceInfoBy(cluster, podUID)
 	if !ok || sinfo == nil {
 		ok = false
 		return
 	}
-	return sinfo.Services(), sinfo.Namespace, true
+	return sinfo, true
 }
 
 // Name returns the name

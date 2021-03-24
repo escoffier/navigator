@@ -13,7 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -57,10 +56,15 @@ func (sp *SeccompProfileService) RaiseAlert(ctx context.Context, rawAlert *model
 	// by only podName we cannot get service.
 	saService, saOk := assetsSvc.GetServiceAssetsService()
 	if saOk && saService.IsClusterSynced(cluster) {
-		svcs, ns, ok := saService.GetServiceInfoOfPod(cluster, rawAlert.PodUID)
-		if ok {
-			services = svcs
-			namespace = ns
+		sinfo, ok := saService.GetServiceInfoOfPod(cluster, rawAlert.PodUID)
+		if ok && sinfo != nil {
+			svcs := sinfo.Services()
+			if len(svcs) > 0 {
+				services = svcs
+			} else {
+				services = append(services, sinfo.OwnerReferenceName())
+			}
+			namespace = sinfo.Namespace
 			svcOK = true
 		}
 	}
