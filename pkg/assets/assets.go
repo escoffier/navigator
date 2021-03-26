@@ -309,8 +309,6 @@ func OnServiceEvent(mongodb *mongo.Database, kubeCluster string, newSvc, oldSvc 
 
 // OnEndpointsEvent updates the mongo according to the event
 func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error {
-	logging.GetLogger().Info().Msgf("on ept event. action: %v. newEpt: %+v. oldEpt: %+v.", action, newEpt, oldEpt)
-
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 
