@@ -98,11 +98,11 @@ func (s Severity) String() string {
 type RiskTypeReporter interface {
 	Key() RiskType
 	LoadSummary(tx context.Context) (TotalSummary, error)
-	LoadDetails(tx context.Context, cluster, namespace, service string) (ServiceDetails, error)
+	LoadDetails(tx context.Context, cluster, nodeType, namespace, service string) (ServiceDetails, error)
 }
 
 type TotalSummary interface {
-	ServiceSummary(tx context.Context, cluster, namespace, service string) (severity Severity, statsCount int, err error)
+	ServiceSummary(tx context.Context, cluster, nodeType, namespace, service string) (severity Severity, statsCount int, err error)
 	Key() RiskType
 }
 
@@ -155,6 +155,8 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string) 
 			svcItem = new(ServiceSummary)
 			svcItem.ServiceName = item.ServiceName
 			svcItem.Namespace = item.Namespace
+			svcItem.NodeType = item.NodeType
+			svcItem.ResourceKind = item.ResourceKind
 			svcItem.ContainersList = make([]*ContainerSummary, 0, 2)
 			svcItem.RiskTypes = make(map[RiskType]int, 1)
 			nsItem.ServicesList = append(nsItem.ServicesList, svcItem)
@@ -201,7 +203,7 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string) 
 		}
 
 		for _, summ := range summaries {
-			sev, statsCnt, err := summ.ServiceSummary(ctx, cluster, item.Namespace, svcItem.ServiceName)
+			sev, statsCnt, err := summ.ServiceSummary(ctx, cluster, item.NodeType, item.Namespace, svcItem.ServiceName)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("%s-%s-%s reporter %s summary err", cluster, item.Namespace, svcItem.ServiceName, summ.Key())
 				continue
@@ -251,10 +253,10 @@ func getImageVulnsRiskData(ctx context.Context, assetCont *model.AssetContainer)
 	return mar, true
 }
 
-func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, namespace, service string) (*ServiceDetail, error) {
+func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeType, namespace, service string) (*ServiceDetail, error) {
 	detailHandlers := make([]ServiceDetails, 0, len(s.reporters))
 	for _, reporter := range s.reporters {
-		sdetails, derr := reporter.LoadDetails(ctx, cluster, namespace, service)
+		sdetails, derr := reporter.LoadDetails(ctx, cluster, nodeType, namespace, service)
 		if derr != nil {
 			logging.GetLogger().Err(derr).Msgf("%s reporter load details error", reporter.Key())
 			continue
@@ -262,12 +264,20 @@ func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, namesp
 		detailHandlers = append(detailHandlers, sdetails)
 	}
 
-	podsNames, err := assets.GetPodNamesFromService(s.mongoDB, cluster, namespace, service)
+	var podNames []string
+	var err error
+	switch nodeType {
+	case model.NodeTypeService:
+		podNames, err = assets.GetPodNamesFromService(s.mongoDB, cluster, namespace, service)
+	case model.NodeTypeOwnerRef:
+		podNames, _, err = assets.GetPodNamesFromOwnerRef(s.mongoDB, cluster, namespace, service)
+
+	}
 	filter := bson.M{
 		"isDeleted": false,
 		"cluster":   cluster,
 		"namespace": namespace,
-		"podName":   bson.M{"$in": podsNames},
+		"podName":   bson.M{"$in": podNames},
 	}
 	findOptions := options.Find().SetMaxTime(time.Second * 10)
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)

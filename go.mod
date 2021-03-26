@@ -31,6 +31,7 @@ require (
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/minio/minio v0.0.0-20201122074850-39f3d5493bc9 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
+	github.com/mosn/registry v0.0.0-20210108061200-d7b63bc1904b
 	github.com/oceanicdev/chi-param v1.1.0
 	github.com/olivere/elastic/v7 v7.0.21
 	github.com/opencontainers/go-digest v1.0.0-rc1

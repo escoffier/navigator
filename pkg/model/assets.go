@@ -4,6 +4,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	NodeTypeService  = "service"
+	NodeTypeOwnerRef = "ownerReference"
+)
+
 type AssetContainer struct {
 	MetadataEntry `json:"-" bson:",inline"`
 	// PodName-Name is a "primary key"
@@ -40,16 +45,27 @@ type AssetContainer struct {
 	SeccompProfile  string `json:"seccompProfile" bson:"seccompProfile"`
 }
 
-type Service struct {
-	MetadataEntry      `json:"-" bson:",inline"`
-	Cluster            string `json:"cluster" bson:"cluster"`
-	Namespace          string `json:"namespace" bson:"namespace"`
-	Name               string `json:"name" bson:"name"`
-	OwnerReferenceName string `json:"ownerReferenceName" bson:"ownerReferenceName"`
-	PodName            string `json:"podName" bson:"podName"`
-	PodUID             string `json:"podUid" bson:"podUid"`
-	IP                 string `json:"ip"  bson:"ip"`
-	Kind               string `json:"kind" bson:"kind"`
+type PodServiceRelation struct {
+	MetadataEntry `json:"-" bson:",inline"`
+	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Cluster       string             `json:"cluster" bson:"cluster"`
+	Namespace     string             `json:"namespace" bson:"namespace"`
+	Name          string             `json:"name" bson:"name"`
+	PodName       string             `json:"podName" bson:"podName"`
+	PodUID        string             `json:"podUid" bson:"podUid"`
+	IP            string             `json:"ip"  bson:"ip"`
+}
+
+type PodOwnerRefRelation struct {
+	MetadataEntry `json:"-" bson:",inline"`
+	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Cluster       string             `json:"cluster" bson:"cluster"`
+	Namespace     string             `json:"namespace" bson:"namespace"`
+	OwnerRefName  string             `json:"ownerRefName" bson:"ownerRefName"`
+	OwnerRefKind  string             `json:"ownerRefKind" bson:"ownerRefKind"`
+	PodName       string             `json:"podName" bson:"podName"`
+	PodUID        string             `json:"podUid" bson:"podUid"`
+	IP            string             `json:"ip"  bson:"ip"`
 }
 
 type ServiceRelation struct {

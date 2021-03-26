@@ -16,6 +16,8 @@ type ServiceSummary struct {
 	FinalSeverity  string              `json:"finalSeverity"`
 	RiskLevel      int                 `json:"riskLevel"`
 	ServiceName    string              `json:"serviceName"`
+	NodeType       string              `json:"nodeType"`
+	ResourceKind   string              `json:"resourceKind"`
 	Namespace      string              `json:"namespace"`
 	RiskTypes      map[RiskType]int    `json:"tag"`
 }

@@ -44,7 +44,7 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 		}
 	}
 
-	cur, err := m.mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := m.mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't find document: %w", err))
@@ -59,16 +59,15 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 	svcMap := make(map[string]struct{}, 100)
 	serviceSlice := make([]ServiceInfoDetails, 0, 100)
 	for cur.Next(mongoCtx) {
-		var service model.Service
+		var service model.PodServiceRelation
 		err := cur.Decode(&service)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("decodeError: %v", err)
+			continue
+		}
 		svcName := service.Name
 		stype := TypeService
 		ownerKind := ""
-		if len(svcName) == 0 {
-			svcName = service.OwnerReferenceName
-			stype = TypeOwnerReference
-			ownerKind = service.Kind
-		}
 		if len(svcName) == 0 {
 			logging.GetLogger().Error().Msgf("no service name or ownerReferenceName given in data: %+v", service)
 			continue
@@ -214,9 +213,9 @@ func (m *MicroService) GetServiceInfo(ctx context.Context, namespace, svcname, u
 		"namespace": namespace,
 		"name":      svcname,
 	}
-	var service model.Service
+	var service model.PodServiceRelation
 
-	err := m.mongodb.Collection(model.ServiceCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&service)
+	err := m.mongodb.Collection(model.PodServiceRelationCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&service)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))

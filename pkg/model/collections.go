@@ -18,7 +18,8 @@ const (
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
 	VulnerabilitiesInImagesCollection
-	ServiceCollection
+	PodServiceRelationCollection
+	PodOwnerRefRelationCollection
 	ServiceRelationCollection
 	ServiceAliasCollection
 	HarborProjectConfigCollection
@@ -42,7 +43,8 @@ func GetCollectionNames() []string {
 		"CVE2CNNVD",
 		"checkHistoryEntry",
 		"vulnerabilitiesInImages",
-		"service",
+		"podServiceRelation",
+		"podOwnerRefRelation",
 		"serviceRelation",
 		"serviceAlias",
 		"harborProjectConfig",

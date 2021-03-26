@@ -10,6 +10,7 @@ type OnlineVulnListItem struct {
 	ResourceKind      string                    `json:"resourceKind"`
 	ResourceName      string                    `json:"resourceName"`
 	ServiceName       string                    `json:"serviceName"`
+	NodeType          string                    `json:"nodeType"`
 	TopVulns          []model.VulnerabilityInfo `json:"topVulnerabilities"`
 	OverallSeverity   string                    `json:"overallSeverity"`
 	RunningContainers []string                  `json:"runningContainers"`

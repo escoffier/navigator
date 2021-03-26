@@ -190,13 +190,16 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 		filter := bson.M{
 			"$and": []bson.M{
 				{"cluster": kubeCluster},
-				{"namespace": oldPod.Namespace},
 				{"podUid": string(oldPod.UID)},
 			},
 		}
-		_, err := mongodb.Collection(model.ServiceCollection.String()).DeleteMany(mongoCtx, filter)
+		_, err := mongodb.Collection(model.PodOwnerRefRelationCollection.String()).DeleteMany(mongoCtx, filter)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("delete service collection error for pod event")
+			logging.GetLogger().Err(err).Msgf("delete PodOwnerRefRelationCollection error for pod event")
+		}
+		_, err = mongodb.Collection(model.PodServiceRelationCollection.String()).DeleteMany(mongoCtx, filter)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("delete PodServiceRelationCollection error for pod event")
 		}
 	}
 	if action == ActionUpdate || action == ActionAdd {
@@ -216,30 +219,30 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 			return errors.New("get owner error")
 		}
 
+		podOwnerRel := model.PodOwnerRefRelation{
+			Namespace:    newPod.Namespace,
+			OwnerRefName: ownerName,
+			Cluster:      kubeCluster,
+			OwnerRefKind: svcKind,
+			PodUID:       string(newPod.UID),
+			PodName:      newPod.Name,
+		}
+		podOwnerRel.HistoricisedTimestamp = time.Now()
+
 		filter := bson.M{
 			"$and": []bson.M{
 				{"cluster": kubeCluster},
 				{"podUid": string(newPod.UID)},
 			},
 		}
-
-		assetService := model.Service{
-			Namespace:          newPod.Namespace,
-			OwnerReferenceName: ownerName,
-			Cluster:            kubeCluster,
-			Kind:               svcKind,
-			PodUID:             string(newPod.UID),
-			PodName:            newPod.Name,
+		update := bson.M{
+			"$set": podOwnerRel,
 		}
-		update := bson.M{"$set": assetService}
-		opts := options.Update().SetUpsert(true)
-		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
-		_, upsertErr := mongodb.Collection(model.ServiceCollection.String()).UpdateMany(mongoCtx, filter, update, opts)
-		if upsertErr != nil {
-			logging.GetLogger().Error().Err(upsertErr).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to insert service to mongo")
-			return upsertErr
+		upOptions := options.Update().SetUpsert(true)
+		_, upErr := mongodb.Collection(model.PodOwnerRefRelationCollection.String()).UpdateMany(mongoCtx, filter, update, upOptions)
+		if upErr != nil {
+			return upErr
 		}
-
 	}
 	return nil
 }
@@ -306,6 +309,8 @@ func OnServiceEvent(mongodb *mongo.Database, kubeCluster string, newSvc, oldSvc 
 
 // OnEndpointsEvent updates the mongo according to the event
 func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error {
+	logging.GetLogger().Info().Msgf("on ept event. action: %v. newEpt: %+v. oldEpt: %+v.", action, newEpt, oldEpt)
+
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 
@@ -340,13 +345,7 @@ func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEp
 					}
 				}
 
-				update := bson.M{
-					"$set": bson.M{
-						"name": "",
-					},
-				}
-				logging.GetLogger().Info().Msgf("delete endpoints: %+v", oldEpt)
-				_, err := mongodb.Collection(model.ServiceCollection.String()).UpdateMany(mongoCtx, filter, update)
+				_, err := mongodb.Collection(model.PodServiceRelationCollection.String()).DeleteMany(mongoCtx, filter)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", filter)).Msg("Failed to delete  EndPoints to mongo")
 					return err
@@ -359,27 +358,50 @@ func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEp
 		if newEpt == nil {
 			return errors.New("no new endpoints given")
 		}
-		assetService := model.Service{
+		podSvcRel := model.PodServiceRelation{
 			Namespace: newEpt.Namespace,
 			Name:      newEpt.Name,
 			Cluster:   kubeCluster,
 		}
-		assetService.HistoricisedTimestamp = time.Now()
+		podSvcRel.HistoricisedTimestamp = time.Now()
 
 		for _, v := range newEpt.Subsets {
 			for _, address := range v.Addresses {
-				assetService.IP = address.IP
+				podSvcRel.IP = address.IP
 				if address.TargetRef == nil {
-					assetService.PodName = ""
-					assetService.PodUID = ""
+					podSvcRel.PodName = ""
+					podSvcRel.PodUID = ""
 				} else {
-					assetService.PodName = address.TargetRef.Name
-					assetService.PodUID = string(address.TargetRef.UID)
+					podSvcRel.PodName = address.TargetRef.Name
+					podSvcRel.PodUID = string(address.TargetRef.UID)
 				}
 
-				_, err := mongodb.Collection(model.ServiceCollection.String()).InsertOne(mongoCtx, assetService)
+				var filter bson.M
+				if len(podSvcRel.PodUID) > 0 {
+					filter = bson.M{
+						"$and": []bson.M{
+							{"cluster": kubeCluster},
+							{"namespace": newEpt.Namespace},
+							{"name": newEpt.Name},
+							{"podUid": podSvcRel.PodUID},
+						},
+					}
+				} else {
+					filter = bson.M{
+						"$and": []bson.M{
+							{"cluster": kubeCluster},
+							{"namespace": newEpt.Namespace},
+							{"name": newEpt.Name},
+							{"ip": address.IP},
+						},
+					}
+				}
+
+				update := bson.M{"$set": podSvcRel}
+				opts := options.Update().SetUpsert(true)
+				_, err := mongodb.Collection(model.PodServiceRelationCollection.String()).UpdateMany(mongoCtx, filter, update, opts)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to upsert assetService to mongo")
+					logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", podSvcRel)).Msg("Failed to upsert assetService to mongo")
 					return err
 				}
 			}
@@ -430,11 +452,12 @@ func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest st
 	return scanTask, wasScanned, nil
 }
 
-func GetPodNamesFromService(mongodb *mongo.Database, cluster, namespace, resName string) ([]string, error) {
+// GetPodNamesFromOwnerRef returns podname, resourceKind, and error if have.
+func GetPodNamesFromOwnerRef(mongodb *mongo.Database, cluster, namespace, resName string) ([]string, string, error) {
 	filter := bson.M{
 		"$and": []bson.M{
 			{"namespace": namespace},
-			{"$or": []bson.M{{"name": resName}, {"ownerReferenceName": resName}}},
+			{"ownerRefName": resName},
 			{"cluster": cluster},
 		},
 	}
@@ -445,13 +468,52 @@ func GetPodNamesFromService(mongodb *mongo.Database, cluster, namespace, resName
 	opt := options.Find()
 	opt.SetMaxTime(5 * time.Second)
 
-	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := mongodb.Collection(model.PodOwnerRefRelationCollection.String()).Find(mongoCtx, filter, opt)
+	if err != nil {
+		return nil, "", NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err))
+	}
+	podsMap := make(map[string]struct{}, 10)
+	kind := ""
+	for cur.Next(mongoCtx) {
+		var elem model.PodOwnerRefRelation
+		err := cur.Decode(&elem)
+		if err != nil {
+			return nil, "", NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		podsMap[elem.PodName] = struct{}{}
+		kind = elem.OwnerRefKind
+	}
+	podsSlice := make([]string, len(podsMap))
+	i := 0
+	for podName := range podsMap {
+		podsSlice[i] = podName
+		i++
+	}
+	return podsSlice, kind, nil
+}
+
+func GetPodNamesFromService(mongodb *mongo.Database, cluster, namespace, resName string) ([]string, error) {
+	filter := bson.M{
+		"$and": []bson.M{
+			{"namespace": namespace},
+			{"name": resName},
+			{"cluster": cluster},
+		},
+	}
+	// from mongo
+
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer mongoCtxCancel()
+	opt := options.Find()
+	opt.SetMaxTime(5 * time.Second)
+
+	cur, err := mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err))
 	}
 	podsMap := make(map[string]struct{}, 10)
 	for cur.Next(mongoCtx) {
-		var service model.Service
+		var service model.PodServiceRelation
 		err := cur.Decode(&service)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
@@ -548,7 +610,7 @@ func GetServiceSha256Val(mongodb *mongo.Database, namespace, snvName string) ([]
 	opt := options.Find()
 	opt.SetMaxTime(10 * time.Second)
 
-	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -556,12 +618,12 @@ func GetServiceSha256Val(mongodb *mongo.Database, namespace, snvName string) ([]
 	}
 	podNameSlice := make([]string, 0)
 	for cur.Next(mongoCtx) {
-		var service model.Service
-		err := cur.Decode(&service)
+		var rel model.PodServiceRelation
+		err := cur.Decode(&rel)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
-		podNameSlice = append(podNameSlice, service.PodName)
+		podNameSlice = append(podNameSlice, rel.PodName)
 	}
 
 	filter = bson.M{
@@ -610,7 +672,7 @@ func GetServiceRepository(mongodb *mongo.Database, namespace, snvName string) ([
 	opt := options.Find()
 	opt.SetMaxTime(10 * time.Second)
 
-	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -618,12 +680,12 @@ func GetServiceRepository(mongodb *mongo.Database, namespace, snvName string) ([
 	}
 	podNameSlice := make([]string, 0)
 	for cur.Next(mongoCtx) {
-		var service model.Service
-		err := cur.Decode(&service)
+		var rel model.PodServiceRelation
+		err := cur.Decode(&rel)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
 		}
-		podNameSlice = append(podNameSlice, service.PodName)
+		podNameSlice = append(podNameSlice, rel.PodName)
 	}
 
 	filter = bson.M{
@@ -693,7 +755,7 @@ func GetServiceImages(mongodb *mongo.Database, namespace, snvName string) ([]str
 	opt := options.Find()
 	opt.SetMaxTime(10 * time.Second)
 
-	cur, err := mongodb.Collection(model.ServiceCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -701,7 +763,7 @@ func GetServiceImages(mongodb *mongo.Database, namespace, snvName string) ([]str
 	}
 	podNameSlice := make([]string, 0)
 	for cur.Next(mongoCtx) {
-		var service model.Service
+		var service model.PodServiceRelation
 		err := cur.Decode(&service)
 		if err != nil {
 			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
