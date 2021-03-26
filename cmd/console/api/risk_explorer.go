@@ -16,7 +16,7 @@ import (
 func (api *api) riskExplorer() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/wholeGraphOverall", api.wholeGraphOverrall())
-		r.Get("/serviceDetails/{namespace}/{serviceName}", api.serviceDetails())
+		r.Get("/serviceDetails/{nodeType}/{namespace}/{serviceName}", api.serviceDetails())
 	}
 }
 
@@ -52,15 +52,17 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 // @Summary List current assets
 // @Description list current assets in the cluster
 // @Produce json
-// @Router /serviceDetails/{namespace}/{serviceName} [get]
+// @Router /serviceDetails/{nodeType}/{namespace}/{serviceName} [get]
+// @Param nodeType url string true "service/ownerReferene"
 // @Param  namespace url string true "k8s cluster"
 // @Param serviceName url string true "serviceName"
-// @Param cluster query string true "k8s cluster"@
+// @Param cluster query string true "k8s cluster"
 func (api *api) serviceDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		ntype := chi.URLParam(r, "nodeType")
 		namespace := chi.URLParam(r, "namespace")
 		if len(namespace) == 0 {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.New("missing namespace in url")))
@@ -82,7 +84,7 @@ func (api *api) serviceDetails() http.HandlerFunc {
 			return
 		}
 
-		detail, err := reSvc.ServiceDetail(ctx, cluster, namespace, sname)
+		detail, err := reSvc.ServiceDetail(ctx, cluster, ntype, namespace, sname)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return

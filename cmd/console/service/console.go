@@ -652,7 +652,7 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[model.ServiceCollection.String()] = []mongo.IndexModel{
+	neededIndexesPerCollection[model.PodServiceRelationCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
 				"name": 1,
@@ -676,6 +676,28 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 		{
 			Keys: bson.M{
 				"ip": 1,
+			}, Options: nil,
+		},
+	}
+	neededIndexesPerCollection[model.PodOwnerRefRelationCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"ownerRefName": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"cluster": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podUid": 1,
 			}, Options: nil,
 		},
 	}

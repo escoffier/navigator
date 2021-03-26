@@ -93,13 +93,15 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 		}
 
 		services := []string{container.PodOwnerName}
+		nodeType := model.NodeTypeOwnerRef
 		svcService, svcOk := GetServiceAssetsService()
 		if svcOk {
 			// TODO: This should be PodUid, not PodName
 			sinfo, exist := svcService.GetServiceInfoOfPod(cluster, container.PodUID)
 			if exist && sinfo != nil {
 				if len(sinfo.Services()) > 0 {
-					// services = sinfo.Services()
+					services = sinfo.Services()
+					nodeType = model.NodeTypeService
 				}
 			}
 		}
@@ -119,6 +121,7 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 					ResourceKind:         container.PodOwnerKind,
 					ResourceName:         container.PodOwnerName,
 					ServiceName:          service,
+					NodeType:             nodeType,
 					RunningContainersSet: make(map[string]bool),
 					RunningPodsSet:       make(map[string]bool),
 					VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),

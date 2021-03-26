@@ -147,12 +147,16 @@ func (cb *ServiceAssetsClusterCallback) expireInactiveServiceEndpoints(ctx conte
 	defer cancel()
 
 	filter := bson.M{
-		"cluster":        cb.cluster,
-		"lastUpdateTime": bson.M{"$lt": cb.refreshTime()},
+		"cluster":                cb.cluster,
+		"historicised_timestamp": bson.M{"$lt": cb.refreshTime()},
 	}
-	_, err := cb.parent.mongoDB.Collection(model.ServiceCollection.String()).DeleteMany(ctx, filter)
+	_, err := cb.parent.mongoDB.Collection(model.PodServiceRelationCollection.String()).DeleteMany(ctx, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("delete service collections error for cluster %s", cb.cluster)
+		logging.GetLogger().Err(err).Msgf("delete pod service collections error for cluster %s", cb.cluster)
+	}
+	_, err = cb.parent.mongoDB.Collection(model.PodOwnerRefRelationCollection.String()).DeleteMany(ctx, filter)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("delete pod owner collections error for cluster %s", cb.cluster)
 	}
 
 	filter = bson.M{
