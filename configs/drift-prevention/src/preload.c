@@ -11,7 +11,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/shm.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <stdarg.h>
 
@@ -38,7 +38,7 @@
 * T execv
 * T execve
 * T execvp
-* 
+*
 */
 
 extern char **environ;
@@ -50,7 +50,7 @@ typedef struct {
 } pre_info;
 
 static const key_t SHM_WHITELIST_SIZE_NAME = 512;
-static const key_t SHM_WHITELIST_NAME = 1024; 
+static const key_t SHM_WHITELIST_NAME = 1024;
 
 typedef struct {
     char filename[PATH_MAX];
@@ -72,22 +72,22 @@ static void finish() {
 /*
  * As .so library is loaded for each exec, we need to initialize the whitelist as fast as possible
  * to minimize additional latency. Here we assumed, that in the first load we create a shared memory,
- * which later on is accessed by consecutive loads of the shared object by the 
+ * which later on is accessed by consecutive loads of the shared object by the
  * SHM_WHITELIST_SIZE_NAME and SHM_WHITELIST_NAME.
- * 
+ *
  * One drawback of this solution is that we never free shared memory in this case.
  */
 static void init() {
     void* shm_ref;
-    int shm_file_size_fd; 
+    int shm_file_size_fd;
     int* shm_file_size_ptr;
-    int shm_whitelist_fd; 
+    int shm_whitelist_fd;
     shm_whitelist_entry *shm_whitelist_ptr;
-    shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), S_IRUSR); 
+    shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), S_IRUSR);
     if (shm_file_size_fd < 0) {
         whitelist_init(&g_whitelist_config, 32);
         read_config(&g_whitelist_config);
-        shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR); 
+        shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR);
         if (shm_file_size_fd < 0) {
             drift_prevent_write_log(ERROR, "Could not create shared memory for whitelist size: %s\n", strerror(errno));
             goto use_data_from_file;
@@ -96,7 +96,7 @@ static void init() {
         size_t *shmaddr = (size_t *) shmat (shm_file_size_fd, 0, 0);
         memcpy(shmaddr, &g_whitelist_config.used, sizeof (size_t));
         int shm_whitelist_size = sizeof(shm_whitelist_entry) * g_whitelist_config.used;
-        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, shm_whitelist_size, IPC_CREAT | S_IRUSR | S_IWUSR); 
+        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, shm_whitelist_size, IPC_CREAT | S_IRUSR | S_IWUSR);
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *) shmat (shm_whitelist_fd, 0, 0);
         g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
         if (!g_whitelist_hash) {
@@ -124,7 +124,7 @@ static void init() {
             drift_prevent_write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
             goto read_data_from_file;
         }
-        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, *shm_whitelist_size, S_IRUSR); 
+        shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, *shm_whitelist_size, S_IRUSR);
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *) shmat (shm_whitelist_fd, 0, 0);
         for (int i = 0; i < *shm_whitelist_size; i++) {
             entry *node = hashtbl_node_insert(file_shmaddr[0].filename, g_whitelist_hash);
@@ -191,6 +191,22 @@ static int send_alert(const char* filepath, const char* syscall, const char* rea
     if (port_int == 0) {
         drift_prevent_write_log(ERROR, "Atoi converted port number to 0, check env var TENSORSEC_CONSOLE_PORT: %s\n", strerror(errno));
         return 1;
+    }
+
+    char unknow_str[] = "unknow";
+    if(!podname){
+        drift_prevent_write_log(ERROR, "Env var MY_POD_NAME not found: %s\n", strerror(errno));
+        podname = unknow_str;
+    }
+
+    if(!poduid){
+        drift_prevent_write_log(ERROR, "Env var MY_POD_UID not found: %s\n", strerror(errno));
+        poduid = unknow_str;
+    }
+
+    if(!podnamespace){
+        drift_prevent_write_log(ERROR, "Env var MY_POD_NAMESPACE not found: %s\n", strerror(errno));
+        podnamespace = unknow_str;
     }
 
     struct alert_t alert;
