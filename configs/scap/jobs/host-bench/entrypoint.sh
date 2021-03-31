@@ -19,7 +19,7 @@ source /mnt/root/etc/os-release
 case $NAME in 
   *Ubuntu*)
     DSPATH="/usr/share/xml/scap/ssg/content/ssg-ubuntu${VERSION_ID}04-ds.xml"
-    oscap-chroot /mnt/root/ xccdf eval --report=report.html --results=results.xccdf --profile xccdf_org.ssgproject.content_profile_standard $DSPATH
+    oscap-chroot /mnt/root/ xccdf eval --results=results.xccdf --profile xccdf_org.ssgproject.content_profile_standard $DSPATH
 
     # We get:
     # WARNING: Datastream component 'scap_org.open-scap_cref_-ubuntu-security-oval-com.ubuntu.xenial.cve.oval.xml' points out to the remote 'https://people.canonical.com/~ubuntu-security/oval/com.ubuntu.xenial.cve.oval.xml'. Use '--fetch-remote-resources' option to download it.
@@ -35,7 +35,7 @@ case $NAME in
     echo "TAILORINGPATH=$TAILORINGPATH"
 
     echo "Running oscap-chroot"
-    oscap-chroot /mnt/root/ xccdf eval --tailoring-file $TAILORINGPATH --report=report.html --results=results.xccdf --profile xccdf_org.tensorsecurity.content_profile_unselect_memory_intensive_from_standard $DSPATH
+    oscap-chroot /mnt/root/ xccdf eval --tailoring-file $TAILORINGPATH --results=results.xccdf --profile xccdf_org.tensorsecurity.content_profile_unselect_memory_intensive_from_standard $DSPATH
 
     # retval == 0, when no error, passed all rules
     # retval == 2, when no error, failed some rules
