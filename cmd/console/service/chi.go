@@ -13,7 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -134,11 +133,7 @@ func AccessMiddlewares(ch chan model.AccessLog) func(http.Handler) http.Handler 
 			headerData, _ := json.Marshal(r.Header)
 			json.Unmarshal(headerData, &headerMap)
 			delete(headerMap, "Authorization")
-
-			length := r.Header.Get("Content-Length")
-			intLength, _ := strconv.Atoi(length)
-			body := make([]byte, intLength)
-			r.Body.Read(body)
+			body, _ := ioutil.ReadAll(r.Body)
 
 			token, claims, err := jwtauth.FromContext(r.Context())
 			if err == nil {
