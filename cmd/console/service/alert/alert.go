@@ -219,7 +219,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 				fmt.Errorf("Failed to parse elasticsearch result: %w", err),
 				Suberror{"elasticID", elasticID})
 		}
-		logging.GetLogger().Debug().Str("elastalert", fmt.Sprintf("%+v", elasticAlert)).Msg("Analysing alert entry")
 
 		vulnerability := ""
 		if val, ok := elasticAlert["socket__protocol"]; ok {
@@ -259,8 +258,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 			}
 		}
 
-		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Checking if vulnerability supported")
-
 		timestamp, err := time.Parse(time.RFC3339, elasticAlert["@timestamp"].(string))
 		if err != nil {
 			return NewElasticError(http.StatusInternalServerError,
@@ -292,8 +289,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 			continue
 		}
 
-		logging.GetLogger().Info().Str("elasticID", elasticID).Str("vulnerability", vulnerability).Msg("Vulnerability supported")
-
 		podUID := elasticAlert["PodUID"].(string)
 		podName := elasticAlert["PodName"].(string)
 		cluster := "default"
@@ -324,7 +319,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 			idPtr, cacheExist := aggrCache.GetByKey(aggrKey, timestamp.Unix())
 			var alert *model.Alert
 			if cacheExist && idPtr != nil {
-				logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s and got value: %v", vulnerability, *idPtr)
 				filter := bson.M{"_id": *idPtr}
 
 				queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
@@ -484,9 +478,8 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		numRaised++
 
 		if numRaised == 0 {
-			logging.GetLogger().Info().
-				Msg("No alerts raised to mongo")
 		} else {
+
 			logging.GetLogger().Info().
 				Int("numRaised", numRaised).
 				Msg("Raised alerts to mongo")

@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jinzhu/gorm"
+	"github.com/olivere/elastic/v7"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -14,7 +17,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
-	"github.com/gorilla/securecookie"
 	version "github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/patrickmn/go-cache"
@@ -41,9 +43,11 @@ import (
 type api struct {
 	ctx                    context.Context
 	userCache              *cache.Cache
-	rbacCache              *cache.Cache /* Role-Based-Access-Control */
 	tokenAuth              *jwtauth.JWTAuth
 	mongodb                *mongo.Database
+	postgresDB             *gorm.DB
+	optUserMap             map[string]struct{}
+	es                     *elastic.Client
 	scapper                *scapper.Scapper
 	scannerURL             string
 	cronService            *cron.CronService
@@ -61,6 +65,7 @@ type api struct {
 	scapService            *scapper.ScapService
 	harborClient           *harbor.HarborRESTClient
 	microService           *microservice.MicroService
+	emailOpts              *flag.EmailOpts
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -72,7 +77,9 @@ type api struct {
 func newAPI(
 	ctx context.Context,
 	sessionExpiration time.Duration,
+	tokenAuth *jwtauth.JWTAuth,
 	mongodb *mongo.Database,
+	postgresDB *gorm.DB,
 	scapper *scapper.Scapper,
 	scannerURL string,
 	cronService *cron.CronService,
@@ -90,13 +97,15 @@ func newAPI(
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
+	emailOpts *flag.EmailOpts,
 ) *api {
 	return &api{
 		ctx:                         ctx,
 		userCache:                   cache.New(sessionExpiration, time.Minute),
-		rbacCache:                   cache.New(sessionExpiration, time.Minute),
-		tokenAuth:                   jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil),
+		tokenAuth:                   tokenAuth,
 		mongodb:                     mongodb,
+		postgresDB:                  postgresDB,
+		optUserMap:                  make(map[string]struct{}),
 		scapper:                     scapper,
 		scannerURL:                  scannerURL,
 		cronService:                 cronService,
@@ -116,6 +125,7 @@ func newAPI(
 		microService:                microService,
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
+		emailOpts:                   emailOpts,
 	}
 }
 

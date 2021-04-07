@@ -10,15 +10,15 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
-	"github.com/patrickmn/go-cache"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
-const JWT_KEY_USERNAME = "user_name"
+const (
+	JWT_KEY_USERNAME = "user_name"
+)
 
 // User defines the obj in the userCache
 type User struct {
@@ -42,13 +42,15 @@ type LoginResponse struct {
 func (api *api) restAuth() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/login", api.login())
+		r.Post("/forgetpwd", api.forgetPwd())
+		r.Post("/activeuser", api.activeUser())
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
 			r.Post("/logout", api.logout())
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.mongodb, api.userCache))
+			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
 			r.Get("/user", user)
 		})
 	}
@@ -82,28 +84,14 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		if creds.Username == "" {
-			if creds.Password == "" {
-				// Handle case where both username and password are missing
-				// We probably should have some validation helper instead of nested
-				// ifs like this.
-				RespAndLog(w, ctx,
-					NewFieldError(http.StatusBadRequest,
-						fmt.Errorf("Missing field 'password' and 'username'"),
-						Suberror{"username", ""}, Suberror{"password", ""}))
-				return
-			}
+		if creds.Username == "" || creds.Password == "" {
+			// Handle case where  username or password are missing
+			// We probably should have some validation helper instead of nested
+			// ifs like this.
 			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Missing field 'username'"),
-					Suberror{"username", ""}))
-			return
-		}
-		if creds.Password == "" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Missing field 'password'"),
-					Suberror{"password", ""}))
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("missing field 'password' or 'username'"),
+					Suberror{"username", ""}, Suberror{"password", ""}))
 			return
 		}
 
@@ -112,17 +100,16 @@ func (api *api) login() http.HandlerFunc {
 			ok       bool
 		)
 
-		// login use mongo, the username and password is Plaintext
-		ok, findUser, err = loginCheckByMongo(api, creds.Username, creds.Password)
+		ok, findUser, err = model.LoginCheckByPostgres(api.postgresDB, creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
+				LoginError(http.StatusInternalServerError,
 					fmt.Errorf("mongo err: %w", err)))
 			return
-		} else if !ok || findUser == nil {
+		} else if !ok {
 			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find document: %w", err)))
+				LoginError(http.StatusPreconditionFailed,
+					fmt.Errorf("Couldn't find Username: %w", err)))
 			return
 		}
 
@@ -134,7 +121,7 @@ func (api *api) login() http.HandlerFunc {
 		jwtauth.SetIssuedNow(jwtmc)
 		_, tokenString, _ := api.tokenAuth.Encode(jwtmc)
 
-		api.userCache.Set(creds.Username, findUser, cache.DefaultExpiration)
+		api.userCache.Set(creds.Username, findUser, UserSessionExpiration)
 
 		response.Ok(w, response.WithItem(LoginResponse{
 			CurrentAuthority: findUser.UserName,
@@ -143,6 +130,10 @@ func (api *api) login() http.HandlerFunc {
 			Token:            tokenString,
 		}))
 	}
+}
+
+type resp struct {
+	Status string `json:"status"`
 }
 
 // @Summary Logout API
@@ -180,30 +171,47 @@ func user(w http.ResponseWriter, r *http.Request) {
 	response.Ok(w, response.WithItem(*u))
 }
 
-func loginCheckByMongo(api *api, userName, pwd string) (ok bool, u *model.User, err error) {
-	ctx, cancel := api.getTimeoutCtx(time.Second * 20)
-	defer cancel()
+func (api *api) activeUser() http.HandlerFunc {
 
-	filter := bson.M{
-		"user_name": userName,
-	}
-	var user model.User
-	err = api.mongodb.Collection(model.UserCollection).FindOne(ctx, filter).Decode(&user)
-	if err != nil {
-		return false, nil, err
+	type reqActiveUser struct {
+		HashCode string `json:"hash_code" binding:"required,max=64"`
+		Pwd      string `json:"pwd" binding:"required,min=6,max=32"`
 	}
 
-	if pwd == user.Pwd {
-		return true, &user, nil
-	} else {
-		return false, nil, nil
-	}
-}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ru := reqActiveUser{}
+		err := json.NewDecoder(r.Body).Decode(&ru)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
 
-func testWithLog(middle, msg string) {
-	pre := "{super-admin} -> "
-	middle = middle + " -> "
-	logging.GetLogger().Debug().Msg(pre + middle + msg)
+		if ru.HashCode == "" {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusRequestedRangeNotSatisfiable, fmt.Errorf("hashcode is not empty")))
+			return
+		}
+
+		username, ok := model.CheckHashCode(api.postgresDB, ru.HashCode)
+		if !ok {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusRequestedRangeNotSatisfiable, fmt.Errorf("hashcode is error")))
+			return
+		}
+
+		// active user
+		err = model.ActiveUser(api.postgresDB, username, ru.Pwd)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("database error:%+v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(resp{
+			Status: fmt.Sprintf("%v", "OK"),
+		}))
+	}
 }
 
 func testWithLogJson(middle string, payload interface{}) {
@@ -215,4 +223,56 @@ func testWithLogJson(middle string, payload interface{}) {
 	} else {
 		logging.GetLogger().Debug().Msg(pre + middle + string(jso))
 	}
+}
+
+func (api *api) forgetPwd() http.HandlerFunc {
+
+	type reqForgetUser struct {
+		Username string `json:"username" binding:"required,max=32"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		rf := reqForgetUser{}
+		err := json.NewDecoder(r.Body).Decode(&rf)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		exist, _, err := model.SelectUser(api.postgresDB, rf.Username)
+		if err != nil {
+			RespAndLog(w, ctx,
+				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+			return
+		}
+		if !exist {
+			RespAndLog(w, ctx,
+				PostgresError(http.StatusPreconditionFailed, fmt.Errorf("user not exist")))
+			return
+		}
+
+		emailHashCode := model.RandStringBytesMaskImprSrcUnsafe(64)
+
+		bool := model.SendEmail(rf.Username, r.Host, emailHashCode, api.emailOpts)
+		if !bool {
+			RespAndLog(w, ctx,
+				SendmailError(http.StatusNotFound, fmt.Errorf("send email error")))
+			return
+		}
+
+		err = model.InsertEmail(api.postgresDB, rf.Username, emailHashCode)
+		if err != nil {
+			RespAndLog(w, ctx,
+				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(resp{
+			Status: fmt.Sprintf("%v", "OK"),
+		}))
+	}
+
 }

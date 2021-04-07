@@ -40,6 +40,11 @@ spec:
           "--mongo-pvc=datadir-tensorsec-mongodb-primary-0",
           "--mongo-pod=tensorsec-mongodb-primary-0",
           "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
+          "--console-postgres={{ .Values.clair.postgresURI }}",
+          "--email-username=console-robot@tensorsecurity.cn",
+          "--email-host=smtp.feishu.cn",
+          "--email-port=465",
+          "--email-check=true",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
           "--redis-endpoint=tensorsec-redis-master:6379",
@@ -69,7 +74,9 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ .Values.redis.redisSecretName }}
-              key: redis-password 
+              key: redis-password
+        - name: TENSORSEC_EMAIL_PASSWORD
+          value: r8UJgg7ejpSoDOAF
         - name: TENSORSEC_HARBOR_PASSWORD
           valueFrom:
             secretKeyRef:
