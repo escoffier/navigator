@@ -40,7 +40,7 @@ spec:
           "--mongo-pvc=datadir-tensorsec-mongodb-primary-0",
           "--mongo-pod=tensorsec-mongodb-primary-0",
           "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
-          "--console-postgres="postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"",
+          "--console-postgres=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable",
           "--email-username=console-robot@tensorsecurity.cn",
           "--email-host=smtp.feishu.cn",
           "--email-port=465",
