@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/md5"
 	"errors"
 	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
+
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -12,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
@@ -66,6 +68,8 @@ type Console struct {
 	server             *http.Server
 	mongoClient        *mongo.Client
 	mongodb            *mongo.Database
+	postgresDB         *gorm.DB
+	es                 *elastic.Client
 	cronService        *cron.CronService
 	ruleService        *rule.RuleService
 	clusterService     *cluster.ClusterService
@@ -82,12 +86,15 @@ type Console struct {
 func NewConsole(
 	httpOpts *flag.HTTPOpts,
 	mongoOpts *flag.MongoOpts,
+	postgresOpts *flag.PostgresOpts,
+
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
 	redisOpts *flag.RedisOpts,
 	elasticOpts *flag.ElasticOpts,
 	rulesOpts *flag.RulesOpts,
 	harborOpts *flag.HarborOpts,
+	emailOpts *flag.EmailOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -109,6 +116,13 @@ func NewConsole(
 		DB:       0,                  // TODO: Add DB
 	})
 
+	postgresDB, err := gorm.Open("postgres", postgresOpts.PostgresConnectionString)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+	}
+	postgresDB.SingularTable(true)
+	postgresDB.LogMode(false)
+	postgresDB.AutoMigrate(&model.User{}, &model.Email{})
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
@@ -187,7 +201,7 @@ func NewConsole(
 	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
 	//microService *microservice.MicroService,
 	//micro service
-	microService := microservice.NewMicroService(mongodb)
+	microService := microservice.NewMicroService(mongodb, postgresDB)
 
 	riskexplorer.InitAndGetRiskExplorerService(mongodb, onlineVulnsSvc)
 
@@ -197,6 +211,8 @@ func NewConsole(
 			Handler: setupChiRouter(
 				mainCtx,
 				mongodb,
+				postgresDB,
+				es,
 				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
@@ -215,10 +231,13 @@ func NewConsole(
 				scapService,
 				harborClient,
 				microService,
+				emailOpts,
 			),
 		},
 		mongoClient:        mongoClient,
 		mongodb:            mongodb,
+		postgresDB:         postgresDB,
+		es:                 es,
 		cronService:        cronService,
 		ctx:                mainCtx,
 		cancel:             mainCancel,
@@ -270,25 +289,19 @@ func (c *Console) Run() func() {
 			Msg("Harbor connection and admin privilege check failed")
 	}
 
+	err = postgreCheck(c.postgresDB)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When check admin data in postgres")
+	}
+
 	err = createMongoIndices(ctx, c.mongodb)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Msg("When creating mongo indices")
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
-	}
-
-	err = mongoAdminCheck(ctx, c.mongodb)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When check admin data in mongo")
-		panic(fmt.Errorf("When check admin data in mongo: %w", err))
-	}
-
-	if routeCompareWithURL(c.server.Handler) == false {
-		logging.GetLogger().Debug().Msg("{all-route} -> panic")
-		panic(fmt.Errorf("Some route is not in Access or Ignore URL list"))
 	}
 
 	err = initializeAuditConfig(ctx, c.mongodb, c.auditService)
@@ -350,6 +363,53 @@ func (c *Console) Run() func() {
 
 		log.Info().Msg("TensorNavigator stopped")
 	}
+}
+
+func postgreCheck(db *gorm.DB) error {
+
+	queryUser := model.User{}
+	err := db.Where("username = ?", model.SUPER_ADMIN).First(&queryUser).Error
+	if err == gorm.ErrRecordNotFound {
+		salt := model.RandStringBytesMaskImprSrcUnsafe(8)
+		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.SUPER_PWD+salt)))
+		user := model.User{UserName: model.SUPER_ADMIN, Checked: true, CreateAt: time.Now().Unix(), Rule: model.ROLE_SUPERADMIN, Salt: salt, Pwd: hashPwd}
+		err = db.Create(&user).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	db.DropTable(&model.ModuleGroup{}, &model.Url{})
+	db.AutoMigrate(&model.ModuleGroup{}, &model.Url{})
+
+	mg1 := model.ModuleGroup{
+		ModuleName_zh: "用户中心",
+		ModuleName_en: "User Center",
+	}
+
+	mg2 := model.ModuleGroup{
+		ModuleName_zh: "平台管理",
+		ModuleName_en: "Platform",
+	}
+
+	mg3 := model.ModuleGroup{
+		ModuleName_zh: "容器安全",
+		ModuleName_en: "Container security",
+	}
+
+	db.Table(model.ModuleGroup{}.TableName()).Create(&mg1)
+	db.Table(model.ModuleGroup{}.TableName()).Create(&mg2)
+	db.Table(model.ModuleGroup{}.TableName()).Create(&mg3)
+
+	url1 := model.Url{UrlName: "/api/v2/usercenter", UrlId: mg1.Id}
+	url2 := model.Url{UrlName: "/api/v2/platform", UrlId: mg2.Id}
+	url3 := model.Url{UrlName: "/api/v2/containerSec", UrlId: mg3.Id}
+
+	db.Table(model.Url{}.TableName()).Create(&url1)
+	db.Table(model.Url{}.TableName()).Create(&url2)
+	db.Table(model.Url{}.TableName()).Create(&url3)
+
+	return nil
 }
 
 func initializeAuditConfig(ctx context.Context, mongodb *mongo.Database, auditService *audit.AuditService) error {
@@ -835,110 +895,4 @@ func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterServic
 		return nil, nil, fmt.Errorf("Kube client connection check failed: %w", err)
 	}
 	return kubeClient, restConfig, nil
-}
-
-// On 2020.12.07(UTC+8), all route is:
-//     "/api/v1/alerts/",
-//     "/api/v1/alerts/{alertID}/acknowledge",
-//     "/api/v1/audit/config",
-//     "/api/v1/auth/login",
-//     "/api/v1/auth/logout",
-//     "/api/v1/auth/user",
-//     "/api/v1/cleanup/gc",
-//     "/api/v1/cleanup/gc/{gcID}",
-//     "/api/v1/cleanup/hotStorage",
-//     "/api/v1/config/cluster",
-//     "/api/v1/config/cluster/{clusterID}",
-//     "/api/v1/config/clusters",
-//     "/api/v1/onlineVulnerabilities/current",
-//     "/api/v1/onlineVulnerabilities/details/{namespace}/{resourceKind}/{resourceName}",
-//     "/api/v1/runtimeDetectionConfig/rules",
-//     "/api/v1/runtimeDetectionConfig/rules/{ruleID}/disable",
-//     "/api/v1/runtimeDetectionConfig/rules/{ruleID}/enable",
-//     "/api/v1/scanner/harbor/abortScanAll",
-//     "/api/v1/scanner/harbor/scanAllNow",
-//     "/api/v1/scanner/harbor/scanConfig",
-//     "/api/v1/scanner/harbor/scanStatus",
-//     "/api/v1/scanner/report/{taskID}",
-//     "/api/v1/scanner/reportsByImage",
-//     "/api/v1/scanner/reportsBySeverity",
-//     "/api/v1/scanner/scan",
-//     "/api/v1/scanner/task/{taskID}",
-//     "/api/v1/scap/crons",
-//     "/api/v1/scap/{checkType}/breakdown/{checkID}",
-//     "/api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details",
-//     "/api/v1/scap/{checkType}/history",
-//     "/api/v1/scap/{checkType}/{clusterID}",
-//     "/api/v1/scap/{checkType}/{clusterID}/cron",
-//     "/api/v1/scap/{checkType}/{clusterID}/reports",
-//     "/api/v1/scap/{checkType}/{nodeName}/{checkID}/details",
-//     "/api/v1/superAdmin/accessList",
-//     "/api/v1/superAdmin/addUser",
-//     "/api/v1/superAdmin/roleList",
-//     "/api/v1/superAdmin/setRoleAccess",
-//     "/api/v1/superAdmin/setUserRole",
-//     "/api/v1/superAdmin/userList",
-//     "/harbor/api/v1/metadata",
-//     "/harbor/api/v1/scan",
-//     "/harbor/api/v1/scan/{scan_request_id}/report",
-//     "/ping",
-//     "/swagger/*"
-//
-// If add new url,
-//    the prefix of url should be exist in the return by pkg/model/admin.go -> AllAccessURL() or AllIgnoreAccessURL()
-//
-func routeCompareWithURL(h http.Handler) bool {
-	mux, _ := h.(*chi.Mux)
-
-	routes := mux.Routes()
-
-	allRoute := make([]string, 0, 30)
-	for _, e := range routes {
-		recurRouteTree(&allRoute, "", e)
-	}
-
-	{
-		bts, _ := json.Marshal(allRoute)
-		logging.GetLogger().Debug().Msg("{all-route} allRoute: " + string(bts))
-	}
-
-	accessURLs, _ := model.AllAccessURL()
-	ignoreAccessURLs, _ := model.AllIgnoreAccessURL()
-	compareURLs := append(accessURLs, ignoreAccessURLs...)
-
-	matchURLCount := 0
-
-	for _, e := range allRoute {
-		for i := range compareURLs {
-			if strings.HasPrefix(e, compareURLs[i]) {
-				matchURLCount = matchURLCount + 1
-				break
-			}
-		}
-	}
-	if matchURLCount < len(allRoute) {
-		return false
-	} else {
-		return true
-	}
-
-}
-
-func recurRouteTree(result *[]string, prefix string, routeNode chi.Route) {
-	p := ""
-	if strings.HasSuffix(prefix, "/*") {
-		p = prefix[:len(prefix)-2]
-	} else {
-		p = prefix
-	}
-
-	if routeNode.SubRoutes == nil {
-		*result = append(*result, p+routeNode.Pattern)
-		return
-	} else {
-		children := routeNode.SubRoutes.Routes()
-		for _, e := range children {
-			recurRouteTree(result, p+routeNode.Pattern, e)
-		}
-	}
 }

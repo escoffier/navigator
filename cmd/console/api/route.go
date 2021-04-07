@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/jinzhu/gorm"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
 	"strings"
 	"time"
@@ -36,11 +38,13 @@ import (
 type key int
 
 const (
-	userKey key = iota
+	userKey               key = iota
+	UserSessionExpiration     = 30 * time.Minute
 )
 
 var (
-	log *logging.Logger
+	log      *logging.Logger
+	AdminUrl = []string{"/api/v2/platform/config", "/api/v2/platform/audit", "/api/v2/platform/cleanup"}
 )
 
 func init() {
@@ -51,8 +55,11 @@ func init() {
 func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
+
 	sessionExpiration time.Duration,
+	tokenAuth *jwtauth.JWTAuth,
 	mongodb *mongo.Database,
+	postgresDB *gorm.DB,
 	scapper *scapper.Scapper,
 	scannerURL string,
 	cronService *cron.CronService,
@@ -70,11 +77,14 @@ func SetupRoutes(
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
+	emailOpts *flag.EmailOpts,
 ) {
 	log.Debug().Msg("setting up routes...")
 
 	api := newAPI(ctx, sessionExpiration,
+		tokenAuth,
 		mongodb,
+		postgresDB,
 		scapper,
 		scannerURL,
 		cronService,
@@ -92,6 +102,7 @@ func SetupRoutes(
 		scapService,
 		harborClient,
 		microService,
+		emailOpts,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
@@ -105,9 +116,7 @@ func SetupRoutes(
 		// needs authentication
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
-
-			// custom authenticator
-			r.Use(jwtAccessCheck(api.mongodb, api.userCache))
+			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
 
 			r.Route("/config", api.config())
 			r.Route("/scanner", api.scanner())
@@ -123,7 +132,7 @@ func SetupRoutes(
 
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.mongodb, api.userCache))
+			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
 			r.Route("/superAdmin", api.superAdmin())
 		})
 
@@ -133,51 +142,25 @@ func SetupRoutes(
 			r.Route("/user", api.user())
 		})
 	})
-}
 
-func jwtAuthenticator(userCache *cache.Cache) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, claims, err := jwtauth.FromContext(r.Context())
+	//api v2
 
-			ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-			defer cancel()
+	r.Route("/api/v2", func(r chi.Router) {
+		r.Route("/usercenter", api.userCenter())
+		r.Group(func(r chi.Router) {
+			//normal check
+			r.Use(jwtauth.Verifier(api.tokenAuth))
+			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
 
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("Error when getting token & claims from context: %w", err)))
-				return
-			}
-			if token == nil || !token.Valid {
-				RespAndLog(w, r.Context(),
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("Token empty or invalid")))
-				return
-			}
+			r.Route("/platform", api.platform()) //platform
+			r.Route("/containerSec", api.containerSec())
+			//r.Route("/tensorWall", api.tensorWall())
+			//r.Route("/microseg", api.microseg())
 
-			// check if we can find the user's session
-			username := claims["username"].(string)
-			userPtr, ok := userCache.Get(username)
-			if !ok {
-				RespAndLog(w, r.Context(),
-					NewSessionExpired(http.StatusUnauthorized,
-						fmt.Errorf("User not in cache")))
-				return
-			}
-
-			// reset the TTL for the user if found
-			userCache.Set(
-				username,
-				userPtr,
-				cache.DefaultExpiration)
-
-			ctx = context.WithValue(r.Context(), userKey, userPtr)
-
-			// Token is authenticated, pass it through
-			next.ServeHTTP(w, r.WithContext(ctx))
 		})
-	}
+
+	})
+
 }
 
 func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {
@@ -216,7 +199,7 @@ func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {
 	}
 }
 
-func jwtAccessCheck(mongodb *mongo.Database, userCache *cache.Cache) func(http.Handler) http.Handler {
+func jwtAccessCheck(postgresDB *gorm.DB, userCache *cache.Cache) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
@@ -245,50 +228,44 @@ func jwtAccessCheck(mongodb *mongo.Database, userCache *cache.Cache) func(http.H
 			}
 
 			u, _ := userPtr.(*model.User)
-			userCache.Set(username, u, cache.DefaultExpiration)
+			userCache.Set(username, u, UserSessionExpiration)
 
-			c, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-			defer cancel()
-
-			_, roleNames, err := model.SelectRelaUserRole(c, mongodb, username, "")
-			if err != nil {
+			if u.Checked == false {
 				RespAndLog(w, r.Context(),
-					NewMongoError(http.StatusInsufficientStorage,
-						fmt.Errorf("select User error: %w", err)))
+					AccountUnActive(http.StatusForbidden,
+						fmt.Errorf("account is not activated")))
 				return
 			}
 
-			accessNameList := make([]string, 0, 100)
-			for _, e := range roleNames {
-				_, accessNames, err := model.SelectRelaRoleAccess(c, mongodb, e, "")
-				if err != nil {
-					RespAndLog(w, r.Context(),
-						NewMongoError(http.StatusInsufficientStorage,
-							fmt.Errorf("select Role Access relation error: %w", err)))
-					return
-				}
-				accessNameList = append(accessNameList, accessNames...)
-			}
-
-			accessList, err := model.SelectAccessMulti(c, mongodb, accessNameList)
+			accessListUrl, err := model.GetAccessUrl(postgresDB, u.ModuleID)
 			if err != nil {
 				RespAndLog(w, r.Context(),
 					NewMongoError(http.StatusInsufficientStorage,
 						fmt.Errorf("select access error: %w", err)))
 				return
 			}
-
 			hasAccess := false
-			currentURL := strings.ToLower(r.URL.Path)
-			for i := range accessList {
-				url := strings.ToLower(accessList[i].URL)
-				if strings.HasPrefix(currentURL, url) {
-					hasAccess = true
-					break
+
+			if r.Method != http.MethodGet {
+				if u.Rule == model.ROLE_SUPERADMIN {
+					accessListUrl = append(accessListUrl, AdminUrl...)
+				}
+				currentURL := strings.ToLower(r.URL.Path)
+				for i := range accessListUrl {
+					url := strings.ToLower(accessListUrl[i])
+					if strings.HasPrefix(currentURL, url) {
+						if u.Rule != model.ROLE_SUPERADMIN {
+							if checkUrl(currentURL, AdminUrl) {
+								break
+							}
+						}
+						hasAccess = true
+						break
+					}
 				}
 			}
 
-			if !hasAccess {
+			if r.Method != "GET" && !hasAccess {
 				RespAndLog(w, r.Context(),
 					NewNoAccess(http.StatusForbidden,
 						fmt.Errorf("access invalid")))
@@ -299,4 +276,14 @@ func jwtAccessCheck(mongodb *mongo.Database, userCache *cache.Cache) func(http.H
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func checkUrl(currentURL string, adminUrl []string) bool {
+	for i := range adminUrl {
+		url := strings.ToLower(adminUrl[i])
+		if strings.HasPrefix(currentURL, url) {
+			return true
+		}
+	}
+	return false
 }

@@ -254,6 +254,22 @@ func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) er
 	}
 }
 
+func BusyRequestError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MalformedRequestError{
+		detailedError{
+			err:       err,
+			English:   "busy request",
+			Zhongwen:  "频繁请求，已经被服务器拦截",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 
@@ -678,6 +694,117 @@ func NewRedisCacheError(httpCode int, err error, suberrors ...Suberror) error {
 			err:       err,
 			English:   "Redis cache error",
 			Zhongwen:  "Redis緩存錯誤",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func LoginError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Username or password error",
+			Zhongwen:  "用户名或密码错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func PostgresError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MongoError{
+		detailedError{
+			err:       err,
+			English:   "Database error has occurred (Postgres DB)",
+			Zhongwen:  "发生数据库错误(Postgres)",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func UserExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "User exist",
+			Zhongwen:  "新增用户，用户已经存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "User not exist",
+			Zhongwen:  "更新用户，用户不存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func SendmailError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Send mail error",
+			Zhongwen:  "发送邮件错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func EmailForMatError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Email format error",
+			Zhongwen:  "邮件格式错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func AccountUnActive(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Account is not activated",
+			Zhongwen:  "账户未激活",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

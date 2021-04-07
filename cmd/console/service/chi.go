@@ -1,8 +1,19 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"github.com/go-chi/jwtauth"
+	"github.com/gorilla/securecookie"
+	"github.com/jinzhu/gorm"
+	"github.com/olivere/elastic/v7"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -30,6 +41,8 @@ import (
 func setupChiRouter(
 	ctx context.Context,
 	mongodb *mongo.Database,
+	postgresDB *gorm.DB,
+	es *elastic.Client,
 	scapper *scapper.Scapper,
 	scannerURL string,
 	httpLoggerDisabled bool,
@@ -48,9 +61,12 @@ func setupChiRouter(
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
+	emailOpts *flag.EmailOpts,
 ) http.Handler {
+	ch := make(chan model.AccessLog, 1000)
+	tokenAuth := jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil)
 	r := chi.NewRouter()
-
+	r.Use(jwtauth.Verifier(tokenAuth))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
@@ -58,12 +74,15 @@ func setupChiRouter(
 	r.Use(middleware.Compress(5))
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(lang.AcceptLanguageMiddleware)
+	r.Use(AccessMiddlewares(ch))
 	if !httpLoggerDisabled {
 		r.Use(middleware.Logger)
 	}
 
 	api.SetupRoutes(ctx, r, 24*time.Hour,
+		tokenAuth,
 		mongodb,
+		postgresDB,
 		scapper,
 		scannerURL,
 		cronService,
@@ -81,7 +100,66 @@ func setupChiRouter(
 		scapService,
 		harborClient,
 		microService,
+		emailOpts,
 	)
+	go logWorker(es, ch)
 
 	return r
+}
+
+func logWorker(es *elastic.Client, ch chan model.AccessLog) {
+	for {
+
+		al := <-ch
+		cstZone := time.FixedZone("CST", 8*3600)
+		indexStr := "access_" + time.Now().In(cstZone).Format("2006-01-02")
+		_, err := es.Index().
+			Index(indexStr).
+			BodyJson(al).
+			Do(context.Background())
+		if err != nil {
+			logging.GetLogger().Info().Msgf("write es error：%s", err)
+		}
+	}
+}
+
+func AccessMiddlewares(ch chan model.AccessLog) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				al        model.AccessLog
+				headerMap map[string][]string
+			)
+
+			headerData, _ := json.Marshal(r.Header)
+			json.Unmarshal(headerData, &headerMap)
+			delete(headerMap, "Authorization")
+
+			length := r.Header.Get("Content-Length")
+			intLength, _ := strconv.Atoi(length)
+			body := make([]byte, intLength)
+			r.Body.Read(body)
+
+			token, claims, err := jwtauth.FromContext(r.Context())
+			if err == nil {
+				if token == nil || !token.Valid {
+				} else {
+					username, _ := claims["user_name"].(string)
+					al.Username = username
+				}
+			}
+
+			al.Header = headerMap
+			al.Body = string(body)
+			al.Method = r.Method
+			al.RemoteAddr = r.RemoteAddr
+			al.Host = r.Host
+			al.RequestURI = r.RequestURI
+			al.Time = time.Now()
+			ch <- al
+			r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+			next.ServeHTTP(w, r)
+
+		})
+	}
 }

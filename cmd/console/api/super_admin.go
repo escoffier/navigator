@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/go-chi/jwtauth"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -14,47 +16,30 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-const (
-	ACTION_UPDATE = "update"
-	ACTION_ADD    = "add"
-	ACTION_DELETE = "delete"
-)
-
 func (api *api) superAdmin() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Post("/userList", api.userList())
+		r.Get("/userList", api.userList())
 		r.Post("/resetPassword", api.resetPassword())
-		r.Post("/roleList", api.roleList())
-		r.Post("/accessList", api.accessList())
+		r.Get("/userModule", api.userModule())
 		r.Post("/addUser", api.addUser())
-		r.Post("/setUserRole", api.setUserRole())
-		r.Post("/setRoleAccess", api.setRoleAccess())
+		r.Post("/delSuperUser", api.delSuperUser())
 	}
 }
 
 func (api *api) userList() http.HandlerFunc {
-	type reqUserList struct {
-		Page  int64 `json:"page"`
-		Limit int64 `json:"limit"`
-	}
+
 	type UserListResponse struct {
 		UserList []model.User `json:"userList"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		rq := reqUserList{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
 
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 
-		userList, err := model.SelectUserAll(ctx, api.mongodb, rq.Limit, rq.Page)
+		offset, limit := api.getOffsetAndLimit(r)
+
+		docNum, userList, err := model.SelectUserAll(api.postgresDB, limit, offset)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusInternalServerError,
@@ -62,136 +47,64 @@ func (api *api) userList() http.HandlerFunc {
 			return
 		}
 
-		for i := range userList {
-			_, roleNames, err := model.SelectRelaUserRole(ctx, api.mongodb, userList[i].UserName, "")
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
-				return
-			}
-			userList[i].RoleNameList = roleNames
-		}
-
-		response.Ok(w, response.WithItems(userList))
+		response.Ok(w,
+			response.WithItems(userList),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
 	}
 }
 
-// func (api *api) resetPassword() http.HandlerFunc {
-// 	type reqResetPwd struct {
-// 		Pwd string `json:"pwd"`
-// 	}
-// 	type ResetPwdResponse struct {
-// 		Success bool `json:"success"`
-// 	}
-
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		rq := reqResetPwd{}
-// 		err := json.NewDecoder(r.Body).Decode(&rq)
-// 		if err != nil {
-// 			RespAndLog(w, r.Context(),
-// 				NewMalformedRequestError(http.StatusBadRequest,
-// 					fmt.Errorf("failed to decode json: %w", err)))
-// 			return
-// 		}
-
-// 		user := r.Context().Value(userKey).(*User)
-
-// 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-// 		defer cancel()
-
-// 		_, err = model.UpdateUserPwd(ctx, api.mongodb, user.Username, rq.Pwd)
-// 		if err != nil {
-// 			RespAndLog(w, ctx,
-// 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
-// 			return
-// 		}
-
-// 		response.Ok(w, response.WithItem(ResetPwdResponse{
-// 			Success: true,
-// 		}))
-// 	}
-// }
-
-func (api *api) roleList() http.HandlerFunc {
-	type reqRoleList struct {
-		Page  int64 `json:"page"`
-		Limit int64 `json:"limit"`
-	}
-	type ModListResponse struct {
-		RoleList []model.Role `json:"roleList"`
-	}
+func (api *api) userModule() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		rq := reqRoleList{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
+		token, claims, err := jwtauth.FromContext(r.Context())
+
 		if err != nil {
 			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Error when getting token & claims from context: %w", err)))
+			return
+		}
+		if token == nil || !token.Valid {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Token empty or invalid")))
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-		defer cancel()
-
-		roleList, err := model.SelectRoleAll(ctx, api.mongodb, rq.Limit, rq.Page)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-			return
-		}
-
-		for i := range roleList {
-			_, accessNameList, err := model.SelectRelaRoleAccess(ctx, api.mongodb, roleList[i].RoleName, "")
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-				return
-			}
-			roleList[i].AccessNameList = accessNameList
-		}
-
-		response.Ok(w, response.WithItems(roleList))
-
-	}
-}
-
-func (api *api) accessList() http.HandlerFunc {
-	type reqAccessList struct {
-		Page  int64 `json:"page"`
-		Limit int64 `json:"limit"`
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		rq := reqAccessList{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
+		username, _ := claims[JWT_KEY_USERNAME].(string)
+		_, u, err := model.SelectUser(api.postgresDB, username)
 		if err != nil {
 			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("user Error not exist")))
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer cancel()
+		if username == model.SUPER_ADMIN {
 
-		accessList, err := model.SelectAccessAll(ctx, api.mongodb, rq.Limit, rq.Page)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-			return
+			mdgroup := model.GetAdminModuleGroup(api.postgresDB)
+			response.Ok(w, response.WithItems(mdgroup))
+		} else {
+
+			//get model
+			mdgroup := model.GetModuleGroup(api.postgresDB, u.ModuleID)
+
+			response.Ok(w, response.WithItems(mdgroup))
 		}
-		response.Ok(w, response.WithItems(accessList))
-
 	}
 }
 
 func (api *api) addUser() http.HandlerFunc {
 	type reqAddUser struct {
-		UserName string `json:"userName"`
-		RoleName string `json:"roleName"`
-		Title    string `json:"title"`
+		UserName string   `json:"userName" binding:"required,dive,max=32"`
+		RoleName string   `json:"roleName" binding:"required,dive,oneof=admin normal"`
+		ModuleID []string `json:"moduleID"`
 	}
-	type AddUserListResponse struct {
-		Success bool `json:"success"`
+
+	type resp struct {
+		Status string `json:"status"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -202,157 +115,273 @@ func (api *api) addUser() http.HandlerFunc {
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+		if rq.UserName == "" || rq.RoleName == "" || len(rq.UserName) > 32 || (rq.RoleName != "admin" && rq.RoleName != "normal") {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("username or role error")))
+			return
+		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		if _, ok := api.optUserMap[rq.UserName]; ok {
+			RespAndLog(w, r.Context(),
+				BusyRequestError(http.StatusBadRequest,
+					fmt.Errorf("request busy")))
+			return
+		}
+		api.optUserMap[rq.UserName] = struct{}{}
+		defer delete(api.optUserMap, rq.UserName)
+
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
-		_, exist, err := model.SelectUser(ctx, api.mongodb, rq.UserName)
+		token, claims, err := jwtauth.FromContext(r.Context())
+
 		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Error when getting token & claims from context: %w", err)))
+			return
+		}
+		if token == nil || !token.Valid {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Token empty or invalid")))
+			return
+		}
+
+		username, _ := claims[JWT_KEY_USERNAME].(string)
+
+		userPtr, ok := api.userCache.Get(username)
+		if !ok {
+			testWithLogJson("jwt-jwtAccessCheck()", "user get error")
+			RespAndLog(w, r.Context(),
+				NewSessionExpired(http.StatusUnauthorized,
+					fmt.Errorf("User not in cache")))
+			return
+		}
+
+		u, _ := userPtr.(*model.User)
+		if u.Rule == "normal" {
+			RespAndLog(w, r.Context(),
+				NewNoAccess(http.StatusForbidden,
+					fmt.Errorf("access invalid")))
+			return
+
+		}
+
+		tx := api.postgresDB.Begin()
+		exist, _, err := model.SelectUser(api.postgresDB, rq.UserName)
+		if err != nil {
+			tx.Rollback()
 			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 		if exist {
+			tx.Rollback()
 			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("user name already exist")))
+				UserExistError(http.StatusInternalServerError, fmt.Errorf("user name already exist")))
 			return
 		}
 
-		_, u, err := model.InsertUser(ctx, api.mongodb, rq.UserName, rq.Title)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-			return
+		if api.emailOpts.Check {
+			//check mail
+			if !VerifyEmailFormat(rq.UserName, api.emailOpts) {
+				RespAndLog(w, r.Context(),
+					EmailForMatError(http.StatusForbidden,
+						fmt.Errorf("email format error")))
+				return
+			}
+			emailHashCode := model.RandStringBytesMaskImprSrcUnsafe(64)
+			bool := model.SendEmail(rq.UserName, r.Host, emailHashCode, api.emailOpts)
+			if !bool {
+				tx.Rollback()
+				RespAndLog(w, ctx,
+					SendmailError(http.StatusInternalServerError, fmt.Errorf("send email error")))
+				return
+			}
+			err = model.InsertEmail(api.postgresDB, rq.UserName, emailHashCode)
+			if err != nil {
+				tx.Rollback()
+				RespAndLog(w, ctx,
+					PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				return
+			}
+
+			err = model.InsertUser(api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+			if err != nil {
+				tx.Rollback()
+				RespAndLog(w, ctx,
+					PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				return
+			}
+		} else {
+			err := model.InsertUser(api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+			if err != nil {
+				RespAndLog(w, ctx,
+					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
+				return
+			}
+
+			err = model.ActiveUser(api.postgresDB, rq.UserName, model.DEFAULT_PWD)
+			if err != nil {
+				RespAndLog(w, ctx,
+					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
+				return
+			}
 		}
 
-		_, err = model.InsertRelaUserRole(ctx, api.mongodb, rq.UserName, rq.RoleName)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-			return
-		}
-		response.Ok(w, response.WithItem(u))
+		tx.Commit()
+		response.Ok(w, response.WithItem(resp{Status: "OK"}))
 	}
 }
 
-func (api *api) setUserRole() http.HandlerFunc {
-	type reqSetUserLevel struct {
-		UserName string `json:"userName"`
-		RoleName string `json:"roleName"`
-		Action   string `json:"action"`
-	}
-	type SetUserLevelResponse struct {
-		Success bool `json:"success"`
+func (api *api) delSuperUser() http.HandlerFunc {
+	type resp struct {
+		Status string `json:"status"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		rq := reqSetUserLevel{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
-
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-
-		if rq.UserName == "" || rq.RoleName == "" {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest, fmt.Errorf("couldn't find param")))
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
+		token, claims, err := jwtauth.FromContext(r.Context())
 
-		switch rq.Action {
-		case ACTION_UPDATE:
-			_, err = model.UpdateRelaUserRole(ctx, api.mongodb, rq.UserName, rq.RoleName)
-		default:
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
-					NewFieldError(http.StatusBadRequest, fmt.Errorf("action param wrong"))))
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Error when get token & claims from context: %w", err)))
+			return
+		}
+		if token == nil || !token.Valid {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Token empty or invalid")))
 			return
 		}
 
+		username, _ := claims[JWT_KEY_USERNAME].(string)
+		if username != model.ROLE_SUPERADMIN {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("user error auth forbidden")))
+			return
+		}
+
+		err = model.DelSuperUser(api.postgresDB, username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
-
-		response.Ok(w, response.WithItem(SetUserLevelResponse{
-			Success: true,
-		}))
-
+		response.Ok(w, response.WithItem(resp{Status: "OK"}))
 	}
+
 }
 
-func (api *api) setRoleAccess() http.HandlerFunc {
-	type reqSetModLevel struct {
-		RoleName   string `json:"roleName"`
-		AccessName string `json:"accessName"`
-		Action     string `json:"action"`
+func (api *api) editUser() http.HandlerFunc {
+	type reqAddUser struct {
+		UserName string   `json:"userName" binding:"required,dive,max=32"`
+		RoleName string   `json:"roleName" binding:"required,dive,oneof=admin normal"`
+		ModuleID []string `json:"moduleID"`
 	}
-	type SetRoleAccessResponse struct {
-		Success bool `json:"success"`
+
+	type resp struct {
+		Status string `json:"status"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		rq := reqSetModLevel{}
+		rq := reqAddUser{}
 		err := json.NewDecoder(r.Body).Decode(&rq)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-
-		if rq.RoleName == "" || rq.AccessName == "" {
-			RespAndLog(w, r.Context(), errors.New("param empty"))
+		if rq.UserName == "" || rq.RoleName == "" || len(rq.UserName) > 32 || (rq.RoleName != "admin" && rq.RoleName != "normal") {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("username or role error")))
 			return
 		}
 
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
-		switch rq.Action {
-		case ACTION_ADD:
-			_, ss, err := model.SelectRelaRoleAccess(ctx, api.mongodb, rq.RoleName, rq.AccessName)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-				return
-			} else if len(ss) > 0 {
-				RespAndLog(w, ctx,
-					NewMalformedRequestError(http.StatusInternalServerError, errors.New("the Access is already Exist")))
-				return
-			}
-
-			_, err = model.InsertRelaRoleAccess(ctx, api.mongodb, rq.RoleName, rq.AccessName)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-				return
-			}
-
-		case ACTION_DELETE:
-			_, err = model.DeleteRelaRoleAccess(ctx, api.mongodb, rq.RoleName, rq.AccessName)
-
-		default:
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("invalid action")))
-			return
-		}
+		token, claims, err := jwtauth.FromContext(r.Context())
 
 		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Error when getting token & claims from context: %w", err)))
+			return
+		}
+		if token == nil || !token.Valid {
+			RespAndLog(w, r.Context(),
+				NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("Token empty or invalid")))
 			return
 		}
 
-		response.Ok(w, response.WithItem(SetRoleAccessResponse{
-			Success: true,
-		}))
+		username, _ := claims[JWT_KEY_USERNAME].(string)
 
+		userPtr, ok := api.userCache.Get(username)
+		if !ok {
+			testWithLogJson("jwt-jwtAccessCheck()", "user get error")
+			RespAndLog(w, r.Context(),
+				NewSessionExpired(http.StatusUnauthorized,
+					fmt.Errorf("User not in cache")))
+			return
+		}
+
+		u, _ := userPtr.(*model.User)
+		if u.Rule == "normal" {
+			RespAndLog(w, r.Context(),
+				NewNoAccess(http.StatusForbidden,
+					fmt.Errorf("access invalid")))
+			return
+		}
+
+		exist, queryUser, err := model.SelectUser(api.postgresDB, rq.UserName)
+		if err != nil {
+			RespAndLog(w, ctx,
+				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+			return
+		}
+		if !exist {
+			RespAndLog(w, ctx,
+				UserNotExistError(http.StatusInternalServerError, fmt.Errorf("user name already exist:%+v", err)))
+			return
+		}
+		if queryUser.Rule == model.ROLE_ADMIN && rq.RoleName == model.ROLE_NORMAL {
+			RespAndLog(w, r.Context(),
+				NewNoAccess(http.StatusForbidden,
+					fmt.Errorf("access invalid")))
+			return
+		}
+
+		err = model.UpdateUser(api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+		if err != nil {
+			RespAndLog(w, ctx,
+				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+			return
+		}
+
+		var findUser *model.User
+		_, findUser, err = model.SelectUser(api.postgresDB, rq.UserName)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("mongo err: %w", err)))
+			return
+		}
+
+		api.userCache.Set(rq.UserName, findUser, UserSessionExpiration)
+		response.Ok(w, response.WithItem(resp{Status: "OK"}))
 	}
+}
+
+func VerifyEmailFormat(email string, opts *flag.EmailOpts) bool {
+	pattern := fmt.Sprintf(`\w+([-+.]\w+)*@%s`, opts.Suffix)
+	reg := regexp.MustCompile(pattern)
+	return reg.MatchString(email)
 }

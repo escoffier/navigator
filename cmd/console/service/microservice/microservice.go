@@ -3,6 +3,7 @@ package microservice
 import (
 	"context"
 	"fmt"
+	"github.com/jinzhu/gorm"
 	"net/http"
 	"time"
 
@@ -16,14 +17,17 @@ import (
 )
 
 type MicroService struct {
-	mongodb *mongo.Database
+	mongodb    *mongo.Database
+	postgresDB *gorm.DB
 }
 
 func NewMicroService(
 	mongodb *mongo.Database,
+	postgresDB *gorm.DB,
 ) *MicroService {
 	return &MicroService{
-		mongodb: mongodb,
+		mongodb:    mongodb,
+		postgresDB: postgresDB,
 	}
 }
 
@@ -272,35 +276,11 @@ func (m *MicroService) GetServiceInfo(ctx context.Context, namespace, svcname, u
 
 func (m *MicroService) GetUserNameInfo(ctx context.Context, search string) ([]string, error) {
 
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-	opt := options.Find()
-	opt.SetMaxTime(time.Second * 10)
-
-	copt := options.Count()
-	copt.SetMaxTime(time.Second * 2)
-	filter := bson.M{}
-	if search != "" {
-		filter = bson.M{
-			"user_name": bson.M{"$regex": search},
-		}
-	}
-
-	cur, err := m.mongodb.Collection(model.UserCollection).Find(mongoCtx, filter, opt)
-	if err != nil {
-		NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Couldn't find document: %w", err))
-		return nil, err
-	}
+	var user []model.User
+	m.postgresDB.Where("name LIKE '%?%'", search).Find(&user)
 	nameClice := make([]string, 0)
-	for cur.Next(mongoCtx) {
-		var user model.User
-		err := cur.Decode(&user)
-		if err != nil {
-			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
-		}
-
-		nameClice = append(nameClice, user.UserName)
+	for _, v := range user {
+		nameClice = append(nameClice, v.UserName)
 	}
 	return nameClice, nil
 }

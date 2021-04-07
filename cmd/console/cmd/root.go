@@ -43,6 +43,20 @@ var rootCmd = &cobra.Command{
 			Str("dataPath", mongoOpts.DataPath).
 			Msg("Mongo options")
 
+		postgresOpts := flag.GetPostgresOpts(cmd)
+		logging.GetLogger().Info().
+			Str("postgres connection", postgresOpts.PostgresConnectionString).
+			Msg("Postgres options")
+
+		emailOpts := flag.GetEmailOpts(cmd)
+		logging.GetLogger().Info().
+			Str("Email user", emailOpts.Username).
+			Str("Email Host", emailOpts.Host).
+			Str("Email Port", emailOpts.Port).
+			Str("Email Suffix", emailOpts.Suffix).
+			Bool("Email Check", emailOpts.Check).
+			Msg("Vegeta Email options")
+
 		scannerOpts := flag.GetVegetaScannerOpts(cmd)
 		logging.GetLogger().Info().
 			Str("host", scannerOpts.Host).
@@ -81,7 +95,7 @@ var rootCmd = &cobra.Command{
 			Str("available-rules-folder", rulesOpts.AvailableRulesFolder).
 			Msg("Rules options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts, harborOpts)
+		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts, harborOpts, emailOpts)
 		if err != nil {
 			return err
 		}
@@ -108,12 +122,14 @@ func init() {
 
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddMongoFlags(rootCmd)
+	flag.AddPostgresFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
 	flag.AddElasticFlags(rootCmd)
 	flag.AddRulesFlags(rootCmd)
 	flag.AddHarborFlags(rootCmd)
+	flag.AddEmailOpts(rootCmd)
 
 	flag.ConfigViper()
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/patrickmn/go-cache"
 	"net/http"
 	"time"
 
@@ -21,10 +22,10 @@ func (api *api) user() func(chi.Router) {
 
 func (api *api) resetPassword() http.HandlerFunc {
 	type reqResetPwd struct {
-		Pwd string `json:"pwd"`
+		Pwd string `json:"pwd" binding:"required,max=32"`
 	}
 	type ResetPwdResponse struct {
-		Success bool `json:"success"`
+		Success bool `json:"success" `
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -37,20 +38,81 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
+		if len(rq.Pwd) > 32 || rq.Pwd == "" {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("pwd error")))
+			return
+		}
+
 		user := r.Context().Value(userKey).(*model.User)
 
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 
-		_, err = model.UpdateUserPwd(ctx, api.mongodb, user.UserName, rq.Pwd)
+		err = model.UpdateUserPwd(api.postgresDB, user.UserName, rq.Pwd)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
 			return
 		}
 
+		userPtr, ok := api.userCache.Get(user.UserName)
+		if !ok {
+			testWithLogJson("jwt-jwtAccessCheck()", "user get error")
+			RespAndLog(w, r.Context(),
+				NewSessionExpired(http.StatusUnauthorized,
+					fmt.Errorf("User not in cache")))
+			return
+		}
+
+		u, _ := userPtr.(*model.User)
+		api.userCache.Set(user.UserName, u, cache.DefaultExpiration)
+
 		response.Ok(w, response.WithItem(ResetPwdResponse{
 			Success: true,
+		}))
+	}
+}
+
+func (api *api) loadUser() http.HandlerFunc {
+	type reqResetPwd struct {
+		Pwd string `json:"pwd" binding:"required,max=32"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+
+		u, err := model.GetUserByMongo(ctx, api.mongodb)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
+			return
+		}
+		for _, v := range u {
+			bool, _, _ := model.SelectUser(api.postgresDB, v.UserName)
+			if !bool {
+				err := model.InsertUser(api.postgresDB, v.UserName, model.ROLE_NORMAL, []string{"1"})
+				if err != nil {
+					RespAndLog(w, ctx,
+						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
+					return
+				}
+
+				err = model.ActiveUser(api.postgresDB, v.UserName, v.Pwd)
+				if err != nil {
+					RespAndLog(w, ctx,
+						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
+					return
+				}
+			}
+
+		}
+
+		response.Ok(w, response.WithItem(resp{
+			Status: "OK",
 		}))
 	}
 }

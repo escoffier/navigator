@@ -75,7 +75,6 @@ func (c *AlertAggrCache) ttlCheck(now time.Time) {
 	toDel := make([]string, 0, 2)
 	nowStamp := now.Unix()
 	for key, item := range c.cache {
-		logging.GetLogger().Info().Msgf("alerts aggr cache cached item: %s -> %+v", key, item)
 		if nowStamp-item.LastReadStamp() > c.rTTLSec {
 			toDel = append(toDel, key)
 		} else if nowStamp-item.CreateStamp > c.wTTLSec {

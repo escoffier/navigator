@@ -4,7 +4,7 @@ package main
 
 import "gitlab.com/piccolo_su/vegeta/cmd/console/cmd"
 
-// @title Vegeta API
+// @title Vegeta API·
 // @version 1.0
 // @description This is the Vegeta central server - Console
 
