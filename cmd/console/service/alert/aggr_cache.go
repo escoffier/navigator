@@ -74,6 +74,7 @@ func (c *AlertAggrCache) ttlCheck(now time.Time) {
 
 	toDel := make([]string, 0, 2)
 	nowStamp := now.Unix()
+	c.RLock()
 	for key, item := range c.cache {
 		if nowStamp-item.LastReadStamp() > c.rTTLSec {
 			toDel = append(toDel, key)
@@ -81,6 +82,7 @@ func (c *AlertAggrCache) ttlCheck(now time.Time) {
 			toDel = append(toDel, key)
 		}
 	}
+	c.RUnlock()
 
 	if len(toDel) > 0 {
 		func() {
