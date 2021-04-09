@@ -1,2 +1,2 @@
-imagePullSecrets:
-- name: "harbor-admin-secret"
+image:
+  pullSecret: harbor-admin-secret
