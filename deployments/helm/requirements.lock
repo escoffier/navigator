@@ -23,6 +23,9 @@ dependencies:
 - name: elasticsearch
   repository: file://./subcharts/elasticsearch
   version: 7.9.1
+- name: kibana
+  repository: file://./subcharts/kibana
+  version: 0.1.0
 - name: drift-prevention
   repository: file://./subcharts/drift-prevention
   version: 0.1.0

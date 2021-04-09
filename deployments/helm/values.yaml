@@ -70,6 +70,9 @@ elasticsearch:
   #     requests:
   #       storage: 100M
 
+kibana:
+  enabled: true
+
 drift-prevention:
   enabled: true
 
