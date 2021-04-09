@@ -40,6 +40,11 @@ dependencies:
     repository: "file://./subcharts/elasticsearch"
     condition: elasticsearch.enabled
 
+  - name: kibana 
+    version: 0.1.0
+    repository: "file://./subcharts/kibana"
+    condition: kibana.enabled
+
   - name: drift-prevention
     version: 0.1.0
     repository: "file://./subcharts/drift-prevention"
