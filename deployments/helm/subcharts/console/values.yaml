@@ -30,7 +30,7 @@ elastic:
   host: tensorsec-elasticsearch-master
   port: 9200
   index: filebeat-*
-
+  elasticDataPath: /usr/share/elasticsearch/data
 audit:
   nameOverride: "audit"
   fullnameOverride: "tensorsec-audit"

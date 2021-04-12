@@ -741,7 +741,7 @@ func UserExistError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "User exist",
-			Zhongwen:  "新增用户，用户已经存在",
+			Zhongwen:  "用户已经存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -756,7 +756,7 @@ func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "User not exist",
-			Zhongwen:  "更新用户，用户不存在",
+			Zhongwen:  "用户不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

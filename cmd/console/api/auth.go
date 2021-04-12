@@ -250,7 +250,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		}
 		if !exist {
 			RespAndLog(w, ctx,
-				PostgresError(http.StatusPreconditionFailed, fmt.Errorf("user not exist")))
+				UserNotExistError(http.StatusPreconditionFailed, fmt.Errorf("user not exist")))
 			return
 		}
 

@@ -132,9 +132,6 @@ func NewConsole(
 	// audit service
 	auditService := audit.NewAuditService(mongodb)
 
-	// cleanup service
-	cleanupService := cleanup.NewCleanupService(mongodb, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath)
-
 	// harbor client
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
 	if err != nil {
@@ -151,6 +148,9 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
 	}
+
+	// cleanup service
+	cleanupService := cleanup.NewCleanupService(mongodb, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath, es, elasticOpts, elasticOpts.PVC, elasticOpts.Pod, elasticOpts.DataPath)
 
 	// online vulns service
 	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongodb)

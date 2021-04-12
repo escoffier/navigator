@@ -55,6 +55,9 @@ spec:
           "--elastic-port={{ .Values.elastic.port }}",
           "--elastic-index={{ .Values.elastic.index }}",
           "--elastic-username={{ (index .Values.elasticsearch.extraEnvs 0).value }}",
+          "--elastic-pvc=tensorsec-elasticsearch-master-tensorsec-elasticsearch-master-0",
+          "--elastic-pod=tensorsec-elasticsearch-master-0",
+          "--elastic-data-path={{ .Values.elastic.elasticDataPath }}",
           "--harbor-username={{ .Values.harbor.harborUsername }}",
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure

@@ -8,6 +8,7 @@ const (
 	AuditCollection
 	ClusterCollection
 	GCCollection
+	ESGCCollection
 	RulesCollection
 	RulesDefinitionsCollection
 	ScanTasksCollection
@@ -33,6 +34,7 @@ func GetCollectionNames() []string {
 		"audit",
 		"cluster",
 		"gc",
+		"esgc",
 		"rules",
 		"rulesDefinitions",
 		"scantasks",
