@@ -3,11 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/jinzhu/gorm"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jinzhu/gorm"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"

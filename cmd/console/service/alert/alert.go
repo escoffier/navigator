@@ -199,8 +199,6 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 		return nil
 	}
 
-	logging.GetLogger().Info().Int("hits", len(searchResult.Hits.Hits)).Msg("Found alert entries in ES")
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

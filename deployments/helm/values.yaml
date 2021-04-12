@@ -116,7 +116,7 @@ mongodb:
   enabled: true
   image:
     tag: 4.4.2-debian-10-r12
-  mongodbUsername: redstone
+  DeleteByQuery: redstone
   mongodbPassword: redstoneMongo123
   mongodbRootPassword: redstoneMongo123
   mongodbDatabase: vegeta

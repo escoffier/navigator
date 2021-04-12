@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"time"
+
 	"github.com/go-chi/jwtauth"
 	"github.com/gorilla/securecookie"
 	"github.com/jinzhu/gorm"
@@ -11,9 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"io/ioutil"
-	"net/http"
-	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -108,8 +109,8 @@ func setupChiRouter(
 
 func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 	for {
-
 		al := <-ch
+
 		cstZone := time.FixedZone("CST", 8*3600)
 		indexStr := "access_" + time.Now().In(cstZone).Format("2006-01-02")
 		_, err := es.Index().
@@ -117,7 +118,9 @@ func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 			BodyJson(al).
 			Do(context.Background())
 		if err != nil {
-			logging.GetLogger().Info().Msgf("write es error：%s", err)
+			logging.GetLogger().Info().Msgf("ES 写日志失败 write es error：%s", err)
+		} else {
+			logging.GetLogger().Info().Msgf("ES 写日志成功")
 		}
 	}
 }
