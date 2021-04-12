@@ -65,6 +65,7 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 cp ~/.docker/helm /bin/
                 scp -r 172.21.0.5:~/.helm/  /root/
                 sed -i 's#ourDockerRepo: 192.168.1.203:5000#ourDockerRepo: registry.t-appagile.com/tensorsecurity#g' deployments/helm/values.yaml
+                sed -i 's#ourDockerRepo: localhost:32000#ourDockerRepo: registry.t-appagile.com/tensorsecurity#g' deployments/helm/values.yaml
                 make redeploy
                 '''
                 }
