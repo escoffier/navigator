@@ -24,7 +24,7 @@ resources:
 apiInstallLabel: "console.tensorsec/install"
 
 scap:
-  tag: test
+  tag: latest
 
 elastic:
   host: tensorsec-elasticsearch-master
