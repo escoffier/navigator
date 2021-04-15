@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -85,6 +86,11 @@ func (w *Watcher) StopWatch(ctx context.Context, clusters []string) error {
 	return nil
 }
 func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kubernetes.Clientset) error {
+	if util.IsNonSingletonPodInTestingEnv() {
+		logging.GetLogger().Info().Msg("In Testing env and console not singleton. Disable ")
+		return nil
+	}
+
 	logging.GetLogger().Info().Msg("starts to watch kubernetes informers")
 
 	if k8sClients == nil || len(k8sClients) == 0 {

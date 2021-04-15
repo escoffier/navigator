@@ -145,6 +145,10 @@ func (s *AlertService) RaiseInternalAlert(ctx context.Context, rawAlert *model.I
 }
 
 func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAlertCleanup *elastic.BulkProcessor, aggrCache *AlertAggrCache) error {
+	if util.IsNonSingletonPodInTestingEnv() {
+		logging.GetLogger().Info().Msg("In testing env and nonsingleton pod, stop alerts polling")
+		return nil
+	}
 	lastPollTimestampFrom := s.lastPollTimestamp.Add(time.Duration(-5) * time.Minute)
 	lastPollTimestampTo := time.Now()
 	defer func() {
