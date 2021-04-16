@@ -89,7 +89,7 @@ console: generate 		## Build console binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
-		-o dist/vegeta-console gitlab.com/piccolo_su/vegeta/cmd/console
+		-o dist/tensor-console gitlab.com/piccolo_su/vegeta/cmd/console
 	docker build -t $(REPOPREFIX)/tensorsec-console:latest -f ./build/console/Dockerfile .
 
 .PHONY: scanner
@@ -97,7 +97,7 @@ scanner: generate		## Build scanner binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
-		-o dist/vegeta-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
+		-o dist/tensor-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest -f ./build/scanner/Dockerfile .
 
 .PHONY: tensordig
