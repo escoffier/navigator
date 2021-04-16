@@ -33,7 +33,7 @@ spec:
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
 
-        command: ["/vegeta-scanner"]
+        command: ["/tensor-scanner"]
         args: [
           "--mongo-endpoint=tensorsec-mongodb:27017",
           "--mongo-database={{ .Values.mongo.mongoDatabase }}",
