@@ -68,7 +68,7 @@ func (c *AlertAggrCache) Put(key string, oid primitive.ObjectID, wtimestamp, rti
 func (c *AlertAggrCache) ttlCheck(now time.Time) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Fatal().Msgf("Panic when checking ttl: %v. stack: %s", r, debug.Stack())
+			logging.GetLogger().Error().Msgf("Panic when checking ttl: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
