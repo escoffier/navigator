@@ -7,13 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/patrickmn/go-cache"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -29,6 +30,7 @@ const PREVENTVULCNDESCRIBE = "阻止潜在漏洞的镜像被拉取"
 const PREVENTVULENDESCRIBE = "Prevent images of potential vulnerabilities from being pulled"
 const PUBLICCNDESCRIBE = "所有人都可访问公开的项目仓库。"
 const PUBLICENDESCRIBE = "Everyone can access the public project repository."
+const RESPITEM = "respItem"
 
 type HarborRESTClient struct {
 	address          string // like "https://localhost:30003"
@@ -36,6 +38,7 @@ type HarborRESTClient struct {
 	password         string
 	skipTLSVerify    bool
 	apiVersionString string
+	respItemCache    *cache.Cache
 }
 
 func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*HarborRESTClient, error) {
@@ -45,6 +48,7 @@ func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*Har
 		password:         harborOpts.Password,
 		skipTLSVerify:    harborOpts.SkipTLSVerify,
 		apiVersionString: "api/v2.0",
+		respItemCache:    cache.New(24*time.Hour, 24*time.Hour),
 	}
 	return h, nil
 }
@@ -290,16 +294,30 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 	projectName := projectNameRepoName[0]
 	repoName := projectNameRepoName[1]
 	repoName = strings.ReplaceAll(repoName, "/", "%2F")
-	//?name=a
-	//url := fmt.Sprintf("%s/%s/projects?name=%s", h.address, h.apiVersionString, projectName)
+
+	respitem, ok := h.respItemCache.Get(RESPITEM)
+	if ok {
+		r, ok := respitem.([]respItemT)
+		if ok {
+			for _, item := range r {
+				if item.Name == projectName {
+					if h.apiVersionString == "api" {
+						return fmt.Sprintf("%s/harbor/projects/%d/repositories/%s/%s/tags/%s", h.address, item.ProjectID, item.Name, repoName, tag), nil
+					}
+					return fmt.Sprintf("%s/harbor/projects/%d/repositories/%s/artifacts/%s", h.address, item.ProjectID, repoName, shaDigest), nil
+				}
+			}
+		}
+	}
+
 	respItems, _, err := h.GetHarborProject(ctx)
 	if err != nil {
 		return "", HarborGetProgressError(http.StatusInternalServerError, fmt.Errorf("Get project in Harbor error"))
 	}
 
 	for _, item := range respItems {
-
 		if item.Name == projectName {
+			h.respItemCache.Set(RESPITEM, respItems, -1)
 			if h.apiVersionString == "api" {
 				return fmt.Sprintf("%s/harbor/projects/%d/repositories/%s/%s/tags/%s", h.address, item.ProjectID, item.Name, repoName, tag), nil
 			}
