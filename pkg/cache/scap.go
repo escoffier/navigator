@@ -6,12 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -84,6 +83,7 @@ func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model
 						err := clusterCursor.Decode(&cluster)
 						if err != nil {
 							logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document error: %w ", err)))
+							continue
 						}
 						if cluster.DeletedAt.IsZero() {
 							if !c.ch.ExistsInRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField) {
