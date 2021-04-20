@@ -202,7 +202,7 @@ func (s *CleanupService) GetESGCTask(ctx context.Context, gcTaskID primitive.Obj
 
 func (s *CleanupService) updateGCStatus(ctx context.Context, gcTask *model.GCTask, gcStatus string) error {
 	gcTask, err := s.GetGCTask(ctx, gcTask.ID)
-	if err == mongo.ErrNoDocuments {
+	if err != nil {
 		return NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Could not get GC Task: %w", err))
 	}
 	gcTask.HistoricisedTimestamp = time.Now()
@@ -222,7 +222,7 @@ func (s *CleanupService) updateGCStatus(ctx context.Context, gcTask *model.GCTas
 
 func (s *CleanupService) updateESGCStatus(ctx context.Context, gcTask *model.GCTask, gcStatus string) error {
 	gcTask, err := s.GetESGCTask(ctx, gcTask.ID)
-	if err == mongo.ErrNoDocuments {
+	if err != nil {
 		return NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Could not get GC Task: %w", err))
 	}
 	gcTask.HistoricisedTimestamp = time.Now()
