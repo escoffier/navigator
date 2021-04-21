@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+# following the Sysdig output format syntax https://github.com/draios/sysdig/wiki/sysdig-user-guide#output-formatting
+
+
 # See xxx for details on falco engine and rules versioning. Currently,
 # this specific rules file is compatible with engine version 0
 # (e.g. falco releases <= 0.13.1), so we'll keep the
@@ -3174,10 +3177,44 @@
 - rule: CVE-2019-5736(Modify Container Entrypoint)
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
-    open_write and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd/) and not docker_procs and container
+    open_write and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container
   output: >
     %fd.name is open to write by process (zh_msg=CVE-2019-5736(修改容器入口),rule_type=Privilege Escalation,cmdline=%proc.cmdline,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline)
   priority: ALERT
+
+# CVE-2019-3874
+# We're looking for a socket() bind using protocol number 132 (SCTP)
+- macro: sctp_bind
+  condition: (evt.type=socket and evt.arg.proto=132)
+
+# Detect an SCTP bind from inside a container
+- rule: CVE-2019-3874(Memory cgroups escape via sctp)
+  desc: Potential exploit of CVE-2019-3874 - see https://bugzilla.redhat.com/show_bug.cgi?id=1686373
+  condition: >
+    sctp_bind and container
+  output: >
+    sctp bind attempt! (zh_msg=CVE-2019-3874(通过sctp内存溢出),rule_type=Exfiltration,%container.name, %proc.exeline)
+  priority: ALERT
+
+
+#CVE-2019-14287
+- rule: Sudo Potential bypass of Run as user restrictions (CVE-2019-14287)
+  desc: When sudo is configured to allow a user to run commands as an arbitrary user via the ALL keyword in a Runas specification, it is possible to run commands as root by specifying the user ID -1 or 4294967295. This can be used by a user with sufficient sudo privileges to run commands as root even if the Runas specification explicitly disallows root access as long as the ALL keyword is listed first in the Runas specification
+  condition: >
+    spawned_process and
+    proc.name="sudo" and
+    (proc.cmdline contains "-u#-1" or proc.cmdline contains "-u#4294967295")
+  output: "Detect sudo exploit (CVE-2019-14287) (zh_msg=sudo有可能绕过以用户身份运行的限制,rule_type=Privilege Escalation,user=%user.name command=%proc.cmdline container=%container.info)"
+  priority: CRITICAL
+  tags: [filesystem, mitre_privilege_escalation]
+
+- rule: Reverse shell through socket and dup
+  desc: Detect reverse shell established remote connection
+  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6")
+  output: >
+    Reverse shell connection (zh_msg=通过socket执行反向shell攻击,rule_type=Execution,user=%user.name %container.info process=%proc.name parent=%proc.pname cmdline=%proc.cmdline terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+  priority: WARNING
+  tags: [container, shell, mitre_execution]
 
 # Application rules have moved to application_rules.yaml. Please look
 # there if you want to enable them by adding to
