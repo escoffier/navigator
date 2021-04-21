@@ -89,7 +89,7 @@ postgresql:
     pullPolicy: Always
   # Use the same PGDATA as the travis job that builds arminc/clair-db
   # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
-  postgresqlDataDir: /var/lib/postgresql/clair
+  postgresqlDataDir: /bitnami/postgresql/data 
   postgresqlUsername: postgres
   postgresqlPassword: password
   postgresqlDatabase: postgres
