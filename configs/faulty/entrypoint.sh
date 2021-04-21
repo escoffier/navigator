@@ -27,7 +27,8 @@ sleep 15
 
 # RUNTIME DETECTION
 python3 test/CVE-2019-3874/server.py
-/usr/lib/go-1.10/bin/go run test/CVE-2019-5736/main.go
+# /usr/lib/go-1.10/bin/go run test/CVE-2019-5736/main.go
+./test/CVE-2019-5736/script.sh
 python3 test/CVE-2020-14386/server.py
 ./test/RS-SOCKET_AND_DUP2/script.sh
 ./test/CVE-2019-14287/script.sh
