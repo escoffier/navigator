@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -22,7 +23,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -281,6 +281,11 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 }
 
 func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
 
 	scheduledNodesCh := make(chan string, len(nodes.Items))
 	finishedNodesCh, listenerStopCh, cacheSynced := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
@@ -925,6 +930,12 @@ func (s *Scapper) containerLogsToMongo(ctx context.Context, kubeClient *kubernet
 }
 
 func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper.Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	defer close(listenerStopCh)
 
 	// I think this design is kinda fragile... but I don't have any quick ideas.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -106,12 +107,16 @@ func (s *Scanner) Run() func() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		defer wg.Done()
 		if err := s.server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Panic().
-					Err(err).
-					Msg("Panic in http.Server.ListenAndServe")
+				log.Panic().Err(err).Msg("Panic in http.Server.ListenAndServe")
 			}
 		}
 	}()
@@ -119,12 +124,16 @@ func (s *Scanner) Run() func() {
 	// start clair scanner
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		defer wg.Done()
 		err := s.redclair.Run(s.ctx)
 		if err != nil {
-			log.Panic().
-				Err(err).
-				Msg("Panic failed to start redclair")
+			log.Panic().Err(err).Msg("Panic failed to start redclair")
 		}
 	}()
 

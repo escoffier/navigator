@@ -6,19 +6,16 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"runtime/debug"
 	"time"
-
-	"github.com/go-chi/jwtauth"
-	"github.com/gorilla/securecookie"
-	"github.com/jinzhu/gorm"
-	"github.com/olivere/elastic/v7"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
+	"github.com/gorilla/securecookie"
+	"github.com/jinzhu/gorm"
+	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -33,8 +30,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -108,15 +108,18 @@ func setupChiRouter(
 }
 
 func logWorker(es *elastic.Client, ch chan model.AccessLog) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	for {
 		al := <-ch
 
 		cstZone := time.FixedZone("CST", 8*3600)
 		indexStr := "access_" + time.Now().In(cstZone).Format("2006-01-02")
-		_, err := es.Index().
-			Index(indexStr).
-			BodyJson(al).
-			Do(context.Background())
+		_, err := es.Index().Index(indexStr).BodyJson(al).Do(context.Background())
 		if err != nil {
 			logging.GetLogger().Info().Msgf("ES 写日志失败 write es error：%s", err)
 		} else {

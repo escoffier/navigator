@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -62,6 +63,12 @@ func NewAlertService(ctx context.Context, redisClient *redis.Client, rs *rule.Ru
 }
 
 func (s *AlertService) elasticsearchAlertPoller() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	logging.GetLogger().Info().Msg("Started image scan alert poller")
 
 	var wg sync.WaitGroup

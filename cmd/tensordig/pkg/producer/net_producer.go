@@ -4,11 +4,12 @@ import (
 	"C"
 	"bytes"
 	"encoding/binary"
+	"runtime/debug"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
-	log "github.com/sirupsen/logrus"
 	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 import (
@@ -364,6 +365,12 @@ func (sp *SocketProducer) Start() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		sp.Deserialize(&wg)
 	}()
 	sp.PerfMap.Start()

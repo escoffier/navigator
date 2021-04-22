@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"sync/atomic"
 	"time"
 
@@ -135,6 +136,9 @@ func (api *api) harborAbortScanAll() http.HandlerFunc {
 
 			go func() {
 				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+					}
 					atomic.StoreInt32(&api.abortAnyNewScansBool, 0)
 					logging.GetLogger().Info().Msg("No longer aborting in-progress and new scan tasks")
 				}()

@@ -6,24 +6,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
+	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
-	"os"
-	"strconv"
-
 	"github.com/patrickmn/go-cache"
+	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/alert"
-
 	ch "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/container-helper"
 	kh "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/kubernetes-helper"
-
-	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type SeccompGeneration struct {
@@ -218,6 +217,12 @@ process:
 				break process
 			}
 			go func(event *constant.TotalData) {
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+					}
+				}()
+
 				err := cc.processSyscall(event, false)
 				if err != nil {
 					time.AfterFunc(10*time.Second, func() { cc.processSyscall(event, false) })
@@ -284,6 +289,12 @@ process:
 			switch event := data.(type) {
 			case *constant.TotalData:
 				go func(event *constant.TotalData) {
+					defer func() {
+						if r := recover(); r != nil {
+							logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+						}
+					}()
+
 					err := cc.processSyscall(event, true)
 					if err != nil {
 						time.AfterFunc(10*time.Second, func() { cc.processSyscall(event, true) })

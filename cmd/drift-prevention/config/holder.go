@@ -3,13 +3,13 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
-
 	"k8s.io/api/settings/v1alpha1"
 )
 
@@ -32,6 +32,12 @@ func NewReloadingConfig(path string, reloadConfig *ReloadConfig) (*Holder, error
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		for true {
 			sleepDuration := reloadConfig.ReloadInterval
 			if err := holder.Reload(); err != nil {

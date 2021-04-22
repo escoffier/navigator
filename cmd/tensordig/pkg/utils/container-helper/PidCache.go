@@ -2,10 +2,12 @@ package containerhelper
 
 import (
 	"errors"
+	"runtime/debug"
 	"sync"
 	"time"
 
 	ps "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/go-ps"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 // NewPidCache instantiates a default password store
@@ -24,6 +26,11 @@ type PidCache struct {
 
 //cleanupLoop that keeps calling cleanupCache() in a loop every scheduled interval
 func (pc PidCache) cleanupLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
 	//Hardcoded to run once a minute. TODO: make this configurable
 	for range time.Tick(time.Minute * 1) {
 		pc.cleanupCache()
