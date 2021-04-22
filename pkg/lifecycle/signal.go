@@ -12,13 +12,11 @@ import (
 func ListenToSignals() chan struct{} {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan struct{})
-	signal.Notify(sigs,
-		syscall.SIGABRT, syscall.SIGILL, syscall.SIGINT, syscall.SIGTERM, syscall.SIGSEGV)
+	signal.Notify(sigs, syscall.SIGABRT, syscall.SIGILL, syscall.SIGINT, syscall.SIGTERM, syscall.SIGSEGV)
+
 	go func() {
 		sig := <-sigs
-		logging.GetLogger().Info().
-			Str("signal", sig.String()).
-			Msg("signal caught")
+		logging.GetLogger().Info().Str("signal", sig.String()).Msg("signal caught")
 		close(done)
 	}()
 	return done

@@ -6,24 +6,25 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/olivere/elastic/v7"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -261,6 +262,12 @@ func (s *CleanupService) updateFailedESGCStatusUpdate(ctx context.Context, gcTas
 }
 
 func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp time.Time, gcTask *model.GCTask) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	allCollectionsCursor, err := s.mongodb.ListCollections(ctx, bson.M{})
 	if err != nil {
 		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
@@ -442,6 +449,12 @@ func (s *CleanupService) GetEsHotStorageView(ctx context.Context) (*model.HotSto
 }
 
 func (s *CleanupService) RunGarbageEsCollection(ctx context.Context, DaysOffset int, gcTask *model.GCTask) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {

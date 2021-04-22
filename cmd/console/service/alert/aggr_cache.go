@@ -97,6 +97,12 @@ func (c *AlertAggrCache) ttlCheck(now time.Time) {
 }
 func (c *AlertAggrCache) asyncLoop() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		ticker := time.NewTicker(checkInterval)
 
 		for t := range ticker.C {

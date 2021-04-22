@@ -2,14 +2,16 @@ package producer
 
 import (
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
-
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
+	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+
 	bpf "gitlab.com/tensorsecurity-rd/gobpf/bcc"
 )
 
@@ -421,10 +423,22 @@ func (m *Manager) Init() {
 
 func (m *Manager) Start() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		var wg sync.WaitGroup
 		wg.Add(1)
 		if len(m.SyscallProducers) > 0 {
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+					}
+				}()
+
 				for byteData := range m.byteChan {
 					d, err := m.Deserialize(byteData)
 					if err != nil {
@@ -457,6 +471,11 @@ func (m *Manager) Start() {
 func (m *Manager) StartChronologicalPoll() {
 	if len(m.SyscallProducers) > 0 {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+				}
+			}()
 			m.ChronologicalPoll()
 		}()
 	}
@@ -467,6 +486,12 @@ func (m *Manager) PollOnce(buffer SortBuffer) SortBuffer {
 	var stopChan = make(chan struct{})
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		for {
 			select {
 			case <-stopChan:

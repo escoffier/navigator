@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 func (r *Redclair) StartImageHTTPServer() error {
@@ -41,11 +44,15 @@ func (r Redclair) httpFileServer(path string, port int) *http.Server {
 		Handler: mux,
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		if err := server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Error().
-					Err(err).
-					Msg("error in http.Server.ListenAndServe")
+				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()

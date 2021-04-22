@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -92,6 +93,12 @@ func (c *CacheHelper) KeyFrom(keyElements ...string) string {
 }
 
 func (c *CacheHelper) bgSync() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	for {
 		select {
 		case <-time.After(CacheRefreshInterval):

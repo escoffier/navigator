@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -14,9 +15,9 @@ import (
 	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils"
-
 	ch "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/container-helper"
 	kh "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/kubernetes-helper"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -183,6 +184,12 @@ func (cc *FileConsumer) Consume(_ *utils.NsMap) {
 		switch event := data.(type) {
 		case *constant.TotalData:
 			go func(event *constant.TotalData) {
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+					}
+				}()
+
 				err := cc.processSyscall(event, f)
 				if err != nil {
 					time.AfterFunc(10*time.Second, func() { cc.processSyscall(event, f) })

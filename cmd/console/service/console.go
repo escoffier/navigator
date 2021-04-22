@@ -5,17 +5,17 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
-
 	"io/ioutil"
 	"math"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
@@ -256,12 +256,16 @@ func (c *Console) Run() func() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		defer wg.Done()
 		if err := c.server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Error().
-					Err(err).
-					Msg("error in http.Server.ListenAndServe")
+				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()
@@ -273,9 +277,7 @@ func (c *Console) Run() func() {
 	defer cancel()
 	err := c.mongoClient.Connect(ctx)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When in connecting to Mongo database")
+		log.Error().Err(err).Msg("When in connecting to Mongo database")
 		panic(fmt.Errorf("When connecting to Mongo database: %w", err))
 	}
 

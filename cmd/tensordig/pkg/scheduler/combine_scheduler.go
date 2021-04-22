@@ -1,10 +1,13 @@
 package scheduler
 
 import (
+	"runtime/debug"
+
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/consumer"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/producer"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type CombineSchedule struct {
@@ -79,6 +82,12 @@ func (cs *CombineSchedule) Schedule() {
 
 	// Schedule
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
 		for v := range cs.Manager.DataChan {
 			for _, cc := range cs.combinedChan {
 				cc <- v

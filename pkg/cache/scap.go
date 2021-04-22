@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -58,6 +59,12 @@ func NewScapCache(
 }
 
 func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model.ComplianceCheckType, mongodb *mongo.Database) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	for {
 		select {
 		case <-time.After(clusterRefreshInterval):

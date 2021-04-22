@@ -2,10 +2,12 @@ package kuberneteshelper
 
 import (
 	"errors"
+	"runtime/debug"
 	"sync"
 	"time"
 
 	ps "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/go-ps"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 func NewContainerCache() ContainerCache {
@@ -24,6 +26,12 @@ type ContainerCache struct {
 
 //cleanupLoop that keeps calling cleanupCache() in a loop every scheduled interval
 func (cc ContainerCache) cleanupLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	//Hardcoded to run once a minute. TODO: make this configurable
 	for range time.Tick(time.Second * 5) {
 		cc.cleanupCache()

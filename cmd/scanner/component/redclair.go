@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -193,6 +194,12 @@ func (rcSvc *RedClairService) ForceInvalidateCache(ctx context.Context) error {
 }
 
 func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.WaitGroup) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	log.Info().Msg("Started cache invalidator worker")
 
 	defer wg.Done()
@@ -234,6 +241,12 @@ loop:
 }
 
 func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	defer wg.Done()
 
 	workerSublogger := log.With().Int("worker-id", id).Logger()
