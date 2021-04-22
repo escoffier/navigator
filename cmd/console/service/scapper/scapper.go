@@ -17,9 +17,11 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
+	"github.com/tealeg/xlsx"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
@@ -58,14 +60,20 @@ const (
 	historicalChecksToKeep = 3
 )
 
-func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObjectID primitive.ObjectID, cluster *model.Cluster, checkType model.ComplianceCheckType) (uuid.UUID, error) {
+func (s *Scapper) RunComplianceCheck(
+	ctx, rootCtx context.Context,
+	clusterObjectID primitive.ObjectID,
+	cluster *model.Cluster,
+	checkType model.ComplianceCheckType,
+	username string,
+) (uuid.UUID, error) {
 	// get namespace of this pod - it will be used for scheduled jobs/pods
 	namespace := os.Getenv("MY_POD_NAMESPACE")
 	if namespace == "" {
 		namespace = "default"
 	}
 
-	someJobStillInProgress, err := s.removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx, checkType, namespace)
+	someJobStillInProgress, err := s.removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx, checkType, username, namespace)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -92,6 +100,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 		CheckUUID: checkUUID,
 		ClusterID: clusterObjectID.Hex(),
 		Namespace: namespace,
+		Operator:  username,
 	}
 
 	jobObj, err := s.prepareJobObject(&check)
@@ -111,6 +120,7 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 		Str("check-cluster", check.ClusterID).
 		Str("check-uuid", check.CheckUUID.String()).
 		Str("namespace", check.Namespace).
+		Str("operator", check.Operator).
 		Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
 		Msg("Scheduling SCAP check jobs")
 
@@ -133,7 +143,55 @@ func (s *Scapper) RunComplianceCheck(ctx, rootCtx context.Context, clusterObject
 	return checkUUID, nil
 }
 
-func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Context, checkType model.ComplianceCheckType, namespace string) (bool, error) {
+func (s *Scapper) RunExportFileTask(
+	ctx context.Context,
+	checkType model.ComplianceCheckType,
+	task *model.ExportTask,
+	language lang.LanguageType,
+) error {
+	file := xlsx.NewFile()
+	defer file.Save(task.FileName)
+	// query all data by checkId
+	filter := bson.M{"checkId": task.CheckId}
+	cur, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("query all data byb checkId failed, %v", err)
+	}
+	// export file to xlsx
+	switch checkType {
+	case model.ComplianceCheckTargetTypeKube:
+		err = s.ScapService.GetKubeScanResultToFile(ctx, file, cur, language)
+
+	case model.ComplianceCheckTargetTypeDocker:
+		err = s.ScapService.GetDockerScanResultToFile(ctx, file, cur, language)
+
+	case model.ComplianceCheckTargetTypeHost:
+		err = s.ScapService.GetHostScanResultToFile(ctx, file, cur, language)
+
+	default:
+		return fmt.Errorf("checkType is error, %v", checkType)
+	}
+
+	//update task status
+	finishedAt := time.Now().Unix()
+	task.Status = 0
+	if err != nil {
+		task.Status = 2
+		finishedAt = 0
+		logging.GetLogger().Error().Err(err).Msg("run export file task failed!")
+	}
+	//update mongo data
+	update := bson.M{"$set": bson.M{"status": task.Status, "finishedAt": finishedAt}}
+	_, errdb := s.MongoDB.Collection(model.ExportFileTaskCollection.String()).UpdateOne(ctx, bson.M{"checkId": task.CheckId}, update)
+	if errdb != nil {
+		err = fmt.Errorf("run export task failed, %v, update status failed, %v", err, errdb)
+		logging.GetLogger().Error().Err(err).Msg("update export file task state failed!")
+	}
+
+	return err
+}
+
+func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Context, checkType model.ComplianceCheckType, operator, namespace string) (bool, error) {
 
 	someJobStillInProgress := false
 
@@ -145,6 +203,7 @@ func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Cont
 
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
+
 	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(mongoCtx, filter)
 	if err != nil {
 		return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - can't list in-progress checks: %w", err))
@@ -158,31 +217,31 @@ func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Cont
 			return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - couldn't decode entry: %w", err))
 		}
 
-		if result.Status == model.ComplianceCheckStatusInProgress {
-			if time.Now().Unix()-result.CreatedAt > int64(checkTimeout.Seconds()) {
-				// This job's status should've been updated to something else already.
-				// Set it to failed.
+		if result.Status != model.ComplianceCheckStatusInProgress {
+			continue
+		}
 
-				logging.GetLogger().Info().
-					Str("checkId", result.CheckID).
-					Str("nodeName", result.NodeName).
-					Msg("Found orphaned inprogress job, will set its status to failed")
+		if time.Now().Unix()-result.CreatedAt > int64(checkTimeout.Seconds()) {
+			// This job's status should've been updated to something else already.
+			// Set it to failed.
+			logging.GetLogger().Info().Str("checkId", result.CheckID).Str("nodeName", result.NodeName).
+				Msg("Found orphaned inprogress job, will set its status to failed")
 
-				checkUUID, err := uuid.FromString(result.CheckID)
-				if err != nil {
-					return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - check UUID malformed: %w", err))
-				}
-
-				check := scapper.Check{
-					CheckType: checkType,
-					CheckUUID: checkUUID,
-					ClusterID: result.ClusterID,
-					Namespace: namespace,
-				}
-				s.mongoJobStatusToFailed(ctx, &check, result.NodeName, "Timed out (found during GC)", time.Now().Unix())
-			} else {
-				someJobStillInProgress = true
+			checkUUID, err := uuid.FromString(result.CheckID)
+			if err != nil {
+				return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - check UUID malformed: %w", err))
 			}
+
+			check := scapper.Check{
+				CheckType: checkType,
+				CheckUUID: checkUUID,
+				ClusterID: result.ClusterID,
+				Namespace: namespace,
+				Operator:  operator,
+			}
+			s.mongoJobStatusToFailed(ctx, &check, result.NodeName, "Timed out (found during GC)", time.Now().Unix())
+		} else {
+			someJobStillInProgress = true
 		}
 	}
 
@@ -444,10 +503,8 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 
 	jobName := res.ObjectMeta.Name
 
-	logging.GetLogger().Info().
-		Str("target-node", jobObj.Spec.Template.Spec.NodeName).
-		Str("job-name", jobName).
-		Msg("Scheduled SCAP check job")
+	logging.GetLogger().Info().Str("target-node", jobObj.Spec.Template.Spec.NodeName).
+		Str("job-name", jobName).Msg("Scheduled SCAP check job")
 
 	return nil
 }
@@ -460,6 +517,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		CheckID:   check.CheckUUID.String(),
 		NodeName:  targetNodeName,
 		ClusterID: check.ClusterID,
+		Operator:  check.Operator,
 		Status:    model.ComplianceCheckStatusInProgress,
 		CreatedAt: secs,
 	}
@@ -481,18 +539,13 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		sessionError = s.updateScapReports(sessionContext, check, targetNodeName)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to update scap reports: %w", sessionError))
-			logging.GetLogger().Error().
-				Str("checkId", check.CheckUUID.String()).
-				Str("nodeName", targetNodeName).
+			logging.GetLogger().Error().Str("checkId", check.CheckUUID.String()).Str("nodeName", targetNodeName).
 				Msg("Failed to update scap reports")
 		}
 		return nil
 	})
 	if err != nil {
-		logging.GetLogger().Error().
-			Err(err).
-			Str("checkId", check.CheckUUID.String()).
-			Str("nodeName", targetNodeName).
+		logging.GetLogger().Error().Err(err).Str("checkId", check.CheckUUID.String()).Str("nodeName", targetNodeName).
 			Msg("Failed to commit scap update transaction")
 	}
 	return err
@@ -522,18 +575,13 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 		sessionError = s.updateScapReports(sessionContext, check, nodeName)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to update scap reports: %w", sessionError))
-			logging.GetLogger().Error().
-				Str("checkId", check.CheckUUID.String()).
-				Str("nodeName", nodeName).
+			logging.GetLogger().Error().Str("checkId", check.CheckUUID.String()).Str("nodeName", nodeName).
 				Msg("Failed to update scap reports")
 		}
 		return nil
 	})
 	if err != nil {
-		logging.GetLogger().Error().
-			Err(err).
-			Str("checkId", check.CheckUUID.String()).
-			Str("nodeName", nodeName).
+		logging.GetLogger().Error().Err(err).Str("checkId", check.CheckUUID.String()).Str("nodeName", nodeName).
 			Msg("Failed to commit scap update transaction")
 	}
 }
@@ -557,6 +605,7 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 				ID:        primitive.NewObjectIDFromTimestamp(time.Now()),
 				CheckID:   check.CheckUUID.String(),
 				ClusterID: check.ClusterID,
+				Operator:  check.Operator,
 				CreatedAt: math.MaxInt64,
 				CheckType: string(check.CheckType),
 			}
@@ -572,12 +621,14 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 			ID:        oldCheckHistory.ID,
 			CheckID:   check.CheckUUID.String(),
 			ClusterID: check.ClusterID,
+			Operator:  check.Operator,
 			CreatedAt: math.MaxInt64,
 			CheckType: string(check.CheckType),
 		}
 	}
 
 	for cursor.Next(ctx) {
+		logging.GetLogger().Info().Msgf("=========scan %v=============", check.CheckType)
 		var result model.ComplianceCheckEntryBase
 		err = cursor.Decode(&result)
 		switch check.CheckType {
@@ -751,7 +802,7 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 	filter = bson.M{"checkId": check.CheckUUID.String()}
 	update := bson.M{"$set": checkHistory}
 	opts := options.Update().SetUpsert(true)
-
+	logging.GetLogger().Info().Msgf("=========update %v, filter : %v, update : %v=============", checkHistory.CreatedAt, filter, update)
 	_, err = s.MongoDB.Collection(model.CheckHistoryEntryCollection.String()).UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
@@ -781,9 +832,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 		DeleteFunc: func(obj interface{}) {
 			job, ok := obj.(*batchv1.Job)
 			if !ok {
-				logging.GetLogger().Error().
-					Str("obj-type", fmt.Sprintf("%T", obj)).
-					Msg("Failed to cast to *batchv1.Job")
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *batchv1.Job")
 				return
 			}
 			thisNodeName := job.Spec.Template.Spec.NodeName
@@ -793,17 +842,13 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 			err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).
-					Str("job-name", fmt.Sprintf("%s", job.Name)).
-					Msg("Failed to get logs, ignoring")
+				logging.GetLogger().Error().Err(err).Str("job-name", fmt.Sprintf("%s", job.Name)).Msg("Failed to get logs, ignoring")
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			job, ok := newObj.(*batchv1.Job)
 			if !ok {
-				logging.GetLogger().Error().
-					Str("obj-type", fmt.Sprintf("%T", newObj)).
-					Msg("Failed to cast to *batchv1.Job")
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *batchv1.Job")
 				return
 			}
 
@@ -814,16 +859,12 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 			err := s.containerLogsToMongo(ctx, kubeClient, job.Namespace, job.Name, thisNodeName, check)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).
-					Str("job-name", fmt.Sprintf("%s", job.Name)).
-					Msg("Failed to get logs, ignoring")
+				logging.GetLogger().Error().Err(err).Str("job-name", fmt.Sprintf("%s", job.Name)).Msg("Failed to get logs, ignoring")
 			}
 
 			// Finished successfuly?
 			if job.Status.Succeeded > 0 {
-				logging.GetLogger().Info().
-					Str("job-name", fmt.Sprintf("%s", job.Name)).
-					Msg("Managed job succeeded")
+				logging.GetLogger().Info().Str("job-name", fmt.Sprintf("%s", job.Name)).Msg("Managed job succeeded")
 
 				finishedNodesCh <- thisNodeName
 				alreadyFinishedNodes[thisNodeName] = true
@@ -833,9 +874,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 			// Finished and failed?
 			if isFailed, failedCondition := s.isJobFailed(job); isFailed {
-				logging.GetLogger().Info().
-					Str("job-name", fmt.Sprintf("%s", job.Name)).
-					Msg("Managed job failed")
+				logging.GetLogger().Info().Str("job-name", fmt.Sprintf("%s", job.Name)).Msg("Managed job failed")
 
 				thisNodeName := job.Spec.Template.Spec.NodeName
 				finishedNodesCh <- thisNodeName
@@ -975,18 +1014,14 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 
 			mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer mongoCtxCancel()
-			s.updateScapReports(mongoCtx, check, finishedNodeName)
-
+			ret := s.updateScapReports(mongoCtx, check, finishedNodeName)
+			logging.GetLogger().Info().Msgf("=======scan %v======", ret)
 			if len(runningNodeNames) == 0 {
-				logging.GetLogger().Info().
-					Str("checkId", check.CheckUUID.String()).
-					Msg("All managed jobs accounted for, done watching for events")
+				logging.GetLogger().Info().Str("checkId", check.CheckUUID.String()).Msg("All managed jobs accounted for, done watching for events")
 
 				err := s.generateAlerts(ctx, check)
 				if err != nil {
-					logging.GetLogger().Error().
-						Str("checkId", check.CheckUUID.String()).
-						Msg("Failed to generate alerts")
+					logging.GetLogger().Error().Str("checkId", check.CheckUUID.String()).Msg("Failed to generate alerts")
 				}
 
 				return
@@ -994,14 +1029,17 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 		}
 
 		if scheduledNodesCh == nil && finishedNodesCh == nil {
-			logging.GetLogger().Error().
-				Msg("Both chans are nil, this shouldn't happen")
+			logging.GetLogger().Error().Msg("Both chans are nil, this shouldn't happen")
 		}
 	}
 
 }
 
-func (s Scapper) GetJobEntriesForCheck(ctx context.Context, clusterID string, checkType model.ComplianceCheckType, checkID, nodeName, status string) ([]model.JobEntry, error) {
+func (s Scapper) GetJobEntriesForCheck(
+	ctx context.Context, clusterID string,
+	checkType model.ComplianceCheckType,
+	checkID, nodeName, status string,
+) ([]model.JobEntry, error) {
 
 	filter := bson.M{"clusterId": clusterID}
 

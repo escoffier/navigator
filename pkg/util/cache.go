@@ -246,7 +246,6 @@ func (c *CacheHelper) GetItems(offset int64, limit int64, sortOrder string, keyE
 	}
 
 	result, err = c.redisClient.LRange(c.ctx, key, start, end).Result()
-
 	if err == redis.Nil {
 		return ids, 0, nil
 	}

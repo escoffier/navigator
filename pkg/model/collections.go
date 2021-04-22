@@ -25,6 +25,7 @@ const (
 	ServiceAliasCollection
 	HarborProjectConfigCollection
 	TensorServiceCollection
+	ExportFileTaskCollection
 )
 
 func GetCollectionNames() []string {
@@ -51,6 +52,7 @@ func GetCollectionNames() []string {
 		"serviceAlias",
 		"harborProjectConfig",
 		"tensor-service",
+		"exportFileTasks",
 	}
 }
 

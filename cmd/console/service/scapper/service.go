@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/tealeg/xlsx"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 
 	"github.com/go-redis/redis/v8"
@@ -72,25 +73,25 @@ func (s *ScapService) RefreshCache(checkType model.ComplianceCheckType) error {
 
 func (s *ScapService) GetCheckHistory(ctx context.Context, checkType model.ComplianceCheckType, clusterID string, offset int64, limit int64, sortBy string, sortOrder string) ([]model.CheckHistoryEntry, int64, error) {
 	var docNum int64
-	var checkHistoryEntryIds []model.CacheEntry
+	var historyIds []model.CacheEntry
 	var err error
 	switch checkType {
 	case model.ComplianceCheckTargetTypeKube:
-		checkHistoryEntryIds, docNum, err = s.kubeScapCache.GetItems(ctx, string(checkType), clusterID, offset, limit, sortBy, sortOrder)
+		historyIds, docNum, err = s.kubeScapCache.GetItems(ctx, string(checkType), clusterID, offset, limit, sortBy, sortOrder)
 	case model.ComplianceCheckTargetTypeDocker:
-		checkHistoryEntryIds, docNum, err = s.dockerScapCache.GetItems(ctx, string(checkType), clusterID, offset, limit, sortBy, sortOrder)
+		historyIds, docNum, err = s.dockerScapCache.GetItems(ctx, string(checkType), clusterID, offset, limit, sortBy, sortOrder)
 	case model.ComplianceCheckTargetTypeHost:
-		checkHistoryEntryIds, docNum, err = s.hostScapCache.GetItems(ctx, string(checkType), clusterID, offset, limit, sortBy, sortOrder)
+		historyIds, docNum, err = s.hostScapCache.GetItems(ctx, string(checkType), clusterID, offset, limit, sortBy, sortOrder)
 	}
 
 	if err != nil {
 		return nil, 0, NewRedisCacheError(http.StatusInternalServerError, fmt.Errorf("Failed to get results from cache: %w", err))
 	}
 
-	items := make([]model.CheckHistoryEntry, len(checkHistoryEntryIds))
-	ids := make([]primitive.ObjectID, len(checkHistoryEntryIds))
-	for i := range checkHistoryEntryIds {
-		ids[i] = checkHistoryEntryIds[i].ID
+	items := make([]model.CheckHistoryEntry, len(historyIds))
+	ids := make([]primitive.ObjectID, len(historyIds))
+	for i := range historyIds {
+		ids[i] = historyIds[i].ID
 	}
 
 	filter := bson.D{{"_id", bson.D{{"$in", ids}}}}
@@ -118,7 +119,43 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, checkType model.Compl
 		items[checkHistoryNo] = checkHistory
 		checkHistoryNo++
 	}
+
 	return items, docNum, nil
+}
+
+func (s *ScapService) GetLatestHistory(
+	ctx context.Context,
+	checkType model.ComplianceCheckType,
+	clusterID, sortBy, sortOrder string,
+) (*model.CheckHistoryEntry, error) {
+	filter := bson.M{"checkType": string(checkType)}
+	opts := options.Find()
+	opts.SetMaxTime(time.Second * 10)
+	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
+
+	coll := s.mongodb.Collection(model.CheckHistoryEntryCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+
+	cur, err := coll.Find(mongoCtx, filter, opts)
+	if err != nil {
+		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find documents: %w", err))
+	}
+	defer cur.Close(mongoCtx)
+
+	for cur.Next(mongoCtx) {
+		var checkHistory model.CheckHistoryEntry
+		err := cur.Decode(&checkHistory)
+		if err != nil {
+			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
+		}
+		//get latest history
+		if checkHistory.TotalPoliciesPassed > 0 && checkHistory.FinishedAt > 0 {
+			return &checkHistory, nil
+		}
+	}
+
+	return nil, fmt.Errorf("can not find correct records")
 }
 
 func (s *ScapService) GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Collection, filter primitive.M, checkID string, nodeCheckDetails *scap.NodeCheckDetails) error {
@@ -156,11 +193,18 @@ func (s *ScapService) GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Co
 				if lang.Language(ctx) == lang.LanguageZH {
 					complianceMapEntry.Section = section.DescriptionZh
 					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
+					complianceMapEntry.Remediation = util.RemoveScoredNotScoredFrom(test.RemediationZh)
+					if value, ok := model.ClassifiedKubeMap[test.TestNumber]; ok {
+						complianceMapEntry.Classified = value[0]
+					}
 				} else {
 					complianceMapEntry.Section = section.DescriptionEn
 					complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(test.TestDescriptionEn)
+					complianceMapEntry.Remediation = util.RemoveScoredNotScoredFrom(test.RemediationEn)
+					if value, ok := model.ClassifiedKubeMap[test.TestNumber]; ok {
+						complianceMapEntry.Classified = value[1]
+					}
 				}
-
 				complianceMapEntry.PolicyNumber = test.TestNumber
 				complianceMapEntry.TestStatus = test.Status
 				complianceMap = append(complianceMap, *complianceMapEntry)
@@ -168,6 +212,74 @@ func (s *ScapService) GetKubeNodeCheckDetails(ctx context.Context, col *mongo.Co
 		}
 	}
 	nodeCheckDetails.ComplianceMap = complianceMap
+	return nil
+}
+
+func (s *ScapService) GetKubeScanResultToFile(ctx context.Context, file *xlsx.File, cursor *mongo.Cursor, language lang.LanguageType) error {
+	var complianceTest model.KubeJobEntry
+	var exfile model.ScapRetData
+
+	sheet, err := file.AddSheet("Sheet1")
+	if err != nil {
+		return fmt.Errorf("add sheet failed, %v", err)
+	}
+
+	row := sheet.AddRow()
+	title := model.GetTitleEn()
+	if language == lang.LanguageZH {
+		title = model.GetTitleZh()
+	}
+	row.WriteStruct(title, -1)
+
+	for cursor.Next(ctx) {
+		err := cursor.Decode(&complianceTest)
+		if err != nil {
+			return err
+		}
+		if complianceTest.Status == model.ComplianceCheckStatusFailed {
+			continue
+		}
+		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+			continue
+		}
+		//
+		t := time.Unix(complianceTest.FinishedAt, 0)
+		exfile.NodeName = complianceTest.NodeName
+		exfile.LastTime = t.Format("2006-01-02 15:04:05")
+
+		for _, reportDetails := range complianceTest.Report {
+			for _, section := range reportDetails.Tests {
+				for _, test := range section.Results {
+
+					exfile.PolicyId = test.TestNumber
+					exfile.Reason = test.Reason
+					exfile.Status = test.Status
+					testSection := section.DescriptionEn
+					testDescription := util.RemoveScoredNotScoredFrom(test.TestDescriptionEn)
+					remediation := util.RemoveScoredNotScoredFrom(test.RemediationEn)
+					if language == lang.LanguageZH {
+						testSection = section.DescriptionZh
+						testDescription = util.RemoveScoredNotScoredFrom(test.TestDescriptionZh)
+						remediation = util.RemoveScoredNotScoredFrom(test.RemediationZh)
+						exfile.Status = model.GetStatusZh(test.Status)
+					}
+					exfile.Section = testSection
+					exfile.Descript = testDescription
+					exfile.DecDetail = remediation
+
+					if value, ok := model.ClassifiedKubeMap[exfile.PolicyId]; ok {
+						exfile.Classified = value[1]
+						if language == lang.LanguageZH {
+							exfile.Classified = value[0]
+						}
+					}
+					//write struct
+					row = sheet.AddRow()
+					row.WriteStruct(&exfile, -1)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -207,6 +319,12 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 							Section:      testSection,
 							Description:  testDescription,
 						}
+						if value, ok := model.ClassifiedKubeMap[testNumber]; ok {
+							checkMap[testNumber].Classified = value[1]
+							if lang.Language(ctx) == lang.LanguageZH {
+								checkMap[testNumber].Classified = value[0]
+							}
+						}
 					}
 					testStatus := test.Status
 					if testStatus == "FAIL" {
@@ -226,20 +344,147 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 	return nil
 }
 
+func (s *ScapService) getKubeNodeDetails(ctx context.Context, checkType, nodeName, policyNumber, checkID string, nodeData *scap.PolicyNodeRet) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	//filter
+	filter := bson.M{}
+	filter["checkId"] = checkID
+	filter["nodeName"] = nodeName
+	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	//find node details
+	var complianceTest model.KubeJobEntry
+	col := s.mongodb.Collection(checkType)
+	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
+	if err != nil {
+		return fmt.Errorf("decode node details failed, %w", err)
+	}
+	//status
+	status := complianceTest.Status
+	if status != model.ComplianceCheckStatusCompleted {
+		return nil
+	}
+
+	//get node description
+	for _, reportDetails := range complianceTest.Report {
+		for _, section := range reportDetails.Tests {
+			for _, test := range section.Results {
+				//equal policyNumber
+				if test.TestNumber != policyNumber {
+					continue
+				}
+				remediation := util.RemoveScoredNotScoredFrom(test.RemediationEn)
+				if lang.Language(mongoCtx) == lang.LanguageZH {
+					remediation = util.RemoveScoredNotScoredFrom(test.RemediationZh)
+				}
+				nodeData.Remediation = remediation
+				nodeData.TestStatus = test.Status
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func (s *ScapService) getDockerNodeDetails(ctx context.Context, checkType, nodeName, policyNumber, checkID string, nodeData *scap.PolicyNodeRet) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	//filter
+	filter := bson.M{}
+	filter["checkId"] = checkID
+	filter["nodeName"] = nodeName
+	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	//find node details
+	var complianceTest model.DockerJobEntry
+	col := s.mongodb.Collection(checkType)
+	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
+	if err != nil {
+		return fmt.Errorf("decode node details failed, %w", err)
+	}
+	//status
+	status := complianceTest.Status
+	if status != model.ComplianceCheckStatusCompleted {
+		return nil
+	}
+
+	//get node description
+	for _, test := range complianceTest.Report.Tests {
+		for _, result := range test.Results {
+			if result.ID != policyNumber {
+				continue
+			}
+			remediation := util.RemoveScoredNotScoredFrom(result.DetailsEn)
+			if lang.Language(ctx) == lang.LanguageZH {
+				remediation = util.RemoveScoredNotScoredFrom(result.DetailsZh)
+			}
+			nodeData.Remediation = remediation
+			nodeData.TestStatus = result.Result
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func (s *ScapService) getHostNodeDetails(ctx context.Context, checkType, nodeName, policyNumber, checkID string, nodeData *scap.PolicyNodeRet) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	//filter
+	filter := bson.M{}
+	filter["checkId"] = checkID
+	filter["nodeName"] = nodeName
+	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	//find node details
+	var complianceTest model.HostJobEntry
+	col := s.mongodb.Collection(checkType)
+	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
+	if err != nil {
+		return fmt.Errorf("decode node details failed, %w", err)
+	}
+	//status
+	status := complianceTest.Status
+	if status != model.ComplianceCheckStatusCompleted {
+		return nil
+	}
+
+	//get node description
+	for _, test := range complianceTest.Report.Results {
+		if test.RuleID != policyNumber {
+			continue
+		}
+		remediation := test.RationaleEn
+		if lang.Language(ctx) == lang.LanguageZH {
+			remediation = test.RationaleZh
+		}
+		nodeData.Remediation = remediation
+		nodeData.TestStatus = test.Result
+		return nil
+	}
+
+	return nil
+}
+
 func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest model.KubeJobEntry
+		var nodeRet scap.PolicyNodeRet
+
 		err := cursor.Decode(&complianceTest)
 		if err != nil {
 			return nil
 		}
+
+		nodeRet.NodeName = complianceTest.NodeName
+		checkType := model.GetMongoCollectionForCheckType(model.ComplianceCheckTargetTypeKube)
+		s.getKubeNodeDetails(ctx, checkType, nodeRet.NodeName, policyNumber, policyDetails.CheckID, &nodeRet)
+		//
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			policyDetails.ErrorOn = append(policyDetails.ErrorOn, complianceTest.NodeName)
+			policyDetails.ErrorOn = append(policyDetails.ErrorOn, nodeRet)
 			policyDetails.NumError++
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			policyDetails.WaitingOn = append(policyDetails.WaitingOn, complianceTest.NodeName)
+			policyDetails.WaitingOn = append(policyDetails.WaitingOn, nodeRet)
 			policyDetails.NumWaiting++
 			continue
 		}
@@ -267,21 +512,77 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *s
 					policyDetails.TestInfo = test.TestInfo
 					policyDetails.Reason = test.Reason
 					testStatus := test.Status
+
 					if testStatus == "FAIL" {
 						policyDetails.NumFailed++
-						policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+						policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
 					} else if testStatus == "WARN" {
 						policyDetails.NumWarn++
-						policyDetails.WarnOn = append(policyDetails.WarnOn, complianceTest.NodeName)
+						policyDetails.WarnOn = append(policyDetails.WarnOn, nodeRet)
 					} else if testStatus == "PASS" {
 						policyDetails.NumSuccessful++
-						policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
+						policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
 					} else if testStatus == "INFO" {
 						policyDetails.NumInfo++
-						policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+						policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func (s *ScapService) GetHostScanResultToFile(ctx context.Context, file *xlsx.File, cursor *mongo.Cursor, language lang.LanguageType) error {
+	var complianceTest model.HostJobEntry
+	var exfile model.ScapRetData
+
+	sheet, err := file.AddSheet("Sheet1")
+	if err != nil {
+		return fmt.Errorf("add sheet failed, %v", err)
+	}
+
+	row := sheet.AddRow()
+	title := model.GetTitleEn()
+	if language == lang.LanguageZH {
+		title = model.GetTitleZh()
+	}
+	row.WriteStruct(title, -1)
+
+	for cursor.Next(ctx) {
+		err := cursor.Decode(&complianceTest)
+		if err != nil {
+			return err
+		}
+		if complianceTest.Status == model.ComplianceCheckStatusFailed {
+			continue
+		}
+		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+			continue
+		}
+		//
+		t := time.Unix(complianceTest.FinishedAt, 0)
+		exfile.NodeName = complianceTest.NodeName
+		exfile.LastTime = t.Format("2006-01-02 15:04:05")
+
+		for _, test := range complianceTest.Report.Results {
+			exfile.Status = test.Result
+			testDescription := test.TitleEn
+			descriptDetail := test.DescriptionEn
+			rationale := test.RationaleEn
+			if language == lang.LanguageZH {
+				testDescription = test.TitleZh
+				descriptDetail = test.DescriptionZh
+				rationale = test.RationaleZh
+				exfile.Status = model.GetStatusZh(test.Result)
+			}
+			exfile.PolicyId = test.RuleID
+			exfile.Section = rationale
+			exfile.Descript = testDescription
+			exfile.DecDetail = descriptDetail
+			//
+			row = sheet.AddRow()
+			row.WriteStruct(&exfile, -1)
 		}
 	}
 	return nil
@@ -365,8 +666,10 @@ func (s *ScapService) GetHostNodeCheckDetails(ctx context.Context, col *mongo.Co
 
 		if lang.Language(ctx) == lang.LanguageZH {
 			complianceMapEntry.Description = test.TitleZh
+			complianceMapEntry.Remediation = test.RationaleZh
 		} else {
 			complianceMapEntry.Description = test.TitleEn
+			complianceMapEntry.Remediation = test.RationaleEn
 		}
 
 		complianceMapEntry.PolicyNumber = test.RuleID
@@ -380,16 +683,22 @@ func (s *ScapService) GetHostNodeCheckDetails(ctx context.Context, col *mongo.Co
 func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest model.HostJobEntry
+		var nodeRet scap.PolicyNodeRet
+
 		err := cursor.Decode(&complianceTest)
 		if err != nil {
 			return err
 		}
+		nodeRet.NodeName = complianceTest.NodeName
+		checkType := model.GetMongoCollectionForCheckType(model.ComplianceCheckTargetTypeHost)
+		s.getHostNodeDetails(ctx, checkType, nodeRet.NodeName, policyNumber, policyDetails.CheckID, &nodeRet)
+
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			policyDetails.ErrorOn = append(policyDetails.ErrorOn, complianceTest.NodeName)
+			policyDetails.ErrorOn = append(policyDetails.ErrorOn, nodeRet)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			policyDetails.WaitingOn = append(policyDetails.WaitingOn, complianceTest.NodeName)
+			policyDetails.WaitingOn = append(policyDetails.WaitingOn, nodeRet)
 			continue
 		}
 
@@ -411,13 +720,13 @@ func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *s
 				testStatus := test.Result
 				if testStatus == "fail" {
 					policyDetails.NumFailed++
-					policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+					policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
 				} else if testStatus == "notselected" {
 					policyDetails.NumInfo++
-					policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+					policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
 				} else if testStatus == "pass" {
 					policyDetails.NumSuccessful++
-					policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
+					policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
 				}
 			}
 		}
@@ -458,17 +767,89 @@ func (s *ScapService) GetDockerNodeCheckDetails(ctx context.Context, col *mongo.
 			if lang.Language(ctx) == lang.LanguageZH {
 				complianceMapEntry.Section = test.DescriptionZh
 				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.DescriptionZh)
+				complianceMapEntry.Remediation = util.RemoveScoredNotScoredFrom(result.DetailsZh)
+				if value, ok := model.ClassifiedDockerMap[result.ID]; ok {
+					complianceMapEntry.Classified = value[0]
+				}
 			} else {
 				complianceMapEntry.Section = test.DescriptionEn
 				complianceMapEntry.Description = util.RemoveScoredNotScoredFrom(result.DescriptionEn)
+				complianceMapEntry.Remediation = util.RemoveScoredNotScoredFrom(result.DetailsEn)
+				if value, ok := model.ClassifiedDockerMap[result.ID]; ok {
+					complianceMapEntry.Classified = value[1]
+				}
 			}
-
 			complianceMapEntry.PolicyNumber = result.ID
 			complianceMapEntry.TestStatus = result.Result
 			complianceMap = append(complianceMap, *complianceMapEntry)
 		}
 	}
 	nodeCheckDetails.ComplianceMap = complianceMap
+	return nil
+}
+
+func (s *ScapService) GetDockerScanResultToFile(ctx context.Context, file *xlsx.File, cursor *mongo.Cursor, language lang.LanguageType) error {
+	var complianceTest model.DockerJobEntry
+	var exfile model.ScapRetData
+
+	sheet, err := file.AddSheet("Sheet1")
+	if err != nil {
+		return fmt.Errorf("add sheet failed, %v", err)
+	}
+
+	row := sheet.AddRow()
+	title := model.GetTitleEn()
+	if language == lang.LanguageZH {
+		title = model.GetTitleZh()
+	}
+	row.WriteStruct(title, -1)
+
+	for cursor.Next(ctx) {
+
+		err := cursor.Decode(&complianceTest)
+		if err != nil {
+			return err
+		}
+		if complianceTest.Status == model.ComplianceCheckStatusFailed {
+			continue
+		}
+		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
+			continue
+		}
+		//
+		t := time.Unix(complianceTest.FinishedAt, 0)
+		exfile.NodeName = complianceTest.NodeName
+		exfile.LastTime = t.Format("2006-01-02 15:04:05")
+
+		for _, test := range complianceTest.Report.Tests {
+
+			for _, result := range test.Results {
+				exfile.Status = result.Result
+				testSection := test.DescriptionEn
+				testDescription := util.RemoveScoredNotScoredFrom(result.DescriptionEn)
+				details := util.RemoveScoredNotScoredFrom(result.DetailsEn)
+				if language == lang.LanguageZH {
+					testSection = test.DescriptionZh
+					testDescription = util.RemoveScoredNotScoredFrom(result.DescriptionZh)
+					details = util.RemoveScoredNotScoredFrom(result.DetailsZh)
+					exfile.Status = model.GetStatusZh(result.Result)
+				}
+				exfile.PolicyId = result.ID
+				exfile.Section = testSection
+				exfile.Descript = testDescription
+				exfile.DecDetail = details
+				if value, ok := model.ClassifiedDockerMap[result.ID]; ok {
+					exfile.Classified = value[1]
+					if language == lang.LanguageZH {
+						exfile.Classified = value[0]
+					}
+				}
+				//
+				row = sheet.AddRow()
+				row.WriteStruct(&exfile, -1)
+			}
+		}
+	}
 	return nil
 }
 
@@ -508,7 +889,14 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 						Section:      testSection,
 						Description:  testDescription,
 					}
+					if value, ok := model.ClassifiedDockerMap[testNumber]; ok {
+						checkMap[testNumber].Classified = value[1]
+						if lang.Language(ctx) == lang.LanguageZH {
+							checkMap[testNumber].Classified = value[0]
+						}
+					}
 				}
+
 				testStatus := result.Result
 				if testStatus == "WARN" {
 					checkMap[testNumber].NumFailed++
@@ -529,16 +917,23 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyNumber string, cursor *mongo.Cursor) error {
 	for cursor.Next(ctx) {
 		var complianceTest model.DockerJobEntry
+		var nodeRet scap.PolicyNodeRet
+
 		err := cursor.Decode(&complianceTest)
 		if err != nil {
 			return nil
 		}
+
+		nodeRet.NodeName = complianceTest.NodeName
+		checkType := model.GetMongoCollectionForCheckType(model.ComplianceCheckTargetTypeDocker)
+		s.getDockerNodeDetails(ctx, checkType, nodeRet.NodeName, policyNumber, policyDetails.CheckID, &nodeRet)
+
 		if complianceTest.Status == model.ComplianceCheckStatusFailed {
-			policyDetails.ErrorOn = append(policyDetails.ErrorOn, complianceTest.NodeName)
+			policyDetails.ErrorOn = append(policyDetails.ErrorOn, nodeRet)
 			continue
 		}
 		if complianceTest.Status == model.ComplianceCheckStatusInProgress {
-			policyDetails.WaitingOn = append(policyDetails.WaitingOn, complianceTest.NodeName)
+			policyDetails.WaitingOn = append(policyDetails.WaitingOn, nodeRet)
 			continue
 		}
 
@@ -562,16 +957,17 @@ func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails 
 					testStatus := result.Result
 					if testStatus == "WARN" {
 						policyDetails.NumFailed++
-						policyDetails.FailedOn = append(policyDetails.FailedOn, complianceTest.NodeName)
+						nodeRet.TestStatus = "FAIL"
+						policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
 					} else if testStatus == "NOTE" {
 						policyDetails.NumInfo++
-						policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+						policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
 					} else if testStatus == "PASS" {
 						policyDetails.NumSuccessful++
-						policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, complianceTest.NodeName)
+						policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
 					} else if testStatus == "INFO" {
 						policyDetails.NumInfo++
-						policyDetails.InfoOn = append(policyDetails.InfoOn, complianceTest.NodeName)
+						policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
 					}
 				}
 			}

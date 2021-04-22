@@ -108,6 +108,18 @@ func WithStartIndex(n int64) ResponseDataOptionFunc {
 	}
 }
 
+func WithCheckId(checkId string) ResponseDataOptionFunc {
+	return func(ev *HTTPEnvelope) {
+		ev.Data.CheckId = checkId
+	}
+}
+
+func WithExportFileStatus(status uint8) ResponseDataOptionFunc {
+	return func(ev *HTTPEnvelope) {
+		ev.Data.Status = status
+	}
+}
+
 func Ok(w http.ResponseWriter, opts ...ResponseDataOptionFunc) {
 	RespData(w, http.StatusOK, opts...)
 }

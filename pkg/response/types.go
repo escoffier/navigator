@@ -23,7 +23,9 @@ type HTTPEnvelope struct {
 }
 
 type HTTPData struct {
+	Status           uint8                  `json:"status",omitempty`
 	Kind             string                 `json:"kind,omitempty"`
+	CheckId          string                 `json:"checkId,omitempty"`
 	Etag             string                 `json:"etag,omitempty"`
 	Lang             string                 `json:"lang,omitempty"`
 	Updated          string                 `json:"updated,omitempty"`
