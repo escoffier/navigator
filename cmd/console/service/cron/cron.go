@@ -115,7 +115,7 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 
 			// don't cancel() when exiting this function as we are starting an async task
 			newCtx, _ := context.WithTimeout(s.rootCtx, time.Minute*10)
-			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType)
+			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType, "system")
 			if err != nil {
 				logging.GetLogger().Error().Err(err).
 					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).

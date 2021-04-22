@@ -42,6 +42,7 @@ type JobEntry struct {
 	CheckID       string                 `json:"check_id" bson:"checkId"`
 	NodeName      string                 `json:"node_name" bson:"nodeName"`
 	ClusterID     string                 `json:"cluster_id" bson:"clusterId"`
+	Operator      string                 `json:"operator" bson:"operator"`
 	Status        string                 `json:"status" bson:"status,omitempty"`
 	CreatedAt     int64                  `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt    int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
@@ -55,6 +56,7 @@ type CheckHistoryEntry struct {
 	CheckID             string             `json:"checkId" bson:"checkId"`
 	CheckType           string             `json:"checkType" bson:"checkType"`
 	ClusterID           string             `json:"clusterId" bson:"clusterId"`
+	Operator            string             `json:"operator" bson:"operator"`
 	ClusterName         string             `json:"clusterName" bson:"-"`
 	CreatedAt           int64              `json:"createdAt" bson:"createdAt"`
 	FinishedAt          int64              `json:"finishedAt,omitempty" bson:"finishedAt,omitempty"`

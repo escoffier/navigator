@@ -8,6 +8,7 @@ type CheckBreakdown struct {
 	NumFailed     int64  `json:"numFailed"`
 	NumInfo       int64  `json:"numInfo"`
 	NumWarn       int64  `json:"numWarn"`
+	Classified    string `json:"classified"`
 }
 
 type NodeCheckDetails struct {
@@ -23,10 +24,19 @@ type ComplianceMapEntry struct {
 	PolicyNumber string `json:"policyNumber"`
 	Section      string `json:"section"`
 	Description  string `json:"description"`
+	Remediation  string `json:"remediation"`
 	TestStatus   string `json:"testStatus"`
+	Classified   string `json:"classified"`
+}
+
+type PolicyNodeRet struct {
+	NodeName    string `json:"nodeName"`
+	Remediation string `json:"remediation"`
+	TestStatus  string `json:"testStatus"`
 }
 
 type PolicyDetails struct {
+	CheckID        string   `json:"-"`
 	PolicyNumber   string   `json:"policyNumber"`
 	Section        string   `json:"section"`
 	Description    string   `json:"description"`
@@ -40,16 +50,17 @@ type PolicyDetails struct {
 	Details string   `json:"details"`
 	Items   []string `json:"items"`
 
-	NumSuccessful int64    `json:"numSuccessful"`
-	NumFailed     int64    `json:"numFailed"`
-	NumInfo       int64    `json:"numInfo"`
-	NumWarn       int64    `json:"numWarn"`
-	NumError      int64    `json:"numError"`
-	NumWaiting    int64    `json:"numWaiting"`
-	FailedOn      []string `json:"failedOn"`
-	WarnOn        []string `json:"warnOn"`
-	InfoOn        []string `json:"infoOn"`
-	SuccessfulOn  []string `json:"successfulOn"`
-	ErrorOn       []string `json:"errorOn"`
-	WaitingOn     []string `json:"waitingOn"`
+	NumSuccessful int64 `json:"numSuccessful"`
+	NumFailed     int64 `json:"numFailed"`
+	NumInfo       int64 `json:"numInfo"`
+	NumWarn       int64 `json:"numWarn"`
+	NumError      int64 `json:"numError"`
+	NumWaiting    int64 `json:"numWaiting"`
+
+	FailedOn     []PolicyNodeRet `json:"failedOn"`
+	WarnOn       []PolicyNodeRet `json:"warnOn"`
+	InfoOn       []PolicyNodeRet `json:"infoOn"`
+	SuccessfulOn []PolicyNodeRet `json:"successfulOn"`
+	ErrorOn      []PolicyNodeRet `json:"errorOn"`
+	WaitingOn    []PolicyNodeRet `json:"waitingOn"`
 }

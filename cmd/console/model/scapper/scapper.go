@@ -10,4 +10,5 @@ type Check struct {
 	CheckUUID uuid.UUID
 	ClusterID string
 	Namespace string
+	Operator  string
 }

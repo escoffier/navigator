@@ -135,36 +135,26 @@ func (api *api) putCron() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't read ClusterID: %w", err),
-					Suberror{"clusterID", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID: %w", err), Suberror{"clusterID", ""}))
 			return
 		}
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("checkType param missing"),
-					Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
 			return
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
-					Suberror{"checkType", "allowed: kube/docker/host"}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
+				Suberror{"checkType", "allowed: kube/docker/host"}))
 			return
 		}
 
 		var req req
 		err = util.DecodeJSONBody(w, r, &req)
 		if err != nil {
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("Failed to decode json: %w", err)))
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
