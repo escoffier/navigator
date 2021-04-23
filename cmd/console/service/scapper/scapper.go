@@ -628,7 +628,6 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 	}
 
 	for cursor.Next(ctx) {
-		logging.GetLogger().Info().Msgf("=========scan %v=============", check.CheckType)
 		var result model.ComplianceCheckEntryBase
 		err = cursor.Decode(&result)
 		switch check.CheckType {
@@ -802,7 +801,6 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 	filter = bson.M{"checkId": check.CheckUUID.String()}
 	update := bson.M{"$set": checkHistory}
 	opts := options.Update().SetUpsert(true)
-	logging.GetLogger().Info().Msgf("=========update %v, filter : %v, update : %v=============", checkHistory.CreatedAt, filter, update)
 	_, err = s.MongoDB.Collection(model.CheckHistoryEntryCollection.String()).UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
@@ -1014,8 +1012,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 
 			mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer mongoCtxCancel()
-			ret := s.updateScapReports(mongoCtx, check, finishedNodeName)
-			logging.GetLogger().Info().Msgf("=======scan %v======", ret)
+			s.updateScapReports(mongoCtx, check, finishedNodeName)
 			if len(runningNodeNames) == 0 {
 				logging.GetLogger().Info().Str("checkId", check.CheckUUID.String()).Msg("All managed jobs accounted for, done watching for events")
 
