@@ -68,8 +68,8 @@ func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
 	return MongoError{
 		detailedError{
 			err:       err,
-			English:   "Database error has occurred (MongoDB)",
-			Zhongwen:  "发生数据库错误(MongoDB)",
+			English:   "An exception occurred on the server",
+			Zhongwen:  "服务器开小差了",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -724,8 +724,8 @@ func PostgresError(httpCode int, err error, suberrors ...Suberror) error {
 	return MongoError{
 		detailedError{
 			err:       err,
-			English:   "Database error has occurred (Postgres DB)",
-			Zhongwen:  "发生数据库错误(Postgres)",
+			English:   "An exception occurred on the server",
+			Zhongwen:  "服务器开小差了",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
