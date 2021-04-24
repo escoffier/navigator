@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -32,7 +33,7 @@ import (
 )
 
 type CleanupService struct {
-	mongodb       *mongo.Database
+	mongodb       *mongotools.DatabaseWrapper
 	mongoPVC      string
 	mongoPod      string
 	mongoDataPath string
@@ -46,7 +47,7 @@ type CleanupService struct {
 }
 
 func NewCleanupService(
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	mongoPVC string,
 	mongoPod string,
 	mongoDataPath string,
@@ -95,11 +96,11 @@ func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error
 		Status: model.GCInProgress,
 	}
 
-	collection := s.mongodb.Collection(model.GCCollection.String())
+	collection := s.mongodb.Get().Collection(model.GCCollection.String())
 
 	filter := bson.M{"status": model.GCInProgress}
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -133,11 +134,11 @@ func (s *CleanupService) CreateESGCTask(ctx context.Context) (*model.GCTask, err
 		Status: model.GCInProgress,
 	}
 
-	collection := s.mongodb.Collection(model.ESGCCollection.String())
+	collection := s.mongodb.Get().Collection(model.ESGCCollection.String())
 
 	filter := bson.M{"status": model.GCInProgress}
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -168,7 +169,7 @@ func (s *CleanupService) CreateESGCTask(ctx context.Context) (*model.GCTask, err
 func (s *CleanupService) GetGCTask(ctx context.Context, gcTaskID primitive.ObjectID) (*model.GCTask, error) {
 	filter := bson.M{"_id": gcTaskID}
 
-	queryResult := s.mongodb.Collection(model.GCCollection.String()).FindOne(ctx, filter)
+	queryResult := s.mongodb.Get().Collection(model.GCCollection.String()).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -186,7 +187,7 @@ func (s *CleanupService) GetGCTask(ctx context.Context, gcTaskID primitive.Objec
 func (s *CleanupService) GetESGCTask(ctx context.Context, gcTaskID primitive.ObjectID) (*model.GCTask, error) {
 	filter := bson.M{"_id": gcTaskID}
 
-	queryResult := s.mongodb.Collection(model.ESGCCollection.String()).FindOne(ctx, filter)
+	queryResult := s.mongodb.Get().Collection(model.ESGCCollection.String()).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -211,7 +212,7 @@ func (s *CleanupService) updateGCStatus(ctx context.Context, gcTask *model.GCTas
 	update := bson.M{"$set": gcTask}
 	filter := bson.M{"_id": gcTask.ID}
 
-	_, err = s.mongodb.Collection(model.GCCollection.String()).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Get().Collection(model.GCCollection.String()).UpdateOne(ctx, filter, update)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
@@ -231,7 +232,7 @@ func (s *CleanupService) updateESGCStatus(ctx context.Context, gcTask *model.GCT
 	update := bson.M{"$set": gcTask}
 	filter := bson.M{"_id": gcTask.ID}
 
-	_, err = s.mongodb.Collection(model.ESGCCollection.String()).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Get().Collection(model.ESGCCollection.String()).UpdateOne(ctx, filter, update)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
@@ -268,14 +269,14 @@ func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp
 		}
 	}()
 
-	allCollectionsCursor, err := s.mongodb.ListCollections(ctx, bson.M{})
+	allCollectionsCursor, err := s.mongodb.Get().ListCollections(ctx, bson.M{})
 	if err != nil {
 		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
 		return
 	}
 	defer allCollectionsCursor.Close(ctx)
 
-	err = s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err = s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -293,7 +294,7 @@ func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp
 			}
 			colName := collectionInfo.Map()["name"].(string)
 			var deleteResult *mongo.DeleteResult
-			deleteResult, sessionError = s.mongodb.Collection(colName).DeleteMany(sessionContext, filter)
+			deleteResult, sessionError = s.mongodb.Get().Collection(colName).DeleteMany(sessionContext, filter)
 			if sessionError != nil {
 				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't delete documents: %w", sessionError))
 			}
@@ -325,7 +326,7 @@ func (s *CleanupService) GetHotStorageView(ctx context.Context) (*model.HotStora
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 	filter := bson.M{}
-	allCollectionsCursor, err := s.mongodb.ListCollections(mongoCtx, filter)
+	allCollectionsCursor, err := s.mongodb.Get().ListCollections(mongoCtx, filter)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't list collections: %w", err))
 	}
@@ -455,7 +456,8 @@ func (s *CleanupService) RunGarbageEsCollection(ctx context.Context, DaysOffset 
 		}
 	}()
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	mongoDB := s.mongodb.Get()
+	err := mongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))

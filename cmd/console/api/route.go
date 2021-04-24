@@ -7,9 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jinzhu/gorm"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
@@ -29,11 +26,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type key int
@@ -59,8 +58,8 @@ func SetupRoutes(
 
 	sessionExpiration time.Duration,
 	tokenAuth *jwtauth.JWTAuth,
-	mongodb *mongo.Database,
-	postgresDB *gorm.DB,
+	mongodb *mongotools.DatabaseWrapper,
+	postgresDB *rdbtools.GormWrapper,
 	scapper *scapper.Scapper,
 	scannerURL string,
 	cronService *cron.CronService,
@@ -200,7 +199,7 @@ func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {
 	}
 }
 
-func jwtAccessCheck(postgresDB *gorm.DB, userCache *cache.Cache) func(http.Handler) http.Handler {
+func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())

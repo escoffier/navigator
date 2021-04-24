@@ -11,6 +11,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -24,13 +25,13 @@ const (
 
 type ScapCache struct {
 	ctx     context.Context
-	mongodb *mongo.Database
+	mongodb *mongotools.DatabaseWrapper
 	ch      *util.CacheHelper
 }
 
 func NewScapCache(
 	ctx context.Context,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	redisClient *redis.Client,
 	checkType model.ComplianceCheckType,
 ) (*ScapCache, error) {
@@ -53,12 +54,12 @@ func NewScapCache(
 		}
 	}
 
-	go c.refreshClusterCacheKeys(ctx, checkType, mongodb)
+	go c.refreshClusterCacheKeys(ctx, checkType)
 
 	return c, nil
 }
 
-func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model.ComplianceCheckType, mongodb *mongo.Database) {
+func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model.ComplianceCheckType) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
@@ -70,16 +71,16 @@ func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model
 		case <-time.After(clusterRefreshInterval):
 			clusterFilter := bson.M{}
 
-			mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, util.MongoTimeout)
+			mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, 10*time.Second)
 			defer mongoCtxCancel()
 
-			mt := time.Second * 60
 			clusterFindOptions := options.FindOptions{}
 			clusterFindOptions.SetSort(bson.D{{"createdAt", -1}})
-			clusterFindOptions.SetMaxTime(mt)
-			clusterCursor, err := mongodb.Collection(model.ClusterCollection.String()).Find(mongoCtx, clusterFilter, &clusterFindOptions)
+			clusterFindOptions.SetMaxTime(10 * time.Second)
+			clusterCursor, err := c.mongodb.Get().Collection(model.ClusterCollection.String()).Find(mongoCtx, clusterFilter, &clusterFindOptions)
 			if err != nil {
 				logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w ", err)))
+				continue
 			}
 			defer clusterCursor.Close(mongoCtx)
 			for _, checkType := range []model.ComplianceCheckType{model.ComplianceCheckTargetTypeDocker, model.ComplianceCheckTargetTypeHost, model.ComplianceCheckTargetTypeKube} {
@@ -116,14 +117,14 @@ func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model
 
 func (c *ScapCache) getScapMaxEntryTimestamp(checkType model.ComplianceCheckType) func() (int64, error) {
 	return func() (int64, error) {
-		ctx, cancel := context.WithTimeout(c.ctx, util.MongoTimeout)
+		ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
 		defer cancel()
 		filter := bson.M{"checkType": string(checkType)}
 
-		findOptions := options.FindOne()
+		findOptions := options.FindOne().SetMaxTime(500 * time.Millisecond)
 		findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
-		singleResult := c.mongodb.Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, findOptions)
+		singleResult := c.mongodb.Get().Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, findOptions)
 		if singleResult.Err() != nil {
 			if singleResult.Err() == mongo.ErrNoDocuments {
 				return -1, nil
@@ -138,10 +139,10 @@ func (c *ScapCache) getScapMaxEntryTimestamp(checkType model.ComplianceCheckType
 		}
 		finishedAt := scapJob.FinishedAt
 
-		findOptions = options.FindOne()
+		findOptions = options.FindOne().SetMaxTime(500 * time.Millisecond)
 		findOptions.SetSort(bson.D{{"createdAt", -1}})
 
-		singleResult = c.mongodb.Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, findOptions)
+		singleResult = c.mongodb.Get().Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, findOptions)
 		if singleResult.Err() != nil {
 			if singleResult.Err() == mongo.ErrNoDocuments {
 				return -1, nil
@@ -169,10 +170,9 @@ func (c *ScapCache) getScapData(checkType model.ComplianceCheckType, clusterID s
 			filter["clusterId"] = clusterID
 		}
 
-		findOptions := options.FindOptions{}
-		findOptions.SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}})
+		findOptions := options.Find().SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}}).SetMaxTime(10 * time.Second)
 
-		scapIds, err := dataToIds(c.ctx, filter, &findOptions, c.mongodb.Collection(model.CheckHistoryEntryCollection.String()))
+		scapIds, err := dataToIds(c.ctx, filter, findOptions, c.mongodb.Get().Collection(model.CheckHistoryEntryCollection.String()))
 		if err != nil {
 			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not get ids to cache: %w", err))
 		}

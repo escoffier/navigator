@@ -13,9 +13,9 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 
 type CronService struct {
 	cron           *cr.Cron
-	mongodb        *mongo.Database
+	mongodb        *mongotools.DatabaseWrapper
 	scapper        *scapper.Scapper
 	clusterService *cluster.ClusterService
 	rootCtx        context.Context
@@ -32,7 +32,7 @@ type CronService struct {
 
 func NewCronService(
 	cron *cr.Cron,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	scapper *scapper.Scapper,
 	clusterService *cluster.ClusterService,
 	rootCtx context.Context,
@@ -67,9 +67,9 @@ func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID p
 	cluster.ID = clusterObjectID
 	update := bson.M{"$set": cluster}
 
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*1)
 	defer mongoCtxCancel()
-	_, err = s.mongodb.Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
+	_, err = s.mongodb.Get().Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
 	if err != nil {
 		return err
 	}
@@ -147,9 +147,9 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 	}
 	filter := bson.M{"_id": cluster.ID, "deleted_at": bson.M{"$exists": false}}
 	update := bson.M{"$set": cluster}
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*1)
 	defer mongoCtxCancel()
-	_, err := s.mongodb.Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
+	_, err := s.mongodb.Get().Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
 	if err != nil {
 		return err
 	}
@@ -206,9 +206,9 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 	cluster.ID = clusterObjectID
 	update := bson.M{"$set": cluster}
 
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*1)
 	defer mongoCtxCancel()
-	_, err = s.mongodb.Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
+	_, err = s.mongodb.Get().Collection(clusterCol).UpdateOne(mongoCtx, filter, update)
 	if err != nil {
 		return err
 	}

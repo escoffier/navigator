@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jinzhu/gorm"
-	"github.com/olivere/elastic/v7"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -19,6 +16,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	version "github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
+	"github.com/olivere/elastic/v7"
 	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -34,18 +32,20 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type api struct {
 	ctx                    context.Context
 	userCache              *cache.Cache
 	tokenAuth              *jwtauth.JWTAuth
-	mongodb                *mongo.Database
-	postgresDB             *gorm.DB
+	mongodb                *mongotools.DatabaseWrapper
+	postgresDB             *rdbtools.GormWrapper
 	optUserMap             map[string]struct{}
 	es                     *elastic.Client
 	scapper                *scapper.Scapper
@@ -78,8 +78,8 @@ func newAPI(
 	ctx context.Context,
 	sessionExpiration time.Duration,
 	tokenAuth *jwtauth.JWTAuth,
-	mongodb *mongo.Database,
-	postgresDB *gorm.DB,
+	mongodb *mongotools.DatabaseWrapper,
+	postgresDB *rdbtools.GormWrapper,
 	scapper *scapper.Scapper,
 	scannerURL string,
 	cronService *cron.CronService,

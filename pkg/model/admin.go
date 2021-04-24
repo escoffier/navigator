@@ -6,7 +6,7 @@ type ModuleGroup struct {
 	Id            int    `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
 	ModuleName_zh string `json:"module_name_zh"`
 	ModuleName_en string `json:"module_name_en"`
-	Url           []Url  `grom:"-" json:"-"`
+	Url           []Url  `gorm:"-" json:"-"`
 }
 
 func (m ModuleGroup) TableName() string {
@@ -50,7 +50,7 @@ type User struct {
 	Salt        string        `gorm:"column:salt" json:"-"`
 	Rule        string        `gorm:"column:rule" json:"rule"`
 	ModuleID    string        `gorm:"column:module_id" json:"-"`
-	ModuleGroup []ModuleGroup `grom:"-" json:"module_group"`
+	ModuleGroup []ModuleGroup `gorm:"-" json:"module_group"`
 	Checked     bool          `json:"checked"`
 	CreateAt    int64         `json:"create_at"`
 }

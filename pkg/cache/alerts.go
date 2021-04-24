@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strconv"
 
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-
 	"github.com/go-redis/redis/v8"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -22,13 +22,13 @@ const (
 
 type AlertsCache struct {
 	ctx     context.Context
-	mongodb *mongo.Database
+	mongodb *mongotools.DatabaseWrapper
 	ch      *util.CacheHelper
 }
 
 func NewAlertsCache(
 	ctx context.Context,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	redisClient *redis.Client,
 ) *AlertsCache {
 	c := &AlertsCache{
@@ -62,7 +62,7 @@ func (c *AlertsCache) getAlertsNewestEntryTimestamp() (int64, error) {
 	findOptions := options.FindOne()
 	findOptions.SetSort(bson.D{{"timestamp", -1}})
 
-	singleResult := c.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter, findOptions)
+	singleResult := c.mongodb.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return -1, nil
@@ -81,7 +81,7 @@ func (c *AlertsCache) getAlertsNewestEntryTimestamp() (int64, error) {
 	findOptions = options.FindOne()
 	findOptions.SetSort(bson.D{{"historicised_timestamp", -1}})
 
-	singleResult = c.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter, findOptions)
+	singleResult = c.mongodb.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return -1, nil
@@ -119,7 +119,7 @@ func (c *AlertsCache) getAlertsData(onlyNotAcknowledged bool, kind model.AlertKi
 
 		findOptions.SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}})
 
-		alertIds, err := dataToIds(c.ctx, filter, &findOptions, c.mongodb.Collection(model.AlertsCollection.String()))
+		alertIds, err := dataToIds(c.ctx, filter, &findOptions, c.mongodb.Get().Collection(model.AlertsCollection.String()))
 		if err != nil {
 			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not get ids to cache: %w", err))
 		}

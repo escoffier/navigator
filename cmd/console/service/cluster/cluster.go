@@ -13,6 +13,7 @@ import (
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,7 +24,7 @@ import (
 )
 
 type ClusterService struct {
-	mongodb        *mongo.Database
+	mongodb        *mongotools.DatabaseWrapper
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
 	cleanupService *cleanup.CleanupService
 	clustersCache  *rcache.ClustersCache
@@ -31,7 +32,7 @@ type ClusterService struct {
 
 func NewClusterService(
 	ctx context.Context,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	cleanupService *cleanup.CleanupService,
 	redisClient *redis.Client,
@@ -54,7 +55,8 @@ func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primiti
 		filter = bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 	}
 
-	queryResult := s.mongodb.Collection(model.ClusterCollection.String()).FindOne(ctx, filter)
+	opts := options.FindOne().SetMaxTime(500 * time.Millisecond)
+	queryResult := s.mongodb.Get().Collection(model.ClusterCollection.String()).FindOne(ctx, filter, opts)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -86,11 +88,11 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		return primitive.NilObjectID, NewKubernetesError(http.StatusBadRequest, fmt.Errorf("Kube client connection check failed: %w", err))
 	}
 
-	collection := s.mongodb.Collection(model.ClusterCollection.String())
+	collection := s.mongodb.Get().Collection(model.ClusterCollection.String())
 
 	var id primitive.ObjectID
 
-	err = s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err = s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -173,8 +175,8 @@ func (s *ClusterService) ListClusters(ctx context.Context, offset int64, limit i
 	opts.SetMaxTime(time.Second * 10)
 	opts.SetSort(bson.D{{"createdAt", util.SortOrderToInt("desc")}})
 
-	coll := s.mongodb.Collection(model.ClusterCollection.String())
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	coll := s.mongodb.Get().Collection(model.ClusterCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mongoCtxCancel()
 
 	cur, err := coll.Find(mongoCtx, filter, opts)
@@ -206,7 +208,7 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 
 	var queryCluster model.Cluster
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -214,7 +216,7 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 
 		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
-		queryResult := s.mongodb.Collection(model.ClusterCollection.String()).FindOne(sessionContext, filter)
+		queryResult := s.mongodb.Get().Collection(model.ClusterCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			if sessionError == mongo.ErrNoDocuments {
@@ -235,7 +237,7 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 
 		update := bson.M{"$set": queryCluster}
 
-		_, sessionError = s.mongodb.Collection(model.ClusterCollection.String()).UpdateOne(sessionContext, filter, update)
+		_, sessionError = s.mongodb.Get().Collection(model.ClusterCollection.String()).UpdateOne(sessionContext, filter, update)
 		if sessionError != nil {
 			if sessionError == mongo.ErrNoDocuments {
 				return NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", sessionError))
@@ -254,7 +256,7 @@ func (s *ClusterService) UpdateCluster(ctx context.Context, clusterObjectID prim
 
 func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID primitive.ObjectID) (int64, error) {
 	var res int64
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -264,7 +266,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 
 		filter := bson.M{"_id": clusterObjectID, "deleted_at": bson.M{"$exists": false}}
 
-		queryResult := s.mongodb.Collection(model.ClusterCollection.String()).FindOne(sessionContext, filter)
+		queryResult := s.mongodb.Get().Collection(model.ClusterCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			if sessionError == mongo.ErrNoDocuments {
@@ -283,7 +285,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 		update := bson.M{"$set": queryCluster}
 
 		var result *mongo.UpdateResult
-		result, sessionError = s.mongodb.Collection(model.ClusterCollection.String()).UpdateOne(sessionContext, filter, update)
+		result, sessionError = s.mongodb.Get().Collection(model.ClusterCollection.String()).UpdateOne(sessionContext, filter, update)
 		if sessionError != nil {
 			if sessionError == mongo.ErrNoDocuments {
 				return NewClusterDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", sessionError))

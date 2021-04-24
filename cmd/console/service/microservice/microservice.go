@@ -3,7 +3,6 @@ package microservice
 import (
 	"context"
 	"fmt"
-	"github.com/jinzhu/gorm"
 	"net/http"
 	"time"
 
@@ -11,19 +10,20 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MicroService struct {
-	mongodb    *mongo.Database
-	postgresDB *gorm.DB
+	mongodb    *mongotools.DatabaseWrapper
+	postgresDB *rdbtools.GormWrapper
 }
 
 func NewMicroService(
-	mongodb *mongo.Database,
-	postgresDB *gorm.DB,
+	mongodb *mongotools.DatabaseWrapper,
+	postgresDB *rdbtools.GormWrapper,
 ) *MicroService {
 	return &MicroService{
 		mongodb:    mongodb,
@@ -33,7 +33,7 @@ func NewMicroService(
 
 func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int64, username, search string) ([]ServiceInfoDetails, int64, error) {
 
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*5)
 	defer mongoCtxCancel()
 	opt := options.Find().SetProjection(bson.M{"_id": 0, "namespace": 1, "name": 1})
 	opt.SetMaxTime(time.Second * 2)
@@ -48,7 +48,7 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 		}
 	}
 
-	cur, err := m.mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := m.mongodb.Get().Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't find document: %w", err))
@@ -91,13 +91,13 @@ func (m *MicroService) GetAllServiceInfo(ctx context.Context, offset, limit int6
 			OwnerKind: ownerKind,
 		}
 
-		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb, service.Namespace, svcName)
+		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb.Get(), service.Namespace, svcName)
 		result.ResName = ResNameSlice
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 		}
 
-		IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb, service.Namespace, svcName, username)
+		IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb.Get(), service.Namespace, svcName, username)
 		result.IsFocus = IsFocus
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
@@ -131,12 +131,12 @@ func (m *MicroService) GetMyFocusServiceInfo(ctx context.Context, offset, limit 
 			"name":      bson.M{"$regex": search},
 		}
 	}
-	itemcount, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).CountDocuments(mongoCtx, filter, copt)
+	itemcount, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).CountDocuments(mongoCtx, filter, copt)
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find count  documents: %w", err))
 	}
 
-	cur, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't find document: %w", err))
@@ -153,13 +153,13 @@ func (m *MicroService) GetMyFocusServiceInfo(ctx context.Context, offset, limit 
 			Namespace: serviceRl.Namespace,
 			Name:      serviceRl.Name,
 		}
-		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb, serviceRl.Namespace, serviceRl.Name)
+		ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb.Get(), serviceRl.Namespace, serviceRl.Name)
 		result.ResName = ResNameSlice
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 		}
 		result.IsFocus = false
-		IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb, serviceRl.Namespace, serviceRl.Name, username)
+		IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb.Get(), serviceRl.Namespace, serviceRl.Name, username)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 		} else {
@@ -189,7 +189,7 @@ func (m *MicroService) SetMyFocusServiceInfo(ctx context.Context, namespace, svc
 	if stype == "Focus" {
 		update := bson.M{"$set": assetServiceRl}
 		opts := options.Update().SetUpsert(true)
-		_, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+		_, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetServiceRl)).Msg("Failed to upsert assetServiceRl to mongo")
 			return err
@@ -197,7 +197,7 @@ func (m *MicroService) SetMyFocusServiceInfo(ctx context.Context, namespace, svc
 		return nil
 	} else {
 		//not Focus
-		_, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).DeleteOne(mongoCtx, filter)
+		_, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).DeleteOne(mongoCtx, filter)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetServiceRl)).Msg("Failed to delete  EndPoints to mongo")
 			return err
@@ -219,7 +219,7 @@ func (m *MicroService) GetServiceInfo(ctx context.Context, namespace, svcname, u
 	}
 	var service model.PodServiceRelation
 
-	err := m.mongodb.Collection(model.PodServiceRelationCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&service)
+	err := m.mongodb.Get().Collection(model.PodServiceRelationCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&service)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -230,25 +230,25 @@ func (m *MicroService) GetServiceInfo(ctx context.Context, namespace, svcname, u
 		Namespace: service.Namespace,
 		Name:      service.Name,
 	}
-	ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb, service.Namespace, service.Name)
+	ResNameSlice, err := assets.GetResNameFromServiceRelation(m.mongodb.Get(), service.Namespace, service.Name)
 	result.ResName = ResNameSlice
 	if err != nil {
 		logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 	}
 
-	IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb, service.Namespace, service.Name, username)
+	IsFocus, err := assets.GetFocusFromServiceRelation(m.mongodb.Get(), service.Namespace, service.Name, username)
 	result.IsFocus = IsFocus
 	if err != nil {
 		logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResName error: %+v", err))
 	}
 
-	Repository, err := assets.GetServiceRepository(m.mongodb, namespace, svcname)
+	Repository, err := assets.GetServiceRepository(m.mongodb.Get(), namespace, svcname)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get podName from service info : %w", err))
 	}
 	result.Repository = Repository
-	alias, err := assets.GetAliasName(m.mongodb, namespace, svcname)
+	alias, err := assets.GetAliasName(m.mongodb.Get(), namespace, svcname)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg(fmt.Sprintf("get serive ResNalias name error: %+v", err))
 		result.AliasName = ""
@@ -277,7 +277,7 @@ func (m *MicroService) GetServiceInfo(ctx context.Context, namespace, svcname, u
 func (m *MicroService) GetUserNameInfo(ctx context.Context, search string) ([]string, error) {
 
 	var user []model.User
-	m.postgresDB.Where("name LIKE '%?%'", search).Find(&user)
+	m.postgresDB.Get().Where("name LIKE '%?%'", search).Find(&user)
 	nameClice := make([]string, 0)
 	for _, v := range user {
 		nameClice = append(nameClice, v.UserName)
@@ -296,7 +296,7 @@ func (m *MicroService) SetRespServiceInfo(ctx context.Context, namespace, svcnam
 	}
 	opt := options.Find()
 	opt.SetMaxTime(2 * time.Second)
-	cur, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -315,7 +315,7 @@ func (m *MicroService) SetRespServiceInfo(ctx context.Context, namespace, svcnam
 				"resName":   serviceRl.ResName,
 			}
 			//not Focus
-			_, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).DeleteOne(mongoCtx, filter)
+			_, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).DeleteOne(mongoCtx, filter)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to delete  EndPoints to mongo")
 				return err
@@ -338,7 +338,7 @@ func (m *MicroService) SetRespServiceInfo(ctx context.Context, namespace, svcnam
 
 		update := bson.M{"$set": assetServiceRl}
 		opts := options.Update().SetUpsert(true)
-		_, err := m.mongodb.Collection(model.ServiceRelationCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+		_, err := m.mongodb.Get().Collection(model.ServiceRelationCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetServiceRl)).Msg("Failed to upsert assetServiceRl to mongo")
 		}
@@ -354,7 +354,7 @@ func (m *MicroService) SetAliasName(ctx context.Context, namespace, svcname, ali
 		"namespace": namespace,
 		"name":      svcname,
 	}
-	_, err := m.mongodb.Collection(model.ServiceAliasCollection.String()).DeleteMany(mongoCtx, filter)
+	_, err := m.mongodb.Get().Collection(model.ServiceAliasCollection.String()).DeleteMany(mongoCtx, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to delete  EndPoints to mongo")
 		return err
@@ -374,7 +374,7 @@ func (m *MicroService) SetAliasName(ctx context.Context, namespace, svcname, ali
 
 	update := bson.M{"$set": assetServiceAlias}
 	opts := options.Update().SetUpsert(true)
-	_, err = m.mongodb.Collection(model.ServiceAliasCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+	_, err = m.mongodb.Get().Collection(model.ServiceAliasCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetServiceAlias)).Msg("Failed to upsert assetServiceRl to mongo")
 		return err

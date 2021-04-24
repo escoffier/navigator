@@ -24,6 +24,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -44,7 +45,7 @@ import (
 type Scapper struct {
 	DockerRepoHostPort string
 	DockerRepoScapTag  string
-	MongoDB            *mongo.Database
+	MongoDB            *mongotools.DatabaseWrapper
 	MongoEndpoint      string
 	MongoUsername      string
 	MongoPassword      string
@@ -149,11 +150,16 @@ func (s *Scapper) RunExportFileTask(
 	task *model.ExportTask,
 	language lang.LanguageType,
 ) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	file := xlsx.NewFile()
 	defer file.Save(task.FileName)
 	// query all data by checkId
 	filter := bson.M{"checkId": task.CheckId}
-	cur, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+
+	opts := options.Find().SetMaxTime(1 * time.Second)
+	cur, err := s.MongoDB.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, opts)
 	if err != nil {
 		return fmt.Errorf("query all data byb checkId failed, %v", err)
 	}
@@ -182,7 +188,7 @@ func (s *Scapper) RunExportFileTask(
 	}
 	//update mongo data
 	update := bson.M{"$set": bson.M{"status": task.Status, "finishedAt": finishedAt}}
-	_, errdb := s.MongoDB.Collection(model.ExportFileTaskCollection.String()).UpdateOne(ctx, bson.M{"checkId": task.CheckId}, update)
+	_, errdb := s.MongoDB.Get().Collection(model.ExportFileTaskCollection.String()).UpdateOne(ctx, bson.M{"checkId": task.CheckId}, update)
 	if errdb != nil {
 		err = fmt.Errorf("run export task failed, %v, update status failed, %v", err, errdb)
 		logging.GetLogger().Error().Err(err).Msg("update export file task state failed!")
@@ -204,7 +210,8 @@ func (s *Scapper) removeOrphanedInProgressJobsAndSeeIfAnyRemain(ctx context.Cont
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
-	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(mongoCtx, filter)
+	opts := options.Find().SetMaxTime(2 * time.Second)
+	cursor, err := s.MongoDB.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(mongoCtx, filter, opts)
 	if err != nil {
 		return true, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - can't list in-progress checks: %w", err))
 	}
@@ -521,7 +528,8 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 		Status:    model.ComplianceCheckStatusInProgress,
 		CreatedAt: secs,
 	}
-	err := s.MongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	mongoDB := s.MongoDB.Get()
+	err := mongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -529,7 +537,7 @@ func (s *Scapper) mongoAddJobStatusInProgress(ctx context.Context, check *scappe
 
 		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
-		_, sessionError = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
+		_, sessionError = mongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).InsertOne(ctx, entry)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed insert to mongo: %w", sessionError))
 		}
@@ -560,7 +568,8 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 		"message":         msg,
 		"audit_timestamp": time.Now(),
 	}}
-	err := s.MongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	mongoDB := s.MongoDB.Get()
+	err := mongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -568,7 +577,7 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 
 		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
-		_, sessionError = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
+		_, sessionError = mongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(ctx, filter, update)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update scap job document: %w", sessionError))
 		}
@@ -589,7 +598,7 @@ func (s *Scapper) mongoJobStatusToFailed(ctx context.Context, check *scapper.Che
 func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, nodeName string) error {
 	filter := bson.M{"checkId": check.CheckUUID.String()}
 	findOptions := options.Find().SetMaxTime(time.Second * 10)
-	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).Find(ctx, filter, findOptions)
+	cursor, err := s.MongoDB.Get().Collection(model.GetMongoCollectionForCheckType(check.CheckType)).Find(ctx, filter, findOptions)
 	if err != nil {
 		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to find documents: %w", err))
 	}
@@ -597,7 +606,7 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 
 	checkFindOneOptions := options.FindOne().SetMaxTime(time.Second * 10)
 	var oldCheckHistory model.CheckHistoryEntry
-	res := s.MongoDB.Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, checkFindOneOptions)
+	res := s.MongoDB.Get().Collection(model.CheckHistoryEntryCollection.String()).FindOne(ctx, filter, checkFindOneOptions)
 	var checkHistory model.CheckHistoryEntry
 	if res.Err() != nil {
 		if res.Err() == mongo.ErrNoDocuments {
@@ -801,7 +810,7 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, n
 	filter = bson.M{"checkId": check.CheckUUID.String()}
 	update := bson.M{"$set": checkHistory}
 	opts := options.Update().SetUpsert(true)
-	_, err = s.MongoDB.Collection(model.CheckHistoryEntryCollection.String()).UpdateOne(ctx, filter, update, opts)
+	_, err = s.MongoDB.Get().Collection(model.CheckHistoryEntryCollection.String()).UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", err))
 	}
@@ -959,7 +968,7 @@ func (s *Scapper) containerLogsToMongo(ctx context.Context, kubeClient *kubernet
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
-	_, err = s.MongoDB.Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(mongoCtx, filter, update, opts)
+	_, err = s.MongoDB.Get().Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		return fmt.Errorf("Failed to upsert container logs: %w", err)
 	}
@@ -1058,7 +1067,7 @@ func (s Scapper) GetJobEntriesForCheck(
 		filter["status"] = status
 	}
 
-	cursor, err := s.MongoDB.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
+	cursor, err := s.MongoDB.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter)
 	if err != nil {
 		return []model.JobEntry{}, NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find documents: %w", err))

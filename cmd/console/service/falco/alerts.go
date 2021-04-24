@@ -12,10 +12,10 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -35,12 +35,12 @@ type FalcoAlertRequest struct {
 }
 
 type FalcoService struct {
-	mongo     *mongo.Database
+	mongo     *mongotools.DatabaseWrapper
 	aggrCache *alertsSvc.AlertAggrCache
 	mutex     *sync.Mutex
 }
 
-func NewFalcoService(mongodb *mongo.Database) *FalcoService {
+func NewFalcoService(mongodb *mongotools.DatabaseWrapper) *FalcoService {
 	return &FalcoService{
 		mongo:     mongodb,
 		aggrCache: alertsSvc.NewAlertAggrCache(10, cacheReadTTLSec, cacheWriteTTLSec),
@@ -164,7 +164,7 @@ func (f *FalcoService) RaiseAlert(ctx context.Context, rawAlert *FalcoAlertReque
 			logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s and got value: %v", rawAlert.Rule, *idPtr)
 			filter := bson.M{"_id": *idPtr}
 
-			queryResult := f.mongo.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+			queryResult := f.mongo.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 
 			if queryResult.Err() == nil {
 				alert = &model.Alert{}
@@ -222,7 +222,7 @@ func (f *FalcoService) RaiseAlert(ctx context.Context, rawAlert *FalcoAlertReque
 				filter := bson.M{"_id": *idPtr}
 				update := bson.M{"$set": alert}
 
-				_, err := f.mongo.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
+				_, err := f.mongo.Get().Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("Failed to update falco alert: %w", err)
 				} else {
@@ -269,7 +269,7 @@ func (f *FalcoService) RaiseAlert(ctx context.Context, rawAlert *FalcoAlertReque
 			}
 			now := time.Now()
 			newAlert.HistoricisedTimestamp = now
-			_, err := f.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
+			_, err := f.mongo.Get().Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
 			if err != nil {
 				return NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to insert falco alert: %w", err))

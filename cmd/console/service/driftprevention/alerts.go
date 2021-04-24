@@ -12,10 +12,10 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -45,12 +45,12 @@ type DriftPreventionAlertRequest struct {
 }
 
 type DriftPreventionService struct {
-	mongo     *mongo.Database
+	mongo     *mongotools.DatabaseWrapper
 	aggrCache *alertsSvc.AlertAggrCache
 	mutex     *sync.Mutex
 }
 
-func NewDriftPreventionService(mongodb *mongo.Database) *DriftPreventionService {
+func NewDriftPreventionService(mongodb *mongotools.DatabaseWrapper) *DriftPreventionService {
 	return &DriftPreventionService{
 		mongo:     mongodb,
 		aggrCache: alertsSvc.NewAlertAggrCache(10, cacheReadTTLSec, cacheWriteTTLSec),
@@ -114,7 +114,7 @@ func (dp *DriftPreventionService) RaiseAlert(ctx context.Context, rawAlert *Drif
 			logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s:%s and got value: %v", rawAlert.Action, rawAlert.Filepath, *idPtr)
 			filter := bson.M{"_id": *idPtr}
 
-			queryResult := dp.mongo.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+			queryResult := dp.mongo.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 
 			if queryResult.Err() == nil {
 				alert = new(model.Alert)
@@ -164,7 +164,7 @@ func (dp *DriftPreventionService) RaiseAlert(ctx context.Context, rawAlert *Drif
 				filter := bson.M{"_id": *idPtr}
 
 				update := bson.M{"$set": alert}
-				_, err := dp.mongo.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
+				_, err := dp.mongo.Get().Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("Failed to update drift prevention alert: %w", err)
 				} else {
@@ -204,7 +204,7 @@ func (dp *DriftPreventionService) RaiseAlert(ctx context.Context, rawAlert *Drif
 			}
 			now := time.Now()
 			newAlert.HistoricisedTimestamp = now
-			_, err := dp.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
+			_, err := dp.mongo.Get().Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
 			if err != nil {
 				return NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to insert drift prevention alert: %w", err))

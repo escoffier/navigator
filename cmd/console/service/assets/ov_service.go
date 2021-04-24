@@ -15,10 +15,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
-	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/mgo.v2/bson"
 	corev1 "k8s.io/api/core/v1"
@@ -30,7 +29,7 @@ var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
 type OnlineVulnsService struct {
 	sync.RWMutex
 
-	mongoDB          *mongo.Database
+	mongoDB          *mongotools.DatabaseWrapper
 	clusterCallbacks map[string]*OnlineVulnsClusterCallback
 	syncedClusters   map[string]struct{}
 }
@@ -41,7 +40,7 @@ type OnlineVulnsClusterCallback struct {
 	refreshTimestamp int64
 }
 
-func NewOnlineVulnsService(mongo *mongo.Database) *OnlineVulnsService {
+func NewOnlineVulnsService(mongo *mongotools.DatabaseWrapper) *OnlineVulnsService {
 	return &OnlineVulnsService{
 		mongoDB:          mongo,
 		clusterCallbacks: make(map[string]*OnlineVulnsClusterCallback, 2),
@@ -61,11 +60,11 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 		},
 	}
 
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
+	findOptions := options.Find().SetMaxTime(time.Second * 5)
 
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*5)
 	defer mongoCtxCancel()
-	cursor, err := cb.mongoDB.Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
+	cursor, err := cb.mongoDB.Get().Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
@@ -76,7 +75,7 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 		}
 	}()
 
-	onlineVulns := make(map[string]*OnlineVulnListItem)
+	onlineVulns := make(map[string]*OnlineVulnListItem, 100)
 
 	for cursor.Next(ctx) {
 		var container model.AssetContainer
@@ -202,7 +201,7 @@ func (cb *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context,
 
 	if resourceKind == "service" {
 		//get pod name
-		podNameSlice, err := assets.GetPodNamesFromService(cb.mongoDB, cluster, namespace, resourceName)
+		podNameSlice, err := assets.GetPodNamesFromService(cb.mongoDB.Get(), cluster, namespace, resourceName)
 		if err != nil {
 			return nil, apperror.NewMongoError(http.StatusInternalServerError,
 				fmt.Errorf("Couldn't get podName from service info : %w", err))
@@ -215,10 +214,10 @@ func (cb *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context,
 		}
 	}
 
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	findOptions := options.Find().SetMaxTime(time.Second * 1)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*1)
 	defer mongoCtxCancel()
-	cursor, err := cb.mongoDB.Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
+	cursor, err := cb.mongoDB.Get().Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))
@@ -372,7 +371,7 @@ func (cb *OnlineVulnsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, act
 		owner := metav1.GetControllerOf(oldPod)
 
 		for _, container := range oldPod.Status.ContainerStatuses {
-			assets.UpdateAsset(cb.parent.mongoDB, cb.cluster, oldPod, &container, owner, true)
+			assets.UpdateAsset(cb.parent.mongoDB.Get(), cb.cluster, oldPod, &container, owner, true)
 		}
 	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
 		if newPod == nil {
@@ -382,7 +381,7 @@ func (cb *OnlineVulnsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, act
 
 		// TODO: Do we care about InitContainer statuses?
 		for _, container := range newPod.Status.ContainerStatuses {
-			assets.UpdateAsset(cb.parent.mongoDB, cb.cluster, newPod, &container, owner, false)
+			assets.UpdateAsset(cb.parent.mongoDB.Get(), cb.cluster, newPod, &container, owner, false)
 		}
 	}
 
@@ -406,77 +405,27 @@ func (cb *OnlineVulnsClusterCallback) AfterDataSynced(ctx context.Context, dataS
 }
 
 // don't delete expired assets, for we can have the ability to trace
-func (cb *OnlineVulnsClusterCallback) markInactiveAssetContainers(ctx context.Context) (int, error) {
-	var numMarked = 0
-	err := cb.parent.mongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
-		}
-
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-
-		// mark all entries that we didn't witness at the start of watcher as deleted.
-		filter := bson.M{
-			"isDeleted":      false,
-			"lastUpdateTime": bson.M{"$lt": cb.refreshUnixTimestamp()},
-		}
-
-		findOptions := options.Find().SetMaxTime(time.Second * 10)
-		var cursor *mongo.Cursor
-		cursor, sessionError = cb.parent.mongoDB.Collection(model.AssetsContainersCollection.String()).Find(sessionContext, filter, findOptions)
-		if sessionError != nil {
-			return apperror.NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Couldn't get containers: %w", sessionError))
-		}
-		defer func() {
-			if sessionError = cursor.Close(sessionContext); sessionError != nil {
-				logging.GetLogger().Error().Err(sessionError).Msg("When closing cursor, but ignoring.")
-			}
-		}()
-
-		for cursor.Next(sessionContext) {
-			var container model.AssetContainer
-			sessionError = cursor.Decode(&container)
-			if sessionError != nil {
-				return apperror.NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't decode document: %w", sessionError))
-			}
-
-			filter := bson.M{
-				"$and": []bson.M{
-					{"podName": container.PodName},
-					{"name": container.Name},
-				},
-			}
-
-			container.IsDeleted = true
-			container.HistoricisedTimestamp = time.Now()
-
-			update := bson.M{"$set": container}
-			opts := options.Update().SetUpsert(true)
-
-			_, sessionError = cb.parent.mongoDB.Collection(model.AssetsContainersCollection.String()).UpdateOne(sessionContext, filter, update, opts)
-			if sessionError != nil {
-				return apperror.NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to upsert assetContainer to mongo: %w", sessionError))
-			}
-
-			numMarked++
-		}
-
-		sessionError = cursor.Err()
-		if sessionError != nil {
-			return apperror.NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Cursor error: %w", sessionError))
-		}
-		return nil
-	})
+func (cb *OnlineVulnsClusterCallback) markInactiveAssetContainers(ctx context.Context) error {
+	// mark all entries that we didn't witness at the start of watcher as deleted.
+	filter := bson.M{
+		"isDeleted":      false,
+		"lastUpdateTime": bson.M{"$lt": cb.refreshUnixTimestamp()},
+	}
+	monCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	update := bson.M{
+		"$set": bson.M{
+			"isDeleted":              true,
+			"historicised_timestamp": time.Now(),
+		},
+	}
+	_, err := cb.parent.mongoDB.Get().Collection(model.AssetsContainersCollection.String()).UpdateMany(monCtx, filter, update)
 	if err != nil {
-		return 0, err
+		return apperror.NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("couldn't get containers: %w", err))
 	}
 
-	return numMarked, nil
+	return nil
 }
 
 func (cb *OnlineVulnsClusterCallback) Name() string {

@@ -15,7 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"go.mongodb.org/mongo-driver/mongo"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -25,7 +25,7 @@ var (
 	initOnce  sync.Once
 )
 
-func InitAndGetRiskExplorerService(mongoDB *mongo.Database, onlineVulnsSvc *assetsSvc.OnlineVulnsService) *RiskExplorerService {
+func InitAndGetRiskExplorerService(mongoDB *mongotools.DatabaseWrapper, onlineVulnsSvc *assetsSvc.OnlineVulnsService) *RiskExplorerService {
 	initOnce.Do(func() {
 		singleton = &RiskExplorerService{
 			mongoDB:        mongoDB,
@@ -113,7 +113,7 @@ type ServiceDetails interface {
 }
 
 type RiskExplorerService struct {
-	mongoDB        *mongo.Database
+	mongoDB        *mongotools.DatabaseWrapper
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
 	reporters      []RiskTypeReporter
 }
@@ -268,9 +268,9 @@ func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeTy
 	var err error
 	switch nodeType {
 	case model.NodeTypeService:
-		podNames, err = assets.GetPodNamesFromService(s.mongoDB, cluster, namespace, service)
+		podNames, err = assets.GetPodNamesFromService(s.mongoDB.Get(), cluster, namespace, service)
 	case model.NodeTypeOwnerRef:
-		podNames, _, err = assets.GetPodNamesFromOwnerRef(s.mongoDB, cluster, namespace, service)
+		podNames, _, err = assets.GetPodNamesFromOwnerRef(s.mongoDB.Get(), cluster, namespace, service)
 
 	}
 	filter := bson.M{
@@ -279,10 +279,10 @@ func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeTy
 		"namespace": namespace,
 		"podName":   bson.M{"$in": podNames},
 	}
-	findOptions := options.Find().SetMaxTime(time.Second * 10)
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	findOptions := options.Find().SetMaxTime(time.Second * 1)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*1)
 	defer mongoCtxCancel()
-	cursor, err := s.mongoDB.Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
+	cursor, err := s.mongoDB.Get().Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
 	if err != nil {
 		return nil, apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't get containers: %w", err))

@@ -295,7 +295,7 @@ func (s *Scapper) generateAlerts(ctx context.Context, check *scapper.Check) erro
 	}()
 
 	for _, complianceAlert := range alertsToReport {
-		_, err = s.MongoDB.Collection(model.AlertsCollection.String()).InsertOne(ctx, complianceAlert)
+		_, err = s.MongoDB.Get().Collection(model.AlertsCollection.String()).InsertOne(ctx, complianceAlert)
 		if err != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", complianceAlert, err))
 		}

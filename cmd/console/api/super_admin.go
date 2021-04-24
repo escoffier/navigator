@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-chi/jwtauth"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"net/http"
 	"regexp"
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/jwtauth"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -39,7 +40,7 @@ func (api *api) userList() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		docNum, userList, err := model.SelectUserAll(api.postgresDB, limit, offset)
+		docNum, userList, err := model.SelectUserAll(ctx, api.postgresDB, limit, offset)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusInternalServerError,
@@ -74,7 +75,7 @@ func (api *api) userModule() http.HandlerFunc {
 		}
 
 		username, _ := claims[JWT_KEY_USERNAME].(string)
-		_, u, err := model.SelectUser(api.postgresDB, username)
+		_, u, err := model.SelectUser(r.Context(), api.postgresDB, username)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewInvalidAuthToken(http.StatusUnauthorized,
@@ -84,14 +85,17 @@ func (api *api) userModule() http.HandlerFunc {
 
 		if username == model.SUPER_ADMIN {
 
-			mdgroup := model.GetAdminModuleGroup(api.postgresDB)
+			mdgroup := model.GetAdminModuleGroup(r.Context(), api.postgresDB)
 			response.Ok(w, response.WithItems(mdgroup))
 		} else {
 
 			//get model
-			mdgroup := model.GetModuleGroup(api.postgresDB, u.ModuleID)
-
-			response.Ok(w, response.WithItems(mdgroup))
+			mdgroup, err := model.GetModuleGroup(r.Context(), api.postgresDB, u.ModuleID)
+			if err == nil {
+				response.Ok(w, response.WithItems(mdgroup))
+			} else {
+				RespAndLog(w, r.Context(), PostgresError(500, err))
+			}
 		}
 	}
 }
@@ -169,8 +173,8 @@ func (api *api) addUser() http.HandlerFunc {
 
 		}
 
-		tx := api.postgresDB.Begin()
-		exist, _, err := model.SelectUser(api.postgresDB, rq.UserName)
+		tx := api.postgresDB.Get().Begin()
+		exist, _, err := model.SelectUser(ctx, api.postgresDB, rq.UserName)
 		if err != nil {
 			tx.Rollback()
 			RespAndLog(w, ctx,
@@ -200,7 +204,7 @@ func (api *api) addUser() http.HandlerFunc {
 					SendmailError(http.StatusInternalServerError, fmt.Errorf("send email error")))
 				return
 			}
-			err = model.InsertEmail(api.postgresDB, rq.UserName, emailHashCode)
+			err = model.InsertEmail(r.Context(), api.postgresDB, rq.UserName, emailHashCode)
 			if err != nil {
 				tx.Rollback()
 				RespAndLog(w, ctx,
@@ -208,7 +212,7 @@ func (api *api) addUser() http.HandlerFunc {
 				return
 			}
 
-			err = model.InsertUser(api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+			err = model.InsertUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
 			if err != nil {
 				tx.Rollback()
 				RespAndLog(w, ctx,
@@ -216,14 +220,14 @@ func (api *api) addUser() http.HandlerFunc {
 				return
 			}
 		} else {
-			err := model.InsertUser(api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+			err := model.InsertUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
 			if err != nil {
 				RespAndLog(w, ctx,
 					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
 				return
 			}
 
-			err = model.ActiveUser(api.postgresDB, rq.UserName, model.DEFAULT_PWD)
+			err = model.ActiveUser(r.Context(), api.postgresDB, rq.UserName, model.DEFAULT_PWD)
 			if err != nil {
 				RespAndLog(w, ctx,
 					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -242,7 +246,7 @@ func (api *api) delSuperUser() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 		token, claims, err := jwtauth.FromContext(r.Context())
 
@@ -267,7 +271,7 @@ func (api *api) delSuperUser() http.HandlerFunc {
 			return
 		}
 
-		err = model.DelSuperUser(api.postgresDB, username)
+		err = model.DelSuperUser(ctx, api.postgresDB, username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -307,7 +311,7 @@ func (api *api) editUser() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
-		token, claims, err := jwtauth.FromContext(r.Context())
+		token, claims, err := jwtauth.FromContext(ctx)
 
 		if err != nil {
 			RespAndLog(w, r.Context(),
@@ -341,7 +345,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		exist, queryUser, err := model.SelectUser(api.postgresDB, rq.UserName)
+		exist, queryUser, err := model.SelectUser(ctx, api.postgresDB, rq.UserName)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -359,7 +363,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		err = model.UpdateUser(api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+		err = model.UpdateUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -367,7 +371,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		var findUser *model.User
-		_, findUser, err = model.SelectUser(api.postgresDB, rq.UserName)
+		_, findUser, err = model.SelectUser(ctx, api.postgresDB, rq.UserName)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -382,6 +386,10 @@ func (api *api) editUser() http.HandlerFunc {
 
 func VerifyEmailFormat(email string, opts *flag.EmailOpts) bool {
 	pattern := fmt.Sprintf(`\w+([-+.]\w+)*@%s`, opts.Suffix)
-	reg := regexp.MustCompile(pattern)
+	reg, err := regexp.Compile(pattern)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("verify email compile expr error")
+		return false
+	}
 	return reg.MatchString(email)
 }

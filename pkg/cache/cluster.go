@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"time"
 
 	"github.com/go-redis/redis/v8"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -17,13 +18,13 @@ import (
 
 type ClustersCache struct {
 	ctx     context.Context
-	mongodb *mongo.Database
+	mongodb *mongotools.DatabaseWrapper
 	ch      *util.CacheHelper
 }
 
 func NewClustersCache(
 	ctx context.Context,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	redisClient *redis.Client,
 ) *ClustersCache {
 
@@ -43,14 +44,14 @@ func NewClustersCache(
 }
 
 func (c *ClustersCache) getClustersNewestEntryTimestamp() (int64, error) {
-	ctx, cancel := context.WithTimeout(c.ctx, util.MongoTimeout)
+	ctx, cancel := context.WithTimeout(c.ctx, 2*time.Second)
 	defer cancel()
 	filter := bson.M{}
 
-	findOptions := options.FindOne()
+	findOptions := options.FindOne().SetMaxTime(1 * time.Second)
 	findOptions.SetSort(bson.D{{"created_at", -1}})
 
-	singleResult := c.mongodb.Collection(model.ClusterCollection.String()).FindOne(ctx, filter, findOptions)
+	singleResult := c.mongodb.Get().Collection(model.ClusterCollection.String()).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return -1, nil
@@ -66,10 +67,10 @@ func (c *ClustersCache) getClustersNewestEntryTimestamp() (int64, error) {
 
 	createdAt := cluster.CreatedAt.Unix()
 
-	findOptions = options.FindOne()
+	findOptions = options.FindOne().SetMaxTime(500 * time.Millisecond)
 	findOptions.SetSort(bson.D{{"deleted_at", -1}})
 
-	singleResult = c.mongodb.Collection(model.ClusterCollection.String()).FindOne(ctx, filter, findOptions)
+	singleResult = c.mongodb.Get().Collection(model.ClusterCollection.String()).FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
 			return -1, nil
@@ -95,7 +96,7 @@ func (c *ClustersCache) getClustersData() ([]model.CacheEntry, error) {
 	findOptions := options.FindOptions{}
 	findOptions.SetSort(bson.D{{"createdAt", -1}})
 
-	clusterIds, err := dataToIds(c.ctx, filter, &findOptions, c.mongodb.Collection(model.ClusterCollection.String()))
+	clusterIds, err := dataToIds(c.ctx, filter, &findOptions, c.mongodb.Get().Collection(model.ClusterCollection.String()))
 	if err != nil {
 		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not get ids to cache: %w", err))
 	}

@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
-	"github.com/jinzhu/gorm"
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
@@ -35,13 +34,14 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"go.mongodb.org/mongo-driver/mongo"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 func setupChiRouter(
 	ctx context.Context,
-	mongodb *mongo.Database,
-	postgresDB *gorm.DB,
+	mongodb *mongotools.DatabaseWrapper,
+	postgresDB *rdbtools.GormWrapper,
 	es *elastic.Client,
 	scapper *scapper.Scapper,
 	scannerURL string,
