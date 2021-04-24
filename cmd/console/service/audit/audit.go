@@ -8,18 +8,19 @@ import (
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type AuditService struct {
-	mongodb *mongo.Database
+	mongodb *mongotools.DatabaseWrapper
 }
 
 func NewAuditService(
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 ) *AuditService {
 	return &AuditService{
 		mongodb: mongodb,
@@ -30,7 +31,8 @@ func (s *AuditService) GetAuditConfig(ctx context.Context) (*model.AuditConfig, 
 	var queryAuditConfig model.AuditConfig
 	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
-	queryResult := s.mongodb.Collection(model.AuditCollection.String()).FindOne(ctx, filter)
+	opts := options.FindOne().SetMaxTime(500 * time.Millisecond)
+	queryResult := s.mongodb.Get().Collection(model.AuditCollection.String()).FindOne(ctx, filter, opts)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewAuditConfigDoesntExistError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
@@ -48,7 +50,7 @@ func (s *AuditService) GetAuditConfig(ctx context.Context) (*model.AuditConfig, 
 func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.AuditConfig) (*model.AuditConfig, error) {
 	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -56,7 +58,7 @@ func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.Au
 
 		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
-		queryResult := s.mongodb.Collection(model.AuditCollection.String()).FindOne(sessionContext, filter)
+		queryResult := s.mongodb.Get().Collection(model.AuditCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			if sessionError != mongo.ErrNoDocuments {
@@ -71,7 +73,7 @@ func (s *AuditService) AddAuditConfig(ctx context.Context, auditConfig *model.Au
 
 		auditConfig.CreatedAt = time.Now()
 
-		_, sessionError = s.mongodb.Collection(model.AuditCollection.String()).InsertOne(sessionContext, auditConfig)
+		_, sessionError = s.mongodb.Get().Collection(model.AuditCollection.String()).InsertOne(sessionContext, auditConfig)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
 		}
@@ -93,7 +95,7 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 		return nil, NewAuditConfigError(http.StatusBadRequest, fmt.Errorf("Both cold and hot storage expiration date need to be passed"))
 	}
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -101,7 +103,7 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 
 		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
 
-		queryResult := s.mongodb.Collection(model.AuditCollection.String()).FindOne(sessionContext, filter)
+		queryResult := s.mongodb.Get().Collection(model.AuditCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			if sessionError == mongo.ErrNoDocuments {
@@ -118,7 +120,7 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 		oldAuditConfig.HistoricisedTimestamp = time.Now()
 		update := bson.M{"$set": oldAuditConfig}
 
-		_, sessionError = s.mongodb.Collection(model.AuditCollection.String()).UpdateOne(sessionContext, filter, update)
+		_, sessionError = s.mongodb.Get().Collection(model.AuditCollection.String()).UpdateOne(sessionContext, filter, update)
 		if sessionError != nil {
 			if sessionError == mongo.ErrNoDocuments {
 				return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", sessionError))
@@ -126,7 +128,7 @@ func (s *AuditService) UpdateAuditConfig(ctx context.Context, upAuditConfig *mod
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", sessionError))
 		}
 
-		_, sessionError = s.mongodb.Collection(model.AuditCollection.String()).InsertOne(sessionContext, upAuditConfig)
+		_, sessionError = s.mongodb.Get().Collection(model.AuditCollection.String()).InsertOne(sessionContext, upAuditConfig)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
 		}

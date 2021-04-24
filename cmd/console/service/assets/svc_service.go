@@ -10,7 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"go.mongodb.org/mongo-driver/mongo"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gopkg.in/mgo.v2/bson"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -20,7 +20,7 @@ var (
 	saInitOnce  sync.Once
 )
 
-func InitAndGetServiceAssetsService(mongo *mongo.Database) (*ServiceAssetsService, error) {
+func InitAndGetServiceAssetsService(mongo *mongotools.DatabaseWrapper) (*ServiceAssetsService, error) {
 	if mongo == nil {
 		return nil, errors.New("no mongoDB given to init serviceAssetsService")
 	}
@@ -37,7 +37,7 @@ func GetServiceAssetsService() (*ServiceAssetsService, bool) {
 type ServiceAssetsService struct {
 	sync.RWMutex
 
-	mongoDB *mongo.Database
+	mongoDB *mongotools.DatabaseWrapper
 
 	psCache *assets.PodServiceCache
 
@@ -50,7 +50,7 @@ type ServiceAssetsClusterCallback struct {
 	refreshTimestamp int64
 }
 
-func newServiceAssetsService(mongo *mongo.Database) *ServiceAssetsService {
+func newServiceAssetsService(mongo *mongotools.DatabaseWrapper) *ServiceAssetsService {
 	return &ServiceAssetsService{
 		mongoDB:        mongo,
 		psCache:        assets.NewPodServiceCache(),
@@ -108,7 +108,7 @@ func (cb *ServiceAssetsClusterCallback) refreshTime() time.Time {
 
 func (cb *ServiceAssetsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
 	// update mongo storage if there are no service from endpoints.
-	err := assets.OnPodEventForService(cb.parent.mongoDB, cb.cluster, newPod, oldPod, action)
+	err := assets.OnPodEventForService(cb.parent.mongoDB.Get(), cb.cluster, newPod, oldPod, action)
 
 	cerr := cb.parent.psCache.OnPodForServiceEvent(cb.cluster, newPod, oldPod, action)
 
@@ -119,12 +119,12 @@ func (cb *ServiceAssetsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, a
 }
 func (cb *ServiceAssetsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
 	// update mongo storage if there are no service from endpoints.
-	err := assets.OnServiceEvent(cb.parent.mongoDB, cb.cluster, newSvc, oldEvc, action)
+	err := assets.OnServiceEvent(cb.parent.mongoDB.Get(), cb.cluster, newSvc, oldEvc, action)
 	return err
 }
 func (cb *ServiceAssetsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
 	// update mongo storage
-	err := assets.OnEndpointsEvent(cb.parent.mongoDB, cb.cluster, newEpt, oldEpt, action)
+	err := assets.OnEndpointsEvent(cb.parent.mongoDB.Get(), cb.cluster, newEpt, oldEpt, action)
 
 	// update memory cache
 	cerr := cb.parent.psCache.OnEndpointsEvent(cb.cluster, newEpt, oldEpt, action)
@@ -143,18 +143,18 @@ func (cb *ServiceAssetsClusterCallback) AfterDataSynced(ctx context.Context, dat
 }
 
 func (cb *ServiceAssetsClusterCallback) expireInactiveServiceEndpoints(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
 	filter := bson.M{
 		"cluster":                cb.cluster,
 		"historicised_timestamp": bson.M{"$lt": cb.refreshTime()},
 	}
-	_, err := cb.parent.mongoDB.Collection(model.PodServiceRelationCollection.String()).DeleteMany(ctx, filter)
+	_, err := cb.parent.mongoDB.Get().Collection(model.PodServiceRelationCollection.String()).DeleteMany(ctx, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("delete pod service collections error for cluster %s", cb.cluster)
 	}
-	_, err = cb.parent.mongoDB.Collection(model.PodOwnerRefRelationCollection.String()).DeleteMany(ctx, filter)
+	_, err = cb.parent.mongoDB.Get().Collection(model.PodOwnerRefRelationCollection.String()).DeleteMany(ctx, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("delete pod owner collections error for cluster %s", cb.cluster)
 	}
@@ -164,7 +164,7 @@ func (cb *ServiceAssetsClusterCallback) expireInactiveServiceEndpoints(ctx conte
 		"updatedAt": bson.M{"$lt": cb.refreshTime()},
 	}
 
-	_, err = cb.parent.mongoDB.Collection(model.TensorServiceCollection.String()).DeleteMany(ctx, filter)
+	_, err = cb.parent.mongoDB.Get().Collection(model.TensorServiceCollection.String()).DeleteMany(ctx, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("delete Tensor service collections error for cluster %s", cb.cluster)
 	}

@@ -6,16 +6,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tealeg/xlsx"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-
 	"github.com/go-redis/redis/v8"
+	"github.com/tealeg/xlsx"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -23,7 +22,7 @@ import (
 )
 
 type ScapService struct {
-	mongodb         *mongo.Database
+	mongodb         *mongotools.DatabaseWrapper
 	kubeScapCache   *rcache.ScapCache
 	dockerScapCache *rcache.ScapCache
 	hostScapCache   *rcache.ScapCache
@@ -32,7 +31,7 @@ type ScapService struct {
 func NewScapService(
 	ctx context.Context,
 	redisClient *redis.Client,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 ) (*ScapService, error) {
 	kubeScapCache, err := rcache.NewScapCache(ctx, mongodb, redisClient, model.ComplianceCheckTargetTypeKube)
 	if err != nil {
@@ -99,8 +98,8 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, checkType model.Compl
 	opts.SetMaxTime(time.Second * 10)
 	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
 
-	coll := s.mongodb.Collection(model.CheckHistoryEntryCollection.String())
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	coll := s.mongodb.Get().Collection(model.CheckHistoryEntryCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mongoCtxCancel()
 
 	cur, err := coll.Find(mongoCtx, filter, opts)
@@ -130,11 +129,11 @@ func (s *ScapService) GetLatestHistory(
 ) (*model.CheckHistoryEntry, error) {
 	filter := bson.M{"checkType": string(checkType)}
 	opts := options.Find()
-	opts.SetMaxTime(time.Second * 10)
+	opts.SetMaxTime(time.Second * 2)
 	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
 
-	coll := s.mongodb.Collection(model.CheckHistoryEntryCollection.String())
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	coll := s.mongodb.Get().Collection(model.CheckHistoryEntryCollection.String())
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mongoCtxCancel()
 
 	cur, err := coll.Find(mongoCtx, filter, opts)
@@ -351,10 +350,10 @@ func (s *ScapService) getKubeNodeDetails(ctx context.Context, checkType, nodeNam
 	filter := bson.M{}
 	filter["checkId"] = checkID
 	filter["nodeName"] = nodeName
-	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	findOptions := options.FindOne().SetMaxTime(time.Second * 1)
 	//find node details
 	var complianceTest model.KubeJobEntry
-	col := s.mongodb.Collection(checkType)
+	col := s.mongodb.Get().Collection(checkType)
 	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
 	if err != nil {
 		return fmt.Errorf("decode node details failed, %w", err)
@@ -393,10 +392,10 @@ func (s *ScapService) getDockerNodeDetails(ctx context.Context, checkType, nodeN
 	filter := bson.M{}
 	filter["checkId"] = checkID
 	filter["nodeName"] = nodeName
-	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	findOptions := options.FindOne().SetMaxTime(time.Second * 1)
 	//find node details
 	var complianceTest model.DockerJobEntry
-	col := s.mongodb.Collection(checkType)
+	col := s.mongodb.Get().Collection(checkType)
 	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
 	if err != nil {
 		return fmt.Errorf("decode node details failed, %w", err)
@@ -433,10 +432,10 @@ func (s *ScapService) getHostNodeDetails(ctx context.Context, checkType, nodeNam
 	filter := bson.M{}
 	filter["checkId"] = checkID
 	filter["nodeName"] = nodeName
-	findOptions := options.FindOne().SetMaxTime(time.Second * 10)
+	findOptions := options.FindOne().SetMaxTime(time.Second * 1)
 	//find node details
 	var complianceTest model.HostJobEntry
-	col := s.mongodb.Collection(checkType)
+	col := s.mongodb.Get().Collection(checkType)
 	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
 	if err != nil {
 		return fmt.Errorf("decode node details failed, %w", err)

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/patrickmn/go-cache"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/patrickmn/go-cache"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -50,7 +50,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 
-		err = model.UpdateUserPwd(api.postgresDB, user.UserName, rq.Pwd)
+		err = model.UpdateUserPwd(ctx, api.postgresDB, user.UserName, rq.Pwd)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -85,23 +85,23 @@ func (api *api) loadUser() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 
-		u, err := model.GetUserByMongo(ctx, api.mongodb)
+		u, err := model.GetUserByMongo(ctx, api.mongodb.Get())
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
 			return
 		}
 		for _, v := range u {
-			bool, _, _ := model.SelectUser(api.postgresDB, v.UserName)
+			bool, _, _ := model.SelectUser(ctx, api.postgresDB, v.UserName)
 			if !bool {
-				err := model.InsertUser(api.postgresDB, v.UserName, model.ROLE_NORMAL, []string{"1"})
+				err := model.InsertUser(ctx, api.postgresDB, v.UserName, model.ROLE_NORMAL, []string{"1"})
 				if err != nil {
 					RespAndLog(w, ctx,
 						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
 					return
 				}
 
-				err = model.ActiveUser(api.postgresDB, v.UserName, v.Pwd)
+				err = model.ActiveUser(ctx, api.postgresDB, v.UserName, v.Pwd)
 				if err != nil {
 					RespAndLog(w, ctx,
 						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))

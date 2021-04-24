@@ -6,13 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-
 	"github.com/go-redis/redis/v8"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -24,13 +23,13 @@ const (
 
 type ImageVulnerabilityCache struct {
 	ctx     context.Context
-	mongodb *mongo.Database
+	mongodb *mongotools.DatabaseWrapper
 	ch      *util.CacheHelper
 }
 
 func NewImageVulnerabilityCache(
 	ctx context.Context,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	redisClient *redis.Client,
 ) *ImageVulnerabilityCache {
 
@@ -54,7 +53,7 @@ func NewImageVulnerabilityCache(
 }
 
 func (c *ImageVulnerabilityCache) getVulnerabilityInImagesMaxEntryTimestamp() (int64, error) {
-	ctx, cancel := context.WithTimeout(c.ctx, util.MongoTimeout)
+	ctx, cancel := context.WithTimeout(c.ctx, 1*time.Second)
 	defer cancel()
 	filter := bson.M{
 		"$and": []bson.M{
@@ -63,10 +62,10 @@ func (c *ImageVulnerabilityCache) getVulnerabilityInImagesMaxEntryTimestamp() (i
 		},
 	}
 
-	findOptions := options.FindOne()
+	findOptions := options.FindOne().SetMaxTime(500 * time.Millisecond)
 	findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
-	coll := c.mongodb.Collection(model.ScanTasksCollection.String())
+	coll := c.mongodb.Get().Collection(model.ScanTasksCollection.String())
 	singleResult := coll.FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
@@ -92,14 +91,13 @@ func (c *ImageVulnerabilityCache) getVulnerabilityInImagesData(riskFilterInt int
 			},
 		}
 
-		mongoCtx, mongoCtxCancel := context.WithTimeout(c.ctx, util.MongoTimeout)
+		mongoCtx, mongoCtxCancel := context.WithTimeout(c.ctx, 10*time.Second)
 		defer mongoCtxCancel()
 
-		mt := time.Second * 60
 		findOptions := &options.FindOptions{}
-		findOptions.SetMaxTime(mt)
+		findOptions.SetMaxTime(3 * time.Second)
 
-		coll := c.mongodb.Collection(model.VulnerabilitiesInImagesCollection.String())
+		coll := c.mongodb.Get().Collection(model.VulnerabilitiesInImagesCollection.String())
 
 		cursor, err := coll.Find(mongoCtx, filter, findOptions)
 		if err != nil {

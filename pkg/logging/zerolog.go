@@ -2,6 +2,7 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +13,10 @@ import (
 
 var (
 	log Logger
+)
+
+const (
+	CtxKeyLogID = "CTX_ts_logid"
 )
 
 func init() {
@@ -32,6 +37,51 @@ func init() {
 // Logger is the wrapper of zerolog.Logger
 type Logger struct {
 	zerolog.Logger
+}
+
+type LoggerWrapper struct {
+	l   *Logger
+	ctx context.Context
+}
+
+func getFormatWithLogIDFromCtx(ctx context.Context, format string) string {
+	if ctx == nil {
+		return format
+	}
+	ldval := ctx.Value(CtxKeyLogID)
+	if logid, ok := ldval.(string); ok {
+		sb := strings.Builder{}
+		sb.WriteString(logid)
+		sb.WriteString(" ")
+		sb.WriteString(format)
+		return sb.String()
+	}
+	return format
+}
+func (lw LoggerWrapper) Infof(fmt string, v ...interface{}) {
+	format := getFormatWithLogIDFromCtx(lw.ctx, fmt)
+	lw.l.Info().Msgf(format, v...)
+}
+
+func (lw LoggerWrapper) Warnf(fmt string, v ...interface{}) {
+	format := getFormatWithLogIDFromCtx(lw.ctx, fmt)
+	lw.l.Warn().Msgf(format, v...)
+}
+
+func (lw LoggerWrapper) Errorf(err error, fmt string, v ...interface{}) {
+	format := getFormatWithLogIDFromCtx(lw.ctx, fmt)
+	if err == nil {
+		lw.l.Error().Msgf(format, v...)
+	} else {
+		lw.l.Err(err).Msgf(format, v...)
+	}
+}
+
+func (l *Logger) WithContext(ctx context.Context) LoggerWrapper {
+	return LoggerWrapper{
+		l:   l,
+		ctx: ctx,
+	}
 }
 
 // SetVerbose is to enable the zerolog to debug level.

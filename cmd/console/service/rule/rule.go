@@ -10,22 +10,22 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/mongo/options"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type RuleService struct {
-	mongodb                  *mongo.Database
+	mongodb                  *mongotools.DatabaseWrapper
 	AvailableRulesFolderPath string
 	rulesCache               *rcache.RulesCache
 }
 
-func NewRuleService(ctx context.Context, availableRulesFolderPath string, mongodb *mongo.Database, redisClient *redis.Client) *RuleService {
+func NewRuleService(ctx context.Context, availableRulesFolderPath string, mongodb *mongotools.DatabaseWrapper, redisClient *redis.Client) *RuleService {
 	return &RuleService{
 		mongodb:                  mongodb,
 		AvailableRulesFolderPath: availableRulesFolderPath,
@@ -51,7 +51,7 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 	opts.SetMaxTime(time.Second * 10)
 	opts.SetSort(bson.D{{"created_at", util.SortOrderToInt("desc")}})
 
-	coll := s.mongodb.Collection(model.RulesCollection.String())
+	coll := s.mongodb.Get().Collection(model.RulesCollection.String())
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
@@ -82,7 +82,7 @@ func (s *RuleService) ListRules(ctx context.Context, offset int64, limit int64) 
 func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
 	var newRule model.Rule
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -96,7 +96,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 
 		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
 
-		queryResult := s.mongodb.Collection(model.RulesCollection.String()).FindOne(sessionContext, filter, oneOptions)
+		queryResult := s.mongodb.Get().Collection(model.RulesCollection.String()).FindOne(sessionContext, filter, oneOptions)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			if queryResult.Err() == mongo.ErrNoDocuments {
@@ -115,7 +115,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 
 		filter = bson.M{"name_en": queryRule.NameEn}
 		var ruleDefinition model.RuleDefinition
-		ruleDefinitionResult := s.mongodb.Collection(model.RulesDefinitionsCollection.String()).FindOne(sessionContext, filter, oneOptions)
+		ruleDefinitionResult := s.mongodb.Get().Collection(model.RulesDefinitionsCollection.String()).FindOne(sessionContext, filter, oneOptions)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			return NewRulesError(http.StatusInternalServerError, fmt.Errorf("Error getting rule definition %s from db: %w", queryRule.NameEn, sessionError))
@@ -137,7 +137,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 		newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
 		newRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
 		var insertResult *mongo.InsertOneResult
-		insertResult, sessionError = s.mongodb.Collection(model.RulesCollection.String()).InsertOne(sessionContext, newRule)
+		insertResult, sessionError = s.mongodb.Get().Collection(model.RulesCollection.String()).InsertOne(sessionContext, newRule)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
 		}
@@ -153,7 +153,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 		filter = bson.M{"_id": ruleObjectID}
 		update := bson.M{"$set": queryRule}
 
-		_, sessionError = s.mongodb.Collection(model.RulesCollection.String()).UpdateOne(sessionContext, filter, update)
+		_, sessionError = s.mongodb.Get().Collection(model.RulesCollection.String()).UpdateOne(sessionContext, filter, update)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", sessionError))
 		}
@@ -175,7 +175,7 @@ func (s *RuleService) EnableRule(ctx context.Context, ruleObjectID primitive.Obj
 func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.ObjectID) (*model.Rule, error) {
 	var newRule model.Rule
 
-	err := s.mongodb.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
@@ -188,7 +188,7 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 		var queryRule model.Rule
 		filter := bson.M{"_id": ruleObjectID, "deleted_at": bson.M{"$exists": false}}
 
-		queryResult := s.mongodb.Collection(model.RulesCollection.String()).FindOne(sessionContext, filter, oneOptions)
+		queryResult := s.mongodb.Get().Collection(model.RulesCollection.String()).FindOne(sessionContext, filter, oneOptions)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			if sessionError == mongo.ErrNoDocuments {
@@ -208,7 +208,7 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 
 		filter = bson.M{"name_en": queryRule.NameEn}
 		var ruleDefinition model.RuleDefinition
-		ruleDefinitionResult := s.mongodb.Collection(model.RulesDefinitionsCollection.String()).FindOne(sessionContext, filter)
+		ruleDefinitionResult := s.mongodb.Get().Collection(model.RulesDefinitionsCollection.String()).FindOne(sessionContext, filter)
 		if queryResult.Err() != nil {
 			sessionError = queryResult.Err()
 			return NewRulesError(http.StatusInternalServerError, fmt.Errorf("Error getting rule definitino from db: %w", queryRule.NameEn, sessionError))
@@ -230,7 +230,7 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 		newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
 		newRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
 		var insertResult *mongo.InsertOneResult
-		insertResult, sessionError = s.mongodb.Collection(model.RulesCollection.String()).InsertOne(sessionContext, newRule)
+		insertResult, sessionError = s.mongodb.Get().Collection(model.RulesCollection.String()).InsertOne(sessionContext, newRule)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
 		}
@@ -246,7 +246,7 @@ func (s *RuleService) DisableRule(ctx context.Context, ruleObjectID primitive.Ob
 		filter = bson.M{"_id": ruleObjectID}
 		update := bson.M{"$set": queryRule}
 
-		_, sessionError = s.mongodb.Collection(model.RulesCollection.String()).UpdateOne(sessionContext, filter, update)
+		_, sessionError = s.mongodb.Get().Collection(model.RulesCollection.String()).UpdateOne(sessionContext, filter, update)
 		if sessionError != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update document: %w", sessionError))
 		}

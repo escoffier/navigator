@@ -100,7 +100,7 @@ func (api *api) login() http.HandlerFunc {
 			ok       bool
 		)
 
-		ok, findUser, err = model.LoginCheckByPostgres(api.postgresDB, creds.Username, creds.Password)
+		ok, findUser, err = model.LoginCheckByPostgres(ctx, api.postgresDB, creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -193,7 +193,7 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
-		username, ok := model.CheckHashCode(api.postgresDB, ru.HashCode)
+		username, ok := model.CheckHashCode(r.Context(), api.postgresDB, ru.HashCode)
 		if !ok {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusRequestedRangeNotSatisfiable, fmt.Errorf("hashcode is error")))
@@ -201,7 +201,7 @@ func (api *api) activeUser() http.HandlerFunc {
 		}
 
 		// active user
-		err = model.ActiveUser(api.postgresDB, username, ru.Pwd)
+		err = model.ActiveUser(r.Context(), api.postgresDB, username, ru.Pwd)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("database error:%+v", err)))
@@ -242,7 +242,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
-		exist, _, err := model.SelectUser(api.postgresDB, rf.Username)
+		exist, _, err := model.SelectUser(ctx, api.postgresDB, rf.Username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -263,7 +263,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		err = model.InsertEmail(api.postgresDB, rf.Username, emailHashCode)
+		err = model.InsertEmail(ctx, api.postgresDB, rf.Username, emailHashCode)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))

@@ -12,10 +12,10 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -33,12 +33,12 @@ const (
 )
 
 type SeccompProfileService struct {
-	mongo     *mongo.Database
+	mongo     *mongotools.DatabaseWrapper
 	aggrCache *alertsSvc.AlertAggrCache
 	mutex     *sync.Mutex
 }
 
-func NewSeccompProfileService(mongodb *mongo.Database) *SeccompProfileService {
+func NewSeccompProfileService(mongodb *mongotools.DatabaseWrapper) *SeccompProfileService {
 	return &SeccompProfileService{
 		mongo:     mongodb,
 		aggrCache: alertsSvc.NewAlertAggrCache(10, cacheReadTTLSec, cacheWriteTTLSec),
@@ -94,7 +94,7 @@ func (sp *SeccompProfileService) RaiseAlert(ctx context.Context, rawAlert *model
 			logging.GetLogger().Info().Msgf("alerts aggr cache hits with key: %s:%s and got value: %v", rawAlert.Action, rawAlert.Syscall, *idPtr)
 			filter := bson.M{"_id": *idPtr}
 
-			queryResult := sp.mongo.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+			queryResult := sp.mongo.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 
 			if queryResult.Err() == nil {
 				alert = new(model.Alert)
@@ -140,7 +140,7 @@ func (sp *SeccompProfileService) RaiseAlert(ctx context.Context, rawAlert *model
 				alert.Histories = append(alert.Histories, alertCtx)
 				filter := bson.M{"_id": *idPtr}
 				update := bson.M{"$set": alert}
-				_, err := sp.mongo.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
+				_, err := sp.mongo.Get().Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("Failed to update seccomp alert: %w", err)
 				} else {
@@ -177,7 +177,7 @@ func (sp *SeccompProfileService) RaiseAlert(ctx context.Context, rawAlert *model
 			}
 			now := time.Now()
 			newAlert.HistoricisedTimestamp = now
-			_, err := sp.mongo.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
+			_, err := sp.mongo.Get().Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
 			if err != nil {
 				return NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("Failed to insert seccomp alert: %w", err))

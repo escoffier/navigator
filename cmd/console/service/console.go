@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
@@ -39,13 +37,19 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"gopkg.in/yaml.v2"
+	"gorm.io/driver/postgres"
+	_ "gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -66,9 +70,9 @@ func init() {
 type Console struct {
 	lifecycle.Service
 	server             *http.Server
-	mongoClient        *mongo.Client
-	mongodb            *mongo.Database
-	postgresDB         *gorm.DB
+	monCliWrapper      *mongotools.ClientWrapper
+	mongoDB            *mongotools.DatabaseWrapper
+	postgresDB         *rdbtools.GormWrapper
 	es                 *elastic.Client
 	cronService        *cron.CronService
 	ruleService        *rule.RuleService
@@ -87,7 +91,6 @@ func NewConsole(
 	httpOpts *flag.HTTPOpts,
 	mongoOpts *flag.MongoOpts,
 	postgresOpts *flag.PostgresOpts,
-
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
 	redisOpts *flag.RedisOpts,
@@ -100,14 +103,21 @@ func NewConsole(
 	// TODO: authSource database should be a separate argument.
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
 	mongoClientOptions := options.Client().ApplyURI(mongoString)
+	mongoClientOptions.SetPoolMonitor(&event.PoolMonitor{
+		Event: mongotools.PoolMonitorFunc,
+	})
 	mongoClientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
 	mongoClientOptions.SetReadConcern(readconcern.Majority())
-	mongoClient, err := mongo.NewClient(mongoClientOptions)
-	if err != nil {
-		return nil, err
+	mongoClientOptions.SetMaxPoolSize(50)
+	mongoClientOptions.SetMaxConnIdleTime(10 * time.Minute)
+	mongoClientOptions.SetConnectTimeout(1 * time.Second)
+	mongoClientOptions.SetMinPoolSize(5)
+	mongoCliWrapper, wrErr := mongotools.NewMongoClient(mongoClientOptions, 1*time.Second)
+	if wrErr != nil {
+		return nil, wrErr
 	}
 
-	mongodb := mongoClient.Database(mongoOpts.Database)
+	mongoDBWrapper := mongoCliWrapper.Database(mongoOpts.Database)
 
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
@@ -116,21 +126,35 @@ func NewConsole(
 		DB:       0,                  // TODO: Add DB
 	})
 
-	postgresDB, err := gorm.Open("postgres", postgresOpts.PostgresConnectionString)
+	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{})
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			return nil, err
+		}
+		sqlDB, err := db.DB()
+		if err == nil {
+			sqlDB.SetMaxOpenConns(30)
+			sqlDB.SetMaxIdleConns(5)
+			sqlDB.SetConnMaxIdleTime(10 * time.Minute)
+			sqlDB.SetConnMaxLifetime(time.Hour)
+		}
+		return db, nil
+	})
 	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+		logging.GetLogger().Err(err).Msg("Init postgre error")
+		return nil, err
 	}
-	postgresDB.SingularTable(true)
-	postgresDB.LogMode(false)
-	postgresDB.AutoMigrate(&model.User{}, &model.Email{})
+	postgresDB.Get().AutoMigrate(&model.User{}, &model.Email{})
+
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	// rule service
-	ruleService := rule.NewRuleService(mainCtx, rulesOpts.AvailableRulesFolder, mongodb, redisClient)
+	ruleService := rule.NewRuleService(mainCtx, rulesOpts.AvailableRulesFolder, mongoDBWrapper, redisClient)
 
 	// audit service
-	auditService := audit.NewAuditService(mongodb)
+	auditService := audit.NewAuditService(mongoDBWrapper)
 
 	// harbor client
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
@@ -139,7 +163,7 @@ func NewConsole(
 	}
 
 	// scanner service
-	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongodb, harborClient)
+	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongoDBWrapper, harborClient)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -150,22 +174,22 @@ func NewConsole(
 	}
 
 	// cleanup service
-	cleanupService := cleanup.NewCleanupService(mongodb, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath, es, elasticOpts, elasticOpts.PVC, elasticOpts.Pod, elasticOpts.DataPath)
+	cleanupService := cleanup.NewCleanupService(mongoDBWrapper, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath, es, elasticOpts, elasticOpts.PVC, elasticOpts.Pod, elasticOpts.DataPath)
 
 	// online vulns service
-	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongodb)
+	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongoDBWrapper)
 
 	// service assets service
-	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongodb)
+	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongoDBWrapper)
 	if svcErr != nil {
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
 	}
 
 	// cluster service
-	clusterService := cluster.NewClusterService(mainCtx, mongodb, onlineVulnsSvc, cleanupService, redisClient)
+	clusterService := cluster.NewClusterService(mainCtx, mongoDBWrapper, onlineVulnsSvc, cleanupService, redisClient)
 
 	// scap service
-	scapService, err := sp.NewScapService(mainCtx, redisClient, mongodb)
+	scapService, err := sp.NewScapService(mainCtx, redisClient, mongoDBWrapper)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}
@@ -174,7 +198,7 @@ func NewConsole(
 	scapper := &sp.Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
 		DockerRepoScapTag:  scapOpts.ImageTag,
-		MongoDB:            mongodb,
+		MongoDB:            mongoDBWrapper,
 		MongoEndpoint:      mongoOpts.Endpoint,
 		MongoUsername:      mongoOpts.Username,
 		MongoPassword:      mongoOpts.Password,
@@ -186,31 +210,31 @@ func NewConsole(
 	// cron service
 	c := cr.New()
 	c.Start()
-	cronService := cron.NewCronService(c, mongodb, scapper, clusterService, mainCtx)
+	cronService := cron.NewCronService(c, mongoDBWrapper, scapper, clusterService, mainCtx)
 
 	// drift prevention service
-	driftPreventionService := driftprevention.NewDriftPreventionService(mongodb)
+	driftPreventionService := driftprevention.NewDriftPreventionService(mongoDBWrapper)
 
 	// drift prevention service
-	seccompProfileService := seccomp.NewSeccompProfileService(mongodb)
+	seccompProfileService := seccomp.NewSeccompProfileService(mongoDBWrapper)
 
 	// falco service
-	falcoService := falco.NewFalcoService(mongodb)
+	falcoService := falco.NewFalcoService(mongoDBWrapper)
 
 	// alert service
-	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongodb)
+	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongoDBWrapper)
 	//microService *microservice.MicroService,
 	//micro service
-	microService := microservice.NewMicroService(mongodb, postgresDB)
+	microService := microservice.NewMicroService(mongoDBWrapper, postgresDB)
 
-	riskexplorer.InitAndGetRiskExplorerService(mongodb, onlineVulnsSvc)
+	riskexplorer.InitAndGetRiskExplorerService(mongoDBWrapper, onlineVulnsSvc)
 
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
 			Handler: setupChiRouter(
 				mainCtx,
-				mongodb,
+				mongoDBWrapper,
 				postgresDB,
 				es,
 				scapper,
@@ -234,8 +258,8 @@ func NewConsole(
 				emailOpts,
 			),
 		},
-		mongoClient:        mongoClient,
-		mongodb:            mongodb,
+		monCliWrapper:      mongoCliWrapper,
+		mongoDB:            mongoDBWrapper,
 		postgresDB:         postgresDB,
 		es:                 es,
 		cronService:        cronService,
@@ -271,11 +295,9 @@ func (c *Console) Run() func() {
 	}()
 
 	// ctx for initialization steps
-	ctx, cancel := context.WithTimeout(c.ctx, 60*time.Second)
-
-	// connect the mongo client
-	defer cancel()
-	err := c.mongoClient.Connect(ctx)
+	ctx, mcancel := context.WithTimeout(c.ctx, 60*time.Second)
+	defer mcancel()
+	err := c.monCliWrapper.Connect(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("When in connecting to Mongo database")
 		panic(fmt.Errorf("When connecting to Mongo database: %w", err))
@@ -298,7 +320,7 @@ func (c *Console) Run() func() {
 			Msg("When check admin data in postgres")
 	}
 
-	err = createMongoIndices(ctx, c.mongodb)
+	err = createMongoIndices(ctx, c.mongoDB)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -306,7 +328,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
-	err = initializeAuditConfig(ctx, c.mongodb, c.auditService)
+	err = initializeAuditConfig(ctx, c.mongoDB, c.auditService)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -314,7 +336,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When initializing audit config: %w", err))
 	}
 
-	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongodb)
+	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongoDB)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -367,22 +389,22 @@ func (c *Console) Run() func() {
 	}
 }
 
-func postgreCheck(db *gorm.DB) error {
+func postgreCheck(db *rdbtools.GormWrapper) error {
 
 	queryUser := model.User{}
-	err := db.Where("username = ?", model.SUPER_ADMIN).First(&queryUser).Error
+	err := db.Get().Where("username = ?", model.SUPER_ADMIN).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		salt := model.RandStringBytesMaskImprSrcUnsafe(8)
 		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.SUPER_PWD+salt)))
 		user := model.User{UserName: model.SUPER_ADMIN, Checked: true, CreateAt: time.Now().Unix(), Rule: model.ROLE_SUPERADMIN, Salt: salt, Pwd: hashPwd}
-		err = db.Create(&user).Error
+		err = db.Get().Create(&user).Error
 		if err != nil {
 			return err
 		}
 	}
 
-	db.DropTable(&model.ModuleGroup{}, &model.Url{})
-	db.AutoMigrate(&model.ModuleGroup{}, &model.Url{})
+	db.Get().Migrator().DropTable(&model.ModuleGroup{}, &model.Url{})
+	db.Get().AutoMigrate(&model.ModuleGroup{}, &model.Url{})
 
 	mg1 := model.ModuleGroup{
 		ModuleName_zh: "用户中心",
@@ -390,7 +412,7 @@ func postgreCheck(db *gorm.DB) error {
 	}
 
 	mg2 := model.ModuleGroup{
-		ModuleName_zh: "平台管理",
+		ModuleName_zh: "平台",
 		ModuleName_en: "Platform",
 	}
 
@@ -399,22 +421,22 @@ func postgreCheck(db *gorm.DB) error {
 		ModuleName_en: "Container security",
 	}
 
-	db.Table(model.ModuleGroup{}.TableName()).Create(&mg1)
-	db.Table(model.ModuleGroup{}.TableName()).Create(&mg2)
-	db.Table(model.ModuleGroup{}.TableName()).Create(&mg3)
+	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg1)
+	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg2)
+	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg3)
 
 	url1 := model.Url{UrlName: "/api/v2/usercenter", UrlId: mg1.Id}
 	url2 := model.Url{UrlName: "/api/v2/platform", UrlId: mg2.Id}
 	url3 := model.Url{UrlName: "/api/v2/containerSec", UrlId: mg3.Id}
 
-	db.Table(model.Url{}.TableName()).Create(&url1)
-	db.Table(model.Url{}.TableName()).Create(&url2)
-	db.Table(model.Url{}.TableName()).Create(&url3)
+	db.Get().Table(model.Url{}.TableName()).Create(&url1)
+	db.Get().Table(model.Url{}.TableName()).Create(&url2)
+	db.Get().Table(model.Url{}.TableName()).Create(&url3)
 
 	return nil
 }
 
-func initializeAuditConfig(ctx context.Context, mongodb *mongo.Database, auditService *audit.AuditService) error {
+func initializeAuditConfig(ctx context.Context, mongodb *mongotools.DatabaseWrapper, auditService *audit.AuditService) error {
 	_, err := auditService.GetAuditConfig(ctx)
 	if err != nil {
 		switch err.(type) {
@@ -439,7 +461,10 @@ func initializeAuditConfig(ctx context.Context, mongodb *mongo.Database, auditSe
 	return nil
 }
 
-func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleService, mongodb *mongo.Database) error {
+func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleService, mongodb *mongotools.DatabaseWrapper) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	availableRulesFiles, err := ioutil.ReadDir(rulesService.AvailableRulesFolderPath)
 	if err != nil {
 		return err
@@ -456,7 +481,8 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 		var ruleDefinition model.RuleDefinition
 		filter := bson.M{"name_en": ruleName}
 
-		queryResult := mongodb.Collection(model.RulesDefinitionsCollection.String()).FindOne(ctx, filter)
+		opts := options.FindOne().SetMaxTime(500 * time.Millisecond)
+		queryResult := mongodb.Get().Collection(model.RulesDefinitionsCollection.String()).FindOne(ctx, filter, opts)
 		if queryResult.Err() != nil {
 			if queryResult.Err() == mongo.ErrNoDocuments {
 				logging.GetLogger().Info().Str("rule", ruleName).Msg("Rule definition not present in the db")
@@ -471,7 +497,7 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 				logging.GetLogger().Info().Str("rule", file.Name()).Msg("Rule successfully parsed")
 
 				ruleDefinition.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = mongodb.Collection(model.RulesDefinitionsCollection.String()).InsertOne(ctx, ruleDefinition)
+				_, err = mongodb.Get().Collection(model.RulesDefinitionsCollection.String()).InsertOne(ctx, ruleDefinition)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
 				}
@@ -489,7 +515,7 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 				newRule.Cvss2Score = ruleDefinition.Cvss2Score
 				newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
 				newRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = mongodb.Collection(model.RulesCollection.String()).InsertOne(ctx, newRule)
+				_, err = mongodb.Get().Collection(model.RulesCollection.String()).InsertOne(ctx, newRule)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
 				}
@@ -503,7 +529,7 @@ func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleServ
 	return nil
 }
 
-func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
+func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
 	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
 	neededIndexesPerCollection[model.ScanTasksCollection.String()] = []mongo.IndexModel{
 		{
@@ -845,7 +871,7 @@ func createMongoIndices(ctx context.Context, mongodb *mongo.Database) error {
 	for collectionName, indexModel := range neededIndexesPerCollection {
 		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
 
-		col := mongodb.Collection(collectionName)
+		col := mongodb.Get().Collection(collectionName)
 
 		logging.GetLogger().Info().Str("collectionName", collectionName).Msg("Ensuring mongo indices")
 
@@ -881,7 +907,6 @@ func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterServic
 	firstCluster := clusters[0]
 
 	logging.GetLogger().Info().
-		Str("cluster", fmt.Sprintf("%+v", firstCluster)).
 		Msg("Cluster already exists")
 
 	kubeClient, err := k8s.KubeClientFromB64KubeConfig(firstCluster.KubeConfig)

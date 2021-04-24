@@ -9,14 +9,9 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-
 	"time"
 
 	"github.com/go-chi/chi"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -24,6 +19,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (api *api) scanner() func(chi.Router) {
@@ -73,7 +71,7 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 
 		// from mongo
 		var scanTask model.ScanTask
-		err = api.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(
+		err = api.mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(
 			ctx, bson.M{"_id": taskObjectID}, findOneOptions).Decode(&scanTask)
 		if err != nil {
 			RespAndLog(w, r.Context(),
@@ -213,7 +211,7 @@ func (api *api) getScannerTask() http.HandlerFunc {
 		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
 		// from mongo
 		var result model.ScanTask
-		err = api.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(
+		err = api.mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(
 			ctx, bson.M{"_id": taskObjectID}, oneOptions).Decode(&result)
 		if err != nil {
 			RespAndLog(w, r.Context(),

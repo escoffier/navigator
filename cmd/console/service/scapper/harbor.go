@@ -3,6 +3,9 @@ package scapper
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
 	uuid "github.com/satori/go.uuid"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -10,8 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"net/http"
-	"time"
 )
 
 func (s *Scapper) RunHarborCheck(ctx context.Context, harborClient *harbor.HarborRESTClient) (uuid.UUID, error) {
@@ -42,7 +43,7 @@ func (s *Scapper) RunHarborCheck(ctx context.Context, harborClient *harbor.Harbo
 	}
 
 	harborCfg.FinishedAt = time.Now().Unix()
-	_, err = s.MongoDB.Collection(model.HarborProjectConfigCollection.String()).InsertOne(ctx, harborCfg)
+	_, err = s.MongoDB.Get().Collection(model.HarborProjectConfigCollection.String()).InsertOne(ctx, harborCfg)
 	if err != nil {
 		return uuid.Nil, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("failed to insert new config to harbor  mapping to mongo: %w", err))
 	}
@@ -65,8 +66,8 @@ func (s *Scapper) HarborConfigList(ctx context.Context, offset, limit int64, pro
 	if checkID != "" {
 		filter = bson.M{"checkId": checkID}
 	}
-	count, err := s.MongoDB.Collection(model.HarborProjectConfigCollection.String()).CountDocuments(mongoCtx, filter, copt)
-	cur, err := s.MongoDB.Collection(model.HarborProjectConfigCollection.String()).Find(mongoCtx, filter, opt)
+	count, err := s.MongoDB.Get().Collection(model.HarborProjectConfigCollection.String()).CountDocuments(mongoCtx, filter, copt)
+	cur, err := s.MongoDB.Get().Collection(model.HarborProjectConfigCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't find document: %w", err))

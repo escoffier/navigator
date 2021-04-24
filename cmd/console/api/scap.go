@@ -12,18 +12,17 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (api *api) scap() func(chi.Router) {
@@ -55,7 +54,7 @@ func (api *api) scap() func(chi.Router) {
 // @Router /api/v1/scap/{checkType}/{nodeName}/{checkID}/details [get]
 func (api *api) getNodeCheckDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		filter := bson.M{}
@@ -86,7 +85,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 			return
 		}
 
-		col := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType))
+		col := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType))
 
 		nodeCheckDetails := &scap.NodeCheckDetails{}
 		switch checkType {
@@ -220,7 +219,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/breakdown/{checkID} [get]
 func (api *api) getCheckBreakdown() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		checkID := chi.URLParam(r, "checkID")
@@ -259,9 +258,9 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
-		findOptions := options.Find().SetMaxTime(time.Second * 10)
+		findOptions := options.Find().SetMaxTime(time.Second * 2)
 
-		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		count, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -271,7 +270,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
+		cursor, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err)))
 			return
@@ -345,7 +344,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/breakdown [get]
 func (api *api) getLatestScanRecord() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
@@ -385,9 +384,9 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
-		findOptions := options.Find().SetMaxTime(time.Second * 10)
+		findOptions := options.Find().SetMaxTime(time.Second * 2)
 
-		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		count, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -397,7 +396,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 			return
 		}
 
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
+		cursor, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err)))
 			return
@@ -474,7 +473,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 // @Router /api/v1/scap/{checkType}/breakdown/{checkID}/{policyNumber}/details [get]
 func (api *api) getPolicyDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		checkID := chi.URLParam(r, "checkID")
@@ -503,7 +502,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		filter := bson.M{"checkId": checkID}
 
-		count, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
+		count, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err)))
 			return
@@ -513,8 +512,8 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		findOptions := options.Find().SetMaxTime(time.Second * 10)
-		cursor, err := api.mongodb.Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
+		findOptions := options.Find().SetMaxTime(time.Second * 2)
+		cursor, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update cluster: %w", err)))
 			return
@@ -710,13 +709,13 @@ func (api *api) harborScanList() http.HandlerFunc {
 // @Router /{checkType}/exportfile  {get}
 func (api *api) exportFile() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
 		//username
 		username := "unknown"
 		//get token
-		_, claims, err := jwtauth.FromContext(r.Context())
+		_, claims, err := jwtauth.FromContext(ctx)
 		if err == nil && claims != nil {
 			//get username from token
 			username = claims[JWT_KEY_USERNAME].(string)
@@ -737,14 +736,19 @@ func (api *api) exportFile() http.HandlerFunc {
 		var task model.ExportTask
 		task.Status = 1
 		filter := bson.M{"checkId": checkID, "username": username}
+
+		findOptions := options.FindOne().SetMaxTime(time.Second * 1)
 		//find export file task
-		err = api.mongodb.Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter).Decode(&task)
+		err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter, findOptions).Decode(&task)
 		if err == nil {
 			_, err = os.Stat(task.FileName)
 			if task.Status == 2 || err != nil {
 				task.Status = 2
 				os.Remove(task.FileName)
-				api.mongodb.Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
+				_, delErr := api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
+				if delErr != nil {
+					logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
+				}
 			}
 			response.Ok(w, response.WithExportFileStatus(task.Status))
 			return
@@ -756,7 +760,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		task.CreatedAt = time.Now().Unix()
 		task.FileName = fmt.Sprintf("/var/www/%s-%s-%v.xlsx", string(checkType), string(language), task.CreatedAt)
 		//insert task data to mongo
-		_, err = api.mongodb.Collection(model.ExportFileTaskCollection.String()).InsertOne(ctx, task)
+		_, err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).InsertOne(ctx, task)
 		if err != nil {
 			task.Status = 2
 		} else {
@@ -791,8 +795,10 @@ func (api *api) getFile() http.HandlerFunc {
 		var task model.ExportTask
 		//filter
 		filter := bson.M{"checkId": checkID, "username": username}
+
+		findOptions := options.FindOne().SetMaxTime(time.Second * 1)
 		//find export file task
-		err = api.mongodb.Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter).Decode(&task)
+		err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter, findOptions).Decode(&task)
 		if err != nil {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("%v", err)))
 			return
@@ -803,7 +809,10 @@ func (api *api) getFile() http.HandlerFunc {
 			return
 		}
 		//delete record
-		api.mongodb.Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
+		_, delErr := api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
+		if delErr != nil {
+			logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
+		}
 		if task.Status == 2 {
 			os.Remove(task.FileName)
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("export file failed.")))

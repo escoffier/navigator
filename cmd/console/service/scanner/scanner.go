@@ -3,37 +3,36 @@ package scanner
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const SCAN_SERVICE = "service"
 
 type ScannerService struct {
-	mongodb                 *mongo.Database
+	mongodb                 *mongotools.DatabaseWrapper
 	imageVulnerabilityCache *rcache.ImageVulnerabilityCache
 	scannedImagesCache      *rcache.ScannedImagesCache
 	harborClient            *harbor.HarborRESTClient
 }
 
-func NewScannerService(ctx context.Context, redisClient *redis.Client, mongodb *mongo.Database, harborClient *harbor.HarborRESTClient) *ScannerService {
+func NewScannerService(ctx context.Context, redisClient *redis.Client, mongodb *mongotools.DatabaseWrapper, harborClient *harbor.HarborRESTClient) *ScannerService {
 	return &ScannerService{
 		mongodb:                 mongodb,
 		imageVulnerabilityCache: rcache.NewImageVulnerabilityCache(ctx, mongodb, redisClient),
@@ -59,7 +58,7 @@ func (s *ScannerService) GetScannedImages(ctx context.Context, maxImageAgeInHour
 	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
 	opts.SetMaxTime(time.Second * 10)
 
-	coll := s.mongodb.Collection(model.ScanTasksCollection.String())
+	coll := s.mongodb.Get().Collection(model.ScanTasksCollection.String())
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
@@ -137,7 +136,7 @@ func (s *ScannerService) GetImageVulnerabilities(ctx context.Context, riskFilter
 	opts.SetMaxTime(time.Second * 10)
 	opts.SetSort(bson.D{{"createdAt", util.SortOrderToInt("desc")}})
 
-	coll := s.mongodb.Collection(model.VulnerabilitiesInImagesCollection.String())
+	coll := s.mongodb.Get().Collection(model.VulnerabilitiesInImagesCollection.String())
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
@@ -187,7 +186,7 @@ func (s *ScannerService) GetServiceScannedImages(ctx context.Context, offset int
 	copt := options.Count()
 	copt.SetMaxTime(time.Second * 10)
 
-	coll := s.mongodb.Collection(model.ScanTasksCollection.String())
+	coll := s.mongodb.Get().Collection(model.ScanTasksCollection.String())
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 

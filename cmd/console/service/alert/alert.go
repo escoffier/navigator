@@ -20,6 +20,7 @@ import (
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	r "gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -40,14 +41,14 @@ type AlertService struct {
 	elasticIndex      string
 	elasticClient     *elastic.Client
 	rs                *rule.RuleService
-	mongodb           *mongo.Database
+	mongodb           *mongotools.DatabaseWrapper
 	lastPollTimestamp time.Time
 	alertsCache       *rcache.AlertsCache
 	ctx               context.Context
 	mutex             *sync.Mutex
 }
 
-func NewAlertService(ctx context.Context, redisClient *redis.Client, rs *rule.RuleService, es *elastic.Client, elasticIndex string, mongodb *mongo.Database) *AlertService {
+func NewAlertService(ctx context.Context, redisClient *redis.Client, rs *rule.RuleService, es *elastic.Client, elasticIndex string, mongodb *mongotools.DatabaseWrapper) *AlertService {
 	alertService := &AlertService{
 		elasticIndex:      elasticIndex,
 		elasticClient:     es,
@@ -141,7 +142,7 @@ func (s *AlertService) RaiseInternalAlert(ctx context.Context, rawAlert *model.I
 			InternalAlert: &model.InternalAlert{},
 		}
 
-		_, err := s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
+		_, err := s.mongodb.Get().Collection(model.AlertsCollection.String()).InsertOne(ctx, newAlert)
 		if err != nil {
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to insert alert %+v: %w", newAlert, err))
 		}
@@ -330,7 +331,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 			if cacheExist && idPtr != nil {
 				filter := bson.M{"_id": *idPtr}
 
-				queryResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+				queryResult := s.mongodb.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 
 				if queryResult.Err() == nil {
 					alert = new(model.Alert)
@@ -396,7 +397,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 					alert.Cluster = cluster
 					filter := bson.M{"_id": *idPtr}
 					update := bson.M{"$set": alert}
-					_, err := s.mongodb.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
+					_, err := s.mongodb.Get().Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 					if err != nil {
 						logging.GetLogger().Err(err).Msgf("Failed to delete alert from elastic to mongo: %w", err)
 					} else {
@@ -471,7 +472,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 				}
 				now := time.Now()
 				alert.HistoricisedTimestamp = now
-				_, err = s.mongodb.Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
+				_, err = s.mongodb.Get().Collection(model.AlertsCollection.String()).InsertOne(ctx, alert)
 				if err != nil {
 					return NewMongoError(http.StatusInternalServerError,
 						fmt.Errorf("Failed to insert alert from elastic to mongo: %w", err),
@@ -501,7 +502,7 @@ func (s *AlertService) pollRuntimeDetectionAlerts(ctx context.Context, elastAler
 
 func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primitive.ObjectID) (*model.Alert, error) {
 	filter := bson.M{"_id": alertObjectID}
-	alertResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+	alertResult := s.mongodb.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 	if alertResult.Err() != nil {
 		if alertResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", alertResult.Err()))
@@ -524,12 +525,12 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, alertObjectID primi
 		"historicised_timestamp": time.Now(),
 	}}
 
-	_, err = s.mongodb.Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
+	_, err = s.mongodb.Get().Collection(model.AlertsCollection.String()).UpdateOne(ctx, filter, update)
 	if err != nil {
 		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update: %w", err))
 	}
 
-	afterUpdateResult := s.mongodb.Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
+	afterUpdateResult := s.mongodb.Get().Collection(model.AlertsCollection.String()).FindOne(ctx, filter)
 	if afterUpdateResult.Err() != nil {
 		if afterUpdateResult.Err() == mongo.ErrNoDocuments {
 			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", afterUpdateResult.Err()))
@@ -605,7 +606,7 @@ func (s *AlertService) ListAlerts(ctx context.Context, offset int64, limit int64
 	opts.SetMaxTime(time.Second * 10)
 	opts.SetSort(bson.D{{sortBy, util.SortOrderToInt(sortOrder)}})
 
-	coll := s.mongodb.Collection(model.AlertsCollection.String())
+	coll := s.mongodb.Get().Collection(model.AlertsCollection.String())
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoCtxCancel()
 
@@ -641,7 +642,7 @@ func (s *AlertService) OneNodeAlert(ctx context.Context, nodeName string, action
 	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	coll := s.mongodb.Collection(model.AlertsCollection.String())
+	coll := s.mongodb.Get().Collection(model.AlertsCollection.String())
 
 	filter := bson.M{
 		"runtimeDetectionAlert.containerId": nodeName,

@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-
-	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -27,14 +27,14 @@ const (
 type ScannedImagesCache struct {
 	ctx          context.Context
 	redisClient  *redis.Client
-	mongodb      *mongo.Database
+	mongodb      *mongotools.DatabaseWrapper
 	ch           *util.CacheHelper
 	harborClient *harbor.HarborRESTClient
 }
 
 func NewScannedImagesCache(
 	ctx context.Context,
-	mongodb *mongo.Database,
+	mongodb *mongotools.DatabaseWrapper,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 ) *ScannedImagesCache {
@@ -74,10 +74,10 @@ func (c *ScannedImagesCache) getScannedImagesMaxEntryTimestamp() (int64, error) 
 		},
 	}
 
-	findOptions := options.FindOne()
+	findOptions := options.FindOne().SetMaxTime(500 * time.Millisecond)
 	findOptions.SetSort(bson.D{{"finishedAt", -1}})
 
-	coll := c.mongodb.Collection(model.ScanTasksCollection.String())
+	coll := c.mongodb.Get().Collection(model.ScanTasksCollection.String())
 	singleResult := coll.FindOne(ctx, filter, findOptions)
 	if singleResult.Err() != nil {
 		if singleResult.Err() == mongo.ErrNoDocuments {
@@ -117,14 +117,14 @@ func (c *ScannedImagesCache) getScannedImagesData(
 		findOptions := options.FindOptions{}
 		findOptions.SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}})
 
-		coll := c.mongodb.Collection(model.ScanTasksCollection.String())
+		coll := c.mongodb.Get().Collection(model.ScanTasksCollection.String())
 		scannedImagesIds, err := dataToIds(
 			c.ctx, filter, &findOptions, coll)
 		if err != nil {
 			return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Could not get ids to cache: %w", err))
 		}
 
-		harborCtx, harborCtxCancel := context.WithTimeout(c.ctx, time.Second*10)
+		harborCtx, harborCtxCancel := context.WithTimeout(c.ctx, time.Second*5)
 		defer harborCtxCancel()
 
 		status, err := c.harborClient.GetScanAllStatus(harborCtx)

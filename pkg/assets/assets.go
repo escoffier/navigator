@@ -11,6 +11,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -593,7 +594,7 @@ func GetFocusFromServiceRelation(mongodb *mongo.Database, namespace, snvName, us
 
 }
 
-func GetServiceSha256Val(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+func GetServiceSha256Val(mongodb *mongotools.DatabaseWrapper, namespace, snvName string) ([]string, error) {
 
 	filter := bson.M{
 		"$and": []bson.M{
@@ -606,9 +607,9 @@ func GetServiceSha256Val(mongodb *mongo.Database, namespace, snvName string) ([]
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 	opt := options.Find()
-	opt.SetMaxTime(10 * time.Second)
+	opt.SetMaxTime(2 * time.Second)
 
-	cur, err := mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := mongodb.Get().Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -631,9 +632,9 @@ func GetServiceSha256Val(mongodb *mongo.Database, namespace, snvName string) ([]
 	}
 
 	opts := options.Find()
-	opts.SetMaxTime(time.Second * 10)
+	opts.SetMaxTime(time.Second * 2)
 
-	coll := mongodb.Collection(model.AssetsContainersCollection.String())
+	coll := mongodb.Get().Collection(model.AssetsContainersCollection.String())
 
 	cur, err = coll.Find(mongoCtx, filter, opts)
 	if err != nil {
@@ -738,7 +739,7 @@ func GetAliasName(mongodb *mongo.Database, namespace, snvName string) (string, e
 	return alias.AliasName, nil
 }
 
-func GetServiceImages(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
+func GetServiceImages(mongodb *mongotools.DatabaseWrapper, namespace, snvName string) ([]string, error) {
 
 	filter := bson.M{
 		"$and": []bson.M{
@@ -751,9 +752,9 @@ func GetServiceImages(mongodb *mongo.Database, namespace, snvName string) ([]str
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer mongoCtxCancel()
 	opt := options.Find()
-	opt.SetMaxTime(10 * time.Second)
+	opt.SetMaxTime(2 * time.Second)
 
-	cur, err := mongodb.Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
+	cur, err := mongodb.Get().Collection(model.PodServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("Couldn't find document: %w", err))
@@ -776,9 +777,9 @@ func GetServiceImages(mongodb *mongo.Database, namespace, snvName string) ([]str
 	}
 
 	opts := options.Find()
-	opts.SetMaxTime(time.Second * 10)
+	opts.SetMaxTime(time.Second * 2)
 
-	coll := mongodb.Collection(model.AssetsContainersCollection.String())
+	coll := mongodb.Get().Collection(model.AssetsContainersCollection.String())
 
 	cur, err = coll.Find(mongoCtx, filter, opts)
 	if err != nil {
