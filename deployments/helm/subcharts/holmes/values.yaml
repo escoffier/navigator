@@ -1,11 +1,12 @@
 # Default values for Falco.
 
 image:
-  registry: docker.io
-  repository: falcosecurity/falco
-  tag: 0.27.0
-  pullPolicy: IfNotPresent
-  pullSecrets: []
+  registry: registry.t-appagile.com
+  repository: tensorsecurity/tensorsec-holmes
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
 
 docker:
   enabled: true

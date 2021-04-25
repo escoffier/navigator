@@ -2458,6 +2458,9 @@
 - macro: user_known_contact_k8s_api_server_activities
   condition: (never_true)
 
+- macro: ignore_proc_args
+  condition: proc.args contains "tensor"
+
 - rule: Contact K8S API Server From Container
   desc: Detect attempts to contact the K8S API Server from a container
   condition: >
@@ -2466,6 +2469,7 @@
     container and
     not k8s_containers and
     k8s_api_server and
+    not ignore_proc_args and
     not user_known_contact_k8s_api_server_activities
   output: Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s API服务器,rule_type=Discovery,syscall_name=%syscall.type,original_info=command=%proc.cmdline %container.info image=%container.image.repository:%container.image.tag connection=%fd.name)
   priority: NOTICE
@@ -2521,7 +2525,7 @@
 - rule: Netcat Remote Code Execution in Container
   desc: Netcat Program runs inside container that allows remote code execution
   condition: >
-    spawned_process and container and
+    spawned_process and container and not ignore_proc_args and
     ((proc.name = "nc" and (proc.args contains "-e" or proc.args contains "-c")) or
      (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e "
                               or proc.args contains "-c " or proc.args contains "--lua-exec"))
@@ -2539,7 +2543,7 @@
 - rule: Launch Suspicious Network Tool in Container
   desc: Detect network tools launched inside container
   condition: >
-    spawned_process and container and network_tool_procs and not user_known_network_tool_activities
+    spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities
   output: >
     Network tool launched in container (zh_msg=在容器中启动可疑的网络工具,rule_type=Discovery,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid command=%proc.cmdline parent_process=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)

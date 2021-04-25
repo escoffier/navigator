@@ -133,7 +133,7 @@ seccompGenerator:
   auditdLogging: false
   enabled: false
 
-falco:
+holmes:
   enabled: true
   ebpf:
     enabled: false
@@ -146,6 +146,8 @@ falco:
       enabled: true
       url: http://tensorsec-console.tensorsec-test.svc.cluster.local:8889/api/v1/falco/raiseAlert
 
+    webserver:
+      enabled: false
     syslogOutput:
       enabled: false
 

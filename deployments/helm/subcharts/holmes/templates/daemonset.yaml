@@ -50,6 +50,8 @@ spec:
 {{- if .Values.image.pullSecrets }}
       imagePullSecrets: {{ toYaml .Values.image.pullSecrets | nindent 8 }}
 {{- end }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret  }}
       containers:
         - name: {{ .Chart.Name }}
           image: {{ template "falco.image" . }}
@@ -59,7 +61,7 @@ spec:
           securityContext:
             privileged: true
           args:
-            - /usr/bin/falco
+            - /usr/bin/holmes
             {{- if .Values.containerd.enabled }}
             - --cri
             - /run/containerd/containerd.sock

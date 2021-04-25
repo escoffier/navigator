@@ -55,7 +55,7 @@ dependencies:
     repository: "file://./subcharts/seccomp-generator"
     condition: seccompGenerator.enabled
 
-  - name: falco
+  - name: holmes
     version: 1.7.4
-    repository: "file://./subcharts/falco"
-    condition: falco.enabled
+    repository: "file://./subcharts/holmes"
+    condition: holmes.enabled

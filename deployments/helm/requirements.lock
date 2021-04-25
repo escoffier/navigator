@@ -32,8 +32,8 @@ dependencies:
 - name: seccomp-generator
   repository: file://./subcharts/seccomp-generator
   version: 0.1.0
-- name: falco
-  repository: file://./subcharts/falco
+- name: holmes
+  repository: file://./subcharts/holmes
   version: 1.7.4
-digest: sha256:d94525c00af9cd7317931b2bef9cf027a00229ac53945de42709925a35f8a893
-generated: "2021-03-03T00:06:42.31520504+01:00"
+digest: sha256:cdde7631beb5763fb0c0fab9482c4a87083052fd61dac861d54be34e62cd489e
+generated: "2021-04-21T13:29:52.879927489+08:00"
