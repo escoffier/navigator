@@ -206,8 +206,21 @@ else
 	docker build -t $(REPOPREFIX)/tensorsec-go-audit:latest -f ./build/go-audit/Dockerfile .
 endif
 
+.PHONY: holmes
+holmes:     ## Build holmes docker
+	@echo "+ $@"            
+ifeq ($(USEMIRROR),true)
+	@echo "holmes will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile \
+                --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "holmes will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile .
+endif
+
+
 .PHONY: all
-all: drift-prevention-client faulty tensordig scanner scap-jobs console audit audit-cleanup drift-prevention seccomp-generator seccomp-generator-webhook
+all: drift-prevention-client faulty tensordig scanner scap-jobs console audit audit-cleanup drift-prevention seccomp-generator seccomp-generator-webhook holmes
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -228,6 +241,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
 	# docker push $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -244,6 +258,7 @@ else
 	docker push $(REPOPREFIX)/tensorsec-seccomp-generator:latest
 	docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
 	# docker push $(REPOPREFIX)/tensorsec-go-audit:latest
+	docker push $(REPOPREFIX)/tensorsec-holmes:latest
 endif
 
 .PHONY: retag
@@ -264,6 +279,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
 	# docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
@@ -280,6 +296,7 @@ else
 	docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
 	# docker tag $(REPOPREFIXOLD)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:latest
 endif
 
 .PHONY: redeploy
