@@ -195,17 +195,7 @@ func NewConsole(
 	}
 
 	// scapper
-	scapper := &sp.Scapper{
-		DockerRepoHostPort: scapOpts.HostPort,
-		DockerRepoScapTag:  scapOpts.ImageTag,
-		MongoDB:            mongoDBWrapper,
-		MongoEndpoint:      mongoOpts.Endpoint,
-		MongoUsername:      mongoOpts.Username,
-		MongoPassword:      mongoOpts.Password,
-		MongoDatabase:      mongoOpts.Database,
-		MongoSecretName:    mongoOpts.SecretName,
-		ScapService:        scapService,
-	}
+	scapper := sp.NewScapper(scapOpts, mongoOpts, mongoDBWrapper, scapService)
 
 	// cron service
 	c := cr.New()

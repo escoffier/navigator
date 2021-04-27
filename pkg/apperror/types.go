@@ -164,7 +164,7 @@ func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberr
 	return CheckAlreadyInProgressError{
 		detailedError{
 			err:       err,
-			English:   "Such compliance check is already in progress",
+			English:   "The specific compliance check is already in progress",
 			Zhongwen:  "此类合规性检查已在进行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
