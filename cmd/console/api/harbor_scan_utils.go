@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"time"
 
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -31,7 +33,24 @@ func (api *api) harborScanAllNow() http.HandlerFunc {
 			return
 		}
 
-		log.Info().Msg("Successfully triggered full scan in Harbor")
+		response.Ok(w)
+	}
+}
+
+// @Summary Trigger scan of online  images in Harbor.
+// @Description Trigger scan of online  images in Harbor.
+// @Router /api/v2/containerSec/scanner/harbor/scanOnline [post]
+func (api *api) harborScanOnline() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, ok := api.userCache.Get(model.SCANSTAUTS)
+		if ok {
+			RespAndLog(w, r.Context(), ScanImageGoingErr(http.StatusBadRequest,
+				fmt.Errorf("ONLINE IMAGE SCAN IS GOING"),
+				Suberror{"Scanner", "going"}))
+			return
+		}
+		go api.imageService.ImageScanOnline(api.mongodb, api.harborClient, api.userCache)
+
 		response.Ok(w)
 	}
 }
@@ -102,6 +121,13 @@ func (api *api) harborScanStatus() http.HandlerFunc {
 				}
 			}
 		}
+		Doingnum, Waitnum := util.GetAllVirusScanStatus(ctx, api.scannerURL)
+		status.Total = status.Total + Doingnum + Waitnum
+		status.Metrics.Running = status.Metrics.Running + Doingnum
+		status.Metrics.Pending = status.Metrics.Pending + Waitnum
+		if Doingnum+Waitnum > 0 {
+			status.IsOngoing = true
+		}
 
 		resp := respT{
 			ScanAllStatus: status,
@@ -161,6 +187,67 @@ func (api *api) harborAbortScanAll() http.HandlerFunc {
 			IsAborted:     atomic.LoadInt32(&api.abortAnyNewScansBool) != 0,
 		}
 
+		response.Ok(w, response.WithItem(resp))
+	}
+}
+
+// @Summary Get scan one status.
+// @Description Get scan one status.
+// @Router/api/v2/containerSec/scanner/harbor/scanOneStatus [get]
+func (api *api) harborScanOneStatus() http.HandlerFunc {
+	type respT struct {
+		EndTime    time.Time `json:"end_time"`
+		ScanStatus string    `json:"scan_status"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		fullRepoName := r.URL.Query().Get("repositoryName")
+		tag := r.URL.Query().Get("tag")
+		digest := r.URL.Query().Get("digest")
+		if digest == "" || fullRepoName == "" || tag == "" || len(fullRepoName) > 64 || len(tag) > 32 {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("digest/repoName/tag len error"),
+				Suberror{"digest/repoName/tag", ""}))
+			return
+		}
+
+		projectNameRepoName := strings.SplitN(fullRepoName, "/", 2)
+		projectName := projectNameRepoName[0]
+		repoName := projectNameRepoName[1]
+		frepoName := strings.Replace(repoName, "/", "%252F", -1)
+		tags := strings.SplitN(tag, ";", 2)
+
+		endTime, status, err := api.harborClient.ScanOneStatus(ctx, projectName, frepoName, tags[0], digest)
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("Failed to get current status of scan one: %w", err))
+			return
+		}
+		virusStatus, err := util.GetAllVirusScanOneStatus(ctx, api.scannerURL, digest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("GetAllVirusScanOneStatus error :%+v ", err)
+		}
+		if err != nil || virusStatus == "" {
+			resp := respT{
+				EndTime:    endTime,
+				ScanStatus: strings.ToLower(status),
+			}
+			response.Ok(w, response.WithItem(resp))
+			return
+		}
+
+		if virusStatus == model.VirusStatusDoing || virusStatus == model.VirusStatusWait {
+			resp := respT{
+				ScanStatus: strings.ToLower(model.JobRunning),
+			}
+			response.Ok(w, response.WithItem(resp))
+			return
+		}
+		resp := respT{
+			EndTime:    endTime,
+			ScanStatus: strings.ToLower(status),
+		}
 		response.Ok(w, response.WithItem(resp))
 	}
 }

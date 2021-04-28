@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"net/http"
 	"strings"
 	"time"
@@ -78,6 +79,7 @@ func SetupRoutes(
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
+	imageService *image.ImageService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
@@ -103,6 +105,7 @@ func SetupRoutes(
 		harborClient,
 		microService,
 		emailOpts,
+		imageService,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
@@ -154,8 +157,6 @@ func SetupRoutes(
 
 			r.Route("/platform", api.platform()) //platform
 			r.Route("/containerSec", api.containerSec())
-			//r.Route("/tensorWall", api.tensorWall())
-			//r.Route("/microseg", api.microseg())
 
 		})
 

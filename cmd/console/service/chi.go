@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"io/ioutil"
 	"net/http"
 	"runtime/debug"
@@ -62,6 +63,7 @@ func setupChiRouter(
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
+	imageService *image.ImageService,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil)
@@ -101,6 +103,7 @@ func setupChiRouter(
 		harborClient,
 		microService,
 		emailOpts,
+		imageService,
 	)
 	go logWorker(es, ch)
 
@@ -116,14 +119,11 @@ func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 
 	for {
 		al := <-ch
-
 		cstZone := time.FixedZone("CST", 8*3600)
 		indexStr := "access_" + time.Now().In(cstZone).Format("2006-01-02")
 		_, err := es.Index().Index(indexStr).BodyJson(al).Do(context.Background())
 		if err != nil {
-			logging.GetLogger().Info().Msgf("ES 写日志失败 write es error：%s", err)
-		} else {
-			logging.GetLogger().Info().Msgf("ES 写日志成功")
+			logging.GetLogger().Info().Msgf("ES  write es error：%s", err)
 		}
 	}
 }

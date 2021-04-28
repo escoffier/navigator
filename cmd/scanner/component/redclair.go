@@ -21,6 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -40,12 +41,12 @@ import (
 )
 
 const (
-	scanOneTimeout           = time.Minute * 5
+	scanOneTimeout           = time.Minute * 10
 	retryInterval            = time.Second * 5
 	mongoTimeout             = time.Second * 10
 	redisTimeout             = time.Second * 10
 	redisCleanupTimeout      = time.Minute * 1
-	cacheInvalidatorInterval = time.Hour * 2
+	cacheInvalidatorInterval = time.Hour * 999999 //跳过这个函数
 	maxLayerScanRetires      = 3
 )
 
@@ -90,7 +91,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 }
 
 // Run runs the RedClair instance
-func (rcSvc *RedClairService) Run(ctx context.Context) error {
+func (rcSvc *RedClairService) Run(ctx context.Context, llms *layerManage.LocalLayerManageSrv) error {
 
 	// Set scanner environment
 	err := os.Setenv("DOCKER_API_VERSION", "1.38")
@@ -103,11 +104,11 @@ func (rcSvc *RedClairService) Run(ctx context.Context) error {
 		return fmt.Errorf("Failed to fail dangling tasks: %w", err)
 	}
 
-	err = rcSvc.redclairEngine.StartImageHTTPServer()
+	/*err = rcSvc.redclairEngine.StartImageHTTPServer()
 	if err != nil {
 		return fmt.Errorf("Failed to start image http server: %w", err)
 	}
-	defer rcSvc.redclairEngine.StopImageHTTPServer()
+	defer rcSvc.redclairEngine.StopImageHTTPServer()*/
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -115,7 +116,7 @@ func (rcSvc *RedClairService) Run(ctx context.Context) error {
 
 	for i := 0; i < rcSvc.numWorkers; i++ {
 		wg.Add(1)
-		go rcSvc.workerRun(ctx, i, &wg)
+		go rcSvc.workerRun(ctx, i, &wg, llms)
 	}
 	wg.Wait()
 	log.Info().Msg("All Redclair workers finished")
@@ -221,6 +222,7 @@ loop:
 				}
 
 				log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator updating layer cache")
+				//updateCtx, _ := context.WithTimeout(ctx, 8*time.Minute)
 				err := rcSvc.updateLayerCache(ctx)
 				if err != nil {
 					log.Error().Err(err).Msg("Cache invalidator - updateLayerCache failed")
@@ -240,10 +242,11 @@ loop:
 	log.Info().Msg("Shutting down Redclair cache invalidator worker")
 }
 
-func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.WaitGroup) {
+func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.WaitGroup, llms *layerManage.LocalLayerManageSrv) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+			panic(r)
 		}
 	}()
 
@@ -272,7 +275,7 @@ loop:
 			rcSvc.cond.L.Unlock()
 
 			zerolog.Ctx(ctx).Info().Msg("Starting scanning")
-			rcSvc.processScanTask(ctx, scanTask)
+			rcSvc.processScanTask(ctx, scanTask, llms)
 			zerolog.Ctx(ctx).Info().Msg("Finished scanning")
 
 			rcSvc.cond.L.Lock()
@@ -520,7 +523,8 @@ func (rcSvc *RedClairService) appendNewVulnerabilities(ctx context.Context, db *
 	return nil
 }
 
-func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask model.ScanTask) {
+func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask model.ScanTask, llms *layerManage.LocalLayerManageSrv) {
+
 	scanCtx, scanCtxCancel := context.WithTimeout(ctx, scanOneTimeout)
 	defer scanCtxCancel()
 
@@ -580,8 +584,15 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		return
 	}
 
+	client, err := layerManage.NewLocalLayerManageClient(llms)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("LLMS CLIENT NEW FAULT")
+		rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't get LLMS Client", err)
+		return
+	}
+
 	for i := range toScan {
-		err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i])
+		err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
 		if err != nil {
 			var cErr ClairUnprocessableLayerError
 			if errors.As(err, &cErr) {
@@ -664,8 +675,8 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		SeverityHistogram: rcSvc.makeSeverityHistogram(vulns),
 	}
 	scanTask.ScanReport = *report
-	rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
-
+	//rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
+	rcSvc.testLogSuccess(ctx, scanTask, model.ScanStatusSucceeded, "", nil)
 	assetContainer, err := assets.FindContainerByImageDigest(ctx, rcSvc.mongodb, scanTask.ImageDigest)
 	if err != nil {
 		var aErr AssetDoesntExistError
@@ -681,13 +692,13 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	zerolog.Ctx(ctx).Info().Msg("Processing of scan task finished")
 }
 
-func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Registry, scanTask model.ScanTask, currentlyCachedLayers *map[string]*model.CachedLayer, digest string) error {
+func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Registry, scanTask model.ScanTask, currentlyCachedLayers *map[string]*model.CachedLayer, digest string, client *layerManage.LocalLayerManageClient) error {
 	layersBench := make([]*model.CachedLayer, 0)
 	currLayer := (*currentlyCachedLayers)[digest]
 	retryCounter := 0
 	currentMaxScanRetries := maxLayerScanRetires
 	for retryCounter <= currentMaxScanRetries {
-		layerNamespace, vulnInfo, sensitive, err := rcSvc.redclairEngine.ScanLayer(ctx, hub, currLayer.Digest, currLayer.Parent, scanTask.Repository)
+		layerNamespace, vulnInfo, sensitive, err := rcSvc.redclairEngine.ScanLayer(ctx, hub, currLayer.Digest, currLayer.Parent, scanTask.Repository, client, scanTask)
 		if err != nil {
 			var cuErr ClairUnprocessableLayerError
 			if errors.As(err, &cuErr) {
@@ -1049,6 +1060,71 @@ func (rcSvc *RedClairService) doImageScanBookkeeping(ctx context.Context, scanTa
 	return firstScanAt, numMarked, nil
 }
 
+func (rcSvc *RedClairService) testLogSuccess(ctx context.Context, scanTask model.ScanTask, status, message string, originalErr error) {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
+	defer mongoCtxCancel()
+
+	scanTask.FinishedAt = time.Now().Unix()
+	scanTask.HistoricisedTimestamp = time.Now()
+	scanTask.Status = status
+	filter := bson.M{"_id": scanTask.ID}
+	update := bson.M{"$set": scanTask}
+
+	_, err := rcSvc.mongodb.Collection(model.ScanTasksCollection.String()).UpdateOne(mongoCtx, filter, update)
+	if err != nil {
+		zerolog.Ctx(ctx).Error().
+			Err(err).
+			Str("scanTask", fmt.Sprintf("%+v", scanTask.Status)).
+			Msg("error in updating task in Mongo")
+	}
+	if scanTask.Status == model.ScanStatusSucceeded {
+		if scanTask.ScanReport.Vulns.Vulnerabilities != nil {
+			if len(scanTask.ScanReport.Vulns.Vulnerabilities) > 0 {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
+				}
+			} else {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
+				}
+			}
+		} else {
+			err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
+			}
+		}
+		if scanTask.ScanReport.Vulns.Sensitives != nil {
+			if len(scanTask.ScanReport.Vulns.Sensitives) > 0 {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
+				}
+			} else {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
+				}
+			}
+		} else {
+			err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
+			}
+		}
+
+	}
+
+	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
+		err := util.ScanFinish(rcSvc.mongodb, scanTask.ImageDigest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
+		}
+	}
+}
+
 func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanTask model.ScanTask, status, message string, originalErr error) {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
 	defer mongoCtxCancel()
@@ -1090,7 +1166,6 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 					Msg("error in marking tasks as stale in Mongo")
 				return sessionError
 			}
-
 			scanTask.FirstScanAt = firstScanAt
 			scanTask.Stale = false
 		}
@@ -1114,9 +1189,46 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 	if err != nil {
 		zerolog.Ctx(ctx).Error().
 			Err(err).
-			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
+			Str("scanTask", fmt.Sprintf("%+v", scanTask.Status)).
 			Msg("error in updating task in Mongo")
 	}
+	//update image list question
+	if scanTask.Status == model.ScanStatusSucceeded {
+		if scanTask.ScanReport.Vulns.Vulnerabilities != nil {
+			if len(scanTask.ScanReport.Vulns.Vulnerabilities) > 0 {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
+				}
+			} else {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
+				}
+			}
+		}
+		if scanTask.ScanReport.Vulns.Sensitives != nil {
+			if len(scanTask.ScanReport.Vulns.Sensitives) > 0 {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
+				}
+			} else {
+				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
+				}
+			}
+		}
+
+	}
+	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
+		err := util.ScanFinish(rcSvc.mongodb, scanTask.ImageDigest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
+		}
+	}
+
 }
 
 func (rcSvc *RedClairService) removeStaleVulnerabilitiesInImages(
@@ -1462,7 +1574,8 @@ func (rcSvc *RedClairService) readManifest(ctx context.Context, version string, 
 		for _, layer := range manifest.Manifest.Layers {
 			layerDigest := layer.Digest.String()
 			if _, ok := uniqueLayers[layerDigest]; ok {
-				return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
+				//return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
+				continue
 			}
 			uniqueLayers[layerDigest] = true
 			layers = append(layers, layerDigest)

@@ -189,14 +189,14 @@ func (api *api) activeUser() http.HandlerFunc {
 
 		if ru.HashCode == "" {
 			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusRequestedRangeNotSatisfiable, fmt.Errorf("hashcode is not empty")))
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("hashcode is not empty")))
 			return
 		}
 
 		username, ok := model.CheckHashCode(r.Context(), api.postgresDB, ru.HashCode)
 		if !ok {
 			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusRequestedRangeNotSatisfiable, fmt.Errorf("hashcode is error")))
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("hashcode is error")))
 			return
 		}
 
@@ -250,7 +250,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		}
 		if !exist {
 			RespAndLog(w, ctx,
-				UserNotExistError(http.StatusPreconditionFailed, fmt.Errorf("user not exist")))
+				UserNotExistError(http.StatusBadRequest, fmt.Errorf("user not exist")))
 			return
 		}
 
@@ -259,7 +259,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		bool := model.SendEmail(rf.Username, r.Host, emailHashCode, api.emailOpts)
 		if !bool {
 			RespAndLog(w, ctx,
-				SendmailError(http.StatusNotFound, fmt.Errorf("send email error")))
+				SendmailError(http.StatusBadRequest, fmt.Errorf("send email error")))
 			return
 		}
 

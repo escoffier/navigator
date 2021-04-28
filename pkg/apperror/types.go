@@ -302,6 +302,22 @@ func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
+func ScanImageGoingErr(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return FieldError{
+		detailedError{
+			err:       err,
+			English:   "Scan online image going",
+			Zhongwen:  "正在扫描在线镜像",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 

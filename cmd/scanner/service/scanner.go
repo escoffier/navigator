@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os/exec"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 
 	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -32,12 +35,14 @@ func init() {
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
-	server      *http.Server
-	etcd        *clientv3.Client
-	redclair    *component.RedClairService
-	mongoClient *mongo.Client
-	ctx         context.Context
-	cancel      context.CancelFunc
+	server          *http.Server
+	etcd            *clientv3.Client
+	redclair        *component.RedClairService
+	viursScan       *component.VirusScan
+	mongoClient     *mongo.Client
+	ctx             context.Context
+	cancel          context.CancelFunc
+	localLayerMange *layerManage.LocalLayerManageSrv
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -79,6 +84,12 @@ func NewScanner(
 		DB:       0, // TODO: Add DB
 	})
 
+	//Redis DB1 clinet
+	redisClientOne := redis.NewClient(&redis.Options{
+		Addr:     redisOpts.Endpoint,
+		Password: redisOpts.Password,
+		DB:       1, // TODO: Add DB
+	})
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
@@ -88,28 +99,59 @@ func NewScanner(
 		return nil, err
 	}
 
+	virusScan, _ := component.NewViursScanService(mainCtx, clairOpts, mongodb, redisClientOne, updateOpts)
+	// local layer manage
+	llms, err := layerManage.NewLocalLayerManageSrv(mainCtx, "0.0.0.0", 5566, clairOpts.EndpointClairPort, clairOpts.EndpointAddress)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Scanner{
 		server: &http.Server{
 			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled),
+			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled, virusScan),
 		},
-		redclair:    redclairSvc,
-		mongoClient: mongoClient,
-		ctx:         mainCtx,
-		cancel:      mainCancel,
+		redclair:        redclairSvc,
+		viursScan:       virusScan,
+		mongoClient:     mongoClient,
+		ctx:             mainCtx,
+		cancel:          mainCancel,
+		localLayerMange: llms,
 	}, nil
 }
 
 // Run is to run the service.
 func (s *Scanner) Run() func() {
 	log.Info().Msg("Vegeta Scanner started")
-
+	cmd := exec.Command("service", "clamav-daemon", "start") //start clamd service
+	cmd.Output()
 	var wg sync.WaitGroup
+
+	// start local layer manage
 	wg.Add(1)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+				logging.GetLogger().Error().Msgf("start Layer Manage scanner error : %v. stack: %s", r, debug.Stack())
+				panic(r)
+			}
+		}()
+
+		defer wg.Done()
+		err := s.localLayerMange.Run()
+		if err != nil {
+			log.Panic().
+				Err(err).
+				Msg("Panic failed to start local layer manage server")
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Htpp.Server error : %v. stack: %s", r, debug.Stack())
+				panic(r)
 			}
 		}()
 
@@ -126,14 +168,32 @@ func (s *Scanner) Run() func() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+				logging.GetLogger().Error().Msgf("Clair error : %v. stack: %s", r, debug.Stack())
+				panic(r)
 			}
 		}()
 
 		defer wg.Done()
-		err := s.redclair.Run(s.ctx)
+		err := s.redclair.Run(s.ctx, s.localLayerMange)
 		if err != nil {
 			log.Panic().Err(err).Msg("Panic failed to start redclair")
+		}
+	}()
+
+	// start virus scanner
+	wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("ViursScan error : %v. stack: %s", r, debug.Stack())
+				panic(r)
+			}
+		}()
+
+		defer wg.Done()
+		err := s.viursScan.Run(s.ctx, s.localLayerMange)
+		if err != nil {
+			log.Panic().Err(err).Msg("Panic failed to start ViursScan")
 		}
 	}()
 

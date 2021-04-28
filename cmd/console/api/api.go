@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/olivere/elastic/v7"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+
 	"net/http"
 	"reflect"
 	"regexp"
@@ -16,7 +21,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	version "github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
-	"github.com/olivere/elastic/v7"
+
 	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -32,7 +37,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
@@ -66,6 +70,7 @@ type api struct {
 	harborClient           *harbor.HarborRESTClient
 	microService           *microservice.MicroService
 	emailOpts              *flag.EmailOpts
+	imageService           *image.ImageService
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -98,6 +103,7 @@ func newAPI(
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
+	imageService *image.ImageService,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -126,6 +132,7 @@ func newAPI(
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 		emailOpts:                   emailOpts,
+		imageService:                imageService,
 	}
 }
 

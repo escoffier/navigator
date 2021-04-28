@@ -17,6 +17,7 @@ func setupChiRouter(
 	redclair *component.RedClairService,
 	mongodb *mongo.Database,
 	httpLoggerDisabled bool,
+	virusScan *component.VirusScan,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -29,7 +30,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, redclair, mongodb)
+	api.SetupRoutes(ctx, r, redclair, mongodb, virusScan)
 
 	return r
 }

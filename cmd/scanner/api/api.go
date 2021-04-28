@@ -9,19 +9,22 @@ import (
 )
 
 type api struct {
-	ctx      context.Context
-	redclair *component.RedClairService
-	mongodb  *mongo.Database
+	ctx       context.Context
+	redclair  *component.RedClairService
+	mongodb   *mongo.Database
+	virusScan *component.VirusScan
 }
 
 func newAPI(
 	ctx context.Context,
 	redclair *component.RedClairService,
 	mongodb *mongo.Database,
+	virusScan *component.VirusScan,
 ) *api {
 	return &api{
-		ctx:      ctx,
-		redclair: redclair,
-		mongodb:  mongodb,
+		ctx:       ctx,
+		redclair:  redclair,
+		mongodb:   mongodb,
+		virusScan: virusScan,
 	}
 }
