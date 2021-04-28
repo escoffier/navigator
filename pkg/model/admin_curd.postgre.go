@@ -264,7 +264,7 @@ func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []MongoUser
 	if err != nil {
 		apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't find document: %w", err))
-		return nil, err
+		return
 	}
 
 	mongoUserSlice := make([]MongoUser, 0)

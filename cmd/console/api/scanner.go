@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
+
 	"time"
 
 	"github.com/go-chi/chi"
@@ -29,12 +31,17 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/task/{taskID}", api.getScannerTask())
 		r.Get("/reportsBySeverity", api.listScanReportsBySeverity())
 		r.Get("/reportsByImage", api.listScannedImages())
+		r.Get("/reportsByImageList", api.listScannedByImageList())
+		r.Get("/reportsByImageDetails", api.ScannedByImageDetails())
 		r.Get("/report/{taskID}", api.getScannerImageVulnerabilities())
 		r.Post("/scan", api.scan())
+		r.Post("/scanone", api.scanOne())
 
 		r.Post("/harbor/scanAllNow", api.harborScanAllNow())
+		r.Post("/harbor/scanOnline", api.harborScanOnline())
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
 		r.Get("/harbor/scanStatus", api.harborScanStatus())
+		r.Get("/harbor/scanOneStatus", api.harborScanOneStatus())
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 	}
 }
@@ -184,6 +191,75 @@ func (api *api) listScannedImages() http.HandlerFunc {
 			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
+	}
+}
+
+//
+// @Router  /api/v2/containerSec/scanner/reportsByRepo [get]
+func (api *api) listScannedByImageList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		search := r.URL.Query().Get("search")
+		if len(search) > 64 {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("the maximum value is exceeded"),
+				Suberror{"search", ""}))
+			return
+		}
+		offset, limit := api.getOffsetAndLimit(r)
+
+		online := r.URL.Query().Get("online")
+		if online == "" {
+			online = "false"
+		}
+		if online != "false" && online != "true" {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("online error"),
+				Suberror{"online", "true/false"}))
+			return
+		}
+
+		items, docNum, err := api.scannerService.GetImageList(ctx, api.imageService, offset, limit, search, online, api.scannerURL)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		response.Ok(w,
+			response.WithItems(items),
+			response.WithTotalItems(docNum),
+			response.WithItemsPerPage(limit),
+			response.WithStartIndex(offset))
+	}
+
+}
+
+//@Summary Get a scan task by scantask on image
+// @Description Get a scan task by scantask on image
+// @Router /api/v2/containerSec/scanner/reportsByImageDetails [get]
+func (api *api) ScannedByImageDetails() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		digest := r.URL.Query().Get("digest")
+		fullRepoName := r.URL.Query().Get("repositoryName")
+		if len(digest) != 71 || len(fullRepoName) > 64 {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("digest or repo name len error"),
+				Suberror{"digest/repo", ""}))
+			return
+		}
+
+		items, err := api.scannerService.GetImageDetail(ctx, digest, fullRepoName)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		response.Ok(w, response.WithItem(items))
 	}
 }
 
@@ -379,4 +455,49 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 	}
 
 	return nil
+}
+
+// @Summary Tell scanner to scan an image
+// @Description Tell scanner to scan an image
+// @Router /api/v2/containerSec/scanner/scanOne [post]
+func (api *api) scanOne() http.HandlerFunc {
+	type param struct {
+		FullRepoName string `json:"full_repo_name"`
+		Tag          string `json:"tag"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+		var p param
+		err := util.DecodeJSONBody(w, r, &p)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
+			return
+		}
+
+		if len(p.FullRepoName) > 64 || len(p.Tag) > 32 {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
+				fmt.Errorf("FullRepoName or  tag len error"),
+				Suberror{"RepoName/tag", ""}))
+			return
+		}
+
+		projectNameRepoName := strings.SplitN(p.FullRepoName, "/", 2)
+		projectName := projectNameRepoName[0]
+		repoName := projectNameRepoName[1]
+		frepoName := strings.Replace(repoName, "/", "%252F", -1)
+
+		tag := strings.SplitN(p.Tag, ";", 2)
+
+		err = api.harborClient.ScanOne(ctx, projectName, frepoName, tag[0])
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("Failed to trigger  scan one in Harbor: %w", err))
+			return
+		}
+
+		response.Ok(w, response.WithItem(resp{Status: "OK"}))
+
+	}
 }

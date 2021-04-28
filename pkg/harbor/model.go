@@ -3,6 +3,7 @@ package harbor
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -102,11 +103,21 @@ type ScanView struct {
 }
 
 type VersionAdapter struct {
-	ScanStatus string `json:"scan_status"`
+	EndTime    time.Time `json:"end_time"`
+	ScanStatus string    `json:"scan_status"`
 }
 type respItemT struct {
 	Name      string `json:"name"`
 	ProjectID int    `json:"project_id"`
+}
+
+type Repositories struct {
+	CreationTime time.Time `json:"creation_time"`
+	ID           int       `json:"id"`
+	Name         string    `json:"name"`
+	ProjectID    int       `json:"project_id"`
+	PullCount    int       `json:"pull_count"`
+	UpdateTime   time.Time `json:"update_time"`
 }
 
 func RedclairReportToHarborReport(redclairReport model.VulnerabilityReport) HarborVulnerabilityReport {

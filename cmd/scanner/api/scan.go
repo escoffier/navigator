@@ -26,6 +26,38 @@ func (api *api) scan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/one", api.scanOne())
 		r.Post("/dev/forceInvalidateCache", api.forceInvalidateCache())
+		r.Get("/get/allscanStatus", api.getAllScanStatus())
+		r.Get("/get/sha256scanstatus", api.getSha256ScanStatus())
+	}
+}
+
+// @Summary Get all virusScan Status
+// @Description Get all virusScan Status form virusScan sync.Map
+// @Produce json
+// @Router /api/v1/scan/get/allscanStatus [get]
+func (api *api) getAllScanStatus() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		waitNum, doingNum := api.virusScan.GetAllScanStatus()
+		data := struct {
+			WaitNum  int `json:"waitnum"`
+			DoingNum int `json:"doingnum"`
+		}{WaitNum: waitNum, DoingNum: doingNum}
+		response.Ok(w, response.WithItem(data))
+	}
+}
+
+// @Summary Get ScanStatus from give sha256
+// @Description Get ScanStatus form give sha256
+// @Produce json
+// @Router /api/v1/scan/get/sha256scanstatus [get]
+func (api *api) getSha256ScanStatus() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		search := r.URL.Query().Get("digest")
+		res := api.virusScan.GetSha256ScanStatus(search)
+		data := struct {
+			Status string `json:"status,omitempty"`
+		}{Status: res}
+		response.Ok(w, response.WithItem(data))
 	}
 }
 
@@ -100,8 +132,24 @@ func (api *api) scanOne() http.HandlerFunc {
 			return
 		}
 
+		viursTask := model.VirusScanTask{
+			Status:        model.VirusScanDoing,
+			StartedAt:     time.Now().Unix(),
+			Repository:    scanReq.Repository,
+			Tag:           scanReq.Tag,
+			URL:           scanReq.URL,
+			HarborURL:     scanReq.ResultsURL,
+			Authorization: scanReq.Authorization,
+			ImageDigest:   scanReq.Digest,
+			ID:            primitive.NewObjectIDFromTimestamp(time.Now()),
+		}
+		_, err = api.mongodb.Collection(model.VirusScanTaskCollection.String()).InsertOne(mongoCtx, viursTask)
+
 		// add the task to redclair
 		api.redclair.AddScanTask(task)
+
+		//add the task to virusScan
+		api.virusScan.AddScanTask(viursTask)
 
 		response.Ok(w, response.WithItem(task))
 	}

@@ -121,6 +121,7 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			return
 		}
 
+		api.imageService.ScanImageCheck(harborScanReq.Artifact.Repository, harborScanReq.Artifact.Digest)
 		tensorsecScannerReqPayload := model.ScannerReq{
 			URL:           harborScanReq.Registry.URL,
 			Authorization: harborScanReq.Registry.Authorization,

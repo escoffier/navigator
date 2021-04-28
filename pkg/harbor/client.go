@@ -8,18 +8,18 @@ import (
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/zerolog/log"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/rs/zerolog/log"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const AUTOSCANCNDESCRIBE = "当镜像上传后，自动进行扫描漏洞"
@@ -235,16 +235,19 @@ func (h HarborRESTClient) ScanOne(ctx context.Context, projectName, repositoryNa
 	return nil
 }
 
-func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, repositoryName, tag string) (string, error) {
+func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, repositoryName, tag, digest string) (time.Time, string, error) {
 	// v2: /api/v2.0/projects/docker_contenttrust/repositories/myshop/artifacts/v1?with_scan_overview=t
 	// v1: /api/repositories/docker_contenttrust/myshop/tags/v1
-	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s?with_scan_overview=true", h.address, h.apiVersionString, projectName, repositoryName, tag)
+	if digest == "" {
+		digest = tag
+	}
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s?with_scan_overview=true", h.address, h.apiVersionString, projectName, repositoryName, digest)
 	if h.apiVersionString == "api" {
 		url = fmt.Sprintf("%s/%s/repositories/%s/%s/tags/%s", h.address, h.apiVersionString, projectName, repositoryName, tag)
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
+		return time.Now(), "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
@@ -259,7 +262,7 @@ func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, reposi
 
 	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
-		return "", NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
+		return time.Now(), "", NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
 	}
 	defer util.CloseBodyWithLog(resp.Body)
 	if resp.StatusCode != http.StatusOK {
@@ -268,22 +271,24 @@ func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, reposi
 		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
 		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
 		if err != nil {
-			return "", NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %+v", err))
+			return time.Now(), "", NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %+v", err))
 		}
-		return "", NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
+		return time.Now(), "", NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
 	}
-
 	result, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		return "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to readall  message from body: %w", err))
+		return time.Now(), "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to readall  message from body: %w", err))
 	}
 	var scanOneStatus ScanOneStatus
 	err = jsoniter.Unmarshal(result, &scanOneStatus)
 	if err != nil {
-		return "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("json Unmarshal error: %w", err))
+		return time.Now(), "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("json Unmarshal error: %w", err))
 	}
-	return scanOneStatus.ScanOverview.Version.ScanStatus, nil
+	if scanOneStatus.ScanOverview.Version.ScanStatus == "" {
+		scanOneStatus.ScanOverview.Version.ScanStatus = model.JobNotScan
+	}
+	return scanOneStatus.ScanOverview.Version.EndTime, scanOneStatus.ScanOverview.Version.ScanStatus, nil
 }
 
 func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepoName, shaDigest, tag string) (string, error) {
@@ -457,7 +462,7 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, st
 		url := fmt.Sprintf("%s/%s/projects?page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %w", err))
+			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %+v", err))
 		}
 		req.SetBasicAuth(h.username, h.password)
 
@@ -471,7 +476,7 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, st
 
 		resp, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
-			return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %w", err))
+			return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %+v", err))
 		}
 		defer util.CloseBodyWithLog(resp.Body)
 
@@ -502,4 +507,286 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, st
 	}
 
 	return respItems, h.address, nil
+}
+
+func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []respItemT) ([]Repositories, error) {
+	//api/v2.0/projects/tensorsecurity/repositories?page_size=15&page=1 v2
+	//api/repositories?page=1&page_size=15&project_id=2 v1
+	var RepositoriesSlice []Repositories
+
+	for _, v := range rest {
+		var (
+			page = 1
+			loop = true
+		)
+		for loop {
+
+			url := fmt.Sprintf("%s/%s/projects/%s/repositories?page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString, v.Name)
+			if h.apiVersionString == "api" {
+				url = fmt.Sprintf("%s/%s/repositories?page="+strconv.Itoa(page)+"&page_size=100&project_id=%d", h.address, h.apiVersionString, v.ProjectID)
+			}
+
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to repositories get projects request to Harbor: %w", err)
+				loop = false
+				continue
+
+			}
+			req.SetBasicAuth(h.username, h.password)
+
+			httpClient := http.Client{}
+			if h.skipTLSVerify {
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				}
+				httpClient.Transport = tr
+			}
+
+			resp, err := httpClient.Do(req.WithContext(ctx))
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
+				loop = false
+				continue
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				var errorResp harborHTTPErrorResp
+				var rawBodyBuf bytes.Buffer
+				teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+				err = json.NewDecoder(teeReader).Decode(&errorResp)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+					loop = false
+					continue
+				}
+				logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
+				loop = false
+				continue
+			}
+			var repos []Repositories
+
+			err = json.NewDecoder(resp.Body).Decode(&repos)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+				loop = false
+				continue
+			}
+
+			RepositoriesSlice = append(RepositoriesSlice, repos...)
+			if len(repos) < 100 {
+				loop = false
+			} else {
+				page++
+			}
+		}
+	}
+	return RepositoriesSlice, nil
+}
+
+func (h HarborRESTClient) GetAllArtifacts(ctx context.Context, repo []Repositories) (model.Artifacts, error) {
+
+	var ArtifactsSlice model.Artifacts
+	for _, v := range repo {
+		var (
+			page = 1
+			loop = true
+		)
+		for loop {
+			resp := v.Name[:strings.Index(v.Name, "/")]
+			repo := v.Name[strings.Index(v.Name, "/")+1:]
+
+			frepo := strings.Replace(repo, "/", "%252F", -1)
+
+			url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts?with_tag=true&with_scan_overview=true&with_label=true&page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString, resp, frepo)
+			if h.apiVersionString == "api" {
+				//https://152.136.147.241:8443/api/repositories/tensorsecurity/faulty/tags?detail=true
+				url = fmt.Sprintf("%s/%s/repositories/%s/tags?detail=true", h.address, h.apiVersionString, v.Name)
+				loop = false
+			}
+
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to repositories get projects request to Harbor: %w", err)
+				loop = false
+				continue
+			}
+			req.SetBasicAuth(h.username, h.password)
+
+			httpClient := http.Client{}
+			if h.skipTLSVerify {
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				}
+				httpClient.Transport = tr
+			}
+
+			response, err := httpClient.Do(req.WithContext(ctx))
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
+				loop = false
+				continue
+			}
+
+			if response.StatusCode != http.StatusOK {
+				var errorResp harborHTTPErrorResp
+				var rawBodyBuf bytes.Buffer
+				teeReader := io.TeeReader(response.Body, &rawBodyBuf)
+				err = json.NewDecoder(teeReader).Decode(&errorResp)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+					loop = false
+					continue
+				}
+				logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
+				loop = false
+				continue
+			}
+
+			if h.apiVersionString != "api" { //v2
+				var artif []model.Artifacts2
+				err = json.NewDecoder(response.Body).Decode(&artif)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+					loop = false
+					break
+				}
+				for i := range artif {
+					artif[i].FullRepoName = v.Name
+				}
+				ArtifactsSlice.Af2 = append(ArtifactsSlice.Af2, artif...)
+				if h.apiVersionString != "api" {
+					if len(artif) < 100 {
+						loop = false
+					} else {
+						page++
+					}
+				}
+			} else {
+				var artif []model.Artifacts1
+
+				err = json.NewDecoder(response.Body).Decode(&artif)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+					loop = false
+					break
+				}
+				for i := range artif {
+					artif[i].FullRepoName = v.Name
+				}
+				ArtifactsSlice.Af1 = append(ArtifactsSlice.Af1, artif...)
+			}
+		}
+
+	}
+
+	return ArtifactsSlice, nil
+
+}
+
+func (h HarborRESTClient) GetOneArtifacts(fullRepoName string) (model.Artifacts, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	var (
+		page           = 1
+		loop           = true
+		ArtifactsSlice model.Artifacts
+	)
+
+	for loop {
+		projectNameRepoName := strings.SplitN(fullRepoName, "/", 2)
+		projectName := projectNameRepoName[0]
+		repoName := projectNameRepoName[1]
+		repoName = strings.ReplaceAll(repoName, "/", "%2F")
+
+		url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts?with_tag=true&with_scan_overview=true&with_label=true&?page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString, projectName, repoName)
+		if h.apiVersionString == "api" {
+			//https://152.136.147.241:8443/api/repositories/tensorsecurity/faulty/tags?detail=true
+			url = fmt.Sprintf("%s/%s/repositories/%s/tags?detail=true", h.address, h.apiVersionString, fullRepoName)
+			loop = false
+		}
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("Failed to repositories get projects request to Harbor: %w", err)
+			loop = false
+			break
+		}
+		req.SetBasicAuth(h.username, h.password)
+
+		httpClient := http.Client{}
+		if h.skipTLSVerify {
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			httpClient.Transport = tr
+		}
+
+		response, err := httpClient.Do(req.WithContext(ctx))
+		if err != nil {
+			logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
+			loop = false
+			break
+		}
+
+		if response.StatusCode != http.StatusOK {
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(response.Body, &rawBodyBuf)
+			err = json.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+				loop = false
+				break
+			}
+			logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
+			loop = false
+			break
+		}
+
+		if h.apiVersionString != "api" { //v2
+			var artif []model.Artifacts2
+			err = json.NewDecoder(response.Body).Decode(&artif)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+				loop = false
+				break
+			}
+			for i := range artif {
+				artif[i].FullRepoName = fullRepoName
+			}
+			ArtifactsSlice.Af2 = append(ArtifactsSlice.Af2, artif...)
+			if h.apiVersionString != "api" {
+				if len(artif) < 100 {
+					loop = false
+				} else {
+					page++
+				}
+			}
+		} else {
+			var artif []model.Artifacts1
+
+			err = json.NewDecoder(response.Body).Decode(&artif)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+				loop = false
+				break
+			}
+			for i := range artif {
+				artif[i].FullRepoName = fullRepoName
+			}
+			ArtifactsSlice.Af1 = append(ArtifactsSlice.Af1, artif...)
+		}
+	}
+	return ArtifactsSlice, nil
+}
+
+func (h HarborRESTClient) GetApiVersionString() string {
+	return h.apiVersionString
+}
+
+func (h HarborRESTClient) GetAddressString() string {
+	return h.address
 }

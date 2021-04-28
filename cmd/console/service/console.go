@@ -5,6 +5,12 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"github.com/go-redis/redis/v8"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
+
+	_ "github.com/jinzhu/gorm/dialects/postgres"
+
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -13,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
@@ -161,6 +166,8 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	}
+	// image service
+	imageService := image.NewImageService(mongoDBWrapper, harborClient)
 
 	// scanner service
 	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongoDBWrapper, harborClient)
@@ -246,6 +253,7 @@ func NewConsole(
 				harborClient,
 				microService,
 				emailOpts,
+				imageService,
 			),
 		},
 		monCliWrapper:      mongoCliWrapper,
@@ -854,6 +862,24 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 		{
 			Keys: bson.M{
 				"updatedAt": 1,
+			}, Options: nil,
+		},
+	}
+
+	neededIndexesPerCollection[model.ImageListCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"full_repo_name": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"tags": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"digest": 1,
 			}, Options: nil,
 		},
 	}

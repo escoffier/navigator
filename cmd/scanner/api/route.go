@@ -25,13 +25,14 @@ func SetupRoutes(
 	r *chi.Mux,
 	redclair *component.RedClairService,
 	mongodb *mongo.Database,
+	virusScan *component.VirusScan,
 ) {
 	log.Debug().Msg("setting up routes...")
 
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
-	api := newAPI(ctx, redclair, mongodb)
+	api := newAPI(ctx, redclair, mongodb, virusScan)
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
 			r.Route("/scan", api.scan())

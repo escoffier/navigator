@@ -3,17 +3,22 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"go.mongodb.org/mongo-driver/mongo"
+
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
@@ -244,7 +249,6 @@ func (s *ScannerService) GetServiceScannedImages(ctx context.Context, offset int
 	return items, itemCount, nil
 }
 
-//service scan
 func (s *ScannerService) SetServiceScanImages(ctx context.Context, namespace, resourcesName, selecter string) error {
 	var imageSlice []string
 	var err error
@@ -300,7 +304,6 @@ func (s *ScannerService) getImageInfo(image string) (projectName, repositoryName
 
 }
 
-//service scan
 func (s *ScannerService) GetServiceScanImagesStatus(ctx context.Context, namespace, svcname, selecter string) (harbor.ScanAllStatus, error) {
 	var status harbor.ScanAllStatus
 	var imageSlice []string
@@ -326,7 +329,7 @@ func (s *ScannerService) GetServiceScanImagesStatus(ctx context.Context, namespa
 			continue
 		} else {
 			status.Total += 1
-			imageStatus, err := s.harborClient.ScanOneStatus(ctx, projectName, repositoryName, tag)
+			_, imageStatus, err := s.harborClient.ScanOneStatus(ctx, projectName, repositoryName, tag, "")
 			if err != nil {
 				logging.GetLogger().Info().Msgf("scan one  error :%+v", err)
 			}
@@ -357,4 +360,220 @@ func (s *ScannerService) GetServiceScanImagesStatus(ctx context.Context, namespa
 	}
 
 	return status, nil
+}
+
+func (s *ScannerService) GetImageList(ctx context.Context, imageService *image.ImageService, offset int64, limit int64, search, online, scannerURL string) ([]model.ImageList, int64, error) {
+	digest := make([]string, 0)
+	filter := bson.M{}
+	if online == "true" {
+
+		asFilter := bson.M{
+			"isDeleted": false,
+		}
+		findOptions := options.Find().SetMaxTime(time.Second * 10)
+		mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+		defer mongoCtxCancel()
+		cursor, err := s.mongodb.Get().Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, asFilter, findOptions)
+		if err == nil {
+			defer func() {
+				if err := cursor.Close(ctx); err != nil {
+					logging.GetLogger().Error().Err(err).Msg("When closing cursor, but ignoring.")
+				}
+			}()
+			for cursor.Next(ctx) {
+				var container model.AssetContainer
+				err := cursor.Decode(&container)
+				if err == nil {
+					digest = append(digest, container.Digest)
+				}
+			}
+		}
+
+		filter = bson.M{"digest": bson.M{"$in": digest}}
+
+		if search != "" {
+			filter = bson.M{
+				"$or": []bson.M{
+					{"full_repo_name": bson.M{"$regex": search}},
+					{"tags": bson.M{"$regex": search}},
+					{"library": bson.M{"$regex": search}},
+				},
+				"digest": bson.M{"$in": digest},
+			}
+		}
+	} else {
+		if search != "" {
+			filter = bson.M{
+				"$or": []bson.M{
+					{"full_repo_name": bson.M{"$regex": search}},
+					{"tags": bson.M{"$regex": search}},
+					{"library": bson.M{"$regex": search}},
+				},
+			}
+		}
+	}
+
+	opt := options.Find()
+	opt.SetMaxTime(time.Second * 2)
+	opt.SetLimit(limit)
+	opt.SetSkip(offset)
+	opt.SetSort(bson.D{{"full_repo_name", 1}, {"tags", 1}})
+	copt := options.Count()
+	count, err := s.mongodb.Get().Collection(model.ImageListCollection.String()).CountDocuments(ctx, filter, copt)
+
+	cur, err := s.mongodb.Get().Collection(model.ImageListCollection.String()).Find(ctx, filter, opt)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("couldn't find document: %w", err))
+		return nil, 0, err
+	}
+
+	ImageListSlice := make([]model.ImageList, 0)
+	for cur.Next(ctx) {
+		var il model.ImageList
+		err := cur.Decode(&il)
+		if err != nil {
+			return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", err))
+		}
+
+		/*il.ScanStatus = strings.ToLower(imageService.GetImageScanStatus(ctx, s.harborClient, il.FullRepoName, il.Tags, il.Digest, scannerURL))*/
+
+		ImageListSlice = append(ImageListSlice, il)
+	}
+
+	return ImageListSlice, count, nil
+
+}
+
+func (s *ScannerService) GetImageDetail(ctx context.Context, digest, fullRepoName string) (model.ImageList, error) {
+	var scanTask model.ScanTask
+	var il model.ImageList
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
+	defer mongoCtxCancel()
+	filter := bson.M{"digest": digest, "full_repo_name": fullRepoName}
+
+	opt := options.FindOne()
+	opt.SetMaxTime(time.Second * 2)
+
+	err := s.mongodb.Get().Collection(model.ImageListCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&il)
+	if err != nil {
+		NewMongoError(http.StatusInternalServerError,
+			fmt.Errorf("couldn't find document: %w", err))
+		return il, err
+	}
+	//to get  ImageScanSummaryResult
+
+	if val, ok := il.Questions[model.QUESTION_VULN]; ok {
+		id, _ := primitive.ObjectIDFromHex(val.ID)
+		vuln_filter := bson.M{"_id": id}
+		opts := options.FindOne()
+		opts.SetMaxTime(time.Second * 10)
+
+		coll := s.mongodb.Get().Collection(model.ScanTasksCollection.String())
+
+		err = coll.FindOne(mongoCtx, vuln_filter, opts).Decode(&scanTask)
+		if err == nil {
+			report := scanTask.ScanReport.Vulns
+
+			for j := range report.Sensitives {
+				if lang.Language(ctx) == lang.LanguageZH {
+					description := report.Sensitives[j].DescriptionZh
+					report.Sensitives[j].Description = description
+				} else {
+					description := report.Sensitives[j].DescriptionEn
+					report.Sensitives[j].Description = description
+				}
+			}
+
+			imageScanResult := model.ImageScanSummaryResult{
+				TopVulns:          report.Vulnerabilities,
+				SensitiveFiles:    report.Sensitives,
+				Repository:        report.Repository,
+				HarborURL:         scanTask.HarborURL,
+				Tag:               report.Tag,
+				Digest:            report.Digest,
+				TaskID:            scanTask.ID,
+				StartedAt:         scanTask.StartedAt,
+				FinishedAt:        scanTask.FinishedAt,
+				OverallSeverity:   scanTask.ScanReport.OverallSeverity,
+				SeverityHistogram: scanTask.ScanReport.SeverityHistogram,
+			}
+			il.ImageScanVuln = imageScanResult
+		}
+	} else if val, ok := il.Questions[model.QUESTION_SENSITIVE]; ok {
+		id, _ := primitive.ObjectIDFromHex(val.ID)
+		vuln_filter := bson.M{"_id": id}
+		opts := options.FindOne()
+		opts.SetMaxTime(time.Second * 10)
+
+		coll := s.mongodb.Get().Collection(model.ScanTasksCollection.String())
+
+		err = coll.FindOne(mongoCtx, vuln_filter, opts).Decode(&scanTask)
+		if err == nil {
+			report := scanTask.ScanReport.Vulns
+
+			for j := range report.Sensitives {
+				if lang.Language(ctx) == lang.LanguageZH {
+					description := report.Sensitives[j].DescriptionZh
+					report.Sensitives[j].Description = description
+				} else {
+					description := report.Sensitives[j].DescriptionEn
+					report.Sensitives[j].Description = description
+				}
+			}
+			imageScanResult := model.ImageScanSummaryResult{
+				TopVulns:          report.Vulnerabilities,
+				SensitiveFiles:    report.Sensitives,
+				Repository:        report.Repository,
+				HarborURL:         scanTask.HarborURL,
+				Tag:               report.Tag,
+				Digest:            report.Digest,
+				TaskID:            scanTask.ID,
+				StartedAt:         scanTask.StartedAt,
+				FinishedAt:        scanTask.FinishedAt,
+				OverallSeverity:   scanTask.ScanReport.OverallSeverity,
+				SeverityHistogram: scanTask.ScanReport.SeverityHistogram,
+			}
+			il.ImageScanVuln = imageScanResult
+		}
+	}
+
+	if val, ok := il.Questions[model.QUESTION_VIRUS]; ok {
+		id, _ := primitive.ObjectIDFromHex(val.ID)
+		vopt := options.FindOne()
+		vopt.SetMaxTime(time.Second * 10)
+		var virusScan model.VirusScanTask
+
+		virus_filter := bson.M{"_id": id}
+		err = s.mongodb.Get().Collection(model.VirusScanTaskCollection.String()).FindOne(ctx, virus_filter, vopt).Decode(&virusScan)
+		if err == nil {
+			for _, v := range virusScan.ScanReport.Virus.Virus {
+				il.ImageScanVirus = append(il.ImageScanVirus, model.VirusFileInfo{Filename: v.FileName, Filepath: v.FilePath, Virusname: v.VirusName})
+			}
+		}
+	}
+
+	findOptions := options.Find().SetMaxTime(time.Second * 10)
+	filter = bson.M{"digest": digest}
+	cursor, err := s.mongodb.Get().Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
+	if err == nil {
+		defer func() {
+			if err := cursor.Close(ctx); err != nil {
+				logging.GetLogger().Error().Err(err).Msg("When closing cursor, but ignoring.")
+			}
+		}()
+
+		for cursor.Next(ctx) {
+			var container model.AssetContainer
+			err := cursor.Decode(&container)
+			if err == nil {
+				il.Container = append(il.Container, container)
+			}
+		}
+	} else if err != mongo.ErrNoDocuments {
+		logging.GetLogger().Error().Msgf("find assets containers error:%+v", err)
+	}
+
+	return il, nil
+
 }
