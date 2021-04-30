@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
@@ -23,19 +24,15 @@ import (
 	param "github.com/oceanicdev/chi-param"
 
 	"github.com/patrickmn/go-cache"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -45,32 +42,29 @@ import (
 )
 
 type api struct {
-	ctx                    context.Context
-	userCache              *cache.Cache
-	tokenAuth              *jwtauth.JWTAuth
-	mongodb                *mongotools.DatabaseWrapper
-	postgresDB             *rdbtools.GormWrapper
-	optUserMap             map[string]struct{}
-	es                     *elastic.Client
-	scapper                *scapper.Scapper
-	scannerURL             string
-	cronService            *cron.CronService
-	clusterService         *cluster.ClusterService
-	redisClient            *redis.Client
-	ruleService            *rule.RuleService
-	alertService           *alert.AlertService
-	driftPreventionService *driftprevention.DriftPreventionService
-	seccompProfileService  *seccomp.SeccompProfileService
-	falcoService           *falco.FalcoService
-	onlineVulnsSvc         *assetsSvc.OnlineVulnsService
-	auditService           *audit.AuditService
-	cleanupService         *cleanup.CleanupService
-	scannerService         *scanner.ScannerService
-	scapService            *scapper.ScapService
-	harborClient           *harbor.HarborRESTClient
-	microService           *microservice.MicroService
-	emailOpts              *flag.EmailOpts
-	imageService           *image.ImageService
+	ctx            context.Context
+	userCache      *cache.Cache
+	tokenAuth      *jwtauth.JWTAuth
+	mongodb        *mongotools.DatabaseWrapper
+	postgresDB     *rdbtools.GormWrapper
+	optUserMap     map[string]struct{}
+	es             *elastic.Client
+	scapper        *scapper.Scapper
+	scannerURL     string
+	cronService    *cron.CronService
+	clusterService *cluster.ClusterService
+	redisClient    *redis.Client
+	ruleService    *rule.RuleService
+	onlineVulnsSvc *assetsSvc.OnlineVulnsService
+	auditService   *audit.AuditService
+	cleanupService *cleanup.Service
+	scannerService *scanner.ScannerService
+	scapService    *scapper.ScapService
+	harborClient   *harbor.HarborRESTClient
+	microService   *microservice.MicroService
+	emailOpts      *flag.EmailOpts
+	imageService   *image.ImageService
+	ecCli          pb.EventsCenterBizServiceClient
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -91,19 +85,16 @@ func newAPI(
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
-	alertService *alert.AlertService,
-	driftPreventionService *driftprevention.DriftPreventionService,
-	seccompProfileService *seccomp.SeccompProfileService,
-	falcoService *falco.FalcoService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	auditService *audit.AuditService,
-	cleanupService *cleanup.CleanupService,
+	cleanupService *cleanup.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
 	imageService *image.ImageService,
+	ecCli pb.EventsCenterBizServiceClient,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -118,10 +109,6 @@ func newAPI(
 		clusterService:              clusterService,
 		redisClient:                 redisClient,
 		ruleService:                 ruleService,
-		driftPreventionService:      driftPreventionService,
-		seccompProfileService:       seccompProfileService,
-		falcoService:                falcoService,
-		alertService:                alertService,
 		onlineVulnsSvc:              onlineVulnsSvc,
 		auditService:                auditService,
 		cleanupService:              cleanupService,
@@ -133,6 +120,7 @@ func newAPI(
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 		emailOpts:                   emailOpts,
 		imageService:                imageService,
+		ecCli:                       ecCli,
 	}
 }
 
@@ -152,8 +140,8 @@ func (api *api) getOffsetAndLimit(r *http.Request) (int64, int64) {
 	if err != nil {
 		limit = 500
 	}
-	if limit > 10000 {
-		limit = 10000
+	if limit > 1000 {
+		limit = 1000
 	}
 	return int64(offset), int64(limit)
 }

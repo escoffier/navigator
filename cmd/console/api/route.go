@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"net/http"
 	"strings"
 	"time"
@@ -13,19 +14,15 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -67,19 +64,16 @@ func SetupRoutes(
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
-	alertService *alert.AlertService,
-	driftPreventionService *driftprevention.DriftPreventionService,
-	seccompProfileService *seccomp.SeccompProfileService,
-	falcoService *falco.FalcoService,
 	onlineVulnsSvc *assets.OnlineVulnsService,
 	auditService *audit.AuditService,
-	cleanupService *cleanup.CleanupService,
+	cleanupService *cleanup.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
 	imageService *image.ImageService,
+	ecCli pb.EventsCenterBizServiceClient,
 ) {
 	log.Debug().Msg("setting up routes...")
 
@@ -93,10 +87,6 @@ func SetupRoutes(
 		clusterService,
 		redisClient,
 		ruleService,
-		alertService,
-		driftPreventionService,
-		seccompProfileService,
-		falcoService,
 		onlineVulnsSvc,
 		auditService,
 		cleanupService,
@@ -106,15 +96,13 @@ func SetupRoutes(
 		microService,
 		emailOpts,
 		imageService,
+		ecCli,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 	r.Route("/harbor/api/v1", api.harbor())
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", api.restAuth())
-		r.Route("/driftPrevention", api.driftPrevention()) // TODO: Add API token
-		r.Route("/seccomp", api.seccomp())                 // TODO: Add API token
-		r.Route("/falco", api.falco())                     // TODO: Add API token
 
 		// needs authentication
 		r.Group(func(r chi.Router) {
@@ -128,7 +116,6 @@ func SetupRoutes(
 			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
 			r.Route("/riskExplorer", api.riskExplorer())
 			r.Route("/runtimeDetectionConfig", api.runtimeDetectionConfig())
-			r.Route("/alerts", api.alert())
 			r.Route("/audit", api.audit())
 			r.Route("/cleanup", api.cleanup())
 		})

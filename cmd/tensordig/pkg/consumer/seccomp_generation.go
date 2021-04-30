@@ -5,6 +5,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/eventcenter-helper"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"net/http"
 	"os"
 	"reflect"
@@ -36,6 +39,8 @@ type SeccompGeneration struct {
 	podSyscallsMapDetect     sync.Map
 	seccompGenerationTimeout int
 	client                   *http.Client
+	ecCli                    pb.EventsCenterCollectionServiceClient
+	uuidGenerator            *uuid.Generator
 	cu                       ch.ContainerUtil
 	ku                       kh.KubernetesUtil
 	kubeStop                 chan struct{}
@@ -51,6 +56,7 @@ type SyscallWhitelist struct {
 }
 
 func (cc *SeccompGeneration) Init(dataChan chan constant.Data) error {
+	var err error
 	cc.dataChan = dataChan
 	cc.quitChan = make(chan struct{}, 1)
 	cc.cache = cache.New(10*time.Second, 5*time.Minute)
@@ -75,6 +81,18 @@ func (cc *SeccompGeneration) Init(dataChan chan constant.Data) error {
 		return fmt.Errorf("TENSORSEC_CONSOLE_PORT value not set")
 	}
 	cc.consoleAddr = fmt.Sprintf("http://%s:%s", consoleHost, consolePort)
+
+	cc.ecCli, err = eventcenter_helper.NewClientFromEnv()
+	if err != nil {
+		log.Errorf("eventcenter_helper.NewClientFromEnv fail, err:%s", err.Error())
+		return err
+	}
+
+	cc.uuidGenerator, err = uuid.NewGenerator()
+	if err != nil {
+		log.Errorf("uuid.NewGenerator fail, err:%s", err.Error())
+		return err
+	}
 
 	cc.generationUUID = os.Getenv("RANDOM_UUID")
 
@@ -172,11 +190,17 @@ func (cc *SeccompGeneration) processSyscall(event *constant.TotalData, testingPh
 						log.Infof("Successfully added new syscall %s to profile %s", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName)
 					} else {
 						log.Infof("New syscall %s found during testing, but not during training in profile %s", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName)
-						err = alert.SendSeccompAlert(cc.client, info.PodName, kubeInfo.PodUID, kubeInfo.ContainerID, kubeInfo.SeccompProfileName, fmt.Sprintf("%s/%s", cc.consoleAddr, "api/v1/seccomp/raiseAlert"), strings.ToLower(info.Syscall), "TEST", "DETECTION")
-						if err != nil {
-							log.Errorf("Failed to send seccomp alert %s for profile %s: %w", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName, err)
-							return err
-						}
+
+						go alert.NotifyEventWithRetry(cc.ecCli, alert.GenerateSeccompEvent(cc.uuidGenerator, &alert.SeccompEventArg{
+							Cluster:     "default",
+							PodName:     info.PodName,
+							PodUID:      kubeInfo.PodUID,
+							ContainerID: kubeInfo.ContainerID,
+							ProfileName: kubeInfo.SeccompProfileName,
+							Syscall:     strings.ToLower(info.Syscall),
+							Phase:       "TEST",
+							Action:      "DETECTION",
+						}))
 					}
 				}
 				return nil
@@ -194,11 +218,16 @@ func (cc *SeccompGeneration) processSyscall(event *constant.TotalData, testingPh
 					log.Infof("Successfully added new syscall %s to profile %s", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName)
 				} else {
 					log.Infof("New syscall %s found during testing, but not during training in profile %s", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName)
-					err = alert.SendSeccompAlert(cc.client, info.PodName, kubeInfo.PodUID, kubeInfo.ContainerID, kubeInfo.SeccompProfileName, fmt.Sprintf("%s/%s", cc.consoleAddr, "api/v1/seccomp/raiseAlert"), strings.ToLower(info.Syscall), "TEST", "DETECTION")
-					if err != nil {
-						log.Errorf("Failed to send seccomp alert %s for profile %s: %w", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName, err)
-						return err
-					}
+					go alert.NotifyEventWithRetry(cc.ecCli, alert.GenerateSeccompEvent(cc.uuidGenerator, &alert.SeccompEventArg{
+						Cluster:     "default",
+						PodName:     info.PodName,
+						PodUID:      kubeInfo.PodUID,
+						ContainerID: kubeInfo.ContainerID,
+						ProfileName: kubeInfo.SeccompProfileName,
+						Syscall:     strings.ToLower(info.Syscall),
+						Phase:       "TEST",
+						Action:      "DETECTION",
+					}))
 				}
 			}
 		} else {
@@ -249,6 +278,10 @@ process:
 			return true
 		}
 		req, err := http.NewRequest("POST", cc.seccompGeneratorAddr, bytes.NewBuffer(jsonStr))
+		if err != nil {
+			log.Errorf("NewRequest fail, err:%s", err.Error())
+			return true
+		}
 		req.Header.Set("Content-Type", "application/json")
 		_, err = cc.client.Do(req)
 		if err != nil {
@@ -274,6 +307,11 @@ process:
 			return true
 		}
 		req, err := http.NewRequest("POST", cc.seccompGeneratorAddr, bytes.NewBuffer(jsonStr))
+		if err != nil {
+			log.Errorf("NewRequest fail, err:%s", err.Error())
+			return true
+		}
+
 		req.Header.Set("Content-Type", "application/json")
 		_, err = cc.client.Do(req)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"net/http"
 	"time"
 
@@ -15,24 +16,28 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
+const (
+	cleanupApiVersion = "2.0"
+)
+
 func (api *api) cleanup() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Post("/gc", api.gc())
-		r.Post("/esgc", api.esgc())
-		r.Get("/gc/{gcID}", api.getGarbageCollectionTask())
-		r.Get("/esgc/{gcID}", api.getESGarbageCollectionTask())
-		r.Get("/hotStorage", api.getHotStorageView())
-		r.Get("/eshotStorage", api.getEsHotStorageView())
+		r.Post("/logicGC", api.logicGC())
+		r.Post("/offlineGC", api.offlineGC())
+		r.Get("/logicGC/{gcID}", api.getLogicGarbageCollectionTask())
+		r.Get("/offlineGC/{gcID}", api.getOfflineGarbageCollectionTask())
+		r.Get("/logicHotStorage", api.getLogicHotStorageView())
+		r.Get("/offlineHotStorage", api.getOfflineHotStorageView())
 	}
 }
 
 // @Summary Get garbage collection task
 // @Description Get garbage collection task
-// @ID v1-cleanup-gctask-get
+// @ID v2-cleanup-logic-gc-task-get
 // @Produce json
 // @Param gcID path string true "gcID"
-// @Router /api/v1/cleanup/gc/{gcID} [get]
-func (api *api) getGarbageCollectionTask() http.HandlerFunc {
+// @Router /api/v2/cleanup/logicGC/{gcID} [get]
+func (api *api) getLogicGarbageCollectionTask() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
@@ -41,28 +46,28 @@ func (api *api) getGarbageCollectionTask() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't read GC Task ID: %w", err),
-					Suberror{"gcID", ""}))
+					fmt.Errorf("couldn't read logicGC Task ID: %w", err),
+					Suberror{Location: "gcID", Message: ""}))
 			return
 		}
 
-		gcTask, err := api.cleanupService.GetGCTask(ctx, gcTaskID)
+		gcTask, err := api.cleanupService.GetGCTask(ctx, gcTaskID, cleanup.GCTaskTypeLogic)
 		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Couldn't get GC Task: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("couldn't get logicGC Task: %w", err))
 			return
 		}
 
-		response.Ok(w, response.WithItem(*gcTask))
+		response.Ok(w, response.WithItem(*gcTask), response.WithApiVersion(cleanupApiVersion))
 	}
 }
 
 // @Summary Get garbage collection task
 // @Description Get garbage collection task
-// @ID v2-cleanup-gctask-get
+// @ID v2-cleanup-offline-gc-task-get
 // @Produce json
 // @Param gcID path string true "gcID"
-// @Router /api/v2/platform/cleanup/esgc/{gcID} [get]
-func (api *api) getESGarbageCollectionTask() http.HandlerFunc {
+// @Router /api/v2/platform/cleanup/offlineGC/{gcID} [get]
+func (api *api) getOfflineGarbageCollectionTask() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
@@ -71,28 +76,28 @@ func (api *api) getESGarbageCollectionTask() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't read ES GC Task ID: %w", err),
-					Suberror{"gcID", ""}))
+					fmt.Errorf("couldn't read offlineGC Task ID: %w", err),
+					Suberror{Location: "gcID", Message: ""}))
 			return
 		}
 
-		gcTask, err := api.cleanupService.GetESGCTask(ctx, gcTaskID)
+		gcTask, err := api.cleanupService.GetGCTask(ctx, gcTaskID, cleanup.GCTaskTypeOffline)
 		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Couldn't get ES GC Task: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("couldn't get offlineGC Task: %w", err))
 			return
 		}
 
-		response.Ok(w, response.WithItem(*gcTask))
+		response.Ok(w, response.WithItem(*gcTask), response.WithApiVersion(cleanupApiVersion))
 	}
 }
 
 // @Summary Run hot storage garbage collection
 // @Description Run hot storage garbage collection
-// @ID v1-cleanup-gc-post
+// @ID v2-cleanup-logicGC-post
 // @Produce json
 // @Param hotStorageDays body int true "hotStorageDays"
-// @Router /api/v1/cleanup/gc [post]
-func (api *api) gc() http.HandlerFunc {
+// @Router /api/v2/cleanup/logicGC [post]
+func (api *api) logicGC() http.HandlerFunc {
 	type param struct {
 		DaysOffset int `json:"daysOffset"`
 	}
@@ -105,66 +110,64 @@ func (api *api) gc() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("Failed to decode json: %w", err)))
+					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
 		if param.DaysOffset <= 0 {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("Invalid param")))
+					fmt.Errorf("invalid param")))
 			return
 		}
 
-		fromTimestamp := time.Now().AddDate(0, 0, -1*param.DaysOffset)
-		gcTask, err := api.cleanupService.CreateGCTask(ctx)
+		gcTask, err := api.cleanupService.CreateGCTask(ctx, cleanup.GCTaskTypeLogic)
 		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Cannot start GC: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("cannot start GC: %w", err))
 			return
 		}
-		gcCtx, _ := context.WithTimeout(api.ctx, time.Minute*1)
-		go api.cleanupService.RunGarbageCollection(gcCtx, fromTimestamp, gcTask)
+		go api.cleanupService.RunLogicGarbageCollection(api.ctx, param.DaysOffset, gcTask.ID)
 
-		response.Ok(w, response.WithItem(*gcTask))
+		response.Ok(w, response.WithItem(*gcTask), response.WithApiVersion(cleanupApiVersion))
 	}
 }
 
-// @Summary Get hot storage view
-// @Description Get hot storage view
-// @ID v1-cleanup-hot-storage-view-get
+// @Summary Get logic hot storage view
+// @Description Get logic hot storage view
+// @ID v2-cleanup-logic-hot-storage-view-get
 // @Produce json
-// @Router /api/v1/cleanup/hotStorage [get]
-func (api *api) getHotStorageView() http.HandlerFunc {
+// @Router /api/v2/cleanup/logicHotStorage [get]
+func (api *api) getLogicHotStorageView() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		hotStorageView, err := api.cleanupService.GetHotStorageView(ctx)
+		hotStorageView, err := api.cleanupService.GetLogicHotStorageView()
 		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Couldn't get hot storage view: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("couldn't get hot storage view: %w", err))
 			return
 		}
 
-		response.Ok(w, response.WithItem(*hotStorageView))
+		response.Ok(w, response.WithItem(*hotStorageView), response.WithApiVersion(cleanupApiVersion))
 	}
 }
 
-// @Summary Get hot es storage view
-// @Description Get es hot storage view
-// @ID v1-cleanup-es-hot-storage-view-get
+// @Summary Get hot offline storage view
+// @Description Get offline hot storage view
+// @ID v2-cleanup-es-hot-storage-view-get
 // @Produce json
-// @Router /api/v2/platform/cleanup/eshotStorage [get]
-func (api *api) getEsHotStorageView() http.HandlerFunc {
+// @Router /api/v2/platform/cleanup/offlineHotStorage [get]
+func (api *api) getOfflineHotStorageView() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		hotStorageView, err := api.cleanupService.GetEsHotStorageView(ctx)
+		hotStorageView, err := api.cleanupService.GetOfflineHotStorageView()
 		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Couldn't get hot storage view: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("couldn't get offline hot storage view: %w", err))
 			return
 		}
 
-		response.Ok(w, response.WithItem(*hotStorageView))
+		response.Ok(w, response.WithItem(*hotStorageView), response.WithApiVersion(cleanupApiVersion))
 	}
 }
 
@@ -176,13 +179,13 @@ func getGCTaskIDFromURL(r *http.Request) (primitive.ObjectID, error) {
 	return primitive.ObjectIDFromHex(gcID)
 }
 
-// @Summary Run hot es storage garbage collection
-// @Description Run hot  es storage garbage collection
-// @ID v1-cleanup-es gc-post
+// @Summary Run hot offline storage garbage collection
+// @Description Run hot offline storage garbage collection
+// @ID v2-cleanup-offline-gc-post
 // @Produce json
 // @Param hotStorageDays body int true "hotStorageDays"
-// @Router /api/v2/platform/cleanup/esgc [post]
-func (api *api) esgc() http.HandlerFunc {
+// @Router /api/v2/platform/cleanup/offlineGC [post]
+func (api *api) offlineGC() http.HandlerFunc {
 	type param struct {
 		DaysOffset int `json:"daysOffset"`
 	}
@@ -195,24 +198,23 @@ func (api *api) esgc() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("Failed to decode json: %w", err)))
+					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
 		if param.DaysOffset <= 0 {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("Invalid param")))
+					fmt.Errorf("invalid param")))
 			return
 		}
 
-		esGcTask, err := api.cleanupService.CreateESGCTask(ctx)
+		esGcTask, err := api.cleanupService.CreateGCTask(ctx, cleanup.GCTaskTypeOffline)
 		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Cannot start GC: %w", err))
+			RespAndLog(w, ctx, fmt.Errorf("cannot start offlineGC: %w", err))
 			return
 		}
-		gcCtx, _ := context.WithTimeout(api.ctx, time.Minute*1)
-		go api.cleanupService.RunGarbageEsCollection(gcCtx, param.DaysOffset, esGcTask)
+		go api.cleanupService.RunOfflineGarbageCollection(api.ctx, param.DaysOffset, esGcTask.ID)
 
-		response.Ok(w, response.WithItem(*esGcTask))
+		response.Ok(w, response.WithItem(*esGcTask), response.WithApiVersion(cleanupApiVersion))
 	}
 }

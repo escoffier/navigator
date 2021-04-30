@@ -28,7 +28,8 @@ RUN make install
 WORKDIR /go/src/app
 COPY . .
 
-RUN PATH=$PATH:/tmp/go/bin GO111MODULE=on go build -v -a \
+RUN git config --global url."git@gitlab.com".insteadOf "https://gitlab.com"
+RUN PATH=$PATH:/tmp/go/bin GO111MODULE=on GOPRIVATE="gitlab.com/tensorsecurity-rd" go build -v -a \
 	-o dist/tensordig gitlab.com/piccolo_su/vegeta/cmd/tensordig
 # Be careful when adding LDFLAGS because they conflict with CGO
 # Remove them for now.

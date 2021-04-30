@@ -14,8 +14,6 @@ import (
 import (
 	"net/http"
 	"os"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/alert"
 )
 
 const syscallBasicProg string = `
@@ -381,14 +379,6 @@ func (p *SyscallProducer) Init(module *bpf.Module) error {
 	kprobe, err := module.LoadKprobe("kprobe__sys_" + p.Syscall)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not load kprobe")
-		if p.ConsoleAddr != "" {
-			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not load kprobe %s", p.Syscall))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
-			}
-		}
 		return err
 	}
 
@@ -397,28 +387,12 @@ func (p *SyscallProducer) Init(module *bpf.Module) error {
 	err = module.AttachKprobe(syscallName, kprobe, -1)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not attach kprobe")
-		if p.ConsoleAddr != "" {
-			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not attach kprobe %s", p.Syscall))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
-			}
-		}
 		return err
 	}
 
 	kretprobe, err := module.LoadKprobe("kretprobe__sys_" + p.Syscall)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not load kretprobe")
-		if err != nil {
-			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not load kretprobe %s", p.Syscall))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
-			}
-		}
 		return err
 	}
 
@@ -427,14 +401,6 @@ func (p *SyscallProducer) Init(module *bpf.Module) error {
 	err = module.AttachKretprobe(syscallName, kretprobe, -1)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not attach kretprobe")
-		if p.ConsoleAddr != "" {
-			err2 := alert.SendInternalAlert(p.HTTPClient, p.ConsoleAddr, fmt.Sprintf("Could not attach kretprobe %s", p.Syscall))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("syscall", strings.ToUpper(p.Syscall)).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("syscall", strings.ToUpper(p.Syscall)).Msg("Internal alert successfully sent")
-			}
-		}
 		return err
 	}
 	return nil

@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/constant"
-	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/alert"
 )
 
 const netBasicProg string = `
@@ -263,48 +262,24 @@ func (sp *SocketProducer) Init(module *bpf.Module) error {
 		Kprobe, err := module.LoadKprobe("kprobe__" + probeName)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("probe", probeName).Msg("Could not load kprobe")
-			err2 := alert.SendInternalAlert(sp.HTTPClient, sp.ConsoleAddr, fmt.Sprintf("Could not load kprobe %s", probeName))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("probe", probeName).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("probe", probeName).Msg("Internal alert successfully sent")
-			}
 			return err
 		}
 
 		err = module.AttachKprobe(probeName, Kprobe, -1)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("probe", probeName).Msg("Could not attach kprobe")
-			err2 := alert.SendInternalAlert(sp.HTTPClient, sp.ConsoleAddr, fmt.Sprintf("Could not attach kprobe %s", probeName))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("probe", probeName).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("probe", probeName).Msg("Internal alert successfully sent")
-			}
 			return err
 		}
 
 		Kretprobe, err := module.LoadKprobe("kretprobe__" + probeName)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("probe", probeName).Msg("Could not load kretprobe")
-			err2 := alert.SendInternalAlert(sp.HTTPClient, sp.ConsoleAddr, fmt.Sprintf("Could not load kretprobe %s", probeName))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("probe", probeName).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("probe", probeName).Msg("Internal alert successfully sent")
-			}
 			return err
 		}
 
 		err = module.AttachKretprobe(probeName, Kretprobe, -1)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("probe", probeName).Msg("Could not attach kretprobe")
-			err2 := alert.SendInternalAlert(sp.HTTPClient, sp.ConsoleAddr, fmt.Sprintf("Could not attach kretprobe %s", probeName))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Str("probe", probeName).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Str("probe", probeName).Msg("Internal alert successfully sent")
-			}
 			return err
 		}
 		name.WriteString(probeName)
@@ -316,16 +291,8 @@ func (sp *SocketProducer) Init(module *bpf.Module) error {
 
 	sp.PerfMap, err = bpf.InitPerfMap(sp.Table, sp.byteChan, sp.lostChan)
 	if err != nil {
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Could not init perf map")
-			err2 := alert.SendInternalAlert(sp.HTTPClient, sp.ConsoleAddr, fmt.Sprintf("Could not init perf map."))
-			if err2 != nil {
-				logging.GetLogger().Error().Err(err2).Msg("Could not send internal alert")
-			} else {
-				logging.GetLogger().Info().Msg("Internal alert successfully sent")
-			}
-			return err
-		}
+		logging.GetLogger().Error().Err(err).Msg("Could not init perf map")
+		return err
 	}
 	return nil
 }

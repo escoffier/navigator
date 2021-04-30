@@ -41,6 +41,9 @@ spec:
           "--mongo-pod=tensorsec-mongodb-primary-0",
           "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
           "--console-postgres=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable",
+          "--postgres-pvc=data-tensorsec-postgresql-0",
+          "--postgres-pod=tensorsec-postgresql-0",
+          "--postgres-data-path={{ .Values.postgresql.postgresqlDataDir }}",
           "--email-username=console-robot@tensorsecurity.cn",
           "--email-host=smtp.feishu.cn",
           "--email-port=465",
@@ -66,6 +69,9 @@ spec:
         volumeMounts:
           - name: available-rules-volume
             mountPath: "/available-rules"
+          - mountPath: /auth/server
+            name: server-cert
+            readOnly: true
 
         env:
         # Required for managing scap jobs
@@ -95,6 +101,12 @@ spec:
             secretKeyRef:
               name: {{ .Values.elasticsearch.elasticSecretName }}
               key: password
+        - name: EVENT_GRPC_URL
+          value: {{ .Values.eventcenter.eventGrpcUrl }}
+        - name: EVENT_GRPC_CERT_PATH
+          value: /auth/server/tls.crt
+        - name: EVENT_GRPC_CERT_SERVER_NAME
+          value: {{ .Values.eventcenter.eventGrpcCertServerName }}
       
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
@@ -115,3 +127,7 @@ spec:
         configMap:
           name: available-rules-config
           defaultMode: 0600
+      - name: server-cert
+        secret:
+          defaultMode: 400
+          secretName: eventcenter-tls-server-cert-secret

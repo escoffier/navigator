@@ -26,6 +26,7 @@ type NsMap struct {
 }
 
 var ctx context.Context
+
 //var docker dockerClient.APIClient
 
 //func createDockerClient() (dockerClient.APIClient, error) {

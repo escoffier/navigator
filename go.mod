@@ -26,6 +26,7 @@ require (
 	github.com/go-redis/redis/v8 v8.3.2
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
+	github.com/golang/protobuf v1.4.2
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/securecookie v1.1.1
@@ -39,6 +40,7 @@ require (
 	github.com/lib/pq v1.8.0
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
+	github.com/mozilla/tls-observatory v0.0.0-20180409132520-8791a200eb40
 	github.com/oceanicdev/chi-param v1.1.0
 	github.com/olivere/elastic/v7 v7.0.21
 	github.com/opencontainers/go-digest v1.0.0-rc1
@@ -61,9 +63,12 @@ require (
 	go.etcd.io/bbolt v1.3.5 // indirect
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.5.1
+	go.uber.org/atomic v1.6.0
 	go.uber.org/zap v1.14.1 // indirect
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	google.golang.org/genproto v0.0.0-20191108220845-16a3f7862a1a
+	google.golang.org/grpc v1.29.1
+	google.golang.org/protobuf v1.23.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/ini.v1 v1.57.0 // indirect

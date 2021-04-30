@@ -65,6 +65,10 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
       volumes:
+      - name: server-cert
+        secret:
+          defaultMode: 400
+          secretName: eventcenter-tls-server-cert-secret
       - name: sys
         hostPath:
           path: /sys
@@ -161,6 +165,13 @@ spec:
             memory: "2048Mi"
             cpu: "1.5"
         env:
+          - name: EVENT_GRPC_URL
+            value: {{ .Values.eventcenter.eventGrpcUrl }}
+          - name: EVENT_GRPC_CERT_PATH
+            value: /auth/server/tls.crt
+          - name: EVENT_GRPC_CERT_SERVER_NAME
+            value: {{ .Values.eventcenter.eventGrpcCertServerName }}
+
           - name: TENSORSEC_CONSOLE_HOST
             value: "{{ .Values.console.addr }}"
           - name: TENSORSEC_CONSOLE_PORT
@@ -186,6 +197,9 @@ spec:
             readOnly: true
           - name: syscall-data
             mountPath: /data
+          - mountPath: /auth/server
+            name: server-cert
+            readOnly: true
       - name: "filebeat"
         image: "{{ .Values.image }}:{{ .Values.imageTag }}"
         imagePullPolicy: "{{ .Values.imagePullPolicy }}"

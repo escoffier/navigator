@@ -3,7 +3,9 @@ package consumer
 import (
 	"C"
 	"fmt"
-	"net/http"
+	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/utils/eventcenter-helper"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"os"
 	"reflect"
 	"runtime/debug"
@@ -31,13 +33,15 @@ type SeccompPrevent struct {
 	k8sCache              *cache.Cache
 	podSyscallsMapPrevent sync.Map
 	podSyscallsMapDetect  sync.Map
-	client                *http.Client
+	ecCli                 pb.EventsCenterCollectionServiceClient
+	uuidGenerator         *uuid.Generator
 	cu                    ch.ContainerUtil
 	ku                    kh.KubernetesUtil
 	kubeStop              chan struct{}
 }
 
 func (cc *SeccompPrevent) Init(dataChan chan constant.Data) error {
+	var err error
 	cc.dataChan = dataChan
 	cc.quitChan = make(chan struct{}, 1)
 	cc.cache = cache.New(10*time.Second, 5*time.Minute)
@@ -58,7 +62,17 @@ func (cc *SeccompPrevent) Init(dataChan chan constant.Data) error {
 		return fmt.Errorf("MY_POD_NAMESPACE value not set")
 	}
 
-	cc.client = &http.Client{}
+	cc.ecCli, err = eventcenter_helper.NewClientFromEnv()
+	if err != nil {
+		log.Errorf("eventcenter_helper.NewClientFromEnv fail, err:%s", err.Error())
+		return err
+	}
+
+	cc.uuidGenerator, err = uuid.NewGenerator()
+	if err != nil {
+		log.Errorf("uuid.NewGenerator fail, err:%s", err.Error())
+		return err
+	}
 	cc.podSyscallsMapPrevent = sync.Map{}
 	cc.podSyscallsMapDetect = sync.Map{}
 	cc.cu = ch.NewContainerUtil()
@@ -131,11 +145,16 @@ func (cc *SeccompPrevent) processSyscall(event *constant.TotalData, testingPhase
 				found := Find(podSyscalls.([]string), strings.ToLower(info.Syscall))
 				if !found {
 					log.Infof("Syscall %s found that should be blocked by seccomp profile %s", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName)
-					err = alert.SendSeccompAlert(cc.client, info.PodName, kubeInfo.PodUID, kubeInfo.ContainerID, kubeInfo.SeccompProfileName, fmt.Sprintf("%s/%s", cc.consoleAddr, "api/v1/seccomp/raiseAlert"), strings.ToLower(info.Syscall), "PROD", kubeInfo.SeccompProfileMode)
-					if err != nil {
-						log.Errorf("Failed to send seccomp alert %s for profile %s: %w", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName, err)
-						return err
-					}
+					go alert.NotifyEventWithRetry(cc.ecCli, alert.GenerateSeccompEvent(cc.uuidGenerator, &alert.SeccompEventArg{
+						Cluster:     "default",
+						PodName:     info.PodName,
+						PodUID:      kubeInfo.PodUID,
+						ContainerID: kubeInfo.ContainerID,
+						ProfileName: kubeInfo.SeccompProfileName,
+						Syscall:     strings.ToLower(info.Syscall),
+						Phase:       "PROD",
+						Action:      kubeInfo.SeccompProfileMode,
+					}))
 				}
 				return nil
 			}
@@ -146,11 +165,16 @@ func (cc *SeccompPrevent) processSyscall(event *constant.TotalData, testingPhase
 				found := Find(podSyscalls.([]string), strings.ToLower(info.Syscall))
 				if !found {
 					log.Infof("Syscall %s found that should be detected by seccomp profile %s", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName)
-					err = alert.SendSeccompAlert(cc.client, info.PodName, kubeInfo.PodUID, kubeInfo.ContainerID, kubeInfo.SeccompProfileName, fmt.Sprintf("%s/%s", cc.consoleAddr, "api/v1/seccomp/raiseAlert"), strings.ToLower(info.Syscall), "PROD", kubeInfo.SeccompProfileMode)
-					if err != nil {
-						log.Errorf("Failed to send seccomp alert %s for profile %s: %w", strings.ToLower(info.Syscall), kubeInfo.SeccompProfileName, err)
-						return err
-					}
+					go alert.NotifyEventWithRetry(cc.ecCli, alert.GenerateSeccompEvent(cc.uuidGenerator, &alert.SeccompEventArg{
+						Cluster:     "default",
+						PodName:     info.PodName,
+						PodUID:      kubeInfo.PodUID,
+						ContainerID: kubeInfo.ContainerID,
+						ProfileName: kubeInfo.SeccompProfileName,
+						Syscall:     strings.ToLower(info.Syscall),
+						Phase:       "PROD",
+						Action:      kubeInfo.SeccompProfileMode,
+					}))
 				}
 			}
 		} else {

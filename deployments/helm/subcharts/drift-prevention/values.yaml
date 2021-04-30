@@ -1,6 +1,6 @@
-console:
-  addr: tensorsec-console.tensorsec-test.svc.cluster.local
-  port: "8889"
+eventcenter:
+  addr: tensorsec-eventcenter
+  port: "8080"
 
 nameOverride: "drift-prevention"
 fullnameOverride: "tensorsec-drift-prevention"
@@ -13,3 +13,11 @@ image:
 
 imagePullSecrets:
 - name: "harbor-admin-secret"
+
+volumes:
+  clientName: "client-cert"
+  clientSecretName: "eventcenter-tls-client-cert-secret"
+  clientMountPath: "/auth/client"
+  caName: "ca-cert"
+  caSecretName: "eventcenter-tls-ca-secret"
+  caMountPath: "/auth/ca"
