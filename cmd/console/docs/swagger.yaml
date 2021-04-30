@@ -35,51 +35,6 @@ info:
   title: Vegeta API
   version: "1.0"
 paths:
-  /api/v1/alerts/:
-    get:
-      description: List  alerts
-      operationId: v1-alerts-get
-      parameters:
-      - description: from offset
-        in: query
-        name: offset
-        type: integer
-      - description: returned data limit
-        in: query
-        name: limit
-        type: integer
-      - description: timestamp/severity
-        in: query
-        name: sortBy
-        type: string
-      - description: asc/desc
-        in: query
-        name: sortOrder
-        type: string
-      - description: runtimeDetection/complianceCheck/exploitRisk
-        in: query
-        name: kind
-        type: string
-      - description: only not acknowledged alerts
-        in: query
-        name: onlyNotAcknowledged
-        type: boolean
-      produces:
-      - application/json
-      summary: List  alerts
-  /api/v1/alerts/{alertID}/acknowledge:
-    post:
-      description: Acknowledge alert
-      operationId: v1-alert-acknowledge-post
-      parameters:
-      - description: alertID
-        in: path
-        name: clusterID
-        required: true
-        type: string
-      produces:
-      - application/json
-      summary: Acknowledge alert
   /api/v1/audit/config:
     get:
       description: Get audit config
@@ -270,13 +225,6 @@ paths:
       produces:
       - application/json
       summary: Update single cluster information
-  /api/v1/driftPrevention/raiseAlert:
-    post:
-      description: Raise a drift prevention alert
-      operationId: v1-raise-alert-post
-      produces:
-      - application/json
-      summary: Raise a drift prevention alert
   /api/v1/onlineVulnerabilities/current:
     get:
       description: List current online vulnerabilities

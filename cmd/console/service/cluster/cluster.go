@@ -26,7 +26,7 @@ import (
 type ClusterService struct {
 	mongodb        *mongotools.DatabaseWrapper
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
-	cleanupService *cleanup.CleanupService
+	cleanupService *cleanup.Service
 	clustersCache  *rcache.ClustersCache
 }
 
@@ -34,7 +34,7 @@ func NewClusterService(
 	ctx context.Context,
 	mongodb *mongotools.DatabaseWrapper,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
-	cleanupService *cleanup.CleanupService,
+	cleanupService *cleanup.Service,
 	redisClient *redis.Client,
 ) *ClusterService {
 	return &ClusterService{

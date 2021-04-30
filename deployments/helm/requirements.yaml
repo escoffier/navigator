@@ -1,4 +1,9 @@
 dependencies:
+  - name: eventcenter-auth
+    version: 0.1.0
+    repository: "file://./subcharts/eventcenter-auth"
+    condition: eventcenterAuth.enabled
+
   - name: scanner
     version: 0.1.0
     repository: "file://./subcharts/scanner"

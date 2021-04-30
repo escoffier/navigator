@@ -10,6 +10,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 
 	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"os"
 
 	"io/ioutil"
 	"math"
@@ -21,20 +25,16 @@ import (
 
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -67,6 +67,17 @@ const (
 	defaultK8sClusterName = "default"
 )
 
+const (
+	eventGrpcUrlEnv     = "EVENT_GRPC_URL"
+	defaultEventGrpcUrl = "tensorsec-eventcenter:9090"
+
+	eventGrpcCertPathEnv     = "EVENT_GRPC_CERT_PATH"
+	defaultEventGrpcCertPath = "/auth/server/tls.crt"
+
+	eventGrpcCertServerNameEnv     = "EVENT_GRPC_CERT_SERVER_NAME"
+	defaultEventGrpcCertServerName = "tensorsec-eventcenter"
+)
+
 func init() {
 	log = logging.GetLogger()
 }
@@ -85,7 +96,7 @@ type Console struct {
 	onlineVulnsService *assetsSvc.OnlineVulnsService
 	svcAssetsService   *assetsSvc.ServiceAssetsService
 	auditService       *audit.AuditService
-	cleanupService     *cleanup.CleanupService
+	cleanupService     *cleanup.Service
 	harborClient       *harbor.HarborRESTClient
 	ctx                context.Context
 	cancel             context.CancelFunc
@@ -123,6 +134,31 @@ func NewConsole(
 	}
 
 	mongoDBWrapper := mongoCliWrapper.Database(mongoOpts.Database)
+	eventGrpcUrl := os.Getenv(eventGrpcUrlEnv)
+	if eventGrpcUrl == "" {
+		eventGrpcUrl = defaultEventGrpcUrl
+	}
+
+	eventGrpcCertPath := os.Getenv(eventGrpcCertPathEnv)
+	if eventGrpcCertPath == "" {
+		eventGrpcCertPath = defaultEventGrpcCertPath
+	}
+
+	eventGrpcCertServerName := os.Getenv(eventGrpcCertServerNameEnv)
+	if eventGrpcCertServerName == "" {
+		eventGrpcCertServerName = defaultEventGrpcCertServerName
+	}
+
+	cred, err := credentials.NewClientTLSFromFile(eventGrpcCertPath, eventGrpcCertServerName)
+	if err != nil {
+		panic(err)
+	}
+
+	conn, err := grpc.Dial(eventGrpcUrl, grpc.WithTransportCredentials(cred))
+	if err != nil {
+		return nil, err
+	}
+	ecCli := pb.NewEventsCenterBizServiceClient(conn)
 
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
@@ -181,7 +217,28 @@ func NewConsole(
 	}
 
 	// cleanup service
-	cleanupService := cleanup.NewCleanupService(mongoDBWrapper, mongoOpts.PVC, mongoOpts.Pod, mongoOpts.DataPath, es, elasticOpts, elasticOpts.PVC, elasticOpts.Pod, elasticOpts.DataPath)
+	cleanupService := cleanup.NewCleanupService(&cleanup.Conf{
+		Mongodb: mongoDBWrapper,
+		MongoPod: &cleanup.PodInfo{
+			PVC:      mongoOpts.PVC,
+			Pod:      mongoOpts.Pod,
+			DataPath: mongoOpts.DataPath,
+		},
+
+		ElasticOpts: elasticOpts,
+		ESPod: &cleanup.PodInfo{
+			PVC:      elasticOpts.PVC,
+			Pod:      elasticOpts.Pod,
+			DataPath: elasticOpts.DataPath,
+		},
+
+		PostgreDB: postgresDB,
+		PostgrePod: &cleanup.PodInfo{
+			PVC:      postgresOpts.PVC,
+			Pod:      postgresOpts.Pod,
+			DataPath: postgresOpts.DataPath,
+		},
+	})
 
 	// online vulns service
 	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongoDBWrapper)
@@ -209,17 +266,6 @@ func NewConsole(
 	c.Start()
 	cronService := cron.NewCronService(c, mongoDBWrapper, scapper, clusterService, mainCtx)
 
-	// drift prevention service
-	driftPreventionService := driftprevention.NewDriftPreventionService(mongoDBWrapper)
-
-	// drift prevention service
-	seccompProfileService := seccomp.NewSeccompProfileService(mongoDBWrapper)
-
-	// falco service
-	falcoService := falco.NewFalcoService(mongoDBWrapper)
-
-	// alert service
-	alertService := alert.NewAlertService(mainCtx, redisClient, ruleService, es, elasticOpts.Index, mongoDBWrapper)
 	//microService *microservice.MicroService,
 	//micro service
 	microService := microservice.NewMicroService(mongoDBWrapper, postgresDB)
@@ -241,10 +287,6 @@ func NewConsole(
 				clusterService,
 				redisClient,
 				ruleService,
-				alertService,
-				driftPreventionService,
-				seccompProfileService,
-				falcoService,
 				onlineVulnsSvc,
 				auditService,
 				cleanupService,
@@ -254,6 +296,7 @@ func NewConsole(
 				microService,
 				emailOpts,
 				imageService,
+				ecCli,
 			),
 		},
 		monCliWrapper:      mongoCliWrapper,

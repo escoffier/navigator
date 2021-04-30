@@ -162,3 +162,7 @@ tensordig:
 console:
   addr: tensorsec-console.tensorsec-test.svc.cluster.local
   port: "8889"
+
+eventcenter:
+  eventGrpcUrl: tensorsec-eventcenter:9090
+  eventGrpcCertServerName: tensorsec-eventcenter

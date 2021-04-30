@@ -1,17 +1,19 @@
 FROM alpine
 
-ARG MIRROR=dl-cdn.alpinelinux.org
+ARG MIRROR=mirrors.tuna.tsinghua.edu.cn
 RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
 
 RUN apk update && apk add --virtual build-dependencies \
     build-base \
     gcc \
-    make
+    make \
+    openssl \
+    openssl-dev
 
 ADD src /src
 
 WORKDIR /src
 
-RUN gcc -shared -fPIC -o dp.so preload.c log.c -ldl
+RUN gcc -shared -fPIC -o dp.so preload.c log.c -ldl -lssl -lcrypto
 
 CMD ["tail", "-f", "/dev/null"]

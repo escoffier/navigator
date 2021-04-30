@@ -175,15 +175,15 @@ static int send_alert(const char* filepath, const char* syscall, const char* rea
 
     char* podnamespace = getenv("MY_POD_NAMESPACE");
 
-    char *host = getenv("TENSORSEC_CONSOLE_ADDR");
+    char *host = getenv("TENSORSEC_EVENTCENTER_NEW_ADDR");
     if (host == NULL) {
-        drift_prevent_write_log(ERROR, "Env var TENSORSEC_CONSOLE_ADDR not found: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Env var TENSORSEC_EVENTCENTER_ADDR not found: %s\n", strerror(errno));
         return 1;
     }
 
-    char *port = getenv("TENSORSEC_CONSOLE_PORT");
+    char *port = getenv("TENSORSEC_EVENTCENTER_NEW_PORT");
     if (port == NULL) {
-        drift_prevent_write_log(ERROR, "Env var TENSORSEC_CONSOLE_PORT not found: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Env var TENSORSEC_EVENTCENTER_PORT not found: %s\n", strerror(errno));
         return 1;
     }
 
@@ -193,7 +193,7 @@ static int send_alert(const char* filepath, const char* syscall, const char* rea
         return 1;
     }
 
-    char unknow_str[] = "unknow";
+    char unknow_str[] = "unknown";
     if(!podname){
         drift_prevent_write_log(ERROR, "Env var MY_POD_NAME not found: %s\n", strerror(errno));
         podname = unknow_str;

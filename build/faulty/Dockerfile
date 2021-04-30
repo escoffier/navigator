@@ -1,4 +1,5 @@
-FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention-client:test AS drift-prevention
+ARG TAG=test
+FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention-client:${TAG} AS drift-prevention
 FROM ubuntu:18.04
 
 ARG MIRROR=archive.ubuntu.com

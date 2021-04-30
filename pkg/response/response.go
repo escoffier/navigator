@@ -120,6 +120,12 @@ func WithExportFileStatus(status uint8) ResponseDataOptionFunc {
 	}
 }
 
+func WithApiVersion(version string) ResponseDataOptionFunc {
+	return func(ev *HTTPEnvelope) {
+		ev.ApiVersion = version
+	}
+}
+
 func Ok(w http.ResponseWriter, opts ...ResponseDataOptionFunc) {
 	RespData(w, http.StatusOK, opts...)
 }

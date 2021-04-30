@@ -107,6 +107,8 @@ RUN curl -L -o binutils_2.30-22_amd64.deb https://dl.bintray.com/falcosecurity/d
 	&& rm -f *binutils*.deb
 RUN mv /usr/bin/falco /usr/bin/holmes && mv /usr/bin/falco-driver-loader /usr/bin/holmes-driver-loader
 COPY ./configs/holmes/docker-entrypoint.sh /
+COPY ./configs/holmes/holmes_export.sh /
+
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 

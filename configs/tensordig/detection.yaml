@@ -827,5 +827,5 @@ producers:
     # - syscallVmsplice:
     #   name: vmsplice
 consumers:
-  - File
   - SeccompPrevent
+  - Reporter

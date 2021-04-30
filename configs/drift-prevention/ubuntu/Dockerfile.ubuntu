@@ -3,12 +3,14 @@ FROM ubuntu
 ARG MIRROR=archive.ubuntu.com
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends build-essential
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+--no-install-recommends build-essential \
+openssl libssl-dev libgtk2.0-dev
 
 ADD src /src
 
 WORKDIR /src
 
-RUN gcc -shared -fPIC -o dp.so preload.c log.c -ldl
+RUN gcc -shared -fPIC -o dp.so preload.c log.c -ldl -lssl -lcrypto
 
 CMD ["tail", "-f", "/dev/null"]

@@ -21,29 +21,31 @@ func (cs *CombineSchedule) Init(syscallPIFS, netPINFS []producer.ProducerInfoT,
 	consumersInfo []string) {
 
 	cs.Manager = producer.NewManager(syscallPIFS, netPINFS)
-	cs.newConumsers(consumersInfo)
+	cs.newConsumers(consumersInfo)
 	for range cs.consumers {
 		cs.combinedChan = append(cs.combinedChan, make(chan constant.Data))
 	}
 	cs.quitChan = make(chan struct{})
 }
 
-func (cs *CombineSchedule) newConumsers(consumersInfo []string) error {
+func (cs *CombineSchedule) newConsumers(consumersInfo []string) error {
 	for _, v := range consumersInfo {
 		var c consumer.Consumer
 		switch v {
 		case "Json":
 			c = consumer.NewJsonConsumer()
-		case "File":
-			c = consumer.NewFileConsumer()
 		case "SeccompGenerate":
 			c = consumer.NewSeccompGeneration()
 		case "SeccompPrevent":
 			c = consumer.NewSeccompPrevent()
+		case "Reporter":
+			c = consumer.NewReporterConsumer()
 		}
 
 		// consumer init at "Schedule" method using "consumer.Init(cs.combinedChan[i])"
-		cs.consumers = append(cs.consumers, c)
+		if c != nil {
+			cs.consumers = append(cs.consumers, c)
+		}
 	}
 	return nil
 }

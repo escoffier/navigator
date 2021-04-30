@@ -27,7 +27,22 @@ console:
         value: elasticsearch
   enabled: true
 
+  eventcenter:
+    eventGrpcUrl: tensorsec-eventcenter:9090
+    eventGrpcCertServerName: tensorsec-eventcenter
+  postgresql:
+    postgresqlDataDir: /bitnami/postgresql/data
+    postgresqlUsername: postgres
+    postgresqlPassword: password
+    postgresqlDatabase: postgres
+
 daemon:
+  enabled: true
+  eventcenter:
+    eventGrpcUrl: tensorsec-eventcenter:9090
+    eventGrpcCertServerName: tensorsec-eventcenter
+
+eventcenterAuth:
   enabled: true
 
 redis:
@@ -75,6 +90,9 @@ kibana:
 
 drift-prevention:
   enabled: true
+  eventcenter:
+    addr: tensorsec-eventcenter
+    port: "8080"
 
 postgresql:
   # Note for maintainers:
@@ -133,6 +151,8 @@ seccompGenerator:
   auditdLogging: false
   enabled: false
 
+
+
 holmes:
   enabled: true
   ebpf:
@@ -143,13 +163,36 @@ holmes:
     jsonOutput: true
     jsonIncludeOutputProperty: true
     httpOutput:
-      enabled: true
-      url: http://tensorsec-console.tensorsec-test.svc.cluster.local:8889/api/v1/falco/raiseAlert
+      enabled: false
 
     webserver:
       enabled: false
+      
+    programOutput:
+      enabled: true
+      keepAlive: false
+      program: /bin/bash /holmes_export.sh
+
     syslogOutput:
       enabled: false
 
     stdoutOutput:
       enabled: true
+  # Add extra volumes to Falco daemonset
+  extraVolumes:
+    - name: client-cert
+      secret:
+        secretName: eventcenter-tls-client-cert-secret
+    - name: ca-cert
+      secret:
+        secretName: eventcenter-tls-ca-secret
+
+  # Add extra volumeMounts to Falco container in Falco daemonset
+  extraVolumeMounts:
+    - mountPath: /auth/client
+      name: client-cert
+      readOnly: true
+    - mountPath: /auth/ca
+      name: ca-cert
+      readOnly: true
+

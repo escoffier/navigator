@@ -46,6 +46,9 @@ var rootCmd = &cobra.Command{
 		postgresOpts := flag.GetPostgresOpts(cmd)
 		logging.GetLogger().Info().
 			Str("postgres connection", postgresOpts.PostgresConnectionString).
+			Str("pvc", postgresOpts.PVC).
+			Str("pod", postgresOpts.Pod).
+			Str("dataPath", postgresOpts.DataPath).
 			Msg("Postgres options")
 
 		emailOpts := flag.GetEmailOpts(cmd)

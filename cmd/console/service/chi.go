@@ -17,25 +17,22 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/alert"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/driftprevention"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/seccomp"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
@@ -51,19 +48,16 @@ func setupChiRouter(
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
-	alertService *alert.AlertService,
-	driftPreventionService *driftprevention.DriftPreventionService,
-	seccompProfileService *seccomp.SeccompProfileService,
-	falcoService *falco.FalcoService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	auditService *audit.AuditService,
-	cleanupService *cleanup.CleanupService,
+	cleanupService *cleanup.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
 	imageService *image.ImageService,
+	ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil)
@@ -91,10 +85,6 @@ func setupChiRouter(
 		clusterService,
 		redisClient,
 		ruleService,
-		alertService,
-		driftPreventionService,
-		seccompProfileService,
-		falcoService,
 		onlineVulnsSvc,
 		auditService,
 		cleanupService,
@@ -104,6 +94,7 @@ func setupChiRouter(
 		microService,
 		emailOpts,
 		imageService,
+		ecCli,
 	)
 	go logWorker(es, ch)
 

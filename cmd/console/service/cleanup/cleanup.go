@@ -1,109 +1,120 @@
 package cleanup
 
 import (
-	"bytes"
 	"context"
-	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"os"
-	"runtime/debug"
-	"strconv"
-	"strings"
-	"time"
-
-	"github.com/olivere/elastic/v7"
-	"github.com/rs/zerolog"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/remotecommand"
+	"net/http"
+	"runtime/debug"
+	"sync/atomic"
+	"time"
 )
 
-type CleanupService struct {
-	mongodb       *mongotools.DatabaseWrapper
-	mongoPVC      string
-	mongoPod      string
-	mongoDataPath string
-	es            *elastic.Client
-	elasticOpts   *flag.ElasticOpts
-	esPVC         string
-	esPod         string
-	esDataPath    string
-	kubeClient    *kubernetes.Clientset
-	restConfig    *rest.Config
+type Service struct {
+	mongodb *mongotools.DatabaseWrapper
+
+	mongoPod   *PodInfo
+	esPod      *PodInfo
+	postgrePod *PodInfo
+
+	logicCleaners   []Cleaner
+	offlineCleaners []Cleaner
+
+	kubeClient atomic.Value
+	restConfig atomic.Value
 }
 
-func NewCleanupService(
-	mongodb *mongotools.DatabaseWrapper,
-	mongoPVC string,
-	mongoPod string,
-	mongoDataPath string,
-	es *elastic.Client,
-	elasticOpts *flag.ElasticOpts,
-	esPVC string,
-	esPod string,
-	esDataPath string,
-) *CleanupService {
-	return &CleanupService{
-		mongodb:       mongodb,
-		mongoPVC:      mongoPVC,
-		mongoPod:      mongoPod,
-		mongoDataPath: mongoDataPath,
-		es:            es,
-		elasticOpts:   elasticOpts,
-		esPVC:         esPVC,
-		esPod:         esPod,
-		esDataPath:    esDataPath,
-		kubeClient:    nil,
-		restConfig:    nil,
+type PodInfo struct {
+	PVC      string
+	Pod      string
+	DataPath string
+}
+
+type Conf struct {
+	Mongodb     *mongotools.DatabaseWrapper
+	MongoPod    *PodInfo
+	ElasticOpts *flag.ElasticOpts
+	ESPod       *PodInfo
+	PostgreDB   *rdbtools.GormWrapper
+	PostgrePod  *PodInfo
+}
+
+func NewCleanupService(conf *Conf) *Service {
+	service := &Service{
+		mongodb:    conf.Mongodb,
+		mongoPod:   conf.MongoPod,
+		esPod:      conf.ESPod,
+		postgrePod: conf.PostgrePod,
+		logicCleaners: []Cleaner{
+			NewMongoCleaner(conf.Mongodb),
+			NewPostgresCleaner(conf.PostgreDB),
+		},
+		offlineCleaners: []Cleaner{
+			NewESCleaner(conf.ElasticOpts),
+		},
 	}
+
+	var kubeClient *kubernetes.Clientset
+	var restConfig *rest.Config
+	service.kubeClient.Store(kubeClient)
+	service.restConfig.Store(restConfig)
+
+	go service.asyncLoop()
+	return service
 }
 
-type Esquery struct {
-	Query struct {
-		Range struct {
-			Timestamp struct {
-				Lt     string `json:"lt"`
-				Format string `json:"format"`
-			} `json:"@timestamp"`
-		} `json:"range"`
-	} `json:"query"`
+type Cleaner interface {
+	Clean(ctx context.Context, daysOffset int) error
 }
 
-// OnKubeConfigUpdate should be called e.g. when cluster modified or added
-// When cluster deleted, set kubeClient to nil.
-func (s *CleanupService) OnKubeConfigUpdate(newClient *kubernetes.Clientset, restConfig *rest.Config) {
-	s.kubeClient = newClient
-	s.restConfig = restConfig
-}
+const (
+	GCTaskTypeLogic   = 1
+	GCTaskTypeOffline = 2
+)
 
-func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error) {
+var (
+	gcType2Collection = map[int]string{
+		GCTaskTypeLogic:   model.GCCollection.String(),
+		GCTaskTypeOffline: model.ESGCCollection.String(),
+	}
+
+	ErrUnknownTaskType = fmt.Errorf("unknown gc task type")
+)
+
+func (s *Service) CreateGCTask(ctx context.Context, taskType int) (*model.GCTask, error) {
+	colName, ok := gcType2Collection[taskType]
+	if !ok {
+		return nil, ErrUnknownTaskType
+	}
+
+	nowTime := time.Now()
 	newGCTask := &model.GCTask{
-		ID:     primitive.NewObjectIDFromTimestamp(time.Now()),
-		Status: model.GCInProgress,
+		ID:        primitive.NewObjectIDFromTimestamp(nowTime),
+		Status:    model.GCInProgress,
+		StartTime: nowTime,
 	}
 
-	collection := s.mongodb.Get().Collection(model.GCCollection.String())
+	collection := s.mongodb.Get().Collection(colName)
 
 	filter := bson.M{"status": model.GCInProgress}
 
 	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
 		sessionError := sessionContext.StartTransaction()
 		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+			return apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't start transaction: %w", sessionError))
 		}
 
 		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
@@ -112,12 +123,16 @@ func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error
 
 		if queryResult.Err() == nil {
 			sessionError = fmt.Errorf("GC in progress")
-			return NewGarbageCollectionInProgressError(http.StatusConflict, sessionError)
+			return apperror.NewGarbageCollectionInProgressError(http.StatusConflict, sessionError)
+		}
+
+		if queryResult.Err() != mongo.ErrNoDocuments {
+			return apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("mongo error:%w", queryResult.Err()))
 		}
 
 		_, sessionError = collection.InsertOne(sessionContext, newGCTask)
 		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
+			return apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't insert document: %w", sessionError))
 		}
 		return nil
 	})
@@ -128,385 +143,143 @@ func (s *CleanupService) CreateGCTask(ctx context.Context) (*model.GCTask, error
 	return newGCTask, nil
 }
 
-func (s *CleanupService) CreateESGCTask(ctx context.Context) (*model.GCTask, error) {
-	newGCTask := &model.GCTask{
-		ID:     primitive.NewObjectIDFromTimestamp(time.Now()),
-		Status: model.GCInProgress,
+func (s *Service) GetGCTask(ctx context.Context, gcTaskID primitive.ObjectID, taskType int) (*model.GCTask, error) {
+	colName, ok := gcType2Collection[taskType]
+	if !ok {
+		return nil, ErrUnknownTaskType
 	}
 
-	collection := s.mongodb.Get().Collection(model.ESGCCollection.String())
-
-	filter := bson.M{"status": model.GCInProgress}
-
-	err := s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
-		}
-
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-
-		queryResult := collection.FindOne(sessionContext, filter)
-
-		if queryResult.Err() == nil {
-			sessionError = fmt.Errorf("GC in progress")
-			return NewGarbageCollectionInProgressError(http.StatusConflict, sessionError)
-		}
-
-		_, sessionError = collection.InsertOne(sessionContext, newGCTask)
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return newGCTask, nil
-}
-
-func (s *CleanupService) GetGCTask(ctx context.Context, gcTaskID primitive.ObjectID) (*model.GCTask, error) {
 	filter := bson.M{"_id": gcTaskID}
-
-	queryResult := s.mongodb.Get().Collection(model.GCCollection.String()).FindOne(ctx, filter)
+	queryResult := s.mongodb.Get().Collection(colName).FindOne(ctx, filter)
 	if queryResult.Err() != nil {
 		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+			return nil, apperror.NewMongoError(http.StatusNotFound, fmt.Errorf("task not found"))
 		}
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+		return nil, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't get document: %w", queryResult.Err()))
 	}
 	var queryGCTask model.GCTask
 	err := queryResult.Decode(&queryGCTask)
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+		return nil, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", queryResult.Err()))
 	}
 	return &queryGCTask, nil
 }
 
-func (s *CleanupService) GetESGCTask(ctx context.Context, gcTaskID primitive.ObjectID) (*model.GCTask, error) {
-	filter := bson.M{"_id": gcTaskID}
+func (s *Service) RunLogicGarbageCollection(ctx context.Context, daysOffset int, gcTaskID primitive.ObjectID) {
+	s.runGarbageCollection(ctx, daysOffset, gcTaskID, GCTaskTypeLogic)
+}
 
-	queryResult := s.mongodb.Get().Collection(model.ESGCCollection.String()).FindOne(ctx, filter)
-	if queryResult.Err() != nil {
-		if queryResult.Err() == mongo.ErrNoDocuments {
-			return nil, NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", queryResult.Err()))
+func (s *Service) RunOfflineGarbageCollection(ctx context.Context, daysOffset int, gcTaskID primitive.ObjectID) {
+	s.runGarbageCollection(ctx, daysOffset, gcTaskID, GCTaskTypeOffline)
+}
+
+const (
+	MaxCleanTime = time.Hour * 24
+)
+
+func (s *Service) getCleaners(gcType int) []Cleaner {
+	var gcType2Cleaners = map[int][]Cleaner{
+		GCTaskTypeLogic:   s.logicCleaners,
+		GCTaskTypeOffline: s.offlineCleaners,
+	}
+
+	return gcType2Cleaners[gcType]
+}
+
+func (s *Service) runGarbageCollection(ctx context.Context, daysOffset int, gcTaskID primitive.ObjectID, gcType int) {
+	gcCtx, cancel := context.WithTimeout(ctx, MaxCleanTime)
+	defer cancel()
+	var group errgroup.Group
+	cleaners := s.getCleaners(gcType)
+	for _, cleaner := range cleaners {
+		cleaner := cleaner
+		group.Go(func() error {
+			return cleaner.Clean(gcCtx, daysOffset)
+		})
+	}
+
+	err := group.Wait()
+	if err != nil {
+		logging.GetLogger().Error().Msgf("RunLogicGarbageCollection fail, err:%s", err.Error())
+		err = s.updateGCStatus(gcCtx, gcTaskID, gcType, model.GCFailed)
+		if err != nil {
+			logging.GetLogger().Error().Err(fmt.Errorf("failed to update GC status: %w", err))
 		}
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
+		return
 	}
-	var queryGCTask model.GCTask
-	err := queryResult.Decode(&queryGCTask)
+
+	logging.GetLogger().Info().Str("gcTaskId", gcTaskID.Hex()).Msg("GC Task finished successfully")
+	err = s.updateGCStatus(gcCtx, gcTaskID, gcType, model.GCCompleted)
 	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", queryResult.Err()))
+		logging.GetLogger().Error().Err(fmt.Errorf("failed to update GC status: %w", err))
 	}
-	return &queryGCTask, nil
 }
 
-func (s *CleanupService) updateGCStatus(ctx context.Context, gcTask *model.GCTask, gcStatus string) error {
-	gcTask, err := s.GetGCTask(ctx, gcTask.ID)
-	if err != nil {
-		return NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Could not get GC Task: %w", err))
-	}
-	gcTask.HistoricisedTimestamp = time.Now()
-	gcTask.Status = gcStatus
-	update := bson.M{"$set": gcTask}
-	filter := bson.M{"_id": gcTask.ID}
-
-	_, err = s.mongodb.Get().Collection(model.GCCollection.String()).UpdateOne(ctx, filter, update)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
+func (s *Service) updateGCStatus(ctx context.Context, gcTaskID primitive.ObjectID, taskType int, gcStatus string) error {
+	retryFunc := func() error {
+		gcTask, err := s.GetGCTask(ctx, gcTaskID, taskType)
+		if err != nil {
+			return fmt.Errorf("could not get GC Task: %w", err)
 		}
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't remove document: %w", err))
-	}
-	return nil
-}
+		gcTask.HistoricisedTimestamp = time.Now()
+		gcTask.Status = gcStatus
+		update := bson.M{"$set": gcTask}
+		filter := bson.M{"_id": gcTask.ID}
 
-func (s *CleanupService) updateESGCStatus(ctx context.Context, gcTask *model.GCTask, gcStatus string) error {
-	gcTask, err := s.GetESGCTask(ctx, gcTask.ID)
-	if err != nil {
-		return NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Could not get GC Task: %w", err))
-	}
-	gcTask.HistoricisedTimestamp = time.Now()
-	gcTask.Status = gcStatus
-	update := bson.M{"$set": gcTask}
-	filter := bson.M{"_id": gcTask.ID}
+		_, err = s.mongodb.Get().Collection(gcType2Collection[taskType]).UpdateOne(ctx, filter, update)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				return fmt.Errorf("document not found: %w", err)
+			}
 
-	_, err = s.mongodb.Get().Collection(model.ESGCCollection.String()).UpdateOne(ctx, filter, update)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return NewMongoError(http.StatusNotFound, fmt.Errorf("Document not found: %w", err))
+			return fmt.Errorf("couldn't remove document: %w", err)
 		}
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't remove document: %w", err))
+		return nil
 	}
-	return nil
+
+	return util.WithRetry(retryFunc, util.DefaultRetryConf)
 }
 
-func (s *CleanupService) updateFailedGCStatusUpdate(ctx context.Context, gcTask *model.GCTask, err error) {
-	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-	zerolog.Ctx(taskUpdateCtx).Error().Str("gcTaskId", gcTask.ID.Hex()).Err(err)
-	defer taskUpdateCtxCancel()
-	updateErr := s.updateGCStatus(taskUpdateCtx, gcTask, model.GCFailed)
-	if updateErr != nil {
-		zerolog.Ctx(context.Background()).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", updateErr)))
-	}
-}
+const (
+	checkInterval = time.Hour
+)
 
-func (s *CleanupService) updateFailedESGCStatusUpdate(ctx context.Context, gcTask *model.GCTask, err error) {
-	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-	zerolog.Ctx(taskUpdateCtx).Error().Str("gcTaskId", gcTask.ID.Hex()).Err(err)
-	defer taskUpdateCtxCancel()
-	updateErr := s.updateESGCStatus(taskUpdateCtx, gcTask, model.GCFailed)
-	if updateErr != nil {
-		zerolog.Ctx(context.Background()).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", updateErr)))
-	}
-}
-
-func (s *CleanupService) RunGarbageCollection(ctx context.Context, fromTimestamp time.Time, gcTask *model.GCTask) {
+func (s *Service) asyncLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			logging.GetLogger().Error().Msgf("Panic when checking ttl: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
-	allCollectionsCursor, err := s.mongodb.Get().ListCollections(ctx, bson.M{})
-	if err != nil {
-		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
-		return
-	}
-	defer allCollectionsCursor.Close(ctx)
+	// wait for service ready
+	<-time.After(time.Second * 5)
 
-	err = s.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
-		}
-
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-
-		filter := bson.M{"historicised_timestamp": bson.M{"$lt": fromTimestamp}}
-
-		for allCollectionsCursor.Next(sessionContext) {
-			collectionInfo := bson.D{}
-			sessionError = allCollectionsCursor.Decode(&collectionInfo)
-			if sessionError != nil {
-				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", sessionError))
-			}
-			colName := collectionInfo.Map()["name"].(string)
-			var deleteResult *mongo.DeleteResult
-			deleteResult, sessionError = s.mongodb.Get().Collection(colName).DeleteMany(sessionContext, filter)
-			if sessionError != nil {
-				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't delete documents: %w", sessionError))
-			}
-			zerolog.Ctx(sessionContext).Info().
-				Int64("deletedCount", deleteResult.DeletedCount).
-				Str("collection", colName).
-				Str("fromTimestamp", fromTimestamp.String()).
-				Msg("Removed audit documents older than")
-		}
-		return nil
-	})
-	if err != nil {
-		s.updateFailedGCStatusUpdate(ctx, gcTask, err)
-		return
-	}
-	zerolog.Ctx(ctx).Info().Str("gcTaskId", gcTask.ID.Hex()).Msg("GC Task finished successfully")
-	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer taskUpdateCtxCancel()
-	err = s.updateGCStatus(taskUpdateCtx, gcTask, model.GCCompleted)
-	if err != nil {
-		zerolog.Ctx(ctx).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", err)))
+	s.dealExpiredGCTasks(time.Now())
+	ticker := time.NewTicker(checkInterval)
+	for t := range ticker.C {
+		s.dealExpiredGCTasks(t)
 	}
 }
 
-func (s *CleanupService) GetHotStorageView(ctx context.Context) (*model.HotStorageView, error) {
-	if s.kubeClient == nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Kube config not specified"))
-	}
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-	filter := bson.M{}
-	allCollectionsCursor, err := s.mongodb.Get().ListCollections(mongoCtx, filter)
-	if err != nil {
-		return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't list collections: %w", err))
-	}
-	defer allCollectionsCursor.Close(ctx)
+func (s *Service) dealExpiredGCTasks(nowTime time.Time) {
+	logging.GetLogger().Info().Msgf("dealExpiredGCTasks, time:%s", nowTime)
 
-	hotStorageView := &model.HotStorageView{}
-
-	namespace := os.Getenv("MY_POD_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
+	ctx, cancel := context.WithTimeout(context.Background(), checkInterval)
+	defer cancel()
+	collections := []string{model.GCCollection.String(), model.ESGCCollection.String()}
+	filter := bson.M{
+		"$and": []bson.M{
+			{"startTime": bson.M{"$lt": nowTime.Add(-MaxCleanTime)}},
+			{"status": model.GCInProgress},
+		},
 	}
-	api := s.kubeClient.CoreV1()
-	pvc, err := api.PersistentVolumeClaims(namespace).Get(s.mongoPVC, metav1.GetOptions{})
-	if err != nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't get pvc: %w", err))
-	}
-	resourceStorage := pvc.Spec.Resources.Requests[v1.ResourceStorage]
-	hotStorageView.Total = resourceStorage.Value()
-
-	cmd := []string{
-		"sh",
-		"-c",
-		fmt.Sprintf("du -sb %s", s.mongoDataPath),
-	}
-
-	req := s.kubeClient.CoreV1().RESTClient().Post().
-		Resource("pods").Name(s.mongoPod).
-		Namespace(namespace).SubResource("exec")
-	option := &v1.PodExecOptions{
-		Command: cmd,
-		Stdin:   false,
-		Stdout:  true,
-		Stderr:  true,
-		TTY:     true,
-	}
-	req.VersionedParams(
-		option,
-		scheme.ParameterCodec,
-	)
-	exec, err := remotecommand.NewSPDYExecutor(s.restConfig, "POST", req.URL())
-	if err != nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Cannot get kube executor: %w", err))
-	}
-	var stdOutbuf bytes.Buffer
-	var stdErrbuf bytes.Buffer
-	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  nil,
-		Stdout: &stdOutbuf,
-		Stderr: &stdErrbuf,
-	})
-	if err != nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to kube execute command: %w", err))
-	}
-	usedMem, err := strconv.ParseInt(strings.Fields(stdOutbuf.String())[0], 10, 64)
-	if err != nil {
-		return nil, NewCannotGetDiskUsageError(http.StatusInternalServerError, fmt.Errorf("Failed to get pvc used disk space: %w", err))
-	}
-	hotStorageView.Used = usedMem
-	return hotStorageView, nil
-}
-
-func (s *CleanupService) GetEsHotStorageView(ctx context.Context) (*model.HotStorageView, error) {
-	if s.kubeClient == nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Kube config not specified"))
-	}
-
-	hotStorageView := &model.HotStorageView{}
-
-	namespace := os.Getenv("MY_POD_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
-	api := s.kubeClient.CoreV1()
-	pvc, err := api.PersistentVolumeClaims(namespace).Get(s.esPVC, metav1.GetOptions{})
-	if err != nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't get pvc: %w", err))
-	}
-	resourceStorage := pvc.Spec.Resources.Requests[v1.ResourceStorage]
-	hotStorageView.Total = resourceStorage.Value()
-
-	cmd := []string{
-		"sh",
-		"-c",
-		fmt.Sprintf("du -sb %s", s.esDataPath),
-	}
-
-	req := s.kubeClient.CoreV1().RESTClient().Post().
-		Resource("pods").Name(s.esPod).
-		Namespace(namespace).SubResource("exec")
-	option := &v1.PodExecOptions{
-		Command: cmd,
-		Stdin:   false,
-		Stdout:  true,
-		Stderr:  true,
-		TTY:     true,
-	}
-	req.VersionedParams(
-		option,
-		scheme.ParameterCodec,
-	)
-	exec, err := remotecommand.NewSPDYExecutor(s.restConfig, "POST", req.URL())
-	if err != nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Cannot get kube executor: %w", err))
-	}
-	var stdOutbuf bytes.Buffer
-	var stdErrbuf bytes.Buffer
-	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  nil,
-		Stdout: &stdOutbuf,
-		Stderr: &stdErrbuf,
-	})
-	if err != nil {
-		return nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to kube execute command: %w", err))
-	}
-	usedMem, err := strconv.ParseInt(strings.Fields(stdOutbuf.String())[0], 10, 64)
-	if err != nil {
-		return nil, NewCannotGetDiskUsageError(http.StatusInternalServerError, fmt.Errorf("Failed to get pvc used disk space: %w", err))
-	}
-	hotStorageView.Used = usedMem
-	return hotStorageView, nil
-}
-
-func (s *CleanupService) RunGarbageEsCollection(ctx context.Context, DaysOffset int, gcTask *model.GCTask) {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
-		}
-	}()
-
-	mongoDB := s.mongodb.Get()
-	err := mongoDB.Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
-		}
-
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-
-		url := fmt.Sprintf("http://%s:%s/*-*/_delete_by_query?pretty", s.elasticOpts.Host, s.elasticOpts.Port)
-
-		body := fmt.Sprintf(`{
-    "query": {
-        "range": {
-            "@timestamp": {
-                "lt": "now-%dd",
-                "format": "epoch_millis"
-            }
-        }
-	}
-}`, DaysOffset)
-		data, _ := json.Marshal(body)
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	update := bson.M{"$set": bson.M{"status": model.GCFailed}}
+	for _, collection := range collections {
+		updateResult, err := s.mongodb.Get().Collection(collection).UpdateMany(ctx, filter, update)
 		if err != nil {
-			return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to prepare scan all request to Harbor: %w", err))
+			logging.GetLogger().Error().Msgf("dealExpiredGCTasks fail, collection:%s, err:%s", collection, err.Error())
+		} else {
+			logging.GetLogger().Info().Msgf("dealExpiredGCTasks, collection:%s, updateResult:%+v", collection, updateResult)
 		}
-		req.Header.Add("Content-Type", "application/json")
-		req.SetBasicAuth(s.elasticOpts.Username, s.elasticOpts.Password)
-
-		httpClient := http.Client{}
-
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		httpClient.Transport = tr
-
-		_, err = httpClient.Do(req.WithContext(ctx))
-		if err != nil {
-			return NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send delete all index request to elastic: %w", err))
-
-		}
-		return nil
-	})
-	if err != nil {
-		s.updateFailedESGCStatusUpdate(ctx, gcTask, err)
-		return
-	}
-	taskUpdateCtx, taskUpdateCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer taskUpdateCtxCancel()
-	err = s.updateESGCStatus(taskUpdateCtx, gcTask, model.GCCompleted)
-	if err != nil {
-		zerolog.Ctx(ctx).Error().Err(NewGarbageCollectionError(http.StatusInternalServerError, fmt.Errorf("Failed to update GC status: %w", err)))
 	}
 }

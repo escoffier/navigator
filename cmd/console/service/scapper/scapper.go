@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"io"
 	"io/ioutil"
 	"math"
@@ -31,7 +32,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -327,7 +327,7 @@ func (s *Scapper) RunComplianceCheck(
 
 	// async context is rooted in application context
 	asyncCtx, _ := context.WithTimeout(rootCtx, checkTimeout)
-	go s.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes)
+	go s.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes, cluster.ClusterName)
 
 	s.ScapService.RefreshCache(check.CheckType)
 
@@ -473,7 +473,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 	return nil
 }
 
-func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList) {
+func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, nodes *corev1.NodeList, clusterName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
@@ -503,7 +503,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 			// I know kubeClient has some built in rate limiting so maybe it's ok?
 			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
-			err := s.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), targetNode.Name)
+			err := s.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), clusterName, targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
 				s.mongoJobStatusToFailed(ctx, check, targetNode.Name, fmt.Sprintf("Failed to schedule job: %s", err), time.Now().Unix())
@@ -577,7 +577,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, targetNodeName string) error {
+func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scapper.Check, jobObj *batchv1.Job, clusterName, targetNodeName string) error {
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
@@ -593,6 +593,12 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scappe
 		Value: check.CheckUUID.String(),
 	}
 	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, checkEnv)
+
+	clusterNameEnv := corev1.EnvVar{
+		Name:  "CLUSTER_NAME",
+		Value: clusterName,
+	}
+	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, clusterNameEnv)
 
 	nodeNameEnv := corev1.EnvVar{
 		Name:  "NODE_NAME",

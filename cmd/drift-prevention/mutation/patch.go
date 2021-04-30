@@ -15,7 +15,9 @@ type Patch struct {
 }
 
 const (
-	envPatchTemplate = "/spec/containers/%d/env"
+	envPatchTemplate          = "/spec/containers/%d/env"
+	volumeMountsPatchTemplate = "/spec/containers/%d/volumeMounts"
+	volumesPatchTemplate      = "/spec/volumes"
 )
 
 // PatchPod patches a single pod with the provided preset spec
@@ -37,6 +39,8 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 
 	if driftDetect || driftPrevent {
 		envs := spec.DeepCopy().Env
+		volumeMounts := spec.DeepCopy().VolumeMounts
+		volumes := spec.DeepCopy().Volumes
 		if driftDetect {
 			envs = append(envs, corev1.EnvVar{
 				Name:  "DRIFT_DETECT",
@@ -78,10 +82,16 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 		}
 		envs = append(envs, myPodUIDEnvVar)
 
+		volumesPatch := PatchVolumesVar(pod.Spec.Volumes, volumes, volumesPatchTemplate)
+		patches = append(patches, volumesPatch)
 		for i, container := range pod.Spec.Containers {
 			envPatch := PatchEnvVar(container.Env, envs, fmt.Sprintf(envPatchTemplate, i))
 			patches = append(patches, envPatch)
+
+			volumeMountsPatch := PatchVolumeMountsVar(container.VolumeMounts, volumeMounts, fmt.Sprintf(volumeMountsPatchTemplate, i))
+			patches = append(patches, volumeMountsPatch)
 		}
+
 	}
 
 	return patches
@@ -113,4 +123,53 @@ func PatchEnvVar(source, added []corev1.EnvVar, base string) *Patch {
 		Path:  base,
 		Value: envVars,
 	}
+}
+
+func PatchVolumesVar(source, added []corev1.Volume, base string) *Patch {
+	idx := make(map[string]bool)
+	for _, src := range source {
+		idx[src.Name] = true
+	}
+	volumesVar := make([]corev1.Volume, 0)
+
+	for _, add := range added {
+		if _, exists := idx[add.Name]; exists {
+			// already exists on source, skip
+			continue
+		}
+		idx[add.Name] = true
+
+		volumesVar = append(volumesVar, add)
+	}
+
+	return &Patch{
+		Op:    "add",
+		Path:  base,
+		Value: volumesVar,
+	}
+}
+
+func PatchVolumeMountsVar(source, added []corev1.VolumeMount, base string) *Patch {
+	idx := make(map[string]bool)
+	for _, src := range source {
+		idx[src.Name] = true
+	}
+	volumeMountsVar := make([]corev1.VolumeMount, 0)
+
+	for _, add := range added {
+		if _, exists := idx[add.Name]; exists {
+			// already exists on source, skip
+			continue
+		}
+		idx[add.Name] = true
+
+		volumeMountsVar = append(volumeMountsVar, add)
+	}
+
+	return &Patch{
+		Op:    "add",
+		Path:  base,
+		Value: volumeMountsVar,
+	}
+
 }
