@@ -2522,8 +2522,8 @@
   priority: ERROR
   tags: [process, mitre_persistence]
 
-- rule: Netcat Remote Code Execution in Container
-  desc: Netcat Program runs inside container that allows remote code execution
+- rule: RS-NC(Netcat Remote Code Execution in Container)
+  desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     spawned_process and container and not ignore_proc_args and
     ((proc.name = "nc" and (proc.args contains "-e" or proc.args contains "-c")) or
@@ -2531,7 +2531,7 @@
                               or proc.args contains "-c " or proc.args contains "--lua-exec"))
     )
   output: >
-    Netcat runs inside container that allows remote code execution (zh_msg=Netcat运行在允许远程代码执行的容器内,rule_type=Execution,syscall_name=%syscall.type,
+    Netcat runs inside container that allows remote code execution (zh_msg=RS-NC(Netcat运行(反向Shell攻击的风险)),rule_type=Execution,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     command=%proc.cmdline container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: WARNING
@@ -2941,10 +2941,10 @@
 - list: user_known_packet_socket_binaries
   items: []
 
-- rule: Packet socket created in container
+- rule: CVE-2020-14386(Packet socket created in container)
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and privilege escalation(CVE-2020-14386) by attacker.
   condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
-  output: Packet socket was created in a container (zh_msg=在容器中创建的数据包套接字,rule_type=Exfiltration,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid command=%proc.cmdline socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  output: Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid command=%proc.cmdline socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
   tags: [network, mitre_discovery]
 
@@ -3202,13 +3202,13 @@
 
 
 #CVE-2019-14287
-- rule: Sudo Potential bypass of Run as user restrictions (CVE-2019-14287)
+- rule: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
   desc: When sudo is configured to allow a user to run commands as an arbitrary user via the ALL keyword in a Runas specification, it is possible to run commands as root by specifying the user ID -1 or 4294967295. This can be used by a user with sufficient sudo privileges to run commands as root even if the Runas specification explicitly disallows root access as long as the ALL keyword is listed first in the Runas specification
   condition: >
     spawned_process and
     proc.name="sudo" and
     (proc.cmdline contains "-u#-1" or proc.cmdline contains "-u#4294967295")
-  output: "Detect sudo exploit (CVE-2019-14287) (zh_msg=sudo有可能绕过以用户身份运行的限制,rule_type=Privilege Escalation,user=%user.name command=%proc.cmdline container=%container.info)"
+  output: "(zh_msg=CVE-2019-14287(sudo有可能绕过以用户身份运行的限制),rule_type=Privilege Escalation,user=%user.name command=%proc.cmdline container=%container.info)"
   priority: CRITICAL
   tags: [filesystem, mitre_privilege_escalation]
 
