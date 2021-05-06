@@ -256,7 +256,7 @@ static int send_https_request(const char* host, int port, const char* method, co
 
     // Receive response
 
-    memset(response, 0, sizeof(response));
+    memset(response, 0, resp_size);
     int received = 0;
 
     do {
@@ -381,7 +381,7 @@ static int raise_remote_alert(const char* host, int port, const struct alert_t *
             strlen(alert->podnamespace) +
             strlen(alert->podname) +
             strlen(alert->poduid) +
-            strlen(alert->filepath) +
+            2*strlen(alert->filepath) +
             2*sizeof(uint32_t) +
             2*sizeof(uint32_t) +
             2*strlen(alert->reason) +
