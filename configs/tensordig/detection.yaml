@@ -828,4 +828,3 @@ producers:
     #   name: vmsplice
 consumers:
   - SeccompPrevent
-  - Reporter
