@@ -114,7 +114,7 @@ func (api *api) getEvents() http.HandlerFunc {
 			events = append(events, &Event{
 				ID:        event.ID,
 				Cluster:   event.Cluster,
-				Namespace: event.Cluster,
+				Namespace: event.Namespace,
 				NodeType:  event.NodeType,
 				NodeKey:   event.NodeKey,
 				Rule: &Rule{
