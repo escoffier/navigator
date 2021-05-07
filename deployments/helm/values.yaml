@@ -91,7 +91,7 @@ kibana:
 drift-prevention:
   enabled: true
   eventcenter:
-    addr: tensorsec-eventcenter
+    addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
     port: "8080"
 
 postgresql:
