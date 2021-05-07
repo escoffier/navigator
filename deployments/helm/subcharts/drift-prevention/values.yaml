@@ -1,5 +1,5 @@
 eventcenter:
-  addr: tensorsec-eventcenter
+  addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
   port: "8080"
 
 nameOverride: "drift-prevention"
