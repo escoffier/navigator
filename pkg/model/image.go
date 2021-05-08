@@ -58,9 +58,9 @@ type ImageList struct {
 	FullRepoName   string                 `gorm:"column:full_repo_name;index:nameTag"  json:"full_repo_name"`
 	Tags           string                 `gorm:"column:tags;index:nameTag" json:"tags" bson:"tags"`
 	Digest         string                 `gorm:"column:digest;index" json:"digest" bson:"digest"`
-	OS             string                 `gorm:"column:os;index" json:"os" bson:"os"`
-	Size           int                    `gorm:"column:size;index" json:"size" bson:"size"`
-	Library        string                 `gorm:"column:library;index" json:"library" bson:"library"`
+	OS             string                 `gorm:"column:os" json:"os" bson:"os"`
+	Size           int                    `gorm:"column:size" json:"size" bson:"size"`
+	Library        string                 `gorm:"column:library" json:"library" bson:"library"`
 	Questions      []QuestionInfo         `gorm:"-" json:"questions" bson:"questions"`
 	CompleteTime   string                 `gorm:"column:complete_time;index" json:"complete_time" bson:"complete_time"`
 	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln" bson:"-"`

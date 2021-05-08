@@ -3,7 +3,6 @@ package image
 import (
 	"context"
 	"errors"
-	"gorm.io/gorm"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -19,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gorm.io/gorm"
 )
 
 const (
@@ -144,7 +144,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.PushTime = timeStr
 			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
 			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
-				if !im.CheckImg(tx, v.FullRepoName, v.Digest) {
+				if !im.CheckImgExistence(pgCtx, tx, v.FullRepoName, v.Digest) {
 					err := tx.WithContext(pgCtx).Create(&il).Error
 					if err != nil {
 						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
@@ -178,7 +178,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.Size = v.Size
 			il.Library = im.harborClient.GetAddressString()
 			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
-				if !im.CheckImg(tx, v.FullRepoName, v.Digest) {
+				if !im.CheckImgExistence(pgCtx, tx, v.FullRepoName, v.Digest) {
 					err := im.postgresDB.Get().WithContext(pgCtx).Create(&il).Error
 					if err != nil {
 						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
@@ -195,11 +195,11 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 }
 
 //postgresDB
-func (im *ImageService) CheckImg(tx *gorm.DB, FullRepoName, Digest string) bool {
-	pgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func (im *ImageService) CheckImgExistence(ctx context.Context, tx *gorm.DB, fullRepoName, digest string) bool {
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	imageList := model.ImageList{}
-	err := tx.WithContext(pgCtx).Where("full_repo_name = ? and digest = ?", FullRepoName, Digest).First(&imageList).Error
+	err := tx.WithContext(pgCtx).Where("full_repo_name = ? and digest = ?", fullRepoName, digest).First(&imageList).Error
 	if err != nil {
 		return false
 	}
@@ -283,15 +283,15 @@ func (im *ImageService) ImageScanOnline(mongodb *mongotools.DatabaseWrapper, har
 
 }
 
-func (im *ImageService) ScanImageCheck(FullRepoName, Digest string) {
+func (im *ImageService) ScanImageCheck(ctx context.Context, fullRepoName, digest string) {
 	var ok bool
 	im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
 
-		ok = im.CheckImg(tx, FullRepoName, Digest)
+		ok = im.CheckImgExistence(ctx, tx, fullRepoName, digest)
 		return nil
 	})
 	if !ok {
-		af, err := im.harborClient.GetOneArtifacts(FullRepoName)
+		af, err := im.harborClient.GetOneArtifacts(fullRepoName)
 		if err != nil {
 			im.addImg(af)
 		}
