@@ -6,10 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-redis/redis/v8"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-
 	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -53,7 +51,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"gopkg.in/yaml.v2"
 	"gorm.io/driver/postgres"
-	_ "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -186,7 +183,11 @@ func NewConsole(
 		logging.GetLogger().Err(err).Msg("Init postgre error")
 		return nil, err
 	}
-	postgresDB.Get().AutoMigrate(&model.User{}, &model.Email{})
+
+	postgresDB.Get().AutoMigrate(&model.User{})
+	postgresDB.Get().AutoMigrate(&model.Email{})
+	postgresDB.Get().AutoMigrate(&model.ImageList{})
+	postgresDB.Get().AutoMigrate(&model.QuestionInfo{})
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -203,10 +204,10 @@ func NewConsole(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	}
 	// image service
-	imageService := image.NewImageService(mongoDBWrapper, harborClient)
+	imageService := image.NewImageService(postgresDB, harborClient)
 
 	// scanner service
-	scannerService := scanner.NewScannerService(mainCtx, redisClient, mongoDBWrapper, harborClient)
+	scannerService := scanner.NewScannerService(mainCtx, redisClient, postgresDB, mongoDBWrapper, harborClient)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -241,7 +242,7 @@ func NewConsole(
 	})
 
 	// online vulns service
-	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongoDBWrapper)
+	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongoDBWrapper, postgresDB)
 
 	// service assets service
 	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongoDBWrapper)

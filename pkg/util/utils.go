@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/globalsign/mgo/bson"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"go.mongodb.org/mongo-driver/mongo"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"reflect"
@@ -90,75 +90,76 @@ func RemoveScoredNotScoredFrom(thing string) string {
 	return thing
 }
 
-//AddImageQuestion
-func ImageQuestion(mongodb *mongo.Database, LinkObjectId string, questionId int, exist bool, digest string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	filter := bson.M{"digest": digest}
-
-	var il model.ImageList
-	err := mongodb.Collection(model.ImageListCollection.String()).FindOne(ctx, filter).Decode(&il)
-	if err != nil {
-		return err
-	}
-
-	if il.Questions == nil {
-		il.Questions = make(map[int]model.QuestionInfo)
-	}
-	cstZone := time.FixedZone("CST", 8*3600)
-	timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+func ImageQuestion(postgresDB *gorm.DB, linkObjectId string, questionId int, exist bool, digest string) error {
+	qs := model.QuestionInfo{}
 	if exist {
-		il.Questions[questionId] = model.QuestionInfo{ID: LinkObjectId, Time: timeStr}
+		pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err := postgresDB.WithContext(pgCtx).Where("digest = ? and id =? ", digest, questionId).First(&qs).Error
+		if err == gorm.ErrRecordNotFound {
+			cstZone := time.FixedZone("CST", 8*3600)
+			timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+			q := model.QuestionInfo{ID: questionId, LinkObjectId: linkObjectId, Digest: digest, Time: timeStr}
+			err := postgresDB.Create(&q).Error
+			if err != nil {
+				return err
+			}
+		}
+		if err != nil {
+			return err
+		}
 	} else {
-		delete(il.Questions, questionId)
+		postgresDB.Where("digest = ? and id =? ", digest, questionId).Delete(&qs)
 	}
-
-	update := bson.M{
-		"$set": bson.M{
-			"questions":     il.Questions,
-			"complete_time": timeStr,
-		},
-	}
-
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-
-	result, err := mongodb.Collection(model.ImageListCollection.String()).UpdateMany(mongoCtx, filter, update)
-	if err != nil {
-		return err
-	}
-
-	logging.GetLogger().Info().
-		Int64("MatchedCount", result.MatchedCount).
-		Int64("ModifiedCount", result.ModifiedCount).
-		Int64("UpsertedCount", result.UpsertedCount).
-		Msg("Maked image info question !")
 	return nil
 }
 
-func ScanFinish(mongodb *mongo.Database, digest string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+func ImageListOnlineSet(postgresDB *rdbtools.GormWrapper, add bool, digest string) error {
+	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	filter := bson.M{"digest": digest}
-
-	cstZone := time.FixedZone("CST", 8*3600)
-	timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-
-	update := bson.M{
-		"$set": bson.M{
-			"complete_time": timeStr,
-		},
+	var il model.ImageList
+	postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("digest = ? ", digest).First(&il)
+	if add {
+		err := postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("digest = ? ", digest).Update("on_line_count", il.OnLineCount+1).Error
+		if err != nil {
+			return err
+		}
+	} else {
+		err := postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("digest = ? ", digest).Update("on_line_count", il.OnLineCount-1).Error
+		if err != nil {
+			return err
+		}
 	}
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
+	return nil
+}
 
-	_, err := mongodb.Collection(model.ImageListCollection.String()).UpdateMany(mongoCtx, filter, update)
+func ImageListOnlineInit(postgresDB *rdbtools.GormWrapper) error {
+	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("id > 0").Update("on_line_count", 0).Error
 	if err != nil {
 		return err
 	}
+
 	return nil
+}
+
+func ScanFinish(postgresDB *gorm.DB, digest string) error {
+
+	cstZone := time.FixedZone("CST", 8*3600)
+	timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Updates(model.ImageList{CompleteTime: timeStr}).Error
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 func GetAllVirusScanStatus(ctx context.Context, scannerURL string) (int, int) {

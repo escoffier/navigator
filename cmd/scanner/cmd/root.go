@@ -64,8 +64,16 @@ var rootCmd = &cobra.Command{
 			Str("version", Version).
 			Msg("starting Vegeta Scanner")
 
+		harborOpts := flag.GetHarborOpts(cmd)
+		logging.GetLogger().Info().
+			Str("harbor-url", harborOpts.URL).
+			Str("harbor-username", harborOpts.Username).
+			Str("harbor-password", "***").
+			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
+			Msg("Harbor REST client options")
+
 		scanner, err := service.NewScanner(
-			httpOpts, mongoOpts, clairOpts, redisOpts, updateOpts)
+			httpOpts, mongoOpts, clairOpts, redisOpts, updateOpts, harborOpts)
 		if err != nil {
 			return err
 		}
@@ -95,6 +103,7 @@ func init() {
 	flag.AddClairFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
 	flag.AddUpdateFlags(rootCmd)
+	flag.AddHarborFlags(rootCmd)
 
 	flag.ConfigViper()
 }

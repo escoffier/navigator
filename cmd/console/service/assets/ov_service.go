@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"net/http"
 	"sort"
 	"sync"
@@ -30,6 +31,7 @@ type OnlineVulnsService struct {
 	sync.RWMutex
 
 	mongoDB          *mongotools.DatabaseWrapper
+	postgresDB       *rdbtools.GormWrapper
 	clusterCallbacks map[string]*OnlineVulnsClusterCallback
 	syncedClusters   map[string]struct{}
 }
@@ -40,9 +42,10 @@ type OnlineVulnsClusterCallback struct {
 	refreshTimestamp int64
 }
 
-func NewOnlineVulnsService(mongo *mongotools.DatabaseWrapper) *OnlineVulnsService {
+func NewOnlineVulnsService(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) *OnlineVulnsService {
 	return &OnlineVulnsService{
 		mongoDB:          mongo,
+		postgresDB:       postgresDB,
 		clusterCallbacks: make(map[string]*OnlineVulnsClusterCallback, 2),
 		syncedClusters:   make(map[string]struct{}),
 	}
@@ -371,7 +374,7 @@ func (cb *OnlineVulnsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, act
 		owner := metav1.GetControllerOf(oldPod)
 
 		for _, container := range oldPod.Status.ContainerStatuses {
-			assets.UpdateAsset(cb.parent.mongoDB.Get(), cb.cluster, oldPod, &container, owner, true)
+			assets.UpdateAsset(cb.parent.mongoDB, cb.parent.postgresDB, cb.cluster, oldPod, &container, owner, true)
 		}
 	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
 		if newPod == nil {
@@ -381,7 +384,7 @@ func (cb *OnlineVulnsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, act
 
 		// TODO: Do we care about InitContainer statuses?
 		for _, container := range newPod.Status.ContainerStatuses {
-			assets.UpdateAsset(cb.parent.mongoDB.Get(), cb.cluster, newPod, &container, owner, false)
+			assets.UpdateAsset(cb.parent.mongoDB, cb.parent.postgresDB, cb.cluster, newPod, &container, owner, false)
 		}
 	}
 
@@ -423,6 +426,10 @@ func (cb *OnlineVulnsClusterCallback) markInactiveAssetContainers(ctx context.Co
 	if err != nil {
 		return apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't get containers: %w", err))
+	}
+	err = util.ImageListOnlineInit(cb.parent.postgresDB)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("Mark image list online error:", err)
 	}
 
 	return nil

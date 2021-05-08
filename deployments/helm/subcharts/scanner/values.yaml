@@ -36,3 +36,10 @@ mongo:
   mongoUsername: redstone
   mongoDatabase: vegeta
   mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
+
+
+harbor:
+  harborURL: https://192.168.1.152:30003
+  harborUsername: tensorsec
+  harborPassword: Tensorsec123!
+  harborSecretName: harbor-api-tensorsec

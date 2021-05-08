@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"strings"
 	"time"
@@ -47,7 +49,7 @@ func FindContainerByImageDigest(ctx context.Context, mongodb *mongo.Database, sh
 	return &assetContainer, err
 }
 
-func UpdateAssetScanningDetails(ctx context.Context, mongodb *mongo.Database, assetContainer *model.AssetContainer, scanTask *model.ScanTask) {
+func UpdateAssetScanningDetails(assetContainer *model.AssetContainer, scanTask *model.ScanTask) {
 	assetContainer.WasScanned = true
 
 	assetContainer.HarborURL = scanTask.HarborURL
@@ -70,7 +72,7 @@ func UpdateAssetScanningDetails(ctx context.Context, mongodb *mongo.Database, as
 	}
 }
 
-func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, container *corev1.ContainerStatus, owner *metav1.OwnerReference, isDeleteEvent bool) {
+func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper, cluster string, pod *corev1.Pod, container *corev1.ContainerStatus, owner *metav1.OwnerReference, isDeleteEvent bool) {
 	// image: 192.168.1.203:5000/tensorsec-console:latest
 	repositoryTag := strings.Split(container.Image, ":")
 	repository := strings.Join(repositoryTag[0:len(repositoryTag)-1], ":")
@@ -134,6 +136,7 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 	}
 	if shaDigest != "" {
 		assetContainer.Digest = shaDigest
+
 	}
 
 	if shaDigest != "" {
@@ -142,10 +145,19 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to get scanner task for image")
 		}
-		UpdateAssetScanningDetails(mongoCtx, mongodb, &assetContainer, &scanTask)
+		UpdateAssetScanningDetails(&assetContainer, &scanTask)
 	}
 	if isDeleteEvent {
 		assetContainer.HistoricisedTimestamp = time.Now()
+		err := util.ImageListOnlineSet(postgresDB, false, shaDigest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("mark digest:%+v online/offline error:%+v", shaDigest, err)
+		}
+	} else {
+		err := util.ImageListOnlineSet(postgresDB, true, shaDigest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("mark digest:%+v online/offline error:%+v", shaDigest, err)
+		}
 	}
 
 	if owner == nil {
@@ -168,7 +180,7 @@ func UpdateAsset(mongodb *mongo.Database, cluster string, pod *corev1.Pod, conta
 	update := bson.M{"$set": assetContainer}
 	opts := options.Update().SetUpsert(true)
 
-	_, err := mongodb.Collection(model.AssetsContainersCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
+	_, err := mongodb.Get().Collection(model.AssetsContainersCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
 	}
@@ -410,7 +422,7 @@ func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEp
 	return nil
 }
 
-func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest string) (model.ScanTask, bool, error) {
+func getScanTaskByDigest(ctx context.Context, mongodb *mongotools.DatabaseWrapper, digest string) (model.ScanTask, bool, error) {
 	filter := bson.M{
 		"$and": []bson.M{
 			{"stale": false},
@@ -428,7 +440,7 @@ func getScanTaskByDigest(ctx context.Context, mongodb *mongo.Database, digest st
 
 	wasScanned := false
 
-	singleResult := mongodb.Collection(model.ScanTasksCollection.String()).FindOne(mongoCtx, filter, findOptions)
+	singleResult := mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(mongoCtx, filter, findOptions)
 	if singleResult.Err() == mongo.ErrNoDocuments {
 		// Maybe we haven't scanned this image yet, return no results, but indicate that we don't know
 		return model.ScanTask{}, wasScanned, nil
