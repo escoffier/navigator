@@ -18,7 +18,6 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20201021153353-00ad82a08272 // indirect
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/gin-gonic/gin v1.4.0
-	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-chi/jwtauth v4.0.3+incompatible
 	github.com/go-openapi/spec v0.19.9 // indirect

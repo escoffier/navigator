@@ -139,7 +139,8 @@ func NewScanner(
 	// harbor client
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
 	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
+		logging.GetLogger().Error().Msgf("ERROR: harbor client init error :%s ", err)
+		return nil, err
 	}
 
 	return &Scanner{
