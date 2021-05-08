@@ -65,34 +65,19 @@ func (im *ImageService) loadImagesFromHarbor(ctx context.Context) (err error) {
 	hbCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	var resp []harbor.RespItemT
-	err = util.RetryWithBackoff(hbCtx, func() error {
-		var err error
-		resp, _, err = im.harborClient.GetHarborProject(hbCtx)
-		return err
-	})
+	resp, _, err := im.harborClient.GetHarborProject(hbCtx)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "get harbor project  error")
 		return err
 	}
 
-	var repositories []harbor.Repositories
-	err = util.RetryWithBackoff(hbCtx, func() error {
-		var err error
-		repositories, err = im.harborClient.GetRepositories(hbCtx, resp)
-		return err
-	})
+	repositories, err := im.harborClient.GetRepositories(hbCtx, resp)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "get repos from harbor error")
 		return err
 	}
 
-	var artifacts model.Artifacts
-	err = util.RetryWithBackoff(hbCtx, func() error {
-		var err error
-		artifacts, err = im.harborClient.GetAllArtifacts(ctx, repositories)
-		return err
-	})
+	artifacts, err := im.harborClient.GetAllArtifacts(ctx, repositories)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "get artifacts from harbor error")
 		return err
@@ -126,7 +111,7 @@ func (im *ImageService) imageWorker() {
 		}
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(3 * time.Minute)
 	defer ticker.Stop()
 
 	for {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog/log"
@@ -40,6 +41,7 @@ type HarborRESTClient struct {
 	skipTLSVerify    bool
 	apiVersionString string
 	respItemCache    *cache.Cache
+	httpCli          *http.Client
 }
 
 func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*HarborRESTClient, error) {
@@ -51,6 +53,14 @@ func NewHarborRESTClient(ctx context.Context, harborOpts *flag.HarborOpts) (*Har
 		apiVersionString: "api/v2.0",
 		respItemCache:    cache.New(24*time.Hour, 24*time.Hour),
 	}
+	httpClient := http.Client{}
+	if h.skipTLSVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = tr
+	}
+	h.httpCli = &httpClient
 	return h, nil
 }
 
@@ -198,15 +208,19 @@ func (h HarborRESTClient) ScanOne(ctx context.Context, projectName, repositoryNa
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	var resp *http.Response
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resp, err = h.httpCli.Do(req.WithContext(ctx))
+		if err == nil {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+				return fmt.Errorf("status code is %d", resp.StatusCode)
+			}
+			return nil
 		}
-		httpClient.Transport = tr
-	}
+		return err
+	}, retry.Attempts(3))
 
-	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send scan all request to Harbor: %w", err))
 	}
@@ -253,15 +267,18 @@ func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, reposi
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	var resp *http.Response
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resp, err = h.httpCli.Do(req.WithContext(ctx))
+		if err == nil {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+				return fmt.Errorf("status code is %d", resp.StatusCode)
+			}
+			return nil
 		}
-		httpClient.Transport = tr
-	}
-
-	resp, err := httpClient.Do(req.WithContext(ctx))
+		return err
+	}, retry.Attempts(3))
 	if err != nil {
 		return time.Now(), "", NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
 	}
@@ -355,15 +372,18 @@ func (h HarborRESTClient) GetHarborProjectConfig(ctx context.Context, projectId 
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	var resp *http.Response
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resp, err = h.httpCli.Do(req.WithContext(ctx))
+		if err == nil {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+				return fmt.Errorf("status code is %d", resp.StatusCode)
+			}
+			return nil
 		}
-		httpClient.Transport = tr
-	}
-
-	resp, err := httpClient.Do(req.WithContext(ctx))
+		return err
+	}, retry.Attempts(3))
 	if err != nil {
 		return cfgScanData, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get projects config request to Harbor: %w", err))
 	}
@@ -409,15 +429,19 @@ func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context,
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	var resp *http.Response
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resp, err = h.httpCli.Do(req.WithContext(ctx))
+		if err == nil {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+				return fmt.Errorf("status code is %d", resp.StatusCode)
+			}
+			return nil
 		}
-		httpClient.Transport = tr
-	}
+		return err
+	}, retry.Attempts(3))
 
-	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get users request to Harbor: %w", err))
 	}
@@ -453,12 +477,12 @@ func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context,
 }
 
 func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, string, error) {
-
 	var (
 		respItems []RespItemT
 		page      = 1
 		loop      = true
 	)
+
 	for loop {
 		url := fmt.Sprintf("%s/%s/projects?page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString)
 		req, err := http.NewRequest("GET", url, nil)
@@ -466,19 +490,24 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, st
 			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %+v", err))
 		}
 		req.SetBasicAuth(h.username, h.password)
+		var resp *http.Response
 
-		httpClient := http.Client{}
-		if h.skipTLSVerify {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		err = util.RetryWithBackoff(ctx, func() error {
+			var err error
+			resp, err = h.httpCli.Do(req.WithContext(ctx))
+			if err == nil {
+				if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+					return fmt.Errorf("status code is %d", resp.StatusCode)
+				}
+				return nil
 			}
-			httpClient.Transport = tr
-		}
+			return err
 
-		resp, err := httpClient.Do(req.WithContext(ctx))
+		}, retry.Attempts(3))
 		if err != nil {
 			return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %+v", err))
 		}
+
 		defer util.CloseBodyWithLog(resp.Body)
 
 		if resp.StatusCode != http.StatusOK {
@@ -536,15 +565,18 @@ func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []RespItemT)
 			}
 			req.SetBasicAuth(h.username, h.password)
 
-			httpClient := http.Client{}
-			if h.skipTLSVerify {
-				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			var resp *http.Response
+			err = util.RetryWithBackoff(ctx, func() error {
+				var err error
+				resp, err = h.httpCli.Do(req.WithContext(ctx))
+				if err == nil {
+					if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+						return fmt.Errorf("status code is %d", resp.StatusCode)
+					}
+					return nil
 				}
-				httpClient.Transport = tr
-			}
-
-			resp, err := httpClient.Do(req.WithContext(ctx))
+				return err
+			}, retry.Attempts(3))
 			if err != nil {
 				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
 				loop = false
@@ -586,8 +618,8 @@ func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []RespItemT)
 }
 
 func (h HarborRESTClient) GetAllArtifacts(ctx context.Context, repo []Repositories) (model.Artifacts, error) {
-
 	var ArtifactsSlice model.Artifacts
+
 	for _, v := range repo {
 		var (
 			page = 1
@@ -614,15 +646,19 @@ func (h HarborRESTClient) GetAllArtifacts(ctx context.Context, repo []Repositori
 			}
 			req.SetBasicAuth(h.username, h.password)
 
-			httpClient := http.Client{}
-			if h.skipTLSVerify {
-				tr := &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			var response *http.Response
+			err = util.RetryWithBackoff(ctx, func() error {
+				var err error
+				response, err = h.httpCli.Do(req.WithContext(ctx))
+				if err == nil {
+					if response.StatusCode != http.StatusOK && response.StatusCode >= 500 {
+						return fmt.Errorf("status code is %d", response.StatusCode)
+					}
+					return nil
 				}
-				httpClient.Transport = tr
-			}
+				return err
+			}, retry.Attempts(3))
 
-			response, err := httpClient.Do(req.WithContext(ctx))
 			if err != nil {
 				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
 				loop = false
@@ -717,15 +753,19 @@ func (h HarborRESTClient) GetOneArtifacts(fullRepoName string) (model.Artifacts,
 		}
 		req.SetBasicAuth(h.username, h.password)
 
-		httpClient := http.Client{}
-		if h.skipTLSVerify {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		var response *http.Response
+		err = util.RetryWithBackoff(ctx, func() error {
+			var err error
+			response, err = h.httpCli.Do(req.WithContext(ctx))
+			if err == nil {
+				if response.StatusCode != http.StatusOK && response.StatusCode >= 500 {
+					return fmt.Errorf("status code is %d", response.StatusCode)
+				}
+				return nil
 			}
-			httpClient.Transport = tr
-		}
+			return err
+		}, retry.Attempts(3))
 
-		response, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
 			logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
 			loop = false
