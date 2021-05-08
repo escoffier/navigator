@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/mongo"
+	"gorm.io/gorm"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -32,12 +34,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type VirusScan struct {
 	ctx           context.Context
 	mongodb       *mongo.Database
+	postgresDB    *gorm.DB
 	redisClient   *redis.Client
 	scanTasksChan chan model.VirusScanTask
 	numWorkers    int
@@ -54,10 +56,11 @@ const (
 	viursMaxLayerScanRetires      = 3
 )
 
-func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
+func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresDB *gorm.DB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
 	return &VirusScan{
 		ctx:           ctx,
 		mongodb:       db,
+		postgresDB:    postgresDB,
 		redisClient:   rc,
 		scanTasksChan: make(chan model.VirusScanTask, 1000),
 		numWorkers:    clairOpts.NumWorkers,
@@ -446,22 +449,7 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 	scanTask.FinishedAt = time.Now().Unix()
 	scanTask.HistoricisedTimestamp = time.Now()
 	scanTask.Status = status
-	/*err := virusScan.mongodb.Client().UseSession(mongoCtx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
-		}
 
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-
-		filter := bson.M{"_id": scanTask.ID}
-		update := bson.M{"$set": scanTask}
-		_, sessionError = virusScan.mongodb.Collection(model.VirusScanTaskCollection.String()).UpdateOne(sessionContext, filter, update)
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update scantask: %w", sessionError))
-		}
-		return nil
-	})*/
 	filter := bson.M{"_id": scanTask.ID}
 	update := bson.M{"$set": scanTask}
 	_, err := virusScan.mongodb.Collection(model.VirusScanTaskCollection.String()).UpdateOne(mongoCtx, filter, update)
@@ -474,13 +462,15 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 	}
 
 	if flag == true {
-		util.ImageQuestion(virusScan.mongodb, scanTask.ID.Hex(), model.QUESTION_VIRUS, true, scanTask.ImageDigest)
+		virusScan.postgresDB.AutoMigrate(&model.User{})
+		util.ImageQuestion(virusScan.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, true, scanTask.ImageDigest)
 	} else {
-		util.ImageQuestion(virusScan.mongodb, scanTask.ID.Hex(), model.QUESTION_VIRUS, false, scanTask.ImageDigest)
+		virusScan.postgresDB.AutoMigrate(&model.User{})
+		util.ImageQuestion(virusScan.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, false, scanTask.ImageDigest)
 	}
 
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
-		err := util.ScanFinish(virusScan.mongodb, scanTask.ImageDigest)
+		err := util.ScanFinish(virusScan.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
@@ -545,22 +535,7 @@ func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registr
 	digestNum := strings.Split(digest, ":")[1]
 	timeUnix := time.Now().Unix()
 	timeUnixStr := strconv.FormatInt(timeUnix, 10)
-	/*reader, err := hub.DownloadBlob(repository, d)
-	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Failed to download blob %s: %w", repository, err)
-	}
-	defer reader.Close()
-	outFile, err := os.Create("/tmpscan/" + digestNum + "layer.tar") //init创建tmpscan
-	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Failed to Create layer.tar")
-	}
-	defer os.Remove("/tmpscan/" + digestNum + "layer.tar")
-	_, err = io.Copy(outFile, reader)
-	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Failed to Copy file: %w", err)
-	}
-	//tmpDir, err := ioutil.TempDir("/tmpscan/", "tmp")
-	//defer os.RemoveAll(tmpDir)*/
+
 	layerPath, err := virusScan.GetLayerPath(ctx, client, scanTask, digest)
 	defer virusScan.DeleteLayerPath(ctx, client, digest)
 	if err != nil {

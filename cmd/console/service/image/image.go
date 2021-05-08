@@ -3,6 +3,7 @@ package image
 import (
 	"context"
 	"errors"
+	"gorm.io/gorm"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -14,11 +15,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -27,17 +26,18 @@ const (
 )
 
 type ImageService struct {
+	ImCh                    chan struct{}
+	postgresDB              *rdbtools.GormWrapper
 	loadMsgCh               chan struct{}
-	mongodb                 *mongotools.DatabaseWrapper
 	harborClient            *harbor.HarborRESTClient
 	lastImagesLoadTimestamp int64
 }
 
-func NewImageService(mongodb *mongotools.DatabaseWrapper, harborClient *harbor.HarborRESTClient) *ImageService {
+func NewImageService(postgresDB *rdbtools.GormWrapper, harborClient *harbor.HarborRESTClient) *ImageService {
 
 	im := ImageService{
+		postgresDB:   postgresDB,
 		loadMsgCh:    make(chan struct{}, 1),
-		mongodb:      mongodb,
 		harborClient: harborClient,
 	}
 
@@ -83,7 +83,7 @@ func (im *ImageService) loadImagesFromHarbor(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = im.addImages(artifacts)
+	err = im.addImg(artifacts)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "Couldn't insert document")
 		return err
@@ -125,93 +125,85 @@ func (im *ImageService) imageWorker() {
 
 }
 
-func (im *ImageService) addImages(artifacts model.Artifacts) error {
-	// FIXME terrible 300 secs timeouts.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+func (im *ImageService) addImg(artifacts model.Artifacts) error {
+	pgCtx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
-	err := im.mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return sessionError
-		}
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-		if im.harborClient.GetApiVersionString() == "api" {
+	if im.harborClient.GetApiVersionString() == "api" {
 
-			for _, v := range artifacts.Af1 {
-				var il model.ImageList
-				il.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				il.FullRepoName = v.FullRepoName
-				il.Tags = v.Name
-				il.Digest = v.Digest
-				il.OS = v.Os
-				il.Size = v.Size
-				il.Library = im.harborClient.GetAddressString()
-				cstZone := time.FixedZone("CST", 8*3600)
-				timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
-				il.PushTime = timeStr
-				il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-				if !im.checkImageExistence(sessionContext, v.FullRepoName, v.Digest) {
-					_, err := im.mongodb.Get().Collection(model.ImageListCollection.String()).InsertOne(ctx, il)
+		for _, v := range artifacts.Af1 {
+			var il model.ImageList
+			il.FullRepoName = v.FullRepoName
+			il.Tags = v.Name
+			il.Digest = v.Digest
+			il.OS = v.Os
+			il.Size = v.Size
+			il.Library = im.harborClient.GetAddressString()
+			cstZone := time.FixedZone("CST", 8*3600)
+			timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
+			il.PushTime = timeStr
+			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
+				if !im.CheckImg(tx, v.FullRepoName, v.Digest) {
+					err := tx.WithContext(pgCtx).Create(&il).Error
 					if err != nil {
+						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
 						return err
 					}
 				}
-			}
-		} else {
-			for _, v := range artifacts.Af2 {
-				var il model.ImageList
-				il.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				il.FullRepoName = v.FullRepoName
-				split := false
-				for _, t := range v.Tags {
-					if split == true {
-						il.Tags = il.Tags + ";" + t.Name
-					} else {
-						il.Tags = il.Tags + t.Name
-						split = true
-					}
-				}
+				return nil
+			})
 
-				cstZone := time.FixedZone("CST", 8*3600)
-				timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
-				il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-				il.PushTime = timeStr
-				il.Digest = v.Digest
-				il.OS = v.ExtraAttrs.Os
-				il.Size = v.Size
-				il.Library = im.harborClient.GetAddressString()
-				if !im.checkImageExistence(sessionContext, v.FullRepoName, v.Digest) {
-					_, err := im.mongodb.Get().Collection(model.ImageListCollection.String()).InsertOne(ctx, il)
+		}
+	} else {
+		for _, v := range artifacts.Af2 {
+			var il model.ImageList
+			il.FullRepoName = v.FullRepoName
+			split := false
+			for _, t := range v.Tags {
+				if split == true {
+					il.Tags = il.Tags + ";" + t.Name
+				} else {
+					il.Tags = il.Tags + t.Name
+					split = true
+				}
+			}
+
+			cstZone := time.FixedZone("CST", 8*3600)
+			timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
+			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+			il.PushTime = timeStr
+			il.Digest = v.Digest
+			il.OS = v.ExtraAttrs.Os
+			il.Size = v.Size
+			il.Library = im.harborClient.GetAddressString()
+			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
+				if !im.CheckImg(tx, v.FullRepoName, v.Digest) {
+					err := im.postgresDB.Get().WithContext(pgCtx).Create(&il).Error
 					if err != nil {
+						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
 						return err
 					}
 				}
-			}
+				return nil
+			})
+
 		}
-		return nil
-	})
-	if err != nil {
-		return err
 	}
 
 	return nil
 }
 
-// checkImageExistence defaultly return false(not exist) if errored
-func (im *ImageService) checkImageExistence(ctx context.Context, fullRepoName, digest string) bool {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*1)
+//postgresDB
+func (im *ImageService) CheckImg(tx *gorm.DB, FullRepoName, Digest string) bool {
+	pgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	var il model.ImageList
-	opts := options.FindOne().SetMaxTime(1 * time.Second)
-	err := im.mongodb.Get().Collection(model.ImageListCollection.String()).FindOne(ctx, bson.M{"full_repo_name": fullRepoName, "digest": digest}, opts).Decode(&il)
-	if err == mongo.ErrNoDocuments {
-		return false
-	} else if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "find given image error. fullRepoName: %s. Digest: %s", fullRepoName, digest)
+	imageList := model.ImageList{}
+	err := tx.WithContext(pgCtx).Where("full_repo_name = ? and digest = ?", FullRepoName, Digest).First(&imageList).Error
+	if err != nil {
 		return false
 	}
+
 	return true
 }
 
@@ -292,11 +284,16 @@ func (im *ImageService) ImageScanOnline(mongodb *mongotools.DatabaseWrapper, har
 }
 
 func (im *ImageService) ScanImageCheck(FullRepoName, Digest string) {
+	var ok bool
+	im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
 
-	if !im.checkImageExistence(context.Background(), FullRepoName, Digest) {
+		ok = im.CheckImg(tx, FullRepoName, Digest)
+		return nil
+	})
+	if !ok {
 		af, err := im.harborClient.GetOneArtifacts(FullRepoName)
 		if err != nil {
-			im.addImages(af)
+			im.addImg(af)
 		}
 		select {
 		case im.loadMsgCh <- struct{}{}:

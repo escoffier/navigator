@@ -48,6 +48,9 @@ spec:
           "--clair-secretpattern=/config/patterns.json",
           "--redclair-skipregistrytlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-master:6379",
+          "--harbor-username={{ .Values.harbor.harborUsername }}",
+          "--harbor-url={{ .Values.harbor.harborURL }}",
+          "--harbor-skiptlsverify", # Insecure
           "-v"]
         env:
           - name: TENSORSEC_MONGO_PASSWORD
@@ -60,7 +63,11 @@ spec:
               secretKeyRef:
                 name: {{ .Values.redis.redisSecretName }}
                 key: password
-              
+          - name: TENSORSEC_HARBOR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.harbor.harborSecretName }}
+                  key: password
 
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}

@@ -3,6 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"go.mongodb.org/mongo-driver/mongo"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	logg "log"
 	"net/http"
 	"os/exec"
 	"runtime/debug"
@@ -11,8 +18,8 @@ import (
 
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 
+	"github.com/mattn/go-colorable"
 	"go.etcd.io/etcd/clientv3"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -39,7 +46,7 @@ type Scanner struct {
 	etcd            *clientv3.Client
 	redclair        *component.RedClairService
 	viursScan       *component.VirusScan
-	mongoClient     *mongo.Client
+	mongoClient     *mongo.Database
 	ctx             context.Context
 	cancel          context.CancelFunc
 	localLayerMange *layerManage.LocalLayerManageSrv
@@ -52,7 +59,9 @@ func NewScanner(
 	clairOpts *flag.ClairOpts,
 	redisOpts *flag.RedisOpts,
 	updateOpts *flag.UpdateOpts,
+	harborOpts *flag.HarborOpts,
 ) (*Scanner, error) {
+
 	// mongo client
 	// TODO: authSource database should be a separate argument.
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
@@ -76,6 +85,27 @@ func NewScanner(
 	}
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
+	// postgres
+
+	newLogger := logger.New(
+		logg.New(colorable.NewColorableStdout(), "\r\n", logg.LstdFlags),
+		logger.Config{
+			SlowThreshold: time.Second,
+			LogLevel:      logger.Info,
+			Colorful:      true,
+		},
+	)
+
+	postgresDB, err := gorm.Open(postgres.Open(clairOpts.PostgresConnectionString), &gorm.Config{Logger: newLogger})
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+		return nil, err
+	}
+
+	postgresDB.AutoMigrate(&model.User{})
+	postgresDB.AutoMigrate(&model.Email{})
+	postgresDB.AutoMigrate(&model.ImageList{})
+	postgresDB.AutoMigrate(&model.QuestionInfo{})
 
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
@@ -94,26 +124,32 @@ func NewScanner(
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
 	// redclair
-	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, redisClient, updateOpts)
+	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, postgresDB, redisClient, updateOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	virusScan, _ := component.NewViursScanService(mainCtx, clairOpts, mongodb, redisClientOne, updateOpts)
+	virusScan, _ := component.NewViursScanService(mainCtx, clairOpts, mongodb, postgresDB, redisClientOne, updateOpts)
 	// local layer manage
 	llms, err := layerManage.NewLocalLayerManageSrv(mainCtx, "0.0.0.0", 5566, clairOpts.EndpointClairPort, clairOpts.EndpointAddress)
 	if err != nil {
 		return nil, err
 	}
 
+	// harbor client
+	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
+	}
+
 	return &Scanner{
 		server: &http.Server{
 			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled, virusScan),
+			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled, harborClient, redisClient, virusScan),
 		},
 		redclair:        redclairSvc,
 		viursScan:       virusScan,
-		mongoClient:     mongoClient,
+		mongoClient:     mongodb,
 		ctx:             mainCtx,
 		cancel:          mainCancel,
 		localLayerMange: llms,

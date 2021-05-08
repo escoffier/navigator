@@ -154,3 +154,42 @@ func (api *api) scanOne() http.HandlerFunc {
 		response.Ok(w, response.WithItem(task))
 	}
 }
+
+func (api *api) ScannerOne(scanReq model.ScannerReq) (error, model.ScanTask) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	scanReqRedacted := scanReq
+	scanReqRedacted.Authorization = "<redacted>"
+	log.Info().Str("request", fmt.Sprintf("%+v", scanReqRedacted)).Msgf("Received scan request")
+
+	task := model.ScanTask{
+		Status:        model.ScanStatusInProgress,
+		StartedAt:     time.Now().Unix(),
+		Repository:    scanReq.Repository,
+		Tag:           scanReq.Tag,
+		URL:           scanReq.URL,
+		HarborURL:     scanReq.ResultsURL,
+		Authorization: scanReq.Authorization,
+		ImageDigest:   scanReq.Digest,
+	}
+
+	// persist the task to Mongo
+	mongoCtx, mongoCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer mongoCancel()
+
+	task.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+	task.HistoricisedTimestamp = time.Now()
+	_, err := api.mongodb.Collection(model.ScanTasksCollection.String()).InsertOne(mongoCtx, task)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
+
+		return err, task
+	}
+
+	// add the task to redclair
+	api.redclair.AddScanTask(task)
+	return nil, task
+
+}

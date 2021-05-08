@@ -2,14 +2,15 @@ package service
 
 import (
 	"context"
+	"go.mongodb.org/mongo-driver/mongo"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"go.mongodb.org/mongo-driver/mongo"
-
+	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 )
 
 func setupChiRouter(
@@ -17,6 +18,8 @@ func setupChiRouter(
 	redclair *component.RedClairService,
 	mongodb *mongo.Database,
 	httpLoggerDisabled bool,
+	harborClient *harbor.HarborRESTClient,
+	redisClient *redis.Client,
 	virusScan *component.VirusScan,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -30,7 +33,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, redclair, mongodb, virusScan)
+	api.SetupRoutes(ctx, r, redclair, mongodb, harborClient, redisClient, virusScan)
 
 	return r
 }

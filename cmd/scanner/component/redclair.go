@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gorm.io/gorm"
+
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -54,6 +56,7 @@ const (
 type RedClairService struct {
 	ctx           context.Context
 	mongodb       *mongo.Database
+	postgresDB    *gorm.DB
 	redisClient   *redis.Client
 	scanTasksChan chan model.ScanTask
 	numWorkers    int
@@ -70,7 +73,7 @@ type RedClairService struct {
 }
 
 // NewRedClair creates the instance of RedClair
-func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, rc *redis.Client, updateOpts *flag.UpdateOpts) (*RedClairService, error) {
+func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresDB *gorm.DB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*RedClairService, error) {
 	redclairEng, err := redclair.NewRedclair(clairOpts, updateOpts, db)
 	if err != nil {
 		return nil, err
@@ -80,6 +83,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 	return &RedClairService{
 		ctx:                     ctx,
 		mongodb:                 db,
+		postgresDB:              postgresDB,
 		redisClient:             rc,
 		scanTasksChan:           make(chan model.ScanTask, 1000),
 		numWorkers:              clairOpts.NumWorkers,
@@ -687,7 +691,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		}
 		return
 	}
-	assets.UpdateAssetScanningDetails(ctx, rcSvc.mongodb, assetContainer, &scanTask)
+	assets.UpdateAssetScanningDetails(assetContainer, &scanTask)
 
 	zerolog.Ctx(ctx).Info().Msg("Processing of scan task finished")
 }
@@ -1080,36 +1084,41 @@ func (rcSvc *RedClairService) testLogSuccess(ctx context.Context, scanTask model
 	if scanTask.Status == model.ScanStatusSucceeded {
 		if scanTask.ScanReport.Vulns.Vulnerabilities != nil {
 			if len(scanTask.ScanReport.Vulns.Vulnerabilities) > 0 {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 				}
 			} else {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 				}
 			}
 		} else {
-			err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+			err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 			}
 		}
 		if scanTask.ScanReport.Vulns.Sensitives != nil {
 			if len(scanTask.ScanReport.Vulns.Sensitives) > 0 {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 				}
 			} else {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 				}
 			}
 		} else {
-			err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+			rcSvc.postgresDB.AutoMigrate(&model.User{})
+			err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 			}
@@ -1118,7 +1127,7 @@ func (rcSvc *RedClairService) testLogSuccess(ctx context.Context, scanTask model
 	}
 
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
-		err := util.ScanFinish(rcSvc.mongodb, scanTask.ImageDigest)
+		err := util.ScanFinish(rcSvc.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
@@ -1196,12 +1205,15 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 	if scanTask.Status == model.ScanStatusSucceeded {
 		if scanTask.ScanReport.Vulns.Vulnerabilities != nil {
 			if len(scanTask.ScanReport.Vulns.Vulnerabilities) > 0 {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 				}
 			} else {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 				}
@@ -1209,12 +1221,14 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 		}
 		if scanTask.ScanReport.Vulns.Sensitives != nil {
 			if len(scanTask.ScanReport.Vulns.Sensitives) > 0 {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 				}
 			} else {
-				err = util.ImageQuestion(rcSvc.mongodb, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+				rcSvc.postgresDB.AutoMigrate(&model.User{})
+				err = util.ImageQuestion(rcSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 				}
@@ -1223,7 +1237,7 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 
 	}
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
-		err := util.ScanFinish(rcSvc.mongodb, scanTask.ImageDigest)
+		err := util.ScanFinish(rcSvc.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}

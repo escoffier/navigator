@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,7 +18,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -121,7 +119,6 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			return
 		}
 
-		api.imageService.ScanImageCheck(harborScanReq.Artifact.Repository, harborScanReq.Artifact.Digest)
 		tensorsecScannerReqPayload := model.ScannerReq{
 			URL:           harborScanReq.Registry.URL,
 			Authorization: harborScanReq.Registry.Authorization,
@@ -130,54 +127,10 @@ func (api *api) postHarborPluginScan() http.HandlerFunc {
 			Tag:           harborScanReq.Artifact.Tag,
 			ResultsURL:    harborResultsLink,
 		}
-		tensorsecScannerReqPayloadBytes, err := json.Marshal(tensorsecScannerReqPayload)
-		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to marshal request to tensorsec scanner")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
 
-		tensorsecScannerReq, err := http.NewRequest(
-			"POST",
-			fmt.Sprintf("%s/api/v1/scan/one", api.scannerURL),
-			bytes.NewBuffer(tensorsecScannerReqPayloadBytes),
-		)
-		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to prepare request to tensorsec scanner")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
-		tensorsecScannerReq.Header.Add("Content-Type", "application/json")
-
-		httpClient := http.Client{}
-		tensorsecScannerResp, err := httpClient.Do(tensorsecScannerReq.WithContext(ctx))
-		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to send request to tensorsec scanner")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
-		defer util.CloseBodyWithLog(tensorsecScannerResp.Body)
-
-		if tensorsecScannerResp.StatusCode != http.StatusOK {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to schedule scan")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
-
-		var tensorsecScannerRespEnvelope response.HTTPEnvelope
-		err = json.NewDecoder(tensorsecScannerResp.Body).Decode(&tensorsecScannerRespEnvelope)
+		err, scanTask := api.ScannerOne(tensorsecScannerReqPayload)
 		if err != nil {
 			e := harbor.NewHarborErrorAndLog(err, "Failed to decode response from tensorsec scanner")
-			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
-			return
-		}
-
-		logging.GetLogger().Info().Str("tensorsecscanresponse", fmt.Sprintf("%+v", tensorsecScannerRespEnvelope)).Msg("Received scan response from tensorsec scanner")
-
-		var scanTask model.ScanTask
-		json.Unmarshal(tensorsecScannerRespEnvelope.Data.Item, &scanTask)
-		if err != nil {
-			e := harbor.NewHarborErrorAndLog(err, "Failed to unmarshal scanTask in response from tensorsec scanner")
 			response.Respond(w, http.StatusInternalServerError, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 			return
 		}
@@ -215,7 +168,7 @@ func (api *api) getHarborPluginReport() http.HandlerFunc {
 		}
 
 		var result model.ScanTask
-		err = api.mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(ctx, bson.M{"_id": objectID}).Decode(&result)
+		err = api.mongodb.Collection(model.ScanTasksCollection.String()).FindOne(ctx, bson.M{"_id": objectID}).Decode(&result)
 		if err != nil {
 			e := harbor.NewHarborErrorAndLog(err, "Couldn't find task with this identifier")
 			response.Respond(w, http.StatusNotFound, "application/vnd.scanner.adapter.error+json; version=1.0", e)

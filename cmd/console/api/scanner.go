@@ -32,6 +32,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/reportsBySeverity", api.listScanReportsBySeverity())
 		r.Get("/reportsByImage", api.listScannedImages())
 		r.Get("/reportsByImageList", api.listScannedByImageList())
+		r.Get("/reportsByImageOverview", api.listScannedByImageOverview())
 		r.Get("/reportsByImageDetails", api.ScannedByImageDetails())
 		r.Get("/report/{taskID}", api.getScannerImageVulnerabilities())
 		r.Post("/scan", api.scan())
@@ -221,7 +222,9 @@ func (api *api) listScannedByImageList() http.HandlerFunc {
 			return
 		}
 
-		items, docNum, err := api.scannerService.GetImageList(ctx, api.imageService, offset, limit, search, online, api.scannerURL)
+		kind := r.URL.Query().Get("kind")
+
+		items, docNum, err := api.scannerService.GetImageList(ctx, offset, limit, search, online, kind)
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
@@ -233,7 +236,22 @@ func (api *api) listScannedByImageList() http.HandlerFunc {
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
 	}
+}
 
+// @Router  /api/v2/containerSec/scanner/reportsByRepo [get]
+func (api *api) listScannedByImageOverview() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		item, err := api.scannerService.GetImageOverView(ctx)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+		response.Ok(w, response.WithItem(item))
+
+	}
 }
 
 //@Summary Get a scan task by scantask on image

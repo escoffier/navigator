@@ -100,7 +100,6 @@ func SetupRoutes(
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
-	r.Route("/harbor/api/v1", api.harbor())
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", api.restAuth())
 

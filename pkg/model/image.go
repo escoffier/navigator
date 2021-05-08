@@ -1,7 +1,6 @@
 package model
 
 import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
 
@@ -37,27 +36,44 @@ const (
 	VirusStatusWait  string = "wait"
 )
 
-type QuestionInfo struct {
+/*type QuestionInfo struct {
 	ID   string `json:"id"`
 	Time string `json:"time"`
-}
-type ImageList struct {
-	ID             primitive.ObjectID     `json:"Id,omitempty" bson:"_id,omitempty"`
-	FullRepoName   string                 `json:"full_repo_name" bson:"full_repo_name"`
-	Tags           string                 `json:"tags" bson:"tags"`
-	Digest         string                 `json:"digest" bson:"digest"`
-	OS             string                 `json:"os" bson:"os"`
-	Size           int                    `json:"size" bson:"size"`
-	Library        string                 `json:"library" bson:"library"`
-	Questions      map[int]QuestionInfo   `json:"questions" bson:"questions"`
-	CompleteTime   string                 `json:"complete_time" bson:"complete_time"`
-	ImageScanVuln  ImageScanSummaryResult `json:"image_scan_vuln" bson:"-"`
-	Container      []AssetContainer       `json:"container" bson:"-"`
-	ScanStatus     string                 `json:"scan_status",bson:"-"`
-	ImageScanVirus []VirusFileInfo        `json:"image_scan_virus" bson:"-"`
-	CreateTime     string                 `json:"create_time" bson:"create_time"`
+}*/
 
-	PushTime string `json:"push_time" bson:"push_time"`
+type QuestionInfo struct {
+	QID          int    `gorm:"primary_key;AUTO_INCREMENT" json:"-" `
+	ID           int    `gorm:"column:id;index" json:"id"`
+	Digest       string `gorm:"column:digest;index" json:"digest" bson:"digest"`
+	LinkObjectId string `gorm:"column:link_object_id" json:"link_object_id"`
+	Time         string `gorm:"column:time" json:"time"`
+}
+
+func (q QuestionInfo) TableName() string {
+	return "tensor_question"
+}
+
+type ImageList struct {
+	ID             int                    `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	FullRepoName   string                 `gorm:"column:full_repo_name;index:nameTag"  json:"full_repo_name"`
+	Tags           string                 `gorm:"column:tags;index:nameTag" json:"tags" bson:"tags"`
+	Digest         string                 `gorm:"column:digest;index" json:"digest" bson:"digest"`
+	OS             string                 `gorm:"column:os;index" json:"os" bson:"os"`
+	Size           int                    `gorm:"column:size;index" json:"size" bson:"size"`
+	Library        string                 `gorm:"column:library;index" json:"library" bson:"library"`
+	Questions      []QuestionInfo         `gorm:"-" json:"questions" bson:"questions"`
+	CompleteTime   string                 `gorm:"column:complete_time;index" json:"complete_time" bson:"complete_time"`
+	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln" bson:"-"`
+	Container      []AssetContainer       `gorm:"-" json:"container" bson:"-"`
+	ScanStatus     string                 `gorm:"-" json:"scan_status",bson:"-"`
+	ImageScanVirus []VirusFileInfo        `gorm:"-" json:"image_scan_virus" bson:"-"`
+	CreateTime     string                 `gorm:"column:create_time" json:"create_time" bson:"create_time"`
+	PushTime       string                 `gorm:"column:push_time;index" json:"push_time" bson:"push_time"`
+	OnLineCount    int                    `gorm:"column:on_line_count;default:0;index" json:"-"`
+}
+
+func (i ImageList) TableName() string {
+	return "tensor_image_list"
 }
 
 type VirusFileInfo struct {
