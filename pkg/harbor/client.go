@@ -6,6 +6,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog/log"
@@ -14,12 +21,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const AUTOSCANCNDESCRIBE = "当镜像上传后，自动进行扫描漏洞"
@@ -302,7 +303,7 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 
 	respitem, ok := h.respItemCache.Get(RESPITEM)
 	if ok {
-		r, ok := respitem.([]respItemT)
+		r, ok := respitem.([]RespItemT)
 		if ok {
 			for _, item := range r {
 				if item.Name == projectName {
@@ -451,10 +452,10 @@ func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context,
 	return nil
 }
 
-func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, string, error) {
+func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, string, error) {
 
 	var (
-		respItems []respItemT
+		respItems []RespItemT
 		page      = 1
 		loop      = true
 	)
@@ -492,7 +493,7 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, st
 
 			return nil, "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
 		}
-		var respItemsTmp []respItemT
+		var respItemsTmp []RespItemT
 		err = json.NewDecoder(resp.Body).Decode(&respItemsTmp)
 		if err != nil {
 			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
@@ -509,7 +510,7 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]respItemT, st
 	return respItems, h.address, nil
 }
 
-func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []respItemT) ([]Repositories, error) {
+func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []RespItemT) ([]Repositories, error) {
 	//api/v2.0/projects/tensorsecurity/repositories?page_size=15&page=1 v2
 	//api/repositories?page=1&page_size=15&project_id=2 v1
 	var RepositoriesSlice []Repositories

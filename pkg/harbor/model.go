@@ -106,7 +106,7 @@ type VersionAdapter struct {
 	EndTime    time.Time `json:"end_time"`
 	ScanStatus string    `json:"scan_status"`
 }
-type respItemT struct {
+type RespItemT struct {
 	Name      string `json:"name"`
 	ProjectID int    `json:"project_id"`
 }
