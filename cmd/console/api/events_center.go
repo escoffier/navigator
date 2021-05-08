@@ -10,7 +10,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"net/http"
 	"time"
@@ -53,23 +52,6 @@ var (
 	}
 )
 
-func convertSeverityToString(severity uint32) string {
-	switch severity {
-	case 0:
-		return redclair.SeverityNone
-	case 1, 2:
-		return redclair.SeverityNegligible
-	case 3, 4:
-		return redclair.SeverityLow
-	case 5, 6:
-		return redclair.SeverityMedium
-	case 7, 8:
-		return redclair.SeverityHigh
-	default:
-		return redclair.SeverityCritical
-	}
-}
-
 func (api *api) getEvents() http.HandlerFunc {
 	type History struct {
 		PodUID    string            `json:"podUid"`
@@ -83,7 +65,7 @@ func (api *api) getEvents() http.HandlerFunc {
 		Module         string            `json:"module"`
 		Category       string            `json:"category"`
 		Description    string            `json:"description"`
-		Severity       string            `json:"severity"`
+		Severity       uint32            `json:"severity"`
 		CustomKV       map[string]string `json:"customKV"`
 		DisplayAdapter map[string]string `json:"displayAdapter"`
 	}
@@ -124,7 +106,7 @@ func (api *api) getEvents() http.HandlerFunc {
 					Description:    event.Rule.Description,
 					CustomKV:       event.Rule.CustomKV,
 					DisplayAdapter: event.Rule.DisplayAdapter,
-					Severity:       convertSeverityToString(event.Rule.Severity),
+					Severity:       event.Rule.Severity,
 				},
 				History:   history,
 				Timestamp: event.Timestamp,
