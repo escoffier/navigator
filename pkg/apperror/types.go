@@ -53,7 +53,7 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "An error has occurred",
-			Zhongwen:  "发生了错误",
+			Chinese:   "发生了错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -69,7 +69,7 @@ func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "An exception occurred on the server",
-			Zhongwen:  "服务器开小差了",
+			Chinese:   "服务器开小差了",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -85,7 +85,7 @@ func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Kubernetes error has occured",
-			Zhongwen:  "发生Kubernetes错误",
+			Chinese:   "发生Kubernetes错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -101,7 +101,7 @@ func NewRulesError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Runtime detection rules error has occured",
-			Zhongwen:  "Runtime detection rules error has occured, but in Chinese",
+			Chinese:   "Runtime detection rules error has occured, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -117,7 +117,7 @@ func NewRuleNotAppliedError(httpCode int, err error, suberrors ...Suberror) erro
 		detailedError{
 			err:       err,
 			English:   "Runtime detection rule is not applied",
-			Zhongwen:  "Runtime detection rule is not applied, but in Chinese",
+			Chinese:   "Runtime detection rule is not applied, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -133,7 +133,7 @@ func NewRuleAlreadyAppliedError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Runtime detection rule already applied",
-			Zhongwen:  "Runtime detection rule already applied, but in Chinese",
+			Chinese:   "Runtime detection rule already applied, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -149,7 +149,7 @@ func NewRuleDoesntExistError(httpCode int, err error, suberrors ...Suberror) err
 		detailedError{
 			err:       err,
 			English:   "Runtime detection rule doesn't exist",
-			Zhongwen:  "Runtime detection rule doesn't exist, but in Chinese",
+			Chinese:   "Runtime detection rule doesn't exist, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -165,7 +165,7 @@ func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberr
 		detailedError{
 			err:       err,
 			English:   "The specific compliance check is already in progress",
-			Zhongwen:  "此类合规性检查已在进行中",
+			Chinese:   "此类合规性检查已在进行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -181,7 +181,7 @@ func NewHTTPResponseError(httpCode int, err error, suberrors ...Suberror) error 
 		detailedError{
 			err:       err,
 			English:   "An error has occurred while writing response",
-			Zhongwen:  "写入回应时发生错误",
+			Chinese:   "写入回应时发生错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -197,7 +197,7 @@ func NewConfigurationError(httpCode int, err error, suberrors ...Suberror) error
 		detailedError{
 			err:       err,
 			English:   "Backend configuration error occurred",
-			Zhongwen:  "发生后端配置错误",
+			Chinese:   "发生后端配置错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -213,7 +213,7 @@ func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "A connection error occurred",
-			Zhongwen:  "发生连接错误",
+			Chinese:   "发生连接错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -229,7 +229,7 @@ func NewElasticError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Elasticsearch error",
-			Zhongwen:  "Elasticsearch error, but in Chinese",
+			Chinese:   "Elasticsearch error, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -245,7 +245,7 @@ func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) er
 		detailedError{
 			err:       err,
 			English:   "Malformed request",
-			Zhongwen:  "请求格式错误",
+			Chinese:   "请求格式错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -261,7 +261,7 @@ func BusyRequestError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "busy request",
-			Zhongwen:  "频繁请求，已经被服务器拦截",
+			Chinese:   "频繁请求，已经被服务器拦截",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -277,7 +277,7 @@ func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Sub
 		detailedError{
 			err:       err,
 			English:   "Invalid username or password",
-			Zhongwen:  "用户名或密码无效",
+			Chinese:   "用户名或密码无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -293,7 +293,7 @@ func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Field missing or invalid",
-			Zhongwen:  "字段缺失或无效",
+			Chinese:   "字段缺失或无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -309,7 +309,7 @@ func ScanImageGoingErr(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Scan online image going",
-			Zhongwen:  "正在扫描在线镜像",
+			Chinese:   "正在扫描在线镜像",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -325,7 +325,7 @@ func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) err
 		detailedError{
 			err:       err,
 			English:   "Cluster with this name already exists",
-			Zhongwen:  "具有该名称的集群已存在",
+			Chinese:   "具有该名称的集群已存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -341,7 +341,7 @@ func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberro
 		detailedError{
 			err:       err,
 			English:   "Maximum number of clusters reached",
-			Zhongwen:  "达到最大群集数",
+			Chinese:   "达到最大群集数",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -357,7 +357,7 @@ func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Invalid auth token",
-			Zhongwen:  "无效的身份验证令牌",
+			Chinese:   "无效的身份验证令牌",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -373,7 +373,7 @@ func NewNoAccess(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Access is Invalid",
-			Zhongwen:  "没有此权限",
+			Chinese:   "没有此权限",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -389,7 +389,7 @@ func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Session expired",
-			Zhongwen:  "会话已过期",
+			Chinese:   "会话已过期",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -405,7 +405,7 @@ func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Clair error has occurred",
-			Zhongwen:  "发生了Clair错误",
+			Chinese:   "发生了Clair错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -421,7 +421,7 @@ func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Docker error has occurred",
-			Zhongwen:  "发生Docker错误",
+			Chinese:   "发生Docker错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -437,7 +437,7 @@ func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suber
 		detailedError{
 			err:       err,
 			English:   "Clair scanning error: layer unprocessable",
-			Zhongwen:  "Clair扫描错误：不可处理的图层",
+			Chinese:   "Clair扫描错误：不可处理的图层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -453,7 +453,7 @@ func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suber
 		detailedError{
 			err:       err,
 			English:   "Clair scanning error: missing parent layer",
-			Zhongwen:  "Clair扫描错误：缺少父层",
+			Chinese:   "Clair扫描错误：缺少父层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -469,7 +469,7 @@ func NewHarborError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Harbor error has occurred",
-			Zhongwen:  "发生Harbor错误",
+			Chinese:   "发生Harbor错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -485,7 +485,7 @@ func NewHarborUnauthorizedError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Harbor returned error 'Unauthorized', please check Harbor username/password",
-			Zhongwen:  "Harbor返回错误“未经授权”, 请检查用户名/密码",
+			Chinese:   "Harbor返回错误“未经授权”, 请检查用户名/密码",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -501,7 +501,7 @@ func NewHarborForbiddenError(httpCode int, err error, suberrors ...Suberror) err
 		detailedError{
 			err:       err,
 			English:   "Harbor returned error 'Forbidden', please check if user has Administrator privileges",
-			Zhongwen:  "Harbor返回错误“禁止”, 请检查用户是否具有管理员权限",
+			Chinese:   "Harbor返回错误“禁止”, 请检查用户是否具有管理员权限",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -517,7 +517,7 @@ func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suber
 		detailedError{
 			err:       err,
 			English:   "Harbor full scan is already in progress, please wait",
-			Zhongwen:  "Harbor全面扫描已在进行中, 请稍候",
+			Chinese:   "Harbor全面扫描已在进行中, 请稍候",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -533,7 +533,7 @@ func HarborGetProgressError(httpCode int, err error, suberrors ...Suberror) erro
 		detailedError{
 			err:       err,
 			English:   "Harbor get  progress error",
-			Zhongwen:  "Harbor 获取project 错误",
+			Chinese:   "Harbor 获取project 错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -549,7 +549,7 @@ func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Redis error has occured",
-			Zhongwen:  "Redis error has occured but in 中文",
+			Chinese:   "Redis error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -565,7 +565,7 @@ func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Sube
 		detailedError{
 			err:       err,
 			English:   "Alert already acknowledged",
-			Zhongwen:  "Alert already acknowledged but in 中文",
+			Chinese:   "Alert already acknowledged but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -581,7 +581,7 @@ func NewClusterError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Cluster error has occured",
-			Zhongwen:  "Cluster error has occured but in 中文",
+			Chinese:   "Cluster error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -597,7 +597,7 @@ func NewClusterDoesntExistError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Cluster does not exist",
-			Zhongwen:  "Cluster does not exist but in 中文",
+			Chinese:   "Cluster does not exist but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -613,7 +613,7 @@ func NewAuditConfigError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Audit config error occured",
-			Zhongwen:  "审计配置发生错误",
+			Chinese:   "审计配置发生错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -629,7 +629,7 @@ func NewCannotGetDiskUsageError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Cannot get disk usage info",
-			Zhongwen:  "无法获取磁盘用量信息",
+			Chinese:   "无法获取磁盘用量信息",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -645,7 +645,7 @@ func NewAuditConfigDoesntExistError(httpCode int, err error, suberrors ...Suberr
 		detailedError{
 			err:       err,
 			English:   "Audit config does not exist",
-			Zhongwen:  "审计配置不存在",
+			Chinese:   "审计配置不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -661,7 +661,7 @@ func NewGarbageCollectionError(httpCode int, err error, suberrors ...Suberror) e
 		detailedError{
 			err:       err,
 			English:   "Garbage collection error",
-			Zhongwen:  "垃圾回收錯誤",
+			Chinese:   "垃圾回收錯誤",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -677,7 +677,7 @@ func NewGarbageCollectionInProgressError(httpCode int, err error, suberrors ...S
 		detailedError{
 			err:       err,
 			English:   "Garbage collection in progress",
-			Zhongwen:  "垃圾回收正在進行中",
+			Chinese:   "垃圾回收正在進行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -693,7 +693,7 @@ func NewAssetDoesntExistError(httpCode int, err error, suberrors ...Suberror) er
 		detailedError{
 			err:       err,
 			English:   "Asset does not exist",
-			Zhongwen:  "資產不存在",
+			Chinese:   "資產不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -709,7 +709,7 @@ func NewRedisCacheError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Redis cache error",
-			Zhongwen:  "Redis緩存錯誤",
+			Chinese:   "Redis緩存錯誤",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -725,7 +725,7 @@ func LoginError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Username or password error",
-			Zhongwen:  "用户名或密码错误",
+			Chinese:   "用户名或密码错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -741,7 +741,7 @@ func PostgresError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "An exception occurred on the server",
-			Zhongwen:  "服务器开小差了",
+			Chinese:   "服务器开小差了",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -757,7 +757,7 @@ func UserExistError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "User exist",
-			Zhongwen:  "用户已经存在",
+			Chinese:   "用户已经存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -772,7 +772,7 @@ func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "User not exist",
-			Zhongwen:  "用户不存在",
+			Chinese:   "用户不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -788,7 +788,7 @@ func SendmailError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Send mail error",
-			Zhongwen:  "发送邮件错误",
+			Chinese:   "发送邮件错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -804,7 +804,7 @@ func EmailForMatError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Email format error",
-			Zhongwen:  "邮件格式错误",
+			Chinese:   "邮件格式错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -820,7 +820,7 @@ func AccountUnActive(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "Account is not activated",
-			Zhongwen:  "账户未激活",
+			Chinese:   "账户未激活",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

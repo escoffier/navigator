@@ -25,8 +25,8 @@ func (suberror Suberror) String() string {
 type detailedError struct {
 	err error
 
-	English  string
-	Zhongwen string
+	English string
+	Chinese string
 
 	HTTPCode  int
 	Suberrors []Suberror
@@ -36,7 +36,7 @@ type detailedError struct {
 }
 
 func (de detailedError) Error() string {
-	msg := fmt.Sprintf("DetailedError<En: %s, Zh: %s, Code: %d, Location: %s:%d, Suberrors: ", de.English, de.Zhongwen, de.HTTPCode, de.File, de.Line)
+	msg := fmt.Sprintf("DetailedError<En: %s, Zh: %s, Code: %d, Location: %s:%d. Suberrors:", de.English, de.Chinese, de.HTTPCode, de.File, de.Line)
 	if len(de.Suberrors) == 0 {
 		msg += "<none>"
 	} else {
@@ -77,7 +77,7 @@ func (de detailedError) As(target interface{}) bool {
 func (de detailedError) LocalizedError(ctx context.Context) string {
 	languageKey := lang.Language(ctx)
 	if languageKey == lang.LanguageZH {
-		return de.Zhongwen
+		return de.Chinese
 	} else if languageKey == lang.LanguageEN {
 		return de.English
 	} else {

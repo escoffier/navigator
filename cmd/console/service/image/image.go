@@ -2,6 +2,12 @@ package image
 
 import (
 	"context"
+	"errors"
+	"runtime/debug"
+	"strings"
+	"sync/atomic"
+	"time"
+
 	"github.com/avast/retry-go"
 	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -14,83 +20,128 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"runtime/debug"
-	"strings"
-	"time"
+)
+
+const (
+	loadIntervalSecs = int64((12 * time.Hour) / time.Second)
 )
 
 type ImageService struct {
-	ImCh         chan struct{}
-	mongodb      *mongotools.DatabaseWrapper
-	harborClient *harbor.HarborRESTClient
+	loadMsgCh               chan struct{}
+	mongodb                 *mongotools.DatabaseWrapper
+	harborClient            *harbor.HarborRESTClient
+	lastImagesLoadTimestamp int64
 }
 
 func NewImageService(mongodb *mongotools.DatabaseWrapper, harborClient *harbor.HarborRESTClient) *ImageService {
 
 	im := ImageService{
-		ImCh:         make(chan struct{}, 1),
+		loadMsgCh:    make(chan struct{}, 1),
 		mongodb:      mongodb,
 		harborClient: harborClient,
 	}
 
-	go im.ImageWorker()
+	go im.imageWorker()
 	select {
-	case im.ImCh <- struct{}{}:
+	case im.loadMsgCh <- struct{}{}:
 	default:
 		logging.GetLogger().Error().Msgf("init  image sync signal error")
 	}
 	return &im
 }
 
-func (im *ImageService) ImageWorker() {
+func (im *ImageService) loadImagesFromHarbor(ctx context.Context) (err error) {
 	defer func() {
-		if err := recover(); err != nil {
-			logging.GetLogger().Error().Msgf("ImageTicker grouting error:%+v,debug.Stack:%s", err, debug.Stack())
+		if r := recover(); r != nil {
+			logging.GetLogger().WithContext(ctx).Errorf(nil, "loadImagesFromHarbor panic:%v, Stack:%s", r, debug.Stack())
+			err = errors.New("panic")
 		}
 	}()
-	ticker := time.NewTicker(12 * time.Hour)
+
+	if im.getLastImagesLoadTimestamp() > 0 && time.Now().Unix()-im.getLastImagesLoadTimestamp() < loadIntervalSecs {
+		return nil
+	}
+
+	hbCtx, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+
+	var resp []harbor.RespItemT
+	err = util.RetryWithBackoff(hbCtx, func() error {
+		var err error
+		resp, _, err = im.harborClient.GetHarborProject(hbCtx)
+		return err
+	})
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "get harbor project  error")
+		return err
+	}
+
+	var repositories []harbor.Repositories
+	err = util.RetryWithBackoff(hbCtx, func() error {
+		var err error
+		repositories, err = im.harborClient.GetRepositories(hbCtx, resp)
+		return err
+	})
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "get repos from harbor error")
+		return err
+	}
+
+	var artifacts model.Artifacts
+	err = util.RetryWithBackoff(hbCtx, func() error {
+		var err error
+		artifacts, err = im.harborClient.GetAllArtifacts(ctx, repositories)
+		return err
+	})
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "get artifacts from harbor error")
+		return err
+	}
+
+	err = im.addImages(artifacts)
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "Couldn't insert document")
+		return err
+	}
+
+	// must set the seccess timestamp when all steps are successful
+	im.setImagesLoadStamp()
+
+	return nil
+}
+
+func (im *ImageService) setImagesLoadStamp() {
+	stamp := time.Now().Unix()
+	atomic.StoreInt64(&im.lastImagesLoadTimestamp, stamp)
+}
+
+func (im *ImageService) getLastImagesLoadTimestamp() int64 {
+	return atomic.LoadInt64(&im.lastImagesLoadTimestamp)
+}
+
+func (im *ImageService) imageWorker() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("ImageTicker grouting panic: %v, Stack:%s", r, debug.Stack())
+		}
+	}()
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-im.ImCh:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			resp1, _, err := im.harborClient.GetHarborProject(ctx)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("get resp  error：%+w", err)
-				cancel()
-				continue
-			}
-
-			Repositories, err := im.harborClient.GetRepositories(ctx, resp1)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("get repo error：%+w", err)
-				cancel()
-				continue
-			}
-
-			artifacts, err := im.harborClient.GetAllArtifacts(ctx, Repositories)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("get  artifacts error：%+w", err)
-				cancel()
-				continue
-			}
-
-			err = im.AddImg(artifacts)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("Couldn't insert document: %+v", err)
-			}
-			cancel()
+		case <-im.loadMsgCh:
+			im.loadImagesFromHarbor(context.Background())
 		case <-ticker.C:
-			select {
-			case im.ImCh <- struct{}{}:
-			default:
-				logging.GetLogger().Error().Msgf("sync image info chan full")
-			}
+			im.loadImagesFromHarbor(context.Background())
 		}
 	}
 
 }
 
-func (im *ImageService) AddImg(artifacts model.Artifacts) error {
+func (im *ImageService) addImages(artifacts model.Artifacts) error {
+	// FIXME terrible 300 secs timeouts.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
 	defer cancel()
 
@@ -115,7 +166,7 @@ func (im *ImageService) AddImg(artifacts model.Artifacts) error {
 				timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
 				il.PushTime = timeStr
 				il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-				if !im.CheckImg(v.FullRepoName, v.Digest) {
+				if !im.checkImageExistence(sessionContext, v.FullRepoName, v.Digest) {
 					_, err := im.mongodb.Get().Collection(model.ImageListCollection.String()).InsertOne(ctx, il)
 					if err != nil {
 						return err
@@ -145,7 +196,7 @@ func (im *ImageService) AddImg(artifacts model.Artifacts) error {
 				il.OS = v.ExtraAttrs.Os
 				il.Size = v.Size
 				il.Library = im.harborClient.GetAddressString()
-				if !im.CheckImg(v.FullRepoName, v.Digest) {
+				if !im.checkImageExistence(sessionContext, v.FullRepoName, v.Digest) {
 					_, err := im.mongodb.Get().Collection(model.ImageListCollection.String()).InsertOne(ctx, il)
 					if err != nil {
 						return err
@@ -162,13 +213,18 @@ func (im *ImageService) AddImg(artifacts model.Artifacts) error {
 	return nil
 }
 
-func (im *ImageService) CheckImg(FullRepoName, Digest string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+// checkImageExistence defaultly return false(not exist) if errored
+func (im *ImageService) checkImageExistence(ctx context.Context, fullRepoName, digest string) bool {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*1)
 	defer cancel()
 
 	var il model.ImageList
-	err := im.mongodb.Get().Collection(model.ImageListCollection.String()).FindOne(ctx, bson.M{"full_repo_name": FullRepoName, "digest": Digest}).Decode(&il)
-	if err != nil {
+	opts := options.FindOne().SetMaxTime(1 * time.Second)
+	err := im.mongodb.Get().Collection(model.ImageListCollection.String()).FindOne(ctx, bson.M{"full_repo_name": fullRepoName, "digest": digest}, opts).Decode(&il)
+	if err == mongo.ErrNoDocuments {
+		return false
+	} else if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "find given image error. fullRepoName: %s. Digest: %s", fullRepoName, digest)
 		return false
 	}
 	return true
@@ -240,8 +296,7 @@ func (im *ImageService) ImageScanOnline(mongodb *mongotools.DatabaseWrapper, har
 					return err
 				}
 				return nil
-			}, retry.Attempts(5),
-		)
+			}, retry.Attempts(5))
 		if err != nil {
 			logging.GetLogger().Error().Msgf("projectName:%+v ,frepoName:%+v,tags:%+v,Failed to trigger  scan one in Harbor: %+v,", projectName, frepoName, tag, err)
 			time.Sleep(time.Millisecond * 200)
@@ -253,13 +308,13 @@ func (im *ImageService) ImageScanOnline(mongodb *mongotools.DatabaseWrapper, har
 
 func (im *ImageService) ScanImageCheck(FullRepoName, Digest string) {
 
-	if !im.CheckImg(FullRepoName, Digest) {
+	if !im.checkImageExistence(context.Background(), FullRepoName, Digest) {
 		af, err := im.harborClient.GetOneArtifacts(FullRepoName)
 		if err != nil {
-			im.AddImg(af)
+			im.addImages(af)
 		}
 		select {
-		case im.ImCh <- struct{}{}:
+		case im.loadMsgCh <- struct{}{}:
 		default:
 			logging.GetLogger().Error().Msgf("send  image sync signal error")
 		}

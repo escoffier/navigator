@@ -1,6 +1,20 @@
 package util
 
-import "time"
+import (
+	"context"
+	"time"
+
+	"github.com/avast/retry-go"
+)
+
+var (
+	defaultRetryOptions = []retry.Option{
+		retry.MaxDelay(1 * time.Second),
+		retry.MaxJitter(200 * time.Millisecond),
+		retry.DelayType(retry.BackOffDelay),
+		retry.LastErrorOnly(true),
+	}
+)
 
 type RetryFunc func() error
 
@@ -36,4 +50,14 @@ func WithRetry(f RetryFunc, conf *RetryConf) error {
 			retryDelay = conf.maxRetryDelay
 		}
 	}
+}
+
+// RetryWithBackoff uses Backoff algo to retry using default settings, extraOpts will override existing options.
+func RetryWithBackoff(ctx context.Context, f retry.RetryableFunc, extraOpts ...retry.Option) error {
+	retryOpts := make([]retry.Option, 0, 5)
+	retryOpts = append(retryOpts, retry.Context(ctx))
+	retryOpts = append(retryOpts, defaultRetryOptions...)
+	retryOpts = append(retryOpts, extraOpts...)
+
+	return retry.Do(f, retryOpts...)
 }

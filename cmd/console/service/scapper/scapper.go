@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"io"
 	"io/ioutil"
 	"math"
@@ -18,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rfyiamcool/go-retry"
 	uuid "github.com/satori/go.uuid"
 	"github.com/tealeg/xlsx"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scapper"
@@ -29,9 +27,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,15 +42,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-)
-
-var (
-	backOffSetting = &retry.Backoff{
-		MinDelay: 50 * time.Millisecond,
-		MaxDelay: 1 * time.Second,
-		Factor:   1.2,
-		Jitter:   true,
-	}
 )
 
 type Scapper struct {
@@ -682,8 +673,8 @@ func (s *Scapper) mongoJobStatusAllUnfinishedSetFailed(ctx context.Context, chec
 		"message":         msg,
 		"audit_timestamp": time.Now(),
 	}}
-	rt := retry.New(retry.WithBackoff(backOffSetting), retry.WithCtx(ctx))
-	err := rt.Ensure(func() error {
+
+	err := util.RetryWithBackoff(ctx, func() error {
 		_, err := s.MongoDB.Get().Collection(model.GetMongoCollectionForCheckType(check.CheckType)).UpdateMany(ctx, filter, update)
 		return err
 	})
@@ -936,8 +927,8 @@ func (s *Scapper) updateScapReports(ctx context.Context, check *scapper.Check, u
 
 	writeCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	rt := retry.New(retry.WithBackoff(backOffSetting), retry.WithCtx(writeCtx))
-	writeErr := rt.Ensure(func() error {
+
+	writeErr := util.RetryWithBackoff(writeCtx, func() error {
 		filter = bson.M{"checkId": check.CheckUUID.String()}
 		update := bson.M{"$set": checkHistory}
 		opts := options.Update().SetUpsert(true)

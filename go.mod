@@ -47,7 +47,6 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/rfyiamcool/go-retry v1.0.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.21.0
 	github.com/satori/go.uuid v1.2.0
