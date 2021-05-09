@@ -60,9 +60,9 @@ image:
   pullSecret: harbor-admin-secret
 
 harbor:
-  harborURL: https://192.168.1.152:30003
-  harborUsername: tensorsec
-  harborPassword: Tensorsec123!
+  harborURL: https://152.136.147.241:8443
+  harborUsername: admin
+  harborPassword: Hrbr12@Tensor.*#)
   harborSecretName: harbor-api-tensorsec
   
 mongo:
