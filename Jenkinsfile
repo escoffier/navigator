@@ -49,6 +49,9 @@ podTemplate(label: "jenkins-slave-golang",cloud: "kubernetes" ){
                 sed -i 's#harborURL: https://192.168.1.152:30003#harborURL: https://registry.t-appagile.com#g'  deployments/helm/subcharts/console/values.yaml
                 sed -i 's#harborUsername: tensorsec#harborUsername: admin#g'  deployments/helm/subcharts/console/values.yaml
                 sed -i 's|harborPassword: Tensorsec123!|harborPassword: ${env.HARBORPASSWD}|g' deployments/helm/subcharts/console/values.yaml 
+                sed -i 's#harborURL: https://192.168.1.152:30003#harborURL: https://registry.t-appagile.com#g'  deployments/helm/subcharts/scanner/values.yaml
+                sed -i 's#harborUsername: tensorsec#harborUsername: admin#g'  deployments/helm/subcharts/scanner/values.yaml
+                sed -i 's|harborPassword: Tensorsec123!|harborPassword: ${env.HARBORPASSWD}|g' deployments/helm/subcharts/scanner/values.yaml 
                 """
                 if("$moduleToDeploy".trim() == "console") {
                 sh '''
