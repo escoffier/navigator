@@ -39,7 +39,6 @@ mongo:
 
 
 harbor:
-  harborURL: https://152.136.147.241:8443
-  harborUsername: admin
-  harborPassword: Hrbr12@Tensor.*#)
+  harborURL: https://192.168.1.152:30003
+  harborUsername: tensorsec
   harborSecretName: harbor-api-tensorsec
