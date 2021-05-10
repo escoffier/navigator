@@ -141,15 +141,30 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.Library = im.harborClient.GetAddressString()
 			cstZone := time.FixedZone("CST", 8*3600)
 			timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
+			il.OnLineCount = 0
 			il.PushTime = timeStr
 			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+			il.Status = 0
 			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
-				if !im.CheckImgExistence(pgCtx, tx, v.FullRepoName, v.Digest) {
+				/*
+					if the image has existed but with the status -1, we update all the fields and also the status to 0.
+					if the image hasn't existed, insert it.
+				*/
+				var image model.ImageList
+				fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ?", v.Digest, v.FullRepoName, v.Name).First(&image).Error
+				if fErr != nil {
 					err := tx.WithContext(pgCtx).Create(&il).Error
 					if err != nil {
 						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
 						return err
 					}
+				} else if image.Status == -1 {
+					err := tx.WithContext(pgCtx).Where("id = ?", image.ID).Updates(il).Error
+					if err != nil {
+						return err
+					}
+					err = tx.WithContext(pgCtx).Where("id = ?", image.ID).Update("status", 0).Error
+					return err
 				}
 				return nil
 			})
@@ -177,13 +192,27 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.OS = v.ExtraAttrs.Os
 			il.Size = v.Size
 			il.Library = im.harborClient.GetAddressString()
+			il.Status = 0
 			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
-				if !im.CheckImgExistence(pgCtx, tx, v.FullRepoName, v.Digest) {
-					err := im.postgresDB.Get().WithContext(pgCtx).Create(&il).Error
+				/*
+					if the image has existed but with the status -1, we update all the fields and also the status to 0.
+					if the image hasn't existed, insert it.
+				*/
+				var image model.ImageList
+				fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ?", v.Digest, v.FullRepoName, il.Tags).First(&image).Error
+				if fErr != nil {
+					err := tx.WithContext(pgCtx).Create(&il).Error
 					if err != nil {
 						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
 						return err
 					}
+				} else if image.Status == -1 {
+					err := tx.WithContext(pgCtx).Where("id = ?", image.ID).Updates(il).Error
+					if err != nil {
+						return err
+					}
+					err = tx.WithContext(pgCtx).Where("id = ?", image.ID).Update("status", 0).Error
+					return err
 				}
 				return nil
 			})
@@ -196,10 +225,10 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 
 //postgresDB
 func (im *ImageService) CheckImgExistence(ctx context.Context, tx *gorm.DB, fullRepoName, digest string) bool {
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	imageList := model.ImageList{}
-	err := tx.WithContext(pgCtx).Where("full_repo_name = ? and digest = ?", fullRepoName, digest).First(&imageList).Error
+	err := tx.WithContext(pgCtx).Where("full_repo_name = ? AND digest = ? AND status = ?", fullRepoName, digest, 0).First(&imageList).Error
 	if err != nil {
 		return false
 	}
@@ -207,6 +236,7 @@ func (im *ImageService) CheckImgExistence(ctx context.Context, tx *gorm.DB, full
 	return true
 }
 
+// FIXME still uses mongoDB imageLists
 func (im *ImageService) ImageScanOnline(mongodb *mongotools.DatabaseWrapper, harborClient *harbor.HarborRESTClient, cache *cache.Cache) {
 	cache.Set(model.SCANSTAUTS, struct{}{}, -1)
 	defer cache.Delete(model.SCANSTAUTS)

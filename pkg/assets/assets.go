@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -149,15 +148,6 @@ func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormW
 	}
 	if isDeleteEvent {
 		assetContainer.HistoricisedTimestamp = time.Now()
-		err := util.ImageListOnlineSet(postgresDB, false, shaDigest)
-		if err != nil {
-			logging.GetLogger().Error().Msgf("mark digest:%+v online/offline error:%+v", shaDigest, err)
-		}
-	} else {
-		err := util.ImageListOnlineSet(postgresDB, true, shaDigest)
-		if err != nil {
-			logging.GetLogger().Error().Msgf("mark digest:%+v online/offline error:%+v", shaDigest, err)
-		}
 	}
 
 	if owner == nil {

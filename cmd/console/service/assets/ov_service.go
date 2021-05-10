@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"net/http"
 	"sort"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -426,10 +426,6 @@ func (cb *OnlineVulnsClusterCallback) markInactiveAssetContainers(ctx context.Co
 	if err != nil {
 		return apperror.NewMongoError(http.StatusInternalServerError,
 			fmt.Errorf("couldn't get containers: %w", err))
-	}
-	err = util.ImageListOnlineInit(cb.parent.postgresDB)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("Mark image list online error:", err)
 	}
 
 	return nil

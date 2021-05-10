@@ -3,29 +3,26 @@ package scanner
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"go.mongodb.org/mongo-driver/mongo"
-
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -417,7 +414,7 @@ func (s *ScannerService) GetImageList(ctx context.Context, offset int64, limit i
 	db = db.Model(&model.ImageList{})
 	db.Count(&count)
 
-	err := db.Limit(int(limit)).Offset(int(offset)).Order("on_line_count desc").Find(&im).Error
+	err := db.Limit(int(limit)).Offset(int(offset)).Where("`status`=?", 0).Order("on_line_count desc").Find(&im).Error
 
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
@@ -445,11 +442,11 @@ func (s *ScannerService) GetImageOverView(ctx context.Context) (image.OverView, 
 	pctx, postgresDBCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer postgresDBCancel()
 	var cnt int64
-	s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("on_line_count >0").Count(&cnt)
+	s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("on_line_count >0").Where("`status`=?", 0).Count(&cnt)
 
 	overView.OnlineTotal = int(cnt)
 	var count int64
-	err := s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Count(&count).Error
+	err := s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("`status`=?", 0).Count(&count).Error
 	overView.ImageTotal = int(count)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,

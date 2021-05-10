@@ -5,22 +5,17 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"github.com/go-redis/redis/v8"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"os"
-
 	"io/ioutil"
 	"math"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -28,6 +23,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
@@ -41,6 +37,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -49,6 +46,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"gopkg.in/yaml.v2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -251,7 +250,7 @@ func NewConsole(
 	}
 
 	// cluster service
-	clusterService := cluster.NewClusterService(mainCtx, mongoDBWrapper, onlineVulnsSvc, cleanupService, redisClient)
+	clusterService := cluster.NewClusterService(mainCtx, postgresDB, mongoDBWrapper, onlineVulnsSvc, cleanupService, redisClient)
 
 	// scap service
 	scapService, err := sp.NewScapService(mainCtx, redisClient, mongoDBWrapper)
@@ -393,7 +392,7 @@ func (c *Console) Run() func() {
 			Msg("When validating kube client")
 	}
 	if kubeClient != nil {
-		watcher, werr := assetsSvc.Watcher(c.svcAssetsService, c.onlineVulnsService)
+		watcher, werr := assetsSvc.Watcher(c.postgresDB, c.svcAssetsService, c.onlineVulnsService)
 		if werr != nil {
 			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
 		} else {
