@@ -193,7 +193,6 @@ func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, 
 }
 
 func (h HarborRESTClient) ScanOne(ctx context.Context, projectName, repositoryName, tag string) error {
-
 	//v2 :/projects/{project_name}/repositories/{repository_name}/artifacts/{reference}/scan
 	//v1 :/api/repositories/docker_contenttrust/myshop/tags/v1/scan
 	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s/scan", h.address, h.apiVersionString, projectName, repositoryName, tag)
@@ -335,7 +334,7 @@ func (h HarborRESTClient) GetHarborScanResultsLink(ctx context.Context, fullRepo
 
 	respItems, _, err := h.GetHarborProject(ctx)
 	if err != nil {
-		return "", HarborGetProgressError(http.StatusInternalServerError, fmt.Errorf("Get project in Harbor error"))
+		return "", HarborGetProgressError(http.StatusInternalServerError, fmt.Errorf("Get project in Harbor error:%+v", err))
 	}
 
 	for _, item := range respItems {
@@ -516,7 +515,7 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, st
 			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
 			err = json.NewDecoder(teeReader).Decode(&errorResp)
 			if err != nil {
-				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor:%+v", err)
 				return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
 			}
 
