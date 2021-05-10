@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,6 +26,7 @@ import (
 
 type ClusterService struct {
 	mongodb        *mongotools.DatabaseWrapper
+	postgreDB      *rdbtools.GormWrapper
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
 	cleanupService *cleanup.Service
 	clustersCache  *rcache.ClustersCache
@@ -32,6 +34,7 @@ type ClusterService struct {
 
 func NewClusterService(
 	ctx context.Context,
+	postgreDB *rdbtools.GormWrapper,
 	mongodb *mongotools.DatabaseWrapper,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	cleanupService *cleanup.Service,
@@ -39,6 +42,7 @@ func NewClusterService(
 ) *ClusterService {
 	return &ClusterService{
 		mongodb:        mongodb,
+		postgreDB:      postgreDB,
 		onlineVulnsSvc: onlineVulnsSvc,
 		cleanupService: cleanupService,
 		clustersCache:  rcache.NewClustersCache(ctx, mongodb, redisClient),
@@ -125,7 +129,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		// TODO: maybe a hook mechanism so cluster service doesn't depend on onlinevulns service?
 		// TODO: doesn't support multiple clusters yet.
 		sa, _ := assetsSvc.GetServiceAssetsService()
-		watcher, werr := assetsSvc.Watcher(sa, s.onlineVulnsSvc)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, sa, s.onlineVulnsSvc)
 		if werr != nil {
 			return werr
 		}
@@ -294,7 +298,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 		}
 
 		svcService, _ := assetsSvc.GetServiceAssetsService()
-		watcher, werr := assetsSvc.Watcher(svcService, s.onlineVulnsSvc)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, s.onlineVulnsSvc)
 		if werr != nil {
 			return werr
 		}

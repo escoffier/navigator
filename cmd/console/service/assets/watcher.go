@@ -5,8 +5,10 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 var (
@@ -15,7 +17,7 @@ var (
 )
 
 // Watcher singleton
-func Watcher(sa *ServiceAssetsService, ov *OnlineVulnsService) (*assets.Watcher, error) {
+func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *OnlineVulnsService) (*assets.Watcher, error) {
 	if sa == nil || ov == nil {
 		return nil, errors.New("arguments exist nil")
 	}
@@ -24,6 +26,7 @@ func Watcher(sa *ServiceAssetsService, ov *OnlineVulnsService) (*assets.Watcher,
 		wInstance = assets.NewWatcher()
 		wInstance.AddCallback(sa)
 		wInstance.AddCallback(ov)
+		wInstance.AddCallback(image.NewAssetsImageAssociator(postgre))
 	})
 	return wInstance, nil
 }

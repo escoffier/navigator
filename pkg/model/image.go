@@ -70,6 +70,7 @@ type ImageList struct {
 	CreateTime     string                 `gorm:"column:create_time" json:"create_time" bson:"create_time"`
 	PushTime       string                 `gorm:"column:push_time;index" json:"push_time" bson:"push_time"`
 	OnLineCount    int                    `gorm:"column:on_line_count;default:0;index" json:"-"`
+	Status         int                    `gorm:"column:status;default:0" json:"status"` // status: -1 not ready images 0 normal status
 }
 
 func (i ImageList) TableName() string {

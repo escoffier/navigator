@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"reflect"
@@ -17,6 +14,8 @@ import (
 	"github.com/golang/gddo/httputil/header"
 	"github.com/rs/zerolog/log"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gorm.io/gorm"
 )
 
 func SortOrderToInt(sortOrder string) int {
@@ -115,36 +114,6 @@ func ImageQuestion(postgresDB *gorm.DB, linkObjectId string, questionId int, exi
 	return nil
 }
 
-func ImageListOnlineSet(postgresDB *rdbtools.GormWrapper, add bool, digest string) error {
-	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var il model.ImageList
-	postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("digest = ? ", digest).First(&il)
-	if add {
-		err := postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("digest = ? ", digest).Update("on_line_count", il.OnLineCount+1).Error
-		if err != nil {
-			return err
-		}
-	} else {
-		err := postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("digest = ? ", digest).Update("on_line_count", il.OnLineCount-1).Error
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func ImageListOnlineInit(postgresDB *rdbtools.GormWrapper) error {
-	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err := postgresDB.Get().WithContext(pgCtx).Model(&model.ImageList{}).Where("id > 0").Update("on_line_count", 0).Error
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func ScanFinish(postgresDB *gorm.DB, digest string) error {
 
 	cstZone := time.FixedZone("CST", 8*3600)
@@ -152,7 +121,7 @@ func ScanFinish(postgresDB *gorm.DB, digest string) error {
 	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Updates(model.ImageList{CompleteTime: timeStr}).Error
+	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Where("`status`=?", 0).Updates(model.ImageList{CompleteTime: timeStr}).Error
 
 	if err != nil {
 		return err
