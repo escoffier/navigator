@@ -47,6 +47,7 @@ type Scanner struct {
 	redclair        *component.RedClairService
 	viursScan       *component.VirusScan
 	mongoClient     *mongo.Database
+	harborClient    *harbor.HarborRESTClient
 	ctx             context.Context
 	cancel          context.CancelFunc
 	localLayerMange *layerManage.LocalLayerManageSrv
@@ -151,6 +152,7 @@ func NewScanner(
 		redclair:        redclairSvc,
 		viursScan:       virusScan,
 		mongoClient:     mongodb,
+		harborClient:    harborClient,
 		ctx:             mainCtx,
 		cancel:          mainCancel,
 		localLayerMange: llms,
@@ -163,6 +165,16 @@ func (s *Scanner) Run() func() {
 	cmd := exec.Command("service", "clamav-daemon", "start") //start clamd service
 	cmd.Output()
 	var wg sync.WaitGroup
+
+	testCtx, testCancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer testCancel()
+	canDowngrade := true
+	err := s.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("Harbor connection and admin privilege check failed")
+	}
 
 	// start local layer manage
 	wg.Add(1)
