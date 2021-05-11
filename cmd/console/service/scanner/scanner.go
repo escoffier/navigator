@@ -407,6 +407,7 @@ func (s *ScannerService) GetImageList(ctx context.Context, offset int64, limit i
 	if kingType {
 		db = db.Where("digest in (?)", kingDigest)
 	}
+	db = db.Where("status = ?", 0)
 
 	var im []model.ImageList
 	var count int64
