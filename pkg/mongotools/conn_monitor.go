@@ -20,13 +20,13 @@ func init() {
 			}
 		}()
 
-		ticker := time.NewTicker(2 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				size := atomic.LoadInt64(&poolCnt)
-				logging.GetLogger().Info().Msgf("Mongo Connection Pool size: %d", size)
+				logging.GetLogger().Debug().Msgf("Mongo Connection Pool size: %d", size)
 			}
 		}
 
