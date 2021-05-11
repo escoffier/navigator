@@ -51,19 +51,20 @@ type AssociatorClusterCB struct {
 	parent *AssetsImageAssociator
 }
 
-func getFullRepoNameTagFromContainer(container *corev1.ContainerStatus) (string, string) {
+// getFullRepoNameTagFromContainer returns the registry location, repository name, and tag
+func getTripleFromContainer(container *corev1.ContainerStatus) (string, string, string) {
 	// image: 192.168.1.203:5000/tensorsec-console:latest
 	repositoryTag := strings.Split(container.Image, ":")
 	if len(repositoryTag) <= 1 {
-		return "", ""
+		return "", "", ""
 	}
 	repository := strings.Join(repositoryTag[0:len(repositoryTag)-1], ":")
 	tag := repositoryTag[len(repositoryTag)-1]
 	pos := strings.IndexByte(repository, '/')
 	if pos >= 0 && pos < len(repository)-1 {
-		return repository[pos+1:], tag
+		return repository[0:pos], repository[pos+1:], tag
 	}
-	return "", ""
+	return "", "", ""
 }
 func getImageSHAFromContainer(container *corev1.ContainerStatus) string {
 	// imageID: docker-pullable://192.168.1.203:5000/tensorsec-console@sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
@@ -71,14 +72,15 @@ func getImageSHAFromContainer(container *corev1.ContainerStatus) string {
 	return shaDigestAndPullInfo[len(shaDigestAndPullInfo)-1]
 }
 
-func (a *AssociatorClusterCB) imageListOnlineSet(ctx context.Context, add bool, fullRepoName, tags, digest string) error {
+func (a *AssociatorClusterCB) imageListOnlineSet(ctx context.Context, add bool, registryLoc, fullRepoName, tags, digest string) error {
 	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	a.parent.postgre.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
 		var il model.ImageList
-		err := tx.Model(&model.ImageList{}).Where("digest = ?", digest).First(&il).Error
+		err := tx.Model(&model.ImageList{}).Where("library = ? AND full_repo_name = ? AND tags = ?", registryLoc, fullRepoName, tags).First(&il).Error
 		if err == gorm.ErrRecordNotFound { // When the image hasn't been created in the DB, try to count it with status -1
 			il.Digest = digest
+			il.Library = registryLoc
 			il.FullRepoName = fullRepoName
 			il.Tags = tags
 			il.Status = -1
@@ -91,12 +93,12 @@ func (a *AssociatorClusterCB) imageListOnlineSet(ctx context.Context, add bool, 
 			return isErr
 		} else if err == nil {
 			if add {
-				err := tx.Model(&model.ImageList{}).Where("digest = ?", digest).Update("on_line_count", il.OnLineCount+1).Error
+				err := tx.Model(&model.ImageList{}).Where("library = ? AND full_repo_name = ? AND tags = ?", registryLoc, fullRepoName, tags).Update("on_line_count", il.OnLineCount+1).Error
 				if err != nil {
 					return err
 				}
 			} else {
-				err := tx.Model(&model.ImageList{}).Where("digest = ?", digest).Update("on_line_count", il.OnLineCount-1).Error
+				err := tx.Model(&model.ImageList{}).Where("library = ? AND full_repo_name = ? AND tags = ?", registryLoc, fullRepoName, tags).Update("on_line_count", il.OnLineCount-1).Error
 				if err != nil {
 					return err
 				}
@@ -114,7 +116,7 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 	if action == assets.ActionDelete {
 		for _, container := range oldPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
-			repoName, tags := getFullRepoNameTagFromContainer(&container)
+			registryLoc, repoName, tags := getTripleFromContainer(&container)
 			if len(repoName) == 0 || len(imageSHA) == 0 {
 				continue
 			}
@@ -123,7 +125,7 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 	} else if action == assets.ActionAdd {
 		for _, container := range newPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
-			repoName, tags := getFullRepoNameTagFromContainer(&container)
+			registryLoc, repoName, tags := getTripleFromContainer(&container)
 			if len(repoName) == 0 || len(imageSHA) == 0 {
 				continue
 			}
