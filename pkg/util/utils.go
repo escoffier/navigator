@@ -121,7 +121,7 @@ func ScanFinish(postgresDB *gorm.DB, digest string) error {
 	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Where("`status`=?", 0).Updates(model.ImageList{CompleteTime: timeStr}).Error
+	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Where("status = ?", 0).Updates(model.ImageList{CompleteTime: timeStr}).Error
 
 	if err != nil {
 		return err

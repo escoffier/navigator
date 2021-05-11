@@ -414,7 +414,7 @@ func (s *ScannerService) GetImageList(ctx context.Context, offset int64, limit i
 	db = db.Model(&model.ImageList{})
 	db.Count(&count)
 
-	err := db.Limit(int(limit)).Offset(int(offset)).Where("`status`=?", 0).Order("on_line_count desc").Find(&im).Error
+	err := db.Limit(int(limit)).Offset(int(offset)).Where("status=?", 0).Order("on_line_count desc").Find(&im).Error
 
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
@@ -442,11 +442,11 @@ func (s *ScannerService) GetImageOverView(ctx context.Context) (image.OverView, 
 	pctx, postgresDBCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer postgresDBCancel()
 	var cnt int64
-	s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("on_line_count >0").Where("`status`=?", 0).Count(&cnt)
+	s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("on_line_count >0").Where("status=?", 0).Count(&cnt)
 
 	overView.OnlineTotal = int(cnt)
 	var count int64
-	err := s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("`status`=?", 0).Count(&count).Error
+	err := s.postgresDB.Get().WithContext(pctx).Model(&model.ImageList{}).Where("status=?", 0).Count(&count).Error
 	overView.ImageTotal = int(count)
 	if err != nil {
 		NewMongoError(http.StatusInternalServerError,
