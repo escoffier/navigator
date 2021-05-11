@@ -509,7 +509,7 @@ func (s *ScannerService) GetImageDetail(ctx context.Context, digest, fullRepoNam
 	opt.SetMaxTime(time.Second * 2)
 	pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err := s.postgresDB.Get().WithContext(pctx).Where("digest = ? and full_repo_name = ? ", digest, fullRepoName).First(&il).Error
+	err := s.postgresDB.Get().WithContext(pctx).Where("digest = ? AND full_repo_name = ? AND status = ?", digest, fullRepoName, 0).First(&il).Error
 
 	if err != nil {
 		return il, NewMongoError(http.StatusInternalServerError,
