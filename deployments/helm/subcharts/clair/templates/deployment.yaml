@@ -37,6 +37,14 @@ spec:
           do echo waiting for database; sleep 1; done;"]
       imagePullSecrets:
         - name: {{ .Values.image.pullSecret }}
+      initContainers:
+      - args:
+        - /bin/bash
+        - -c
+        - psql postgres://postgres:password@tensorsec-postgresql:5432/postgres < /var/lib/postgresql/vulnerability.sql 
+        image: registry.t-appagile.com/tensorsecurity/tensorsec-postgres:latest 
+        imagePullPolicy: Always
+        name: loadcev 
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
