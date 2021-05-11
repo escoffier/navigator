@@ -117,19 +117,19 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 		for _, container := range oldPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
 			registryLoc, repoName, tags := getTripleFromContainer(&container)
-			if len(repoName) == 0 || len(imageSHA) == 0 {
+			if len(registryLoc) == 0 || len(repoName) == 0 || len(imageSHA) == 0 {
 				continue
 			}
-			a.imageListOnlineSet(context.Background(), false, repoName, tags, imageSHA)
+			a.imageListOnlineSet(context.Background(), false, registryLoc, repoName, tags, imageSHA)
 		}
 	} else if action == assets.ActionAdd {
 		for _, container := range newPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
 			registryLoc, repoName, tags := getTripleFromContainer(&container)
-			if len(repoName) == 0 || len(imageSHA) == 0 {
+			if len(registryLoc) == 0 || len(repoName) == 0 || len(imageSHA) == 0 {
 				continue
 			}
-			a.imageListOnlineSet(context.Background(), true, repoName, tags, imageSHA)
+			a.imageListOnlineSet(context.Background(), true, registryLoc, repoName, tags, imageSHA)
 		}
 	}
 	return nil
