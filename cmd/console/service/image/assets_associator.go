@@ -54,6 +54,9 @@ type AssociatorClusterCB struct {
 func getFullRepoNameTagFromContainer(container *corev1.ContainerStatus) (string, string) {
 	// image: 192.168.1.203:5000/tensorsec-console:latest
 	repositoryTag := strings.Split(container.Image, ":")
+	if len(repositoryTag) <= 1 {
+		return "", ""
+	}
 	repository := strings.Join(repositoryTag[0:len(repositoryTag)-1], ":")
 	tag := repositoryTag[len(repositoryTag)-1]
 	pos := strings.IndexByte(repository, '/')
@@ -73,7 +76,7 @@ func (a *AssociatorClusterCB) imageListOnlineSet(ctx context.Context, add bool, 
 	defer cancel()
 	a.parent.postgre.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
 		var il model.ImageList
-		err := tx.Model(&model.ImageList{}).Where("digest = ? AND full_repo_name = ? AND tags = ?", digest, fullRepoName, tags).First(&il).Error
+		err := tx.Model(&model.ImageList{}).Where("digest = ?", digest).First(&il).Error
 		if err == gorm.ErrRecordNotFound { // When the image hasn't been created in the DB, try to count it with status -1
 			il.Digest = digest
 			il.FullRepoName = fullRepoName
@@ -88,12 +91,12 @@ func (a *AssociatorClusterCB) imageListOnlineSet(ctx context.Context, add bool, 
 			return isErr
 		} else if err == nil {
 			if add {
-				err := tx.Model(&model.ImageList{}).Where("id = ?", il.ID).Update("on_line_count", il.OnLineCount+1).Error
+				err := tx.Model(&model.ImageList{}).Where("digest = ?", digest).Update("on_line_count", il.OnLineCount+1).Error
 				if err != nil {
 					return err
 				}
 			} else {
-				err := tx.Model(&model.ImageList{}).Where("id = ?", il.ID).Update("on_line_count", il.OnLineCount-1).Error
+				err := tx.Model(&model.ImageList{}).Where("digest = ?", digest).Update("on_line_count", il.OnLineCount-1).Error
 				if err != nil {
 					return err
 				}
@@ -112,12 +115,18 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 		for _, container := range oldPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
 			repoName, tags := getFullRepoNameTagFromContainer(&container)
+			if len(repoName) == 0 || len(imageSHA) == 0 {
+				continue
+			}
 			a.imageListOnlineSet(context.Background(), false, repoName, tags, imageSHA)
 		}
 	} else if action == assets.ActionAdd {
 		for _, container := range newPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
 			repoName, tags := getFullRepoNameTagFromContainer(&container)
+			if len(repoName) == 0 || len(imageSHA) == 0 {
+				continue
+			}
 			a.imageListOnlineSet(context.Background(), true, repoName, tags, imageSHA)
 		}
 	}
