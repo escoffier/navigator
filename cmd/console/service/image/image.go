@@ -151,7 +151,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 					if the image hasn't existed, insert it.
 				*/
 				var image model.ImageList
-				fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ?", v.Digest, v.FullRepoName, v.Name).First(&image).Error
+				fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ? AND library = ?", v.Digest, v.FullRepoName, v.Name, il.Library).First(&image).Error
 				if fErr != nil {
 					err := tx.WithContext(pgCtx).Create(&il).Error
 					if err != nil {
