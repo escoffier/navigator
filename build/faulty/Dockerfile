@@ -1,4 +1,4 @@
-ARG TAG=test
+ARG TAG=latest
 FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention-client:${TAG} AS drift-prevention
 FROM ubuntu:18.04
 
