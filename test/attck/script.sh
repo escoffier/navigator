@@ -29,7 +29,7 @@ nc -s /bin/sh -lvp 21542 &
 #2.rule: Schedule Cron Jobs
 echo  "* * * * * whoami > /root/test" >> /var/spool/cron/crontabs/root
 echo  "* * * * * whoami > /root/test" >> /var/spool/cron/root
-echo  "* * * * * whoami > /root/test" >> /etc/cron/
+echo  "* * * * * whoami > /root/test" >> /etc/cron/root
 
 #3.rule: Update Package Repository
 mv /etc/apt/sources.list.d/sources.list /etc/apt/sources.list.d/sources.list_old
@@ -69,7 +69,6 @@ rm /bin/thisistest0
 
 #10.rule: Mkdir binary dirs
 mkdir /bin/thistest
-rm -rf /bin/thistest
 
 #11.rule: User mgmt binaries 
 #not container
@@ -93,7 +92,6 @@ shred /tmp/thisistest
 #consider_hidden_file_creation:never true
 mkdir /root/.thisistest
 touch /root/.thisistest/.thisistest
-rm -rf /root/.thisistest
 
 #16.rule: Set Setuid or Setgid bit
 touch /tmp/thisistest
@@ -114,7 +112,6 @@ rm /tmp/thisistest
 #1.rule: Clear Log Activities
 mkdir /tmp/thisistest/
 echo > /tmp/thisistest/syslog 
-rm -rf /tmp/thisistest
 
 #2.rule: Delete Bash History
 echo test >> /root/.bash_history 
@@ -148,12 +145,12 @@ cat /etc/shadow
 
 #5.rule: Lauch Suspicious Network Tool in Container
 dig
-tcpdump
+#tcpdump &
 nc
 ncat
 nmap
-tshark
-ngrep
+#tshark &
+#ngrep &
 
 #6.rule: Launch Suspicious Network Tool on Host
 #need host env
@@ -192,12 +189,12 @@ tar -xvzf /tmp/docker-19.03.9.tgz -C /tmp/
 
 #5.rule: Lauch Suspicious Network Tool in Container
 dig
-tcpdump
+#tcpdump &
 nc
 ncat
 nmap
-tshark
-ngrep
+#tshark &
+#ngrep &
 
 #6.rule: Launch Suspicious Network Tool on Host
 #need host env
