@@ -157,10 +157,14 @@ ifeq ($(USEMIRROR),true)
 	(cd configs/drift-prevention && ./run.sh mirrors.aliyun.com)
 	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile \
 		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 else
 	@echo "drift-prevention-client will not use mirror"
 	(cd configs/drift-prevention && ./run.sh)
 	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile .
+	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 endif
 
 .PHONY: drift-prevention
