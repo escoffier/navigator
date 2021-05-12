@@ -118,10 +118,11 @@ faulty: drift-prevention-client     ## Build faulty docker to test CVEs
 ifeq ($(USEMIRROR),true)
 	@echo "faulty will use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
-		--build-arg MIRROR=mirrors.aliyun.com .
+		--build-arg MIRROR=mirrors.aliyun.com --build-arg TAG=$(RELEASEVERSION) .
 else
 	@echo "faulty will not use mirror"
-	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile .
+	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
+		--build-arg TAG=$(RELEASEVERSION) .
 endif
 
 .PHONY: audit
