@@ -188,8 +188,28 @@ func (api *api) ScannerOne(scanReq model.ScannerReq) (error, model.ScanTask) {
 		return err, task
 	}
 
+	viursTask := model.VirusScanTask{
+		Status:        model.VirusScanDoing,
+		StartedAt:     time.Now().Unix(),
+		Repository:    scanReq.Repository,
+		Tag:           scanReq.Tag,
+		URL:           scanReq.URL,
+		HarborURL:     scanReq.ResultsURL,
+		Authorization: scanReq.Authorization,
+		ImageDigest:   scanReq.Digest,
+		ID:            primitive.NewObjectIDFromTimestamp(time.Now()),
+	}
+	_, err = api.mongodb.Collection(model.VirusScanTaskCollection.String()).InsertOne(mongoCtx, viursTask)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
+		return err, task
+	}
+
 	// add the task to redclair
 	api.redclair.AddScanTask(task)
+
+	//add the task to virusScan
+	api.virusScan.AddScanTask(viursTask)
 	return nil, task
 
 }
