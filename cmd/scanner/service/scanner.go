@@ -8,8 +8,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	logg "log"
 	"net/http"
 	"os/exec"
 	"runtime/debug"
@@ -18,7 +16,6 @@ import (
 
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 
-	"github.com/mattn/go-colorable"
 	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -87,17 +84,7 @@ func NewScanner(
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
 	// postgres
-
-	newLogger := logger.New(
-		logg.New(colorable.NewColorableStdout(), "\r\n", logg.LstdFlags),
-		logger.Config{
-			SlowThreshold: time.Second,
-			LogLevel:      logger.Info,
-			Colorful:      true,
-		},
-	)
-
-	postgresDB, err := gorm.Open(postgres.Open(clairOpts.PostgresConnectionString), &gorm.Config{Logger: newLogger})
+	postgresDB, err := gorm.Open(postgres.Open(clairOpts.PostgresConnectionString), &gorm.Config{})
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 		return nil, err
