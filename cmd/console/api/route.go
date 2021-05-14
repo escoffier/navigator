@@ -41,8 +41,7 @@ const (
 )
 
 var (
-	log      *logging.Logger
-	AdminUrl = []string{"/api/v2/platform/config", "/api/v2/platform/audit", "/api/v2/platform/cleanup"}
+	log *logging.Logger
 )
 
 func init() {
@@ -234,18 +233,10 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 			hasAccess := false
 
 			if r.Method != http.MethodGet {
-				if u.Rule == model.ROLE_SUPERADMIN {
-					accessListUrl = append(accessListUrl, AdminUrl...)
-				}
 				currentURL := strings.ToLower(r.URL.Path)
 				for i := range accessListUrl {
 					url := strings.ToLower(accessListUrl[i])
 					if strings.HasPrefix(currentURL, url) {
-						if u.Rule != model.ROLE_SUPERADMIN {
-							if checkUrl(currentURL, AdminUrl) {
-								break
-							}
-						}
 						hasAccess = true
 						break
 					}
@@ -263,14 +254,4 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-func checkUrl(currentURL string, adminUrl []string) bool {
-	for i := range adminUrl {
-		url := strings.ToLower(adminUrl[i])
-		if strings.HasPrefix(currentURL, url) {
-			return true
-		}
-	}
-	return false
 }
