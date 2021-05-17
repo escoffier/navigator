@@ -105,6 +105,12 @@ func ImageQuestion(postgresDB *gorm.DB, linkObjectId string, questionId int, exi
 				return err
 			}
 		}
+		if qs.Digest != "" { //数据表中有数据时，更新关联mongo数据
+			cstZone := time.FixedZone("CST", 8*3600)
+			timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+			q := model.QuestionInfo{ID: questionId, LinkObjectId: linkObjectId, Digest: digest, Time: timeStr}
+			postgresDB.WithContext(pgCtx).Model(model.QuestionInfo{QID: qs.QID}).Updates(&q)
+		}
 		if err != nil {
 			return err
 		}

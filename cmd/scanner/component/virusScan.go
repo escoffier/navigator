@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo"
-	"gorm.io/gorm"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -22,6 +20,9 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"gorm.io/gorm"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
@@ -462,10 +463,8 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 	}
 
 	if flag == true {
-		virusScan.postgresDB.AutoMigrate(&model.User{})
 		util.ImageQuestion(virusScan.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, true, scanTask.ImageDigest)
 	} else {
-		virusScan.postgresDB.AutoMigrate(&model.User{})
 		util.ImageQuestion(virusScan.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, false, scanTask.ImageDigest)
 	}
 
