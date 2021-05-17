@@ -95,6 +95,10 @@ func (rc *RegistryClient) readManifest(ctx context.Context, version, repository,
 }
 
 func (rc *RegistryClient) DownloadBlob(repository string, digest digest.Digest) (r io.ReadCloser, err error) {
+	if rc.registryClient == nil {
+		log.Info().Msgf("registryClient Is NIL")
+		return nil, fmt.Errorf("registryClient Is NIL")
+	}
 	for i := 0; i < RegistryClientRetryCount; i++ {
 		r, err = rc.registryClient.DownloadBlob(repository, digest)
 		if err == nil {
