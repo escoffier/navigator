@@ -4,6 +4,7 @@ package k8s
 import (
 	b64 "encoding/base64"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"os"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,4 +61,19 @@ func CheckKubeClientConnection(kubeClient *kubernetes.Clientset) error {
 		return fmt.Errorf("Maybe no pod view authorization?: %s", err)
 	}
 	return nil
+}
+
+func KubeClientFromServiceAccoount() (*kubernetes.Clientset, *rest.Config, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		logging.GetLogger().Info().Msgf("form service account get config error：%+v", err.Error())
+		return nil, nil, err
+	}
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logging.GetLogger().Info().Msgf("form service account get clientset error：%+v", err.Error())
+		return nil, nil, err
+	}
+	return clientset, config, nil
 }
