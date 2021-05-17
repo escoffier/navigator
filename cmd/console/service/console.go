@@ -5,7 +5,10 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+
 	"io/ioutil"
+
 	"math"
 	"net/http"
 	"os"
@@ -369,6 +372,13 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
+	err = addDefaultCluster(ctx, c.mongoDB)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When add default cluster indices")
+	}
+
 	err = initializeAuditConfig(ctx, c.mongoDB, c.auditService)
 	if err != nil {
 		log.Error().
@@ -385,7 +395,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When initializing rules definitions: %w", err))
 	}
 
-	kubeClient, restConfig, err := getCurrentKubeClient(ctx, c.clusterService)
+	kubeClient, restConfig, err := getCurrentKubeClientWithServiceAccount()
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -981,4 +991,45 @@ func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterServic
 		return nil, nil, fmt.Errorf("Kube client connection check failed: %w", err)
 	}
 	return kubeClient, restConfig, nil
+}
+
+func getCurrentKubeClientWithServiceAccount() (*kubernetes.Clientset, *rest.Config, error) {
+	return k8s.KubeClientFromServiceAccoount()
+}
+
+func addDefaultCluster(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
+	newCluster := &model.Cluster{
+		ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
+		ClusterName: "default",
+		KubeConfig:  "",
+		CreatedAt:   time.Now(),
+	}
+
+	collection := mongodb.Get().Collection(model.ClusterCollection.String())
+
+	err := mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
+		sessionError := sessionContext.StartTransaction()
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
+		}
+		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
+
+		filter := bson.M{"name": newCluster.ClusterName, "deleted_at": bson.M{"$exists": false}}
+		queryResult := collection.FindOne(sessionContext, filter)
+
+		if queryResult.Err() == nil {
+			sessionError = queryResult.Err()
+			return fmt.Errorf("Cluster already exists: %w", sessionError)
+		}
+		_, sessionError = collection.InsertOne(sessionContext, newCluster)
+		if sessionError != nil {
+			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }

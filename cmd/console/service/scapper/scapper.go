@@ -262,7 +262,7 @@ func (s *Scapper) RunComplianceCheck(
 		return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.New("currently there are tasks still running"))
 	}
 
-	kubeClient, err := k8s.KubeClientFromB64KubeConfig(cluster.KubeConfig)
+	kubeClient, _, err := k8s.KubeClientFromServiceAccoount()
 	if err != nil {
 		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to create kube client: %w", err))
 	}

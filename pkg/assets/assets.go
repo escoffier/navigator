@@ -168,8 +168,8 @@ func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormW
 	}
 
 	update := bson.M{"$set": assetContainer}
-	opts := options.Update().SetUpsert(true)
 
+	opts := options.Update().SetUpsert(true)
 	_, err := mongodb.Get().Collection(model.AssetsContainersCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to upsert assetContainer to mongo")
