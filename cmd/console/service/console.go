@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 
 	"io/ioutil"
 
@@ -42,6 +41,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/event"
@@ -374,9 +374,7 @@ func (c *Console) Run() func() {
 
 	err = addDefaultCluster(ctx, c.mongoDB)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When add default cluster indices")
+		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
 	}
 
 	err = initializeAuditConfig(ctx, c.mongoDB, c.auditService)
@@ -1017,18 +1015,21 @@ func addDefaultCluster(ctx context.Context, mongodb *mongotools.DatabaseWrapper)
 		filter := bson.M{"name": newCluster.ClusterName, "deleted_at": bson.M{"$exists": false}}
 		queryResult := collection.FindOne(sessionContext, filter)
 
-		if queryResult.Err() == nil {
-			sessionError = queryResult.Err()
-			return fmt.Errorf("Cluster already exists: %w", sessionError)
-		}
-		_, sessionError = collection.InsertOne(sessionContext, newCluster)
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
+		if queryResult.Err() == mongo.ErrNoDocuments {
+			logging.GetLogger().Error().Msgf("default cluster exist,add cluster ")
+			_, sessionError = collection.InsertOne(sessionContext, newCluster)
+			if sessionError != nil {
+				logging.GetLogger().Error().Msgf("add cluster error:%+v", sessionContext)
+				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
+			}
+		} else {
+			return queryResult.Err()
 		}
 
 		return nil
 	})
 	if err != nil {
+		logging.GetLogger().Error().Msgf("add cluster error:%+v", err)
 		return err
 	}
 	return nil
