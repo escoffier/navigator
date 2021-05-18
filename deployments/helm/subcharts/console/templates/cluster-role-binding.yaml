@@ -1,14 +1,14 @@
-apiVersion: rbac.authorization.k8s.io/v1
+apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
+  name: {{ .Release.Namespace }}-console-cluster-role-binding
   labels:
-    app: ClusterRolebing
-  name: rolebind
+    app: {{ .Release.Namespace }}-app
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cluster-admin
+  name: {{ .Release.Namespace }}-console-cluster-role
+  apiGroup: rbac.authorization.k8s.io
 subjects:
   - kind: ServiceAccount
-    name: tensorsec-sa
+    name: {{ .Release.Namespace }}-console-sa
     namespace: {{ .Release.Namespace }}

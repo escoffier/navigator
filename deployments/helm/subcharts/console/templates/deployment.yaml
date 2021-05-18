@@ -28,7 +28,7 @@ spec:
           "sh", "-c",
           "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
         ]
-      serviceAccount: tensorsec-sa
+      serviceAccount: {{ .Release.Namespace }}-console-sa
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
