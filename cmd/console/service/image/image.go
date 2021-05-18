@@ -159,11 +159,12 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 						return err
 					}
 				} else if image.Status == -1 {
-					err := tx.WithContext(pgCtx).Where("id = ?", image.ID).Updates(il).Error
+					err := tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Updates(il).Error
 					if err != nil {
 						return err
 					}
-					err = tx.WithContext(pgCtx).Where("id = ?", image.ID).Update("status", 0).Error
+					// The reason to update twice is: the struct model field is zero for int value, the gorm will not update this field
+					err = tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Update("status", 0).Error
 					return err
 				}
 				return nil
@@ -207,11 +208,13 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 						return err
 					}
 				} else if image.Status == -1 {
-					err := tx.WithContext(pgCtx).Where("id = ?", image.ID).Updates(il).Error
+					err := tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Updates(il).Error
 					if err != nil {
 						return err
 					}
-					err = tx.WithContext(pgCtx).Where("id = ?", image.ID).Update("status", 0).Error
+
+					// The reason to update twice is: the struct model field is zero for int value, the gorm will not update this field
+					err = tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Update("status", 0).Error
 					return err
 				}
 				return nil
