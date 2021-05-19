@@ -37,7 +37,7 @@ console:
     postgresqlDatabase: postgres
 
 daemon:
-  enabled: true
+  enabled: false
   eventcenter:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
