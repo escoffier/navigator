@@ -7,6 +7,7 @@ require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/PuerkitoBio/goquery v1.6.0
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/badoux/checkmail v1.2.1
 	github.com/containerd/containerd v1.3.1 // indirect
 	github.com/containerd/continuity v0.0.0-20191214063359-1097c8bae83b // indirect
 	github.com/coreos/etcd v3.3.17+incompatible // indirect
@@ -37,7 +38,6 @@ require (
 	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lib/pq v1.8.0
-	github.com/mattn/go-colorable v0.1.6
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/mozilla/tls-observatory v0.0.0-20180409132520-8791a200eb40
@@ -58,12 +58,13 @@ require (
 	github.com/swaggo/swag v1.6.7 // indirect
 	github.com/tealeg/xlsx v1.0.5
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
+	github.com/urfave/cli/v2 v2.1.1
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.etcd.io/bbolt v1.3.5 // indirect
 	go.etcd.io/etcd v3.3.17+incompatible
 	go.mongodb.org/mongo-driver v1.5.1
 	go.uber.org/atomic v1.6.0
-	go.uber.org/zap v1.14.1 // indirect
+	go.uber.org/zap v1.14.1
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	google.golang.org/genproto v0.0.0-20191108220845-16a3f7862a1a
 	google.golang.org/grpc v1.26.0
@@ -74,6 +75,7 @@ require (
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c // indirect
+	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.0.8
 	gorm.io/gorm v1.21.8
 	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2

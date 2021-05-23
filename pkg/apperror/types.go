@@ -41,6 +41,8 @@ type GarbageCollectionError struct{ detailedError }
 type GarbageCollectionInProgressError struct{ detailedError }
 type AssetDoesntExistError struct{ detailedError }
 type RedisCacheError struct{ detailedError }
+type GCTaskError struct{ detailedError }
+type ArgError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -246,6 +248,38 @@ func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) er
 			err:       err,
 			English:   "Malformed request",
 			Chinese:   "请求格式错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewGCTaskInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return GCTaskError{
+		detailedError{
+			err:       err,
+			English:   "GC task is in progress",
+			Chinese:   "清理任务正在进行中",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewInvalidArgError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "invalid args",
+			Chinese:   "参数非法",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

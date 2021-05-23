@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 
 	"github.com/olivere/elastic/v7"
@@ -25,8 +26,6 @@ import (
 
 	"github.com/patrickmn/go-cache"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
@@ -56,8 +55,7 @@ type api struct {
 	redisClient    *redis.Client
 	ruleService    *rule.RuleService
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
-	auditService   *audit.AuditService
-	cleanupService *cleanup.Service
+	dataService    *data.Service
 	scannerService *scanner.ScannerService
 	scapService    *scapper.ScapService
 	harborClient   *harbor.HarborRESTClient
@@ -86,8 +84,7 @@ func newAPI(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
-	auditService *audit.AuditService,
-	cleanupService *cleanup.Service,
+	dataService *data.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
@@ -110,8 +107,7 @@ func newAPI(
 		redisClient:                 redisClient,
 		ruleService:                 ruleService,
 		onlineVulnsSvc:              onlineVulnsSvc,
-		auditService:                auditService,
-		cleanupService:              cleanupService,
+		dataService:                 dataService,
 		scannerService:              scannerService,
 		scapService:                 scapService,
 		harborClient:                harborClient,

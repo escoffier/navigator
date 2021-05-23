@@ -31,26 +31,46 @@ elastic:
   port: 9200
   index: filebeat-*
   elasticDataPath: /usr/share/elasticsearch/data
-audit:
-  nameOverride: "audit"
-  fullnameOverride: "tensorsec-audit"
-  cronString: "0 4 * * *"
-  mountPath: /audits
-  image:
-    name: tensorsec-audit
-    tag: latest
-    pullPolicy: Always
-    pullSecret: harbor-admin-secret
 
-auditCleanup:
-  nameOverride: "audit-cleanup"
-  fullnameOverride: "tensorsec-audit-cleanup"
-  cronString: "0 4 * * *"
+data:
   image:
-    name: tensorsec-audit-cleanup
+    name: tensorsec-cleaner
     tag: latest
     pullPolicy: Always
     pullSecret: harbor-admin-secret
+  coldCronjob:
+    cronString: "0 4 * * *"
+    nameOverride: "cron-cold-cleaner"
+    fullnameOverride: "tensorsec-cron-cold-cleaner"
+    resources:
+      limits:
+        cpu: "0.1"
+        memory: 100Mi
+      requests:
+        cpu: "0.1"
+        memory: 100Mi
+  hotLogicCronjob:
+    cronString: "0 2 * * *"
+    nameOverride: "cron-hot-logic-cleaner"
+    fullnameOverride: "tensorsec-cron-hot-logic-cleaner"
+    resources:
+      limits:
+        cpu: "0.3"
+        memory: 300Mi
+      requests:
+        cpu: "0.3"
+        memory: 300Mi
+  hotOfflineCronjob:
+    cronString: "0 3 * * *"
+    nameOverride: "cron-hot-offline-cleaner"
+    fullnameOverride: "tensorsec-cron-hot-offline-cleaner"
+    resources:
+      limits:
+        cpu: "0.2"
+        memory: 200Mi
+      requests:
+        cpu: "0.2"
+        memory: 200Mi
 
 image:
   name: tensorsec-console

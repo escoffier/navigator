@@ -1,0 +1,13 @@
+{
+  "pgTables": [{
+    "name": "tests",
+    "timeField": "timestamp",
+    "dataDir": "/Users/moses/workspace/tensor/tensornavigator/cmd/data/tool/cleaner/dump_test/postgresql/tests",
+    "batch": 50
+  }],
+  "mongoUnifiedConf": {
+    "batch": 50,
+    "baseDir": "/Users/moses/workspace/tensor/tensornavigator/cmd/data/tool/cleaner/dump_test/mongo",
+    "timeField": "historicised_timestamp"
+  }
+}

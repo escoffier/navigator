@@ -5,7 +5,10 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
+	"strconv"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"io/ioutil"
 
 	"math"
@@ -21,8 +24,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
@@ -94,8 +95,7 @@ type Console struct {
 	clusterService     *cluster.ClusterService
 	onlineVulnsService *assetsSvc.OnlineVulnsService
 	svcAssetsService   *assetsSvc.ServiceAssetsService
-	auditService       *audit.AuditService
-	cleanupService     *cleanup.Service
+	dataService        *data.Service
 	harborClient       *harbor.HarborRESTClient
 	ctx                context.Context
 	cancel             context.CancelFunc
@@ -197,9 +197,6 @@ func NewConsole(
 	// rule service
 	ruleService := rule.NewRuleService(mainCtx, rulesOpts.AvailableRulesFolder, mongoDBWrapper, redisClient)
 
-	// audit service
-	auditService := audit.NewAuditService(mongoDBWrapper)
-
 	// harbor client
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
 	if err != nil {
@@ -219,27 +216,43 @@ func NewConsole(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
 	}
 
-	// cleanup service
-	cleanupService := cleanup.NewCleanupService(&cleanup.Conf{
-		Mongodb: mongoDBWrapper,
-		MongoPod: &cleanup.PodInfo{
+	// data service
+	emailPort, err := strconv.Atoi(emailOpts.Port)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("invalid email port:%s", emailOpts.Port)
+	}
+
+	dataService := data.NewService(&data.Conf{
+		Mongodb:    mongoDBWrapper,
+		PostgresDB: postgresDB,
+		EmailConf: &notifyhandler.EmailConf{
+			Username: emailOpts.Username,
+			Password: emailOpts.Password,
+			Host:     emailOpts.Host,
+			Port:     emailPort,
+		},
+		MongoPod: &data.PodInfo{
 			PVC:      mongoOpts.PVC,
 			Pod:      mongoOpts.Pod,
 			DataPath: mongoOpts.DataPath,
 		},
 
-		ElasticOpts: elasticOpts,
-		ESPod: &cleanup.PodInfo{
+		ESPod: &data.PodInfo{
 			PVC:      elasticOpts.PVC,
 			Pod:      elasticOpts.Pod,
 			DataPath: elasticOpts.DataPath,
 		},
 
-		PostgreDB: postgresDB,
-		PostgrePod: &cleanup.PodInfo{
+		PostgrePod: &data.PodInfo{
 			PVC:      postgresOpts.PVC,
 			Pod:      postgresOpts.Pod,
 			DataPath: postgresOpts.DataPath,
+		},
+
+		AuditPod: &data.PodInfo{
+			PVC:      os.Getenv("AUDIT_PVC"),
+			Pod:      os.Getenv("MY_POD_NAME"),
+			DataPath: os.Getenv("AUDIT_PATH"),
 		},
 	})
 
@@ -253,7 +266,7 @@ func NewConsole(
 	}
 
 	// cluster service
-	clusterService := cluster.NewClusterService(mainCtx, postgresDB, mongoDBWrapper, onlineVulnsSvc, cleanupService, redisClient)
+	clusterService := cluster.NewClusterService(mainCtx, postgresDB, mongoDBWrapper, onlineVulnsSvc, redisClient)
 
 	// scap service
 	scapService, err := sp.NewScapService(mainCtx, redisClient, mongoDBWrapper)
@@ -291,8 +304,7 @@ func NewConsole(
 				redisClient,
 				ruleService,
 				onlineVulnsSvc,
-				auditService,
-				cleanupService,
+				dataService,
 				scannerService,
 				scapService,
 				harborClient,
@@ -313,8 +325,7 @@ func NewConsole(
 		ruleService:        ruleService,
 		onlineVulnsService: onlineVulnsSvc,
 		svcAssetsService:   svcAssetsSvc,
-		auditService:       auditService,
-		cleanupService:     cleanupService,
+		dataService:        dataService,
 		harborClient:       harborClient,
 	}, nil
 }
@@ -377,14 +388,6 @@ func (c *Console) Run() func() {
 		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
 	}
 
-	err = initializeAuditConfig(ctx, c.mongoDB, c.auditService)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When initializing audit config")
-		panic(fmt.Errorf("When initializing audit config: %w", err))
-	}
-
 	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongoDB)
 	if err != nil {
 		log.Error().
@@ -393,7 +396,7 @@ func (c *Console) Run() func() {
 		panic(fmt.Errorf("When initializing rules definitions: %w", err))
 	}
 
-	kubeClient, restConfig, err := getCurrentKubeClientWithServiceAccount()
+	kubeClient, _, err := getCurrentKubeClientWithServiceAccount()
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -411,8 +414,6 @@ func (c *Console) Run() func() {
 				log.Error().Err(err).Msg("Watch kube clients error")
 			}
 		}
-
-		c.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
 	}
 
 	err = c.cronService.StartCrons(ctx)
@@ -482,31 +483,6 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	db.Get().Table(model.Url{}.TableName()).Create(&url2)
 	db.Get().Table(model.Url{}.TableName()).Create(&url3)
 
-	return nil
-}
-
-func initializeAuditConfig(ctx context.Context, mongodb *mongotools.DatabaseWrapper, auditService *audit.AuditService) error {
-	_, err := auditService.GetAuditConfig(ctx)
-	if err != nil {
-		switch err.(type) {
-		case AuditConfigDoesntExistError:
-			// Continue with setting default values
-		default:
-			return err
-		}
-	} else {
-		return nil
-	}
-
-	// Default values on startup
-	auditConfig := &model.AuditConfig{
-		ColdStorageDays: 90,
-	}
-
-	_, err = auditService.AddAuditConfig(ctx, auditConfig)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

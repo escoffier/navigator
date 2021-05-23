@@ -5,10 +5,7 @@ type Collection int
 const (
 	AlertsCollection Collection = iota
 	AssetsContainersCollection
-	AuditCollection
 	ClusterCollection
-	GCCollection
-	ESGCCollection
 	RulesCollection
 	RulesDefinitionsCollection
 	ScanTasksCollection
@@ -28,16 +25,17 @@ const (
 	VirusScanTaskCollection
 	ImageListCollection
 	ExportFileTaskCollection
+
+	GCTaskCollection
+	DataTTLSettingCollection
+	DataWaterlineSettingCollection
 )
 
 func GetCollectionNames() []string {
 	return []string{
 		"alerts",
 		"assets-containers",
-		"audit",
 		"cluster",
-		"gc",
-		"esgc",
 		"rules",
 		"rulesDefinitions",
 		"scantasks",
@@ -58,6 +56,10 @@ func GetCollectionNames() []string {
 		"virusScanTasks",
 		"imageList",
 		"exportFileTasks",
+
+		"gcTasks",
+		"dataTTLSetting",
+		"dataWaterlineSetting",
 	}
 }
 

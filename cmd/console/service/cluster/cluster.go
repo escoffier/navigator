@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -28,7 +27,6 @@ type ClusterService struct {
 	mongodb        *mongotools.DatabaseWrapper
 	postgreDB      *rdbtools.GormWrapper
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
-	cleanupService *cleanup.Service
 	clustersCache  *rcache.ClustersCache
 }
 
@@ -37,14 +35,12 @@ func NewClusterService(
 	postgreDB *rdbtools.GormWrapper,
 	mongodb *mongotools.DatabaseWrapper,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
-	cleanupService *cleanup.Service,
 	redisClient *redis.Client,
 ) *ClusterService {
 	return &ClusterService{
 		mongodb:        mongodb,
 		postgreDB:      postgreDB,
 		onlineVulnsSvc: onlineVulnsSvc,
-		cleanupService: cleanupService,
 		clustersCache:  rcache.NewClustersCache(ctx, mongodb, redisClient),
 	}
 }
@@ -140,12 +136,6 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 			return err
 		}
 
-		restConfig, err := k8s.GetRestConfigFromKubeConfig(newCluster.KubeConfig)
-		if err != nil {
-			return err
-		}
-
-		s.cleanupService.OnKubeConfigUpdate(kubeClient, restConfig)
 		return nil
 	})
 	if err != nil {
@@ -306,7 +296,6 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 		if sessionError != nil {
 			return sessionError
 		}
-		s.cleanupService.OnKubeConfigUpdate(nil, nil)
 
 		res = result.MatchedCount
 		return nil

@@ -17,7 +17,7 @@ import (
 
 const (
 	eventCenterDefaultTimeout = time.Second * 5
-	eventCenterApiVersion     = "2.0"
+	eventCenterAPIVersion     = "2.0"
 )
 
 const (
@@ -159,7 +159,7 @@ func (api *api) getEvents() http.HandlerFunc {
 		}
 
 		response.Ok(w,
-			response.WithApiVersion(eventCenterApiVersion),
+			response.WithApiVersion(eventCenterAPIVersion),
 			response.WithItems(convert(rsp.Events)))
 	}
 }
@@ -201,6 +201,6 @@ func (api *api) checkEventUpdates() http.HandlerFunc {
 			UpdatesNumStr: rsp.UpdateNumStr,
 		}
 
-		response.Ok(w, response.WithApiVersion(eventCenterApiVersion), response.WithItem(resp))
+		response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItem(resp))
 	}
 }

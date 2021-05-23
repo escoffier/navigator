@@ -1,0 +1,51 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ .Values.data.hotOfflineCronjob.fullnameOverride }}
+  labels:
+    app: {{ .Values.data.hotOfflineCronjob.nameOverride }}
+spec:
+  schedule: {{ .Values.data.hotOfflineCronjob.cronString }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      completions: 1
+      template:
+        spec:
+          containers:
+            - command:
+                - /app/tensor-cleaner
+                -  clear-hot-offline-storage-tool
+              env:
+                - name: CONF_PATH
+                  value: /app/hot-offline-conf.json
+                - name: MONGO_USERNAME
+                  value: {{ .Values.mongo.mongoUsername }}
+                - name: MONGO_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.mongo.mongoSecretName }}
+                      key: mongodb-password
+                - name: MONGO_ENDPOINT
+                  value: tensorsec-mongodb:27017
+                - name: MONGO_DATABASE
+                  value: {{ .Values.mongo.mongoDatabase }}
+                - name: ELASTIC_URL
+                  value: "http://tensorsec-elasticsearch-master:9200"
+              image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+              name: {{ .Values.data.hotOfflineCronjob.nameOverride }}
+              resources:
+{{ toYaml .Values.data.hotOfflineCronjob.resources | indent 16 }}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              volumeMounts:
+                - mountPath: /audit
+                  name: audit
+          restartPolicy: Never
+          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
+          imagePullSecrets:
+            - name: {{ .Values.data.image.pullSecret }}
+          volumes:
+            - name: audit
+              persistentVolumeClaim:
+                claimName: audit-pvc
