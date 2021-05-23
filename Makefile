@@ -92,6 +92,13 @@ console: generate 		## Build console binary
 		-o dist/tensor-console gitlab.com/piccolo_su/vegeta/cmd/console
 	docker build -t $(REPOPREFIX)/tensorsec-console:latest -f ./build/console/Dockerfile .
 
+.PHONY: data
+data: generate 		## Build cleaner binary
+	@echo "+ $@"
+	CGO_ENABLED=0 go build -v \
+		-o dist/tensor-cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
+	docker build -t $(REPOPREFIX)/tensorsec-cleaner:latest -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
+
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
@@ -123,30 +130,6 @@ else
 	@echo "faulty will not use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
 		--build-arg TAG=$(RELEASEVERSION) .
-endif
-
-.PHONY: audit
-audit:     ## Build audit docker
-	@echo "+ $@" 		
-ifeq ($(USEMIRROR),true)
-	@echo "audit will use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile \
-		--build-arg MIRROR=mirrors.aliyun.com .
-else
-	@echo "audit will not use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-audit:latest -f ./build/audit/Dockerfile .
-endif
-
-.PHONY: audit-cleanup
-audit-cleanup:     ## Build audit-cleanup docker
-	@echo "+ $@" 		
-ifeq ($(USEMIRROR),true)
-	@echo "audit-cleanup will use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile \
-		--build-arg MIRROR=mirrors.aliyun.com .
-else
-	@echo "audit-cleanup will not use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-audit-cleanup:latest -f ./build/audit-cleanup/Dockerfile .
 endif
 
 .PHONY: drift-prevention-client
@@ -225,7 +208,7 @@ endif
 
 
 .PHONY: all
-all: drift-prevention-client faulty tensordig scanner scap-jobs console audit audit-cleanup drift-prevention seccomp-generator seccomp-generator-webhook holmes
+all: drift-prevention-client faulty tensordig scanner scap-jobs console data drift-prevention seccomp-generator seccomp-generator-webhook holmes
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -238,8 +221,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-audit:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-audit-cleanup:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-cleaner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
@@ -255,8 +237,7 @@ else
 	docker push $(REPOPREFIX)/docker-bench-security:latest
 	docker push $(REPOPREFIX)/host-bench:latest
 	docker push $(REPOPREFIX)/tensordig:latest
-	docker push $(REPOPREFIX)/tensorsec-audit:latest
-	docker push $(REPOPREFIX)/tensorsec-audit-cleanup:latest
+	docker push $(REPOPREFIX)/tensorsec-cleaner:latest
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
@@ -276,8 +257,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-audit:latest $(REPOPREFIX)/tensorsec-audit:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-audit-cleanup:latest $(REPOPREFIX)/tensorsec-audit-cleanup:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-cleaner:latest $(REPOPREFIX)/tensorsec-cleaner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
@@ -293,8 +273,7 @@ else
 	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-audit:latest $(REPOPREFIX)/tensorsec-audit:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-audit-cleanup:latest $(REPOPREFIX)/tensorsec-audit-cleanup:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-cleaner:latest $(REPOPREFIX)/tensorsec-cleaner:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest

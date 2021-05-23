@@ -73,13 +73,19 @@ spec:
           - mountPath: /auth/server
             name: server-cert
             readOnly: true
-
+          - mountPath: /audit
+            name: audit
+            readOnly: true
         env:
         # Required for managing scap jobs
         - name: MY_POD_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         - name: TENSORSEC_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -108,7 +114,12 @@ spec:
           value: /auth/server/tls.crt
         - name: EVENT_GRPC_CERT_SERVER_NAME
           value: {{ .Values.eventcenter.eventGrpcCertServerName }}
-      
+        - name: CLEANER_IMAGE
+          value: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+        - name: AUDIT_PVC
+          value: audit-pvc
+        - name: AUDIT_PATH
+          value: /audit
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}
@@ -132,3 +143,6 @@ spec:
         secret:
           defaultMode: 400
           secretName: eventcenter-tls-server-cert-secret
+      - name: audit
+        persistentVolumeClaim:
+          claimName: audit-pvc

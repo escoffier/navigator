@@ -11,3 +11,5 @@ ld-preload/
 ## Frontend related ignores
 
 cmd/console/frontend/src/pages/.umi
+cmd/data/tool/cleaner/dump_test/
+cmd/data/tool/main/tensor-cleaner

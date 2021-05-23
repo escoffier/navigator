@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"io/ioutil"
 	"net/http"
@@ -18,8 +19,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
@@ -49,8 +48,7 @@ func setupChiRouter(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
-	auditService *audit.AuditService,
-	cleanupService *cleanup.Service,
+	dataService *data.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
@@ -86,8 +84,7 @@ func setupChiRouter(
 		redisClient,
 		ruleService,
 		onlineVulnsSvc,
-		auditService,
-		cleanupService,
+		dataService,
 		scannerService,
 		scapService,
 		harborClient,

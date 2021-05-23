@@ -1,0 +1,61 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ .Values.data.hotLogicCronjob.fullnameOverride }}
+  labels:
+    app: {{ .Values.data.hotLogicCronjob.nameOverride }}
+spec:
+  schedule: {{ .Values.data.hotLogicCronjob.cronString }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      completions: 1
+      template:
+        spec:
+          containers:
+            - command:
+                - /app/tensor-cleaner
+                -  hot-logic-storage-tool
+              env:
+                - name: CONF_PATH
+                  value: /app/hot-logic-conf.json
+                - name: MONGO_USERNAME
+                  value: {{ .Values.mongo.mongoUsername }}
+                - name: MONGO_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.mongo.mongoSecretName }}
+                      key: mongodb-password
+                - name: MONGO_ENDPOINT
+                  value: tensorsec-mongodb:27017
+                - name: MONGO_DATABASE
+                  value: {{ .Values.mongo.mongoDatabase }}
+                - name: MONGO_READ_PREFERENCE
+                  value: secondary
+                - name: PGSQL_HOST
+                  value: tensorsec-postgresql
+                - name: PGSQL_USER
+                  value: postgres
+                - name: PGSQL_DBNAME
+                  value: postgres
+                - name: PGSQL_SSL_MODE
+                  value: disable
+                - name: PGSQL_PASSWORD
+                  value: password
+              image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+              name: {{ .Values.data.hotLogicCronjob.nameOverride }}
+              resources:
+{{ toYaml .Values.data.hotLogicCronjob.resources | indent 16 }}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              volumeMounts:
+                - mountPath: /audit
+                  name: audit
+          restartPolicy: Never
+          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
+          imagePullSecrets:
+            - name: {{ .Values.data.image.pullSecret }}
+          volumes:
+            - name: audit
+              persistentVolumeClaim:
+                claimName: audit-pvc

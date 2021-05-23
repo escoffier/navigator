@@ -1,0 +1,16 @@
+{
+  "pgTables":[
+    {
+      "name":"events",
+      "timeField":"timestamp",
+      "dataDir":"/audit/postgresql/events",
+      "batch":1000
+    }
+  ],
+  "mongoUnifiedConf": {
+    "batch": 50,
+    "baseDir": "/audit/mongo",
+    "timeField": "historicised_timestamp",
+    "excludedCollections": ["cluster", "podServiceRelation", "podOwnerRefRelation"]
+  }
+}

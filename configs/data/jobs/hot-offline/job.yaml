@@ -1,0 +1,51 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tensorsec-hot-offline-cleaner
+spec:
+  template:
+    metadata:
+      labels:
+        app: hot-offline-cleaner
+    spec:
+      containers:
+        - name: hot-offline-cleaner
+          image: localhost:32000/tensorsec-cleaner:latest
+          command: ["/app/tensor-cleaner", "clear-hot-offline-storage-tool"]
+          imagePullPolicy: Always
+          env:
+            - name: CONF_PATH
+              value: /app/hot-offline-conf.json
+            - name: MONGO_USERNAME
+              value: redstone
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tensorsec-mongodb
+                  key: mongodb-password
+            - name: MONGO_ENDPOINT
+              value: tensorsec-mongodb:27017
+            - name: MONGO_DATABASE
+              value: vegeta
+            - name: ELASTIC_URL
+              value: "http://tensorsec-elasticsearch-master:9200"
+          volumeMounts:
+            - name: audit
+              mountPath: /audit
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "0.2"
+            limits:
+              memory: "200Mi"
+              cpu: "0.2"
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: harbor-admin-secret
+      volumes:
+        - name: audit
+          persistentVolumeClaim:
+            claimName: audit-pvc
+
+  backoffLimit: 0

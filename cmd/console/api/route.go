@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"net/http"
@@ -15,8 +16,6 @@ import (
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/audit"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cleanup"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
@@ -64,8 +63,7 @@ func SetupRoutes(
 	redisClient *redis.Client,
 	ruleService *rule.RuleService,
 	onlineVulnsSvc *assets.OnlineVulnsService,
-	auditService *audit.AuditService,
-	cleanupService *cleanup.Service,
+	dataService *data.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
@@ -87,8 +85,7 @@ func SetupRoutes(
 		redisClient,
 		ruleService,
 		onlineVulnsSvc,
-		auditService,
-		cleanupService,
+		dataService,
 		scannerService,
 		scapService,
 		harborClient,
@@ -114,8 +111,6 @@ func SetupRoutes(
 			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
 			r.Route("/riskExplorer", api.riskExplorer())
 			r.Route("/runtimeDetectionConfig", api.runtimeDetectionConfig())
-			r.Route("/audit", api.audit())
-			r.Route("/cleanup", api.cleanup())
 		})
 
 		r.Group(func(r chi.Router) {

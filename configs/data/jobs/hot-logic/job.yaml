@@ -1,0 +1,61 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tensorsec-hot-logic-cleaner
+spec:
+  template:
+    metadata:
+      labels:
+        app: hot-logic-cleaner
+    spec:
+      containers:
+        - name: hot-logic-cleaner
+          image: localhost:32000/tensorsec-cleaner:latest
+          command: ["/app/tensor-cleaner", "hot-logic-storage-tool"]
+          imagePullPolicy: Always
+          env:
+            - name: CONF_PATH
+              value: /app/hot-logic-conf.json
+            - name: MONGO_USERNAME
+              value: redstone
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tensorsec-mongodb
+                  key: mongodb-password
+            - name: MONGO_ENDPOINT
+              value: tensorsec-mongodb:27017
+            - name: MONGO_DATABASE
+              value: vegeta
+            - name: MONGO_READ_PREFERENCE
+              value: secondary
+            - name: PGSQL_HOST
+              value: tensorsec-postgresql
+            - name: PGSQL_USER
+              value: postgres
+            - name: PGSQL_DBNAME
+              value: postgres
+            - name: PGSQL_SSL_MODE
+              value: disable
+            - name: PGSQL_PASSWORD
+              value: password
+          volumeMounts:
+            - name: audit
+              mountPath: /audit
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "0.5"
+            limits:
+              memory: "200Mi"
+              cpu: "0.5"
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: harbor-admin-secret
+      volumes:
+        - name: audit
+          persistentVolumeClaim:
+            claimName: audit-pvc
+
+  backoffLimit: 0
