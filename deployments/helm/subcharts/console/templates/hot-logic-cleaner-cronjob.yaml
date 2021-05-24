@@ -43,6 +43,7 @@ spec:
                 - name: PGSQL_PASSWORD
                   value: password
               image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+              imagePullPolicy: {{ .Values.data.image.pullPolicy }}
               name: {{ .Values.data.hotLogicCronjob.nameOverride }}
               resources:
 {{ toYaml .Values.data.hotLogicCronjob.resources | indent 16 }}
@@ -52,7 +53,6 @@ spec:
                 - mountPath: /audit
                   name: audit
           restartPolicy: Never
-          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
           imagePullSecrets:
             - name: {{ .Values.data.image.pullSecret }}
           volumes:

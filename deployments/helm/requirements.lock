@@ -1,4 +1,7 @@
 dependencies:
+- name: eventcenter-auth
+  repository: file://./subcharts/eventcenter-auth
+  version: 0.1.0
 - name: scanner
   repository: file://./subcharts/scanner
   version: 0.1.0
@@ -35,5 +38,5 @@ dependencies:
 - name: holmes
   repository: file://./subcharts/holmes
   version: 1.7.4
-digest: sha256:cdde7631beb5763fb0c0fab9482c4a87083052fd61dac861d54be34e62cd489e
-generated: "2021-04-21T13:29:52.879927489+08:00"
+digest: sha256:b82f319a87b0f62a761bce014d0160b7a6132a46c67af379a87529771645481a
+generated: "2021-05-24T22:02:18.261759081+08:00"
