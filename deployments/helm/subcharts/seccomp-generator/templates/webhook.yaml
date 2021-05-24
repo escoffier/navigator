@@ -12,18 +12,17 @@ metadata:
 webhooks:
   - name: {{ template "seccompGenerator.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc
     clientConfig:
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURiVENDQWxXZ0F3SUJBZ0lRYlF0b2hCbFM1MlJLaGwzcW5vUURrakFOQmdrcWhraUc5dzBCQVFzRkFEQkgKTVJVd0V3WURWUVFLRXd4alpYSjBMVzFoYm1GblpYSXhMakFzQmdOVkJBTVRKV05oTG5kbFltaHZiMnN1ZEdWdQpjMjl5YzJWakxXUnlhV1owTFhCeVpYWmxiblJwYjI0d0hoY05NakV3TXpNeE1EVTBNVFV6V2hjTk1qRXdOakk1Ck1EVTBNVFV6V2pCSE1SVXdFd1lEVlFRS0V3eGpaWEowTFcxaGJtRm5aWEl4TGpBc0JnTlZCQU1USldOaExuZGwKWW1odmIyc3VkR1Z1YzI5eWMyVmpMV1J5YVdaMExYQnlaWFpsYm5ScGIyNHdnZ0VpTUEwR0NTcUdTSWIzRFFFQgpBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRHZkazVQbTkwZzVCS1FaS2xMQzkxZnMvT2wvaHNJbHI3eUlXYkNpd2Y3CncwWmQxRE9YNVhXbitpVENqNnBsMGE1am4wNHMxOVd6WWJwbUdablpLYjJ1UU4vOEQwekNpR3gxdUJ1MkRCV0oKM2puYUZBK1IxNlZKb3lrNFB6dUtCNDVzVCs1Z0ExQ0o5MDlkODNEKzBud1ZZVnpXVE4xOWRudWdjdjN1MXVFRwo5OE4ranVJc1ZTekxDOFJha29aVXZNU0RrTFdGRXRzeSs1WTRabjliQURmS0lDTFZCQVBtSjNrdENuU2swdmd3ClFjMVlHcXVtMlpUdU5Temo1VlBZdWwwTHdoKy9jL2RJZS9TaVhwRGhlZzlXRFZ3d2wzKzl6U2c3clJ1WklYd0gKR3p4MFhTbFJxMXNPYTkrZjhBYitUOElMYUxoSnY5QWJKWWZpaHFrOHdqWHRBZ01CQUFHalZUQlRNQTRHQTFVZApEd0VCL3dRRUF3SUNwREFQQmdOVkhSTUJBZjhFQlRBREFRSC9NREFHQTFVZEVRUXBNQ2VDSldOaExuZGxZbWh2CmIyc3VkR1Z1YzI5eWMyVmpMV1J5YVdaMExYQnlaWFpsYm5ScGIyNHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUIKQUNVeXN6Q0NqNnhpZmwyM2hzWUZlK1dZMVZEaG4yTUZhelpuejMrdWozMjhtdE5zWWRGUW1va004VUFkUWdQZgoxcWpsYzVPRmZTUktKNjNLbEptSDBMTHhEZlZuSG1pL3djUUd4RUc4aUU0Y0dwak9hT0ZJeVhXbEcxN2U1U3VXCkwzeGNBSFJnUW5YeEYwQ0c4RzZsK3VvUHdNU2l1WjNodEhCa3R0RWJ2MEtiRGlYS1Z5M3d0UUE2UUFMb0FpVWkKNXR4RzFOK0hGUlFvU055dVZsc2FLNjZxeTlOU2tpbWQvU2IzMTg3cDNIWS9lakxTeEJEMGUyOFFnVGN5RDhzdgpGOHpRRjFVdzVqM2R4S2ZUKzVQRFNJcGFxV2tCaURIRlBVb0h4SkpSZVBZRG9ja3VpaFV1TmxrelRGTTlVblVGCjhQcGNHZWY0Rkc0eS9JTWo3T2IxR01zPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
       service:
         name: "{{ template "seccompGenerator.fullname" . }}-webhook-service"
         namespace: "{{ .Release.Namespace }}"
         path: "/mutate"
-        port: 443
     rules:
       - operations: [ "CREATE" ]
         apiGroups: [ "" ]
         apiVersions: [ "v1" ]
         resources: [ "pods" ]
     failurePolicy: Ignore
-    timeoutSeconds: 10
     namespaceSelector:
       matchExpressions:
         - key: "name"

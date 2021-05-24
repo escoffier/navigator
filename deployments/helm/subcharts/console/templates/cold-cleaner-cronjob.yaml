@@ -31,6 +31,7 @@ spec:
                 - name: AUDIT_PATH
                   value: /audit
               image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+              imagePullPolicy: {{ .Values.data.image.pullPolicy }}
               name: {{ .Values.data.coldCronjob.nameOverride }}
               resources:
 {{ toYaml .Values.data.coldCronjob.resources | indent 16 }}
@@ -40,7 +41,6 @@ spec:
                 - mountPath: /audit
                   name: audit
           restartPolicy: Never
-          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
           imagePullSecrets:
             - name: {{ .Values.data.image.pullSecret }}
           volumes:

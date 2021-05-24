@@ -33,6 +33,7 @@ spec:
                 - name: ELASTIC_URL
                   value: "http://tensorsec-elasticsearch-master:9200"
               image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+              imagePullPolicy: {{ .Values.data.image.pullPolicy }}
               name: {{ .Values.data.hotOfflineCronjob.nameOverride }}
               resources:
 {{ toYaml .Values.data.hotOfflineCronjob.resources | indent 16 }}
@@ -42,7 +43,6 @@ spec:
                 - mountPath: /audit
                   name: audit
           restartPolicy: Never
-          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
           imagePullSecrets:
             - name: {{ .Values.data.image.pullSecret }}
           volumes:
