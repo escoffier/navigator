@@ -93,18 +93,18 @@ func (wg *WorkerGroup) workerRun(i int, swg *sync.WaitGroup) error {
 	return nil
 }
 
-func (w *Worker) createRegistryClient(username, password, repository, url string, skipTls bool) error {
-	var err error
+func (w *Worker) createRegistryClient(username, password, repository, url string, skipTls bool) (err2 error) {
 	for i := 0; i < RegistryConnectRetryCnt; i++ {
 		rc, err := NewRegistryClient(username, password, repository, url, skipTls)
 		if err == nil {
 			w.rc = rc
 			return nil
 		}
+		err2 = err
 		time.Sleep(time.Duration(RegistryConnectInterval) * time.Second)
 	}
 
-	return err
+	return err2
 }
 
 //for test
