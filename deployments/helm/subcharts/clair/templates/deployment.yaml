@@ -29,20 +29,19 @@ spec:
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
       {{- end }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
       initContainers:
       - name: pg-ready-wait
         image: postgres:11.3
         command: [ "sh", "-c",
           "until pg_isready -h {{ .Values.config.postgresServiceName }} -p 5432;
           do echo waiting for database; sleep 1; done;"]
-      imagePullSecrets:
-        - name: {{ .Values.image.pullSecret }}
-      initContainers:
       - args:
         - /bin/bash
         - -c
         - psql postgres://postgres:password@tensorsec-postgresql:5432/postgres < /var/lib/postgresql/vulnerability.sql 
-        image: registry.t-appagile.com/tensorsecurity/tensorsec-postgres:latest 
+        image: {{ .Values.global.ourDockerRepo }}/tensorsecurity/tensorsec-postgres:latest 
         imagePullPolicy: Always
         name: loadcev 
       containers:
