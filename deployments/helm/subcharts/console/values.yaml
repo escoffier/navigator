@@ -3,6 +3,7 @@
 
 nameOverride: "console"
 fullnameOverride: "tensorsec-console"
+debugServiceName: "tensorsec-console-debug"
 
 restartPolicy: Always
 
@@ -10,6 +11,11 @@ service:
   type: ClusterIP
   port: 8889
   containerPort: 8080
+
+debugService:
+  type:  NodePort
+  port: 18889
+  containerPort: 18080
 
 replicaCount: 1
 

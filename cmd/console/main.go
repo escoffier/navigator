@@ -2,7 +2,10 @@
 
 package main
 
-import "gitlab.com/piccolo_su/vegeta/cmd/console/cmd"
+import (
+	"gitlab.com/piccolo_su/vegeta/cmd/console/cmd"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+)
 
 // @title Vegeta API·
 // @version 1.0
@@ -10,5 +13,7 @@ import "gitlab.com/piccolo_su/vegeta/cmd/console/cmd"
 
 // @BasePath /
 func main() {
+	util.InitPprofMontitor()
+
 	cmd.Execute()
 }

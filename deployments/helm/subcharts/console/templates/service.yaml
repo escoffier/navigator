@@ -15,3 +15,22 @@ spec:
   selector:
     app.kubernetes.io/name: {{ include "console.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "console.fullname" . }}-pprof
+  labels:
+    helm.sh/chart: {{ include "console.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: {{ .Values.debugService.type }}
+  ports:
+    - port: {{ .Values.debugService.port }}
+      targetPort: {{ .Values.debugService.containerPort }}
+      protocol: TCP
+      name: {{ include "console.name" . }}-debug
+  selector:
+    app.kubernetes.io/name: {{ include "console.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
