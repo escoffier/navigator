@@ -7,7 +7,7 @@ fullnameOverride: "tensorsec-scanner"
 restartPolicy: Always
 
 service:
-  type: ClusterIP
+  type: NodePort
   ApiPort: 8888
   ApiContainerPort: 8080
   LayerPort: 9278
