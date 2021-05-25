@@ -120,12 +120,16 @@ spec:
           value: audit-pvc
         - name: AUDIT_PATH
           value: /audit
+        - name: TENSORSEC_PPROF_PORT
+          value: "{{ .Values.debugService.containerPort }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}
             name: {{ include "console.name" . }}
+          - containerPort: {{ .Values.debugService.containerPort }}
+            name: pprof
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       volumes:
