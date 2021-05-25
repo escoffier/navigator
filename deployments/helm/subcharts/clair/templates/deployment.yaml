@@ -41,7 +41,7 @@ spec:
         - /bin/bash
         - -c
         - psql postgres://postgres:password@tensorsec-postgresql:5432/postgres < /var/lib/postgresql/vulnerability.sql 
-        image: {{ .Values.global.ourDockerRepo }}/tensorsecurity/tensorsec-postgres:latest 
+        image: {{ .Values.global.ourDockerRepo }}/tensorsec-postgres:latest 
         imagePullPolicy: Always
         name: loadcev 
       containers:
