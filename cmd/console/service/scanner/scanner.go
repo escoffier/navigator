@@ -28,6 +28,15 @@ import (
 
 const SCAN_SERVICE = "service"
 
+const OverviewOnlineSQL = `SELECT qt.id, COUNT(qt.id) 
+FROM tensor_image_list il LEFT JOIN tensor_question qt ON il.digest = qt.digest 
+WHERE il.status = 0 AND il.on_line_count > 0 GROUP BY qt.id;
+`
+const OverviewTotalSQL = `SELECT qt.id, COUNT(qt.id) 
+FROM tensor_image_list il LEFT JOIN tensor_question qt ON il.digest = qt.digest 
+WHERE il.status = 0 GROUP BY qt.id;
+`
+
 type ScannerService struct {
 	postgresDB              *rdbtools.GormWrapper
 	mongodb                 *mongotools.DatabaseWrapper
@@ -462,7 +471,7 @@ func (s *ScannerService) GetImageOverView(ctx context.Context) (image.OverView, 
 
 	var result []Result
 	//
-	s.postgresDB.Get().WithContext(pctx).Raw("select  b.id,count(b.id) from  tensor_image_list  a  left join tensor_question b  on  a.digest = b.digest  group by  b.id").Scan(&result)
+	s.postgresDB.Get().WithContext(pctx).Raw(OverviewTotalSQL).Scan(&result)
 	for i := range result {
 		if result[i].Id == model.QUESTION_VULN {
 			overView.Sum.VULN = result[i].Count
@@ -481,7 +490,7 @@ func (s *ScannerService) GetImageOverView(ctx context.Context) (image.OverView, 
 	}
 	var onlineResult []Result
 
-	s.postgresDB.Get().WithContext(pctx).Raw("select  b.id,count(b.id) from  tensor_image_list  a  left join tensor_question b  on  a.digest = b.digest   where a.on_line_count > 0 group by  b.id").Scan(&onlineResult)
+	s.postgresDB.Get().WithContext(pctx).Raw(OverviewOnlineSQL).Scan(&onlineResult)
 
 	for i := range onlineResult {
 		if onlineResult[i].Id == model.QUESTION_VULN {
