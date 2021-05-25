@@ -93,6 +93,10 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 		if container.State != "Running" {
 			continue
 		}
+		if container.PodOwnerKind == "NoOwner" || container.PodOwnerKind == "Job" {
+			// Job will cause possibly detail request failing to find the resource. NoOwner is the type of static pod; tempararily igonore
+			continue
+		}
 
 		services := []string{container.PodOwnerName}
 		nodeType := model.NodeTypeOwnerRef
