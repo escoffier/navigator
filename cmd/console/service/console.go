@@ -10,7 +10,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"io/ioutil"
-
 	"math"
 	"net/http"
 	"os"

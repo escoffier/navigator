@@ -14,6 +14,5 @@ import (
 // @BasePath /
 func main() {
 	util.InitPprofMontitor()
-
 	cmd.Execute()
 }
