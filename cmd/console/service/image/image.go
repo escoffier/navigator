@@ -142,55 +142,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.PushTime = timeStr
 			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
 			il.Status = 0
-			pgCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			err := im.postgresDB.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
-				/*
-					if the image has existed but with the status -1, we update all the fields and also the status to 0.
-					if the image hasn't existed, insert it.
-				*/
-				var image model.ImageList
-				fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ? AND library = ?", v.Digest, v.FullRepoName, v.Name, il.Library).First(&image).Error
-				if fErr == gorm.ErrRecordNotFound {
-					err := tx.WithContext(pgCtx).Create(&il).Error
-					if err != nil {
-						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
-						return nil
-					}
-				} else if fErr != nil {
-					return fErr
-				} else if image.Status == -1 {
-					err := tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Updates(il).Error
-					if err != nil {
-						return err
-					}
-					// The reason to update twice is: the struct model field is zero for int value, the gorm will not update this field
-					err = tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Update("status", 0).Error
-					return err
-				}
-				return nil
-			})
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("add image inserting pg error. data: %+v", il)
-				continue
-			}
-
-		}
-	} else {
-		for _, v := range artifacts.Af2 {
-			for _, t := range v.Tags {
-				var il model.ImageList
-				il.FullRepoName = v.FullRepoName
-				il.Tags = t.Name
-				cstZone := time.FixedZone("CST", 8*3600)
-				timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
-				il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-				il.PushTime = timeStr
-				il.Digest = v.Digest
-				il.OS = v.ExtraAttrs.Os
-				il.Size = v.Size
-				il.Library = removeProtocolPrefixIfHaving(im.harborClient.GetAddressString())
-				il.Status = 0
+			func() {
 				pgCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				err := im.postgresDB.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
@@ -221,8 +173,61 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 				})
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("add image inserting pg error. data: %+v", il)
-					continue
+					return
 				}
+			}()
+
+		}
+	} else {
+		for _, v := range artifacts.Af2 {
+			for _, t := range v.Tags {
+				var il model.ImageList
+				il.FullRepoName = v.FullRepoName
+				il.Tags = t.Name
+				cstZone := time.FixedZone("CST", 8*3600)
+				timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
+				il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+				il.PushTime = timeStr
+				il.Digest = v.Digest
+				il.OS = v.ExtraAttrs.Os
+				il.Size = v.Size
+				il.Library = removeProtocolPrefixIfHaving(im.harborClient.GetAddressString())
+				il.Status = 0
+
+				func() {
+					pgCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					defer cancel()
+					err := im.postgresDB.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
+						/*
+							if the image has existed but with the status -1, we update all the fields and also the status to 0.
+							if the image hasn't existed, insert it.
+						*/
+						var image model.ImageList
+						fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ? AND library = ?", v.Digest, v.FullRepoName, il.Tags, il.Library).First(&image).Error
+						if fErr == gorm.ErrRecordNotFound {
+							err := tx.WithContext(pgCtx).Create(&il).Error
+							if err != nil {
+								logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
+								return err
+							}
+						} else if fErr != nil {
+							return fErr
+						} else if image.Status == -1 {
+							err := tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Updates(&il).Error
+							if err != nil {
+								return err
+							}
+							// The reason to update twice is: the struct model field is zero for int value, the gorm will not update this field
+							err = tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Update("status", 0).Error
+							return err
+						}
+						return nil
+					})
+					if err != nil {
+						logging.GetLogger().Err(err).Msgf("add image inserting pg error. data: %+v", il)
+						return
+					}
+				}()
 
 			}
 
