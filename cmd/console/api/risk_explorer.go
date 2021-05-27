@@ -16,7 +16,6 @@ import (
 func (api *api) riskExplorer() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/wholeGraphOverall", api.wholeGraphOverrall())
-		r.Get("/export", api.export())
 		r.Get("/serviceDetails/{nodeType}/{namespace}/{serviceName}", api.serviceDetails())
 	}
 }

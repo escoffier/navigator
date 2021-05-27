@@ -130,7 +130,6 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 	defer cancel()
 
 	if im.harborClient.GetApiVersionString() == "api" {
-
 		for _, v := range artifacts.Af1 {
 			var il model.ImageList
 			il.FullRepoName = v.FullRepoName
@@ -138,7 +137,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.Digest = v.Digest
 			il.OS = v.Os
 			il.Size = v.Size
-			il.Library = urlSplit(im.harborClient.GetAddressString())
+			il.Library = removeProtocolPrefixIfHaving(im.harborClient.GetAddressString())
 			cstZone := time.FixedZone("CST", 8*3600)
 			timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
 			il.OnLineCount = 0
@@ -184,7 +183,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 				il.Digest = v.Digest
 				il.OS = v.ExtraAttrs.Os
 				il.Size = v.Size
-				il.Library = urlSplit(im.harborClient.GetAddressString())
+				il.Library = removeProtocolPrefixIfHaving(im.harborClient.GetAddressString())
 				il.Status = 0
 				im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
 					/*
@@ -192,7 +191,7 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 						if the image hasn't existed, insert it.
 					*/
 					var image model.ImageList
-					fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ? and library = ?", v.Digest, v.FullRepoName, il.Tags, il.Library).First(&image).Error
+					fErr := tx.WithContext(pgCtx).Where("digest = ? AND full_repo_name = ? AND tags = ? AND library = ?", v.Digest, v.FullRepoName, il.Tags, il.Library).First(&image).Error
 					if fErr == gorm.ErrRecordNotFound {
 						err := tx.WithContext(pgCtx).Create(&il).Error
 						if err != nil {
@@ -354,10 +353,11 @@ func (im *ImageService) GetImageScanStatus(ctx context.Context, harborClient *ha
 	return status
 }
 
-func urlSplit(s string) string {
-	sl := strings.Split(s, "//")
-	if len(sl) == 2 {
-		return strings.Trim(sl[1], " ")
+func removeProtocolPrefixIfHaving(s string) string {
+	s = strings.TrimSpace(s)
+	idx := strings.Index(s, "://")
+	if idx > 0 {
+		return s[idx+3:]
 	}
 	return s
 }

@@ -2,19 +2,17 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"net/http"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/cache"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -88,38 +86,11 @@ func (api *api) harborScanStatus() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		var status harbor.ScanAllStatus
-
-		// We take this value from redis cache, so that cached data is in sync with harbor view
-		// on the frontend. If any err, then take the value provided by harbor
-		redisCtx, redisCtxCancel := context.WithTimeout(ctx, util.RedisTimeout)
-		defer redisCtxCancel()
-
-		cachedStatus, err := api.redisClient.Get(
-			redisCtx, cache.ScannedImagesCountCacheKey).Result()
+		// TODO we need a cache here or we need to refactor to manage scan tasks by ourselves.
+		status, err := api.harborClient.GetScanAllStatus(ctx)
 		if err != nil {
-			logging.GetLogger().
-				Warn().
-				Err(err).
-				Msg("Failed to get harbor status from cache")
-			status, err = api.harborClient.GetScanAllStatus(ctx)
-			if err != nil {
-				RespAndLog(w, ctx, fmt.Errorf("Failed to get current status of scan all: %w", err))
-				return
-			}
-		} else {
-			err = json.Unmarshal([]byte(cachedStatus), status)
-			if err != nil {
-				logging.GetLogger().
-					Warn().
-					Err(err).
-					Msg("Failed to unmarshal status from cache")
-				status, err = api.harborClient.GetScanAllStatus(ctx)
-				if err != nil {
-					RespAndLog(w, ctx, fmt.Errorf("Failed to get current status of scan all: %w", err))
-					return
-				}
-			}
+			RespAndLog(w, ctx, fmt.Errorf("Failed to get current status of scan all: %w", err))
+			return
 		}
 		Doingnum, Waitnum := util.GetAllVirusScanStatus(ctx, api.scannerURL)
 		status.Total = status.Total + Doingnum + Waitnum

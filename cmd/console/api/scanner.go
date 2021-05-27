@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
-
 	"time"
 
 	"github.com/go-chi/chi"
@@ -29,8 +27,6 @@ import (
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/task/{taskID}", api.getScannerTask())
-		r.Get("/reportsBySeverity", api.listScanReportsBySeverity())
-		r.Get("/reportsByImage", api.listScannedImages())
 		r.Get("/reportsByImageList", api.listScannedByImageList())
 		r.Get("/reportsByImageOverview", api.listScannedByImageOverview())
 		r.Get("/reportsByImageDetails", api.ScannedByImageDetails())
@@ -126,76 +122,6 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 	}
 }
 
-// @Summary List images and their vulnerabilities
-// @Description List images and their vulnerabilities
-// @Produce json
-// @Param offset query int false "from offset"
-// @Param limit query int false "returned data limit"
-// @Param sortOrder query string false "asc/desc"
-// @Param maxImageAgeInHours query int false "return only images that have only scans younger than this number; 0 or empty disables"
-// @Param sortBy query string false "finishedAt/overallSeverity/repository/tag/imageDigest"
-// @Router /api/v1/scanner/reportsByImage [get]
-func (api *api) listScannedImages() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		var maxImageAgeInHours int
-		maxImageAgeInHoursRaw := r.URL.Query().Get("maxImageAgeInHours")
-		if maxImageAgeInHoursRaw != "" {
-			m, err := strconv.Atoi(maxImageAgeInHoursRaw)
-			if err != nil {
-				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("failed to convert to int: %w", err),
-					Suberror{"maxImageAgeInHours", "uint"}))
-				return
-			}
-			if maxImageAgeInHours < 0 {
-				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("must be positive"),
-					Suberror{"maxImageAgeInHours", "uint"}))
-				return
-			}
-			if maxImageAgeInHours != 1 && maxImageAgeInHours != 24 && maxImageAgeInHours != 0 {
-				RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("must be equal to 0, 1 or 24"),
-					Suberror{"maxImageAgeInHours", "uint"}))
-				return
-			}
-			maxImageAgeInHours = m
-		} else {
-			maxImageAgeInHours = 0
-		}
-
-		sortBy, err := api.sortByFromQuery(r, model.GetDefaultScannedImagesSortableName(), model.GetScannedImagesSortableNames()...)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		sortOrder, err := api.sortOrderFromQuery(r, "desc")
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		offset, limit := api.getOffsetAndLimit(r)
-
-		items, docNum, err := api.scannerService.GetScannedImages(ctx, maxImageAgeInHours, offset, limit, model.ScannedImagesSortableFields[sortBy], sortOrder)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		response.Ok(w,
-			response.WithItems(items),
-			response.WithTotalItems(docNum),
-			response.WithItemsPerPage(limit),
-			response.WithStartIndex(offset))
-	}
-}
-
-//
 // @Router  /api/v2/containerSec/scanner/reportsByRepo [get]
 func (api *api) listScannedByImageList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -314,58 +240,6 @@ func (api *api) getScannerTask() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItem(result))
-	}
-}
-
-// @Summary List reports by severity
-// @Description List reports by severity
-// @Produce json
-// @Param offset query int false "from offset"
-// @Param limit query int false "returned data limit"
-// @Param riskFilter query string false "risk explorarion filter (none(default)/medToCrit/networkBased)"
-// @Param sortOrder query string false "asc/desc"
-// @Router /api/v1/scanner/reportsBySeverity [get]
-func (api *api) listScanReportsBySeverity() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
-		defer cancel()
-
-		riskFilter := r.URL.Query().Get("riskFilter")
-		if riskFilter == "" {
-			riskFilter = model.GetDefaultVulnerabilityInImagesRiskFilterName()
-		}
-
-		if _, ok := model.VulnerabilityInImagesRiskFilters[riskFilter]; !ok {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid riskFilter param value (allowed: default/medToCrit/networkBased)"),
-					Suberror{"riskFilter", "allowed: default/medToCrit/networkBased"}))
-			return
-		}
-		sortOrder := r.URL.Query().Get("sortOrder")
-		if sortOrder == "" {
-			sortOrder = "desc"
-		}
-		if sortOrder != "asc" && sortOrder != "desc" {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
-					Suberror{"sortOrder", "allowed: asc/desc"}))
-			return
-		}
-		offset, limit := api.getOffsetAndLimit(r)
-		resultItems, size, err := api.scannerService.GetImageVulnerabilities(
-			ctx, riskFilter, offset, limit, sortOrder)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewAnError(http.StatusInternalServerError, err))
-			return
-		}
-		response.Ok(w,
-			response.WithItems(resultItems),
-			response.WithTotalItems(size),
-			response.WithItemsPerPage(limit),
-			response.WithStartIndex(offset))
 	}
 }
 
