@@ -23,6 +23,7 @@ import (
 
 const (
 	loadIntervalSecs = int64((12 * time.Hour) / time.Second)
+	checkInterval    = 5 * time.Minute
 )
 
 type ImageService struct {
@@ -111,7 +112,7 @@ func (im *ImageService) imageWorker() {
 		}
 	}()
 
-	ticker := time.NewTicker(3 * time.Minute)
+	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
 
 	for {
@@ -126,9 +127,6 @@ func (im *ImageService) imageWorker() {
 }
 
 func (im *ImageService) addImg(artifacts model.Artifacts) error {
-	pgCtx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	defer cancel()
-
 	if im.harborClient.GetApiVersionString() == "api" {
 		for _, v := range artifacts.Af1 {
 			var il model.ImageList
@@ -144,7 +142,9 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.PushTime = timeStr
 			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
 			il.Status = 0
-			im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
+			pgCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			err := im.postgresDB.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
 				/*
 					if the image has existed but with the status -1, we update all the fields and also the status to 0.
 					if the image hasn't existed, insert it.
@@ -155,8 +155,10 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 					err := tx.WithContext(pgCtx).Create(&il).Error
 					if err != nil {
 						logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
-						return err
+						return nil
 					}
+				} else if fErr != nil {
+					return fErr
 				} else if image.Status == -1 {
 					err := tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Updates(il).Error
 					if err != nil {
@@ -168,6 +170,10 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 				}
 				return nil
 			})
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("add image inserting pg error. data: %+v", il)
+				continue
+			}
 
 		}
 	} else {
@@ -185,7 +191,9 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 				il.Size = v.Size
 				il.Library = removeProtocolPrefixIfHaving(im.harborClient.GetAddressString())
 				il.Status = 0
-				im.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
+				pgCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				err := im.postgresDB.Get().WithContext(pgCtx).Transaction(func(tx *gorm.DB) error {
 					/*
 						if the image has existed but with the status -1, we update all the fields and also the status to 0.
 						if the image hasn't existed, insert it.
@@ -198,6 +206,8 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 							logging.GetLogger().Error().Err(err).Msg("Couldn't insert postgres")
 							return err
 						}
+					} else if fErr != nil {
+						return fErr
 					} else if image.Status == -1 {
 						err := tx.WithContext(pgCtx).Model(&model.ImageList{}).Where("id = ?", image.ID).Updates(&il).Error
 						if err != nil {
@@ -209,6 +219,10 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 					}
 					return nil
 				})
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("add image inserting pg error. data: %+v", il)
+					continue
+				}
 
 			}
 
