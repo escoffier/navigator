@@ -101,15 +101,18 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	var resp *http.Response
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resp, err = h.httpCli.Do(req.WithContext(ctx))
+		if err == nil {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+				return fmt.Errorf("status code is %d", resp.StatusCode)
+			}
+			return nil
 		}
-		httpClient.Transport = tr
-	}
-
-	resp, err := httpClient.Do(req.WithContext(ctx))
+		return err
+	}, retry.Attempts(3))
 	if err != nil {
 		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send scan all request to Harbor: %w", err))
 	}
@@ -158,15 +161,18 @@ func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, 
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	httpClient := http.Client{}
-	if h.skipTLSVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	var resp *http.Response
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resp, err = h.httpCli.Do(req.WithContext(ctx))
+		if err == nil {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
+				return fmt.Errorf("status code is %d", resp.StatusCode)
+			}
+			return nil
 		}
-		httpClient.Transport = tr
-	}
-
-	resp, err := httpClient.Do(req.WithContext(ctx))
+		return err
+	}, retry.Attempts(3))
 	if err != nil {
 		return scanAllStatus, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get scan all status request to Harbor: %w", err))
 	}
