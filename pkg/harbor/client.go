@@ -101,52 +101,41 @@ func (h HarborRESTClient) ScanAll(ctx context.Context) error {
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	var resp *http.Response
-	err = util.RetryWithBackoff(ctx, func() error {
-		var err error
-		resp, err = h.httpCli.Do(req.WithContext(ctx))
-		if err == nil {
-			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-				return fmt.Errorf("status code is %d", resp.StatusCode)
-			}
-			return nil
-		}
-		return err
-	}, retry.Attempts(3))
-	if err != nil {
-		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send scan all request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	// Harbor's API doc doesn't mention 201 return code, but it is returned
-	// to Harbor portal upon pressing "Scan all" button.
-	// Just in case, we assume both 200 and 201 status codes are OK.
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = json.NewDecoder(teeReader).Decode(&errorResp)
+	respHandle := func(resp *http.Response, err error) error {
 		if err != nil {
-			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
-			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send scan all request to Harbor: %w", err))
 		}
 
-		if resp.StatusCode == http.StatusUnauthorized {
-			return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusForbidden {
-			return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusConflict {
-			// 409 is documented as "harbor scan already in progress", 412 is undocumented
-			return NewHarborScanAllInProgressError(resp.StatusCode, fmt.Errorf("Harbor scan already in progress: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusServiceUnavailable {
-			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error, potentially no scanners detected: %+v", errorResp))
-		} else {
-			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		// Harbor's API doc doesn't mention 201 return code, but it is returned
+		// to Harbor portal upon pressing "Scan all" button.
+		// Just in case, we assume both 200 and 201 status codes are OK.
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = json.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			}
+
+			if resp.StatusCode == http.StatusUnauthorized {
+				return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusForbidden {
+				return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusConflict {
+				// 409 is documented as "harbor scan already in progress", 412 is undocumented
+				return NewHarborScanAllInProgressError(resp.StatusCode, fmt.Errorf("Harbor scan already in progress: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusServiceUnavailable {
+				return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error, potentially no scanners detected: %+v", errorResp))
+			} else {
+				return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+			}
 		}
+		return nil
 	}
-
-	return nil
+	return util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 }
 
 func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, error) {
@@ -161,41 +150,32 @@ func (h HarborRESTClient) GetScanAllStatus(ctx context.Context) (ScanAllStatus, 
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	var resp *http.Response
-	err = util.RetryWithBackoff(ctx, func() error {
-		var err error
-		resp, err = h.httpCli.Do(req.WithContext(ctx))
-		if err == nil {
-			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-				return fmt.Errorf("status code is %d", resp.StatusCode)
-			}
-			return nil
-		}
-		return err
-	}, retry.Attempts(3))
-	if err != nil {
-		return scanAllStatus, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get scan all status request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = json.NewDecoder(teeReader).Decode(&errorResp)
+	// function for how to handle response or error
+	respHandle := func(resp *http.Response, err error) error {
 		if err != nil {
-			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
-			return scanAllStatus, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get scan all status request to Harbor: %w", err))
 		}
-		return scanAllStatus, NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
-	}
+		if resp.StatusCode != http.StatusOK {
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = json.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			}
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		}
 
-	err = json.NewDecoder(resp.Body).Decode(&scanAllStatus)
-	if err != nil {
-		return scanAllStatus, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+		err = json.NewDecoder(resp.Body).Decode(&scanAllStatus)
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+		}
+		return nil
 	}
+	err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 
-	return scanAllStatus, nil
+	return scanAllStatus, err
 }
 
 func (h HarborRESTClient) ScanOne(ctx context.Context, projectName, repositoryName, tag string) error {
@@ -213,46 +193,35 @@ func (h HarborRESTClient) ScanOne(ctx context.Context, projectName, repositoryNa
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	var resp *http.Response
-	err = util.RetryWithBackoff(ctx, func() error {
-		var err error
-		resp, err = h.httpCli.Do(req.WithContext(ctx))
-		if err == nil {
-			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-				return fmt.Errorf("status code is %d", resp.StatusCode)
-			}
-			return nil
-		}
-		return err
-	}, retry.Attempts(3))
-
-	if err != nil {
-		return NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send scan all request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+	respHandle := func(resp *http.Response, err error) error {
 		if err != nil {
-			return NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %w", err))
+			return NewHarborError(http.StatusInternalServerError, fmt.Errorf("request harbor scanone error: %v.", err))
 		}
+		if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				return NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %w", err))
+			}
 
-		if resp.StatusCode == http.StatusUnauthorized {
-			return NewHarborUnauthorizedError(http.StatusInternalServerError, fmt.Errorf("harbor API returned status Unauthorized: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusForbidden {
-			return NewHarborForbiddenError(http.StatusInternalServerError, fmt.Errorf("harbor API returned status Forbidden: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusConflict {
-			return NewHarborScanAllInProgressError(http.StatusInternalServerError, fmt.Errorf("harbor scan already in progress: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusServiceUnavailable {
-			return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error, potentially no scanners detected: %+v", errorResp))
-		} else {
-			return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
+			if resp.StatusCode == http.StatusUnauthorized {
+				return NewHarborUnauthorizedError(http.StatusInternalServerError, fmt.Errorf("harbor API returned status Unauthorized: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusForbidden {
+				return NewHarborForbiddenError(http.StatusInternalServerError, fmt.Errorf("harbor API returned status Forbidden: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusConflict {
+				return NewHarborScanAllInProgressError(http.StatusInternalServerError, fmt.Errorf("harbor scan already in progress: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusServiceUnavailable {
+				return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error, potentially no scanners detected: %+v", errorResp))
+			} else {
+				return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
+			}
 		}
+		return nil
 	}
-	return nil
+
+	return util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 }
 
 func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, repositoryName, tag, digest string) (time.Time, string, error) {
@@ -272,45 +241,40 @@ func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, reposi
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	var resp *http.Response
-	err = util.RetryWithBackoff(ctx, func() error {
-		var err error
-		resp, err = h.httpCli.Do(req.WithContext(ctx))
-		if err == nil {
-			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-				return fmt.Errorf("status code is %d", resp.StatusCode)
-			}
-			return nil
-		}
-		return err
-	}, retry.Attempts(3))
-	if err != nil {
-		return time.Now(), "", NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
-		if err != nil {
-			return time.Now(), "", NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %+v", err))
-		}
-		return time.Now(), "", NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
-	}
-	result, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		return time.Now(), "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to readall  message from body: %w", err))
-	}
 	var scanOneStatus ScanOneStatus
-	err = jsoniter.Unmarshal(result, &scanOneStatus)
+	respHandle := func(resp *http.Response, err error) error {
+		if err != nil {
+			return NewHTTPResponseError(http.StatusInternalServerError, fmt.Errorf("failed to send get scan all status request to Harbor: %w", err))
+		}
+		if resp.StatusCode != http.StatusOK {
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to decode error message from Harbor: %+v", err))
+			}
+			return NewHarborError(http.StatusInternalServerError, fmt.Errorf("harbor API returned error: %+v", errorResp))
+		}
+		result, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return NewFieldError(http.StatusInternalServerError, fmt.Errorf("failed to readall  message from body: %w", err))
+		}
+		err = jsoniter.Unmarshal(result, &scanOneStatus)
+		if err != nil {
+			return NewFieldError(http.StatusInternalServerError, fmt.Errorf("json Unmarshal error: %w", err))
+		}
+		if scanOneStatus.ScanOverview.Version.ScanStatus == "" {
+			scanOneStatus.ScanOverview.Version.ScanStatus = model.JobNotScan
+		}
+		return nil
+	}
+	err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 	if err != nil {
-		return time.Now(), "", NewFieldError(http.StatusInternalServerError, fmt.Errorf("json Unmarshal error: %w", err))
+		return time.Now(), "", err
 	}
-	if scanOneStatus.ScanOverview.Version.ScanStatus == "" {
-		scanOneStatus.ScanOverview.Version.ScanStatus = model.JobNotScan
-	}
+
 	return scanOneStatus.ScanOverview.Version.EndTime, scanOneStatus.ScanOverview.Version.ScanStatus, nil
 }
 
@@ -377,40 +341,35 @@ func (h HarborRESTClient) GetHarborProjectConfig(ctx context.Context, projectId 
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	var resp *http.Response
-	err = util.RetryWithBackoff(ctx, func() error {
-		var err error
-		resp, err = h.httpCli.Do(req.WithContext(ctx))
-		if err == nil {
-			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-				return fmt.Errorf("status code is %d", resp.StatusCode)
-			}
-			return nil
-		}
-		return err
-	}, retry.Attempts(3))
-	if err != nil {
-		return cfgScanData, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get projects config request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+	respHandle := func(resp *http.Response, err error) error {
 		if err != nil {
-			return cfgScanData, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send get projects config request to Harbor: %w", err))
 		}
-		return cfgScanData, NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
-	}
-	err = json.NewDecoder(resp.Body).Decode(&projectConfig)
+		defer util.CloseBodyWithLog(resp.Body)
 
+		if resp.StatusCode != http.StatusOK {
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = jsoniter.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			}
+			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		}
+		err = json.NewDecoder(resp.Body).Decode(&projectConfig)
+
+		if err != nil {
+			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+		}
+		return nil
+	}
+	err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 	if err != nil {
-		return cfgScanData, NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+		return cfgScanData, err
 	}
-	//set Describe
 
+	//set Describe
 	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "Public", RuleDescEn: PUBLICENDESCRIBE, RuleDescCn: PUBLICCNDESCRIBE, Status: projectConfig.Metadata.Public, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
 	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "AutoScan", RuleDescEn: AUTOSCANENDESCRIBE, RuleDescCn: AUTOSCANCNDESCRIBE, Status: projectConfig.Metadata.AutoScan, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
 	cfgScanData = append(cfgScanData, model.CfgScan{RuleName: "EnableContentTrust", RuleDescEn: TRUSTENDESCRIBE, RuleDescCn: TRUSTCNDESCRIBE, Status: projectConfig.Metadata.EnableContentTrust, HarborConfigLink: h.GetHarborProjectConfigLink(projectId)})
@@ -434,51 +393,39 @@ func (h *HarborRESTClient) TestConnectionAndAdminPrivileges(ctx context.Context,
 	req.Header.Add("Content-Type", "application/json")
 	req.SetBasicAuth(h.username, h.password)
 
-	var resp *http.Response
-	err = util.RetryWithBackoff(ctx, func() error {
-		var err error
-		resp, err = h.httpCli.Do(req.WithContext(ctx))
-		if err == nil {
-			if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-				return fmt.Errorf("status code is %d", resp.StatusCode)
-			}
-			return nil
-		}
-		return err
-	}, retry.Attempts(3))
-
-	if err != nil {
-		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get users request to Harbor: %w", err))
-	}
-	defer util.CloseBodyWithLog(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusNotFound && canDowngrade {
-			h.apiVersionString = "api"
-			canDowngrade = false
-			log.Warn().Err(err).Msgf("Harbor connectivity check got 404, will try to downgrade API version")
-			return h.TestConnectionAndAdminPrivileges(ctx, canDowngrade)
-		}
-
-		var errorResp harborHTTPErrorResp
-		var rawBodyBuf bytes.Buffer
-		teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-		err = json.NewDecoder(teeReader).Decode(&errorResp)
+	respHandle := func(resp *http.Response, err error) error {
 		if err != nil {
-			log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
-			return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get users request to Harbor: %w", err))
 		}
 
-		if resp.StatusCode == http.StatusUnauthorized {
-			return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized: %+v", errorResp))
-		} else if resp.StatusCode == http.StatusForbidden {
-			return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
-		} else {
-			return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode == http.StatusNotFound && canDowngrade {
+				h.apiVersionString = "api"
+				canDowngrade = false
+				log.Warn().Err(err).Msgf("Harbor connectivity check got 404, will try to downgrade API version")
+				return h.TestConnectionAndAdminPrivileges(ctx, canDowngrade)
+			}
+
+			var errorResp harborHTTPErrorResp
+			var rawBodyBuf bytes.Buffer
+			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+			err = json.NewDecoder(teeReader).Decode(&errorResp)
+			if err != nil {
+				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor")
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+			}
+
+			if resp.StatusCode == http.StatusUnauthorized {
+				return NewHarborUnauthorizedError(resp.StatusCode, fmt.Errorf("Harbor API returned status Unauthorized: %+v", errorResp))
+			} else if resp.StatusCode == http.StatusForbidden {
+				return NewHarborForbiddenError(resp.StatusCode, fmt.Errorf("Harbor API returned status Forbidden: %+v", errorResp))
+			} else {
+				return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+			}
 		}
+		return nil
 	}
-
-	return nil
+	return util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 }
 
 func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, string, error) {
@@ -495,49 +442,39 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, st
 			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare get projects request to Harbor: %+v", err))
 		}
 		req.SetBasicAuth(h.username, h.password)
-		var resp *http.Response
 
-		err = util.RetryWithBackoff(ctx, func() error {
-			var err error
-			resp, err = h.httpCli.Do(req.WithContext(ctx))
-			if err == nil {
-				if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-					return fmt.Errorf("status code is %d", resp.StatusCode)
-				}
-				return nil
-			}
-			return err
-
-		}, retry.Attempts(3))
-		if err != nil {
-			return nil, "", NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %+v", err))
-		}
-
-		defer util.CloseBodyWithLog(resp.Body)
-
-		if resp.StatusCode != http.StatusOK {
-			var errorResp harborHTTPErrorResp
-			var rawBodyBuf bytes.Buffer
-			teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-			err = json.NewDecoder(teeReader).Decode(&errorResp)
+		respHandle := func(resp *http.Response, err error) error {
 			if err != nil {
-				log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor:%+v", err)
-				return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+				return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send get projects request to Harbor: %+v", err))
 			}
+			if resp.StatusCode != http.StatusOK {
+				var errorResp harborHTTPErrorResp
+				var rawBodyBuf bytes.Buffer
+				teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+				err = json.NewDecoder(teeReader).Decode(&errorResp)
+				if err != nil {
+					log.Error().Err(err).Str("rawBody", rawBodyBuf.String()).Msgf("Failed to decode error message from Harbor:%+v", err)
+					return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode error message from Harbor: %w", err))
+				}
 
-			return nil, "", NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+				return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+			}
+			var respItemsTmp []RespItemT
+			err = json.NewDecoder(resp.Body).Decode(&respItemsTmp)
+			if err != nil {
+				return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
+			}
+			respItems = append(respItems, respItemsTmp...)
+			if len(respItemsTmp) < 100 {
+				loop = false
+			} else {
+				page++
+			}
+			return nil
 		}
-		var respItemsTmp []RespItemT
-		err = json.NewDecoder(resp.Body).Decode(&respItemsTmp)
+		err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 		if err != nil {
-			return nil, "", NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
-		}
-
-		respItems = append(respItems, respItemsTmp...)
-		if len(respItemsTmp) < 100 {
-			loop = false
-		} else {
-			page++
+			return nil, "", err
 		}
 	}
 
@@ -547,7 +484,8 @@ func (h HarborRESTClient) GetHarborProject(ctx context.Context) ([]RespItemT, st
 func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []RespItemT) ([]Repositories, error) {
 	//api/v2.0/projects/tensorsecurity/repositories?page_size=15&page=1 v2
 	//api/repositories?page=1&page_size=15&project_id=2 v1
-	var RepositoriesSlice []Repositories
+	var repositoriesSlice []Repositories
+	var err error
 
 	for _, v := range rest {
 		var (
@@ -555,7 +493,6 @@ func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []RespItemT)
 			loop = true
 		)
 		for loop {
-
 			url := fmt.Sprintf("%s/%s/projects/%s/repositories?page="+strconv.Itoa(page)+"&page_size=100", h.address, h.apiVersionString, v.Name)
 			if h.apiVersionString == "api" {
 				url = fmt.Sprintf("%s/%s/repositories?page="+strconv.Itoa(page)+"&page_size=100&project_id=%d", h.address, h.apiVersionString, v.ProjectID)
@@ -570,60 +507,55 @@ func (h HarborRESTClient) GetRepositories(ctx context.Context, rest []RespItemT)
 			}
 			req.SetBasicAuth(h.username, h.password)
 
-			var resp *http.Response
-			err = util.RetryWithBackoff(ctx, func() error {
-				var err error
-				resp, err = h.httpCli.Do(req.WithContext(ctx))
-				if err == nil {
-					if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-						return fmt.Errorf("status code is %d", resp.StatusCode)
-					}
-					return nil
-				}
-				return err
-			}, retry.Attempts(3))
-			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
-				loop = false
-				continue
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				var errorResp harborHTTPErrorResp
-				var rawBodyBuf bytes.Buffer
-				teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
-				err = json.NewDecoder(teeReader).Decode(&errorResp)
+			respHandle := func(resp *http.Response, err error) error {
 				if err != nil {
-					logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+					logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
 					loop = false
-					continue
+					return err
 				}
-				logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
-				loop = false
-				continue
-			}
-			var repos []Repositories
+				if resp.StatusCode != http.StatusOK {
+					var errorResp harborHTTPErrorResp
+					var rawBodyBuf bytes.Buffer
+					teeReader := io.TeeReader(resp.Body, &rawBodyBuf)
+					err = json.NewDecoder(teeReader).Decode(&errorResp)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+						loop = false
+						return err
+					}
+					logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
+					loop = false
+					return NewHarborError(resp.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
+				}
+				var repos []Repositories
 
-			err = json.NewDecoder(resp.Body).Decode(&repos)
+				err = json.NewDecoder(resp.Body).Decode(&repos)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+					loop = false
+					return err
+				}
+
+				repositoriesSlice = append(repositoriesSlice, repos...)
+				if len(repos) < 100 {
+					loop = false
+				} else {
+					page++
+				}
+				return nil
+			}
+			err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
 			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
-				loop = false
-				continue
+				return repositoriesSlice, err
 			}
 
-			RepositoriesSlice = append(RepositoriesSlice, repos...)
-			if len(repos) < 100 {
-				loop = false
-			} else {
-				page++
-			}
 		}
 	}
-	return RepositoriesSlice, nil
+	return repositoriesSlice, err
 }
 
 func (h HarborRESTClient) GetAllArtifacts(ctx context.Context, repo []Repositories) (model.Artifacts, error) {
-	var ArtifactsSlice model.Artifacts
+	var artifactsSlice model.Artifacts
 
 	for _, v := range repo {
 		var (
@@ -644,6 +576,7 @@ func (h HarborRESTClient) GetAllArtifacts(ctx context.Context, repo []Repositori
 			}
 
 			req, err := http.NewRequest("GET", url, nil)
+
 			if err != nil {
 				logging.GetLogger().Error().Msgf("Failed to repositories get projects request to Harbor: %w", err)
 				loop = false
@@ -651,90 +584,82 @@ func (h HarborRESTClient) GetAllArtifacts(ctx context.Context, repo []Repositori
 			}
 			req.SetBasicAuth(h.username, h.password)
 
-			var response *http.Response
-			err = util.RetryWithBackoff(ctx, func() error {
-				var err error
-				response, err = h.httpCli.Do(req.WithContext(ctx))
-				if err == nil {
-					if response.StatusCode != http.StatusOK && response.StatusCode >= 500 {
-						return fmt.Errorf("status code is %d", response.StatusCode)
-					}
-					return nil
-				}
-				return err
-			}, retry.Attempts(3))
-
-			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
-				loop = false
-				continue
-			}
-
-			if response.StatusCode != http.StatusOK {
-				var errorResp harborHTTPErrorResp
-				var rawBodyBuf bytes.Buffer
-				teeReader := io.TeeReader(response.Body, &rawBodyBuf)
-				err = json.NewDecoder(teeReader).Decode(&errorResp)
+			respHandle := func(response *http.Response, err error) error {
 				if err != nil {
-					logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+					logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
 					loop = false
-					continue
+					return err
 				}
-				logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
-				loop = false
-				continue
-			}
 
-			if h.apiVersionString != "api" { //v2
-				var artif []model.Artifacts2
-				err = json.NewDecoder(response.Body).Decode(&artif)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
-					loop = false
-					break
-				}
-				for i := range artif {
-					artif[i].FullRepoName = v.Name
-				}
-				ArtifactsSlice.Af2 = append(ArtifactsSlice.Af2, artif...)
-				if h.apiVersionString != "api" {
-					if len(artif) < 100 {
+				if response.StatusCode != http.StatusOK {
+					var errorResp harborHTTPErrorResp
+					var rawBodyBuf bytes.Buffer
+					teeReader := io.TeeReader(response.Body, &rawBodyBuf)
+					err = json.NewDecoder(teeReader).Decode(&errorResp)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
 						loop = false
-					} else {
-						page++
+						return err
 					}
-				}
-			} else {
-				var artif []model.Artifacts1
-
-				err = json.NewDecoder(response.Body).Decode(&artif)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+					logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
 					loop = false
-					break
+					return NewHarborError(response.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
 				}
-				for i := range artif {
-					artif[i].FullRepoName = v.Name
+
+				if h.apiVersionString != "api" { //v2
+					var artif []model.Artifacts2
+					err = json.NewDecoder(response.Body).Decode(&artif)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+						loop = false
+						return err
+					}
+					for i := range artif {
+						artif[i].FullRepoName = v.Name
+					}
+					artifactsSlice.Af2 = append(artifactsSlice.Af2, artif...)
+					if h.apiVersionString != "api" {
+						if len(artif) < 100 {
+							loop = false
+						} else {
+							page++
+						}
+					}
+				} else {
+					var artif []model.Artifacts1
+
+					err = json.NewDecoder(response.Body).Decode(&artif)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+						loop = false
+						return err
+					}
+					for i := range artif {
+						artif[i].FullRepoName = v.Name
+					}
+					artifactsSlice.Af1 = append(artifactsSlice.Af1, artif...)
 				}
-				ArtifactsSlice.Af1 = append(ArtifactsSlice.Af1, artif...)
+				return nil
+			}
+			err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
+			if err != nil {
+				return artifactsSlice, err
 			}
 		}
-
 	}
 
-	return ArtifactsSlice, nil
+	return artifactsSlice, nil
 
 }
 
 func (h HarborRESTClient) GetOneArtifacts(fullRepoName string) (model.Artifacts, error) {
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	var (
 		page           = 1
 		loop           = true
-		ArtifactsSlice model.Artifacts
+		artifactsSlice model.Artifacts
 	)
 
 	for loop {
@@ -758,75 +683,70 @@ func (h HarborRESTClient) GetOneArtifacts(fullRepoName string) (model.Artifacts,
 		}
 		req.SetBasicAuth(h.username, h.password)
 
-		var response *http.Response
-		err = util.RetryWithBackoff(ctx, func() error {
-			var err error
-			response, err = h.httpCli.Do(req.WithContext(ctx))
-			if err == nil {
-				if response.StatusCode != http.StatusOK && response.StatusCode >= 500 {
-					return fmt.Errorf("status code is %d", response.StatusCode)
-				}
-				return nil
-			}
-			return err
-		}, retry.Attempts(3))
-
-		if err != nil {
-			logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
-			loop = false
-			break
-		}
-
-		if response.StatusCode != http.StatusOK {
-			var errorResp harborHTTPErrorResp
-			var rawBodyBuf bytes.Buffer
-			teeReader := io.TeeReader(response.Body, &rawBodyBuf)
-			err = json.NewDecoder(teeReader).Decode(&errorResp)
+		respHandle := func(response *http.Response, err error) error {
 			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+				logging.GetLogger().Error().Msgf("Failed to send get repositories request to Harbor: %w", err)
 				loop = false
-				break
+				return err
 			}
-			logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
-			loop = false
-			break
-		}
 
-		if h.apiVersionString != "api" { //v2
-			var artif []model.Artifacts2
-			err = json.NewDecoder(response.Body).Decode(&artif)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
-				loop = false
-				break
-			}
-			for i := range artif {
-				artif[i].FullRepoName = fullRepoName
-			}
-			ArtifactsSlice.Af2 = append(ArtifactsSlice.Af2, artif...)
-			if h.apiVersionString != "api" {
-				if len(artif) < 100 {
+			if response.StatusCode != http.StatusOK {
+				var errorResp harborHTTPErrorResp
+				var rawBodyBuf bytes.Buffer
+				teeReader := io.TeeReader(response.Body, &rawBodyBuf)
+				err = json.NewDecoder(teeReader).Decode(&errorResp)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
 					loop = false
-				} else {
-					page++
+					return err
 				}
-			}
-		} else {
-			var artif []model.Artifacts1
-
-			err = json.NewDecoder(response.Body).Decode(&artif)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+				logging.GetLogger().Error().Msgf("Harbor API returned error: %+v", errorResp)
 				loop = false
-				break
+				return NewHarborError(response.StatusCode, fmt.Errorf("Harbor API returned error: %+v", errorResp))
 			}
-			for i := range artif {
-				artif[i].FullRepoName = fullRepoName
+
+			if h.apiVersionString != "api" { //v2
+				var artif []model.Artifacts2
+				err = json.NewDecoder(response.Body).Decode(&artif)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+					loop = false
+					return err
+				}
+				for i := range artif {
+					artif[i].FullRepoName = fullRepoName
+				}
+				artifactsSlice.Af2 = append(artifactsSlice.Af2, artif...)
+				if h.apiVersionString != "api" {
+					if len(artif) < 100 {
+						loop = false
+					} else {
+						page++
+					}
+				}
+			} else {
+				var artif []model.Artifacts1
+
+				err = json.NewDecoder(response.Body).Decode(&artif)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("Failed to decode message from Harbor: %w", err)
+					loop = false
+					return err
+				}
+				for i := range artif {
+					artif[i].FullRepoName = fullRepoName
+				}
+				artifactsSlice.Af1 = append(artifactsSlice.Af1, artif...)
 			}
-			ArtifactsSlice.Af1 = append(ArtifactsSlice.Af1, artif...)
+			return nil
 		}
+		err = util.HTTPRequest(ctx, h.httpCli, req, respHandle, retry.Attempts(3))
+		if err != nil {
+			return artifactsSlice, err
+		}
+
 	}
-	return ArtifactsSlice, nil
+	return artifactsSlice, nil
 }
 
 func (h HarborRESTClient) GetApiVersionString() string {

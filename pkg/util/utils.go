@@ -58,6 +58,12 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) err
 }
 
 func CloseBodyWithLog(body io.ReadCloser) {
+	defer func() {
+		// prevent close it twice causing panic
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when closing ReadCloser: %v", r)
+		}
+	}()
 	err := body.Close()
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to close body, but ignoring")
