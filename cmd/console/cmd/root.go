@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -93,12 +92,7 @@ var rootCmd = &cobra.Command{
 			Str("username", elasticOpts.Username).
 			Msg("Elastic options")
 
-		rulesOpts := flag.GetRulesOpts(cmd)
-		logging.GetLogger().Info().
-			Str("available-rules-folder", rulesOpts.AvailableRulesFolder).
-			Msg("Rules options")
-
-		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, rulesOpts, harborOpts, emailOpts)
+		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts)
 		if err != nil {
 			return err
 		}
@@ -130,7 +124,6 @@ func init() {
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
 	flag.AddElasticFlags(rootCmd)
-	flag.AddRulesFlags(rootCmd)
 	flag.AddHarborFlags(rootCmd)
 	flag.AddEmailOpts(rootCmd)
 
