@@ -4,13 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-
-	"github.com/olivere/elastic/v7"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-
 	"net/http"
 	"reflect"
 	"regexp"
@@ -23,19 +16,22 @@ import (
 	"github.com/go-redis/redis/v8"
 	version "github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
-
+	"github.com/olivere/elastic/v7"
 	"github.com/patrickmn/go-cache"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -53,7 +49,6 @@ type api struct {
 	cronService    *cron.CronService
 	clusterService *cluster.ClusterService
 	redisClient    *redis.Client
-	ruleService    *rule.RuleService
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService
 	dataService    *data.Service
 	scannerService *scanner.ScannerService
@@ -82,7 +77,6 @@ func newAPI(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	ruleService *rule.RuleService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	dataService *data.Service,
 	scannerService *scanner.ScannerService,
@@ -105,7 +99,6 @@ func newAPI(
 		cronService:                 cronService,
 		clusterService:              clusterService,
 		redisClient:                 redisClient,
-		ruleService:                 ruleService,
 		onlineVulnsSvc:              onlineVulnsSvc,
 		dataService:                 dataService,
 		scannerService:              scannerService,

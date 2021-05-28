@@ -8,7 +8,6 @@ import (
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -37,23 +36,6 @@ type LoginResponse struct {
 	Status           string `json:"status"`
 	Type             string `json:"type"`
 	Token            string `json:"token"`
-}
-
-func (api *api) restAuth() func(chi.Router) {
-	return func(r chi.Router) {
-		r.Post("/login", api.login())
-		r.Post("/forgetpwd", api.forgetPwd())
-		r.Post("/activeuser", api.activeUser())
-		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Post("/logout", api.logout())
-		})
-		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
-			r.Get("/user", user)
-		})
-	}
 }
 
 // @Summary Login API

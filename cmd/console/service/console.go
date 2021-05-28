@@ -5,16 +5,11 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
-	"strconv"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"os"
 	"runtime/debug"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,12 +20,13 @@ import (
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -51,7 +47,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"gopkg.in/yaml.v2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
@@ -90,7 +85,6 @@ type Console struct {
 	postgresDB         *rdbtools.GormWrapper
 	es                 *elastic.Client
 	cronService        *cron.CronService
-	ruleService        *rule.RuleService
 	clusterService     *cluster.ClusterService
 	onlineVulnsService *assetsSvc.OnlineVulnsService
 	svcAssetsService   *assetsSvc.ServiceAssetsService
@@ -192,9 +186,6 @@ func NewConsole(
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
-
-	// rule service
-	ruleService := rule.NewRuleService(mainCtx, rulesOpts.AvailableRulesFolder, mongoDBWrapper, redisClient)
 
 	// harbor client
 	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
@@ -301,7 +292,6 @@ func NewConsole(
 				cronService,
 				clusterService,
 				redisClient,
-				ruleService,
 				onlineVulnsSvc,
 				dataService,
 				scannerService,
@@ -321,7 +311,6 @@ func NewConsole(
 		ctx:                mainCtx,
 		cancel:             mainCancel,
 		clusterService:     clusterService,
-		ruleService:        ruleService,
 		onlineVulnsService: onlineVulnsSvc,
 		svcAssetsService:   svcAssetsSvc,
 		dataService:        dataService,
@@ -385,14 +374,6 @@ func (c *Console) Run() func() {
 	err = addDefaultCluster(ctx, c.mongoDB)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
-	}
-
-	err = initializeRulesDefinitions(ctx, c.ruleService, c.mongoDB)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When initializing rules definitions")
-		panic(fmt.Errorf("When initializing rules definitions: %w", err))
 	}
 
 	kubeClient, _, err := getCurrentKubeClientWithServiceAccount()
@@ -482,74 +463,6 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	db.Get().Table(model.Url{}.TableName()).Create(&url2)
 	db.Get().Table(model.Url{}.TableName()).Create(&url3)
 
-	return nil
-}
-
-func initializeRulesDefinitions(ctx context.Context, rulesService *rule.RuleService, mongodb *mongotools.DatabaseWrapper) error {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	availableRulesFiles, err := ioutil.ReadDir(rulesService.AvailableRulesFolderPath)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range availableRulesFiles {
-		filenameSplit := strings.Split(file.Name(), ".yaml")
-		if len(filenameSplit) <= 1 {
-			continue
-		}
-		ruleName := filenameSplit[0]
-		logging.GetLogger().Info().Str("rule", ruleName).Msg("Processing rule")
-
-		var ruleDefinition model.RuleDefinition
-		filter := bson.M{"name_en": ruleName}
-
-		opts := options.FindOne().SetMaxTime(500 * time.Millisecond)
-		queryResult := mongodb.Get().Collection(model.RulesDefinitionsCollection.String()).FindOne(ctx, filter, opts)
-		if queryResult.Err() != nil {
-			if queryResult.Err() == mongo.ErrNoDocuments {
-				logging.GetLogger().Info().Str("rule", ruleName).Msg("Rule definition not present in the db")
-				ruleYamlFile, err := ioutil.ReadFile(rulesService.AvailableRulesFolderPath + "/" + file.Name())
-				if err != nil {
-					return NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot read rule definition %s: %w", rulesService.AvailableRulesFolderPath+"/"+file.Name(), err))
-				}
-				err = yaml.Unmarshal(ruleYamlFile, &ruleDefinition)
-				if err != nil {
-					return NewRulesError(http.StatusInternalServerError, fmt.Errorf("Cannot unmarshal rules definition %s: %w", rulesService.AvailableRulesFolderPath+"/"+file.Name(), err))
-				}
-				logging.GetLogger().Info().Str("rule", file.Name()).Msg("Rule successfully parsed")
-
-				ruleDefinition.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = mongodb.Get().Collection(model.RulesDefinitionsCollection.String()).InsertOne(ctx, ruleDefinition)
-				if err != nil {
-					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
-				}
-
-				var newRule model.Rule
-
-				newRule.NameEn = ruleDefinition.NameEn
-				newRule.CreatedAt = time.Now()
-				newRule.NameZh = ruleDefinition.NameZh
-				newRule.DescriptionEn = ruleDefinition.DescriptionEn
-				newRule.DescriptionZh = ruleDefinition.DescriptionZh
-				newRule.Cvss3Score = ruleDefinition.Cvss3Score
-				newRule.Enabled = false
-				newRule.Cvss3Vector = ruleDefinition.Cvss3Vector
-				newRule.Cvss2Score = ruleDefinition.Cvss2Score
-				newRule.Cvss2Vector = ruleDefinition.Cvss2Vector
-				newRule.ID = primitive.NewObjectIDFromTimestamp(time.Now())
-				_, err = mongodb.Get().Collection(model.RulesCollection.String()).InsertOne(ctx, newRule)
-				if err != nil {
-					return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", err))
-				}
-			} else {
-				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get document: %w", queryResult.Err()))
-			}
-		} else {
-			logging.GetLogger().Info().Str("rule", ruleName).Msg("Rule definition already exists")
-		}
-	}
 	return nil
 }
 
