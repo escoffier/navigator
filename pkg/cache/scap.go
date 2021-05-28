@@ -59,6 +59,55 @@ func NewScapCache(
 	return c, nil
 }
 
+func (c *ScapCache) doRefreshClusterCacheKeys(ctx context.Context, checkType model.ComplianceCheckType) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	clusterFilter := bson.M{}
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, 1*time.Second)
+	defer mongoCtxCancel()
+
+	clusterFindOptions := options.FindOptions{}
+	clusterFindOptions.SetSort(bson.D{{"createdAt", -1}})
+	clusterFindOptions.SetMaxTime(1 * time.Second)
+	clusterCursor, err := c.mongodb.Get().Collection(model.ClusterCollection.String()).Find(mongoCtx, clusterFilter, &clusterFindOptions)
+	if err != nil {
+		logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w ", err)))
+		return
+	}
+	defer clusterCursor.Close(mongoCtx)
+	for _, checkType := range []model.ComplianceCheckType{model.ComplianceCheckTargetTypeDocker, model.ComplianceCheckTargetTypeHost, model.ComplianceCheckTargetTypeKube} {
+		for _, sortBy := range model.GetScapSortableNames() {
+			mongoSortableField := model.GetScapSortableField(sortBy)
+			for clusterCursor.Next(mongoCtx) {
+				var cluster model.Cluster
+				err := clusterCursor.Decode(&cluster)
+				if err != nil {
+					logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document error: %w ", err)))
+					continue
+				}
+				if cluster.DeletedAt.IsZero() {
+					if !c.ch.ExistsInRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField) {
+						fmt.Println(string(checkType), cluster.ID.Hex(), mongoSortableField)
+						c.ch.AddToRegistry(c.getScapData(checkType, cluster.ID.Hex(), mongoSortableField), string(checkType), cluster.ID.Hex(), mongoSortableField)
+					}
+				} else {
+					if c.ch.ExistsInRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField) {
+						fmt.Println(string(checkType), cluster.ID.Hex(), mongoSortableField)
+						c.ch.RemoveFromRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField)
+					}
+				}
+			}
+			err = clusterCursor.Err()
+			if err != nil {
+				logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("mongo cursor error: %w", err)))
+			}
+		}
+	}
+}
 func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model.ComplianceCheckType) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -66,51 +115,13 @@ func (c *ScapCache) refreshClusterCacheKeys(ctx context.Context, checkType model
 		}
 	}()
 
+	ticker := time.NewTicker(clusterRefreshInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-time.After(clusterRefreshInterval):
-			clusterFilter := bson.M{}
-
-			mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, 10*time.Second)
-			defer mongoCtxCancel()
-
-			clusterFindOptions := options.FindOptions{}
-			clusterFindOptions.SetSort(bson.D{{"createdAt", -1}})
-			clusterFindOptions.SetMaxTime(10 * time.Second)
-			clusterCursor, err := c.mongodb.Get().Collection(model.ClusterCollection.String()).Find(mongoCtx, clusterFilter, &clusterFindOptions)
-			if err != nil {
-				logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w ", err)))
-				continue
-			}
-			defer clusterCursor.Close(mongoCtx)
-			for _, checkType := range []model.ComplianceCheckType{model.ComplianceCheckTargetTypeDocker, model.ComplianceCheckTargetTypeHost, model.ComplianceCheckTargetTypeKube} {
-				for _, sortBy := range model.GetScapSortableNames() {
-					mongoSortableField := model.GetScapSortableField(sortBy)
-					for clusterCursor.Next(mongoCtx) {
-						var cluster model.Cluster
-						err := clusterCursor.Decode(&cluster)
-						if err != nil {
-							logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document error: %w ", err)))
-							continue
-						}
-						if cluster.DeletedAt.IsZero() {
-							if !c.ch.ExistsInRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField) {
-								fmt.Println(string(checkType), cluster.ID.Hex(), mongoSortableField)
-								c.ch.AddToRegistry(c.getScapData(checkType, cluster.ID.Hex(), mongoSortableField), string(checkType), cluster.ID.Hex(), mongoSortableField)
-							}
-						} else {
-							if c.ch.ExistsInRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField) {
-								fmt.Println(string(checkType), cluster.ID.Hex(), mongoSortableField)
-								c.ch.RemoveFromRegistry(string(checkType), cluster.ID.Hex(), mongoSortableField)
-							}
-						}
-					}
-					err = clusterCursor.Err()
-					if err != nil {
-						logging.GetLogger().Error().Str("checkType", string(checkType)).Err(NewAnError(http.StatusInternalServerError, fmt.Errorf("mongo cursor error: %w", err)))
-					}
-				}
-			}
+		case <-ticker.C:
+			c.doRefreshClusterCacheKeys(ctx, checkType)
 		}
 	}
 }
@@ -170,7 +181,7 @@ func (c *ScapCache) getScapData(checkType model.ComplianceCheckType, clusterID s
 			filter["clusterId"] = clusterID
 		}
 
-		findOptions := options.Find().SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}}).SetMaxTime(10 * time.Second)
+		findOptions := options.Find().SetSort(bson.D{{sortBy, util.SortOrderToInt("asc")}}).SetMaxTime(5 * time.Second)
 
 		scapIds, err := dataToIds(c.ctx, filter, findOptions, c.mongodb.Get().Collection(model.CheckHistoryEntryCollection.String()))
 		if err != nil {
