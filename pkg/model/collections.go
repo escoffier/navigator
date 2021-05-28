@@ -3,11 +3,8 @@ package model
 type Collection int
 
 const (
-	AlertsCollection Collection = iota
-	AssetsContainersCollection
+	AssetsContainersCollection Collection = iota
 	ClusterCollection
-	RulesCollection
-	RulesDefinitionsCollection
 	ScanTasksCollection
 	ComplianceCheckResults
 	ComplianceCheckKubeRecordsCollection
@@ -33,11 +30,8 @@ const (
 
 func GetCollectionNames() []string {
 	return []string{
-		"alerts",
 		"assets-containers",
 		"cluster",
-		"rules",
-		"rulesDefinitions",
 		"scantasks",
 		"complianceCheckResults",
 		"kube-bench-records",

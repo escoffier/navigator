@@ -1136,12 +1136,6 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(ctx context.Context, check *scapper
 			s.updateScapReports(mongoCtx, check, false)
 			if len(runningNodeNames) == 0 {
 				logging.GetLogger().Info().Str("checkId", check.CheckUUID.String()).Msg("All managed jobs accounted for, done watching for events")
-
-				err := s.generateAlerts(ctx, check)
-				if err != nil {
-					logging.GetLogger().Error().Str("checkId", check.CheckUUID.String()).Msg("Failed to generate alerts")
-				}
-
 				return
 			}
 		}

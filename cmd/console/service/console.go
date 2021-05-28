@@ -103,7 +103,6 @@ func NewConsole(
 	scapOpts *flag.ScapOpts,
 	redisOpts *flag.RedisOpts,
 	elasticOpts *flag.ElasticOpts,
-	rulesOpts *flag.RulesOpts,
 	harborOpts *flag.HarborOpts,
 	emailOpts *flag.EmailOpts,
 ) (*Console, error) {
@@ -623,40 +622,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 		{
 			Keys: bson.M{
 				"digest": 1,
-			}, Options: nil,
-		},
-	}
-	neededIndexesPerCollection[model.AlertsCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"timestamp": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"alertKind": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"imageScanAlert.elasticId": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"runtimeDetectionAlert.containerId": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"active": 1,
-			}, Options: nil,
-		},
-	}
-	neededIndexesPerCollection[model.RulesCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"name": 1,
 			}, Options: nil,
 		},
 	}

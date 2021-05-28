@@ -54,7 +54,6 @@ spec:
           "--redis-endpoint=tensorsec-redis-master:6379",
           "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
           "--scap-job-tag={{ .Values.scap.tag }}",
-          "--available-rules-folder=/available-rules",
           "--elastic-host={{ .Values.elastic.host }}",
           "--elastic-port={{ .Values.elastic.port }}",
           "--elastic-index={{ .Values.elastic.index }}",
