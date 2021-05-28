@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"io/ioutil"
 	"net/http"
 	"runtime/debug"
@@ -21,8 +19,9 @@ import (
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -46,7 +45,6 @@ func setupChiRouter(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	ruleService *rule.RuleService,
 	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
 	dataService *data.Service,
 	scannerService *scanner.ScannerService,
@@ -82,7 +80,6 @@ func setupChiRouter(
 		cronService,
 		clusterService,
 		redisClient,
-		ruleService,
 		onlineVulnsSvc,
 		dataService,
 		scannerService,

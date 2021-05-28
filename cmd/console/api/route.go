@@ -3,9 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"net/http"
 	"strings"
 	"time"
@@ -18,8 +15,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/rule"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -28,6 +26,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -61,7 +60,6 @@ func SetupRoutes(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	ruleService *rule.RuleService,
 	onlineVulnsSvc *assets.OnlineVulnsService,
 	dataService *data.Service,
 	scannerService *scanner.ScannerService,
@@ -83,7 +81,6 @@ func SetupRoutes(
 		cronService,
 		clusterService,
 		redisClient,
-		ruleService,
 		onlineVulnsSvc,
 		dataService,
 		scannerService,
@@ -96,38 +93,8 @@ func SetupRoutes(
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Route("/auth", api.restAuth())
-
-		// needs authentication
-		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
-
-			r.Route("/config", api.config())
-			r.Route("/scanner", api.scanner())
-			r.Route("/scap", api.scap())
-			r.Route("/microservice", api.Microservice())
-			r.Route("/onlineVulnerabilities", api.onlineVulnerabilities())
-			r.Route("/riskExplorer", api.riskExplorer())
-			r.Route("/runtimeDetectionConfig", api.runtimeDetectionConfig())
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
-			r.Route("/superAdmin", api.superAdmin())
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAllPass(api.userCache))
-			r.Route("/user", api.user())
-		})
-	})
 
 	//api v2
-
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Route("/usercenter", api.userCenter())
 		r.Group(func(r chi.Router) {
