@@ -1,6 +1,9 @@
 # Note - container OS does *not* need to be the same as scanned host's OS. 
 # FROM centos:centos8
-FROM fedora:31
+FROM fedora:32
+
+ARG MIRROR=
+RUN if [ "$MIRROR" == "true" ] ; then /bin/curl -o /etc/yum.repos.d/fedora.repo http://mirrors.aliyun.com/repo/fedora.repo ; fi
 
 RUN yum install -y dnf-plugins-core
 # This repo contains mongodb-org-tools (https://docs.mongodb.com/manual/tutorial/install-mongodb-on-red-hat/)
