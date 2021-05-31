@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"gorm.io/gorm"
 	"net/http"
 	"strings"
 	"time"
@@ -28,11 +29,11 @@ const SCAN_SERVICE = "service"
 
 const OverviewOnlineSQL = `SELECT qt.id, COUNT(qt.id) 
 FROM tensor_image_list il LEFT JOIN tensor_question qt ON il.digest = qt.digest 
-WHERE il.status = 0 AND il.on_line_count > 0 GROUP BY qt.id;
+WHERE il.status = 0 AND il.on_line_count > 0  and qt.id >=0 GROUP BY qt.id;
 `
 const OverviewTotalSQL = `SELECT qt.id, COUNT(qt.id) 
 FROM tensor_image_list il LEFT JOIN tensor_question qt ON il.digest = qt.digest 
-WHERE il.status = 0 GROUP BY qt.id;
+WHERE il.status = 0  and qt.id >=0 GROUP BY qt.id;
 `
 
 type ScannerService struct {
@@ -240,29 +241,19 @@ func (s *ScannerService) GetServiceScanImagesStatus(ctx context.Context, namespa
 }
 
 func (s *ScannerService) GetImageList(ctx context.Context, offset int64, limit int64, search, online, kind string) ([]model.ImageList, int64, error) {
-	kingType := false
-	kingDigest := make([]string, 0)
+
+	pctx, postgresDBCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer postgresDBCancel()
+	db := s.postgresDB.Get().WithContext(pctx)
+	var subQuery1 *gorm.DB
 
 	if kind != "" {
 		kindSlie := strings.Split(kind, ",")
 		if len(kindSlie) != 0 {
-			kingType = true
-			var qs []model.QuestionInfo
-			qctx, qcancel := context.WithTimeout(ctx, 2*time.Second)
-			defer qcancel()
-			err := s.postgresDB.Get().WithContext(qctx).Where("ID in (?)", kindSlie).Find(&qs).Error
-			if err == nil {
-				for i := range qs {
-					kingDigest = append(kingDigest, qs[i].Digest)
-				}
-			}
+			subQuery1 = s.postgresDB.Get().WithContext(pctx).Model(&model.QuestionInfo{}).Select("digest").Where("ID in (?)", kindSlie)
+			db = db.Where("digest in (?)", subQuery1)
 		}
 	}
-
-	pctx, postgresDBCancel := context.WithTimeout(ctx, 2*time.Second)
-	defer postgresDBCancel()
-
-	db := s.postgresDB.Get().WithContext(pctx)
 
 	if search != "" {
 		idx := strings.LastIndex(search, ":")
@@ -274,16 +265,12 @@ func (s *ScannerService) GetImageList(ctx context.Context, offset int64, limit i
 			flike := "%" + search + "%"
 			db = db.Where(" full_repo_name like ? ", flike)
 		}
-
 	}
 
 	if online == "true" {
 		db = db.Where(" on_line_count > 0 ")
 	}
 
-	if kingType {
-		db = db.Where("digest in (?)", kingDigest)
-	}
 	db = db.Where("status = ?", 0)
 
 	var im []model.ImageList
