@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"math"
 	"net/http"
 	"os"
@@ -86,7 +87,7 @@ type Console struct {
 	es                 *elastic.Client
 	cronService        *cron.CronService
 	clusterService     *cluster.ClusterService
-	onlineVulnsService *assetsSvc.OnlineVulnsService
+	onlineVulnsService *assetsSvc.AssetsInResourcesService
 	svcAssetsService   *assetsSvc.ServiceAssetsService
 	dataService        *data.Service
 	harborClient       *harbor.HarborRESTClient
@@ -246,7 +247,7 @@ func NewConsole(
 	})
 
 	// online vulns service
-	onlineVulnsSvc := assetsSvc.NewOnlineVulnsService(mongoDBWrapper, postgresDB)
+	onlineVulnsSvc := assetsSvc.NewAssetsInResources(mongoDBWrapper, postgresDB)
 
 	// service assets service
 	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongoDBWrapper)
@@ -277,6 +278,9 @@ func NewConsole(
 
 	riskexplorer.InitAndGetRiskExplorerService(mongoDBWrapper, onlineVulnsSvc)
 
+	// networkTopo service
+	networkTopoService := networktopo.NewNetworkTopoService(postgresDB)
+
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -300,6 +304,7 @@ func NewConsole(
 				emailOpts,
 				imageService,
 				ecCli,
+				networkTopoService,
 			),
 		},
 		monCliWrapper:      mongoCliWrapper,

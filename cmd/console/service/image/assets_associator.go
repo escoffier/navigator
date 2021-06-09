@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gorm.io/gorm"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,6 +29,12 @@ func (a *AssetsImageAssociator) BeforWatchNewCluster(ctx context.Context, cluste
 
 	return &AssociatorClusterCB{
 		parent: a,
+	}
+}
+
+func (a *AssetsImageAssociator) WatchedTypes() map[assets.WatchedType]struct{} {
+	return map[assets.WatchedType]struct{}{
+		assets.Pods2Watch: {},
 	}
 }
 
@@ -112,6 +119,9 @@ func (a *AssociatorClusterCB) imageListOnlineSet(ctx context.Context, add bool, 
 	return nil
 }
 
+func (a *AssociatorClusterCB) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet, action assets.AssetsAction) error {
+	return nil
+}
 func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
 	if action == assets.ActionDelete {
 		for _, container := range oldPod.Status.ContainerStatuses {

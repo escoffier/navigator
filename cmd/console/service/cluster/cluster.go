@@ -26,7 +26,7 @@ import (
 type ClusterService struct {
 	mongodb        *mongotools.DatabaseWrapper
 	postgreDB      *rdbtools.GormWrapper
-	onlineVulnsSvc *assetsSvc.OnlineVulnsService
+	onlineVulnsSvc *assetsSvc.AssetsInResourcesService
 	clustersCache  *rcache.ClustersCache
 }
 
@@ -34,7 +34,7 @@ func NewClusterService(
 	ctx context.Context,
 	postgreDB *rdbtools.GormWrapper,
 	mongodb *mongotools.DatabaseWrapper,
-	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
+	onlineVulnsSvc *assetsSvc.AssetsInResourcesService,
 	redisClient *redis.Client,
 ) *ClusterService {
 	return &ClusterService{

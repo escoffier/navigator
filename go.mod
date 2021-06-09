@@ -3,7 +3,6 @@ module gitlab.com/piccolo_su/vegeta
 go 1.15
 
 require (
-	github.com/360EntSecGroup-Skylar/excelize v1.4.1
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/PuerkitoBio/goquery v1.6.0
 	github.com/avast/retry-go v3.0.0+incompatible
@@ -38,7 +37,6 @@ require (
 	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lib/pq v1.8.0
-	github.com/mattn/go-colorable v0.1.6
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/morikuni/aec v1.0.0 // indirect; indirectgo
 	github.com/mozilla/tls-observatory v0.0.0-20180409132520-8791a200eb40

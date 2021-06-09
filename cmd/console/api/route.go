@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"net/http"
 	"strings"
 	"time"
@@ -60,7 +61,7 @@ func SetupRoutes(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	onlineVulnsSvc *assets.OnlineVulnsService,
+	onlineVulnsSvc *assets.AssetsInResourcesService,
 	dataService *data.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
@@ -69,6 +70,7 @@ func SetupRoutes(
 	emailOpts *flag.EmailOpts,
 	imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
+	networkTopoService *networktopo.NetworkTopoService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
@@ -90,6 +92,7 @@ func SetupRoutes(
 		emailOpts,
 		imageService,
 		ecCli,
+		networkTopoService,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))

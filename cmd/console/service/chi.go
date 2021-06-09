@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"io/ioutil"
 	"net/http"
 	"runtime/debug"
@@ -45,7 +46,7 @@ func setupChiRouter(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
+	onlineVulnsSvc *assetsSvc.AssetsInResourcesService,
 	dataService *data.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
@@ -54,6 +55,7 @@ func setupChiRouter(
 	emailOpts *flag.EmailOpts,
 	imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
+	networkTopoService *networktopo.NetworkTopoService,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil)
@@ -89,6 +91,7 @@ func setupChiRouter(
 		emailOpts,
 		imageService,
 		ecCli,
+		networkTopoService,
 	)
 	go logWorker(es, ch)
 

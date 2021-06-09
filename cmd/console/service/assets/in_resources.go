@@ -21,37 +21,47 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/mgo.v2/bson"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
 
-type OnlineVulnsService struct {
+type AssetsInResourcesService struct {
 	sync.RWMutex
 
 	mongoDB          *mongotools.DatabaseWrapper
 	postgresDB       *rdbtools.GormWrapper
-	clusterCallbacks map[string]*OnlineVulnsClusterCallback
+	clusterCallbacks map[string]*AssetsInResourcesClusterCallback
 	syncedClusters   map[string]struct{}
 }
 
-type OnlineVulnsClusterCallback struct {
+type AssetsInResourcesClusterCallback struct {
 	cluster          string
-	parent           *OnlineVulnsService
+	parent           *AssetsInResourcesService
 	refreshTimestamp int64
+
+	rsToDeploymentCache *sync.Map // string(namespace/name) -> *metav1.OwnerReference
 }
 
-func NewOnlineVulnsService(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) *OnlineVulnsService {
-	return &OnlineVulnsService{
+func NewAssetsInResources(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) *AssetsInResourcesService {
+	return &AssetsInResourcesService{
 		mongoDB:          mongo,
 		postgresDB:       postgresDB,
-		clusterCallbacks: make(map[string]*OnlineVulnsClusterCallback, 2),
+		clusterCallbacks: make(map[string]*AssetsInResourcesClusterCallback, 2),
 		syncedClusters:   make(map[string]struct{}),
 	}
 }
 
-func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Context, cluster string, offset, limit int64) ([]OnlineVulnListItem, error) {
+func (cb *AssetsInResourcesService) WatchedTypes() map[assets.WatchedType]struct{} {
+	return map[assets.WatchedType]struct{}{
+		assets.Pods2Watch:        {},
+		assets.ReplicaSets2Watch: {},
+	}
+}
+
+func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context.Context, cluster string, offset, limit int64) ([]OnlineVulnListItem, error) {
 	refreshTimestamp, ok := cb.getClusterRefreshTimestamp(cluster)
 	if !ok {
 		refreshTimestamp = defaultRefreshTime
@@ -98,50 +108,36 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 			continue
 		}
 
-		services := []string{container.PodOwnerName}
 		nodeType := model.NodeTypeOwnerRef
-		svcService, svcOk := GetServiceAssetsService()
-		if svcOk {
-			// TODO: This should be PodUid, not PodName
-			sinfo, exist := svcService.GetServiceInfoOfPod(cluster, container.PodUID)
-			if exist && sinfo != nil {
-				if len(sinfo.Services()) > 0 {
-					services = sinfo.Services()
-					nodeType = model.NodeTypeService
-				}
+
+		ownerStr := fmt.Sprintf(
+			"%s/%s/%s",
+			container.Namespace,
+			container.PodResourceKind,
+			container.PodResourceName,
+		)
+
+		if _, ok := onlineVulns[ownerStr]; !ok {
+			onlineVulns[ownerStr] = &OnlineVulnListItem{
+				Namespace:            container.Namespace,
+				ResourceKind:         container.PodResourceKind,
+				ResourceName:         container.PodResourceName,
+				ServiceName:          container.PodResourceName,
+				NodeType:             nodeType,
+				RunningContainersSet: make(map[string]bool),
+				RunningPodsSet:       make(map[string]bool),
+				VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),
 			}
 		}
+		vulns := container.Vulnerabilities
 
-		for _, service := range services {
-			ownerStr := fmt.Sprintf(
-				"%s/%s/%s",
-				container.Namespace,
-				container.PodOwnerKind,
-				service,
-			)
-
-			if _, ok := onlineVulns[ownerStr]; !ok {
-				// TODO do we care about sensitive filenames in this
-				onlineVulns[ownerStr] = &OnlineVulnListItem{
-					Namespace:            container.Namespace,
-					ResourceKind:         container.PodOwnerKind,
-					ResourceName:         container.PodOwnerName,
-					ServiceName:          service,
-					NodeType:             nodeType,
-					RunningContainersSet: make(map[string]bool),
-					RunningPodsSet:       make(map[string]bool),
-					VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),
-				}
-			}
-			vulns := container.Vulnerabilities
-
-			containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
-			onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
-			onlineVulns[ownerStr].RunningPodsSet[container.PodName] = true
-			for _, vuln := range vulns {
-				onlineVulns[ownerStr].VulnerabilitiesSet[vuln.ID] = vuln
-			}
+		containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
+		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
+		onlineVulns[ownerStr].RunningPodsSet[container.PodName] = true
+		for _, vuln := range vulns {
+			onlineVulns[ownerStr].VulnerabilitiesSet[vuln.ID] = vuln
 		}
+
 	}
 
 	for _, ov := range onlineVulns {
@@ -196,29 +192,14 @@ func (cb *OnlineVulnsService) ListCurrentOnlineVulnerabilities(ctx context.Conte
 	return onlineVulnsList, nil
 }
 
-func (cb *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context, cluster, namespace, resourceKind, resourceName string) (*OnlineVulnDetails, error) {
+func (cb *AssetsInResourcesService) GetOnlineVulnerabilityDetails(ctx context.Context, cluster, namespace, resourceKind, resourceName string) (*OnlineVulnDetails, error) {
 	filter := bson.M{
 		"$and": []bson.M{
 			{"isDeleted": false},
 			{"namespace": namespace},
-			{"podOwnerKind": resourceKind},
-			{"podOwnerName": resourceName},
+			{"podResourceKind": resourceKind},
+			{"podResourceName": resourceName},
 		},
-	}
-
-	if resourceKind == "service" {
-		//get pod name
-		podNameSlice, err := assets.GetPodNamesFromService(cb.mongoDB.Get(), cluster, namespace, resourceName)
-		if err != nil {
-			return nil, apperror.NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Couldn't get podName from service info : %w", err))
-		}
-		filter = bson.M{
-			"isDeleted": false,
-			"cluster":   cluster,
-			"namespace": namespace,
-			"podName":   bson.M{"$in": podNameSlice},
-		}
 	}
 
 	findOptions := options.Find().SetMaxTime(time.Second * 1)
@@ -314,7 +295,7 @@ func (cb *OnlineVulnsService) GetOnlineVulnerabilityDetails(ctx context.Context,
 	return &ovDetails, nil
 }
 
-func (cb *OnlineVulnsService) sortVulnListItemByOverallSeverity(onlineVulnsList []OnlineVulnListItem, asc bool) {
+func (cb *AssetsInResourcesService) sortVulnListItemByOverallSeverity(onlineVulnsList []OnlineVulnListItem, asc bool) {
 	sort.Slice(onlineVulnsList, func(i, j int) bool {
 		if !asc {
 			i, j = j, i
@@ -322,14 +303,14 @@ func (cb *OnlineVulnsService) sortVulnListItemByOverallSeverity(onlineVulnsList 
 		return onlineVulnsList[i].OverallSeverity < onlineVulnsList[j].OverallSeverity
 	})
 }
-func (cb *OnlineVulnsService) setClusterDataSynced(cluster string) {
+func (cb *AssetsInResourcesService) setClusterDataSynced(cluster string) {
 	cb.Lock()
 	defer cb.Unlock()
 
 	cb.syncedClusters[cluster] = struct{}{}
 }
 
-func (cb *OnlineVulnsService) getClusterRefreshTimestamp(clusterName string) (int64, bool) {
+func (cb *AssetsInResourcesService) getClusterRefreshTimestamp(clusterName string) (int64, bool) {
 	cb.RLock()
 	defer cb.RUnlock()
 
@@ -342,13 +323,14 @@ func (cb *OnlineVulnsService) getClusterRefreshTimestamp(clusterName string) (in
 }
 
 // BeforWatchNewCluster called before watch events
-func (cb *OnlineVulnsService) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
+func (cb *AssetsInResourcesService) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
 	logging.GetLogger().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
 
-	ccb := &OnlineVulnsClusterCallback{
-		cluster:          clusterName,
-		parent:           cb,
-		refreshTimestamp: time.Now().Unix(),
+	ccb := &AssetsInResourcesClusterCallback{
+		cluster:             clusterName,
+		parent:              cb,
+		refreshTimestamp:    time.Now().Unix(),
+		rsToDeploymentCache: new(sync.Map),
 	}
 	cb.Lock()
 	defer cb.Unlock()
@@ -358,61 +340,137 @@ func (cb *OnlineVulnsService) BeforWatchNewCluster(ctx context.Context, clusterN
 }
 
 // Name returns the name
-func (cb *OnlineVulnsService) Name() string {
+func (cb *AssetsInResourcesService) Name() string {
 	return "onlineVulns"
 }
 
-func (cb *OnlineVulnsClusterCallback) refreshUnixTimestamp() int64 {
+func (cb *AssetsInResourcesClusterCallback) refreshUnixTimestamp() int64 {
 	return atomic.LoadInt64(&cb.refreshTimestamp)
 }
 
-func (cb *OnlineVulnsClusterCallback) refreshTime() time.Time {
+func (cb *AssetsInResourcesClusterCallback) refreshTime() time.Time {
 	return time.Unix(cb.refreshUnixTimestamp(), 0)
 }
 
-func (cb *OnlineVulnsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
+func (cb *AssetsInResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*metav1.OwnerReference, bool) {
+	if pod == nil {
+		return nil, false
+	}
+	owner := metav1.GetControllerOf(pod)
+	if owner != nil && owner.Kind == "ReplicaSet" {
+		ownerOfOwner, ok := cb.getOwnerRefOfRS(owner.Name, pod.Namespace)
+		if ok && ownerOfOwner != nil {
+			owner = ownerOfOwner
+		}
+	}
+	return owner, owner != nil
+}
+func (cb *AssetsInResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
 	if action == assets.ActionDelete {
 		if oldPod == nil {
 			return errors.New("not given old pod")
 		}
-		owner := metav1.GetControllerOf(oldPod)
+		owner, _ := cb.getUpperOwnerOfPod(oldPod)
+		directOwner := metav1.GetControllerOf(oldPod)
 
 		for _, container := range oldPod.Status.ContainerStatuses {
-			assets.UpdateAsset(cb.parent.mongoDB, cb.parent.postgresDB, cb.cluster, oldPod, &container, owner, true)
+			assets.UpdateAsset(cb.parent.mongoDB, cb.parent.postgresDB, cb.cluster, oldPod, &container, directOwner, owner, true)
 		}
+		assets.OnPodEventForResources(cb.parent.mongoDB.Get(), cb.cluster, newPod, oldPod, owner, action)
 	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
 		if newPod == nil {
 			return errors.New("not given new pod")
 		}
-		owner := metav1.GetControllerOf(newPod)
+		owner, _ := cb.getUpperOwnerOfPod(newPod)
+		directOwner := metav1.GetControllerOf(newPod)
 
-		// TODO: Do we care about InitContainer statuses?
 		for _, container := range newPod.Status.ContainerStatuses {
-			assets.UpdateAsset(cb.parent.mongoDB, cb.parent.postgresDB, cb.cluster, newPod, &container, owner, false)
+			assets.UpdateAsset(cb.parent.mongoDB, cb.parent.postgresDB, cb.cluster, newPod, &container, directOwner, owner, false)
 		}
+		assets.OnPodEventForResources(cb.parent.mongoDB.Get(), cb.cluster, newPod, oldPod, owner, action)
 	}
 
 	return nil
 }
-func (cb *OnlineVulnsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
+
+func (cb *AssetsInResourcesClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
 	// ignore endpoint events
 	return nil
 }
-func (cb *OnlineVulnsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
+func (cb *AssetsInResourcesClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
 	return nil
 }
 
-func (cb *OnlineVulnsClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
+func (cb *AssetsInResourcesClusterCallback) removeReplicaSet(name string, namespace string) {
+	cb.rsToDeploymentCache.Delete(getKeyFromRS(name, namespace))
+}
+
+func getKeyFromRS(name string, namespace string) string {
+	return fmt.Sprintf("%s/%s", namespace, name)
+}
+
+func (cb *AssetsInResourcesClusterCallback) updateReplicaSet(rs *appsv1.ReplicaSet) {
+	if rs == nil {
+		return
+	}
+	controller := metav1.GetControllerOf(rs)
+	if controller != nil {
+		cb.rsToDeploymentCache.Store(getKeyFromRS(rs.Name, rs.Namespace), controller)
+	}
+}
+func (cb *AssetsInResourcesClusterCallback) getOwnerRefOfRS(name string, namespace string) (*metav1.OwnerReference, bool) {
+	item, ok := cb.rsToDeploymentCache.Load(getKeyFromRS(name, namespace))
+	if !ok {
+		return nil, false
+	}
+	owner, ok := item.(*metav1.OwnerReference)
+	if !ok {
+		return nil, false
+	}
+	return owner, true
+}
+
+func (cb *AssetsInResourcesClusterCallback) OnReplicaSetEvent(new, old *appsv1.ReplicaSet, action assets.AssetsAction) error {
+	if action == assets.ActionDelete {
+		if old == nil {
+			return errors.New("no old rs given")
+		}
+		cb.removeReplicaSet(old.Name, old.Namespace)
+	} else if action == assets.ActionUpdate || action == assets.ActionAdd {
+		if new == nil {
+			return errors.New("no new rs given")
+		}
+		cb.updateReplicaSet(new)
+	}
+	return nil
+}
+
+func (cb *AssetsInResourcesClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
 	if dataSynced {
 		cb.parent.setClusterDataSynced(cb.cluster)
 	}
 
 	// mark all inactive data
 	cb.markInactiveAssetContainers(ctx)
+
+}
+
+func (cb *AssetsInResourcesClusterCallback) removeInactiveData(ctx context.Context) error {
+	filter := bson.M{
+		"cluster":                cb.cluster,
+		"historicised_timestamp": bson.M{"$lt": cb.refreshTime()},
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+	_, err := cb.parent.mongoDB.Get().Collection(model.PodOwnerRefRelationCollection.String()).DeleteMany(ctx, filter)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("delete pod owner collections error for cluster %s", cb.cluster)
+	}
+	return nil
 }
 
 // don't delete expired assets, for we can have the ability to trace
-func (cb *OnlineVulnsClusterCallback) markInactiveAssetContainers(ctx context.Context) error {
+func (cb *AssetsInResourcesClusterCallback) markInactiveAssetContainers(ctx context.Context) error {
 	// mark all entries that we didn't witness at the start of watcher as deleted.
 	filter := bson.M{
 		"isDeleted":      false,
@@ -435,6 +493,6 @@ func (cb *OnlineVulnsClusterCallback) markInactiveAssetContainers(ctx context.Co
 	return nil
 }
 
-func (cb *OnlineVulnsClusterCallback) Name() string {
+func (cb *AssetsInResourcesClusterCallback) Name() string {
 	return cb.parent.Name()
 }

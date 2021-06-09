@@ -17,7 +17,7 @@ var (
 )
 
 // Watcher singleton
-func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *OnlineVulnsService) (*assets.Watcher, error) {
+func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *AssetsInResourcesService) (*assets.Watcher, error) {
 	if sa == nil || ov == nil {
 		return nil, errors.New("arguments exist nil")
 	}

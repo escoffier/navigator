@@ -25,7 +25,7 @@ var (
 	initOnce  sync.Once
 )
 
-func InitAndGetRiskExplorerService(mongoDB *mongotools.DatabaseWrapper, onlineVulnsSvc *assetsSvc.OnlineVulnsService) *RiskExplorerService {
+func InitAndGetRiskExplorerService(mongoDB *mongotools.DatabaseWrapper, onlineVulnsSvc *assetsSvc.AssetsInResourcesService) *RiskExplorerService {
 	initOnce.Do(func() {
 		singleton = &RiskExplorerService{
 			mongoDB:        mongoDB,
@@ -114,7 +114,7 @@ type ServiceDetails interface {
 
 type RiskExplorerService struct {
 	mongoDB        *mongotools.DatabaseWrapper
-	onlineVulnsSvc *assetsSvc.OnlineVulnsService
+	onlineVulnsSvc *assetsSvc.AssetsInResourcesService
 	reporters      []RiskTypeReporter
 }
 
