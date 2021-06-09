@@ -47,6 +47,10 @@ type AssetContainer struct {
 	SeccompProfile  string `json:"seccompProfile" bson:"seccompProfile"`
 }
 
+func (AssetContainer) TableName() string {
+	return "assets-containers"
+}
+
 type PodServiceRelation struct {
 	MetadataEntry `json:"-" bson:",inline"`
 	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`

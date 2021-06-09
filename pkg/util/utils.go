@@ -1,11 +1,15 @@
 package util
 
 import (
+	"bytes"
 	"context"
+	"crypto/cipher"
+	"crypto/des"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"reflect"
 	"strings"
@@ -111,7 +115,7 @@ func ImageQuestion(postgresDB *gorm.DB, linkObjectId string, questionId int, exi
 				return err
 			}
 		}
-		if qs.Digest != "" { //数据表中有数据时，更新关联mongo数据
+		if qs.Digest != "" { // 数据表中有数据时，更新关联mongo数据
 			cstZone := time.FixedZone("CST", 8*3600)
 			timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
 			q := model.QuestionInfo{ID: questionId, LinkObjectId: linkObjectId, Digest: digest, Time: timeStr}
@@ -214,4 +218,77 @@ func GetAllVirusScanOneStatus(ctx context.Context, scannerURL, digest string) (s
 		return "", err
 	}
 	return p.Data.Item.Status, nil
+}
+func DesEncrypt(origData, key []byte) ([]byte, error) {
+	block, err := des.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	origData = PKCS5Padding(origData, block.BlockSize())
+	blockMode := cipher.NewCBCEncrypter(block, key)
+	crypted := make([]byte, len(origData))
+	blockMode.CryptBlocks(crypted, origData)
+	return crypted, nil
+}
+
+func PKCS5Padding(cipherText []byte, blockSize int) []byte {
+	padding := blockSize - len(cipherText)%blockSize
+	padText := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(cipherText, padText...)
+}
+
+func DesDecrypt(crypted, key []byte) ([]byte, error) {
+	block, err := des.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	blockMode := cipher.NewCBCDecrypter(block, key)
+	origData := make([]byte, len(crypted))
+	// origData := crypted
+	blockMode.CryptBlocks(origData, crypted)
+	origData = PKCS5UnPadding(origData)
+	// origData = ZeroUnPadding(origData)
+	return origData, nil
+}
+
+func PKCS5UnPadding(origData []byte) []byte {
+	length := len(origData)
+	// 去掉最后一个字节 unpadding 次
+	unpadding := int(origData[length-1])
+	return origData[:(length - unpadding)]
+}
+
+// GetMixedSet 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
+func GetMixedSet(pre, after []string) []string {
+	res := make([]string, 0)
+	if len(pre) == 0 {
+		return after
+	}
+	if len(after) == 0 {
+		return pre
+	}
+	preMap := make(map[string]int)
+	for _, p := range pre {
+		preMap[p] = 1
+	}
+	for _, p := range after {
+		if preMap[p] == 1 {
+			res = append(res, p)
+			preMap[p]++ // 去重
+		}
+	}
+	return res
+}
+
+func MinInt(res ...int) int {
+	if len(res) == 0 {
+		return 0
+	}
+	ans := math.MaxInt64
+	for _, r := range res {
+		if r < ans {
+			ans = r
+		}
+	}
+	return ans
 }

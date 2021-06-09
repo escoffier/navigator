@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	dig "github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
@@ -82,7 +84,15 @@ func (wg *WorkerGroup) initWorkers() error {
 func (wg *WorkerGroup) startWorker() error {
 	for i := 0; i < wg.workerNum; i++ {
 		wg.swg.Add(1)
-		go wg.workerRun(i, &wg.swg)
+		go func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.GetLogger().Error().Msgf("Layer_mannger Worker error : %v. stack: %s", r, debug.Stack())
+				}
+			}()
+			defer wg.swg.Done()
+			wg.workerRun(i, &wg.swg)
+		}(i)
 	}
 	wg.swg.Wait()
 	return nil
@@ -115,7 +125,6 @@ func (w *Worker) fakeDownloadBlob() (io.ReadCloser, error) {
 	return r, nil
 }
 func (w *Worker) doTask(wg *sync.WaitGroup) error {
-	defer wg.Done()
 
 	errMsg := ""
 	for {

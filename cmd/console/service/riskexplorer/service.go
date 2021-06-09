@@ -118,9 +118,9 @@ type RiskExplorerService struct {
 	reporters      []RiskTypeReporter
 }
 
-func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string) ([]*NamespaceSummary, error) {
+func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string, scannerURL string) ([]*NamespaceSummary, error) {
 	// TODO: decouple the vulns with assets and make the imageVulns as a reporter
-	items, err := s.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, cluster, 0, 10000)
+	items, err := s.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, cluster, 0, 10000, scannerURL)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("list current vulns error for cluster %s", cluster)
 		return nil, err
@@ -223,15 +223,15 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string) 
 	return nsSlice, nil
 }
 
-func getImageVulnsRiskData(ctx context.Context, assetCont *model.AssetContainer) (json.RawMessage, bool) {
+func getImageVulnsRiskData(ctx context.Context, assetCont *model.AssetContainer, Vulns []model.VulnerabilityInfo, Sensitive []model.Sensitive) (json.RawMessage, bool) {
 	idStr := ""
 	if !assetCont.TaskID.IsZero() {
 		idStr = assetCont.TaskID.Hex()
 	}
 	imageVulns := ImageVulnsDetails{
 		ScanTaskID:      idStr,
-		SensitiveFiles:  assetCont.SensitiveFiles,
-		Vulnerabilities: assetCont.Vulnerabilities,
+		SensitiveFiles:  Sensitive,
+		Vulnerabilities: Vulns,
 		HarborURL:       assetCont.HarborURL,
 	}
 
@@ -253,7 +253,14 @@ func getImageVulnsRiskData(ctx context.Context, assetCont *model.AssetContainer)
 	return mar, true
 }
 
-func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeType, namespace, service string) (*ServiceDetail, error) {
+func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeType, namespace, service string, scannerUrl string) (*ServiceDetail, error) {
+	type tmpdata struct {
+		Item model.SimpleImageDetail `json:"item"`
+	}
+	type tmpInfo struct {
+		ApiVersion string  `json:"apiVersion"`
+		Data       tmpdata `json:"data"`
+	}
 	detailHandlers := make([]ServiceDetails, 0, len(s.reporters))
 	for _, reporter := range s.reporters {
 		sdetails, derr := reporter.LoadDetails(ctx, cluster, nodeType, namespace, service)
@@ -322,7 +329,38 @@ func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeTy
 		}
 
 		nameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
-
+		var tmpLibrary string
+		if strings.Contains(container.Image, "http") == false {
+			lastIndex := strings.Index(container.Image, "/")
+			if lastIndex == -1 {
+				tmpLibrary = "https://" + container.Image
+			} else {
+				tmpLibrary = "https://" + container.Image[:lastIndex]
+			}
+		} else {
+			lastIndex := strings.Index(container.Image, "/")
+			if lastIndex == -1 {
+				tmpLibrary = container.Image
+			} else {
+				tmpLibrary = container.Image[:lastIndex]
+			}
+		}
+		tmpFullRepoName := container.Repository[strings.Index(container.Repository, "/")+1:]
+		resp, err := http.Get(scannerUrl + "/api/v1/scan/reportsBySimpleImageDetails/?" + "digest=" + container.Digest +
+			"&full_repo_name=" + tmpFullRepoName + "&library=" + tmpLibrary + "&tag=" + container.Tag)
+		if err != nil {
+			continue
+		}
+		resScanImage := tmpInfo{}
+		fmt.Println(resp.Body)
+		err = json.NewDecoder(resp.Body).Decode(&resScanImage)
+		resp.Body.Close()
+		if err != nil {
+			fmt.Println("解析失败:", err)
+			resScanImage = tmpInfo{}
+		} else {
+			fmt.Println("解析后after:", resScanImage.Data.Item.Vulnerabilities)
+		}
 		var contDetail *ContainerDetail
 		var ok bool
 		if contDetail, ok = contMap[nameDigest]; !ok {
@@ -336,7 +374,7 @@ func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeTy
 				InstancesWaiting:    make([]NodeInfo, 0, 0),
 				RiskItems:           make([]*RiskTypeDetail, 0, len(s.reporters)),
 			}
-			imageVulnsData, ok := getImageVulnsRiskData(ctx, &container)
+			imageVulnsData, ok := getImageVulnsRiskData(ctx, &container, resScanImage.Data.Item.Vulnerabilities, resScanImage.Data.Item.Sensitives)
 			if ok {
 				contDetail.RiskItems = append(contDetail.RiskItems, &RiskTypeDetail{
 					RiskType: string(KeyImageVulns),

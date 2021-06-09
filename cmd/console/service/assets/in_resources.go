@@ -2,10 +2,12 @@ package assets
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,7 +63,7 @@ func (cb *AssetsInResourcesService) WatchedTypes() map[assets.WatchedType]struct
 	}
 }
 
-func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context.Context, cluster string, offset, limit int64) ([]OnlineVulnListItem, error) {
+func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context.Context, cluster string, offset, limit int64, scannerUrl string) ([]OnlineVulnListItem, error) {
 	refreshTimestamp, ok := cb.getClusterRefreshTimestamp(cluster)
 	if !ok {
 		refreshTimestamp = defaultRefreshTime
@@ -110,6 +112,25 @@ func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context
 
 		nodeType := model.NodeTypeOwnerRef
 
+		var tmpLibrary string
+		if strings.Contains(container.Image, "http") == false {
+			lastIndex := strings.Index(container.Image, "/")
+			if lastIndex == -1 {
+				tmpLibrary = "https://" + container.Image
+			} else {
+				tmpLibrary = "https://" + container.Image[:lastIndex]
+			}
+		} else {
+			lastIndex := strings.Index(container.Image, "/")
+			if lastIndex == -1 {
+				tmpLibrary = container.Image
+			} else {
+				tmpLibrary = container.Image[:lastIndex]
+			}
+		}
+		tmpFullRepoName := container.Repository[strings.Index(container.Repository, "/")+1:]
+		scannerApiUrl := scannerUrl + "/api/v1/scan/reportsBySimpleImageDetails/?" + "digest=" + container.Digest +
+			"&full_repo_name=" + tmpFullRepoName + "&library=" + tmpLibrary + "&tag=" + container.Tag
 		ownerStr := fmt.Sprintf(
 			"%s/%s/%s",
 			container.Namespace,
@@ -127,9 +148,13 @@ func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context
 				RunningContainersSet: make(map[string]bool),
 				RunningPodsSet:       make(map[string]bool),
 				VulnerabilitiesSet:   make(map[string]model.VulnerabilityInfo),
+				Images:               make(map[string]string),
 			}
+			onlineVulns[ownerStr].Images[container.Image] = scannerApiUrl
+		} else {
+			onlineVulns[ownerStr].Images[container.Image] = scannerApiUrl
 		}
-		vulns := container.Vulnerabilities
+		vulns := []model.VulnerabilityInfo{}
 
 		containerNameDigest := fmt.Sprintf("%s:%s@%s", container.Name, container.Tag, container.Digest)
 		onlineVulns[ownerStr].RunningContainersSet[containerNameDigest] = true
@@ -139,7 +164,15 @@ func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context
 		}
 
 	}
-
+	var lock sync.Mutex
+	start := time.Now()
+	type tmpdata struct {
+		Item model.SimpleImageDetail `json:"item"`
+	}
+	type tmpInfo struct {
+		ApiVersion string  `json:"apiVersion"`
+		Data       tmpdata `json:"data"`
+	}
 	for _, ov := range onlineVulns {
 		runningContainers := []string{}
 		for rcName := range ov.RunningContainersSet {
@@ -152,7 +185,31 @@ func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context
 			runningPods = append(runningPods, rpName)
 		}
 		ov.RunningPods = runningPods
-
+		var wg sync.WaitGroup
+		for _, v := range ov.Images {
+			wg.Add(1)
+			go func(v string) {
+				defer wg.Done()
+				resp, err := http.Get(v)
+				if err != nil {
+					return
+				}
+				resScanImage := tmpInfo{}
+				err = json.NewDecoder(resp.Body).Decode(&resScanImage)
+				resp.Body.Close()
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Msg("风险探索 解析失败")
+					resScanImage = tmpInfo{}
+				}
+				vulns := resScanImage.Data.Item.Vulnerabilities
+				for _, vuln := range vulns {
+					lock.Lock()
+					ov.VulnerabilitiesSet[vuln.ID] = vuln
+					lock.Unlock()
+				}
+			}(v)
+		}
+		wg.Wait()
 		vulns := make([]model.VulnerabilityInfo, len(ov.VulnerabilitiesSet))
 
 		i := 0
@@ -175,7 +232,7 @@ func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context
 			ov.OverallSeverity = redclair.SeverityUnknown
 		}
 	}
-
+	logging.GetLogger().Info().Int64("go并发用时:%v毫秒\n", time.Since(start).Milliseconds())
 	err = cursor.Err()
 	if err != nil {
 		return nil, apperror.NewMongoError(http.StatusInternalServerError,
@@ -192,7 +249,14 @@ func (cb *AssetsInResourcesService) ListCurrentOnlineVulnerabilities(ctx context
 	return onlineVulnsList, nil
 }
 
-func (cb *AssetsInResourcesService) GetOnlineVulnerabilityDetails(ctx context.Context, cluster, namespace, resourceKind, resourceName string) (*OnlineVulnDetails, error) {
+func (cb *AssetsInResourcesService) GetOnlineVulnerabilityDetails(ctx context.Context, cluster, namespace, resourceKind, resourceName string, scannerUrl string) (*OnlineVulnDetails, error) {
+	type tmpdata struct {
+		Item model.SimpleImageDetail `json:"item"`
+	}
+	type tmpInfo struct {
+		ApiVersion string  `json:"apiVersion"`
+		Data       tmpdata `json:"data"`
+	}
 	filter := bson.M{
 		"$and": []bson.M{
 			{"isDeleted": false},
@@ -235,7 +299,35 @@ func (cb *AssetsInResourcesService) GetOnlineVulnerabilityDetails(ctx context.Co
 		}
 
 		nameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
-
+		var tmpLibrary string
+		if strings.Contains(container.Image, "http") == false {
+			lastIndex := strings.Index(container.Image, "/")
+			if lastIndex == -1 {
+				tmpLibrary = "https://" + container.Image
+			} else {
+				tmpLibrary = "https://" + container.Image[:lastIndex]
+			}
+		} else {
+			lastIndex := strings.Index(container.Image, "/")
+			if lastIndex == -1 {
+				tmpLibrary = container.Image
+			} else {
+				tmpLibrary = container.Image[:lastIndex]
+			}
+		}
+		tmpFullRepoName := container.Repository[strings.Index(container.Repository, "/")+1:]
+		resp, err := http.Get(scannerUrl + "/api/v1/scan/reportsBySimpleImageDetails/?" + "digest=" + container.Digest +
+			"&full_repo_name=" + tmpFullRepoName + "&library=" + tmpLibrary + "&tag=" + container.Tag)
+		if err != nil {
+			continue
+		}
+		resScanImage := tmpInfo{}
+		err = json.NewDecoder(resp.Body).Decode(&resScanImage)
+		resp.Body.Close()
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("风险探索详情 解析失败")
+			resScanImage = tmpInfo{}
+		}
 		if _, ok := ovDetails.Containers[nameDigest]; !ok {
 			ovDetails.Containers[nameDigest] = OnlineVulnDetailsContainer{
 				Name:                container.Name,
@@ -245,8 +337,8 @@ func (cb *AssetsInResourcesService) GetOnlineVulnerabilityDetails(ctx context.Co
 				InstancesRunning:    &[]OnlineVulnDetailsContainerInstance{},
 				InstancesWaiting:    &[]OnlineVulnDetailsContainerInstance{},
 				InstancesTerminated: &[]OnlineVulnDetailsContainerInstance{},
-				Vulnerabilities:     container.Vulnerabilities,
-				SensitiveFiles:      container.SensitiveFiles,
+				Vulnerabilities:     resScanImage.Data.Item.Vulnerabilities,
+				SensitiveFiles:      resScanImage.Data.Item.Sensitives,
 				WasScanned:          container.WasScanned,
 				HarborURL:           container.HarborURL,
 				TaskID:              container.TaskID,

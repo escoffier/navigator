@@ -15,10 +15,12 @@ type OnlineVulnListItem struct {
 	OverallSeverity   string                    `json:"overallSeverity"`
 	RunningContainers []string                  `json:"runningContainers"`
 	RunningPods       []string                  `json:"runningPods"`
+	//ScannerApiUrl     string                    `json:"-"`
 	// internal counters
 	RunningContainersSet map[string]bool                    `json:"-"`
 	RunningPodsSet       map[string]bool                    `json:"-"`
 	VulnerabilitiesSet   map[string]model.VulnerabilityInfo `json:"-"`
+	Images               map[string]string                  `json:"-"`
 }
 
 type OnlineVulnDetailsContainerInstance struct {

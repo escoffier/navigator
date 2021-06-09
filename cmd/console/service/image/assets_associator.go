@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -123,23 +124,35 @@ func (a *AssociatorClusterCB) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet,
 	return nil
 }
 func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
+	logging.GetLogger().Info().Msg("触发了OnPodEvent")
 	if action == assets.ActionDelete {
 		for _, container := range oldPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
-			registryLoc, repoName, tags := getTripleFromContainer(&container)
+			registryLoc, repoName, _ := getTripleFromContainer(&container)
 			if len(registryLoc) == 0 || len(repoName) == 0 || len(imageSHA) == 0 {
 				continue
 			}
-			a.imageListOnlineSet(context.Background(), false, registryLoc, repoName, tags, imageSHA)
+			// a.imageListOnlineSet(context.Background(), false, registryLoc, repoName, tags, imageSHA)
+			// 增加镜像关联数据表
+			logging.GetLogger().Info().Msg("删除ImageRelate表数据")
+			if err := a.DeleteImageRelate(imageSHA, registryLoc, container.ContainerID); err != nil {
+				logging.GetLogger().Error().Err(err).Msg("OnPodEvent delete image_relate error ")
+			}
+
 		}
 	} else if action == assets.ActionAdd {
 		for _, container := range newPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
-			registryLoc, repoName, tags := getTripleFromContainer(&container)
+			registryLoc, repoName, _ := getTripleFromContainer(&container)
 			if len(registryLoc) == 0 || len(repoName) == 0 || len(imageSHA) == 0 {
 				continue
 			}
-			a.imageListOnlineSet(context.Background(), true, registryLoc, repoName, tags, imageSHA)
+			// a.imageListOnlineSet(context.Background(), true, registryLoc, repoName, tags, imageSHA)
+			// 增加镜像关联数据表
+			logging.GetLogger().Info().Msg("增加ImageRelate表数据")
+			if err := a.CreateImageRelate(&model.ImageRelate{Digest: imageSHA, Library: registryLoc, ContainerID: container.ContainerID}); err != nil {
+				logging.GetLogger().Error().Err(err).Msg("OnPodEvent add image_relate error ")
+			}
 		}
 	}
 	return nil
@@ -155,4 +168,34 @@ func (a *AssociatorClusterCB) AfterDataSynced(ctx context.Context, dataSynced bo
 }
 func (a *AssociatorClusterCB) Name() string {
 	return "images_assets_associator"
+}
+
+func (a *AssociatorClusterCB) CreateImageRelate(imageRelate *model.ImageRelate) error {
+	if imageRelate == nil {
+		return nil
+	}
+	if imageRelate.Digest == "" || imageRelate.Library == "" {
+		return errors.New("ImageRelate no digest or no library")
+	}
+	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if !strings.Contains(imageRelate.Library, "http") {
+		imageRelate.Library = "https://" + imageRelate.Library
+	}
+
+	err := a.parent.postgre.Get().WithContext(pgCtx).Create(imageRelate).Error
+	return err
+}
+func (a *AssociatorClusterCB) DeleteImageRelate(digest, library, containerName string) error {
+	if digest == "" || library == "" {
+		return errors.New("no digest or no library")
+	}
+	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if !strings.Contains(library, "http") {
+		library = "https://" + library
+	}
+	err := a.parent.postgre.Get().WithContext(pgCtx).Where("digest = ? AND library = ? AND container_name = ?", digest, library, containerName).Delete(&model.ImageRelate{}).Error
+	return err
 }

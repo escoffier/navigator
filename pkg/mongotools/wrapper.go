@@ -3,15 +3,17 @@ package mongotools
 import (
 	"context"
 	"errors"
+	"reflect"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
@@ -224,4 +226,74 @@ func (w *ClientWrapper) Disconnect(ctx context.Context) error {
 
 	cli, _ := w.Client()
 	return cli.Disconnect(ctx)
+}
+
+type Map map[string]interface{}
+
+func M(key string, value interface{}, operator MongoOperator, condition ...bool) Map {
+	m := Map{}
+	if len(condition) > 0 && !condition[0] {
+		return m
+	}
+	return m.M(key, value, operator)
+}
+
+// 为M中增加一个条件，返回增加条件后的M,必须显式的传operator参数
+func (m Map) M(key string, value interface{}, operator MongoOperator, condition ...bool) Map {
+	if len(condition) > 0 && !condition[0] {
+		return m
+	}
+	if v, ok := m[key]; ok {
+		if lq, ok := v.(Map); ok {
+			lq[string(operator)] = value
+			m[key] = lq
+		} else if r, isSlice := sMap(v); isSlice {
+			if add, isS := sMap(value); isS {
+				r = append(r, add...)
+				m[key] = r
+			}
+		}
+	} else {
+		m[key] = Map{string(operator): value}
+	}
+	return m
+}
+
+func sMap(slice interface{}) ([]interface{}, bool) {
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		return nil, false
+	}
+	ret := make([]interface{}, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		ret[i] = s.Index(i).Interface()
+	}
+	return ret, true
+}
+
+type Updater map[string]map[string]interface{}
+
+func U(key string, value interface{}, operator MongoOperator, condition ...bool) Updater {
+	newUp := make(Updater)
+	if len(condition) > 0 && !condition[0] {
+		return newUp
+	}
+	if v, ok := newUp[string(operator)]; !ok || v == nil {
+		newUp[string(operator)] = make(map[string]interface{})
+	}
+	m := newUp[string(operator)]
+	m[key] = value
+	return newUp
+}
+
+func (u Updater) U(key string, value interface{}, operator MongoOperator, condition ...bool) Updater {
+	if len(condition) > 0 && !condition[0] {
+		return u
+	}
+	if v, ok := u[string(operator)]; !ok || v == nil {
+		u[string(operator)] = make(map[string]interface{})
+	}
+	m := u[string(operator)]
+	m[key] = value
+	return u
 }

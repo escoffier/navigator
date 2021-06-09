@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
-	"github.com/patrickmn/go-cache"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"go.mongodb.org/mongo-driver/mongo"
 	"sync"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/mongo"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 )
@@ -25,6 +27,7 @@ type api struct {
 	unprocessableEntityCache       *cache.Cache
 	harborClient                   *harbor.HarborRESTClient
 	virusScan                      *component.VirusScan
+	scannerDB                      *component.ScannerDB
 }
 
 func newAPI(
@@ -34,6 +37,7 @@ func newAPI(
 	harborClient *harbor.HarborRESTClient,
 	redisClient *redis.Client,
 	virusScan *component.VirusScan,
+	scannerDB *component.ScannerDB,
 ) *api {
 	return &api{
 		ctx:      ctx,
@@ -45,5 +49,6 @@ func newAPI(
 		harborClient:                harborClient,
 		redisClient:                 redisClient,
 		virusScan:                   virusScan,
+		scannerDB:                   scannerDB,
 	}
 }

@@ -23,7 +23,7 @@ type HTTPEnvelope struct {
 }
 
 type HTTPData struct {
-	Status           uint8                  `json:"status",omitempty`
+	Status           uint8                  `json:"status,omitempty"`
 	Kind             string                 `json:"kind,omitempty"`
 	CheckId          string                 `json:"checkId,omitempty"`
 	Etag             string                 `json:"etag,omitempty"`
@@ -57,6 +57,18 @@ type HTTPError struct {
 	Code    int            `json:"code"`
 	Message string         `json:"message"`
 	Errors  []HTTPSubError `json:"errors"`
+}
+
+func (h *HTTPError) Error() string {
+	return h.Message
+}
+
+func NewHttpError(code int, err error, subErros ...HTTPSubError) *HTTPError {
+	return &HTTPError{
+		Code:    code,
+		Message: err.Error(),
+		Errors:  subErros,
+	}
 }
 
 // HTTPDataAlias is used to avoid infinite recursion when calling json.Marshal in custom marshaller.

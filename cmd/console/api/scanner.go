@@ -8,10 +8,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -19,27 +25,31 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// 转发scanner中 /api/v1/scan 开头的接口
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/task/{taskID}", api.getScannerTask())
-		r.Get("/reportsByImageList", api.listScannedByImageList())
-		r.Get("/reportsByImageOverview", api.listScannedByImageOverview())
-		r.Get("/reportsByImageDetails", api.ScannedByImageDetails())
+		r.Get("/reportsByImageList", api.RedirectToScanner(true))     // don
+		r.Get("/reportsByImageOverview", api.RedirectToScanner(true)) // don
+		r.Get("/reportsByImageDetails", api.RedirectToScanner(true))  // don
 		r.Get("/report/{taskID}", api.getScannerImageVulnerabilities())
 		r.Post("/scan", api.scan())
-		r.Post("/scanone", api.scanOne())
+		r.Post("/scanone", api.RedirectToScanner(true))
 
-		r.Post("/harbor/scanAllNow", api.harborScanAllNow())
+		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
 		r.Post("/harbor/scanOnline", api.harborScanOnline())
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
-		r.Get("/harbor/scanStatus", api.harborScanStatus())
-		r.Get("/harbor/scanOneStatus", api.harborScanOneStatus())
+		r.Get("/harbor/scanStatus", api.RedirectToScanner(true))
+		r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
+		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())
+		r.Get("/layers/{layerDigest}/info", api.RedirectToScanner())
+		r.Get("/vulns/detail/{name}", api.RedirectToScanner())
+		r.Get("/vulns/statistic", api.RedirectToScanner())
+		r.Get("/vulns/all", api.RedirectToScanner())
+		r.Get("/vulns/relation", api.RedirectToScanner())
 	}
 }
 
@@ -180,7 +190,7 @@ func (api *api) listScannedByImageOverview() http.HandlerFunc {
 	}
 }
 
-//@Summary Get a scan task by scantask on image
+// @Summary Get a scan task by scantask on image
 // @Description Get a scan task by scantask on image
 // @Router /api/v2/containerSec/scanner/reportsByImageDetails [get]
 func (api *api) ScannedByImageDetails() http.HandlerFunc {
@@ -391,5 +401,43 @@ func (api *api) scanOne() http.HandlerFunc {
 
 		response.Ok(w, response.WithItem(resp{Status: "OK"}))
 
+	}
+}
+
+// RedirectToScanner 转发scanner的请示
+// 参数的意思是是否替换uri中的scanner字段，主要是为了兼容重构前的uri,之后的调用默认不传参数
+func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// /api/v2/containerSec/scanner/reportsByImageOverview
+		// /api/v1/scan/reportsByImageOverview?offset=1
+		start := time.Now()
+		pre := r.URL.String()
+		log.WithContext(api.ctx).Infof("preUrl", pre)
+		var newUrl string
+
+		if len(repaleceScannner) > 0 && repaleceScannner[0] {
+			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
+				strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1/scan", 1))
+		} else {
+			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
+				strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1", 1))
+		}
+
+		log.WithContext(api.ctx).Infof("newUrl", newUrl)
+		log.WithContext(api.ctx).Infof("scannerURL", api.scannerURL)
+
+		u, err := url.Parse(newUrl)
+		if nil != err {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
+			return
+		}
+		proxy := httputil.ReverseProxy{
+			Director: func(request *http.Request) {
+				request.URL = u
+			},
+		}
+		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
+		proxy.ServeHTTP(w, r)
+		log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))
 	}
 }

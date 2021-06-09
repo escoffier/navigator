@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -12,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
-	version "github.com/mcuadros/go-version"
+	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/olivere/elastic/v7"
 	"github.com/patrickmn/go-cache"
@@ -76,6 +77,7 @@ func newAPI(
 	postgresDB *rdbtools.GormWrapper,
 	scapper *scapper.Scapper,
 	scannerURL string,
+	// scannerRedirectURL string,
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
@@ -86,19 +88,20 @@ func newAPI(
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
-	imageService *image.ImageService,
+	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 	networkTopoService *networktopo.NetworkTopoService,
 ) *api {
 	return &api{
-		ctx:                         ctx,
-		userCache:                   cache.New(sessionExpiration, time.Minute),
-		tokenAuth:                   tokenAuth,
-		mongodb:                     mongodb,
-		postgresDB:                  postgresDB,
-		optUserMap:                  make(map[string]struct{}),
-		scapper:                     scapper,
-		scannerURL:                  scannerURL,
+		ctx:        ctx,
+		userCache:  cache.New(sessionExpiration, time.Minute),
+		tokenAuth:  tokenAuth,
+		mongodb:    mongodb,
+		postgresDB: postgresDB,
+		optUserMap: make(map[string]struct{}),
+		scapper:    scapper,
+		scannerURL: scannerURL,
+		// scannerRedirectURL:          scannerRedirectURL,
 		cronService:                 cronService,
 		clusterService:              clusterService,
 		redisClient:                 redisClient,
@@ -111,9 +114,9 @@ func newAPI(
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 		emailOpts:                   emailOpts,
-		imageService:                imageService,
-		ecCli:                       ecCli,
-		networkTopoService:          networkTopoService,
+		//imageService:                imageService,
+		ecCli:              ecCli,
+		networkTopoService: networkTopoService,
 	}
 }
 

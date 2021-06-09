@@ -51,5 +51,11 @@ type VirusScanTask struct {
 	HarborURL     string             `json:"harborURL,omitempty" bson:"harborURL,omitempty"`
 	FirstScanAt   int64              `json:"firstScanAt" bson:"firstScanAt"` // tracks the first ever scan of this image (digest)
 	Stale         bool               `json:"stale" bson:"stale"`             // if true, there are newer scans of this image (digest)
-	//SeverityHistogram SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
+	ImageID       int64              `json:"-" bson:"-"`
+	TableID       int64              `json:"-" bson:"-"`
+	// SeverityHistogram SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
+}
+
+func (VirusScanTask) TableName() string {
+	return "virusScanTasks"
 }
