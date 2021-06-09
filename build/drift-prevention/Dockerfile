@@ -1,13 +1,7 @@
-FROM golang:1.13.5-alpine
+FROM registry.t-appagile.com/tensorsecurity/baseimage-drift-prevention:latest
 
 ARG GOPROXY=
 RUN export GOPROXY=$GOPROXY
-
-ARG MIRROR=dl-cdn.alpinelinux.org
-RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
-
-RUN apk update
-RUN apk add --no-cache git musl-dev gcc
 
 ADD cmd/drift-prevention /go/src/app
 

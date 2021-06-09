@@ -1,33 +1,6 @@
 ARG TAG=latest
 FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention-client:${TAG} AS drift-prevention
-FROM ubuntu:18.04
-
-ARG MIRROR=archive.ubuntu.com
-RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
-
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing \
-    automake \
-    gcc \
-    make \
-    sudo \
-    golang-1.10 \
-    vim \
-    netcat \
-    net-tools \
-    strace \
-    software-properties-common \
-    curl \
-    python3.6 \
-    dnsutils \
-    tcpdump \
-    nmap \
-    tshark \
-    ngrep \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN curl -o /tmp/docker-19.03.9.tgz https://download.docker.com/linux/static/stable/x86_64/docker-19.03.9.tgz
-
-ENV PATH="/usr/lib/go-1.10/bin:$PATH"
+FROM registry.t-appagile.com/tensorsecurity/baseimage-faulty:latest
 
 ADD configs/faulty /app
 ADD test/ /test
