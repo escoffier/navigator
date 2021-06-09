@@ -77,11 +77,16 @@ require (
 	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.0.8
 	gorm.io/gorm v1.21.8
-	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
-	k8s.io/apimachinery v0.0.0-20191004074956-01f8b7d1121a
-	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/api v0.17.17
+	k8s.io/apimachinery v0.17.18-rc.0
+	k8s.io/client-go v0.17.17
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
 	sigs.k8s.io/controller-runtime v0.3.0
+    github.com/vishvananda/netlink v0.0.0 //netlink
+    github.com/florianl/go-conntrack v0.2.0 //conntrack
 )
 
-replace gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf
+replace (
+    gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf
+    github.com/vishvananda/netlink => ./configs/tensordig/netlink
+)
