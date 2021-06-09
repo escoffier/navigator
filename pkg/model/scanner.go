@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -77,7 +79,7 @@ type VulnerabilityInImages struct {
 	ID             primitive.ObjectID         `json:"id,omitempty" bson:"_id,omitempty"`
 	VulnInfo       VulnerabilityInfo          `json:"vulnInfo" bson:"vulnInfo"`
 	AffectedImages *[]ScanReportAffectedImage `json:"affectedImages" bson:"affectedImages"`
-	ScanType       int                        `json:"-" bson:"scanType"` //By Severity 1 Med to Critical 2 Network based 3
+	ScanType       int                        `json:"-" bson:"scanType"` // By Severity 1 Med to Critical 2 Network based 3
 }
 
 // Sensitive ...
@@ -94,6 +96,15 @@ const (
 	ScanTypeNetWorkBased    = 3
 )
 
+const (
+	SeverityCritical   = "Critical"
+	SeverityHigh       = "High"
+	SeverityMedium     = "Medium"
+	SeverityLow        = "Low"
+	SeverityNegligible = "Negligible"
+	SeverityUnknown    = "Unknown"
+)
+
 type VulnInfoEx struct {
 	// Helper struct that creates one to one mapping between vulnerability and affected image.
 	VulnerabilityInfo
@@ -103,4 +114,91 @@ type VulnInfoEx struct {
 	AffectedHarborURL  string
 	FinishedAt         int64
 	TaskID             primitive.ObjectID
+}
+
+type SeverityCount struct {
+	Critical   int
+	High       int
+	Medium     int
+	Low        int
+	Negligible int
+	Unknown    int
+}
+
+type ImageRiskScore struct {
+	Name                  string //servicename
+	Score                 float64
+	SeverityHistogramInfo SeverityHistogramInfo
+	Tag                   string `json:"tag"`
+	ImageId               int    `json:"id"`
+}
+
+type ConstMapScore struct {
+	//Severity    string
+	MaxScore    float64
+	SingleScore float64
+}
+type VulnOverview struct {
+	VulnTotal int              `json:"vuln_total"`
+	Severity  SeverityCount    `json:"severity"`
+	Top5      []ImageRiskScore `json:"top5"`
+}
+
+type VulnList struct {
+	Name       string `json:"name"`
+	Severity   string `json:"severity"`
+	PkgName    string `json:"pkg_name"`
+	PkgVersion string `json:"pkg_version"`
+}
+
+type VulnDetailInfo struct {
+	Name        string                   `json:"name"`
+	Severity    string                   `json:"severity"`
+	Pkgname     string                   `json:"pkgname"`
+	Pkgversion  string                   `json:"pkgversion"`
+	Cvss        CVSSVulnerabilityInfo    `json:"cvss,omitempty"`
+	Cnvd        []CNVDVulnerabilityInfo  `json:"cnvds,omitempty"`
+	CNNVDs      []CNNVDVulnerabilityInfo `json:"cnnvds,omitempty"`
+	Links       []string                 `json:"links"`
+	Fixedby     string                   `json:"fixedby"`
+	Description string                   `json:"description"`
+}
+
+type VulnDetailContainer struct {
+	ImageName    string `json:"image_name"`
+	ServiceName  string `json:"service_name"`
+	Namespace    string `json:"namespace"`
+	Alias        string `json:"alias"`
+	Digest       string `json:"digest"`
+	FullRepoName string `json:"full_repo_name"`
+	Library      string `json:"library"`
+	Tag          string `json:"tag"`
+	Id           int    `json:"id"`
+}
+type VulnImageList struct {
+	FullRepoName string `json:"full_repo_name"`
+	Library      string `json:"library"`
+	Digest       string `json:"digest"`
+	ImageId      int    `json:"id" gorm:"column:id"`
+}
+type VulnDetail struct {
+	VulninfoApi   VulnDetailInfo        `json:"vulninfo"`
+	VulnImageList []VulnImageList       `json:"vuln_image_list"`
+	Containers    []VulnDetailContainer `json:"containers"`
+}
+
+// ReportImgBackInfo 镜像回溯时给前端返回的数据
+type ReportImgBackInfo struct {
+	ImageDigest    string    `json:"image_digest"`
+	Created        time.Time `json:"created"`
+	CreatedBy      string    `json:"created_by"`
+	Vulus          []string  `json:"vulus"`
+	Pkgs           []string  `json:"pkgs"`
+	Malicious      []string  `json:"malicious"`
+	SensitiveFiles []string  `json:"sensitive_files"`
+}
+
+type SimpleImageDetail struct {
+	Vulnerabilities []VulnerabilityInfo `json:"vuln_info"`
+	Sensitives      []Sensitive         `json:"sensitive_info"`
 }

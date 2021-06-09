@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -28,6 +31,9 @@ func (api *api) scan() func(chi.Router) {
 		r.Post("/dev/forceInvalidateCache", api.forceInvalidateCache())
 		r.Get("/get/allscanStatus", api.getAllScanStatus())
 		r.Get("/get/sha256scanstatus", api.getSha256ScanStatus())
+		r.Post("/NewScanone", api.NewscanOne())
+		r.Get("/gin/609e239b23becac252dc4e1f", api.redirect())
+
 	}
 }
 
@@ -117,6 +123,16 @@ func (api *api) scanOne() http.HandlerFunc {
 			ImageDigest:   scanReq.Digest,
 		}
 
+		// 插入待扫描的任务进postgres
+		imageID, err := api.scannerDB.GetImageID(ctx, scanReq.Digest, scanReq.Repository)
+		tmp := &model.ScanImage{}
+		if imageID != -1 {
+			tmp.StartedAt = time.Now().Unix()
+			tmp.ImageId = imageID
+			tmp.Status = model.ScanStatusInProgress
+			api.scannerDB.InsertToScanImage(ctx, tmp)
+		}
+		task.TableID = tmp.ID
 		// persist the task to Mongo
 		mongoCtx, mongoCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer mongoCancel()
@@ -148,7 +164,7 @@ func (api *api) scanOne() http.HandlerFunc {
 		// add the task to redclair
 		api.redclair.AddScanTask(task)
 
-		//add the task to virusScan
+		// add the task to virusScan
 		api.virusScan.AddScanTask(viursTask)
 
 		response.Ok(w, response.WithItem(task))
@@ -175,13 +191,24 @@ func (api *api) ScannerOne(scanReq model.ScannerReq) (error, model.ScanTask) {
 		ImageDigest:   scanReq.Digest,
 	}
 
+	// 插入待扫描的任务进postgres
+	imageID, err := api.scannerDB.GetImageID(ctx, scanReq.Digest, scanReq.Repository)
+	tmp := &model.ScanImage{}
+	if imageID != -1 {
+		tmp.StartedAt = time.Now().Unix()
+		tmp.ImageId = imageID
+		tmp.Status = model.ScanStatusInProgress
+		api.scannerDB.InsertToScanImage(ctx, tmp)
+		task.ImageID = imageID
+	}
+	task.TableID = tmp.ID
 	// persist the task to Mongo
 	mongoCtx, mongoCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer mongoCancel()
 
 	task.ID = primitive.NewObjectIDFromTimestamp(time.Now())
 	task.HistoricisedTimestamp = time.Now()
-	_, err := api.mongodb.Collection(model.ScanTasksCollection.String()).InsertOne(mongoCtx, task)
+	_, err = api.mongodb.Collection(model.ScanTasksCollection.String()).InsertOne(mongoCtx, task)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
 
@@ -200,6 +227,7 @@ func (api *api) ScannerOne(scanReq model.ScannerReq) (error, model.ScanTask) {
 		ID:            primitive.NewObjectIDFromTimestamp(time.Now()),
 	}
 	_, err = api.mongodb.Collection(model.VirusScanTaskCollection.String()).InsertOne(mongoCtx, viursTask)
+
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
 		return err, task
@@ -208,8 +236,92 @@ func (api *api) ScannerOne(scanReq model.ScannerReq) (error, model.ScanTask) {
 	// add the task to redclair
 	api.redclair.AddScanTask(task)
 
-	//add the task to virusScan
 	api.virusScan.AddScanTask(viursTask)
 	return nil, task
 
+}
+
+// @Router /api/v1/newscan/one [post]
+func (api *api) NewscanOne() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		defer cancel()
+
+		var scanReq model.ScannerReq
+		err := util.DecodeJSONBody(w, r, &scanReq)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("Failed to decode json: %w", err)))
+			return
+		}
+
+		scanReqRedacted := scanReq
+		scanReqRedacted.Authorization = "<redacted>"
+		log.Info().Str("request", fmt.Sprintf("%+v", scanReqRedacted)).Msgf("Received scan request")
+		authStr := api.scannerDB.GetAuthFromRegistry(ctx, scanReq.URL)
+
+		// scanReq.ResultsURL=url+"/harbor/projects/2/repositories/"+""
+		task := model.ScanTask{
+			Status:        model.ScanStatusInProgress,
+			StartedAt:     time.Now().Unix(),
+			Repository:    scanReq.Repository,
+			Tag:           scanReq.Tag,
+			URL:           scanReq.URL,
+			HarborURL:     scanReq.ResultsURL,
+			Authorization: authStr,
+			ImageDigest:   scanReq.Digest,
+		}
+		// 插入待扫描的任务进postgres
+		imageID, err := api.scannerDB.GetImageID(ctx, scanReq.Digest, scanReq.Repository)
+		tmp := &model.ScanImage{}
+		if imageID != -1 {
+			tmp.StartedAt = time.Now().Unix()
+			tmp.ImageId = imageID
+			tmp.Status = model.ScanStatusInProgress
+			api.scannerDB.InsertToScanImage(ctx, tmp)
+		}
+		task.TableID = tmp.ID
+		// persist the task to Mongo
+		mongoCtx, mongoCancel := context.WithTimeout(ctx, 10*time.Second)
+		defer mongoCancel()
+
+		task.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+		task.HistoricisedTimestamp = time.Now()
+		_, err = api.mongodb.Collection(model.ScanTasksCollection.String()).InsertOne(mongoCtx, task)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("Couldn't insert document")
+			RespAndLog(w, ctx,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("Couldn't update cluster: %w", err)))
+			return
+		}
+		api.redclair.AddScanTask(task)
+		response.Ok(w, response.WithItem(task))
+	}
+}
+
+func (api *api) redirect() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// /api/v2/containerSec/scanner/reportsByImageOverview
+		// /api/v1/scan/reportsByImageOverview?offset=1
+		pre := r.URL.String()
+		log.WithContext(api.ctx).Infof("pre", pre)
+
+		newUrl := fmt.Sprintf("%s/%s", "http://127.0.0.1:8081",
+			strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1/scan", 1))
+		log.WithContext(api.ctx).Infof("newUrl", newUrl)
+
+		u, err := url.Parse(newUrl)
+		if nil != err {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
+			return
+		}
+		proxy := httputil.ReverseProxy{
+			Director: func(request *http.Request) {
+				request.URL = u
+			},
+		}
+		proxy.ServeHTTP(w, r)
+	}
 }

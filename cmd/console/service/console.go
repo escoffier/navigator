@@ -22,7 +22,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
@@ -193,7 +192,7 @@ func NewConsole(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	}
 	// image service
-	imageService := image.NewImageService(postgresDB, harborClient)
+	//imageService := image.NewImageService(postgresDB, harborClient)
 
 	// scanner service
 	scannerService := scanner.NewScannerService(mainCtx, redisClient, postgresDB, mongoDBWrapper, harborClient)
@@ -272,8 +271,8 @@ func NewConsole(
 	c.Start()
 	cronService := cron.NewCronService(c, mongoDBWrapper, scapper, clusterService, mainCtx)
 
-	//microService *microservice.MicroService,
-	//micro service
+	// microService *microservice.MicroService,
+	// micro service
 	microService := microservice.NewMicroService(mongoDBWrapper, postgresDB)
 
 	riskexplorer.InitAndGetRiskExplorerService(mongoDBWrapper, onlineVulnsSvc)
@@ -291,6 +290,7 @@ func NewConsole(
 				es,
 				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
+				// fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.RedirectPort),
 				httpOpts.HTTPLoggerDisabled,
 				cronService,
 				clusterService,
@@ -302,7 +302,7 @@ func NewConsole(
 				harborClient,
 				microService,
 				emailOpts,
-				imageService,
+				//imageService,
 				ecCli,
 				networkTopoService,
 			),

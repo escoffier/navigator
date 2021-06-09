@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,9 +14,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-//@Router /api/v1/microservice
+// @Router /api/v1/microservice
 func (api *api) Microservice() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/vulnerabilities/details/{namespace}/{resourceKind}/{resourceName}", api.getMicroOnlineVulnerabilityDetails())
@@ -28,6 +31,7 @@ func (api *api) Microservice() func(chi.Router) {
 		r.Post("/setServiceAlias", api.setServiceAlias())
 		r.Post("/serviceScan", api.setServiceScan())
 		r.Get("/serviceScan", api.getServiceScan())
+		r.Get("/relationImage/{imageInfo}", api.getRelationImage())
 
 	}
 }
@@ -76,7 +80,7 @@ func (api *api) getMicroOnlineVulnerabilityDetails() http.HandlerFunc {
 			return
 		}
 
-		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, cluster, namespace, resourceKind, resourceName)
+		vulnDetails, err := api.onlineVulnsSvc.GetOnlineVulnerabilityDetails(ctx, cluster, namespace, resourceKind, resourceName, api.scannerURL)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return
@@ -224,7 +228,7 @@ func (api *api) OptFocus() http.HandlerFunc {
 	type param struct {
 		Namespace string `json:"namespace" bson:"namespace"`
 		SvcName   string `json:"svcName" bson:"svcName"`
-		OptType   string `json:"optType" bson:"optType"` //Focus
+		OptType   string `json:"optType" bson:"optType"` // Focus
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var param param
@@ -499,5 +503,71 @@ func (api *api) getServiceScan() http.HandlerFunc {
 
 		response.Ok(w, response.WithItem(resp))
 
+	}
+}
+
+func (api *api) getRelationImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type tmppodinfo struct {
+			podUID    string
+			podimage  string
+			namespace string
+		}
+		fmt.Println("调用到关联服务了")
+		imageInfo := chi.URLParam(r, "imageInfo")
+		VulnImageLists := []model.VulnImageList{}
+		json.Unmarshal([]byte(imageInfo), &VulnImageLists)
+		collection := api.mongodb.Get().Collection(new(model.AssetContainer).TableName())
+		res := []model.VulnDetailContainer{}
+		tmpPodInfos := []tmppodinfo{}
+		for _, v := range VulnImageLists {
+			findOptions := options.Find().SetMaxTime(time.Second * 30)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancelFunc()
+			filter := bson.M{"digest": v.Digest, "isDeleted": "false"}
+			cursor, err := collection.Find(ctx, filter, findOptions)
+			if err != nil {
+				continue
+			}
+			defer cursor.Close(ctx)
+			for cursor.Next(ctx) {
+				var tmpPodInfo tmppodinfo
+				var tmp model.AssetContainer
+				err := cursor.Decode(&tmp)
+				if err != nil {
+					continue
+				}
+				tmpPodInfo.podUID = tmp.PodUID
+				tmpPodInfo.podimage = tmp.Image
+				tmpPodInfo.namespace = tmp.Namespace
+				tmpPodInfos = append(tmpPodInfos, tmpPodInfo)
+			}
+		}
+		collectionPS := api.mongodb.Get().Collection(model.PodServiceRelationCollection.String())
+		for _, v := range tmpPodInfos {
+			tmpContainer := model.VulnDetailContainer{}
+			tmpContainer.ImageName = v.podimage
+			tmpContainer.Namespace = v.namespace
+			findOptions := options.Find().SetMaxTime(time.Second * 30)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancelFunc()
+			filter := bson.M{"podUid": v.podUID}
+			cursor, err := collectionPS.Find(ctx, filter, findOptions)
+			if err != nil {
+				res = append(res, tmpContainer)
+				continue
+			}
+			defer cursor.Close(ctx)
+			for cursor.Next(ctx) {
+				var tmp model.PodServiceRelation
+				err := cursor.Decode(&tmp)
+				if err != nil {
+					continue
+				}
+				tmpContainer.ServiceName = tmp.Name
+				res = append(res, tmpContainer)
+			}
+		}
+		response.Ok(w, response.WithItems(res))
 	}
 }

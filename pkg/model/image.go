@@ -45,36 +45,12 @@ type QuestionInfo struct {
 	QID          int    `gorm:"primary_key;AUTO_INCREMENT" json:"-" `
 	ID           int    `gorm:"column:id;index" json:"id"`
 	Digest       string `gorm:"column:digest;index" json:"digest" bson:"digest"`
-	LinkObjectId string `gorm:"column:link_object_id" json:"link_object_id"`
+	LinkObjectId string `gorm:"column:link_object_id" json:"link_object_id"` // mongo scantask表的ID
 	Time         string `gorm:"column:time" json:"time"`
 }
 
 func (q QuestionInfo) TableName() string {
 	return "tensor_question"
-}
-
-type ImageList struct {
-	ID             int                    `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	FullRepoName   string                 `gorm:"column:full_repo_name;index:nameTag"  json:"full_repo_name"`
-	Tags           string                 `gorm:"column:tags;index:nameTag" json:"tags" bson:"tags"`
-	Digest         string                 `gorm:"column:digest;index" json:"digest" bson:"digest"`
-	OS             string                 `gorm:"column:os" json:"os" bson:"os"`
-	Size           int                    `gorm:"column:size" json:"size" bson:"size"`
-	Library        string                 `gorm:"column:library" json:"library" bson:"library"`
-	Questions      []QuestionInfo         `gorm:"-" json:"questions" bson:"questions"`
-	CompleteTime   string                 `gorm:"column:complete_time;index" json:"complete_time" bson:"complete_time"`
-	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln" bson:"-"`
-	Container      []AssetContainer       `gorm:"-" json:"container" bson:"-"`
-	ScanStatus     string                 `gorm:"-" json:"scan_status",bson:"-"`
-	ImageScanVirus []VirusFileInfo        `gorm:"-" json:"image_scan_virus" bson:"-"`
-	CreateTime     string                 `gorm:"column:create_time" json:"create_time" bson:"create_time"`
-	PushTime       string                 `gorm:"column:push_time;index" json:"push_time" bson:"push_time"`
-	OnLineCount    int                    `gorm:"column:on_line_count;default:0;index" json:"-"`
-	Status         int                    `gorm:"column:status;default:0" json:"status"` // status: -1 not ready images 0 normal status
-}
-
-func (i ImageList) TableName() string {
-	return "tensor_image_list"
 }
 
 type VirusFileInfo struct {
@@ -166,4 +142,19 @@ type Artifacts1 struct {
 	Labels    []interface{} `json:"labels"`
 	PushTime  time.Time     `json:"push_time"`
 	PullTime  time.Time     `json:"pull_time"`
+}
+
+type OverView struct {
+	ImageTotal  int64    `json:"image_total"`
+	OnlineTotal int64    `json:"online_total"`
+	Sum         SafeOver `json:"sum"`
+	Online      SafeOver `json:"online"`
+}
+
+type SafeOver struct {
+	VULN         int `json:"vuln"`
+	VIRUS        int `json:"virus"`
+	SENSITIVE    int `json:"sensitive"`
+	NETWORK_VULN int `json:"network_vuln"`
+	Pkg          int `json:"pkg"`
 }

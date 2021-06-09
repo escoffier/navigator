@@ -8,6 +8,7 @@ const (
 	ScanStatusInProgress          = "inprogress"
 	ScanStatusSucceeded           = "succeeded"
 	ScanStatusFailed              = "failed"
+	ScanStatusPending             = "pending"
 	ScanStatusUnprocessableEntity = "failedUnprocessable"
 )
 
@@ -38,6 +39,8 @@ type ScanTask struct {
 	FirstScanAt       int64                 `json:"firstScanAt" bson:"firstScanAt"` // tracks the first ever scan of this image (digest)
 	Stale             bool                  `json:"stale" bson:"stale"`             // if true, there are newer scans of this image (digest)
 	SeverityHistogram SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
+	ImageID           int64                 `json:"-" bson:"-"`
+	TableID           int64                 `json:"-" bson:"-"`
 }
 
 type ScanReport struct {
@@ -75,4 +78,23 @@ type VulnerabilityLayerReport struct {
 	OverallSeverity        string                `json:"overallSeverity"`
 	OverallSeverityInt     int                   `json:"overallSeverityInt"`
 	SeverityHistogram      SeverityHistogramInfo `json:"severityHistogram" bson:"severityHistogram"`
+}
+
+type ImageResponse struct {
+	ID           int64          `json:"id"`
+	Digest       string         `json:"digest"`
+	Library      string         `json:"library"`
+	ScanStatus   string         `json:"scan_status"`
+	CompleteTime string         `json:"complete_time"`
+	Questions    []QuestionInfo `json:"questions"`
+	FullRepoName string         `json:"full_repo_name"`
+	Tags         string         `json:"tags"`
+}
+
+type ScanOneStatusResponse struct {
+	ScanStatus   string `json:"scan_status"`
+	EndTime      string `json:"end_time"`
+	HasVulu      bool   `json:"has_vulu"`      // 是否有漏洞
+	HasMalicious bool   `json:"has_malicious"` // 是否有病毒
+	HasSensitive bool   `json:"has_sensitive"` // 是否有敏感文件
 }

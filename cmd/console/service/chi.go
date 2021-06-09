@@ -10,6 +10,8 @@ import (
 	"runtime/debug"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/jwtauth"
@@ -20,8 +22,6 @@ import (
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -53,7 +53,7 @@ func setupChiRouter(
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
-	imageService *image.ImageService,
+	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 	networkTopoService *networktopo.NetworkTopoService,
 ) http.Handler {
@@ -89,7 +89,7 @@ func setupChiRouter(
 		harborClient,
 		microService,
 		emailOpts,
-		imageService,
+		//imageService,
 		ecCli,
 		networkTopoService,
 	)

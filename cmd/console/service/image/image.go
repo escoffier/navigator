@@ -136,11 +136,11 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 			il.OS = v.Os
 			il.Size = v.Size
 			il.Library = removeProtocolPrefixIfHaving(im.harborClient.GetAddressString())
-			cstZone := time.FixedZone("CST", 8*3600)
-			timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
-			il.OnLineCount = 0
-			il.PushTime = timeStr
-			il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+			// cstZone := time.FixedZone("CST", 8*3600)
+			// timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
+			// il.OnLineCount = 0
+			// il.PushTime = timeStr
+			// il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
 			il.Status = 0
 			func() {
 				pgCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -184,10 +184,10 @@ func (im *ImageService) addImg(artifacts model.Artifacts) error {
 				var il model.ImageList
 				il.FullRepoName = v.FullRepoName
 				il.Tags = t.Name
-				cstZone := time.FixedZone("CST", 8*3600)
-				timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
-				il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-				il.PushTime = timeStr
+				// cstZone := time.FixedZone("CST", 8*3600)
+				// timeStr := v.PushTime.In(cstZone).Format("2006-01-02 15:04:05")
+				// il.CreateTime = time.Now().In(cstZone).Format("2006-01-02 15:04:05")
+				// il.PushTime = timeStr
 				il.Digest = v.Digest
 				il.OS = v.ExtraAttrs.Os
 				il.Size = v.Size

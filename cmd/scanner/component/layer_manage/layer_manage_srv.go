@@ -10,10 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
-
-	"time"
 )
 
 const (
@@ -179,21 +178,21 @@ func (llms *LocalLayerManageSrv) AddLayerRecord(rq *RequestLayerInfo) error {
 }
 
 func (llms *LocalLayerManageSrv) WaitLayerPulled(digest string) error {
-	if _, ok := llms.layerList[digest]; !ok {
-		return fmt.Errorf("layer %s not exist", digest)
-	}
-
-	// Todo: a little rude, could use broker
 	for {
-		if llms.layerList[digest].status == LayerPulled || llms.layerList[digest].status == LayerPullErr {
+		llms.taskLock.Lock()
+		if _, ok := llms.layerList[digest]; !ok {
+			log.Info().Msgf("wait layer pulled,layer %s not exist", digest)
+			llms.taskLock.Unlock()
 			break
 		}
-		time.Sleep(time.Duration(5) * time.Millisecond)
+		if llms.layerList[digest].status == LayerPulled || llms.layerList[digest].status == LayerPullErr {
+			llms.taskLock.Unlock()
+			break
+		}
+		llms.taskLock.Unlock()
+
+		time.Sleep(time.Duration(20) * time.Millisecond)
 	}
-	//select {
-	//case  <-llms.layerList[digest].flag:
-	//	log.Info().Msgf("layer %s has been pulled",digest)
-	//}
 	return nil
 }
 

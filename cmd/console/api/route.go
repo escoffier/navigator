@@ -17,7 +17,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -68,7 +67,7 @@ func SetupRoutes(
 	harborClient *harbor.HarborRESTClient,
 	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
-	imageService *image.ImageService,
+	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 	networkTopoService *networktopo.NetworkTopoService,
 ) {
@@ -90,22 +89,22 @@ func SetupRoutes(
 		harborClient,
 		microService,
 		emailOpts,
-		imageService,
+		//imageService,
 		ecCli,
 		networkTopoService,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
-	//api v2
+	// api v2
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Route("/usercenter", api.userCenter())
 		r.Group(func(r chi.Router) {
-			//normal check
+			// normal check
 			r.Use(jwtauth.Verifier(api.tokenAuth))
 			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
 
-			r.Route("/platform", api.platform()) //platform
+			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())
 
 		})

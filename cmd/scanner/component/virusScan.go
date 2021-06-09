@@ -22,13 +22,13 @@ import (
 	"unsafe"
 
 	"go.mongodb.org/mongo-driver/mongo"
-	"gorm.io/gorm"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/rs/zerolog"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -40,7 +40,7 @@ import (
 type VirusScan struct {
 	ctx           context.Context
 	mongodb       *mongo.Database
-	postgresDB    *gorm.DB
+	postgresSvc   *ScannerDB
 	redisClient   *redis.Client
 	scanTasksChan chan model.VirusScanTask
 	numWorkers    int
@@ -57,11 +57,11 @@ const (
 	viursMaxLayerScanRetires      = 3
 )
 
-func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresDB *gorm.DB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
+func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *ScannerDB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
 	return &VirusScan{
 		ctx:           ctx,
 		mongodb:       db,
-		postgresDB:    postgresDB,
+		postgresSvc:   postgresSvc,
 		redisClient:   rc,
 		scanTasksChan: make(chan model.VirusScanTask, 1000),
 		numWorkers:    clairOpts.NumWorkers,
@@ -376,16 +376,57 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 		PerLayerReport: perLayerReport,
 	}
 	scanTask.ScanReport = *report
-	flag := false
-	if len(virus) != 0 {
-		flag = true
-	}
-	err = virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil, flag)
-	if err != nil {
+	//flag := false
+	//if len(virus) != 0 {
+	//	flag = true
+	//}
+	//err = virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil, flag)
+	virusScan.logToLayer(ctx, scanTask, scanTask.ImageID)
+	virusScan.logPostgres(ctx, scanTask, scanTask.TableID)
+	/*if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Update Mongo Dockument Failed")
 		return
-	}
+	}*/
 	zerolog.Ctx(ctx).Info().Msg("Processing of VirusScan task finished")
+}
+
+func (virusScan *VirusScan) logToLayer(ctx context.Context, scanTask model.VirusScanTask, ImageID int64) {
+	for _, v := range scanTask.ScanReport.Virus.PerLayerReport {
+		if len(v.ViursInfo) < 0 {
+			continue
+		} else {
+			res := []model.Malicious{}
+			tmpScanLayer := model.ScanLayer{}
+			tmpScanLayer.LayerDigest = v.LayerDigest
+			tmpScanLayer.ImageId = ImageID
+			for _, virus := range v.ViursInfo {
+				tmpMalicious := model.Malicious{}
+				tmpMalicious.VirusInfo = virus
+				res = append(res, tmpMalicious)
+			}
+			jsondata, _ := json.Marshal(res)
+			tmpScanLayer.MaliciousInfoJSON = jsondata
+			virusScan.postgresSvc.InsertVirusLayer(tmpScanLayer)
+		}
+	}
+}
+
+func (virusScan *VirusScan) logPostgres(ctx context.Context, scanTask model.VirusScanTask, tableID int64) {
+	scanImage := model.ScanImage{}
+	if len(scanTask.ScanReport.Virus.Virus) > 0 {
+		res := []model.Malicious{}
+		for _, v := range scanTask.ScanReport.Virus.Virus {
+			tmp := model.Malicious{}
+			tmp.VirusInfo = v
+			res = append(res, tmp)
+		}
+		//tmp.VirusInfo = scanTask.ScanReport.Virus.Virus
+		jsondata, _ := json.Marshal(res)
+		scanImage.MaliciousInfoJSON = jsondata
+	} else {
+		return
+	}
+	virusScan.postgresSvc.InsertVirusInfo(scanImage, tableID)
 }
 
 func (virusScan *VirusScan) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.VirusCachedLayer) (*model.VirusCachedLayer, error) {
@@ -462,18 +503,18 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 		//return err
 	}
 
-	if flag == true {
-		util.ImageQuestion(virusScan.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, true, scanTask.ImageDigest)
-	} else {
-		util.ImageQuestion(virusScan.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, false, scanTask.ImageDigest)
-	}
+	/*	if flag == true {
+			util.ImageQuestion(virusScan.postgresSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, true, scanTask.ImageDigest)
+		} else {
+			util.ImageQuestion(virusScan.postgresSvc.postgresDB, scanTask.ID.Hex(), model.QUESTION_VIRUS, false, scanTask.ImageDigest)
+		}*/
 
-	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
-		err := util.ScanFinish(virusScan.postgresDB, scanTask.ImageDigest)
+	/*if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
+		err := util.ScanFinish(virusScan.postgresSvc.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
-	}
+	}*/
 	return nil
 }
 
@@ -619,7 +660,7 @@ func (virusScan *VirusScan) readManifest(ctx context.Context, version string, hu
 	layers := make([]string, 0)
 	uniqueLayers := make(map[string]bool)
 	if version == "v1" {
-		manifest, err := hub.Manifest(scanTask.Repository, scanTask.ImageDigest)
+		manifest, err := hub.Manifest(scanTask.Repository, scanTask.Tag)
 		if err != nil {
 			return []string{}, fmt.Errorf("Could not read docker V1 manifest: %w", err)
 		}
@@ -632,7 +673,7 @@ func (virusScan *VirusScan) readManifest(ctx context.Context, version string, hu
 			layers = append([]string{layerDigest}, layers...)
 		}
 	} else if version == "v2" {
-		manifest, err := hub.ManifestV2(scanTask.Repository, scanTask.ImageDigest)
+		manifest, err := hub.ManifestV2(scanTask.Repository, scanTask.Tag)
 		if err != nil {
 			return []string{}, fmt.Errorf("Could not read docker V2 manifest: %w", err)
 		}

@@ -14,6 +14,7 @@ const (
 type RedisOpts struct {
 	Endpoint string
 	Password string
+	DB       int
 }
 
 // NewDefaultRedisOpts returns a new default redis options.

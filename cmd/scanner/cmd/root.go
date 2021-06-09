@@ -77,11 +77,9 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-
 		lifecycle.NewApplication(
 			scanner,
 		).Run()
-
 		return nil
 	},
 }

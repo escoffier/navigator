@@ -141,7 +141,8 @@ postgresqlDataDir: /bitnami/postgresql/data
 ## Alternatively, you can put your postgresql.conf under the files/ directory
 ## ref: https://www.postgresql.org/docs/current/static/runtime-config.html
 ##
-# postgresqlConfiguration:
+postgresqlConfiguration:
+  {"max_connections":"1024"}
 
 ## PostgreSQL extended configuration
 ## As above, but _appended_ to the main configuration

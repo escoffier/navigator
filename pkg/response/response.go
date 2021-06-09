@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -187,4 +189,36 @@ func Respond(w http.ResponseWriter, code int, contentType string, payload interf
 	}
 
 	// logging.GetLogger().Info().Str("resp", fmt.Sprintf("%+v", string(response))).Msg("Resp sent")
+}
+
+// JSONOK custom gin json serialize data
+func JSONOK(ctx *gin.Context, opts ...ResponseDataOptionFunc) {
+	data := &HTTPEnvelope{
+		ApiVersion: "1.0",
+		Data:       &HTTPData{},
+	}
+	for _, op := range opts {
+		op(data)
+	}
+	ctx.JSON(http.StatusOK, data)
+}
+
+func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
+	data := &HTTPEnvelope{
+		ApiVersion: "1.0",
+		Error:      &HTTPError{},
+	}
+	for _, op := range opts {
+		op(data)
+	}
+
+	data.Error.Message = err.Error()
+	httpCode := http.StatusBadRequest
+	if err2, ok := err.(*HTTPError); ok {
+		httpCode = err2.Code
+		data.Error.Code = httpCode
+		data.Error.Errors = err2.Errors
+	}
+
+	ctx.JSON(httpCode, data)
 }

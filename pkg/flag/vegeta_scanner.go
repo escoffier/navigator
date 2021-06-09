@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	vegetaScannerHost = "vegeta-scanner-host"
-	vegetaScannerPort = "vegeta-scanner-port"
+	vegetaScannerHost         = "vegeta-scanner-host"
+	vegetaScannerPort         = "vegeta-scanner-port"
+	vegetaScannerRedirectPort = "vegeta-scanner-redirect-port"
 )
 
 // VegetaScannerOpts the vegeta scanner options
