@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gopkg.in/mgo.v2/bson"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -39,8 +40,6 @@ type ServiceAssetsService struct {
 
 	mongoDB *mongotools.DatabaseWrapper
 
-	psCache *assets.PodServiceCache
-
 	syncedClusters map[string]struct{}
 }
 
@@ -53,8 +52,15 @@ type ServiceAssetsClusterCallback struct {
 func newServiceAssetsService(mongo *mongotools.DatabaseWrapper) *ServiceAssetsService {
 	return &ServiceAssetsService{
 		mongoDB:        mongo,
-		psCache:        assets.NewPodServiceCache(),
 		syncedClusters: make(map[string]struct{}, 1),
+	}
+}
+
+func (cb *ServiceAssetsService) WatchedTypes() map[assets.WatchedType]struct{} {
+	return map[assets.WatchedType]struct{}{
+		assets.Pods2Watch: {},
+		// assets.Endpoints2Watch: {},
+		assets.Services2Watch: {},
 	}
 }
 
@@ -84,15 +90,6 @@ func (cb *ServiceAssetsService) BeforWatchNewCluster(ctx context.Context, cluste
 	}
 }
 
-func (cb *ServiceAssetsService) GetServiceInfoOfPod(cluster, podUID string) (sinfo *assets.ServiceInfo, ok bool) {
-	sinfo, ok = cb.psCache.GetServiceInfoBy(cluster, podUID)
-	if !ok || sinfo == nil {
-		ok = false
-		return
-	}
-	return sinfo, true
-}
-
 // Name returns the name
 func (cb *ServiceAssetsService) Name() string {
 	return "serviceAssets"
@@ -110,10 +107,8 @@ func (cb *ServiceAssetsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, a
 	// update mongo storage if there are no service from endpoints.
 	err := assets.OnPodEventForService(cb.parent.mongoDB.Get(), cb.cluster, newPod, oldPod, action)
 
-	cerr := cb.parent.psCache.OnPodForServiceEvent(cb.cluster, newPod, oldPod, action)
-
-	if cerr != nil || err != nil {
-		logging.GetLogger().Warn().Msgf("%s callback on pod event(cluster: %s) action: %s, storage err: %v. cache err: %v", cb.Name(), cb.cluster, action, err, cerr)
+	if err != nil {
+		logging.GetLogger().Warn().Msgf("%s callback on pod event(cluster: %s) action: %s, storage err: %v. cache err: %v", cb.Name(), cb.cluster, action, err)
 	}
 	return nil
 }
@@ -122,18 +117,21 @@ func (cb *ServiceAssetsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Se
 	err := assets.OnServiceEvent(cb.parent.mongoDB.Get(), cb.cluster, newSvc, oldEvc, action)
 	return err
 }
+
+func (cb *ServiceAssetsClusterCallback) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
 func (cb *ServiceAssetsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
 	// update mongo storage
 	err := assets.OnEndpointsEvent(cb.parent.mongoDB.Get(), cb.cluster, newEpt, oldEpt, action)
 
-	// update memory cache
-	cerr := cb.parent.psCache.OnEndpointsEvent(cb.cluster, newEpt, oldEpt, action)
-
-	if cerr != nil || err != nil {
-		logging.GetLogger().Warn().Msgf("%s callback on endpoint event(cluster: %s) action: %s, storage err: %v. cache err: %v", cb.Name(), cb.cluster, action, err, cerr)
+	if err != nil {
+		logging.GetLogger().Warn().Msgf("%s callback on endpoint event(cluster: %s) action: %s, storage err: %v.", cb.Name(), cb.cluster, action, err)
 	}
 	return err
 }
+
 func (cb *ServiceAssetsClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
 	if dataSynced {
 		cb.parent.setClusterDataSynced(cb.cluster)

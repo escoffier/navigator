@@ -18,10 +18,12 @@ type AssetContainer struct {
 
 	LastUpdateTimeEpoch int64 `json:"lastUpdateTime" bson:"lastUpdateTime"` // ind
 
-	Cluster      string `json:"cluster" bson:"cluster"`
-	Namespace    string `json:"namespace" bson:"namespace"`       // ind
-	PodOwnerName string `json:"podOwnerName" bson:"podOwnerName"` // ind
-	PodOwnerKind string `json:"podOwnerKind" bson:"podOwnerKind"` // ind
+	Cluster         string `json:"cluster" bson:"cluster"`
+	Namespace       string `json:"namespace" bson:"namespace"`             // ind
+	PodOwnerName    string `json:"podOwnerName" bson:"podOwnerName"`       // ind
+	PodOwnerKind    string `json:"podOwnerKind" bson:"podOwnerKind"`       // ind
+	PodResourceName string `json:"podResourceName" bson:"podResourceName"` // The resource of this pod: could be the Deployment/StatefulSet/DaemonSet/Job...
+	PodResourceKind string `json:"podResourceKind" bson:"podResourceKind"`
 
 	IsDeleted bool `json:"isDeleted" bson:"isDeleted"` // ind
 

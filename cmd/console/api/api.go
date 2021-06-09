@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -37,27 +38,28 @@ import (
 )
 
 type api struct {
-	ctx            context.Context
-	userCache      *cache.Cache
-	tokenAuth      *jwtauth.JWTAuth
-	mongodb        *mongotools.DatabaseWrapper
-	postgresDB     *rdbtools.GormWrapper
-	optUserMap     map[string]struct{}
-	es             *elastic.Client
-	scapper        *scapper.Scapper
-	scannerURL     string
-	cronService    *cron.CronService
-	clusterService *cluster.ClusterService
-	redisClient    *redis.Client
-	onlineVulnsSvc *assetsSvc.OnlineVulnsService
-	dataService    *data.Service
-	scannerService *scanner.ScannerService
-	scapService    *scapper.ScapService
-	harborClient   *harbor.HarborRESTClient
-	microService   *microservice.MicroService
-	emailOpts      *flag.EmailOpts
-	imageService   *image.ImageService
-	ecCli          pb.EventsCenterBizServiceClient
+	ctx                context.Context
+	userCache          *cache.Cache
+	tokenAuth          *jwtauth.JWTAuth
+	mongodb            *mongotools.DatabaseWrapper
+	postgresDB         *rdbtools.GormWrapper
+	optUserMap         map[string]struct{}
+	es                 *elastic.Client
+	scapper            *scapper.Scapper
+	scannerURL         string
+	cronService        *cron.CronService
+	clusterService     *cluster.ClusterService
+	redisClient        *redis.Client
+	onlineVulnsSvc     *assetsSvc.AssetsInResourcesService
+	dataService        *data.Service
+	scannerService     *scanner.ScannerService
+	scapService        *scapper.ScapService
+	harborClient       *harbor.HarborRESTClient
+	microService       *microservice.MicroService
+	emailOpts          *flag.EmailOpts
+	imageService       *image.ImageService
+	ecCli              pb.EventsCenterBizServiceClient
+	networkTopoService *networktopo.NetworkTopoService
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -77,7 +79,7 @@ func newAPI(
 	cronService *cron.CronService,
 	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	onlineVulnsSvc *assetsSvc.OnlineVulnsService,
+	onlineVulnsSvc *assetsSvc.AssetsInResourcesService,
 	dataService *data.Service,
 	scannerService *scanner.ScannerService,
 	scapService *scapper.ScapService,
@@ -86,6 +88,7 @@ func newAPI(
 	emailOpts *flag.EmailOpts,
 	imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
+	networkTopoService *networktopo.NetworkTopoService,
 ) *api {
 	return &api{
 		ctx:                         ctx,
@@ -110,6 +113,7 @@ func newAPI(
 		emailOpts:                   emailOpts,
 		imageService:                imageService,
 		ecCli:                       ecCli,
+		networkTopoService:          networkTopoService,
 	}
 }
 

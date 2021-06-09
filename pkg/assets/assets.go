@@ -71,7 +71,8 @@ func UpdateAssetScanningDetails(assetContainer *model.AssetContainer, scanTask *
 	}
 }
 
-func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper, cluster string, pod *corev1.Pod, container *corev1.ContainerStatus, owner *metav1.OwnerReference, isDeleteEvent bool) {
+// owner is the direct owner of pod; resource is the inferenced owner, for the replicaset pod, it will infer to deployment
+func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper, cluster string, pod *corev1.Pod, container *corev1.ContainerStatus, owner *metav1.OwnerReference, resource *metav1.OwnerReference, isDeleteEvent bool) {
 	// image: 192.168.1.203:5000/tensorsec-console:latest
 	repositoryTag := strings.Split(container.Image, ":")
 	repository := strings.Join(repositoryTag[0:len(repositoryTag)-1], ":")
@@ -90,7 +91,7 @@ func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormW
 		state = "Terminated"
 	}
 
-	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer mongoCtxCancel()
 
 	driftPrevention := ""
@@ -159,6 +160,13 @@ func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormW
 		assetContainer.PodOwnerKind = owner.Kind
 		assetContainer.PodOwnerName = owner.Name
 	}
+	if resource == nil {
+		assetContainer.PodResourceName = pod.Name
+		assetContainer.PodResourceKind = "NoOwner"
+	} else {
+		assetContainer.PodResourceName = resource.Name
+		assetContainer.PodResourceKind = resource.Kind
+	}
 	filter := bson.M{
 		"$and": []bson.M{
 			{"podName": assetContainer.PodName},
@@ -181,8 +189,8 @@ func getIPPort(ip string, port int32) string {
 	return fmt.Sprintf("%s:%d", ip, port)
 }
 
-func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, oldPod *corev1.Pod, action AssetsAction) error {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*15)
+func OnPodEventForResources(mongodb *mongo.Database, kubeCluster string, newPod, oldPod *corev1.Pod, ownerRef *metav1.OwnerReference, action AssetsAction) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer mongoCtxCancel()
 
 	if action == ActionDelete {
@@ -200,10 +208,6 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("delete PodOwnerRefRelationCollection error for pod event")
 		}
-		_, err = mongodb.Collection(model.PodServiceRelationCollection.String()).DeleteMany(mongoCtx, filter)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("delete PodServiceRelationCollection error for pod event")
-		}
 	}
 	if action == ActionUpdate || action == ActionAdd {
 		if newPod == nil {
@@ -212,21 +216,18 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 		if newPod.UID == "" {
 			return nil
 		}
-		owner := metav1.GetControllerOf(newPod)
-		ownerName := ""
-		svcKind := ""
-		if owner != nil {
-			ownerName = owner.Name
-			svcKind = owner.Kind
-		} else {
-			return errors.New("get owner error")
-		}
 
+		ownerRefName := newPod.Name
+		ownerRefKind := "NoOwner"
+		if ownerRef != nil {
+			ownerRefName = ownerRef.Name
+			ownerRefKind = ownerRef.Kind
+		}
 		podOwnerRel := model.PodOwnerRefRelation{
 			Namespace:    newPod.Namespace,
-			OwnerRefName: ownerName,
+			OwnerRefName: ownerRefName,
 			Cluster:      kubeCluster,
-			OwnerRefKind: svcKind,
+			OwnerRefKind: ownerRefKind,
 			PodUID:       string(newPod.UID),
 			PodName:      newPod.Name,
 		}
@@ -246,6 +247,32 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 		if upErr != nil {
 			return upErr
 		}
+	}
+	return nil
+}
+
+func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, oldPod *corev1.Pod, action AssetsAction) error {
+	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer mongoCtxCancel()
+
+	if action == ActionDelete {
+		if oldPod == nil {
+			return errors.New("no old pods given")
+		}
+
+		filter := bson.M{
+			"$and": []bson.M{
+				{"cluster": kubeCluster},
+				{"podUid": string(oldPod.UID)},
+			},
+		}
+		_, err := mongodb.Collection(model.PodServiceRelationCollection.String()).DeleteMany(mongoCtx, filter)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("delete PodServiceRelationCollection error for pod event")
+		}
+	}
+	if action == ActionUpdate || action == ActionAdd {
+
 	}
 	return nil
 }
