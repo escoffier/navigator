@@ -1,19 +1,7 @@
-FROM ubuntu:18.04
+FROM registry.t-appagile.com/tensorsecurity/baseimage-tensordig:latest
 
 ARG GOPROXY=
 RUN export GOPROXY=$GOPROXY
-
-ARG MIRROR=archive.ubuntu.com
-RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
-
-RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends \
-	libelf1 libtinfo5 ca-certificates build-essential bison build-essential cmake flex git libedit-dev \
-	libllvm7 llvm-7-dev libclang-7-dev python zlib1g-dev libelf-dev libfl-dev wget
-
-WORKDIR /tmp
-
-RUN wget https://dl.google.com/go/go1.13.9.linux-amd64.tar.gz
-RUN tar xf go1.13.9.linux-amd64.tar.gz
 
 WORKDIR /bcc
 

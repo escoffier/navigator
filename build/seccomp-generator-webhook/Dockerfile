@@ -1,13 +1,7 @@
-FROM golang:1.15.5-alpine
+FROM registry.t-appagile.com/tensorsecurity/baseimage-seccomp-generator-webhook:latest
 
 ARG GOPROXY=
 RUN export GOPROXY=$GOPROXY
-
-ARG MIRROR=dl-cdn.alpinelinux.org
-RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
-
-RUN apk update
-RUN apk add --no-cache git musl-dev gcc
 
 ADD cmd/seccomp-generator-webhook /go/src/app
 

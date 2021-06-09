@@ -1,19 +1,7 @@
-FROM ubuntu:18.04
+FROM registry.t-appagile.com/tensorsecurity/baseimage-go-audit:latest
 
 ARG GOPROXY=
 RUN export GOPROXY=$GOPROXY
-
-ARG MIRROR=archive.ubuntu.com
-RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
-RUN sed -i "s!security.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
-
-RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y --no-install-recommends \
-	ca-certificates build-essential wget auditd audispd-plugins git
-
-WORKDIR /tmp
-
-RUN wget https://dl.google.com/go/go1.13.9.linux-amd64.tar.gz
-RUN tar xf go1.13.9.linux-amd64.tar.gz
 
 WORKDIR /go/src/app
 COPY . .
