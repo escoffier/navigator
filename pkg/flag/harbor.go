@@ -11,6 +11,7 @@ const (
 	harborPassword      = "harbor-password"
 	harborSkipTLSVerify = "harbor-skiptlsverify"
 	harborType          = "harbor-type"
+	harborSyncInterval  = "harbor-syncInterval"
 )
 
 // HarborOpts ...
@@ -20,6 +21,7 @@ type HarborOpts struct {
 	Password      string
 	SkipTLSVerify bool
 	Type          string
+	SyncInterval  int
 }
 
 // NewDefaultHarborOpts ...
@@ -31,6 +33,7 @@ func NewDefaultHarborOpts() *HarborOpts {
 		Password:      "Harbor12345",
 		SkipTLSVerify: false,
 		Type:          "harbor-v2.0",
+		SyncInterval:  300,
 	}
 }
 
@@ -42,6 +45,7 @@ func GetHarborOpts(cmd *cobra.Command) *HarborOpts {
 		Password:      viper.GetString(harborPassword),
 		SkipTLSVerify: viper.GetBool(harborSkipTLSVerify),
 		Type:          viper.GetString(harborType),
+		SyncInterval:  viper.GetInt(harborSyncInterval),
 	}
 }
 
@@ -53,12 +57,14 @@ func AddHarborFlags(cmd *cobra.Command) {
 	cmd.Flags().String(harborPassword, defaultOps.Password, "harbor password !!!NOTE: prefer passing this as env injected via k8s secret!!!")
 	cmd.Flags().Bool(harborSkipTLSVerify, defaultOps.SkipTLSVerify, "skip TLS cert verification step for harbor API")
 	cmd.Flags().String(harborType, defaultOps.Type, "registry Type")
+	cmd.Flags().Int(harborSyncInterval, defaultOps.SyncInterval, "registry sync Interval")
 	for _, flag := range []string{
 		harborURL,
 		harborUsername,
 		harborPassword,
 		harborSkipTLSVerify,
 		harborType,
+		harborSyncInterval,
 	} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {

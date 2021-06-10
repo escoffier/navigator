@@ -58,6 +58,7 @@ type Scanner struct {
 	cancel          context.CancelFunc
 	localLayerMange *layerManage.LocalLayerManageSrv
 	postgresDB      *component.ScannerDB
+	harborOpts      flag.HarborOpts
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -182,6 +183,7 @@ func NewScanner(
 		ctx:             mainCtx,
 		cancel:          mainCancel,
 		localLayerMange: llms,
+		harborOpts:      *harborOpts,
 	}, nil
 }
 
@@ -230,7 +232,7 @@ func (s *Scanner) Run() func() {
 		}()
 
 		defer wg.Done()
-		r, err := NewSyncRepoImage("", 3600, s.postgresDB)
+		r, err := NewSyncRepoImage("", uint(s.harborOpts.SyncInterval), s.postgresDB)
 		r.Run(func(image registry.Image) error {
 			TransImagelist := TransImageToImagelist(r, image)
 			s.postgresDB.InsertImageList(TransImagelist)
