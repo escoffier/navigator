@@ -220,7 +220,7 @@ func (s ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vuln
 	// 查询每一个镜像关联pod
 	detailContainers, _ := s.GetRelationImage(ctx, tmpImageLists)
 	res.Containers = detailContainers
-	//res.VulnImageList = tmpImageLists
+	// res.VulnImageList = tmpImageLists
 	return res, nil
 }
 
@@ -762,31 +762,36 @@ func (s *ScannerOrm) SearchImage(param SearchImageParam, filter *model.Filter) (
 	// serialize
 	for i := range res {
 		// 序列化v2
-		maniFestv2 := new(model.ManifestV2)
-		if err := json.Unmarshal(res[i].ManifestV2JSON, maniFestv2); err == nil {
-			res[i].ManifestV2 = *maniFestv2
-		} else {
-			s.log.Debug().Msg(fmt.Sprintf("serialize Manifest error:%s", err.Error()))
-		}
-		// 再序列化v1
-		maniFestV1 := new(model.ManifestV1)
-		if err := json.Unmarshal(res[i].ManifestV1JSON, maniFestV1); err == nil {
-			res[i].ManifestV1 = *maniFestV1
-			for _, his := range maniFestV1.History {
-				for _, v := range his {
-					hv1 := new(model.HistoryV1)
-					if err := json.Unmarshal([]byte(v), hv1); err == nil {
-						res[i].ManifestV1.HistoryV1 = append(res[i].ManifestV1.HistoryV1, *hv1)
-					} else {
-						s.log.Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.HistoryV1 error:%s", err.Error()))
-					}
-				}
+		if len(res[i].ManifestV2JSON) > 0 {
+			maniFestv2 := new(model.ManifestV2)
+			if err := json.Unmarshal(res[i].ManifestV2JSON, maniFestv2); err == nil {
+				res[i].ManifestV2 = *maniFestv2
+			} else {
+				s.log.Debug().Msg(fmt.Sprintf("serialize Manifest error:%s", err.Error()))
 			}
-		} else {
-			s.log.Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.ManifestJson error :%s", err.Error()))
 		}
 
-		if res[i].ConfigJson != nil {
+		// 再序列化v1
+		if len(res[i].ManifestV1JSON) > 0 {
+			maniFestV1 := new(model.ManifestV1)
+			if err := json.Unmarshal(res[i].ManifestV1JSON, maniFestV1); err == nil {
+				res[i].ManifestV1 = *maniFestV1
+				for _, his := range maniFestV1.History {
+					for _, v := range his {
+						hv1 := new(model.HistoryV1)
+						if err := json.Unmarshal([]byte(v), hv1); err == nil {
+							res[i].ManifestV1.HistoryV1 = append(res[i].ManifestV1.HistoryV1, *hv1)
+						} else {
+							s.log.Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.HistoryV1 error:%s", err.Error()))
+						}
+					}
+				}
+			} else {
+				s.log.Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.ManifestJson error :%s", err.Error()))
+			}
+		}
+
+		if len(res[i].ConfigJson) > 0 {
 			configFile := new(model.ConfigFile)
 			if err := json.Unmarshal(res[i].ConfigJson, configFile); err == nil {
 				res[i].ConfigFile = *configFile
