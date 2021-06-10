@@ -187,7 +187,7 @@ func (a *AssociatorClusterCB) CreateImageRelate(imageRelate *model.ImageRelate) 
 	err := a.parent.postgre.Get().WithContext(pgCtx).Create(imageRelate).Error
 	return err
 }
-func (a *AssociatorClusterCB) DeleteImageRelate(digest, library, containerName string) error {
+func (a *AssociatorClusterCB) DeleteImageRelate(digest, library, containerId string) error {
 	if digest == "" || library == "" {
 		return errors.New("no digest or no library")
 	}
@@ -196,6 +196,6 @@ func (a *AssociatorClusterCB) DeleteImageRelate(digest, library, containerName s
 	if !strings.Contains(library, "http") {
 		library = "https://" + library
 	}
-	err := a.parent.postgre.Get().WithContext(pgCtx).Where("digest = ? AND library = ? AND container_name = ?", digest, library, containerName).Delete(&model.ImageRelate{}).Error
+	err := a.parent.postgre.Get().WithContext(pgCtx).Where("digest = ? AND library = ? AND container_id = ?", digest, library, containerId).Delete(&model.ImageRelate{}).Error
 	return err
 }
