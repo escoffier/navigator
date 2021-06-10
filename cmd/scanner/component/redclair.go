@@ -610,7 +610,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		if err != nil {
 			var cErr ClairUnprocessableLayerError
 			if errors.As(err, &cErr) {
-				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusUnprocessableEntity, "Error occured while scanning layers", err)
+				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
 			} else {
 				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
 			}
@@ -1199,7 +1199,7 @@ func (rcSvc *RedClairService) logAndUpdateMongoStatus(ctx context.Context, scanT
 		}
 
 	}
-	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
+	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 		err := util.ScanFinish(rcSvc.postgresSvc.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
@@ -1569,7 +1569,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 		scanImage.Message = fmt.Sprintf("%s: %s", message, originalErr)
 	}
 	rcSvc.postgresSvc.UpdateToScanImage(ctx, scanImage, tableID)
-	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
+	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 		err := util.ScanFinish(rcSvc.postgresSvc.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
@@ -1619,7 +1619,7 @@ func (rcSvc *RedClairService) logImageQuestion(ctx context.Context, scanTask mod
 		}
 	}
 
-	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed || scanTask.Status == model.ScanStatusUnprocessableEntity {
+	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 		err := util.ScanFinish(rcSvc.postgresSvc.postgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)

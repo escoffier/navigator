@@ -5,11 +5,10 @@ import (
 )
 
 const (
-	ScanStatusInProgress          = "inprogress"
-	ScanStatusSucceeded           = "succeeded"
-	ScanStatusFailed              = "failed"
-	ScanStatusPending             = "pending"
-	ScanStatusUnprocessableEntity = "failedUnprocessable"
+	ScanStatusInProgress = "inprogress"
+	ScanStatusSucceeded  = "succeeded"
+	ScanStatusFailed     = "failed"
+	ScanStatusPending    = "pending"
 )
 
 type ScannerReq struct {
