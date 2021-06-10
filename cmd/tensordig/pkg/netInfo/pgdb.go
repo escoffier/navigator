@@ -24,6 +24,7 @@ type K8sNetToplgy struct {
 	DstRes    K8sResData `gorm:"embedded;embeddedPrefix:dst_"`
 	Status    int        `json:"status" gorm:"status"`
 	DstPort   int        `json:"dst_port", gorm:"dst_port;type:integer"`
+	Proto     uint8      `json:"proto", gorm:"proto"`
 	CreatedAt time.Time  `json:"created_at" gorm:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at" gorm:"updated_at"`
 }

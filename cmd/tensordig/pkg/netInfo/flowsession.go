@@ -145,7 +145,7 @@ func (fs *FlowSession) conntrackInitList() error {
 		// 	*session.Origin.Proto.Number, session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.SrcPort, *session.Origin.Proto.DstPort,
 		// 	session.Reply.Src, session.Reply.Dst, *session.Reply.Proto.SrcPort, *session.Reply.Proto.DstPort)
 
-		err = fs.ProcSessionData(session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.DstPort)
+		err = fs.ProcSessionData(session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.DstPort, *session.Origin.Proto.Number)
 		if err != nil {
 			log.Errorf("proc session failed, %v.", err)
 		}
@@ -154,7 +154,7 @@ func (fs *FlowSession) conntrackInitList() error {
 	return nil
 }
 
-func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16) error {
+func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto uint8) error {
 
 	ret := fs.filterUnusedSession(SrcIP)
 	ok := fs.filterUnusedSession(DstIP)
@@ -181,6 +181,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16) error
 	}
 	//
 	netData.DstPort = int(dport)
+	netData.Proto = proto
 	netData.Status = 1
 	netData.SrcRes.Cluster = "default"
 	netData.DstRes.Cluster = "default"
@@ -262,7 +263,7 @@ func (fs *FlowSession) onFlowCallback(header syscall.NlMsghdr, flow *netlink.Con
 	switch nlType {
 	case IPCTNL_MSG_CT_NEW:
 		iptuple := &flow.Forward
-		return fs.ProcSessionData(&iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort)
+		return fs.ProcSessionData(&iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort, iptuple.Protocol)
 
 	case IPCTNL_MSG_CT_DELETE:
 

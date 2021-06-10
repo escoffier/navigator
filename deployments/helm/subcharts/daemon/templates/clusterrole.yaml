@@ -12,10 +12,12 @@ rules:
 - apiGroups:
   - ""
   - "security-profiles-operator.x-k8s.io"
+  - "apps"
   resources:
   - seccompprofiles
   - namespaces
   - pods
+  - services
   verbs:
   - list
   - watch
