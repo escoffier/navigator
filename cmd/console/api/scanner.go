@@ -410,7 +410,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /api/v2/containerSec/scanner/reportsByImageOverview
 		// /api/v1/scan/reportsByImageOverview?offset=1
-		start := time.Now()
+		// start := time.Now()
 		pre := r.URL.String()
 		log.WithContext(api.ctx).Infof("preUrl", pre)
 		var newUrl string
@@ -436,8 +436,8 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 				request.URL = u
 			},
 		}
-		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
+		// log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
 		proxy.ServeHTTP(w, r)
-		log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))
+		// log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))
 	}
 }

@@ -124,7 +124,6 @@ func (a *AssociatorClusterCB) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet,
 	return nil
 }
 func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
-	logging.GetLogger().Info().Msg("触发了OnPodEvent")
 	if action == assets.ActionDelete {
 		for _, container := range oldPod.Status.ContainerStatuses {
 			imageSHA := getImageSHAFromContainer(&container)
@@ -134,7 +133,6 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 			}
 			// a.imageListOnlineSet(context.Background(), false, registryLoc, repoName, tags, imageSHA)
 			// 增加镜像关联数据表
-			logging.GetLogger().Info().Msg("删除ImageRelate表数据")
 			if err := a.DeleteImageRelate(imageSHA, registryLoc, container.ContainerID); err != nil {
 				logging.GetLogger().Error().Err(err).Msg("OnPodEvent delete image_relate error ")
 			}
@@ -149,7 +147,6 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 			}
 			// a.imageListOnlineSet(context.Background(), true, registryLoc, repoName, tags, imageSHA)
 			// 增加镜像关联数据表
-			logging.GetLogger().Info().Msg("增加ImageRelate表数据")
 			if err := a.CreateImageRelate(&model.ImageRelate{Digest: imageSHA, Library: registryLoc, ContainerID: container.ContainerID}); err != nil {
 				logging.GetLogger().Error().Err(err).Msg("OnPodEvent add image_relate error ")
 			}
