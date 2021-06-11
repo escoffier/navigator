@@ -125,14 +125,6 @@ spec:
       # also a way to pass a string as other templates to
       # make these implementations consistent.
       # https://github.com/elastic/helm-charts/issues/490
-      - name: "postgre-listener"
-        image: "registry.t-appagile.com/tensorsecurity/alpine:latest"
-        imagePullPolicy: "IfNotPresent"
-        command: [
-          "sh", "-c",
-          "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"
-        ]
-
       {{- if eq "string" (printf "%T" .Values.extraInitContainers) }}
 {{ tpl .Values.extraInitContainers . | indent 8 }}
       {{- else }}

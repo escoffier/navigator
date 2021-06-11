@@ -43,8 +43,12 @@ extraInitContainers:
     command: [
       "sh", "-c",
       "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
-    ]
-
+    ]    
+  - name: "postgre-listener"
+    image: "registry.t-appagile.com/tensorsecurity/alpine:latest"
+    imagePullPolicy: "IfNotPresent"
+    command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
+    
 envFrom: []
 # - configMapRef:
 #     name: configmap-name
