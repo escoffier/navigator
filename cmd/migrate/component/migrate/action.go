@@ -3,8 +3,6 @@ package migrate
 import (
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/mysql"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/url"
 )
