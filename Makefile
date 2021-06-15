@@ -206,6 +206,13 @@ else
 	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile .
 endif
 
+.PHONY: migrate
+migrate: generate		## Build scanner binary
+	@echo "+ $@"
+	go build -v \
+		--ldflags "$(LDFLAGS)" \
+		-o dist/tensor-migrate gitlab.com/piccolo_su/vegeta/cmd/migrate
+
 
 .PHONY: all
 all: drift-prevention-client faulty tensordig scanner scap-jobs console data drift-prevention seccomp-generator seccomp-generator-webhook holmes
