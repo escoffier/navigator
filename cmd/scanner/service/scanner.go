@@ -22,7 +22,6 @@ import (
 
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"go.etcd.io/etcd/clientv3"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -49,7 +48,6 @@ type Scanner struct {
 	lifecycle.Service
 	server          *http.Server
 	ginServer       *http.Server
-	etcd            *clientv3.Client
 	redclair        *component.RedClairService
 	viursScan       *component.VirusScan
 	mongoClient     *mongo.Database
