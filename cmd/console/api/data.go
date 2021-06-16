@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -76,7 +77,8 @@ func (api *api) runGCTask() http.HandlerFunc {
 			return
 		}
 
-		gcTask, err := api.dataService.RunGC(ctx, cliReq.DataType, cliReq.DaysOffset)
+		dataService, _ := data.Get(ctx)
+		gcTask, err := dataService.RunGC(ctx, cliReq.DataType, cliReq.DaysOffset)
 		if err != nil {
 			if err == def.ErrTaskConflict {
 				apperror.RespAndLog(w, ctx,
@@ -108,7 +110,8 @@ func (api *api) getGCTask() http.HandlerFunc {
 			return
 		}
 
-		gcTask, err := api.dataService.GetGCTask(ctx, gcTaskID)
+		dataService, _ := data.Get(ctx)
+		gcTask, err := dataService.GetGCTask(ctx, gcTaskID)
 		if err != nil {
 			if err == def.ErrTaskNotFound {
 				apperror.RespAndLog(w, ctx,
@@ -171,7 +174,8 @@ func (api *api) setDataTTL() http.HandlerFunc {
 			return
 		}
 
-		err = api.dataService.SetDataTTL(ctx, cliReq.DataType, cliReq.TTLDays)
+		dataService, _ := data.Get(ctx)
+		err = dataService.SetDataTTL(ctx, cliReq.DataType, cliReq.TTLDays)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set data tll: %w", err))
 			return
@@ -198,7 +202,8 @@ func (api *api) getDataTTL() http.HandlerFunc {
 			return
 		}
 
-		dataTTL, err := api.dataService.GetDataTTL(ctx, dataType)
+		dataService, _ := data.Get(ctx)
+		dataTTL, err := dataService.GetDataTTL(ctx, dataType)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get data tll: %w", err))
 			return
@@ -222,7 +227,8 @@ func (api *api) getStorageView() http.HandlerFunc {
 			return
 		}
 
-		storageView, err := api.dataService.GetStorageView(ctx, dataType)
+		dataService, _ := data.Get(ctx)
+		storageView, err := dataService.GetStorageView(ctx, dataType)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get storage view: %w", err))
 			return
@@ -258,7 +264,8 @@ func (api *api) setWaterline() http.HandlerFunc {
 			return
 		}
 
-		err = api.dataService.SetDataWaterline(ctx, cliReq.Percentage)
+		dataService, _ := data.Get(ctx)
+		err = dataService.SetDataWaterline(ctx, cliReq.Percentage)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set waterline: %w", err))
 			return
@@ -275,7 +282,8 @@ func (api *api) getWaterline() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
 		defer cancel()
 
-		percentage, err := api.dataService.GetDataWaterline(ctx)
+		dataService, _ := data.Get(ctx)
+		percentage, err := dataService.GetDataWaterline(ctx)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get waterline: %w", err))
 			return
@@ -316,8 +324,9 @@ func (api *api) checkTTL(ctx context.Context, dataType string, ttl int) (bool, e
 		return false, nil
 	}
 
+	dataService, _ := data.Get(ctx)
 	if dataType == model.DataTypeCold {
-		hotLogicTTL, err := api.dataService.GetDataTTL(ctx, model.DataTypeHotLogic)
+		hotLogicTTL, err := dataService.GetDataTTL(ctx, model.DataTypeHotLogic)
 		if err != nil {
 			return false, err
 		}
@@ -326,7 +335,7 @@ func (api *api) checkTTL(ctx context.Context, dataType string, ttl int) (bool, e
 			return false, nil
 		}
 
-		hotOfflineTTL, err := api.dataService.GetDataTTL(ctx, model.DataTypeHotOffline)
+		hotOfflineTTL, err := dataService.GetDataTTL(ctx, model.DataTypeHotOffline)
 		if err != nil {
 			return false, err
 		}
@@ -334,7 +343,7 @@ func (api *api) checkTTL(ctx context.Context, dataType string, ttl int) (bool, e
 		return hotOfflineTTL < ttl, nil
 	}
 
-	coldTTL, err := api.dataService.GetDataTTL(ctx, model.DataTypeCold)
+	coldTTL, err := dataService.GetDataTTL(ctx, model.DataTypeCold)
 	if err != nil {
 		return false, err
 	}

@@ -35,24 +35,6 @@ func (api *api) harborScanAllNow() http.HandlerFunc {
 	}
 }
 
-// @Summary Trigger scan of online  images in Harbor.
-// @Description Trigger scan of online  images in Harbor.
-// @Router /api/v2/containerSec/scanner/harbor/scanOnline [post]
-func (api *api) harborScanOnline() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := api.userCache.Get(model.SCANSTAUTS)
-		if ok {
-			RespAndLog(w, r.Context(), ScanImageGoingErr(http.StatusBadRequest,
-				fmt.Errorf("ONLINE IMAGE SCAN IS GOING"),
-				Suberror{"Scanner", "going"}))
-			return
-		}
-		go api.imageService.ImageScanOnline(api.mongodb, api.harborClient, api.userCache)
-
-		response.Ok(w)
-	}
-}
-
 // @Summary Get link to scan configuration screen in Harbor.
 // @Description Get link to scan configuration screen in Harbor.
 // @Router /api/v1/scanner/harbor/scanConfig [get]

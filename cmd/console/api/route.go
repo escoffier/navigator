@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"net/http"
 	"strings"
 	"time"
@@ -13,13 +12,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -55,21 +47,12 @@ func SetupRoutes(
 	tokenAuth *jwtauth.JWTAuth,
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
-	scapper *scapper.Scapper,
 	scannerURL string,
-	cronService *cron.CronService,
-	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	onlineVulnsSvc *assets.AssetsInResourcesService,
-	dataService *data.Service,
-	scannerService *scanner.ScannerService,
-	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
-	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
 	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
-	networkTopoService *networktopo.NetworkTopoService,
 ) {
 	log.Debug().Msg("setting up routes...")
 
@@ -77,21 +60,11 @@ func SetupRoutes(
 		tokenAuth,
 		mongodb,
 		postgresDB,
-		scapper,
 		scannerURL,
-		cronService,
-		clusterService,
 		redisClient,
-		onlineVulnsSvc,
-		dataService,
-		scannerService,
-		scapService,
 		harborClient,
-		microService,
 		emailOpts,
-		//imageService,
 		ecCli,
-		networkTopoService,
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))

@@ -2,8 +2,10 @@ package scapper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -11,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
@@ -21,6 +24,36 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+var (
+	scapperInstance *Scapper
+	svcInstance     *ScapService
+	once            sync.Once
+)
+
+func Init(mainCtx context.Context, scapOpts *flag.ScapOpts, mongoOpts *flag.MongoOpts, redisClient *redis.Client, mongodb *mongotools.DatabaseWrapper) error {
+	if redisClient == nil || mongodb == nil {
+		return errors.New("illegal argument")
+	}
+	var err error
+	once.Do(func() {
+		svcInstance, err = newScapService(mainCtx, redisClient, mongodb)
+		if err != nil {
+			return
+		}
+		scapperInstance = newScapper(scapOpts, mongoOpts, mongodb, svcInstance)
+
+	})
+	return err
+}
+
+func GetScapper(ctx context.Context) (*Scapper, bool) {
+	return scapperInstance, scapperInstance != nil
+}
+
+func GetService(ctx context.Context) (*ScapService, bool) {
+	return svcInstance, svcInstance != nil
+}
+
 type ScapService struct {
 	mongodb         *mongotools.DatabaseWrapper
 	kubeScapCache   *rcache.ScapCache
@@ -28,7 +61,7 @@ type ScapService struct {
 	hostScapCache   *rcache.ScapCache
 }
 
-func NewScapService(
+func newScapService(
 	ctx context.Context,
 	redisClient *redis.Client,
 	mongodb *mongotools.DatabaseWrapper,

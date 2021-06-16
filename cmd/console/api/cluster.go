@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -32,7 +32,7 @@ func (api *api) config() func(chi.Router) {
 // @Router /api/v1/config/clusters/{clusterID} [get]
 func (api *api) getCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 		defer cancel()
 
 		clusterObjectID, err := getClusterIDFromURL(r)
@@ -44,7 +44,8 @@ func (api *api) getCluster() http.HandlerFunc {
 			return
 		}
 
-		queryCluster, err := api.clusterService.GetCluster(ctx, clusterObjectID, true)
+		clusterService, _ := cluster.Get(ctx)
+		queryCluster, err := clusterService.GetCluster(ctx, clusterObjectID, true)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
 			return
@@ -63,11 +64,12 @@ func (api *api) getCluster() http.HandlerFunc {
 // @Router /api/v1/config/clusters [get]
 func (api *api) listClusters() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 		defer cancel()
 		offset, limit := api.getOffsetAndLimit(r)
 
-		clusters, docNum, err := api.clusterService.ListClusters(ctx, offset, limit)
+		clusterService, _ := cluster.Get(ctx)
+		clusters, docNum, err := clusterService.ListClusters(ctx, offset, limit)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
@@ -116,7 +118,8 @@ func (api *api) updateCluster() http.HandlerFunc {
 			return
 		}
 
-		updatedCluster, err := api.clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
+		clusterService, _ := cluster.Get(ctx)
+		updatedCluster, err := clusterService.UpdateCluster(ctx, clusterObjectID, &upCluster)
 
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -158,7 +161,8 @@ func (api *api) addCluster() http.HandlerFunc {
 		}
 
 		// For now, cap at 1 cluster max:
-		_, numClusters, err := api.clusterService.ListClusters(ctx, 0, 9999999)
+		clusterService, _ := cluster.Get(ctx)
+		_, numClusters, err := clusterService.ListClusters(ctx, 0, 9999999)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
@@ -170,7 +174,7 @@ func (api *api) addCluster() http.HandlerFunc {
 			return
 		}
 
-		id, err := api.clusterService.AddCluster(ctx, param.ClusterName, param.KubeConfig)
+		id, err := clusterService.AddCluster(ctx, param.ClusterName, param.KubeConfig)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't add cluster: %w", err))
 			return
@@ -205,7 +209,8 @@ func (api *api) delCluster() http.HandlerFunc {
 			return
 		}
 
-		deletedCount, err := api.clusterService.DeleteCluster(ctx, clusterObjectID)
+		clusterService, _ := cluster.Get(ctx)
+		deletedCount, err := clusterService.DeleteCluster(ctx, clusterObjectID)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewFieldError(http.StatusInternalServerError,

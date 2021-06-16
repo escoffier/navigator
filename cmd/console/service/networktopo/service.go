@@ -2,16 +2,38 @@ package networktopo
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"time"
 )
+
+var (
+	instance *NetworkTopoService
+	once     sync.Once
+)
+
+func Init(postgresDB *rdbtools.GormWrapper) error {
+	if postgresDB == nil {
+		return errors.New("illegal argument")
+	}
+	once.Do(func() {
+		instance = newNetworkTopoService(postgresDB)
+	})
+	return nil
+}
+
+func Get(ctx context.Context) (*NetworkTopoService, bool) {
+	return instance, instance != nil
+}
 
 type NetworkTopoService struct {
 	postgresDB *rdbtools.GormWrapper
 }
 
-func NewNetworkTopoService(postgresDB *rdbtools.GormWrapper) *NetworkTopoService {
+func newNetworkTopoService(postgresDB *rdbtools.GormWrapper) *NetworkTopoService {
 	return &NetworkTopoService{
 		postgresDB: postgresDB,
 	}

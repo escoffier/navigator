@@ -2,7 +2,6 @@ package assets
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,23 +15,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var (
-	saSingleton *ServiceAssetsService
-	saInitOnce  sync.Once
-)
-
-func InitAndGetServiceAssetsService(mongo *mongotools.DatabaseWrapper) (*ServiceAssetsService, error) {
-	if mongo == nil {
-		return nil, errors.New("no mongoDB given to init serviceAssetsService")
-	}
-	saInitOnce.Do(func() {
-		saSingleton = newServiceAssetsService(mongo)
-	})
-	return saSingleton, nil
-}
-
-func GetServiceAssetsService() (*ServiceAssetsService, bool) {
-	return saSingleton, saSingleton != nil
+func GetServiceAssetsService(ctx context.Context) (*ServiceAssetsService, bool) {
+	return inSvcInstance, inSvcInstance != nil
 }
 
 type ServiceAssetsService struct {

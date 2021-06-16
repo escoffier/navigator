@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -28,7 +30,8 @@ func (api *api) listAllCrons() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		clusters, _, err := api.clusterService.ListClusters(ctx, 0, 9999999)
+		clusterService, _ := cluster.Get(ctx)
+		clusters, _, err := clusterService.ListClusters(ctx, 0, 9999999)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
 			return
@@ -104,7 +107,8 @@ func (api *api) getCron() http.HandlerFunc {
 			return
 		}
 
-		cronConfig, err := api.cronService.GetCron(ctx, clusterObjectID, checkType)
+		cronService, _ := cron.Get(ctx)
+		cronConfig, err := cronService.GetCron(ctx, clusterObjectID, checkType)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
@@ -158,7 +162,8 @@ func (api *api) putCron() http.HandlerFunc {
 			return
 		}
 
-		err = api.cronService.UpdateCron(api.ctx, clusterObjectID, checkType, req.NewCronString)
+		cronService, _ := cron.Get(ctx)
+		err = cronService.UpdateCron(api.ctx, clusterObjectID, checkType, req.NewCronString)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to update cron: %w", err))
 			return

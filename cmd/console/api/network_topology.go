@@ -3,11 +3,13 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/go-chi/chi"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"net/http"
 	"time"
+
+	"github.com/go-chi/chi"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
 func (api *api) networkTopo() func(chi.Router) {
@@ -39,7 +41,8 @@ func (api *api) listUpstreamInfo() http.HandlerFunc {
 			return
 		}
 
-		items, total, err := api.networkTopoService.ListUpstreamInfo(ctx, cluster, namespace, kind, resource, 24)
+		networkTopoService, _ := networktopo.Get(ctx)
+		items, total, err := networkTopoService.ListUpstreamInfo(ctx, cluster, namespace, kind, resource, 24)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
@@ -70,7 +73,8 @@ func (api *api) listDownstreamInfo() http.HandlerFunc {
 			return
 		}
 
-		items, total, err := api.networkTopoService.ListDownstreamInfo(ctx, cluster, namespace, kind, resource, 24)
+		networkTopoService, _ := networktopo.Get(ctx)
+		items, total, err := networkTopoService.ListDownstreamInfo(ctx, cluster, namespace, kind, resource, 24)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return

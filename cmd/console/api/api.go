@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
@@ -20,14 +18,6 @@ import (
 	param "github.com/oceanicdev/chi-param"
 	"github.com/olivere/elastic/v7"
 	"github.com/patrickmn/go-cache"
-	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -39,28 +29,18 @@ import (
 )
 
 type api struct {
-	ctx                context.Context
-	userCache          *cache.Cache
-	tokenAuth          *jwtauth.JWTAuth
-	mongodb            *mongotools.DatabaseWrapper
-	postgresDB         *rdbtools.GormWrapper
-	optUserMap         map[string]struct{}
-	es                 *elastic.Client
-	scapper            *scapper.Scapper
-	scannerURL         string
-	cronService        *cron.CronService
-	clusterService     *cluster.ClusterService
-	redisClient        *redis.Client
-	onlineVulnsSvc     *assetsSvc.AssetsInResourcesService
-	dataService        *data.Service
-	scannerService     *scanner.ScannerService
-	scapService        *scapper.ScapService
-	harborClient       *harbor.HarborRESTClient
-	microService       *microservice.MicroService
-	emailOpts          *flag.EmailOpts
-	imageService       *image.ImageService
-	ecCli              pb.EventsCenterBizServiceClient
-	networkTopoService *networktopo.NetworkTopoService
+	ctx          context.Context
+	userCache    *cache.Cache
+	tokenAuth    *jwtauth.JWTAuth
+	mongodb      *mongotools.DatabaseWrapper
+	postgresDB   *rdbtools.GormWrapper
+	optUserMap   map[string]struct{}
+	es           *elastic.Client
+	scannerURL   string
+	redisClient  *redis.Client
+	harborClient *harbor.HarborRESTClient
+	emailOpts    *flag.EmailOpts
+	ecCli        pb.EventsCenterBizServiceClient
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -75,48 +55,26 @@ func newAPI(
 	tokenAuth *jwtauth.JWTAuth,
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
-	scapper *scapper.Scapper,
 	scannerURL string,
-	// scannerRedirectURL string,
-	cronService *cron.CronService,
-	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	onlineVulnsSvc *assetsSvc.AssetsInResourcesService,
-	dataService *data.Service,
-	scannerService *scanner.ScannerService,
-	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
-	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
-	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
-	networkTopoService *networktopo.NetworkTopoService,
 ) *api {
 	return &api{
-		ctx:        ctx,
-		userCache:  cache.New(sessionExpiration, time.Minute),
-		tokenAuth:  tokenAuth,
-		mongodb:    mongodb,
-		postgresDB: postgresDB,
-		optUserMap: make(map[string]struct{}),
-		scapper:    scapper,
-		scannerURL: scannerURL,
-		// scannerRedirectURL:          scannerRedirectURL,
-		cronService:                 cronService,
-		clusterService:              clusterService,
+		ctx:                         ctx,
+		userCache:                   cache.New(sessionExpiration, time.Minute),
+		tokenAuth:                   tokenAuth,
+		mongodb:                     mongodb,
+		postgresDB:                  postgresDB,
+		optUserMap:                  make(map[string]struct{}),
+		scannerURL:                  scannerURL,
 		redisClient:                 redisClient,
-		onlineVulnsSvc:              onlineVulnsSvc,
-		dataService:                 dataService,
-		scannerService:              scannerService,
-		scapService:                 scapService,
 		harborClient:                harborClient,
-		microService:                microService,
 		scanResultLocalBackoffCache: make(map[string]int),
 		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
 		emailOpts:                   emailOpts,
-		//imageService:                imageService,
-		ecCli:              ecCli,
-		networkTopoService: networkTopoService,
+		ecCli:                       ecCli,
 	}
 }
 
