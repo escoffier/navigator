@@ -4,27 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"io/ioutil"
 	"net/http"
 	"runtime/debug"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/jwtauth"
-	"github.com/go-redis/redis/v8"
+	redis "github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
-	"github.com/olivere/elastic/v7"
+	elastic "github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
-	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -40,22 +31,13 @@ func setupChiRouter(
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
 	es *elastic.Client,
-	scapper *scapper.Scapper,
 	scannerURL string,
 	httpLoggerDisabled bool,
-	cronService *cron.CronService,
-	clusterService *cluster.ClusterService,
 	redisClient *redis.Client,
-	onlineVulnsSvc *assetsSvc.AssetsInResourcesService,
-	dataService *data.Service,
-	scannerService *scanner.ScannerService,
-	scapService *scapper.ScapService,
 	harborClient *harbor.HarborRESTClient,
-	microService *microservice.MicroService,
 	emailOpts *flag.EmailOpts,
 	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
-	networkTopoService *networktopo.NetworkTopoService,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil)
@@ -77,21 +59,11 @@ func setupChiRouter(
 		tokenAuth,
 		mongodb,
 		postgresDB,
-		scapper,
 		scannerURL,
-		cronService,
-		clusterService,
 		redisClient,
-		onlineVulnsSvc,
-		dataService,
-		scannerService,
-		scapService,
 		harborClient,
-		microService,
 		emailOpts,
-		//imageService,
 		ecCli,
-		networkTopoService,
 	)
 	go logWorker(es, ch)
 

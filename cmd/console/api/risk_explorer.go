@@ -34,7 +34,7 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 		if err != nil {
 			cluster = "default"
 		}
-		reSvc, ok := riskexplorer.GetRiskExplorerService()
+		reSvc, ok := riskexplorer.Get(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewFieldError(http.StatusServiceUnavailable, errors.New("RiskExplorer Service not found")))
 			return
@@ -79,7 +79,7 @@ func (api *api) serviceDetails() http.HandlerFunc {
 		if err != nil {
 			cluster = "default"
 		}
-		reSvc, ok := riskexplorer.GetRiskExplorerService()
+		reSvc, ok := riskexplorer.Get(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewAnError(http.StatusServiceUnavailable, errors.New("RiskExplorer Service not found")))
 			return

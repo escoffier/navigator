@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"math"
 	"net/http"
 	"os"
@@ -22,9 +21,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microservice"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scanner"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -79,19 +77,14 @@ func init() {
 // Console represents the Vegeta Console server.
 type Console struct {
 	lifecycle.Service
-	server             *http.Server
-	monCliWrapper      *mongotools.ClientWrapper
-	mongoDB            *mongotools.DatabaseWrapper
-	postgresDB         *rdbtools.GormWrapper
-	es                 *elastic.Client
-	cronService        *cron.CronService
-	clusterService     *cluster.ClusterService
-	onlineVulnsService *assetsSvc.AssetsInResourcesService
-	svcAssetsService   *assetsSvc.ServiceAssetsService
-	dataService        *data.Service
-	harborClient       *harbor.HarborRESTClient
-	ctx                context.Context
-	cancel             context.CancelFunc
+	server        *http.Server
+	monCliWrapper *mongotools.ClientWrapper
+	mongoDB       *mongotools.DatabaseWrapper
+	postgresDB    *rdbtools.GormWrapper
+	es            *elastic.Client
+	harborClient  *harbor.HarborRESTClient
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // NewConsole is to create a new Console struct.
@@ -191,11 +184,6 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	}
-	// image service
-	//imageService := image.NewImageService(postgresDB, harborClient)
-
-	// scanner service
-	scannerService := scanner.NewScannerService(mainCtx, redisClient, postgresDB, mongoDBWrapper, harborClient)
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
@@ -211,7 +199,7 @@ func NewConsole(
 		logging.GetLogger().Error().Msgf("invalid email port:%s", emailOpts.Port)
 	}
 
-	dataService := data.NewService(&data.Conf{
+	err = data.Init(&data.Conf{
 		Mongodb:    mongoDBWrapper,
 		PostgresDB: postgresDB,
 		EmailConf: &notifyhandler.EmailConf{
@@ -244,41 +232,36 @@ func NewConsole(
 			DataPath: os.Getenv("AUDIT_PATH"),
 		},
 	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
+	}
 
-	// online vulns service
-	onlineVulnsSvc := assetsSvc.NewAssetsInResources(mongoDBWrapper, postgresDB)
-
-	// service assets service
-	svcAssetsSvc, svcErr := assetsSvc.InitAndGetServiceAssetsService(mongoDBWrapper)
+	svcErr := assetsSvc.Init(mongoDBWrapper, postgresDB)
 	if svcErr != nil {
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
 	}
 
 	// cluster service
-	clusterService := cluster.NewClusterService(mainCtx, postgresDB, mongoDBWrapper, onlineVulnsSvc, redisClient)
+	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient)
 
 	// scap service
-	scapService, err := sp.NewScapService(mainCtx, redisClient, mongoDBWrapper)
+	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}
 
-	// scapper
-	scapper := sp.NewScapper(scapOpts, mongoOpts, mongoDBWrapper, scapService)
-
 	// cron service
 	c := cr.New()
 	c.Start()
-	cronService := cron.NewCronService(c, mongoDBWrapper, scapper, clusterService, mainCtx)
+	cron.Init(c, mongoDBWrapper, mainCtx)
 
-	// microService *microservice.MicroService,
-	// micro service
-	microService := microservice.NewMicroService(mongoDBWrapper, postgresDB)
-
-	riskexplorer.InitAndGetRiskExplorerService(mongoDBWrapper, onlineVulnsSvc)
+	riskexplorer.Init(mongoDBWrapper)
 
 	// networkTopo service
-	networkTopoService := networktopo.NewNetworkTopoService(postgresDB)
+	ntErr := networktopo.Init(postgresDB)
+	if ntErr != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: networkFlowService init error")
+	}
 
 	return &Console{
 		server: &http.Server{
@@ -288,37 +271,21 @@ func NewConsole(
 				mongoDBWrapper,
 				postgresDB,
 				es,
-				scapper,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
-				// fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.RedirectPort),
 				httpOpts.HTTPLoggerDisabled,
-				cronService,
-				clusterService,
 				redisClient,
-				onlineVulnsSvc,
-				dataService,
-				scannerService,
-				scapService,
 				harborClient,
-				microService,
 				emailOpts,
-				//imageService,
 				ecCli,
-				networkTopoService,
 			),
 		},
-		monCliWrapper:      mongoCliWrapper,
-		mongoDB:            mongoDBWrapper,
-		postgresDB:         postgresDB,
-		es:                 es,
-		cronService:        cronService,
-		ctx:                mainCtx,
-		cancel:             mainCancel,
-		clusterService:     clusterService,
-		onlineVulnsService: onlineVulnsSvc,
-		svcAssetsService:   svcAssetsSvc,
-		dataService:        dataService,
-		harborClient:       harborClient,
+		monCliWrapper: mongoCliWrapper,
+		mongoDB:       mongoDBWrapper,
+		postgresDB:    postgresDB,
+		es:            es,
+		ctx:           mainCtx,
+		cancel:        mainCancel,
+		harborClient:  harborClient,
 	}, nil
 }
 
@@ -387,7 +354,9 @@ func (c *Console) Run() func() {
 			Msg("When validating kube client")
 	}
 	if kubeClient != nil {
-		watcher, werr := assetsSvc.Watcher(c.postgresDB, c.svcAssetsService, c.onlineVulnsService)
+		svcSvc, _ := assetsSvc.GetServiceAssetsService(ctx)
+		inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
+		watcher, werr := assetsSvc.Watcher(c.postgresDB, svcSvc, inResSvc)
 		if werr != nil {
 			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
 		} else {
@@ -400,7 +369,8 @@ func (c *Console) Run() func() {
 		}
 	}
 
-	err = c.cronService.StartCrons(ctx)
+	cronService, _ := cron.Get(ctx)
+	err = cronService.StartCrons(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("When starting cron jobs")
 	}

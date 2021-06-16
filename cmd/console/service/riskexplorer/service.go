@@ -25,19 +25,18 @@ var (
 	initOnce  sync.Once
 )
 
-func InitAndGetRiskExplorerService(mongoDB *mongotools.DatabaseWrapper, onlineVulnsSvc *assetsSvc.AssetsInResourcesService) *RiskExplorerService {
+func Init(mongoDB *mongotools.DatabaseWrapper) *RiskExplorerService {
 	initOnce.Do(func() {
 		singleton = &RiskExplorerService{
-			mongoDB:        mongoDB,
-			onlineVulnsSvc: onlineVulnsSvc,
-			reporters:      make([]RiskTypeReporter, 0, 2),
+			mongoDB:   mongoDB,
+			reporters: make([]RiskTypeReporter, 0, 2),
 		}
 		// add more reporters here
 	})
 	return singleton
 }
 
-func GetRiskExplorerService() (*RiskExplorerService, bool) {
+func Get(ctx context.Context) (*RiskExplorerService, bool) {
 	return singleton, singleton != nil
 }
 
@@ -113,14 +112,14 @@ type ServiceDetails interface {
 }
 
 type RiskExplorerService struct {
-	mongoDB        *mongotools.DatabaseWrapper
-	onlineVulnsSvc *assetsSvc.AssetsInResourcesService
-	reporters      []RiskTypeReporter
+	mongoDB   *mongotools.DatabaseWrapper
+	reporters []RiskTypeReporter
 }
 
 func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string, scannerURL string) ([]*NamespaceSummary, error) {
 	// TODO: decouple the vulns with assets and make the imageVulns as a reporter
-	items, err := s.onlineVulnsSvc.ListCurrentOnlineVulnerabilities(ctx, cluster, 0, 10000, scannerURL)
+	inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
+	items, err := inResSvc.ListCurrentOnlineVulnerabilities(ctx, cluster, 0, 10000, scannerURL)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("list current vulns error for cluster %s", cluster)
 		return nil, err

@@ -29,6 +29,28 @@ import (
 )
 
 var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
+var (
+	inResInstance *AssetsInResourcesService
+	inSvcInstance *ServiceAssetsService
+	once          sync.Once
+)
+
+func Init(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) error {
+	var err error
+	once.Do(func() {
+		if mongo == nil || postgresDB == nil {
+			err = errors.New("dependency is nil")
+			return
+		}
+		inResInstance = newAssetsInResources(mongo, postgresDB)
+		inSvcInstance = newServiceAssetsService(mongo)
+	})
+	return err
+}
+
+func GetAssetsInResourcesService(ctx context.Context) (*AssetsInResourcesService, bool) {
+	return inResInstance, inResInstance != nil
+}
 
 type AssetsInResourcesService struct {
 	sync.RWMutex
@@ -47,7 +69,7 @@ type AssetsInResourcesClusterCallback struct {
 	rsToDeploymentCache *sync.Map // string(namespace/name) -> *metav1.OwnerReference
 }
 
-func NewAssetsInResources(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) *AssetsInResourcesService {
+func newAssetsInResources(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) *AssetsInResourcesService {
 	return &AssetsInResourcesService{
 		mongoDB:          mongo,
 		postgresDB:       postgresDB,

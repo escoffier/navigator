@@ -2,9 +2,11 @@ package cron
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	cr "github.com/robfig/cron/v3"
@@ -18,36 +20,50 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+var (
+	instance *CronService
+	once     sync.Once
+)
+
+func Init(cron *cr.Cron, mongodb *mongotools.DatabaseWrapper, rootCtx context.Context) error {
+	if cron == nil || mongodb == nil || rootCtx == nil {
+		return errors.New("illegal argument")
+	}
+	once.Do(func() {
+		instance = newCronService(cron, mongodb, rootCtx)
+	})
+	return nil
+}
+
+func Get(ctx context.Context) (*CronService, bool) {
+	return instance, instance != nil
+}
+
 const (
 	clusterCol = "cluster"
 )
 
 type CronService struct {
-	cron           *cr.Cron
-	mongodb        *mongotools.DatabaseWrapper
-	scapper        *scapper.Scapper
-	clusterService *cluster.ClusterService
-	rootCtx        context.Context
+	cron    *cr.Cron
+	mongodb *mongotools.DatabaseWrapper
+	rootCtx context.Context
 }
 
-func NewCronService(
+func newCronService(
 	cron *cr.Cron,
 	mongodb *mongotools.DatabaseWrapper,
-	scapper *scapper.Scapper,
-	clusterService *cluster.ClusterService,
 	rootCtx context.Context,
 ) *CronService {
 	return &CronService{
-		cron:           cron,
-		mongodb:        mongodb,
-		scapper:        scapper,
-		clusterService: clusterService,
-		rootCtx:        rootCtx,
+		cron:    cron,
+		mongodb: mongodb,
+		rootCtx: rootCtx,
 	}
 }
 
 func (s *CronService) updateCronExecTimes(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType, next *time.Time, prev *time.Time) error {
-	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID, false)
+	clusterSvc, _ := cluster.Get(ctx)
+	cluster, err := clusterSvc.GetCluster(ctx, clusterObjectID, false)
 	if err != nil {
 		return err
 	}
@@ -115,7 +131,8 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 
 			// don't cancel() when exiting this function as we are starting an async task
 			newCtx, _ := context.WithTimeout(s.rootCtx, time.Minute*10)
-			_, err := s.scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType, "system")
+			scapper, _ := scapper.GetScapper(ctx)
+			_, err := scapper.RunComplianceCheck(newCtx, ctx, cluster.ID, cluster, checkType, "system")
 			if err != nil {
 				logging.GetLogger().Error().Err(err).
 					Str("cluster.CronConfig", fmt.Sprintf("%+v", cluster.CronConfig)).
@@ -157,7 +174,8 @@ func (s *CronService) startCron(ctx context.Context, cluster *model.Cluster, che
 }
 
 func (s *CronService) StartCrons(ctx context.Context) error {
-	clusters, _, err := s.clusterService.ListClusters(ctx, 0, math.MaxInt64)
+	clusterSvc, _ := cluster.Get(ctx)
+	clusters, _, err := clusterSvc.ListClusters(ctx, 0, math.MaxInt64)
 	if err != nil {
 		return err
 	}
@@ -189,7 +207,9 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 	// get kube client for this cluster
 	mongoGetCtx, mongoGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer mongoGetCtxCancel()
-	cluster, err := s.clusterService.GetCluster(mongoGetCtx, clusterObjectID, false)
+
+	clusterSvc, _ := cluster.Get(ctx)
+	cluster, err := clusterSvc.GetCluster(mongoGetCtx, clusterObjectID, false)
 	if err != nil {
 		return err
 	}
@@ -215,7 +235,7 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 
 	clusterGetCtx, clusterGetCtxCancel := context.WithTimeout(ctx, time.Second*10)
 	defer clusterGetCtxCancel()
-	cluster, err = s.clusterService.GetCluster(clusterGetCtx, clusterObjectID, false)
+	cluster, err = clusterSvc.GetCluster(clusterGetCtx, clusterObjectID, false)
 	if err != nil {
 		return err
 	}
@@ -230,7 +250,8 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterObjectID primitive.
 
 func (s *CronService) GetCron(ctx context.Context, clusterObjectID primitive.ObjectID, checkType model.ComplianceCheckType) (string, error) {
 	// get kube client for this cluster
-	cluster, err := s.clusterService.GetCluster(ctx, clusterObjectID, false)
+	clusterSvc, _ := cluster.Get(ctx)
+	cluster, err := clusterSvc.GetCluster(ctx, clusterObjectID, false)
 	if err != nil {
 		return "", err
 	}

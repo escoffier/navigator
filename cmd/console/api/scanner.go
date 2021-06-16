@@ -14,10 +14,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -25,6 +21,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // 转发scanner中 /api/v1/scan 开头的接口
@@ -39,7 +38,6 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/scanone", api.RedirectToScanner(true))
 
 		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
-		r.Post("/harbor/scanOnline", api.harborScanOnline())
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
 		r.Get("/harbor/scanStatus", api.RedirectToScanner(true))
 		r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
@@ -129,91 +127,6 @@ func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
 		result.SeverityHistogram = scanTask.ScanReport.Vulns.SeverityHistogram
 
 		response.Ok(w, response.WithItem(*result))
-	}
-}
-
-// @Router  /api/v2/containerSec/scanner/reportsByRepo [get]
-func (api *api) listScannedByImageList() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		search := r.URL.Query().Get("search")
-		if len(search) > 64 {
-			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
-				fmt.Errorf("the maximum value is exceeded"),
-				Suberror{"search", ""}))
-			return
-		}
-		offset, limit := api.getOffsetAndLimit(r)
-
-		online := r.URL.Query().Get("online")
-		if online == "" {
-			online = "false"
-		}
-		if online != "false" && online != "true" {
-			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
-				fmt.Errorf("online error"),
-				Suberror{"online", "true/false"}))
-			return
-		}
-
-		kind := r.URL.Query().Get("kind")
-
-		items, docNum, err := api.scannerService.GetImageList(ctx, offset, limit, search, online, kind)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		response.Ok(w,
-			response.WithItems(items),
-			response.WithTotalItems(docNum),
-			response.WithItemsPerPage(limit),
-			response.WithStartIndex(offset))
-	}
-}
-
-// @Router  /api/v2/containerSec/scanner/reportsByRepo [get]
-func (api *api) listScannedByImageOverview() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		item, err := api.scannerService.GetImageOverView(ctx)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-		response.Ok(w, response.WithItem(item))
-
-	}
-}
-
-// @Summary Get a scan task by scantask on image
-// @Description Get a scan task by scantask on image
-// @Router /api/v2/containerSec/scanner/reportsByImageDetails [get]
-func (api *api) ScannedByImageDetails() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		digest := r.URL.Query().Get("digest")
-		fullRepoName := r.URL.Query().Get("repositoryName")
-		if len(digest) != 71 || len(fullRepoName) > 64 {
-			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
-				fmt.Errorf("digest or repo name len error"),
-				Suberror{"digest/repo", ""}))
-			return
-		}
-
-		items, err := api.scannerService.GetImageDetail(ctx, digest, fullRepoName)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		response.Ok(w, response.WithItem(items))
 	}
 }
 

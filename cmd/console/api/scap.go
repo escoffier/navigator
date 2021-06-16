@@ -15,6 +15,8 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -85,24 +87,26 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 			return
 		}
 
+		scapService, _ := scapper.GetService(ctx)
+
 		col := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType))
 
 		nodeCheckDetails := &scap.NodeCheckDetails{}
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			err := api.scapService.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := scapService.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube history entries: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeDocker:
-			err := api.scapService.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := scapService.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker history entries: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeHost:
-			err := api.scapService.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := scapService.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
 				return
@@ -156,7 +160,11 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		}
 
 		offset, limit := api.getOffsetAndLimit(r)
-		items, docNum, err := api.scapService.GetCheckHistory(ctx, checkType, "", offset, limit, model.GetScapSortableField(sortBy), sortOrder)
+
+		scapService, _ := scapper.GetService(ctx)
+		clusterService, _ := cluster.Get(ctx)
+
+		items, docNum, err := scapService.GetCheckHistory(ctx, checkType, "", offset, limit, model.GetScapSortableField(sortBy), sortOrder)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
 			return
@@ -176,7 +184,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 					return
 				}
 
-				queryCluster, err := api.clusterService.GetCluster(ctx, clusterIDPrimitive, true)
+				queryCluster, err := clusterService.GetCluster(ctx, clusterIDPrimitive, true)
 				if err != nil {
 					switch err.(type) {
 					case ClusterDoesntExistError:
@@ -282,20 +290,21 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		successOn := []string{}
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
+		scapService, _ := scapper.GetService(ctx)
 		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := api.scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := api.scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
 				return
 			}
 		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := api.scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
 				return
@@ -367,7 +376,8 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 			return
 		}
 
-		latest, err := api.scapService.GetLatestHistory(ctx, checkType, "", "createdAt", sortOrder)
+		scapService, _ := scapper.GetService(ctx)
+		latest, err := scapService.GetLatestHistory(ctx, checkType, "", "createdAt", sortOrder)
 		if err != nil {
 			response.Ok(w, response.WithTotalItems(0))
 			return
@@ -410,19 +420,19 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			err := api.scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeDocker:
-			err := api.scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeHost:
-			err := api.scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
 				return
@@ -523,21 +533,23 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 		policyDetails := &scap.PolicyDetails{}
 		policyDetails.CheckID = checkID
 
+		scapService, _ := scapper.GetService(ctx)
+
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			err := api.scapService.GetKubePolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := scapService.GetKubePolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube policy details: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeDocker:
-			err := api.scapService.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := scapService.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker policy details: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeHost:
-			err := api.scapService.GetHostPolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := scapService.GetHostPolicyDetails(ctx, policyDetails, policyNumber, cursor)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host policy details: %w", err)))
 				return
@@ -592,7 +604,8 @@ func (api *api) getScapReports() http.HandlerFunc {
 		nodeName := r.URL.Query().Get("nodeName")
 		status := r.URL.Query().Get("status")
 
-		results, err := api.scapper.GetJobEntriesForCheck(ctx, clusterObjectID.Hex(), checkType, checkID, nodeName, status)
+		scapper, _ := scapper.GetScapper(ctx)
+		results, err := scapper.GetJobEntriesForCheck(ctx, clusterObjectID.Hex(), checkType, checkID, nodeName, status)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return
@@ -630,7 +643,8 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		cluster, err := api.clusterService.GetCluster(ctx, clusterObjectID, true)
+		clusterService, _ := cluster.Get(ctx)
+		cluster, err := clusterService.GetCluster(ctx, clusterObjectID, true)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get cluster from Mongo: %w", err))
 			return
@@ -644,7 +658,8 @@ func (api *api) scapCheck() http.HandlerFunc {
 			username = claims[JWT_KEY_USERNAME].(string)
 		}
 
-		checkUUID, err := api.scapper.RunComplianceCheck(ctx, api.ctx, clusterObjectID, cluster, checkType, username)
+		scapper, _ := scapper.GetScapper(ctx)
+		checkUUID, err := scapper.RunComplianceCheck(ctx, api.ctx, clusterObjectID, cluster, checkType, username)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 			return
@@ -666,7 +681,8 @@ func (api *api) harborScan() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 		defer cancel()
 
-		checkUUID, err := api.scapper.RunHarborCheck(ctx, api.harborClient)
+		scapper, _ := scapper.GetScapper(ctx)
+		checkUUID, err := scapper.RunHarborCheck(ctx, api.harborClient)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 			return
@@ -693,7 +709,8 @@ func (api *api) harborScanList() http.HandlerFunc {
 		projectName := r.URL.Query().Get("projectname")
 		checkID := r.URL.Query().Get("checkid")
 		offset, limit := api.getOffsetAndLimit(r)
-		items, docNum, err := api.scapper.HarborConfigList(ctx, offset, limit, projectName, checkID)
+		scapper, _ := scapper.GetScapper(ctx)
+		items, docNum, err := scapper.HarborConfigList(ctx, offset, limit, projectName, checkID)
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
@@ -765,7 +782,8 @@ func (api *api) exportFile() http.HandlerFunc {
 			task.Status = 2
 		} else {
 			//run export file task
-			go api.scapper.RunExportFileTask(api.ctx, checkType, &task, language)
+			scapper, _ := scapper.GetScapper(ctx)
+			go scapper.RunExportFileTask(api.ctx, checkType, &task, language)
 		}
 
 		response.Ok(w, response.WithExportFileStatus(task.Status))

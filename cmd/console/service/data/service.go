@@ -1,17 +1,39 @@
 package data
 
 import (
-	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/ttlmanager"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/waterlinemanager"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"context"
+	"errors"
+	"sync"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/taskmanager"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/ttlmanager"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/waterlinemanager"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
+
+var (
+	instance *Service
+	once     sync.Once
+)
+
+func Get(ctx context.Context) (*Service, bool) {
+	return instance, instance != nil
+}
+
+func Init(conf *Conf) error {
+	if conf == nil {
+		return errors.New("illegal argument")
+	}
+	once.Do(func() {
+		instance = newService(conf)
+	})
+	return nil
+}
 
 type Service struct {
 	taskManager      def.TaskManager
@@ -41,7 +63,7 @@ type Conf struct {
 	AuditPod   *PodInfo
 }
 
-func NewService(conf *Conf) *Service {
+func newService(conf *Conf) *Service {
 	service := &Service{
 		mongoPod:         conf.MongoPod,
 		esPod:            conf.ESPod,

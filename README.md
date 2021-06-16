@@ -1,4 +1,4 @@
-# Vegeta
+# navigator
 
 Before you do anything, make sure that submodules are present:
 
@@ -7,6 +7,8 @@ git submodule init
 git submodule update
 ```
 
+## Development
+* [How to create a service?](./doc/HowToCreateAService.md)
 ## Sub documents
 
 * [Deploy development environment](./doc/DeployDevEnv.md)

@@ -72,7 +72,7 @@ func getNamespace() string {
 	return namespace
 }
 
-func NewScapper(
+func newScapper(
 	scapOpts *flag.ScapOpts,
 	mongoOpts *flag.MongoOpts,
 	mongoDB *mongotools.DatabaseWrapper,

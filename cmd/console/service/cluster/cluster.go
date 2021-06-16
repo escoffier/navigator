@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -23,26 +24,36 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var (
+	instance *ClusterService
+	once     sync.Once
+)
+
 type ClusterService struct {
-	mongodb        *mongotools.DatabaseWrapper
-	postgreDB      *rdbtools.GormWrapper
-	onlineVulnsSvc *assetsSvc.AssetsInResourcesService
-	clustersCache  *rcache.ClustersCache
+	mongodb       *mongotools.DatabaseWrapper
+	postgreDB     *rdbtools.GormWrapper
+	clustersCache *rcache.ClustersCache
 }
 
-func NewClusterService(
+func Init(
 	ctx context.Context,
 	postgreDB *rdbtools.GormWrapper,
 	mongodb *mongotools.DatabaseWrapper,
-	onlineVulnsSvc *assetsSvc.AssetsInResourcesService,
 	redisClient *redis.Client,
-) *ClusterService {
-	return &ClusterService{
-		mongodb:        mongodb,
-		postgreDB:      postgreDB,
-		onlineVulnsSvc: onlineVulnsSvc,
-		clustersCache:  rcache.NewClustersCache(ctx, mongodb, redisClient),
-	}
+) error {
+	once.Do(func() {
+		instance = &ClusterService{
+			mongodb:       mongodb,
+			postgreDB:     postgreDB,
+			clustersCache: rcache.NewClustersCache(ctx, mongodb, redisClient),
+		}
+	})
+
+	return nil
+}
+
+func Get(ctx context.Context) (*ClusterService, bool) {
+	return instance, instance != nil
 }
 
 func (s *ClusterService) GetCluster(ctx context.Context, clusterObjectID primitive.ObjectID, onlyActive bool) (*model.Cluster, error) {
@@ -124,8 +135,9 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 		// TODO: maybe a hook mechanism so cluster service doesn't depend on onlinevulns service?
 		// TODO: doesn't support multiple clusters yet.
-		sa, _ := assetsSvc.GetServiceAssetsService()
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, sa, s.onlineVulnsSvc)
+		svcService, _ := assetsSvc.GetServiceAssetsService(ctx)
+		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService)
 		if werr != nil {
 			return werr
 		}
@@ -287,8 +299,9 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't remove document: %w", sessionError))
 		}
 
-		svcService, _ := assetsSvc.GetServiceAssetsService()
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, s.onlineVulnsSvc)
+		svcService, _ := assetsSvc.GetServiceAssetsService(ctx)
+		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService)
 		if werr != nil {
 			return werr
 		}
