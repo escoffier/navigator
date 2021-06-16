@@ -2,6 +2,10 @@ FROM ubuntu:18.04
 
 ARG MIRROR=archive.ubuntu.com
 ENV PATH="/usr/lib/go-1.10/bin:$PATH"
+ENV JAVA_HOME="/usr/local/jdk1.8"
+ENV JRE_HOME="${JAVA_HOME}/jre"
+ENV CLASSPATH=".:${JAVA_HOME}/lib:${JRE_HOME}/lib"
+ENV PATH=".:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:${JAVA_HOME}/bin"
 
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
@@ -23,5 +27,20 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     nmap \
     tshark \
     ngrep \
+    wget \
+    gawk \
+    busybox \
+    ruby \
+    telnet \
+    apache2 \
+    php7.2 \
+    libapache2-mod-php7.2 \
+    git \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -o /tmp/docker-19.03.9.tgz https://download.docker.com/linux/static/stable/x86_64/docker-19.03.9.tgz
+    && curl -o /tmp/docker-19.03.9.tgz https://download.docker.com/linux/static/stable/x86_64/docker-19.03.9.tgz \
+    && wget https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz \
+    && tar xvzf /jdk-8u151-linux-x64.tar.gz \
+    && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
+    && wget https://mirror-hk.koddos.net/apache/tomcat/tomcat-8/v8.5.68/bin/apache-tomcat-8.5.68.tar.gz -O /usr/local/tomcat.tar.gz \
+    && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
+    && chmod 755 -R /usr/local/apache-tomcat-8.5.68/

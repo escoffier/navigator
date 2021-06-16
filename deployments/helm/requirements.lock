@@ -38,5 +38,5 @@ dependencies:
 - name: holmes
   repository: file://./subcharts/holmes
   version: 1.7.4
-digest: sha256:b82f319a87b0f62a761bce014d0160b7a6132a46c67af379a87529771645481a
-generated: "2021-05-24T22:02:18.261759081+08:00"
+digest: sha256:a886dcb05628aaebec903d5990440df4e6e36e0c32de461d5d7d20bfd5e048db
+generated: "2021-06-10T15:57:17.244805728+08:00"
