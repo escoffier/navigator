@@ -1818,7 +1818,7 @@
     and not run_by_appdynamics
     and not user_shell_container_exclusions
   output: >
-    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生的shell,rule_type=Execution,syscall_name=%syscall.type,
+    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生的shell,rule_type=Execution,syscall_name=%syscall.type, webshell_name=%fd.name
     original_info=user=%user.name user_loginuid=%user.loginuid shell=%proc.name parent=%proc.pname
     cmdline=%proc.cmdline pcmdline=%proc.pcmdline gparent=%proc.aname[2] ggparent=%proc.aname[3]
     aname[4]=%proc.aname[4] aname[5]=%proc.aname[5] aname[6]=%proc.aname[6] aname[7]=%proc.aname[7] container_id=%container.id image=%container.image.repository)
@@ -2526,10 +2526,7 @@
   desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     spawned_process and container and not ignore_proc_args and
-    ((proc.name = "nc" and (proc.args contains "-e" or proc.args contains "-c")) or
-     (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e "
-                              or proc.args contains "-c " or proc.args contains "--lua-exec"))
-    )
+    (proc.name = "nc" or proc.name = "ncat") 
   output: >
     Netcat runs inside container that allows remote code execution (zh_msg=RS-NC(Netcat运行(反向Shell攻击的风险)),rule_type=Execution,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
@@ -2537,9 +2534,42 @@
   priority: WARNING
   tags: [network, process, mitre_execution]
 
+- rule: Reverse shell through telnet
+  desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    container and not ignore_proc_args and proc.name = "telnet" and evt.type=recvfrom
+  output: >
+    Telnet runs inside container that allows remote code execution (zh_msg=容器内通过telnet反弹shell),rule_type=Execution,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    command=%proc.cmdline container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag) 
+  priority: WARNING
+  tags: [network, process, mitre_execution]
+
+- rule: Reverse shell through ruby
+  desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=socket  and  proc.pname = "ruby" 
+  output: >
+    Ruby runs inside container that allows remote code execution (zh_msg=容器内通过ruby反弹shell),rule_type=Execution,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    command=%proc.cmdline container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: WARNING
+  tags: [network, process, mitre_execution]
+
+- rule: Reverse shell through awk
+  desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=socket and container and not ignore_proc_args and proc.name = "awk"
+  output: >
+    Ruby runs inside container that allows remote code execution (zh_msg=容器内通过awk反弹shell),rule_type=Execution,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    command=%proc.cmdline container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: WARNING
+  tags: [network, process, mitre_execution]
+
+
 - macro: user_known_network_tool_activities
   condition: (never_true)
-
 - rule: Launch Suspicious Network Tool in Container
   desc: Detect network tools launched inside container
   condition: >
@@ -3122,7 +3152,7 @@
 - list: escape_to_access_list
   items: [chroot]
 
-- rule: Escape to access rule
+- rule: Escape to access by chroot
   desc: Container escape to access host system
   condition: >
     (evt.type=chroot and container)
@@ -3143,24 +3173,20 @@
 
 
 - list: show_env_binaries
-  items: [printenv, env]
+  items: [printenv, env, capsh]
 
 - list:  show_information_binaries
-  items: [cat, mount]
+  items: [cat, mount, sed, awk]
 
 - list: sensitive_paths
-  items: [/proc/self/cgroup, /etc/hosts]
+  items: [/proc/self/status, /proc/self/mounts, /proc/net/unix, /etc/hosts, /etc/mtab, /etc/resolv.conf, /proc/1/mountinfo, /.dockerenv, /run/secrets/kubernetes.io/]
 
 - rule: Gaining environment information
   desc: Gaining environment information
   condition: >
-    (open_read and container and
-    ((proc.name in (show_information_binaries) and
-    (fd.filename in (sensitive_paths) or
-    fd.name in (sensitive_paths) or
-    fd.directory in (sensitive_paths))) or
-    (proc.name in (show_env_binaries))))
-  output: container shell gaining environment info (zh_msg=容器内shell获取环境信息,rule_type=Credential Access,cmdline=%proc.cmdline,syscall_name=%syscall.type)
+    open_read and container and ((proc.name in (show_information_binaries)) and
+    (fd.filename in (sensitive_paths) or fd.name in (sensitive_paths) or fd.directory in (sensitive_paths)) or (proc.name in (show_env_binaries)))
+  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential Access,cmdline=%proc.cmdline,syscall_name=%syscall.type)
   priority: WARNING
 
 - list: sensitive_cmd
@@ -3214,11 +3240,41 @@
 
 - rule: Reverse shell through socket and dup
   desc: Detect reverse shell established remote connection
-  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6")
+  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") 
   output: >
     Reverse shell connection (zh_msg=通过socket执行反向shell攻击,rule_type=Execution,user=%user.name %container.info process=%proc.name parent=%proc.pname cmdline=%proc.cmdline terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: WARNING
   tags: [container, shell, mitre_execution]
+
+- rule: Escape to access rule by procfs
+  desc: Container escape to access host system
+  condition: >
+    open_write and container and fd.name contains /sys/kernel/core_pattern
+  output: container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege Escalation,fd.name=%fd.name,syscall_name=%syscall.type,cmdline=%proc.cmdline)
+  priority: ALERT
+
+- rule: Escape to access rule by lxcfs
+  desc: Container escape to access host system
+  condition: >
+   open_write and container and proc.name=debugfs 
+  output: container escape to access host system (zh_msg=容器内通过debugfs逃逸,rule_type=Privilege Escalation,fd.name=%fd.name,syscall_name=%syscall.type,cmdline=%proc.cmdline)
+  priority: ALERT
+
+- rule: Escape to access rule by cgroup
+  desc: Container escape to access host system
+  condition: >
+   container and proc.name=mount and proc.cmdline contains "cgroup"
+  output: container escape to access host system (zh_msg=容器内通过cgroup逃逸,rule_type=Privilege Escalation,fd.name=%fd.name,syscall_name=%syscall.type,cmdline=%proc.cmdline)
+  priority: ALERT
+
+- rule: Network scanning through interpreted language
+  desc: Interpretative language detected scanning network
+  condition: >
+   interpreted_procs and evt.type=connect
+  output: Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid command=%proc.cmdline connection=%fd.name container_id=%container.id image=%container.image.repository)
+  priority: WARNING
+
+
 
 # Application rules have moved to application_rules.yaml. Please look
 # there if you want to enable them by adding to
