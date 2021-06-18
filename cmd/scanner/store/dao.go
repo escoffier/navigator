@@ -342,7 +342,7 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 		SeverityHistogramJSON datatypes.JSON
 	}
 	tmp := []tmpRes{}
-	err := s.psql.Model(model.ScanImage{}).Select("image_id,risk_score,severity_histogram_json").Limit(5).Order("risk_score desc").Find(&tmp).Error
+	err := s.psql.Model(model.ScanImage{}).Select("image_id,risk_score,severity_histogram_json").Where("status = ?", model.ScanStatusSucceeded).Limit(5).Order("risk_score desc").Find(&tmp).Error
 	if err != nil {
 		return []model.ImageRiskScore{}, nil
 	}
