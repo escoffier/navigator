@@ -18,6 +18,8 @@ rules:
   - namespaces
   - pods
   - services
+  - deployments
+  - replicasets
   verbs:
   - list
   - watch
