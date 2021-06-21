@@ -57,7 +57,7 @@ redis:
 elasticsearch:
   enabled: true
   minimumMasterNodes: 1
-  replicas: 1
+  replicas: 2
   extraEnvs:
     - name: ELASTIC_PASSWORD
       value: Elastic12345
