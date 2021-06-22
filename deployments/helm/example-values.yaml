@@ -1,0 +1,94 @@
+global:
+  image:
+    registry: harbor.local.tensorsecurity.cn
+    #persistence enabled config
+    #storageClass: 
+  verison: &tensorsecVerison 1.6.8
+  persistence:
+    enabled: &persistenceStorage true
+  harbor:
+    url: &harborURL https://harbor.local.tensorsecurity.cn
+    username: &harborUsername admin
+    password: &harborPassword Harbor12345
+
+
+
+
+
+console:
+  image:
+    #tag: 1.6.8
+    tag: *tensorsecVerison
+  scap:
+    #tag: 1.6.8
+    tag: *tensorsecVerison
+  persistence:
+    #enabled: false
+    enabled: *persistenceStorage
+    tensorsecCleaner:
+      image:
+        #tag: 1.6.8
+        tag: *tensorsecVerison
+  harbor:
+    #harborURL: https://harbor.local.tensorsecurity.cn
+    #harborUsername: admin
+    #harborPassword: Harbor12345
+    harborURL: *harborURL
+    harborUsername: *harborUsername
+    harborPassword: *harborPassword
+  email:
+    enabled: false
+#  hostAliases:
+#  - ip: "192.168.3.2"
+#    hostnames:
+#    - "harbor.local.tensorsecurity.cn"
+
+scanner:
+  image:
+    #tag: 1.6.8
+    tag: *tensorsecVerison
+  harbor:
+    #harborURL: https://harbor.local.tensorsecurity.cn
+    #harborUsername: admin
+    #harborPassword: Harbor12345
+    harborURL: *harborURL
+    harborUsername: *harborUsername
+    harborPassword: *harborPassword
+#  hostAliases:
+#  - ip: "192.168.3.2"
+#    hostnames:
+#    - "harbor.local.tensorsecurity.cn"
+
+drift-prevention:
+  image:
+    #tag: 1.6.8
+    tag: *tensorsecVerison
+
+holmes:
+  image:
+    #tag: 1.6.8
+    tag: *tensorsecVerison
+
+
+redis:
+  master:
+    persistence:
+      #enabled: false
+      enabled: *persistenceStorage
+  slave:
+    persistence:
+      #enabled: false
+      enabled: *persistenceStorage
+postgresql:
+  persistence:
+    #enabled: false
+    enabled: *persistenceStorage
+mongodb:
+  persistence:
+    #enabled: false
+    enabled: *persistenceStorage
+elasticsearch:
+  persistence:
+    #enabled: false
+    enabled: *persistenceStorage
+

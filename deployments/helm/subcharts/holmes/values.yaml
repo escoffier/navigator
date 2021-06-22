@@ -2,11 +2,14 @@
 
 image:
   registry: registry.t-appagile.com
-  repository: tensorsecurity/tensorsec-holmes
+  repository: tensorsecurity
+  name: tensorsec-holmes
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
 
+nameOverride: "holmes"
+fullnameOverride: "tensorsec-holmes"
 
 docker:
   enabled: true
@@ -43,7 +46,7 @@ serviceAccount:
   # Create and use serviceAccount resources
   create: true
   # Use this value as serviceAccountName
-  name:
+  name: ""
 
 fakeEventGenerator:
   enabled: false

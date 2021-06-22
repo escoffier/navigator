@@ -1,5 +1,28 @@
 {{/* vim: set filetype=mustache: */}}
 {{/*
+Return the clair image name
+*/}}
+{{- define "scanner.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.image.name -}}
+{{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
+Return the clair image name
+*/}}
+{{- define "scanner.registryPath" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+
+{{- printf "%s/%s" $registryName $repositoryName -}}
+{{- end -}}
+
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "scanner.name" -}}

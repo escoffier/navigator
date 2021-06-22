@@ -1,5 +1,52 @@
 {{/* vim: set filetype=mustache: */}}
 {{/*
+Return the console image path
+*/}}
+{{- define "console.registryPath" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+
+{{- printf "%s/%s" $registryName $repositoryName -}}
+{{- end -}}
+
+{{/*
+Return the console image name
+*/}}
+{{- define "console.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.image.name -}}
+{{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
+Return the job tensorsec cleaner image name
+*/}}
+{{- define "console.cleaner.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.persistence.tensorsecCleaner.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.persistence.tensorsecCleaner.image.repository "context" $)) -}}
+{{- $imageName := .Values.persistence.tensorsecCleaner.image.name -}}
+{{- $tag := .Values.persistence.tensorsecCleaner.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
+Use the fullname if the serviceAccount value is not set
+*/}}
+{{- define "console.serviceAccount" -}}
+{{- if .Values.serviceAccount }}
+{{- .Values.serviceAccount -}}
+{{- else }}
+{{- $name := default .Chart.Name .Values.fullnameOverride -}}
+{{- printf "%s-%s" $name .Release.Namespace | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "console.name" -}}

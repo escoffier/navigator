@@ -21,13 +21,21 @@ spec:
       labels:
         k8s-app: tensorsec-kibana-logging
     spec:
+      initContainers:
+      - name: "elasticsearch-listener"
+        image: {{ include "kibana.registryPath" . }}/alpine:latest
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
+        ]
       containers:
       - env:
         - name: ELASTICSEARCH_HOSTS
           value: http://tensorsec-elasticsearch-master:9200
         - name: SERVER_NAME
           value: tensorsec-kibana-logging
-        image: registry.t-appagile.com/tensorsecurity/kibana-oss:7.4.2
+        image: {{ include "kibana.image" . }}
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 3

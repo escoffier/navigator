@@ -1,3 +1,15 @@
+{{/*
+Return the driftPrevention image name
+*/}}
+{{- define "driftPrevention.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.image.name -}}
+{{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
 {{/* vim: set filetype=mustache: */}}
 {{/*
 Expand the name of the chart.
@@ -26,7 +38,7 @@ Use the fullname if the serviceAccount value is not set
 {{- if .Values.serviceAccount }}
 {{- .Values.serviceAccount -}}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- $name := default .Chart.Name .Values.fullnameOverride -}}
+{{- printf "%s-%s" $name .Release.Namespace | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}

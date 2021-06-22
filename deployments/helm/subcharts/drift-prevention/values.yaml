@@ -1,15 +1,16 @@
+image:
+  registry:  localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-drift-prevention
+  tag: latest
+  pullPolicy: Always
+
 eventcenter:
   addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
   port: "8080"
 
 nameOverride: "drift-prevention"
 fullnameOverride: "tensorsec-drift-prevention"
-
-image:
-  name: tensorsec-drift-prevention
-  # repository: localhost:32000
-  tag: latest
-  pullPolicy: Always
 
 imagePullSecrets:
 - name: "harbor-admin-secret"

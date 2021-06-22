@@ -1,23 +1,83 @@
 global:
   # Not sure if it's good practice to pas our docker repo address to our subcharts like this.
-  ourDockerRepo: localhost:32000
+  
+  #TODO: config storageclass name.
+  #storageClass: myStorageClass
+  #TODO: config all use storgae
+  #persistence:
+  #  enabled: true
+
+  image:
+    registry: localhost:32000
+    repository: tensorsecurity
+    pullSecret: harbor-admin-secret
 
 clair:
   enabled: true
+  image:
+    registry: "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
+  init: 
+    loadSql:
+      image:
+        registry: "{{ .Values.global.image.registry }}"
+        repository: "{{ .Values.global.image.repository }}"
+        name: tensorsec-postgres
+        tag: latest
+    waitpg:
+      image:
+        registry: "{{ .Values.global.image.registry }}"
+        repository: "{{ .Values.global.image.repository }}"
+        name:  postgres
+        tag: 11.3
   config:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
 
 scanner:
   enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
   redis:
     password: Redis12345
     redisSecretName: redis-secret
   clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
+  harbor:
+    harborURL: https://harbor.example
+    harborUsername: admin
+    harborSecretName: harbor-api-tensorsec
+
+drift-prevention:
+  enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
+  eventcenter:
+    addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
+    port: "8080"
 
 console:
+  enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
+  scap:
+    tag: latest
+  persistence:
+    enabled: true
+    tensorsecCleaner:
+      image:
+        registry: "{{ .Values.global.image.registry }}"
+        repository: "{{ .Values.global.image.repository }}"
+        name: tensorsec-cleaner
+        tag: latest
   elasticsearch:
     elasticSecretName: elastic-secret
     extraEnvs:
@@ -25,8 +85,6 @@ console:
         value: Elastic12345
       - name: ELASTIC_USERNAME
         value: elasticsearch
-  enabled: true
-
   eventcenter:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
@@ -35,9 +93,32 @@ console:
     postgresqlUsername: postgres
     postgresqlPassword: password
     postgresqlDatabase: postgres
+  harbor:
+    harborURL: https://harbor.example
+    harborUsername: admin
+    harborPassword: Harbor12345
+    harborSecretName: harbor-api-tensorsec
+  emailCheck:
+    enabled: false
+    host: smtp.feishu.cn
+    port: 465
+    username: console-robot@tensorsecurity.cn
+    password: r8UJgg7ejpSoDOAF
 
 daemon:
   enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+  extraInitContainers:
+    esListerner:
+      image:
+        registry: "{{ .Values.global.image.registry }}"
+        repository: "{{ .Values.global.image.repository }}"
+    pgListerner:
+      image:
+        registry: "{{ .Values.global.image.registry }}"
+        repository: "{{ .Values.global.image.repository }}"
   eventcenter:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
@@ -47,15 +128,38 @@ eventcenterAuth:
 
 redis:
   enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: redis
+    tag: 6.0.8-debian-10-r35
+  sentinel:
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      name: redis-sentinel
+      tag: 6.0.8-debian-10-r36
   password: Redis12345
   usePassword: true
   cluster:
     slaveCount: 1
   master:
+    persistence:
+      enabled: true
     disableCommands: []
+  slave:
+    persistence:
+      enabled: true
 
 elasticsearch:
   enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: elasticsearch
+    tag: 7.9.1
+  persistence:
+    enabled: true
   minimumMasterNodes: 1
   replicas: 2
   extraEnvs:
@@ -84,15 +188,25 @@ elasticsearch:
   #   resources:
   #     requests:
   #       storage: 100M
+  lifecycle:
+    postStart:
+       exec:
+         command:
+           - bash
+           - -c
+           - |
+             #!/bin/bash
+             # Add a template to adjust number of shards/replicas
+             ES_URL=http://localhost:9200
+             while [[ "$(curl -s -o /dev/null -w '%{http_code}\n' $ES_URL)" != "200" ]]; do sleep 1; done
+             curl -s -XGET "http://localhost:9200/_cluster/health?pretty=true"  |grep yellow
+             if [ "$?" == "0" ]; then   curl -H "Content-Type: application/json" -XPUT 'http://localhost:9200/_settings' -d '{"index":{"number_of_replicas":0}}'; fi
 
 kibana:
   enabled: true
-
-drift-prevention:
-  enabled: true
-  eventcenter:
-    addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
-    port: "8080"
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
 
 postgresql:
   # Note for maintainers:
@@ -100,11 +214,19 @@ postgresql:
   # but we use helm chart designed for bitnami/postgresql.
   enabled: true
   image:
-    pullSecret: harbor-admin-secret
-    registry: registry.t-appagile.com
-    repository: tensorsecurity/tensorsec-postgres # Our image with prefilled vulnerabilities info
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-postgres
     tag: "latest"
+    pullSecret: harbor-admin-secret
     pullPolicy: Always
+  volumePermissions:
+      image:
+        registry: "{{ .Values.global.image.registry }}"
+        repository: "{{ .Values.global.image.repository }}"
+  persistence:
+    enabled: true
+    size: 10Gi
   # Use the same PGDATA as the travis job that builds arminc/clair-db
   # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
   postgresqlDataDir: /bitnami/postgresql/data 
@@ -117,44 +239,50 @@ postgresql:
     enabled: true
     fsGroup: 70
     runAsUser: 70
-
   replication:
     enabled: false
   resources:
     requests:
       memory: 256Mi
       cpu: 250m
-  persistence:
-    enabled: true
-    size: 10Gi
   metrics:
     enabled: false
+
 
 mongodb:
   enabled: true
   image:
-    tag: 4.4.2-debian-10-r12
-  mongodbUsername: redstone
-  mongodbPassword: redstoneMongo123
-  mongodbRootPassword: redstoneMongo123
-  mongodbDatabase: vegeta
-
-  # https://github.com/helm/charts/issues/18588
-  useStatefulSet: true
-  replicaSet:
-    enabled: true
-
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: 4.4.6-debian-10-r8
   volumePermissions:
     enabled: true
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+  auth:
+    username: redstone
+    password: redstoneMongo123
+    database: vegeta
+    rootPassword: redstoneMongo123
+  architecture: replicaset
+  # https://github.com/helm/charts/issues/18588
+  useStatefulSet: true
+  #
+  persistence:
+    enabled: true
+
 
 seccompGenerator:
   auditdLogging: false
   enabled: false
 
-
-
 holmes:
   enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
   ebpf:
     enabled: false
   falco:
@@ -164,18 +292,14 @@ holmes:
     jsonIncludeOutputProperty: true
     httpOutput:
       enabled: false
-
     webserver:
       enabled: false
-      
     programOutput:
       enabled: true
       keepAlive: false
       program: /bin/bash /holmes_export.sh
-
     syslogOutput:
       enabled: false
-
     stdoutOutput:
       enabled: true
   # Add extra volumes to Falco daemonset
@@ -186,7 +310,6 @@ holmes:
     - name: ca-cert
       secret:
         secretName: eventcenter-tls-ca-secret
-
   # Add extra volumeMounts to Falco container in Falco daemonset
   extraVolumeMounts:
     - mountPath: /auth/client
@@ -195,4 +318,5 @@ holmes:
     - mountPath: /auth/ca
       name: ca-cert
       readOnly: true
+
 

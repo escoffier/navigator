@@ -1,19 +1,10 @@
----
-# Allows you to add any config files in /usr/share/filebeat
-# such as filebeat.yml
-filebeatConfig:
-  filebeat.yml: |
-    filebeat.inputs:
-      - paths:
-        - /data/syscall.json
-        json.keys_under_root: true
-        json.add_error_key: true
+image:
+  registry: localhost:32000
+  repository: tensorsecurity
+  name: tensordig
+  tag: latest
+  pullPolicy: Always
 
-    output.elasticsearch:
-      host: '${NODE_NAME}'
-      hosts: '${ELASTICSEARCH_HOSTS:tensorsec-elasticsearch-master:9200}'
-      username: 'elasticsearch' 
-      password: 'Elastic12345'
 
 # Extra environment variables to append to the DaemonSet pod spec.
 # This will be appended to the current 'env:' key. You can use any of the kubernetes env
@@ -37,56 +28,31 @@ extraContainers: ""
 #   command: ['echo', 'hey']
 
 extraInitContainers:
-  - name: "elasticsearch-listener"
-    image: "alpine"
-    imagePullPolicy: "IfNotPresent"
-    command: [
-      "sh", "-c",
-      "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
-    ]    
-  - name: "postgre-listener"
-    image: "registry.t-appagile.com/tensorsecurity/alpine:latest"
-    imagePullPolicy: "IfNotPresent"
-    command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
-    
+  esListerner:
+    enabled: true
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: alpine
+      tag: latest
+      PullPolicy: IfNotPresent
+  pgListerner:
+    enabled: true
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: alpine
+      tag: latest
+      PullPolicy: IfNotPresent
+
 envFrom: []
 # - configMapRef:
 #     name: configmap-name
 
-# Root directory where Filebeat will write data to in order to persist registry data across pod restarts (file position and other metadata).
-hostPathRoot: /var/lib
 hostNetworking: true
-image: "docker.elastic.co/beats/filebeat"
-imageTag: "8.0.0-SNAPSHOT"
-imagePullPolicy: "IfNotPresent"
 imagePullSecrets:
 - name: "harbor-admin-secret"
   
-livenessProbe:
-  exec:
-    command:
-      - sh
-      - -c
-      - |
-        #!/usr/bin/env bash -e
-        curl --fail 127.0.0.1:5066
-  failureThreshold: 3
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  timeoutSeconds: 5
-
-readinessProbe:
-  exec:
-    command:
-      - sh
-      - -c
-      - |
-        #!/usr/bin/env bash -e
-        filebeat test output
-  failureThreshold: 3
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  timeoutSeconds: 5
 
 # Whether this chart should self-manage its service account, role, and associated role binding.
 managedServiceAccount: true
@@ -97,21 +63,6 @@ labels: {}
 podAnnotations: {}
   # iam.amazonaws.com/role: es-cluster
 
-# Various pod security context settings. Bear in mind that many of these have an impact on Filebeat functioning properly.
-#
-# - User that the container will execute as. Typically necessary to run as root (0) in order to properly collect host container logs.
-# - Whether to execute the Filebeat containers as privileged containers. Typically not necessarily unless running within environments such as OpenShift.
-podSecurityContext:
-  runAsUser: 0
-  privileged: false
-
-resources:
-  requests:
-    cpu: "100m"
-    memory: "100Mi"
-  limits:
-    cpu: "1000m"
-    memory: "200Mi"
 
 # Custom service account override that the pod will use
 serviceAccount: ""
@@ -123,11 +74,9 @@ serviceAccountAnnotations: {}
 # A list of secrets and their paths to mount inside the pod
 # This is useful for mounting certificates for security other sensitive values
 secretMounts: []
-#  - name: filebeat-certificates
-#    secretName: filebeat-certificates
-#    path: /usr/share/filebeat/certs
 
-# How long to wait for Filebeat pods to stop gracefully
+
+# How long to wait for pods to stop gracefully
 terminationGracePeriod: 30
 
 tolerations: []
@@ -150,22 +99,10 @@ updateStrategy: RollingUpdate
 nameOverride: "daemon"
 fullnameOverride: "tensorsec-daemon"
 
-
-tensoragent:
-  image:
-    name: tensoragent
-    tag: latest
-    pullPolicy: Always
-
-tensordig:
-  image:
-    name: tensordig
-    tag: latest
-    pullPolicy: Always
-
-console:
-  addr: tensorsec-console.tensorsec-test.svc.cluster.local
-  port: "8889"
+# Not flexible enough, temporarily closed.
+# console:
+#   addr: tensorsec-console.tensorsec-test.svc.cluster.local
+#   port: "8889"
 
 eventcenter:
   eventGrpcUrl: tensorsec-eventcenter:9090

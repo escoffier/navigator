@@ -7,10 +7,25 @@ insecureTls: false
 nameOverride: clair
 fullnameOverride: "tensorsec-clair"
 image:
+  registry: localhost:32000
+  repository: tensorsecurity
   name: tensorsec-clair
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
+init: 
+  loadSql:
+    image:
+      registry:  localhost:32000
+      repository: tensorsecurity
+      name: tensorsec-postgres
+      tag: latest
+  waitpg:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name:  postgres
+      tag: 11.3
 service:
   type: ClusterIP
   internalApiPort: 6060

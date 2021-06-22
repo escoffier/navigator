@@ -1,7 +1,7 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
-  name: {{ template "driftPrevention.fullname" . }}-webhook
+  name: {{ template "driftPrevention.fullname" . }}-{{ .Release.Namespace }}
   labels:
     app: "{{ template "driftPrevention.fullname" . }}"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"

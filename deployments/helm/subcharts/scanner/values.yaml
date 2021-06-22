@@ -1,5 +1,14 @@
-# imagePullSecrets:
-#   - name: vegeta-gitlab
+## tensorsec scannner image name
+image:
+  registry:  localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-scanner
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+## Deployment pod host aliases
+hostAliases: []
 
 nameOverride: "scanner"
 fullnameOverride: "tensorsec-scanner"
@@ -25,12 +34,12 @@ resources:
     cpu: "1000m"
     memory: "2000Mi"
 
-image:
-  name: tensorsec-scanner
-  # repository: localhost:32000
-  tag: latest
-  pullPolicy: Always
-  pullSecret: harbor-admin-secret
+clair:
+  postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
+
+redis:
+  password: qweqwe
+  redisSecretName: redis-secret
 
 mongo:
   mongoUsername: redstone

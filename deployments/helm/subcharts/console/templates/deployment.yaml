@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,37 +23,37 @@ spec:
     # {{- end }}
       initContainers:
       - name: "elasticsearch-listener"
-        image: "alpine"
+        image: {{ include "console.registryPath" . }}/alpine:latest
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
           "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
         ]
-      serviceAccount: {{ .Release.Namespace }}-console-sa
+      serviceAccount: {{ template "console.serviceAccount" . }}-sa
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: {{ include "console.image" . }}
         command: ["/tensor-console"]
         args: [
-          "--mongo-endpoint=tensorsec-mongodb:27017",
+          "--mongo-endpoint=tensorsec-mongodb-0.tensorsec-mongodb-headless:27017",
           "--mongo-database={{ .Values.mongo.mongoDatabase }}",
           "--mongo-username={{ .Values.mongo.mongoUsername }}",
           "--mongo-k8secretname={{ .Values.mongo.mongoSecretName }}",
-          "--mongo-pvc=datadir-tensorsec-mongodb-primary-0",
-          "--mongo-pod=tensorsec-mongodb-primary-0",
+          "--mongo-pvc=datadir-tensorsec-mongodb-0",
+          "--mongo-pod=tensorsec-mongodb-0",
           "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
           "--console-postgres=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable",
           "--postgres-pvc=data-tensorsec-postgresql-0",
           "--postgres-pod=tensorsec-postgresql-0",
           "--postgres-data-path={{ .Values.postgresql.postgresqlDataDir }}",
-          "--email-username=console-robot@tensorsecurity.cn",
-          "--email-host=smtp.feishu.cn",
-          "--email-port=465",
-          "--email-check=true",
+          "--email-username={{ .Values.emailCheck.username }}",
+          "--email-host={{ .Values.emailCheck.host }}",
+          "--email-port={{ .Values.emailCheck.port }}",
+          "--email-check={{ .Values.emailCheck.enabled }}",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
           "--redis-endpoint=tensorsec-redis-master:6379",
-          "--scap-job-repo={{ .Values.global.ourDockerRepo }}",
+          "--scap-job-repo={{ include "console.registryPath" . }}",
           "--scap-job-tag={{ .Values.scap.tag }}",
           "--elastic-host={{ .Values.elastic.host }}",
           "--elastic-port={{ .Values.elastic.port }}",
@@ -91,7 +92,7 @@ spec:
               name: {{ .Values.redis.redisSecretName }}
               key: redis-password
         - name: TENSORSEC_EMAIL_PASSWORD
-          value: r8UJgg7ejpSoDOAF
+          value: {{ .Values.emailCheck.password }}
         - name: TENSORSEC_HARBOR_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -114,7 +115,7 @@ spec:
         - name: EVENT_GRPC_CERT_SERVER_NAME
           value: {{ .Values.eventcenter.eventGrpcCertServerName }}
         - name: CLEANER_IMAGE
-          value: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
+          value: "{{ include "console.cleaner.image" . }}"
         - name: AUDIT_PVC
           value: audit-pvc
         - name: AUDIT_PATH
@@ -129,6 +130,9 @@ spec:
             name: {{ include "console.name" . }}
           - containerPort: {{ .Values.debugService.containerPort }}
             name: pprof
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- include "tensorsec.tplvalues" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       volumes:
@@ -146,6 +150,25 @@ spec:
         secret:
           defaultMode: 400
           secretName: eventcenter-tls-server-cert-secret
+{{- if not .Values.persistence.enabled }}
+      - name: audit
+        emptyDir: {}
+{{- else }}
       - name: audit
         persistentVolumeClaim:
-          claimName: audit-pvc
+          claimName: {{ .Values.persistence.claimName }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.persistence.claimName }}
+spec:
+  accessModes:
+  {{- range .Values.persistence.accessModes }}
+    - {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}

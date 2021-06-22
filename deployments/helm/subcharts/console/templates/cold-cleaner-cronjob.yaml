@@ -1,11 +1,12 @@
+{{- if .Values.persistence.enabled -}}
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: {{ .Values.data.coldCronjob.fullnameOverride }}
+  name: {{ .Values.persistence.tensorsecCleaner.coldCronjob.fullnameOverride }}
   labels:
-    app: {{ .Values.data.coldCronjob.nameOverride }}
+    app: {{ .Values.persistence.tensorsecCleaner.coldCronjob.nameOverride }}
 spec:
-  schedule: {{ .Values.data.coldCronjob.cronString }}
+  schedule: {{ .Values.persistence.tensorsecCleaner.coldCronjob.cronString }}
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
@@ -25,16 +26,16 @@ spec:
                       name: {{ .Values.mongo.mongoSecretName }}
                       key: mongodb-password
                 - name: MONGO_ENDPOINT
-                  value: tensorsec-mongodb:27017
+                  value: tensorsec-mongodb-0.tensorsec-mongodb-headless:27017
                 - name: MONGO_DATABASE
                   value: {{ .Values.mongo.mongoDatabase }}
                 - name: AUDIT_PATH
                   value: /audit
-              image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.data.image.name }}:{{ .Values.data.image.tag }}"
-              imagePullPolicy: {{ .Values.data.image.pullPolicy }}
-              name: {{ .Values.data.coldCronjob.nameOverride }}
+              image: {{ include "console.cleaner.image" . }}
+              imagePullPolicy: {{ .Values.persistence.tensorsecCleaner.image.pullPolicy }}
+              name: {{ .Values.persistence.tensorsecCleaner.coldCronjob.nameOverride }}
               resources:
-{{ toYaml .Values.data.coldCronjob.resources | indent 16 }}
+{{ toYaml .Values.persistence.tensorsecCleaner.coldCronjob.resources | indent 16 }}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               volumeMounts:
@@ -42,8 +43,9 @@ spec:
                   name: audit
           restartPolicy: Never
           imagePullSecrets:
-            - name: {{ .Values.data.image.pullSecret }}
+            - name: {{ .Values.persistence.tensorsecCleaner.image.pullSecret }}
           volumes:
             - name: audit
               persistentVolumeClaim:
                 claimName: audit-pvc
+{{- end -}}
