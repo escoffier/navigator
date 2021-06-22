@@ -1,9 +1,9 @@
 {
   "pgTables":[
     {
-      "name":"events",
-      "timeField":"timestamp",
-      "dataDir":"/audit/postgresql/events",
+      "name":"association_events",
+      "timeField":"updated_at",
+      "dataDir":"/audit/postgresql/association_events",
       "batch":1000
     }
   ],

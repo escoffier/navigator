@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/datatypes"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/datatypes"
 )
 
 var (
@@ -85,7 +86,7 @@ func TestMockInsert(t *testing.T) {
 		TestField1 string         `gorm:"column:test_field_1"`
 		TestField2 int32          `gorm:"column:test_field_2"`
 		TestField3 datatypes.JSON `gorm:"column:test_field_3"`
-		Timestamp  int64          `gorm:"index:test_timestamp_key; column:timestamp"`
+		Timestamp  time.Time      `gorm:"index:test_timestamp_key; column:timestamp"`
 	}
 
 	err := postgresDB.Get().AutoMigrate(&Test{})
@@ -93,13 +94,13 @@ func TestMockInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UnixNano() / 1e6
+	now := time.Now()
 	for i := 0; i < 5000; i++ {
 		err = postgresDB.Get().Create(&Test{
 			TestField1: strconv.Itoa(rand.Int()),
 			TestField2: rand.Int31(),
 			TestField3: datatypes.JSON("{\"x\":\"y\"}"),
-			Timestamp:  now - int64(rand.Uint64()%uint64(15*time.Hour*24/1e6)),
+			Timestamp:  now.Add(-time.Duration(rand.Uint64()) % (15 * time.Hour * 24)),
 		}).Error
 		if err != nil {
 			t.Fatal(err)
@@ -115,7 +116,7 @@ func TestRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dumpPath := path.Join(pwd, "/dump_test/postgresql", "tests/2021-05-07T15:43:54.621")
+	dumpPath := path.Join(pwd, "/dump_test/postgresql", "tests/2021-06-05T18:11:13.113")
 	t.Log(dumpPath)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -130,6 +131,7 @@ func TestRestore(t *testing.T) {
 	cmd.Env = append(cmd.Env, "PGPASSWORD=%s", env.GetEnvWithDefault(env.PostgresPassword, ""))
 	stdout, stderr, err := util2.ExecuteCmd(cmd)
 	if err != nil {
+		t.Log(stderr)
 		t.Fatal(err)
 	}
 
@@ -143,4 +145,5 @@ func TestRestore(t *testing.T) {
 func TestTimeFormat(t *testing.T) {
 	t.Log(time.Now().Format("2006-01-02T15:04:05.000"))
 	t.Log(time.Now().Format("2006-01-02T15:04:05.000Z"))
+	t.Log(time.Now().Format("2006-01-02 15:04:05.000"))
 }

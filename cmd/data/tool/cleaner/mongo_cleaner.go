@@ -9,15 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoCleaner struct {
@@ -200,7 +201,7 @@ func mongoExport(ctx context.Context, collection *conf.DumpItem, timeFilter time
 
 func clearMongoData(ctx context.Context, mongodb *mongotools.DatabaseWrapper, collection *conf.DumpItem, timeFilter time.Time) error {
 	clearFunc := func() error {
-		filter := bson.M{collection.TimeField: bson.M{"$lt": timeFilter.UTC()}}
+		filter := bson.M{collection.TimeField: bson.M{"$lt": util.GetMillisecondTime(timeFilter).UTC()}}
 		findOptions := &options.FindOptions{}
 		cursor, err := mongodb.Get().Collection(collection.Name).Find(ctx, filter,
 			findOptions.

@@ -3,18 +3,20 @@ package cleaner
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
