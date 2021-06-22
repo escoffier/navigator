@@ -8,7 +8,6 @@ metadata:
     kubernetes.io/name: Kibana
   name: tensorsec-kibana-logging
 spec:
-  clusterIP:
   ports:
   - port: 5601
     protocol: TCP
