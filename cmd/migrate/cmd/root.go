@@ -37,14 +37,13 @@ func Execute() {
 	}
 }
 
-
 func init() {
 	cobra.OnInitialize(func() {
 		if err := migrate.InitConfig(migrate.ConfigFile); err != nil {
-			logging.GetLogger().Error().Msgf("load config err %v",err )
+			logging.GetLogger().Error().Msgf("load config err %v", err)
 			os.Exit(1)
 		}
-		logging.GetLogger().Info().Msg("config OK" )
+		logging.GetLogger().Info().Msg("config OK")
 	})
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
@@ -53,5 +52,3 @@ func init() {
 	rootCmd.Flags().Bool("force-down", false, "reset dirty state and downgrade the current version")
 	rootCmd.Flags().StringP("title", "t", "", "migration title")
 }
-
-

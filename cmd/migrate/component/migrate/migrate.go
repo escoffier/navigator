@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	VersionsDir     string
-	ConfigFile      string
-	conf            Config
+	VersionsDir string
+	ConfigFile  string
+	conf        Config
 )
 
 const (
@@ -29,9 +29,9 @@ const (
 	MaxTitleLen         = 40
 	DefaultMigrateTable = "tensor_migration"
 
-	AppName             = "tensor-migrate"
-	DefaultConfigFile   = "config.yaml"
-	EnvPrefix           = "TENSORSEC_MIGRATE"
+	AppName           = "tensor-migrate"
+	DefaultConfigFile = "config.yaml"
+	EnvPrefix         = "TENSORSEC_MIGRATE"
 )
 
 func SetViperConfig(cfgFile string, name string, envPrefix string) error {
@@ -82,14 +82,14 @@ func RunMigrate(action string, cmd *cobra.Command) {
 	var m = NewFileMigration(conf.Database)
 	var absPath, err = filepath.Abs(VersionsDir)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("get version files directory failed,versionDir %s,err %v",absPath,err)
+		logging.GetLogger().Error().Msgf("get version files directory failed,versionDir %s,err %v", absPath, err)
 		return
 	}
 
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		err := os.Mkdir(absPath, os.ModePerm)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("create versionDir %s,err %v",absPath,err)
+			logging.GetLogger().Error().Msgf("create versionDir %s,err %v", absPath, err)
 			return
 		}
 	}
@@ -113,7 +113,7 @@ func RunMigrate(action string, cmd *cobra.Command) {
 
 		var shortTitle string
 		if err != nil {
-			logging.GetLogger().Error().Msgf("error while parsing params title",err)
+			logging.GetLogger().Error().Msgf("error while parsing params title", err)
 			return
 		}
 		if len(title) > MaxTitleLen {
@@ -126,12 +126,12 @@ func RunMigrate(action string, cmd *cobra.Command) {
 		var down = fmt.Sprintf("%s/%s_%s.down.sql", absPath, timeStr, shortTitle)
 		upFile, err := os.Create(up)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Error while creating migration up file,%s,err %v",up,err)
+			logging.GetLogger().Error().Msgf("Error while creating migration up file,%s,err %v", up, err)
 			return
 		}
 		downFile, err := os.Create(down)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Error while creating migration down file %s,%v",down,err)
+			logging.GetLogger().Error().Msgf("Error while creating migration down file %s,%v", down, err)
 			return
 		}
 		defer upFile.Close()
@@ -142,7 +142,7 @@ func RunMigrate(action string, cmd *cobra.Command) {
 	} else {
 		var forceDown, err = cmd.Flags().GetBool("force-down")
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Get flag failed %v",err)
+			logging.GetLogger().Error().Msgf("Get flag failed %v", err)
 		} else {
 			if forceDown {
 				m.ForceResetDown()
@@ -153,4 +153,3 @@ func RunMigrate(action string, cmd *cobra.Command) {
 	}
 
 }
-

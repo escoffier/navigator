@@ -27,9 +27,9 @@ func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.DumpItem) *Post
 }
 
 func (c *PostgresCleaner) Clean(ctx context.Context, daysOffset int) error {
-	timeMSFilter := time.Now().Add(-time.Hour*24*time.Duration(daysOffset)).UnixNano() / 1e6
+	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
 	for _, table := range c.tables {
-		if err := c.dumpTable(ctx, table, timeMSFilter); err != nil {
+		if err := c.dumpTable(ctx, table, timeFilter); err != nil {
 			logging.GetLogger().Error().Msgf("dumpTable %s:%s, err:%s", table.Name, table.TimeField, err.Error())
 			return err
 		}
@@ -42,8 +42,8 @@ const (
 	pgInterval = time.Millisecond * 200
 )
 
-func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, timeMSFilter int64) error {
-	targetPath, tmpPath, err := initDumpInfo(table, time.Unix(0, timeMSFilter*1e6))
+func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, timeFilter time.Time) error {
+	targetPath, tmpPath, err := initDumpInfo(table, timeFilter)
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, t
 	}()
 
 	for {
-		hasData, err := psqlCopy(ctx, table, timeMSFilter, tmpPath)
+		hasData, err := psqlCopy(ctx, table, timeFilter, tmpPath)
 		if err != nil {
 			return err
 		}
@@ -85,7 +85,7 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, t
 			return err
 		}
 
-		err = clearPGData(ctx, c.db, table, timeMSFilter)
+		err = clearPGData(ctx, c.db, table, timeFilter)
 		if err != nil {
 			return err
 		}
@@ -94,13 +94,13 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, t
 	}
 }
 
-func psqlCopy(ctx context.Context, table *conf.DumpItem, timeMSFilter int64, tmpPath string) (hasData bool, err error) {
+func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", env.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
 		"-U", env.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
 		"-d", env.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		"-c", fmt.Sprintf("\\copy (select * from %s where %s < %d order by %s asc, id asc limit %d) TO '%s'",
-			table.Name, table.TimeField, timeMSFilter, table.TimeField, table.Batch, tmpPath),
+		"-c", fmt.Sprintf("\\copy (select * from %s where %s < '%s' order by %s asc, id asc limit %d) TO '%s'",
+			table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), table.TimeField, table.Batch, tmpPath),
 	)
 
 	cmd.Env = os.Environ()
@@ -121,13 +121,13 @@ func psqlCopy(ctx context.Context, table *conf.DumpItem, timeMSFilter int64, tmp
 	return stdout != "COPY 0\n", nil
 }
 
-func clearPGData(ctx context.Context, db *rdbtools.GormWrapper, table *conf.DumpItem, timeMSFilter int64) error {
+func clearPGData(ctx context.Context, db *rdbtools.GormWrapper, table *conf.DumpItem, timeFilter time.Time) error {
 	sql := fmt.Sprintf("with temp as (select id from %s where %s < ? order by %s asc, id asc limit ?) "+
 		"delete from %s where id in (select * from temp)",
 		table.Name, table.TimeField, table.TimeField, table.Name)
 
 	clearFunc := func() error {
-		return db.Get().WithContext(ctx).Exec(sql, timeMSFilter, table.Batch).Error
+		return db.Get().WithContext(ctx).Exec(sql, util.GetMillisecondTime(timeFilter), table.Batch).Error
 	}
 
 	return util.WithRetry(clearFunc, util.DefaultRetryConf)

@@ -6,28 +6,28 @@ import (
 
 // Namespace dev/nginx:1.20, "dev" is the namespace
 type Namespace struct {
-	Name			string
-	Description		string
-	CreationTime 	time.Time
-	UpdateTime 		time.Time
+	Name         string
+	Description  string
+	CreationTime time.Time
+	UpdateTime   time.Time
 }
 
 // Repository dev/nginx:1.20, "nginx" is the repository
 type Repository struct {
-	Name			string
-	NameSpace		string
-	Description		string
-	PullCount 		uint
-	CreationTime 	time.Time
-	UpdateTime 		time.Time
+	Name         string
+	NameSpace    string
+	Description  string
+	PullCount    uint
+	CreationTime time.Time
+	UpdateTime   time.Time
 }
 
 // Tag dev/nginx:1.20, "1.20" is the tag
 type Tag struct {
-	Name 			string
-	Digest 			string
-	PushTime 		time.Time
-	PullTime 		time.Time
+	Name     string
+	Digest   string
+	PushTime time.Time
+	PullTime time.Time
 }
 
 // Image dev/nginx:1.20, this is the image
