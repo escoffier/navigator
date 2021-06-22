@@ -48,9 +48,12 @@ secretMounts: []
 #    path: /usr/share/elasticsearch/config/certs
 #    defaultMode: 0755
 
-image: "docker.elastic.co/elasticsearch/elasticsearch"
-imageTag: "7.9.1"
-imagePullPolicy: "IfNotPresent"
+image: 
+  registry:  docker.elastic.co
+  repository: elasticsearch
+  name: elasticsearch
+  tag: 7.9.1
+  pullPolicy: "IfNotPresent"
 
 podAnnotations: {}
   # iam.amazonaws.com/role: es-cluster

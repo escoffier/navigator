@@ -32,13 +32,14 @@ Create chart name and version as used by the chart label.
 {{- end -}}
 
 {{/*
-Create the name of the service account to use
+Use the fullname if the serviceAccount value is not set
 */}}
 {{- define "falco.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (include "falco.fullname" .) .Values.serviceAccount.name }}
-{{- else -}}
-    {{ default "default" .Values.serviceAccount.name }}
+{{- if .Values.serviceAccount.name }}
+{{- .Values.serviceAccount.name -}}
+{{- else }}
+{{- $name := default .Chart.Name .Values.fullnameOverride -}}
+{{- printf "%s-%s" $name .Release.Namespace | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -46,23 +47,12 @@ Create the name of the service account to use
 Return the proper Falco image name
 */}}
 {{- define "falco.image" -}}
-{{- $registryName := .Values.image.registry -}}
-{{- $repositoryName := .Values.image.repository -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.image.name -}}
 {{- $tag := .Values.image.tag | toString -}}
-{{/*
-Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
-but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
-Also, we can't use a single if because lazy evaluation is not an option
-*/}}
-{{- if .Values.global }}
-    {{- if .Values.global.imageRegistry }}
-        {{- printf "%s/%s:%s" .Values.global.imageRegistry $repositoryName $tag -}}
-    {{- else -}}
-        {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
-    {{- end -}}
-{{- else -}}
-    {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
-{{- end -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}
 
 {{/*

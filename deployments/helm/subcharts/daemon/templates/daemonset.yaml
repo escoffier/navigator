@@ -74,7 +74,7 @@ spec:
           path: /sys
       - name: time
         hostPath:
-        path: /etc/localtime
+          path: /etc/localtime
       - name: modules
         hostPath:
           path: /lib/modules
@@ -97,10 +97,6 @@ spec:
           defaultMode: 0600
           name: filebeat-config
       {{- end }}
-      - name: data
-        hostPath:
-          path: {{ .Values.hostPathRoot }}/{{ template "daemon.fullname" . }}-{{ .Release.Namespace }}-data
-          type: DirectoryOrCreate
       - name: varlibdockercontainers
         hostPath:
           path: /var/lib/docker/containers
@@ -117,24 +113,28 @@ spec:
       imagePullSecrets:
 {{ toYaml .Values.imagePullSecrets | indent 8 }}
       {{- end }}
-      {{- if .Values.extraInitContainers }}
+      {{- if and .Values.extraInitContainers  (or .Values.extraInitContainers.esListerner.enabled .Values.extraInitContainers.pgListerner.enabled) }}
       initContainers:
-      # All the other beats accept a string here while
-      # filebeat accepts a valid yaml array. We're keeping
-      # this as a backwards compatible change, while adding
-      # also a way to pass a string as other templates to
-      # make these implementations consistent.
-      # https://github.com/elastic/helm-charts/issues/490
-      {{- if eq "string" (printf "%T" .Values.extraInitContainers) }}
-{{ tpl .Values.extraInitContainers . | indent 8 }}
-      {{- else }}
-{{ toYaml .Values.extraInitContainers | indent 8 }}
+      {{- if .Values.extraInitContainers.esListerner.enabled }}
+      - name: "elasticsearch-listener"
+        image: {{ include "daemon.esListerner.image" . }}
+        imagePullPolicy: {{ .Values.extraInitContainers.esListerner.image.PullPolicy }}
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
+        ]
+      {{- end }}
+      {{- if .Values.extraInitContainers.pgListerner.enabled }}
+      - name: "postgre-listener"
+        image: {{ include "daemon.pgListerner.image" . }}
+        imagePullPolicy: {{ .Values.extraInitContainers.pgListerner.image.PullPolicy }}
+        command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
       {{- end }}
       {{- end }}
       containers:
       - name: tensordig
-        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.tensordig.image.name }}:{{ .Values.tensordig.image.tag }}"
-        imagePullPolicy: {{ .Values.tensordig.image.pullPolicy }}
+        image: {{ include "daemon.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         securityContext:
           privileged: true
           runAsUser: 0
@@ -165,9 +165,9 @@ spec:
             value: {{ .Values.eventcenter.eventGrpcCertServerName }}
 
           - name: TENSORSEC_CONSOLE_HOST
-            value: "{{ .Values.console.addr }}"
+            value: "tensorsec-console.{{ .Release.Namespace }}.svc.cluster.local:"
           - name: TENSORSEC_CONSOLE_PORT
-            value: "{{ .Values.console.port }}"
+            value: "8889"
           - name: MY_POD_NAMESPACE
             valueFrom:
               fieldRef:

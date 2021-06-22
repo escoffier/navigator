@@ -1,9 +1,82 @@
-# imagePullSecrets:
-#   - name: vegeta-gitlab
+image:
+  registry:  localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-console
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+scap:
+  tag: latest
+
+persistence:
+  enabled: true
+  claimName: audit-pvc
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+  tensorsecCleaner:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: tensorsec-cleaner
+      tag: latest
+      pullPolicy: Always
+      pullSecret: harbor-admin-secret
+    coldCronjob:
+      cronString: "0 4 * * *"
+      nameOverride: "cron-cold-cleaner"
+      fullnameOverride: "tensorsec-cron-cold-cleaner"
+      resources:
+        limits:
+          cpu: "0.1"
+          memory: 100Mi
+        requests:
+          cpu: "0.1"
+          memory: 100Mi
+    hotLogicCronjob:
+      cronString: "0 2 * * *"
+      nameOverride: "cron-hot-logic-cleaner"
+      fullnameOverride: "tensorsec-cron-hot-logic-cleaner"
+      resources:
+        limits:
+          cpu: "0.3"
+          memory: 300Mi
+        requests:
+          cpu: "0.3"
+          memory: 300Mi
+    hotOfflineCronjob:
+      cronString: "0 3 * * *"
+      nameOverride: "cron-hot-offline-cleaner"
+      fullnameOverride: "tensorsec-cron-hot-offline-cleaner"
+      resources:
+        limits:
+          cpu: "0.2"
+          memory: 200Mi
+        requests:
+          cpu: "0.2"
+          memory: 200Mi
+
+
+## Deployment pod host aliases
+hostAliases: []
+
+## config user email check
+emailCheck:
+  enabled: false
+  host: smtp.feishu.cn
+  port: 465
+  username: console-robot@tensorsecurity.cn
+  password: asdkalsd
+  
+
 
 nameOverride: "console"
 fullnameOverride: "tensorsec-console"
 debugServiceName: "tensorsec-console-debug"
+
+# Custom service account override that the pod will use
+serviceAccount: ""
 
 restartPolicy: Always
 
@@ -29,61 +102,27 @@ resources:
 
 apiInstallLabel: "console.tensorsec/install"
 
-scap:
-  tag: latest
+eventcenter:
+  eventGrpcUrl: tensorsec-eventcenter:9090
+  eventGrpcCertServerName: tensorsec-eventcenter
 
+elasticsearch:
+  elasticSecretName: elastic-secret
+  extraEnvs:
+    - name: ELASTIC_PASSWORD
+      value: Elastic12345
+    - name: ELASTIC_USERNAME
+      value: elasticsearch
 elastic:
   host: tensorsec-elasticsearch-master
   port: 9200
   index: filebeat-*
   elasticDataPath: /usr/share/elasticsearch/data
-
-data:
-  image:
-    name: tensorsec-cleaner
-    tag: latest
-    pullPolicy: Always
-    pullSecret: harbor-admin-secret
-  coldCronjob:
-    cronString: "0 4 * * *"
-    nameOverride: "cron-cold-cleaner"
-    fullnameOverride: "tensorsec-cron-cold-cleaner"
-    resources:
-      limits:
-        cpu: "0.1"
-        memory: 100Mi
-      requests:
-        cpu: "0.1"
-        memory: 100Mi
-  hotLogicCronjob:
-    cronString: "0 2 * * *"
-    nameOverride: "cron-hot-logic-cleaner"
-    fullnameOverride: "tensorsec-cron-hot-logic-cleaner"
-    resources:
-      limits:
-        cpu: "0.3"
-        memory: 300Mi
-      requests:
-        cpu: "0.3"
-        memory: 300Mi
-  hotOfflineCronjob:
-    cronString: "0 3 * * *"
-    nameOverride: "cron-hot-offline-cleaner"
-    fullnameOverride: "tensorsec-cron-hot-offline-cleaner"
-    resources:
-      limits:
-        cpu: "0.2"
-        memory: 200Mi
-      requests:
-        cpu: "0.2"
-        memory: 200Mi
-
-image:
-  name: tensorsec-console
-  # repository: localhost:32000
-  tag: latest
-  pullPolicy: Always
-  pullSecret: harbor-admin-secret
+postgresql:
+  postgresqlDataDir: /bitnami/postgresql/data
+  postgresqlUsername: postgres
+  postgresqlPassword: password
+  postgresqlDatabase: postgres
 
 harbor:
   harborURL: https://192.168.1.152:30003
@@ -99,3 +138,4 @@ mongo:
 
 redis:
   redisSecretName: tensorsec-redis
+

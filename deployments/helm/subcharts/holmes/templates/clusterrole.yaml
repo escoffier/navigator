@@ -2,7 +2,7 @@
 kind: ClusterRole
 apiVersion: {{ template "rbac.apiVersion" . }}
 metadata:
-  name: {{ template "falco.fullname" .}}
+  name: {{ template "falco.serviceAccountName" .}}-cluster-role
   labels:
     app: {{ template "falco.fullname" . }}
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"

@@ -14,7 +14,8 @@ global:
 ##
 image:
   registry: docker.io
-  repository: bitnami/redis
+  repository: bitnami
+  name: redis
   ## Bitnami Redis image tag
   ## ref: https://github.com/bitnami/bitnami-docker-redis#supported-tags-and-respective-dockerfile-links
   ##
@@ -56,7 +57,8 @@ sentinel:
   ##
   image:
     registry: docker.io
-    repository: bitnami/redis-sentinel
+    repository: bitnami
+    name: redis-sentinel
     ## Bitnami Redis image tag
     ## ref: https://github.com/bitnami/bitnami-docker-redis-sentinel#supported-tags-and-respective-dockerfile-links
     ##
@@ -634,7 +636,8 @@ metrics:
 
   image:
     registry: docker.io
-    repository: bitnami/redis-exporter
+    repository: bitnami
+    name: redis-exporter
     tag: 1.12.0-debian-10-r9
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
@@ -735,7 +738,8 @@ volumePermissions:
   enabled: false
   image:
     registry: docker.io
-    repository: bitnami/minideb
+    repository: bitnami
+    name: minideb
     tag: buster
     pullPolicy: Always
     ## Optionally specify an array of imagePullSecrets.
@@ -777,7 +781,8 @@ sysctlImage:
   enabled: false
   command: []
   registry: docker.io
-  repository: bitnami/minideb
+  repository: bitnami
+  name: minideb
   tag: buster
   pullPolicy: Always
   ## Optionally specify an array of imagePullSecrets.

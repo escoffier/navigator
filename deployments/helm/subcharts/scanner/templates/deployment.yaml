@@ -22,7 +22,7 @@ spec:
     # {{- end }}
       initContainers:
       - name: "postgres-listener"
-        image: "alpine"
+        image: {{ include "scanner.registryPath" . }}/alpine:latest
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
@@ -30,12 +30,11 @@ spec:
         ]
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: {{ include "scanner.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-
         command: ["/tensor-scanner"]
         args: [
-          "--mongo-endpoint=tensorsec-mongodb:27017",
+          "--mongo-endpoint=tensorsec-mongodb-0.tensorsec-mongodb-headless:27017",
           "--mongo-database={{ .Values.mongo.mongoDatabase }}",
           "--mongo-username={{ .Values.mongo.mongoUsername }}",
           "--clair-remote-address=tensorsec-clair",
@@ -68,13 +67,11 @@ spec:
               secretKeyRef:
                 name: {{ .Values.harbor.harborSecretName }}
                 key: password
-
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
             name: {{ include "scanner.name" . }}-api
           - containerPort: {{ .Values.service.LayerContainerPort }}
             name: {{ include "scanner.name" . }}-layer
-
         volumeMounts:
           - name: scannerfiles
             mountPath: "/config"
@@ -84,6 +81,9 @@ spec:
             mountPath: "/tmp/"
         resources:
 {{ toYaml .Values.resources | indent 10 }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- include "tensorsec.tplvalues" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       volumes:

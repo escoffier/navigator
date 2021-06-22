@@ -127,7 +127,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ template "driftPrevention.serviceAccount" . }}-webhook
-        image: "{{ .Values.global.ourDockerRepo }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: {{ include "driftPrevention.image" . }}
         imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         # command: ["/bin/sh", "-c", "sleep 360000"]
         args:

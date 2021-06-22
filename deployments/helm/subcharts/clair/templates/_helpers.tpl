@@ -1,3 +1,40 @@
+{{/*
+Return the clair image name
+*/}}
+{{- define "clair.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.image.name -}}
+{{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
+Return the clair init loadSql image name
+*/}}
+{{- define "clair.init.loadSql.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.init.loadSql.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.init.loadSql.image.repository "context" $)) -}}
+{{- $imageName := .Values.init.loadSql.image.name -}}
+{{- $tag := .Values.init.loadSql.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
+Return the clair init waitpg image name
+*/}}
+{{- define "clair.init.waitpg.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.init.waitpg.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.init.waitpg.image.repository "context" $)) -}}
+{{- $imageName := .Values.init.waitpg.image.name -}}
+{{- $tag := .Values.init.waitpg.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+
 {{/* vim: set filetype=mustache: */}}
 {{/*
 Expand the name of the chart.

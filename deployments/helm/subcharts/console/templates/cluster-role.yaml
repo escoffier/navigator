@@ -1,9 +1,12 @@
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
-  name: {{ .Release.Namespace }}-console-cluster-role
+  name: {{ template "console.serviceAccount" . }}-cluster-role
   labels:
     app: "{{ template "console.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
 rules:
   - apiGroups:
       - '*'

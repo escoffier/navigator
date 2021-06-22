@@ -1,5 +1,17 @@
 {{/* vim: set filetype=mustache: */}}
 {{/*
+Return the elasticsearch image name
+*/}}
+{{- define "elasticsearch.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.image.name -}}
+{{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "elasticsearch.name" -}}
@@ -55,8 +67,8 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- if .Values.esMajorVersion -}}
 {{ .Values.esMajorVersion }}
 {{- else -}}
-{{- $version := int (index (.Values.imageTag | splitList ".") 0) -}}
-  {{- if and (contains "docker.elastic.co/elasticsearch/elasticsearch" .Values.image) (not (eq $version 0)) -}}
+{{- $version := int (index (.Values.image.tag | splitList ".") 0) -}}
+  {{- if and (contains "docker.elastic.co/elasticsearch/elasticsearch" (printf "%s/%s/%s" .Values.image.registry .Values.image.repository .Values.image.name )) (not (eq $version 0)) -}}
 {{ $version }}
   {{- else -}}
 7

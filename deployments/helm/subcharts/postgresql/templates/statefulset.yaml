@@ -63,7 +63,8 @@ spec:
       {{- if .Values.serviceAccount.enabled }}
       serviceAccountName: {{ default (include "postgresql.fullname" . ) .Values.serviceAccount.name }}
       {{- end }}
-      {{- if and .Values.volumePermissions.enabled .Values.persistence.enabled }}
+      {{- if and .Values.volumePermissions.enabled }}
+
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       initContainers:
@@ -209,11 +210,9 @@ spec:
         - name: postgresql-password
           mountPath: /opt/bitnami/postgresql/secrets/
         {{- end }}
-        {{- if .Values.persistence.enabled }}
         - name: data
           mountPath: {{ .Values.persistence.mountPath }}
           subPath: {{ .Values.persistence.subPath }}
-        {{- end }}
         {{- if or (.Files.Glob "files/postgresql.conf") (.Files.Glob "files/pg_hba.conf") .Values.postgresqlConfiguration .Values.pgHbaConfiguration .Values.configurationConfigMap }}
         - name: postgresql-config
           mountPath: /bitnami/postgresql/conf
