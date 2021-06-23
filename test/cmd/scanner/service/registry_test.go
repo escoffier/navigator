@@ -25,7 +25,7 @@ func TestSyncRepo(t *testing.T) {
 	t.Log("start sync repo")
 
 	syncInterval := uint(5)
-	r, err := service.NewSyncRepoImage(configPath, syncInterval)
+	r, err := service.NewSyncRepoImageByConfig(configPath, syncInterval)
 	if err != nil {
 		t.Fatalf("new sync repo image err:%v", err)
 	}
@@ -33,7 +33,7 @@ func TestSyncRepo(t *testing.T) {
 	te := &TestExtender{
 		Name: "annie",
 	}
-	r.Run(func(image registry.Image) error {
+	r.MockRun(func(image registry.Image) error {
 		te.OutPut()
 		fmt.Println("image", image.ImageDigest)
 		return nil
