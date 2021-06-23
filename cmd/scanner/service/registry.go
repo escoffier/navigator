@@ -39,6 +39,37 @@ func NewSyncRepoImage(configPath string, syncInterval uint, psql *component.Scan
 	return s, nil
 }
 
+func NewSyncRepoImageByConfig(configPath string, syncInterval uint) (*SyncRepoImage, error) {
+	// Load configuration
+	config, err := config.LoadConfig(configPath)
+	if err != nil {
+		logging.GetLogger().Fatal().Msg("failed to load configuration")
+		return nil, err
+	}
+
+	s := &SyncRepoImage{
+		config:       config,
+		syncInterval: syncInterval,
+	}
+	return s, nil
+}
+
+func (s *SyncRepoImage) MockRun(extender registry.ImageListExtender) error {
+	// Open registry
+	r, err := registry.Open(s.config.Registry)
+	if err != nil {
+		logging.GetLogger().Fatal().Str("err", err.Error()).Msg("open config err")
+		return err
+	}
+	images, err := r.ListImages(extender)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("get images err.%v", err)
+	} else {
+		logging.GetLogger().Info().Msgf("get images count %d,%+v", len(images),images)
+	}
+	return nil
+}
+
 func (s *SyncRepoImage) Run(extender registry.ImageListExtender) error {
 
 	// Open registry
