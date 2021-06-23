@@ -174,6 +174,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 		flag = 1
 		netData.SrcRes.Name = srcIp
 		netData.SrcRes.Kind = "External"
+		netData.SrcRes.Namespace = "_external"
 	} else {
 		netData.SrcRes.Name = src.Name
 		netData.SrcRes.Kind = src.Kind
@@ -195,6 +196,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 
 		netData.DstRes.Name = dstIp
 		netData.DstRes.Kind = "External"
+		netData.DstRes.Namespace = "_external"
 		netData.CreateUuid()
 		return fs.pg.SaveNetTopology(context.Background(), &netData)
 	}
