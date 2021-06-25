@@ -4,3 +4,11 @@ image:
   name: kibana-oss
   tag: 7.4.2
   pullSecret: harbor-admin-secret
+
+resources:
+  limits:
+    cpu: "1"
+    memory: 500Mi
+  requests:
+    cpu: 100m
+    memory: 200Mi

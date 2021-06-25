@@ -40,7 +40,14 @@ spec:
       {{- if .Values.schedulerName }}
       schedulerName: "{{ .Values.schedulerName }}"
       {{- end }}
-{{- include "postgresql.imagePullSecrets" . | indent 6 }}
+#{{- include "postgresql.imagePullSecrets" . | indent 6 }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
       {{- if .Values.master.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.master.nodeSelector | indent 8 }}
@@ -64,9 +71,6 @@ spec:
       serviceAccountName: {{ default (include "postgresql.fullname" . ) .Values.serviceAccount.name }}
       {{- end }}
       {{- if and .Values.volumePermissions.enabled }}
-
-      imagePullSecrets:
-      - name: {{ .Values.image.pullSecret }}
       initContainers:
       - name: init-chmod-data
         image: {{ template "postgresql.volumePermissions.image" . }}

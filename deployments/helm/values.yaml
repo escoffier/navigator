@@ -18,6 +18,7 @@ clair:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
+    pullSecret: harbor-admin-secret
   init: 
     loadSql:
       image:
@@ -40,6 +41,7 @@ scanner:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
+    pullSecret: harbor-admin-secret
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
   redis:
     password: Redis12345
@@ -57,6 +59,7 @@ drift-prevention:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
+    pullSecret: harbor-admin-secret
   eventcenter:
     addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
     port: "8080"
@@ -67,6 +70,7 @@ console:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
+    pullSecret: harbor-admin-secret
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
   scap:
     tag: latest
@@ -110,6 +114,7 @@ daemon:
   image:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
+    pullSecret: harbor-admin-secret
   extraInitContainers:
     esListerner:
       image:
@@ -133,6 +138,7 @@ redis:
     repository: "{{ .Values.global.image.repository }}"
     name: redis
     tag: 6.0.8-debian-10-r35
+    pullSecret: harbor-admin-secret
   sentinel:
     image:
       registry:  "{{ .Values.global.image.registry }}"
@@ -158,6 +164,7 @@ elasticsearch:
     repository: "{{ .Values.global.image.repository }}"
     name: elasticsearch
     tag: 7.9.1
+    pullSecret: harbor-admin-secret
   persistence:
     enabled: true
   minimumMasterNodes: 1
@@ -207,6 +214,7 @@ kibana:
   image:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
+    pullSecret: harbor-admin-secret
 
 postgresql:
   # Note for maintainers:
@@ -255,6 +263,7 @@ mongodb:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: 4.4.6-debian-10-r8
+    pullSecret: harbor-admin-secret
   volumePermissions:
     enabled: true
     image:
@@ -283,6 +292,7 @@ holmes:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
+    pullSecret: harbor-admin-secret
   ebpf:
     enabled: false
   falco:

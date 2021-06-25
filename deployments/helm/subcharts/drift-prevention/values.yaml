@@ -4,6 +4,7 @@ image:
   name: tensorsec-drift-prevention
   tag: latest
   pullPolicy: Always
+  pullSecret: harbor-admin-secret
 
 eventcenter:
   addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
@@ -12,9 +13,6 @@ eventcenter:
 nameOverride: "drift-prevention"
 fullnameOverride: "tensorsec-drift-prevention"
 
-imagePullSecrets:
-- name: "harbor-admin-secret"
-
 volumes:
   clientName: "client-cert"
   clientSecretName: "eventcenter-tls-client-cert-secret"
@@ -22,3 +20,11 @@ volumes:
   caName: "ca-cert"
   caSecretName: "eventcenter-tls-ca-secret"
   caMountPath: "/auth/ca"
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "64Mi"
+    cpu: "50m"

@@ -20,12 +20,27 @@ init:
       repository: tensorsecurity
       name: tensorsec-postgres
       tag: latest
+    resources:
+      limits:
+        cpu: 50m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
   waitpg:
     image:
       registry: localhost:32000
       repository: tensorsecurity
       name:  postgres
       tag: 11.3
+    resources:
+      limits:
+        cpu: 50m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  
 service:
   type: ClusterIP
   internalApiPort: 6060

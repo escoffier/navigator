@@ -109,9 +109,12 @@ spec:
       {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
       {{- end }}
-      {{- if .Values.imagePullSecrets }}
+      {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
-{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
       {{- end }}
       {{- if and .Values.extraInitContainers  (or .Values.extraInitContainers.esListerner.enabled .Values.extraInitContainers.pgListerner.enabled) }}
       initContainers:
@@ -123,12 +126,16 @@ spec:
           "sh", "-c",
           "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
         ]
+        resources:
+{{ toYaml .Values.extraInitContainers.esListerner.resources | trim | indent 10 }}
       {{- end }}
       {{- if .Values.extraInitContainers.pgListerner.enabled }}
       - name: "postgre-listener"
         image: {{ include "daemon.pgListerner.image" . }}
         imagePullPolicy: {{ .Values.extraInitContainers.pgListerner.image.PullPolicy }}
         command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
+        resources:
+{{ toYaml .Values.extraInitContainers.pgListerner.resources | trim | indent 10 }}
       {{- end }}
       {{- end }}
       containers:
@@ -150,12 +157,7 @@ spec:
           "--dbPort=5432",
         ]
         resources:
-          requests:
-            memory: "2048Mi"
-            cpu: "1.5"
-          limits:
-            memory: "2048Mi"
-            cpu: "1.5"
+{{ toYaml .Values.resources | trim | indent 10 }}
         env:
           - name: EVENT_GRPC_URL
             value: {{ .Values.eventcenter.eventGrpcUrl }}
@@ -163,7 +165,6 @@ spec:
             value: /auth/server/tls.crt
           - name: EVENT_GRPC_CERT_SERVER_NAME
             value: {{ .Values.eventcenter.eventGrpcCertServerName }}
-
           - name: TENSORSEC_CONSOLE_HOST
             value: "tensorsec-console.{{ .Release.Namespace }}.svc.cluster.local:"
           - name: TENSORSEC_CONSOLE_PORT
