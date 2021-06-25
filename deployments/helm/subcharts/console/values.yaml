@@ -100,6 +100,14 @@ resources:
     cpu: "200m"
     memory: "500Mi"
 
+initResources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    cpu: "50m"
+    memory: "128Mi"
+
 apiInstallLabel: "console.tensorsec/install"
 
 eventcenter:

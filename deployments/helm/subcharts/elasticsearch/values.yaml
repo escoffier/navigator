@@ -71,13 +71,13 @@ resources:
     cpu: "500m"
     memory: "1500Mi"
 
-initResources: {}
-  # limits:
-  #   cpu: "25m"
-  #   # memory: "128Mi"
-  # requests:
-  #   cpu: "25m"
-  #   memory: "128Mi"
+initResources:
+  limits:
+    cpu: "25m"
+    memory: "128Mi"
+  requests:
+    cpu: "25m"
+    memory: "128Mi"
 
 sidecarResources: {}
   # limits:

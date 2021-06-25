@@ -150,9 +150,12 @@ spec:
 {{ toYaml .Values.extraVolumes | indent 8 }}
       {{- end }}
       {{- end }}
-      {{- if .Values.imagePullSecrets }}
+      {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
-{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
       {{- end }}
       {{- if semverCompare ">1.13" .Capabilities.KubeVersion.GitVersion }}
       enableServiceLinks: {{ .Values.enableServiceLinks }}
@@ -167,7 +170,7 @@ spec:
         imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         command: ["sysctl", "-w", "vm.max_map_count={{ .Values.sysctlVmMaxMapCount}}"]
         resources:
-{{ toYaml .Values.initResources | indent 10 }}
+{{ toYaml .Values.initResources | trim | indent 10 }}
       {{- end }}
 {{ if .Values.keystore }}
       - name: keystore
@@ -197,7 +200,8 @@ spec:
           cp -a /usr/share/elasticsearch/config/elasticsearch.keystore /tmp/keystore/
         env: {{ toYaml .Values.extraEnvs | nindent 10 }}
         envFrom: {{ toYaml .Values.envFrom | nindent 10 }}
-        resources: {{ toYaml .Values.initResources | nindent 10 }}
+        resources: 
+{{ toYaml .Values.initResources | trim | nindent 10 }}
         volumeMounts:
           - name: keystore
             mountPath: /tmp/keystore
@@ -284,7 +288,7 @@ spec:
         - name: transport
           containerPort: {{ .Values.transportPort }}
         resources:
-{{ toYaml .Values.resources | indent 10 }}
+{{ toYaml .Values.resources | trim | indent 10 }}
         env:
           - name: node.name
             valueFrom:
@@ -398,7 +402,7 @@ spec:
           sleep infinity &
           wait $!
         resources:
-{{ toYaml .Values.sidecarResources | indent 10 }}
+{{ toYaml .Values.sidecarResources | trim | indent 10 }}
         env:
           - name: NODE_NAME
             valueFrom:

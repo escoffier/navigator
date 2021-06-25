@@ -63,17 +63,17 @@ spec:
           successThreshold: 1
           timeoutSeconds: 10
         resources:
-          limits:
-            cpu: "1"
-            memory: 500Mi
-          requests:
-            cpu: 100m
-            memory: 200Mi
+{{ toYaml .Values.resources | trim | indent 10 }}
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
       dnsPolicy: ClusterFirst
+      {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
-      - name: {{ .Values.image.pullSecret }} 
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}

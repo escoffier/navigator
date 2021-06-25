@@ -552,10 +552,14 @@ slave:
   customReadinessProbe: {}
 
   ## Redis slave Resource
-  # resources:
-  #   requests:
-  #     memory: 256Mi
-  #     cpu: 100m
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      cpu: 200m
+      memory: 500Mi
+
 
   ## Redis slave selectors and tolerations for pod assignment
   # nodeSelector: {"beta.kubernetes.io/arch": "amd64"}

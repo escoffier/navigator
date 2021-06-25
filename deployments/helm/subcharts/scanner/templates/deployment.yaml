@@ -20,6 +20,13 @@ spec:
     #   imagePullSecrets:
     #     {{- toYaml . | nindent 8 }}
     # {{- end }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
       initContainers:
       - name: "postgres-listener"
         image: {{ include "scanner.registryPath" . }}/alpine:latest
@@ -84,8 +91,6 @@ spec:
       {{- if .Values.hostAliases }}
       hostAliases: {{- include "tensorsec.tplvalues" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
       {{- end }}
-      imagePullSecrets:
-      - name: {{ .Values.image.pullSecret }}
       volumes:
       - name: dockersock
         hostPath:

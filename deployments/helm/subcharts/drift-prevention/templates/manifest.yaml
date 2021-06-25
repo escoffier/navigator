@@ -121,9 +121,12 @@ spec:
         app: {{ template "driftPrevention.fullname" . }}
     spec:
       serviceAccountName: {{ template "driftPrevention.serviceAccount" . }}-service-account
-      {{- if .Values.imagePullSecrets }}
+      {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
-{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
       {{- end }}
       containers:
       - name: {{ template "driftPrevention.serviceAccount" . }}-webhook
@@ -142,6 +145,8 @@ spec:
         - name: config
           mountPath: /etc/config
           readOnly: true
+        resources:
+{{ toYaml .Values.resources | trim | indent 10 }}
       volumes:
       - name: config
         configMap:
@@ -149,3 +154,7 @@ spec:
       - name: certs
         secret:
           secretName: {{ template "driftPrevention.fullname" . }}-certs
+
+
+
+

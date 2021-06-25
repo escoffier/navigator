@@ -37,15 +37,20 @@ spec:
               imagePullPolicy: {{ .Values.persistence.tensorsecCleaner.image.pullPolicy }}
               name: {{ .Values.persistence.tensorsecCleaner.hotOfflineCronjob.nameOverride }}
               resources:
-{{ toYaml .Values.persistence.tensorsecCleaner.hotOfflineCronjob.resources | indent 16 }}
+{{ toYaml .Values.persistence.tensorsecCleaner.hotOfflineCronjob.resources | trim | indent 16 }}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               volumeMounts:
                 - mountPath: /audit
                   name: audit
           restartPolicy: Never
+          {{- if .Values.global.image.pullSecret }}
           imagePullSecrets:
-            - name: {{ .Values.persistence.tensorsecCleaner.image.pullSecret }}
+          - name: {{ .Values.global.image.pullSecret }}
+          {{- else if .Values.image.pullSecret }}
+          imagePullSecrets:
+          - name: {{ .Values.image.pullSecret }}
+          {{- end }}
           volumes:
             - name: audit
               persistentVolumeClaim:

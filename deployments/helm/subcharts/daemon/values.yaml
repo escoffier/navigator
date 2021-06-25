@@ -4,7 +4,7 @@ image:
   name: tensordig
   tag: latest
   pullPolicy: Always
-
+  pullSecret: harbor-admin-secret
 
 # Extra environment variables to append to the DaemonSet pod spec.
 # This will be appended to the current 'env:' key. You can use any of the kubernetes env
@@ -36,6 +36,13 @@ extraInitContainers:
       name: alpine
       tag: latest
       PullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
   pgListerner:
     enabled: true
     image:
@@ -44,14 +51,19 @@ extraInitContainers:
       name: alpine
       tag: latest
       PullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
 
 envFrom: []
 # - configMapRef:
 #     name: configmap-name
 
 hostNetworking: true
-imagePullSecrets:
-- name: "harbor-admin-secret"
   
 
 # Whether this chart should self-manage its service account, role, and associated role binding.
@@ -63,6 +75,13 @@ labels: {}
 podAnnotations: {}
   # iam.amazonaws.com/role: es-cluster
 
+resources:
+  requests:
+    memory: "2048Mi"
+    cpu: "1.5"
+  limits:
+    memory: "2048Mi"
+    cpu: "1.5"
 
 # Custom service account override that the pod will use
 serviceAccount: ""

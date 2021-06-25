@@ -50,7 +50,14 @@ spec:
         {{- end }}
       {{- end }}
     spec:
-      {{- include "mongodb.imagePullSecrets" . | nindent 6 }}
+      #{{- include "mongodb.imagePullSecrets" . | nindent 6 }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
       {{- if .Values.schedulerName }}
       schedulerName: "{{ .Values.schedulerName }}"
       {{- end }}

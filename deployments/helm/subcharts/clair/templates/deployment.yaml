@@ -29,21 +29,30 @@ spec:
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
       {{- end }}
+      {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
-        - name: {{ .Values.image.pullSecret }}
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
       initContainers:
       - name: pg-ready-wait
         image: {{ include "clair.init.waitpg.image" . }}
         command: [ "sh", "-c",
           "until pg_isready -h {{ .Values.config.postgresServiceName }} -p 5432;
           do echo waiting for database; sleep 1; done;"]
+        resources:
+{{ toYaml .Values.init.waitpg.resources | trim | indent 10 }}
       - args:
         - /bin/bash
         - -c
-        - psql postgres://postgres:password@tensorsec-postgresql:5432/postgres < /var/lib/postgresql/vulnerability.sql 
+        - psql postgres://postgres:password@tensorsec-postgresql:5432/postgres < /var/lib/postgresql/vulnerability.sql
         image: {{ include "clair.init.loadSql.image" . }}
         imagePullPolicy: Always
-        name: loadcev 
+        name: loadcev
+        resources:
+{{ toYaml .Values.init.loadSql.resources | trim | indent 10 }}
       containers:
       - name: {{ .Chart.Name }}
         image: {{ include "clair.image" . }}
@@ -78,4 +87,4 @@ spec:
       #   - name:
       #     mountPath: /tmp
       #     readOnly: false
-{{ toYaml .Values.resources | indent 10 }}
+{{ toYaml .Values.resources | trim | indent 10 }}
