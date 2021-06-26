@@ -12,3 +12,12 @@ resources:
   requests:
     cpu: 100m
     memory: 200Mi
+
+init: 
+  resources:
+    limits:
+      cpu: 50m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi

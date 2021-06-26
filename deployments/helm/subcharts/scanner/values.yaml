@@ -51,3 +51,12 @@ harbor:
   harborURL: https://192.168.1.152:30003
   harborUsername: tensorsec
   harborSecretName: harbor-api-tensorsec
+
+init: 
+  resources:
+    limits:
+      cpu: 50m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi

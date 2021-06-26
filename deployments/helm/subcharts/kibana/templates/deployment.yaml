@@ -29,6 +29,8 @@ spec:
           "sh", "-c",
           "for i in $(seq 1 200); do nc -z -w3 tensorsec-elasticsearch-master 9200 && exit 0 || sleep 3; done; exit 1"
         ]
+        resources:
+{{ toYaml .Values.init.resources | trim | indent 10 }}
       containers:
       - env:
         - name: ELASTICSEARCH_HOSTS
