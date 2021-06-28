@@ -1,5 +1,5 @@
 # Note - container OS does *not* need to be the same as scanned host's OS. 
-FROM registry.t-appagile.com/tensorsecurity/baseimage-scanner:latest
+FROM registry.t-appagile.com/tensorsecurity/baseimage-host-bench:latest
 
 ADD xccdfparser xccdfparser/
 
