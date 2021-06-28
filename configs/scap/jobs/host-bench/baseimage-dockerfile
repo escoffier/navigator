@@ -1,0 +1,22 @@
+# Note - container OS does *not* need to be the same as scanned host's OS. 
+# Note - This Dockerfile as a baseimage-dockerfile to build baseimage.
+#        Build: "docker build -t registry.t-appagile.com/tensorsecurity/baseimage-host-bench:latest --build-arg MIRROR=mirrors.aliyun.com -f ./baseimage-dockerfile ."
+# FROM centos:centos8
+FROM fedora:32
+
+ARG MIRROR=
+RUN if [ "$MIRROR" == "true" ] ; then /bin/curl -o /etc/yum.repos.d/fedora.repo http://mirrors.aliyun.com/repo/fedora.repo ; fi
+
+RUN yum install -y dnf-plugins-core \
+# This repo contains mongodb-org-tools (https://docs.mongodb.com/manual/tutorial/install-mongodb-on-red-hat/)
+    && dnf config-manager --add-repo https://repo.mongodb.org/yum/redhat/8/mongodb-org/4.4/x86_64/ --nogpgcheck \
+
+# Split --nogpgcheck install with the one with gpgcheck
+    && dnf install -y mongodb-org-tools --nogpgcheck \
+    && dnf install -y \
+        openscap-scanner \
+        scap-security-guide \
+        mongodb-org-tools \
+        python3 \
+        python3-pip \
+        jq
