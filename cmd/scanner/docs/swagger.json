@@ -1,7 +1,8 @@
 {
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "contact": {},
+        "license": {}
     },
     "paths": {
         "/api/v1/scan/dev/forceInvalidateCache": {
@@ -13,6 +14,24 @@
                 "summary": "Force layer cache invalidation."
             }
         },
+        "/api/v1/scan/get/allscanStatus": {
+            "get": {
+                "description": "Get all virusScan Status form virusScan sync.Map",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get all virusScan Status"
+            }
+        },
+        "/api/v1/scan/get/sha256scanstatus": {
+            "get": {
+                "description": "Get ScanStatus form give sha256",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get ScanStatus from give sha256"
+            }
+        },
         "/api/v1/scan/one": {
             "post": {
                 "description": "Scan one image",
@@ -21,6 +40,30 @@
                 ],
                 "summary": "Scan one image",
                 "operationId": "v1-scan-one-post"
+            }
+        },
+        "/api/v1/scanner/harbor/abortScanAll": {
+            "post": {
+                "description": "Abort current and future scan tasks for currently running Harbor scan all job.",
+                "summary": "Abort current and future scan tasks for currently running Harbor scan all job."
+            }
+        },
+        "/api/v1/scanner/harbor/scanAllNow": {
+            "post": {
+                "description": "Trigger scan of all images in Harbor.",
+                "summary": "Trigger scan of all images in Harbor."
+            }
+        },
+        "/api/v1/scanner/harbor/scanConfig": {
+            "get": {
+                "description": "Get link to scan configuration screen in Harbor.",
+                "summary": "Get link to scan configuration screen in Harbor."
+            }
+        },
+        "/api/v1/scanner/harbor/scanStatus": {
+            "get": {
+                "description": "Get scan all status.",
+                "summary": "Get scan all status."
             }
         }
     }

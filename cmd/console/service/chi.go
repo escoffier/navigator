@@ -32,11 +32,11 @@ func setupChiRouter(
 	postgresDB *rdbtools.GormWrapper,
 	es *elastic.Client,
 	scannerURL string,
+	microsegURL string,
 	httpLoggerDisabled bool,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	emailOpts *flag.EmailOpts,
-	//imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
@@ -60,6 +60,7 @@ func setupChiRouter(
 		mongodb,
 		postgresDB,
 		scannerURL,
+		microsegURL,
 		redisClient,
 		harborClient,
 		emailOpts,

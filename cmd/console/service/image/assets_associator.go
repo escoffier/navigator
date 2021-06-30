@@ -154,6 +154,11 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 	}
 	return nil
 }
+
+func (a *AssociatorClusterCB) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+	return nil
+}
+
 func (a *AssociatorClusterCB) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
 	return nil
 }

@@ -14,7 +14,7 @@ read dummyanswer
 
 echo "Configuring docker registry address for postinstall.sh"
 PORT=$(docker inspect --format='{{ (index (index .HostConfig.PortBindings "5000/tcp") 0).HostPort }}' registry)
-EXTIP=$(ip -o -4 addr list enp3s0 | awk {'print $4'} | cut -d/ -f1)
+EXTIP=$(ip -o -4 addr list enp4s0 | awk {'print $4'} | cut -d/ -f1)
 
 echo "Will use docker registry $EXTIP:$PORT. If it's correct, ENTER, else, CTRL+C and modify script"
 read dummyanswer
@@ -52,7 +52,8 @@ echo "Starting helm tiller"
 helm init
 
 echo "Adding helm repos"
-helm repo add stable https://kubernetes-charts.storage.googleapis.com
+# helm repo add stable https://kubernetes-charts.storage.googleapis.com
+helm repo add stable https://charts.helm.sh/stable
 helm repo add elastic https://helm.elastic.co
 helm repo add bitnami https://charts.bitnami.com/bitnami
 

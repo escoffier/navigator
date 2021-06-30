@@ -48,6 +48,7 @@ func SetupRoutes(
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
 	scannerURL string,
+	microsegURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	emailOpts *flag.EmailOpts,
@@ -61,6 +62,7 @@ func SetupRoutes(
 		mongodb,
 		postgresDB,
 		scannerURL,
+		microsegURL,
 		redisClient,
 		harborClient,
 		emailOpts,
@@ -80,6 +82,8 @@ func SetupRoutes(
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())
 
+			// proxy to tensor-microseg
+			r.Handle("/microseg/*", api.microSegmentation())
 		})
 
 	})
