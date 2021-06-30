@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microseg"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
@@ -27,6 +28,7 @@ func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *Assets
 		wInstance.AddCallback(sa)
 		wInstance.AddCallback(ov)
 		wInstance.AddCallback(image.NewAssetsImageAssociator(postgre))
+		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
 	})
 	return wInstance, nil
 }

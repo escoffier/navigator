@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -36,6 +35,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+	pkgmodel "gitlab.com/tensorsecurity-rd/go-pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/event"
@@ -98,6 +98,7 @@ func NewConsole(
 	elasticOpts *flag.ElasticOpts,
 	harborOpts *flag.HarborOpts,
 	emailOpts *flag.EmailOpts,
+	microsegOpts *flag.MicrosegOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -175,6 +176,7 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.Email{})
 	postgresDB.Get().AutoMigrate(&model.ImageList{})
 	postgresDB.Get().AutoMigrate(&model.QuestionInfo{})
+	postgresDB.Get().AutoMigrate(&pkgmodel.TensorMicrosegResource{})
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -272,6 +274,7 @@ func NewConsole(
 				postgresDB,
 				es,
 				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
+				fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
 				harborClient,
@@ -422,20 +425,28 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 
 	mg3 := model.ModuleGroup{
 		ModuleName_zh: "容器安全",
-		ModuleName_en: "Container security",
+		ModuleName_en: "Container Security",
+	}
+
+	mg4 := model.ModuleGroup{
+		ModuleName_zh: "微隔离",
+		ModuleName_en: "Micro Segmentation",
 	}
 
 	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg1)
 	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg2)
 	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg3)
+	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg4)
 
 	url1 := model.Url{UrlName: "/api/v2/usercenter", UrlId: mg1.Id}
 	url2 := model.Url{UrlName: "/api/v2/platform", UrlId: mg2.Id}
 	url3 := model.Url{UrlName: "/api/v2/containerSec", UrlId: mg3.Id}
+	url4 := model.Url{UrlName: "/api/v2/microseg", UrlId: mg4.Id}
 
 	db.Get().Table(model.Url{}.TableName()).Create(&url1)
 	db.Get().Table(model.Url{}.TableName()).Create(&url2)
 	db.Get().Table(model.Url{}.TableName()).Create(&url3)
+	db.Get().Table(model.Url{}.TableName()).Create(&url4)
 
 	return nil
 }

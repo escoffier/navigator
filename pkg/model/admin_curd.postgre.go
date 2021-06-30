@@ -106,9 +106,9 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 	var moduleSLID []string
 	json.Unmarshal([]byte(moduleID), &moduleSLID)
 
-	pgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	pgCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	err := db.Get().WithContext(pgCtx).Where("Id in  (?)", moduleSLID).Find(&m).Error
+	err := db.Get().WithContext(pgCtx).Where("Id in (?)", moduleSLID).Find(&m).Error
 	if err != nil {
 		return strURL, err
 	}

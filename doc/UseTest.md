@@ -173,7 +173,7 @@ curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/jso
 
 curl -v -X POST -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/runtimeDetectionConfig/rules/5f9aefa3ebe361737055d6c9/enable"
 
-curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/alerts"
+curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/alerts?kind=runtimeDetection" > out.json
 
 curl -v -X GET -H "Authorization: Bearer $JWT" -H "Content-Type: application/json"  "http://$CONSOLEADDR/api/v1/alerts?kind=complianceCheck&sortBy=severity" > out.json
 ```
@@ -182,7 +182,7 @@ After enabling rule - you can simulate syscalls from a special pod, which has
 to be started manually.
 
 ```bash
-kubectl run tensorsec-faulty --image=registry.t-appagile.com/faulty:latest -i --tty --rm
+kubectl run tensorsec-faulty --image=192.168.1.152/faulty:latest -i --tty --rm
 # On dev environment:
 kubectl apply -f deployments/test/faulty.yaml
 ```

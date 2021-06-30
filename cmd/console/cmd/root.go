@@ -92,7 +92,14 @@ var rootCmd = &cobra.Command{
 			Str("username", elasticOpts.Username).
 			Msg("Elastic options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts)
+		microsegOpts := flag.GetMicrosegOpts(cmd)
+		logging.GetLogger().Info().
+			Str("host", microsegOpts.Host).
+			Int("port", microsegOpts.Port).
+			Msg("microsegmentation options")
+
+		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts, microsegOpts)
+
 		if err != nil {
 			return err
 		}
@@ -126,6 +133,7 @@ func init() {
 	flag.AddElasticFlags(rootCmd)
 	flag.AddHarborFlags(rootCmd)
 	flag.AddEmailOpts(rootCmd)
+	flag.AddMicrosegmentationFlags(rootCmd)
 
 	flag.ConfigViper()
 }

@@ -80,8 +80,8 @@ func newAssetsInResources(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtool
 
 func (cb *AssetsInResourcesService) WatchedTypes() map[assets.WatchedType]struct{} {
 	return map[assets.WatchedType]struct{}{
-		assets.Pods2Watch:        {},
-		assets.ReplicaSets2Watch: {},
+		assets.Pods2Watch:            {},
+		assets.TensorResources2Watch: {},
 	}
 }
 
@@ -544,17 +544,26 @@ func (cb *AssetsInResourcesClusterCallback) getOwnerRefOfRS(name string, namespa
 	return owner, true
 }
 
-func (cb *AssetsInResourcesClusterCallback) OnReplicaSetEvent(new, old *appsv1.ReplicaSet, action assets.AssetsAction) error {
-	if action == assets.ActionDelete {
-		if old == nil {
-			return errors.New("no old rs given")
+func (cb *AssetsInResourcesClusterCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+	switch action {
+	case assets.ActionDelete:
+		if oldResource == nil {
+			return errors.New("nil old obj")
 		}
-		cb.removeReplicaSet(old.Name, old.Namespace)
-	} else if action == assets.ActionUpdate || action == assets.ActionAdd {
-		if new == nil {
-			return errors.New("no new rs given")
+		if oldResource.Kind == assets.KindReplicaSet {
+			cb.removeReplicaSet(oldResource.Name, oldResource.Namespace)
 		}
-		cb.updateReplicaSet(new)
+
+	case assets.ActionUpdate, assets.ActionAdd:
+		if newResource == nil {
+			return errors.New("nil old obj")
+		}
+		if newResource.Kind == assets.KindReplicaSet {
+			rs, ok := newResource.GetReplicaSet()
+			if ok {
+				cb.updateReplicaSet(rs)
+			}
+		}
 	}
 	return nil
 }

@@ -11,7 +11,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gopkg.in/mgo.v2/bson"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -79,6 +78,11 @@ func (cb *ServiceAssetsService) Name() string {
 	return "serviceAssets"
 }
 
+func (cb *ServiceAssetsClusterCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
+
 func (cb *ServiceAssetsClusterCallback) refreshUnixTimestamp() int64 {
 	return atomic.LoadInt64(&cb.refreshTimestamp)
 }
@@ -102,10 +106,6 @@ func (cb *ServiceAssetsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Se
 	return err
 }
 
-func (cb *ServiceAssetsClusterCallback) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
 func (cb *ServiceAssetsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
 	// update mongo storage
 	err := assets.OnEndpointsEvent(cb.parent.mongoDB.Get(), cb.cluster, newEpt, oldEpt, action)

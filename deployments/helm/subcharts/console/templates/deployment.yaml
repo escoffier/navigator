@@ -54,6 +54,8 @@ spec:
           "--email-check={{ .Values.emailCheck.enabled }}",
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
+          "--microseg-host=tensorsec-microseg",
+          "--microseg-port=8090",
           "--redis-endpoint=tensorsec-redis-master:6379",
           "--scap-job-repo={{ include "console.registryPath" . }}",
           "--scap-job-tag={{ .Values.scap.tag }}",

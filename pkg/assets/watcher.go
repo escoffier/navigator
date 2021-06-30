@@ -2,6 +2,7 @@ package assets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime/debug"
@@ -11,6 +12,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchv1beta "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -29,10 +32,10 @@ const (
 	ActionDelete
 	ActionUpdate
 
-	Endpoints2Watch   WatchedType = "endpoints"
-	Services2Watch    WatchedType = "services"
-	Pods2Watch        WatchedType = "pods"
-	ReplicaSets2Watch WatchedType = "replicasets"
+	Endpoints2Watch       WatchedType = "endpoints"
+	Services2Watch        WatchedType = "services"
+	Pods2Watch            WatchedType = "pods"
+	TensorResources2Watch WatchedType = "tensorresources"
 )
 
 type AssetsCallback interface {
@@ -47,7 +50,7 @@ type ClusterCallback interface {
 	OnPodEvent(newPod, oldPod *corev1.Pod, action AssetsAction) error
 	OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error
 	OnServiceEvent(newSvc, oldEvc *corev1.Service, action AssetsAction) error
-	OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet, action AssetsAction) error
+	OnTensorResourceEvent(newResource, oldResource *TensorResource, action AssetsAction) error
 	AfterDataSynced(ctx context.Context, dataSynced bool)
 	Name() string
 }
@@ -101,6 +104,81 @@ type informerStatus struct {
 	targetType reflect.Type
 }
 
+type resourceEvent struct {
+	newResource *TensorResource
+	oldResource *TensorResource
+	action      AssetsAction
+}
+
+type ResourceFactoryFunc func(cluster string, obj interface{}) (*TensorResource, error)
+
+func getInformerFuncForResources(echan chan resourceEvent, cluster string, resFactory ResourceFactoryFunc) cache.ResourceEventHandlerFuncs {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(newObj interface{}) {
+			if newObj == nil {
+				logging.GetLogger().Error().Msg("nil obj")
+				return
+			}
+			res, err := resFactory(cluster, newObj)
+			if err == nil {
+				e := resourceEvent{
+					newResource: res,
+					action:      ActionAdd,
+				}
+				timer := time.NewTimer(500 * time.Millisecond)
+				select {
+				case echan <- e:
+				case <-timer.C:
+					logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. data: %+v. action: add", res)
+				}
+			} else {
+				logging.GetLogger().Warn().Msgf("err new resource from obj: %v. data: %+v", err, newObj)
+			}
+		},
+		DeleteFunc: func(oldObj interface{}) {
+			if oldObj == nil {
+				logging.GetLogger().Error().Msg("nil obj")
+			}
+			res, err := resFactory(cluster, oldObj)
+			if err == nil {
+				e := resourceEvent{
+					oldResource: res,
+					action:      ActionDelete,
+				}
+				timer := time.NewTimer(500 * time.Millisecond)
+				select {
+				case echan <- e:
+				case <-timer.C:
+					logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. data: %+v. action: delete", res)
+				}
+			} else {
+				logging.GetLogger().Warn().Msgf("err new resource from obj: %v. data: %+v", err, oldObj)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if oldObj == nil || newObj == nil {
+				logging.GetLogger().Error().Msg("nil obj")
+			}
+			oldRes, oerr := resFactory(cluster, oldObj)
+			newRes, nerr := resFactory(cluster, newObj)
+			if oerr == nil && nerr == nil {
+				e := resourceEvent{
+					oldResource: oldRes,
+					newResource: newRes,
+					action:      ActionUpdate,
+				}
+				timer := time.NewTimer(500 * time.Millisecond)
+				select {
+				case echan <- e:
+				case <-timer.C:
+					logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. old data: %+v action: update", newRes, oldRes)
+				}
+			} else {
+				logging.GetLogger().Warn().Msgf("err new resource from obj: %v %v. data: %+v %+v", oerr, nerr, oldObj, newObj)
+			}
+		},
+	}
+}
 func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kubernetes.Clientset) error {
 	if util.IsNonSingletonPodInTestingEnv() {
 		logging.GetLogger().Info().Msg("In Testing env and console not singleton. Disable ")
@@ -131,9 +209,13 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterName)
 		}
 
-		// To consider: maybe it's better to watch StatefulSets, Deployments, ReplicaSets, Jobs, etc
-		// instead of watching pods?
-		// statefulsetInformer := informerFactory.Apps().V1().StatefulSets()
+		// whether to watch tensor resources; need pod informer.
+		var tsResEventsChan chan resourceEvent
+		_, toWatchResources := toWatchedTypes[TensorResources2Watch]
+		if toWatchResources {
+			tsResEventsChan = make(chan resourceEvent, 50)
+		}
+
 		informerFactory := informers.NewSharedInformerFactory(newClient, time.Minute*2)
 
 		informerStatuses := make([]*informerStatus, 0, 5)
@@ -160,6 +242,24 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
 						}
 					}
+
+					// send no owner pods to tensor resources
+					if toWatchResources {
+						if len(pod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
+							res := newResourceFromPodNoOwner(clusterName, pod)
+							e := resourceEvent{
+								oldResource: nil,
+								newResource: res,
+								action:      ActionAdd,
+							}
+							timer := time.NewTimer(500 * time.Millisecond)
+							select {
+							case tsResEventsChan <- e:
+							case <-timer.C:
+								logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: add", res)
+							}
+						}
+					}
 				},
 				DeleteFunc: func(obj interface{}) {
 					pod, ok := obj.(*corev1.Pod)
@@ -172,6 +272,23 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 						evtErr := cb.OnPodEvent(nil, pod, ActionDelete)
 						if evtErr != nil {
 							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+						}
+					}
+
+					if toWatchResources {
+						if len(pod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
+							res := newResourceFromPodNoOwner(clusterName, pod)
+							e := resourceEvent{
+								oldResource: res,
+								newResource: nil,
+								action:      ActionDelete,
+							}
+							timer := time.NewTimer(500 * time.Millisecond)
+							select {
+							case tsResEventsChan <- e:
+							case <-timer.C:
+								logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: delete", res)
+							}
 						}
 					}
 				},
@@ -189,6 +306,24 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 						evtErr := cb.OnPodEvent(newPod, oldPod, ActionUpdate)
 						if evtErr != nil {
 							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+						}
+					}
+
+					if toWatchResources {
+						if len(newPod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
+							newRes := newResourceFromPodNoOwner(clusterName, newPod)
+							oldRes := newResourceFromPodNoOwner(clusterName, oldPod)
+							e := resourceEvent{
+								oldResource: oldRes,
+								newResource: newRes,
+								action:      ActionUpdate,
+							}
+							timer := time.NewTimer(500 * time.Millisecond)
+							select {
+							case tsResEventsChan <- e:
+							case <-timer.C:
+								logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. old data: %+v. action: update", newRes, oldRes)
+							}
 						}
 					}
 				},
@@ -255,63 +390,137 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			})
 		}
 
-		if _, toWatch := toWatchedTypes[ReplicaSets2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching replicasets")
+		if toWatchResources {
+			logging.GetLogger().Info().Msg("start watching resources")
 
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Msgf("Panic for receiving resource events: %v. stack: %s", r, debug.Stack())
+					}
+				}()
+
+				for event := range tsResEventsChan {
+					for _, cb := range callbacks {
+						func(cback ClusterCallback) {
+							defer func() {
+								if r := recover(); r != nil {
+									logging.GetLogger().Error().Msgf("Panic for callback: %v. stack: %s", r, debug.Stack())
+								}
+							}()
+							evtErr := cback.OnTensorResourceEvent(event.newResource, event.oldResource, event.action)
+							if evtErr != nil {
+								logging.GetLogger().Err(evtErr).Msgf("Callback %s for resource events error. ", cback.Name())
+							}
+						}(cb)
+					}
+				}
+			}()
+
+			informerWatchTargets := func(informer cache.SharedIndexInformer, targetType reflect.Type, resFactory ResourceFactoryFunc) {
+				informerStatuses = append(informerStatuses, &informerStatus{
+					synced:     false,
+					informer:   &informer,
+					targetType: targetType,
+				})
+				informer.AddEventHandler(getInformerFuncForResources(tsResEventsChan, clusterName, resFactory))
+			}
+			// replicasets
 			rsInformer := informerFactory.Apps().V1().ReplicaSets().Informer()
 			var rs *appsv1.ReplicaSet
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &rsInformer,
-				targetType: reflect.TypeOf(rs),
+			informerWatchTargets(rsInformer, reflect.TypeOf(rs), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*appsv1.ReplicaSet)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromReplicaSet(cluster, rs), nil
 			})
 
-			rsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newRs, ok := newObj.(*appsv1.ReplicaSet)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *appsv1.ReplicaSet")
-						return
-					}
-					for _, cb := range callbacks {
-						eventErr := cb.OnReplicaSetEvent(newRs, nil, ActionAdd)
-						if eventErr != nil {
-							logging.GetLogger().Err(eventErr).Msg(fmt.Sprintf("on rs event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldRs, ok := oldObj.(*appsv1.ReplicaSet)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *appsv1.ReplicaSet")
-						return
-					}
-					for _, cb := range callbacks {
-						eventErr := cb.OnReplicaSetEvent(nil, oldRs, ActionDelete)
-						if eventErr != nil {
-							logging.GetLogger().Err(eventErr).Msg(fmt.Sprintf("on rs event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newRs, ok := newObj.(*appsv1.ReplicaSet)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *appsv1.ReplicaSet")
-						return
-					}
-					oldRs, ok := oldObj.(*appsv1.ReplicaSet)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *appsv1.ReplicaSet")
-						return
-					}
+			// statefulsets
+			ssInformer := informerFactory.Apps().V1().StatefulSets().Informer()
+			var ss *appsv1.StatefulSet
+			informerWatchTargets(ssInformer, reflect.TypeOf(ss), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*appsv1.StatefulSet)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromStatefulSet(cluster, rs), nil
+			})
 
-					for _, cb := range callbacks {
-						eptErr := cb.OnReplicaSetEvent(newRs, oldRs, ActionUpdate)
-						if eptErr != nil {
-							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
-						}
-					}
-				},
+			// daemonsets
+			dsInformer := informerFactory.Apps().V1().DaemonSets().Informer()
+			var ds *appsv1.DaemonSet
+			informerWatchTargets(dsInformer, reflect.TypeOf(ds), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*appsv1.DaemonSet)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromDaemonSet(cluster, rs), nil
+			})
+
+			// deployments
+			dmInformer := informerFactory.Apps().V1().Deployments().Informer()
+			var dm *appsv1.Deployment
+			informerWatchTargets(dmInformer, reflect.TypeOf(dm), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*appsv1.Deployment)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromDeployment(cluster, rs), nil
+			})
+
+			// ReplicationControllers
+			rcInformer := informerFactory.Core().V1().ReplicationControllers().Informer()
+			var rc *corev1.ReplicationController
+			informerWatchTargets(rcInformer, reflect.TypeOf(rc), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*corev1.ReplicationController)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromReplicationController(cluster, rs), nil
+			})
+
+			// jobs
+			jobsInformer := informerFactory.Batch().V1().Jobs().Informer()
+			var jb *batchv1.Job
+			informerWatchTargets(jobsInformer, reflect.TypeOf(jb), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*batchv1.Job)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromJob(cluster, rs), nil
+			})
+
+			// cronjobs
+			cjInformer := informerFactory.Batch().V1beta1().CronJobs().Informer()
+			var cj *batchv1beta.CronJob
+			informerWatchTargets(cjInformer, reflect.TypeOf(cj), func(cluster string, obj interface{}) (*TensorResource, error) {
+				if obj == nil {
+					return nil, errors.New("nil obj")
+				}
+				rs, ok := obj.(*batchv1beta.CronJob)
+				if !ok {
+					return nil, errors.New("cast error")
+				}
+				return newResourceFromCronJob(cluster, rs), nil
 			})
 		}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"net/http"
 	"reflect"
 	"regexp"
@@ -36,6 +37,7 @@ type api struct {
 	postgresDB   *rdbtools.GormWrapper
 	optUserMap   map[string]struct{}
 	es           *elastic.Client
+	microsegURL  string
 	scannerURL   string
 	redisClient  *redis.Client
 	harborClient *harbor.HarborRESTClient
@@ -56,6 +58,7 @@ func newAPI(
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
 	scannerURL string,
+	microsegURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	emailOpts *flag.EmailOpts,
@@ -69,6 +72,7 @@ func newAPI(
 		postgresDB:                  postgresDB,
 		optUserMap:                  make(map[string]struct{}),
 		scannerURL:                  scannerURL,
+		microsegURL:                 microsegURL,
 		redisClient:                 redisClient,
 		harborClient:                harborClient,
 		scanResultLocalBackoffCache: make(map[string]int),

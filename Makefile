@@ -306,7 +306,9 @@ redeploy:
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-primary-0; \
 		kubectl -n tensorsec patch pvc datadir-tensorsec-mongodb-secondary-0 -p '{"metadata":{"finalizers":null}}'; \
 		kubectl -n tensorsec delete pvc datadir-tensorsec-mongodb-secondary-0; \
+		kubectl -n tensorsec patch pvc redis-data-tensorsec-redis-master-0 -p '{"metadata":{"finalizers":null}}'; \
 		kubectl -n tensorsec delete pvc redis-data-tensorsec-redis-master-0; \
+		kubectl -n tensorsec patch pvc redis-data-tensorsec-redis-slave-0 -p '{"metadata":{"finalizers":null}}'; \
 		kubectl -n tensorsec delete pvc redis-data-tensorsec-redis-slave-0; \
 		kubectl -n tensorsec patch pvc audit-pvc -p '{"metadata":{"finalizers":null}}'; \
 		kubectl -n tensorsec delete pvc audit-pvc; \
@@ -314,3 +316,13 @@ redeploy:
 		helm dep up; \
 		helm install ./ --namespace tensorsec --name tensorsec; \
 		cd -
+
+.PHONY: cycleConsole
+cycleConsole:			## Use only for development! Deletes and recreates console pod
+	kubectl scale --replicas=0 deployment/tensorsec-console
+	kubectl scale --replicas=1 deployment/tensorsec-console
+
+.PHONY: forwardConsole
+forwardConsole:			## Use only for development! Creates kubernetes port-forward to project APIs
+	- ps aux | grep port-forward | head -1 | awk -c '{print $$2}' | xargs kill
+	kubectl port-forward service/tensorsec-console --address 0.0.0.0 8889:8889 &

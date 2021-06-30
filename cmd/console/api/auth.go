@@ -86,7 +86,7 @@ func (api *api) login() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
-					fmt.Errorf("mongo err: %w", err)))
+					fmt.Errorf("Error when checking login credentials in database: %w", err)))
 			return
 		} else if !ok {
 			RespAndLog(w, r.Context(),

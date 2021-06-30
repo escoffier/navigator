@@ -9,6 +9,9 @@ ld-preload/
 .DS_Store
 .vscode
 *.iml
+venv/
+*.pyc
+settings.json
 
 ## Frontend related ignores
 
