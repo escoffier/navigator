@@ -58,6 +58,19 @@ scanner:
 #  - ip: "192.168.3.2"
 #    hostnames:
 #    - "harbor.local.tensorsecurity.cn"
+    # scanner registry config
+  config:
+    registry:
+      scanner:
+        -
+          registry:
+            type: harbor-v2.0
+            options:
+              url: https://registry.t-appagile.com
+              username: admin
+              password: Hrbr12@Tensor.*#)
+              skiptlsverify: true
+              paginationkey:
 
 drift-prevention:
   image:
@@ -65,6 +78,11 @@ drift-prevention:
     tag: *tensorsecVerison
 
 holmes:
+  image:
+    #tag: 1.6.8
+    tag: *tensorsecVerison
+
+image-validator:
   image:
     #tag: 1.6.8
     tag: *tensorsecVerison

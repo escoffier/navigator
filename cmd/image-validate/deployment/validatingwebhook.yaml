@@ -1,0 +1,23 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: tensorsec-image-validating
+  annotations:
+    cert-manager.io/inject-ca-from: tensorsec-test-cn/tensorsec-webhook-certs
+  labels:
+    app: tensor-webhook
+webhooks:
+  - name: image.tensorsecurity.cn
+    clientConfig:
+      #      url: "https://192.168.254.1:9443/mutating"
+      service:
+        name: tensorsec-image-validator
+        namespace: tensorsec-test-cn
+        path: "/validating"
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: ["apps", "extensions", ""]
+        apiVersions: ["v1", "v1beta1"]
+        resources: [ "pods"]
+        scope: "Namespaced"
+    sideEffects: None

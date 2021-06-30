@@ -53,6 +53,7 @@ scanner:
     harborUsername: admin
     harborSecretName: harbor-api-tensorsec
 
+
 drift-prevention:
   enabled: true
   image:
@@ -332,4 +333,9 @@ holmes:
       name: ca-cert
       readOnly: true
 
-
+image-validator:
+  enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest

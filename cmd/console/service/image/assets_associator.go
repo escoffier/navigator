@@ -136,7 +136,6 @@ func (a *AssociatorClusterCB) OnPodEvent(newPod, oldPod *corev1.Pod, action asse
 			if err := a.DeleteImageRelate(imageSHA, registryLoc, container.ContainerID); err != nil {
 				logging.GetLogger().Error().Err(err).Msg("OnPodEvent delete image_relate error ")
 			}
-
 		}
 	} else if action == assets.ActionAdd {
 		for _, container := range newPod.Status.ContainerStatuses {

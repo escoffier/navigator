@@ -42,12 +42,29 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/harbor/scanStatus", api.RedirectToScanner(true))
 		r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
+
 		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())
 		r.Get("/layers/{layerDigest}/info", api.RedirectToScanner())
+
 		r.Get("/vulns/detail/{name}", api.RedirectToScanner())
 		r.Get("/vulns/statistic", api.RedirectToScanner())
 		r.Get("/vulns/all", api.RedirectToScanner())
 		r.Get("/vulns/relation", api.RedirectToScanner())
+
+		r.Get("/register/projects/{projectName}", api.RedirectToScanner())
+		r.Get("/register/registries", api.RedirectToScanner())
+
+		r.Get("/imagereject/overview", api.RedirectToScanner())
+		r.Get("/imagereject/images", api.RedirectToScanner())
+		r.Get("/imagereject/whitelist", api.RedirectToScanner())
+		r.Post("/imagereject/whitelist", api.RedirectToScanner())
+		r.Delete("/imagereject/whitelist/{id}", api.RedirectToScanner())
+		r.Get("/imagereject/policy", api.RedirectToScanner())
+		r.Post("/imagereject/policy", api.RedirectToScanner())
+		r.Put("/imagereject/policy", api.RedirectToScanner())
+		r.Delete("/imagereject/policy/{id}", api.RedirectToScanner())
+		r.Post("/imagereject/scanone/cicd", api.RedirectToScanner())
+		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
 	}
 }
 
@@ -323,7 +340,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /api/v2/containerSec/scanner/reportsByImageOverview
 		// /api/v1/scan/reportsByImageOverview?offset=1
-		// start := time.Now()
+		start := time.Now()
 		pre := r.URL.String()
 		log.WithContext(api.ctx).Infof("preUrl", pre)
 		var newUrl string
@@ -349,8 +366,8 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 				request.URL = u
 			},
 		}
-		// log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
+		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
 		proxy.ServeHTTP(w, r)
-		// log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))
+		log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))
 	}
 }

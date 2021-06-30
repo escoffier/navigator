@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorsec-image-validator
+  namespace: tensorsec-test-cn
+  labels:
+    app: tensorsec-image-validator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tensorsec-image-validator
+  template:
+    metadata:
+      labels:
+        app: tensorsec-image-validator
+    spec:
+      imagePullSecrets:
+      - name: harbor-admin-secret
+      containers:
+        - name: tensorsec-image-validator
+          image: registry.t-appagile.com/tensorsecurity/tensorsec-image-validator:v0.0.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9443
+              protocol: TCP
+          args:
+            - --validateserver=tensorsec-scanner.tensorsec-test-cn.svc:8888
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/tensorsec/certs
+              readOnly: true
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "10Mi"
+            limits:
+              cpu: "2000m"
+              memory: "1024Mi"
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: tensorsec-webhook-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tensorsec-image-validator
+  namespace: tensorsec-test-cn
+  labels:
+    app: tensor-webhook
+spec:
+  ports:
+    - port: 443
+      targetPort: 9443
+      #nodePort: 30443
+  #type: NodePort
+  selector:
+    app: tensorsec-image-validator

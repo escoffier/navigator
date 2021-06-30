@@ -219,6 +219,7 @@ func GetAllVirusScanOneStatus(ctx context.Context, scannerURL, digest string) (s
 	}
 	return p.Data.Item.Status, nil
 }
+
 func DesEncrypt(origData, key []byte) ([]byte, error) {
 	block, err := des.NewCipher(key)
 	if err != nil {
@@ -258,8 +259,8 @@ func PKCS5UnPadding(origData []byte) []byte {
 	return origData[:(length - unpadding)]
 }
 
-// GetMixedSet 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
-func GetMixedSet(pre, after []string) []string {
+// GetMixedSetForString 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
+func GetMixedSetForString(pre, after []string) []string {
 	res := make([]string, 0)
 	if len(pre) == 0 {
 		return after
@@ -273,6 +274,21 @@ func GetMixedSet(pre, after []string) []string {
 	}
 	for _, p := range after {
 		if preMap[p] == 1 {
+			res = append(res, p)
+			preMap[p]++ // 去重
+		}
+	}
+	return res
+}
+
+// GetMixedSetForInt64 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
+func GetMixedSetForInt64(pre, after []int64) []int64 {
+	pre = append(pre, after...)
+
+	preMap := make(map[int64]int)
+	res := make([]int64, 0)
+	for _, p := range pre {
+		if preMap[p] < 1 {
 			res = append(res, p)
 			preMap[p]++ // 去重
 		}

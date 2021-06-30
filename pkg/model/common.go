@@ -1,9 +1,12 @@
 package model
 
 import (
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -14,6 +17,18 @@ type Filter struct {
 	SortBy    string `json:"sort_by"`
 	SortFiled string `json:"sort_filed"`
 	Offset    int64  `json:"offset"`
+	Limit     int64  `json:"limit"`
+}
+
+func GetFilter(ctx *gin.Context) *Filter {
+	offset, _ := strconv.ParseInt(ctx.Query("offset"), 10, 64)
+	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
+	sortBy := ctx.Query("sort_by")
+	sortFiled := ctx.Query("sort_filed")
+
+	filter := &Filter{PageSize: limit, Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
+	filter = filter.SetDefault()
+	return filter
 }
 
 // 查总数所用的Filter
@@ -25,14 +40,10 @@ func EmptyFilterForTheTotalQuery() *Filter {
 	}
 }
 
-const (
-	DefaultPageSize = 5000
-)
-
 func (f *Filter) SetDefault() *Filter {
 	if f == nil {
 		return &Filter{
-			PageSize:  DefaultPageSize,
+			PageSize:  math.MaxInt64,
 			PageIndex: 1,
 			Offset:    0,
 		}
@@ -50,9 +61,9 @@ func (f *Filter) SetDefault() *Filter {
 	if f.Offset > 0 && f.PageIndex <= 0 && f.PageSize > 0 {
 		f.PageIndex = f.Offset/f.PageSize + 1
 	}
-	if f.PageSize <= 0 || f.PageSize > DefaultPageSize {
-		f.PageSize = DefaultPageSize
-	}
+	// if f.PageSize <= 0 || f.PageSize > DefaultPageSize {
+	// 	f.PageSize = math.MaxInt64
+	// }
 	if f.Offset <= 0 && f.PageSize > 0 && f.PageIndex > 0 {
 		f.Offset = (f.PageIndex - 1) * f.PageSize
 	}
@@ -69,10 +80,10 @@ func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 			db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: filter.SortFiled}, Desc: filter.SortBy == "desc"})
 		}
 	}
-	// 这里如果是查全部，也给一个默认值，
-	if filter == nil {
-		db = db.Limit(DefaultPageSize)
-	}
+	// 这里如果是查全部，也给一个默认值，但是我们项目业务中有很多查全表数据的情况，所这里加这一项不合适
+	// if filter == nil {
+	// 	db = db.Limit(DefaultPageSize)
+	// }
 	return db
 }
 

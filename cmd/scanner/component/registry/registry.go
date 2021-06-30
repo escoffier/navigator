@@ -50,12 +50,96 @@ func Open(cfg RegistrableComponentConfig) (Registry, error) {
 
 // Registry represents the required operations on a registry
 type Registry interface {
-	//// ListRepos returns the entire list of repository.
-	//ListRepos() ([]string, error)
+	// // ListRepos returns the entire list of repository.
+	// ListRepos() ([]string, error)
 	//
-	//// ListRepoTags returns the repo tags
-	//ListRepoTags(string) ([]string, error)
+	// // ListRepoTags returns the repo tags
+	// ListRepoTags(string) ([]string, error)
+
+	CheckProject(projectName string) error
+
+	CreateProject(projectName string, public bool) error
+
+	GetImage(projectName, fullRepoName, tag string) (*Image, error)
 
 	// ListImages return all images
 	ListImages(extender ImageListExtender) ([]Image, error)
 }
+
+// // SyncRepoImage sync registry repos and tags to db
+// type SyncRepoImage struct {
+// 	config       component.Config
+// 	psql         *component.ScannerDB
+// 	syncInterval uint
+// }
+//
+// func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint, psql *component.ScannerDB) ([]SyncRepoImage, error) {
+// 	// Load configuration
+// 	config, err := component.LoadConfig(configPath)
+//
+// 	if err != nil {
+// 		logging.GetLogger().Fatal().Msg("failed to load configuration")
+// 		return nil, err
+// 	}
+// 	var res []SyncRepoImage
+// 	for i := range config {
+// 		var tls int
+// 		if config[i].Registry.Options["skiptlsverify"].(bool) == true {
+// 			tls = 1
+// 		} else {
+// 			tls = 0
+// 		}
+// 		tmpRgistry := model.Registry{Url: config[i].Registry.Options["url"].(string), Username: config[i].Registry.Options["username"].(string), Password: []byte(config[i].Registry.Options["password"].(string)), TLS: tls, ApiVersion: config[i].Registry.Type}
+// 		psql.InsertToRegistry(ctx, &tmpRgistry)
+// 		config[i].RegistryID = int64(tmpRgistry.ID)
+// 		s := SyncRepoImage{
+// 			config:       config[i],
+// 			psql:         psql,
+// 			syncInterval: syncInterval,
+// 		}
+// 		res = append(res, s)
+// 	}
+// 	return res, nil
+// }
+//
+// func (s *SyncRepoImage) Run(extender ImageListExtender, wg *sync.WaitGroup) error {
+// 	defer wg.Done()
+// 	// Open registry
+// 	// fmt.Printf("\n调用了%v仓库", s.config.Registry.Type)
+// 	r, err := Open(s.config.Registry)
+// 	if err != nil {
+// 		logging.GetLogger().Fatal().Str("err", err.Error()).Msg("open config err")
+// 		return err
+// 	}
+//
+// 	for {
+// 		images, err := r.ListImages(extender)
+// 		if err != nil {
+// 			logging.GetLogger().Error().Msgf("get images err.%v", err)
+// 		} else {
+// 			logging.GetLogger().Info().Msgf("get images count %d", len(images))
+// 		}
+//
+// 		time.Sleep(time.Duration(s.syncInterval) * time.Second)
+// 	}
+//
+// 	return nil
+// }
+//
+// func TransImageToImagelist(r SyncRepoImage, image Image) model.ImageList {
+// 	// fmt.Printf("\nType为:%v 内部ID为:%v\n", r.config.Registry.Type, uint(r.config.RegistryID))
+// 	TransImagelist := model.ImageList{}
+// 	TransImagelist.Library = r.config.Registry.Options["url"].(string)
+// 	TransImagelist.RegistryId = uint(r.config.RegistryID)
+// 	TransImagelist.Digest = image.ImageDigest
+// 	TransImagelist.FullRepoName = image.Repository
+// 	TransImagelist.Tags = image.Tag
+// 	TransImagelist.Size = int(image.Size)
+// 	TransImagelist.FirstPushTime = image.Created
+// 	TransImagelist.LastPullTime = image.LastPullTime
+// 	TransImagelist.LastPushTime = image.LastPushTime
+// 	TransImagelist.ManifestV1JSON = []byte(image.ManifestV1)
+// 	TransImagelist.ManifestV2JSON = []byte(image.ManifestV2)
+// 	TransImagelist.ConfigJson = []byte(image.ConfigJson)
+// 	return TransImagelist
+// }

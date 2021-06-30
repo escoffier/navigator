@@ -1,0 +1,20 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: tensorsec-validating-image
+  labels:
+    app: tensor-webhook
+webhooks:
+  - name: tensorwall.sec.com
+    clientConfig:
+      url: "https://192.168.254.1:9443/validating"
+#      service:
+#        name: tensorsec-image-validator
+#        namespace: tensorsec-test-cn
+#        path: "/validating"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: ["apps", "extensions", ""]
+        apiVersions: ["v1", "v1beta1"]
+        resources: [ "pods"]

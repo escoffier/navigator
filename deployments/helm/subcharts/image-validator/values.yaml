@@ -1,0 +1,25 @@
+image:
+  registry: localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-image-validator
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+nameOverride: "image-validator"
+fullnameOverride: "tensorsec-image-validator"
+
+service:
+  type: ClusterIP
+  port: 443
+  targetPort: 9443
+  # Specify the nodePort value for the NodePort service types.
+  #nodePort:
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 1024Mi
+  requests:
+    cpu: 10m
+    memory: 10Mi
