@@ -35,6 +35,7 @@ func (api *api) eventsCenter() func(chi.Router) {
 		r.Get("/rules", api.getRules())
 		r.Get("/signals", api.getSignals())
 		r.Get("/statistics", api.getStatistics())
+		r.Get("/signalProcessTree", api.getSignalProcessTree())
 	}
 }
 
@@ -47,12 +48,6 @@ var (
 	hashSortOrder = map[string]pb.SortOrder{
 		"desc": pb.SortOrder_Desc,
 		"asc":  pb.SortOrder_Asc,
-	}
-
-	ruleFilter = map[model.AlertKind]pb.RuleType{
-		model.AlertKindDriftPrevention: pb.RuleType_RuleTypeDriftPrevention,
-		model.AlertKindSeccompProfile:  pb.RuleType_RuleTypeSeccompProfile,
-		model.AlertKindAttck:           pb.RuleType_RuleTypeATTCK,
 	}
 )
 
@@ -149,18 +144,13 @@ func (api *api) getEvents() http.HandlerFunc {
 			return
 		}
 
-		kind, err := model.AlertKindFromQuery(r)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-
+		kind := r.URL.Query().Get("kind")
 		rsp, err := api.ecCli.GetAssociationEvents(ctx, &pb.GetAssociationEventsReq{
 			Offset:     int32(offset),
 			Limit:      int32(limit),
 			SortOrder:  hashSortOrder[sortOrder],
 			SortBy:     hashSortBy[sortBy],
-			RuleFilter: ruleFilter[kind],
+			RuleFilter: kind,
 			Lang:       string(lang.Language(ctx)),
 		})
 		if err != nil {
@@ -287,57 +277,30 @@ func (api *api) getRules() http.HandlerFunc {
 	}
 }
 
+type rule struct {
+	Name           string            `json:"name"`
+	Module         string            `json:"module"`
+	Category       string            `json:"category"`
+	Description    string            `json:"description"`
+	Severity       uint32            `json:"severity"`
+	CustomKV       map[string]string `json:"customKV"`
+	DisplayAdapter map[string]string `json:"displayAdapter"`
+}
+
+type signal struct {
+	ID        string            `json:"id"`
+	Cluster   string            `json:"cluster"`
+	Namespace string            `json:"namespace"`
+	NodeType  string            `json:"nodeType"`
+	NodeKey   string            `json:"nodeKey"`
+	Rule      *rule             `json:"rule"`
+	PodUID    string            `json:"podUid"`
+	PodName   string            `json:"podName"`
+	CustomKV  map[string]string `json:"customKV"`
+	Timestamp int64             `json:"timestamp"`
+}
+
 func (api *api) getSignals() http.HandlerFunc {
-	type rule struct {
-		Name           string            `json:"name"`
-		Module         string            `json:"module"`
-		Category       string            `json:"category"`
-		Description    string            `json:"description"`
-		Severity       uint32            `json:"severity"`
-		CustomKV       map[string]string `json:"customKV"`
-		DisplayAdapter map[string]string `json:"displayAdapter"`
-	}
-
-	type signal struct {
-		ID        string            `json:"id"`
-		Cluster   string            `json:"cluster"`
-		Namespace string            `json:"namespace"`
-		NodeType  string            `json:"nodeType"`
-		NodeKey   string            `json:"nodeKey"`
-		Rule      *rule             `json:"rule"`
-		PodUID    string            `json:"podUid"`
-		PodName   string            `json:"podName"`
-		CustomKV  map[string]string `json:"customKV"`
-		Timestamp int64             `json:"timestamp"`
-	}
-
-	convert := func(rsp *pb.GetSignalsRsp) []*signal {
-		result := make([]*signal, 0, len(rsp.Signals))
-		for _, item := range rsp.Signals {
-			result = append(result, &signal{
-				ID:        item.ID,
-				Cluster:   item.Cluster,
-				Namespace: item.Namespace,
-				NodeType:  item.NodeType,
-				NodeKey:   item.NodeKey,
-				Rule: &rule{
-					Name:           item.Rule.Name,
-					Module:         item.Rule.Module,
-					Category:       item.Rule.Category,
-					Description:    item.Rule.Description,
-					Severity:       item.Severity,
-					CustomKV:       item.Rule.CustomKV,
-					DisplayAdapter: item.Rule.DisplayAdapter,
-				},
-				PodUID:    item.PodUID,
-				PodName:   item.PodName,
-				CustomKV:  item.CustomKV,
-				Timestamp: item.Timestamp,
-			})
-		}
-		return result
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)
 		defer cancel()
@@ -415,7 +378,7 @@ func (api *api) getSignals() http.HandlerFunc {
 
 		response.Ok(w,
 			response.WithApiVersion(eventCenterAPIVersion),
-			response.WithItems(convert(rsp)))
+			response.WithItems(convertSignals(rsp.Signals)))
 	}
 }
 
@@ -504,4 +467,114 @@ func getStatisticsParam(r *http.Request) (days, hours uint, err error) {
 	}
 
 	return days, hours, err
+}
+
+func (api *api) getSignalProcessTree() http.HandlerFunc {
+	type processNode struct {
+		ProcessName  string         `json:"processName"`
+		PProcessName string         `json:"pProcessName"`
+		PID          string         `json:"pid"`
+		PPID         string         `json:"ppid"`
+		Signals      []*signal      `json:"signals"`
+		Children     []*processNode `json:"children"`
+	}
+
+	var convert func(node *pb.ProcessNode) *processNode
+	convert = func(node *pb.ProcessNode) *processNode {
+		result := &processNode{
+			ProcessName:  node.ProcessName,
+			PProcessName: node.PProcessName,
+			PID:          node.PID,
+			PPID:         node.PPID,
+			Signals:      convertSignals(node.Signals),
+			Children:     make([]*processNode, 0, len(node.Children)),
+		}
+
+		for _, child := range node.Children {
+			result.Children = append(result.Children, convert(child))
+		}
+
+		return result
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)
+		defer cancel()
+
+		cluster, err := param.QueryString(r, "cluster")
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid cluster")))
+			return
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid namespace")))
+			return
+		}
+
+		podName, err := param.QueryString(r, "podName")
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid podName")))
+			return
+		}
+
+		timestamp, err := param.QueryInt64(r, "timestamp")
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid timestamp")))
+			return
+		}
+
+		rsp, err := api.ecCli.GetATTCKPodProcessSignalTree(ctx, &pb.GetATTCKPodProcessSignalTreeReq{
+			Cluster:   cluster,
+			Namespace: namespace,
+			PodName:   podName,
+			Timestamp: timestamp,
+			Lang:      string(lang.Language(ctx)),
+		})
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("GetATTCKPodProcessSignalTree fail, err:%s", err.Error())))
+			return
+		}
+
+		var items = make([]*processNode, 0, len(rsp.Nodes))
+		for _, node := range rsp.Nodes {
+			items = append(items, convert(node))
+		}
+
+		response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItems(items))
+	}
+}
+
+func convertSignals(signals []*pb.Signal) []*signal {
+	result := make([]*signal, 0, len(signals))
+	for _, item := range signals {
+		result = append(result, &signal{
+			ID:        item.ID,
+			Cluster:   item.Cluster,
+			Namespace: item.Namespace,
+			NodeType:  item.NodeType,
+			NodeKey:   item.NodeKey,
+			Rule: &rule{
+				Name:           item.Rule.Name,
+				Module:         item.Rule.Module,
+				Category:       item.Rule.Category,
+				Description:    item.Rule.Description,
+				Severity:       item.Severity,
+				CustomKV:       item.Rule.CustomKV,
+				DisplayAdapter: item.Rule.DisplayAdapter,
+			},
+			PodUID:    item.PodUID,
+			PodName:   item.PodName,
+			CustomKV:  item.CustomKV,
+			Timestamp: item.Timestamp,
+		})
+	}
+	return result
 }

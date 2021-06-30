@@ -2,11 +2,8 @@ package model
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"time"
 
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -35,34 +32,8 @@ func GetAlertSortableNames() []string {
 type AlertKind string
 
 const (
-	AlertKindAny                        AlertKind = "any"
-	AlertKindReverseShellAttack         AlertKind = "reverseShellAttack"
-	AlertKindVulnerabilityExploitAttack AlertKind = "vulnerabilityExploitAttack"
-	AlertKindComplianceCheck            AlertKind = "complianceCheck"
-	AlertKindDriftPrevention            AlertKind = "driftPrevention"
-	AlertKindSeccompProfile             AlertKind = "seccompProfile"
-	AlertKindAttck                      AlertKind = "ATT&CK"
-	AlertKindInternal                   AlertKind = "internal"
-)
-
-const (
 	AlertModuleContainerSecurity = "ContainerSecurity"
 )
-
-func AlertKindFromQuery(r *http.Request) (AlertKind, error) {
-	kindRaw := r.URL.Query().Get("kind")
-	if kindRaw == "" {
-		return AlertKindAny, nil
-	}
-	kind := AlertKind(kindRaw)
-	if kind != AlertKindComplianceCheck && kind != AlertKindVulnerabilityExploitAttack && kind != AlertKindReverseShellAttack && kind != AlertKindDriftPrevention && kind != AlertKindSeccompProfile && kind != AlertKindInternal && kind != AlertKindAttck {
-		allowed := fmt.Sprintf("allowed: %s/%s/%s/%s/%s/%s", AlertKindComplianceCheck, AlertKindVulnerabilityExploitAttack, AlertKindReverseShellAttack, AlertKindDriftPrevention, AlertKindSeccompProfile, AlertKindInternal)
-		return AlertKindAny, NewFieldError(http.StatusBadRequest,
-			fmt.Errorf("invalid kind param value (%s)", allowed),
-			Suberror{Location: "kind", Message: allowed})
-	}
-	return kind, nil
-}
 
 type Alert struct {
 	MetadataEntry        `json:"-" bson:",inline"`

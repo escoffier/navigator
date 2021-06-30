@@ -65,7 +65,7 @@ func (s *SyncRepoImage) MockRun(extender registry.ImageListExtender) error {
 	if err != nil {
 		logging.GetLogger().Error().Msgf("get images err.%v", err)
 	} else {
-		logging.GetLogger().Info().Msgf("get images count %d,%+v", len(images),images)
+		logging.GetLogger().Info().Msgf("get images count %d,%+v", len(images), images)
 	}
 	return nil
 }
