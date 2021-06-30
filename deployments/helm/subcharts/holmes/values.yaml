@@ -24,11 +24,11 @@ resources:
   # a sane defaults ones. If you have more questions or concerns, please refer
   # to #falco slack channel for more info about it
   requests:
-    cpu: 100m
+    cpu: 1
     memory: 512Mi
   limits:
-    cpu: 200m
-    memory: 1024Mi
+    cpu: 1
+    memory: 512Mi
 
 extraArgs: []
 nodeSelector: {}

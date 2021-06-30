@@ -1,7 +1,16 @@
 #! /bin/bash
 
 function alert() {
-  req=$(jq -r  '. | {
+
+
+  read origin_str
+  output=$(echo ${origin_str} | jq -r .output)
+  pid=$(echo ${origin_str} | awk -F "proc_pid=" '{print $2}' | awk -F "," '{print $1}')
+  ppid=$(echo ${origin_str} | awk -F "proc_ppid=" '{print $2}' | awk -F "," '{print $1}')
+  proc_name=$(echo ${origin_str} | awk -F "proc_cmdline=" '{print $2}' | awk  -F "," '{print $1}' | awk '{print $1}')
+  proc_pname=$(echo ${origin_str} | awk -F "proc_pname=" '{print $2}' | awk  -F "," '{print $1}')
+
+  req=$( echo $origin_str | jq -r  '. | {
     "RuleKey":{
         "Name": .rule,
         "Module":"ContainerSecurity",
@@ -10,6 +19,7 @@ function alert() {
     "NotifyContext":{
         "Namespace": .output_fields."k8s.ns.name",
         "PodName": .output_fields."k8s.pod.name",
+        "PodUID": .output_fields."k8s.pod.id",
         "Cluster": "default",
         "CustomKV": [
         {
@@ -97,8 +107,28 @@ function alert() {
     client_key_path=/auth/client/tls.key
   fi
 
-  echo "url:" $url
-  echo "req:" $req
+  append_str=""
+  if [[ -n $pid ]]; then
+    append_str="$append_str { \"KVHash\": { \"en\": { \"Key\": \"pid\", \"Value\": \"${pid}\" }  , \"zh\": { \"Key\": \"进程号\", \"Value\": \"${pid}\" } } }, "
+  fi
+
+  if [[ -n $ppid ]]; then
+    append_str="$append_str { \"KVHash\": { \"en\": { \"Key\": \"ppid\", \"Value\": \"${ppid}\" } , \"zh\": { \"Key\": \"父进程号\", \"Value\": \"${ppid}\" } } }, "
+  fi
+
+  if [[ -n $proc_name ]]; then
+    append_str="$append_str { \"KVHash\": { \"en\": { \"Key\": \"procName\", \"Value\": \"${proc_name}(${pid})\" } , \"zh\": { \"Key\": \"执行进程\", \"Value\": \"${proc_name}(${pid})\" } } }, "
+  fi
+
+  if [[ -n $proc_pname ]]; then
+        append_str="$append_str { \"KVHash\": { \"en\": { \"Key\": \"procPname\", \"Value\": \"${proc_pname}(${ppid})\" } , \"zh\": { \"Key\": \"父进程\", \"Value\": \"${proc_pname}(${ppid})\" } } }, "
+  fi
+
+
+  req=$(echo $req | sed "s/\"CustomKV\":[ ]\[/&${append_str}/")
+
+  # echo "url:" $url
+  # echo $req
 
   curl -d "${req}" $url --cert $client_cert_path --key $client_key_path --cacert $ca_path
 }
