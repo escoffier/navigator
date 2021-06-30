@@ -7,9 +7,9 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	model "gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	model "gitlab.com/tensorsecurity-rd/go-pkg/model"
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
 )

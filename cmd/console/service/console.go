@@ -35,7 +35,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-	pkgmodel "gitlab.com/tensorsecurity-rd/go-pkg/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/event"
@@ -176,7 +175,7 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.Email{})
 	postgresDB.Get().AutoMigrate(&model.ImageList{})
 	postgresDB.Get().AutoMigrate(&model.QuestionInfo{})
-	postgresDB.Get().AutoMigrate(&pkgmodel.TensorMicrosegResource{})
+	postgresDB.Get().AutoMigrate(&model.TensorMicrosegResource{})
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())

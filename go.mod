@@ -57,7 +57,6 @@ require (
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vishvananda/netlink v0.0.0 //netlink
-	gitlab.com/tensorsecurity-rd/go-pkg v0.1.3
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.mongodb.org/mongo-driver v1.5.3
 	go.uber.org/atomic v1.6.0
