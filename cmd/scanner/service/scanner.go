@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/mattn/go-colorable"
+	"github.com/patrickmn/go-cache"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -55,8 +56,9 @@ type Scanner struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	localLayerMange *layerManage.LocalLayerManageSrv
-	postgresDB      *component.ScannerDB
-	harborOpts      flag.HarborOpts
+	postgresDB      *store.ScannerDB
+	harborOpts      *flag.HarborOpts
+	globalCache     *cache.Cache
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -110,8 +112,12 @@ func NewScanner(
 	postgresDB.AutoMigrate(&model.Vuln{})
 	postgresDB.AutoMigrate(&model.Registry{})
 	postgresDB.AutoMigrate(&model.ImageRelate{})
+	postgresDB.AutoMigrate(&model.RejectRecord{})
+	postgresDB.AutoMigrate(&model.ImageWhitelist{})
+	postgresDB.AutoMigrate(&model.RejectPolicy{})
+	postgresDB.AutoMigrate(&model.RejectVuln{})
 
-	scannerDB := component.NewScannerDB(postgresDB)
+	scannerDB := store.NewScannerDB(postgresDB)
 
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
@@ -148,31 +154,19 @@ func NewScanner(
 		logging.GetLogger().Error().Msgf("ERROR: harbor client init error :%s ", err)
 		return nil, err
 	}
-	/*scannerPostgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(clairOpts.PostgresConnectionString), &gorm.Config{})
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(30)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxIdleTime(10 * time.Minute)
-			sqlDB.SetConnMaxLifetime(time.Hour)
-		}
-		return db, nil
-	})*/
-	tmpRgistry := model.Registry{Url: harborOpts.URL, Username: harborOpts.Username, Password: []byte(harborOpts.Password), TLS: 0, ApiVersion: harborOpts.Type}
-	scannerDB.InsertToRegistry(ctx, &tmpRgistry)
+
+	// callback cache
+	globalCache := cache.New(60*time.Minute, 10*time.Minute)
+
 	return &Scanner{
-		/*server: &http.Server{
-			Addr:    httpOpts.HTTPListen,
-			Handler: setupChiRouter(mainCtx, redclairSvc, mongodb, httpOpts.HTTPLoggerDisabled, harborClient, redisClient, virusScan, scannerDB),
-		},*/
 		ginServer: &http.Server{
-			Addr: httpOpts.HTTPListen, Handler: api.SetupGinRouter(newConScannerSrv(mongoOpts, redisOpts, harborOpts, clairOpts, redclairSvc, virusScan)),
+			Addr: httpOpts.HTTPListen, Handler: api.SetupGinRouter(
+				newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache),
+				component.NewImageRejectSrc(store.NewScannerOrm(mongoClient, postgresDB)),
+				component.NewHarborSrc(store.NewScannerOrm(mongoClient, postgresDB), redisClient, redclairSvc),
+			),
 		},
+		globalCache:     globalCache,
 		postgresDB:      scannerDB,
 		redclair:        redclairSvc,
 		viursScan:       virusScan,
@@ -181,45 +175,19 @@ func NewScanner(
 		ctx:             mainCtx,
 		cancel:          mainCancel,
 		localLayerMange: llms,
-		harborOpts:      *harborOpts,
+		harborOpts:      harborOpts,
 	}, nil
 }
 
 // Run is to run the service.
 func (s *Scanner) Run() func() {
-	log.Info().Msg("Vegeta Scanner started")
+	log.Info().Msg("Vegeta ScannerApi started")
 	cmd := exec.Command("service", "clamav-daemon", "start") // start clamd service
 	cmd.Output()
 	s.postgresDB.FailInProgressStatus()
 	var wg sync.WaitGroup
 
-	testCtx, testCancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer testCancel()
-	canDowngrade := true
-	err := s.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("Harbor connection and admin privilege check failed")
-	}
-
-	/*wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("start DB TICKER error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-		defer wg.Done()
-		s.postgresDB.FailInProgressStatus()
-		ticker := time.NewTicker(time.Minute * 10)
-		for {
-			<-ticker.C
-			s.tickerFixDataBaseError()
-		}
-	}()*/
-
+	// start NewSyncRepoImage service
 	wg.Add(1)
 	go func() {
 		defer func() {
@@ -230,12 +198,18 @@ func (s *Scanner) Run() func() {
 		}()
 
 		defer wg.Done()
-		r, err := NewSyncRepoImage("", uint(s.harborOpts.SyncInterval), s.postgresDB)
-		r.Run(func(image registry.Image) error {
-			TransImagelist := TransImageToImagelist(r, image)
-			s.postgresDB.InsertImageList(TransImagelist)
-			return nil
-		})
+		r, err := component.NewSyncRepoImage(s.ctx, s.harborOpts.ConfigPath, uint(s.harborOpts.SyncInterval), s.postgresDB)
+		var wg sync.WaitGroup
+		for i := range r {
+			wg.Add(1)
+			tmp := r[i]
+			go tmp.Run(func(image registry.Image) error {
+				TransImagelist := component.TransImageToImagelist(tmp, image)
+				s.postgresDB.InsertImageList(TransImagelist)
+				return nil
+			}, &wg)
+		}
+		wg.Wait()
 		if err != nil {
 			log.Panic().
 				Err(err).
@@ -243,6 +217,24 @@ func (s *Scanner) Run() func() {
 		}
 	}()
 	// image.NewImageService(s.postgresDB, s.harborClient)
+
+	// start reject cache
+	wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("start Layer Manage scanner error : %v. stack: %s", r, debug.Stack())
+				panic(r)
+			}
+		}()
+
+		defer wg.Done()
+		ticker := time.NewTicker(time.Minute * 1)
+		for {
+			<-ticker.C
+			s.checkGlobalCache(s.globalCache)
+		}
+	}()
 
 	// start local layer manage
 	wg.Add(1)
@@ -262,23 +254,6 @@ func (s *Scanner) Run() func() {
 				Msg("Panic failed to start local layer manage server")
 		}
 	}()
-
-	// wg.Add(1)
-	// go func() {
-	// 	defer func() {
-	// 		if r := recover(); r != nil {
-	// 			logging.GetLogger().Error().Msgf("Htpp.Server error : %v. stack: %s", r, debug.Stack())
-	// 			panic(r)
-	// 		}
-	// 	}()
-	//
-	// 	defer wg.Done()
-	// 	if err := s.server.ListenAndServe(); err != nil {
-	// 		if err != http.ErrServerClosed {
-	// 			log.Panic().Err(err).Msg("Panic in http.Server.ListenAndServe")
-	// 		}
-	// 	}
-	// }()
 
 	wg.Add(1)
 	go func() {
@@ -331,8 +306,6 @@ func (s *Scanner) Run() func() {
 		}
 	}()
 
-	wg.Add(1)
-
 	return func() {
 		s.cancel()
 
@@ -351,17 +324,16 @@ func (s *Scanner) Run() func() {
 
 		wg.Wait()
 
-		log.Info().Msg("Vegeta Scanner stopped")
+		log.Info().Msg("Vegeta ScannerApi stopped")
 	}
 }
 
 func newConScannerSrv(
 	mongoOpts *flag.MongoOpts,
-	redisOpts *flag.RedisOpts,
-	harborOpts *flag.HarborOpts,
 	opts *flag.ClairOpts,
 	redclair *component.RedClairService,
 	virusScan *component.VirusScan,
+	globalCache *cache.Cache,
 ) component.ScannerSrv {
 
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
@@ -379,11 +351,6 @@ func newConScannerSrv(
 		panic(err)
 	}
 
-	// mongoCliWrapper, wrErr := mongotools.NewMongoClient(mongoClientOptions, 1*time.Second)
-	// if wrErr != nil {
-	// 	panic(err)
-	// }
-	// mongoDBWrapper := mongoCliWrapper.Database(mongoOpts.Database)
 	newLogger := logger.New(
 		logg.New(colorable.NewColorableStdout(), "\r\n", logg.LstdFlags),
 		logger.Config{
@@ -404,25 +371,14 @@ func newConScannerSrv(
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	dal := store.NewScannerOrm(mongoClient, db)
 
-	// // Redis DB client
-	// redisClient := redis.NewClient(&redis.Options{
-	// 	Addr:     redisOpts.Endpoint,
-	// 	Password: redisOpts.Password, // TODO: Add authorization
-	// 	DB:       0,                  // TODO: Add DB
-	// })
-	// // harbor client
-	// mainCtx, mainCancel := context.WithCancel(context.Background())
-	// defer mainCancel()
-	// harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
-	// if err != nil {
-	// 	logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
-	// 	panic(err)
-	// }
-
-	srv := component.NewConScannerSrv(dal, redclair, virusScan)
+	srv := component.NewConScannerSrv(dal, redclair, virusScan, store.NewScannerDB(db), globalCache)
 	return srv
 }
 
 func (s *Scanner) tickerFixDataBaseError() {
 	s.postgresDB.TickerFixDataBaseError()
+}
+
+func (s *Scanner) checkGlobalCache(cache *cache.Cache) {
+	return
 }

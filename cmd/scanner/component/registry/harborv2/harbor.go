@@ -1,6 +1,7 @@
 package harborv2
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -29,9 +30,9 @@ const (
 
 type harborV2 struct {
 	ctx            context.Context
-	client         *http.Client //client for pull harbor repos and tags
+	client         *http.Client // client for pull harbor repos and tags
 	config         HarborOpts
-	registryClient *registry2.Registry //client for pull manifest
+	registryClient *registry2.Registry // client for pull manifest
 }
 
 type HarborOpts struct {
@@ -69,7 +70,7 @@ func (h *harborV2) reqHarbor(url string) (io.ReadCloser, error) {
 		return nil
 	}, retry.Attempts(RetryCount))
 
-	//defer util.CloseBodyWithLog(resp.Body)
+	// defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
@@ -87,7 +88,7 @@ func (h *harborV2) ListProjects() ([]Project, error) {
 		}
 		projects = append(projects, p...)
 		if len(p) < DefaultPageSize {
-			//last page
+			// last page
 			break
 		}
 		page++
@@ -99,7 +100,7 @@ func (h *harborV2) ListProjects() ([]Project, error) {
 
 func (h *harborV2) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	url := fmt.Sprintf("%s/%s/projects?page=%d&page_size=%d", h.config.URL, ApiVersion, page, pageSize)
-	//logging.GetLogger().Info().Msgf("req harbor projects url %s", url)
+	// logging.GetLogger().Info().Msgf("req harbor projects url %s", url)
 
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
@@ -114,7 +115,7 @@ func (h *harborV2) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 		return nil, errors.New(fmt.Sprintf("decode harbor projects body err.%v", err.Error()))
 	}
 
-	//logging.GetLogger().Info().Msgf("projects %+v",projects)
+	// logging.GetLogger().Info().Msgf("projects %+v",projects)
 	return projects, nil
 }
 
@@ -128,7 +129,7 @@ func (h *harborV2) ListProjectRepos(project string) ([]Repository, error) {
 		}
 		repos = append(repos, r...)
 		if len(r) < DefaultPageSize {
-			//last page
+			// last page
 			break
 		}
 		page++
@@ -155,7 +156,7 @@ func (h *harborV2) ListProjectReposWithPage(project string, page, pageSize int) 
 		return nil, errors.New(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
 	}
 
-	//logging.GetLogger().Info().Msgf("repos %+v",repos)
+	// logging.GetLogger().Info().Msgf("repos %+v",repos)
 	return repos, nil
 }
 
@@ -169,12 +170,12 @@ func (h *harborV2) ListRepoArtifacts(project, repo string) ([]Artifact, error) {
 		}
 		artifacts = append(artifacts, a...)
 		if len(a) < DefaultPageSize {
-			//last page
+			// last page
 			break
 		}
 		page++
 	}
-	//logging.GetLogger().Info().Msgf("artifacts %v", artifacts)
+	// logging.GetLogger().Info().Msgf("artifacts %v", artifacts)
 	return artifacts, nil
 }
 
@@ -195,7 +196,7 @@ func (h *harborV2) ListRepoArtifactsWithPage(project, repo string, page, pageSiz
 		return nil, errors.New(fmt.Sprintf("decode harbor artifacts body err.%v", err.Error()))
 	}
 
-	//logging.GetLogger().Info().Msgf("artifacts %v",artifacts)
+	// logging.GetLogger().Info().Msgf("artifacts %v",artifacts)
 	return artifacts, nil
 }
 
@@ -210,12 +211,9 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 
 	// get all repos
 	for _, v := range projects {
-		if strings.Contains(v.Name, "numerous-test") == true { //跳过2W个测试镜像
-			continue
-		}
 		repos, err := h.ListProjectRepos(v.Name)
 		if err != nil {
-			//just log and try next project
+			// just log and try next project
 			logging.GetLogger().Error().Msgf("project %s get repo err,try next project.%v", v.Name, err)
 			continue
 		}
@@ -236,7 +234,7 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 			}
 
 			for _, a := range artifacts {
-				//pull manifest v2
+				// pull manifest v2
 				var (
 					manifestV2   string
 					manifestV1   string
@@ -246,7 +244,7 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 
 				manifestV2, configDigest, err := h.pullImageManifestV2(r.Name, a.Digest)
 				if err == nil {
-					//pull config json
+					// pull config json
 					configBlob, err = h.pullConfigBlob(r.Name, configDigest)
 					if err != nil {
 						logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", r.Name, a.Digest)
@@ -268,16 +266,126 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 					i.ManifestV1 = string(manifestV1)
 					i.ConfigJson = configBlob
 
-					//do some extend stuff
+					// do some extend stuff
 					extender(*i)
 
 					images = append(images, *i)
 				}
-			} //end of for artifacts
+			} // end of for artifacts
 		} // end of for repos
 	}
 
 	return images, nil
+}
+
+func (h *harborV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s", h.config.URL, ApiVersion, projectName, repoName, tag)
+	// logging.GetLogger().WithContext(h.ctx).Infof(fmt.Sprintf("getImage url:%s", url))
+	data, err := h.reqHarbor(url)
+	defer util.CloseBodyWithLog(data)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("req harbor repo artifacts err %v", err)
+		return nil, err
+	}
+
+	var artifact Artifact
+	err = json.NewDecoder(data).Decode(&artifact)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("decode harbor artifact body err.%v", err.Error()))
+	}
+	// add mainfest
+	var (
+		manifestV2   string
+		manifestV1   string
+		configBlob   string
+		configDigest digest.Digest
+	)
+	if len(artifact.Tags) == 0 || artifact.Tags[0].Name != tag {
+		return nil, errors.New("not find the image")
+	}
+
+	fullRepoNeme := projectName + "/" + repoName
+	manifestV2, configDigest, err = h.pullImageManifestV2(fullRepoNeme, artifact.Digest)
+	if err == nil {
+		configBlob, err = h.pullConfigBlob(fullRepoNeme, configDigest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", fullRepoNeme, artifact.Digest)
+		}
+	} else {
+		manifestV1, err = h.pullImageManifestV1(fullRepoNeme, artifact.Digest)
+		if err != nil {
+			msg := fmt.Sprintf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, fullRepoNeme, artifact.Digest)
+			logging.GetLogger().Error().Msgf(msg)
+			return nil, errors.New(msg)
+		}
+	}
+	img := &registry.Image{
+		ImageDigest:  artifact.Digest,
+		Repository:   fullRepoNeme,
+		Tag:          tag,
+		Size:         artifact.Size,
+		Created:      artifact.ExtraAttrs.Created,
+		LastPushTime: artifact.Tags[0].PushTime,
+		LastPullTime: artifact.Tags[0].PullTime,
+		ManifestV2:   manifestV2,
+		ManifestV1:   manifestV1,
+		ConfigJson:   configBlob,
+	}
+	return img, nil
+}
+
+// CreateProject 创建project
+func (h *harborV2) CreateProject(projectName string, public bool) error {
+	url := fmt.Sprintf("%s/%s/projects", h.config.URL, ApiVersion)
+	type ProjectReq struct {
+		ProjectName string `json:"project_name"`
+		Public      bool   `json:"public"`
+	}
+
+	reqBody := ProjectReq{
+		ProjectName: projectName,
+		Public:      public,
+	}
+	bys, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(bys))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(h.config.Username, h.config.Password)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := h.client.Do(req.WithContext(h.ctx))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return errors.New(fmt.Sprintf("status code is %d", resp.StatusCode))
+	}
+	return nil
+}
+
+// 检查project是否存在
+func (h *harborV2) CheckProject(projectName string) error {
+	url := fmt.Sprintf("%s/%s/projects?project_name=%s", h.config.URL, ApiVersion, projectName)
+	// logging.GetLogger().WithContext(h.ctx).Infof(fmt.Sprintf("getImage url:%s", url))
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(h.config.Username, h.config.Password)
+
+	resp, err := h.client.Do(req.WithContext(h.ctx))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New(fmt.Sprintf("status code is %d", resp.StatusCode))
+	}
+	return nil
 }
 
 func (h *harborV2) makeImage(r *Repository, a *Artifact, t *Tag) *registry.Image {
@@ -318,6 +426,7 @@ func (h *harborV2) pullImageManifestV1(repo, digest string) (string, error) {
 
 	return string(manifestJson), nil
 }
+
 func (h *harborV2) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
 	reader, err := h.registryClient.DownloadBlob(repo, configDigest)
 	if err != nil {
@@ -376,8 +485,8 @@ func newRegistryClient(config *HarborOpts) (*registry2.Registry, error) {
 	if err != nil && config.SkipTLSVerify {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:
 		// https://github.com/golang/go/issues/30322
-		//var hostnameErr *x509.HostnameError
-		//if errors.As(err, &hostnameErr) { ... }
+		// var hostnameErr *x509.HostnameError
+		// if errors.As(err, &hostnameErr) { ... }
 		// Therefore we must unwrap the error from HTTP package manually and try to cast
 
 		// Check for any type of error defined in x509 package.

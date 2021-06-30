@@ -1,0 +1,30 @@
+#scanner config
+scanner:
+  #  -
+  #    registry:
+  #      type: registry-v2
+  #      options:
+  #        url: http://192.168.208.25:5000
+  #        username: testuser
+  #        password: testpassword
+  #        skiptlsverify: true
+  #        paginationkey:
+#    -
+#      registry:
+#        type: harbor-v2.0
+#        options:
+#          url: http://192.168.199.107:30000
+#          username: admin
+#          password: Harbor12345
+#          skiptlsverify: true
+#          paginationkey:
+  
+  -
+    registry:
+      type: harbor-v2.0
+      options:
+        url: https://registry.t-appagile.com
+        username: admin
+        password: Hrbr12@Tensor.*#)
+        skiptlsverify: true
+        paginationkey:

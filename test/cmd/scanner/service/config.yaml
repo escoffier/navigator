@@ -1,11 +1,21 @@
 #scanner config
 scanner:
-  registry:
-    type: harbor-v1.0
-    options:
-      url: http://192.168.208.195:80
-      username: admin
-      password: Harbor12345
-      skiptlsverify: true
-      paginationkey: 
+  -
+    registry:
+      type: registry-v2
+      options:
+        url: http://192.168.208.25:5000
+        username: testuser
+        password: testpassword
+        skiptlsverify: true
+        paginationkey:
+  -
+    registry:
+      type: harbor-v2.0
+      options:
+        url: http://192.168.134.26
+        username: admin
+        password: Harbor12345
+        skiptlsverify: true
+        paginationkey:
 

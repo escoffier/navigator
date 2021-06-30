@@ -213,9 +213,13 @@ migrate: generate		## Build scanner binary
 		--ldflags "$(LDFLAGS)" \
 		-o dist/tensor-migrate gitlab.com/piccolo_su/vegeta/cmd/migrate
 
+.PHONY: image-validate
+image-validate: generate
+	@echo "build image-validate"
+	docker build -t $(REPOPREFIX)/tensorsec-image-validator:latest -f ./build/image-validate/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty tensordig scanner scap-jobs console data drift-prevention seccomp-generator seccomp-generator-webhook holmes
+all: drift-prevention-client faulty tensordig scanner scap-jobs console data drift-prevention seccomp-generator seccomp-generator-webhook holmes image-validate
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -236,6 +240,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
 	# docker push $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -252,6 +257,7 @@ else
 	docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
 	# docker push $(REPOPREFIX)/tensorsec-go-audit:latest
 	docker push $(REPOPREFIX)/tensorsec-holmes:latest
+	docker push $(REPOPREFIX)/tensorsec-image-validator:latest
 endif
 
 .PHONY: retag
@@ -272,6 +278,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
 	# docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
@@ -288,6 +295,7 @@ else
 	docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
 	# docker tag $(REPOPREFIXOLD)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:latest
 endif
 
 .PHONY: redeploy

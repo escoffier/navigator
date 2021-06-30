@@ -1,0 +1,24 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-tensorwall-sidecar
+  labels:
+    app: tensor-webhook
+webhooks:
+  - name: tensorwall.sec.com
+    clientConfig:
+      url: "https://192.168.254.1:9443/mutating"
+#      service:
+#        name: tensor-webhook-svc
+#        namespace: tensorsec-tensorwall
+#        path: "/mutating"
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM1ekNDQWMrZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQjRYRFRJeE1EWXlOREV4TlRreU1Gb1hEVE14TURZeU1qRXhOVGt5TUZvd0ZURVRNQkVHQTFVRQpBeE1LYTNWaVpYSnVaWFJsY3pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBTEU5ClFWUUF5VzUrK0o2LzlUMlpGSVJndG1naDVRVUtaOXEzQTlaUnVVbHVlQkh4Y0xlY2g3T3JCKytMaDRsZmNTYU4KeVAwQk5GdFZtS21LRlRnbmFJZU5tL3R2S3F2L3dQbDBOc2lqRnRiRnN6djFUMnlRNC9iMEcvVTF6T0VNZENPSgo5SlNlWDRZdllzc2VFcjIxS3hIOTkrTVFEa01mOG9uMDZTcmU4QW5RK3dxbXp2MTRjM2NGZVN3NSt0STlwTzlBCkFhTzd0SlY4S2V5UFc4TllEaS8wWTlHOVRBdDJEZk90NnFWcFVhSzQ1VGV4MDJYam9IdmY4US96VGovbmwzbFgKa3J0aEVDK0hLQTJXcjl0TnZLL0d5TVBzZzArcEVjdUR6QUFyeHVCZjVEUGVsVmMrWXNtaXd0dlpPdXhmUnpSMgpOalAvcit4bWVydzl3ZjVvcHNrQ0F3RUFBYU5DTUVBd0RnWURWUjBQQVFIL0JBUURBZ0trTUE4R0ExVWRFd0VCCi93UUZNQU1CQWY4d0hRWURWUjBPQkJZRUZIQ2tHdGREVExNazEwU2Jyb3RtalhFcHNwT2FNQTBHQ1NxR1NJYjMKRFFFQkN3VUFBNElCQVFCL3gra3gxM0x5Wk1lMCtGVkhQeHZMMDRIbEtYSWJMRERPeTkxOHcvUWU4NW1PcjY2cQpJZ0lZeVBGVTBpc2NZRk1Dekd6d05KY29TWWsxZ3hSclhidDJ6UERuWVAwVkhyUVNQd2NoU3Vtb2VVTUVxL0NQCllEcyswUkx4QkcrUkdPeDJhY2Z0a3hKdHJzVHpJdUVST1lvZUhmRXg2OEVZQmRhWGp3dTE4TmV3eWVvL2JCSVYKTVR6dmowREtLK1Vta0VqZllOT1pzNk8yVzBwVVFWSHYxRzZSSFc5SXlvb1cxNG5vK29maHZCQno5N2d0dHJJRQpobS9JS2ZDQzRXVmFMYzdyWnBPMEI5QnlWNG56N0dUNStpOWZFTnlKOVo0MHQrL3d6REdUWUxyZnVZRUZvUU5yCitJcmdaT0Z2U1hpVkpmM1ZodGtvd2hmSnp0cHZtNGR6aExTSgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: ["apps", "extensions", ""]
+        apiVersions: ["v1", "v1beta1"]
+        resources: [ "pods"]
+    namespaceSelector:
+      matchLabels:
+        tensor-sidecar-inject: enabled
+

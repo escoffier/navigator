@@ -1,0 +1,29 @@
+apiVersion: {{ template "admissionregistration.apiVersion" . }}
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "image-validator.fullname" . }}
+  labels:
+{{ include "image-validator.labels" . | indent 4 }}
+webhooks:
+  - name: image.tensorsecurity.cn
+    clientConfig:
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURNVENDQWhtZ0F3SUJBZ0lKQUp0OHYzMHl5QlU4TUEwR0NTcUdTSWIzRFFFQkN3VUFNQzh4TFRBckJnTlYKQkFNTUpFRmtiV2x6YzJsdmJpQkRiMjUwY205c2JHVnlJRmRsWW1odmIyc2dSR1Z0YnlCRFFUQWVGdzB5TVRBMgpNamt3T1RRek5UbGFGdzB6TVRBMk1qY3dPVFF6TlRsYU1DOHhMVEFyQmdOVkJBTU1KRUZrYldsemMybHZiaUJECmIyNTBjbTlzYkdWeUlGZGxZbWh2YjJzZ1JHVnRieUJEUVRDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVAKQURDQ0FRb0NnZ0VCQU0zNzBxdHV0QjFMUklpTzU2THJ2Z1I4YnBObjZLdGwxck5UbXhjSFFUV3l0Ulp3K2J2WQo3cVNhRXRyK08zVlk4ZDlYaUZrekxENDZ6c2l0b0ZkaUcwT0NhdGdHbnk1bFhDZTBYdk9sb1RVRXVnL1YxYURoCnkxMXdvSC9sT1c1RXlaWWR6TTh0cFdQZVJydmt0bkZIb0IwWDVOY2RweUZieWwxS1htZ0JQWUJrREM1aVdJbzcKRlM3VEZpY0NvbHd6NWdYWXl1bzNMZUJsRTYwbmlBNG9DK2VLeXV2YW9oeFREMmF5UVlIa1hpM3RITnFVZEd5bgpVWGtYNUpiTDR4STArNkZUYkFPUm9uSkthK1h3QW1Ybm9CdWlIc3hqVEs1NU5ZTms0M0FiT1J5TjZ3amhSMTF2CkVEaGR6NjVrMmtDWSs0a2xpOXJhZE4wV0F1c2hSSFBEZWxzQ0F3RUFBYU5RTUU0d0hRWURWUjBPQkJZRUZHN0oKU2MyR1NUSEhBZFNEdG80UFFyWFhSb3MxTUI4R0ExVWRJd1FZTUJhQUZHN0pTYzJHU1RISEFkU0R0bzRQUXJYWApSb3MxTUF3R0ExVWRFd1FGTUFNQkFmOHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQmNYVCsxZ3pPRFRoOUVTClBVWVRDVkllMmlZcldMdzFvYTMyOEpvMW9DYjBzTTRvY200YVZxWUVFbnJiYk9hazFxNEVoSVYrWEtjNGRuQVoKcEhERHdJZDVBb3A3a3ZJWitrUWZTT1BtbVNSMDlsOStMZzFEK2FnMkk2THlIOW9jYmhUVUNRbjZZanJxdFY0VgoxL1FOODliNGZWeHUvRTk0UmRNYVpNaHNxT21HenNJK2QrWGMyM2gvVXZCT0h0N3FCV0w2VlBtNm1hTEZTNkJRCmRRTS9sdkZEZUszelhRbDVNWll5eVc2UkJRQmtRMndSOXphUTlYVTV0ak9ReGFwNzhhVTl1UFVQMGhwN1JOa1EKbjArcVpnWHNTZ2lGR2NpaGdIN1RZNjhLNE1CTXdYRHo5Y1dOSWQzWDV4R3VrMXpsUGdjelVsSzEvZitVRWhTbgplK01OS013PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+      service:
+        name: "{{ include "image-validator.fullname" . }}"
+        namespace: "{{ .Release.Namespace }}"
+        path: "/validating"
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: ["apps", "extensions", ""]
+        apiVersions: ["v1", "v1beta1"]
+        resources: [ "pods"]
+        {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+        scope: "Namespaced"
+        {{- end }}
+    sideEffects: None
+    failurePolicy: Ignore
+    {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    {{- end }}

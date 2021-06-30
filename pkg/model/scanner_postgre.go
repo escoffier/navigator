@@ -25,7 +25,7 @@ type Vuln struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    int
-	Name         string         `gorm:"index"` // 形如CVE-2021-28831
+	Name         string         `gorm:"index:idx_name"` // 形如CVE-2021-28831
 	Namespace    string         // 发行版名字：alpine，redhat等
 	Description  string         // 描述
 	Link         []string       `gorm:"-"` // 参考链接
@@ -66,7 +66,7 @@ type ScanLayer struct { // 层级扫描结果
 	MaliciousInfoJSON datatypes.JSON `gorm:"type:jsonb" json:"-"`     // 恶意文件
 	MaliciousInfo     []Malicious    `gorm:"-" json:"malicious_info"` // 恶意文件
 
-	SensitiveFileJSON datatypes.JSON `gorm:"type:jsonb" json:"-"` // 敏感文console/service/image/image.go件
+	SensitiveFileJSON datatypes.JSON `gorm:"type:jsonb" json:"-"` // 敏感文件
 	SensitiveFile     []Sensitive    `gorm:"-" json:"sensitive_file"`
 
 	IsBasic int `json:"is_basic"`
@@ -109,18 +109,18 @@ type ImageList struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Url            string
-	FullRepoName   string                 `gorm:"column:full_repo_name"  json:"full_repo_name"`
-	Tags           string                 `gorm:"column:tags" json:"tags" bson:"tags"`
-	Digest         string                 `gorm:"index:idx:digest_library,priority:1" json:"digest" bson:"digest"`
-	OS             string                 `gorm:"column:os" json:"os" bson:"os"`
-	Size           int                    `gorm:"column:size" json:"size" bson:"size"`
-	Library        string                 `gorm:"index:idx:digest_library,priority:2" json:"library" bson:"library"`
-	Questions      []QuestionInfo         `gorm:"-" json:"questions" bson:"questions"`
-	CompleteTime   string                 `gorm:"column:complete_time" json:"complete_time" bson:"complete_time"`
-	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln" bson:"-"`
-	Container      []AssetContainer       `gorm:"-" json:"container" bson:"-"`
-	ScanStatus     string                 `gorm:"-" json:"scan_status" bson:"-"`
-	ImageScanVirus []VirusFileInfo        `gorm:"-" json:"image_scan_virus" bson:"-"`
+	FullRepoName   string                 `gorm:"index:idx_digest_name,priority:1"  json:"full_repo_name"`
+	Tags           string                 `gorm:"column:tags" json:"tags"`
+	Digest         string                 `gorm:"index:idx_digest_name,priority:2" json:"digest"`
+	OS             string                 `gorm:"column:os" json:"os"`
+	Size           int                    `gorm:"column:size" json:"size"`
+	Library        string                 `gorm:"column:library" json:"library"`
+	Questions      []QuestionInfo         `gorm:"-" json:"questions"`
+	CompleteTime   string                 `gorm:"column:complete_time" json:"complete_time"`
+	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
+	Container      []AssetContainer       `gorm:"-" json:"container"`
+	ScanStatus     string                 `gorm:"-" json:"scan_status"`
+	ImageScanVirus []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
 
 	// CreateTime     string                 `gorm:"column:create_time" json:"create_time" bson:"create_time"`
 	// PushTime     string         `gorm:"column:push_time;index" json:"push_time" bson:"push_time"`
@@ -146,9 +146,9 @@ func (i ImageList) TableName() string {
 // ImageRelate 镜像关联信息表
 type ImageRelate struct {
 	ID          int64  `gorm:"primary_key,AUTO_INCREMENT" json:"id" `
-	Digest      string `gorm:"uniqueIndex:digest_library,priority:1" json:"digest"`
-	Library     string `gorm:"uniqueIndex:digest_library,priority:2" json:"library"`
-	ContainerID string `gorm:"column:container_id;uniqueIndex:digest_library,priority:3" json:"container_id"`
+	Digest      string `gorm:"uniqueIndex:uniq_idx_digest_library,priority:1" json:"digest"`
+	Library     string `gorm:"uniqueIndex:uniq_idx_digest_library,priority:2" json:"library"`
+	ContainerID string `gorm:"column:container_id;uniqueIndex:uniq_idx_digest_library,priority:3" json:"container_id"`
 }
 
 func (i ImageRelate) TableName() string {
@@ -170,7 +170,7 @@ type Registry struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   int
-	Url         string `gorm:"index"` // 如:docker.io/v2, quay.io/v2
+	Url         string `gorm:"index:idx_url"` // 如:docker.io/v2, quay.io/v2
 	Username    string // user for login registry
 	Password    []byte // DES加密
 	TLS         int    // 1-use tls,0-not use
@@ -367,4 +367,84 @@ type ContainerConfigV1 struct {
 // 恶意文件
 type Malicious struct {
 	VirusInfo VirusInfo `json:"virus_info"`
+}
+
+// RejectRecord 拦截记录表
+type RejectRecord struct {
+	ID               int64          `json:"id"`
+	Library          string         `json:"library"`                                             // 仓库名
+	FullRepoName     string         `gorm:"index:idx_repo_tag,priority:1" json:"full_repo_name"` // 镜像名
+	Tag              string         `gorm:"index:idx_repo_tag,priority:2" json:"tag"`            // 版本号
+	RejectDetail     string         `json:"reject_detail"`                                       // 阻断原因(详细)用|分隔
+	RejectReasonJson datatypes.JSON `gorm:"type:jsonb,column:reject_reason_json" json:"-"`       // 阻断原因(大类) {"1":"1"}
+	RejectReason     []int64        `gorm:"-" json:"reject_reason"`                              // 阻断原因(大类)
+	VulnScore        int64          `json:"vuln_score"`                                          // 被阻断时设置的策略漏洞评分
+	VulnLevel        string         `json:"vuln_level"`                                          // 被阻断时设置的策略漏洞评级
+
+	RejectAt  time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
+	CreatedAt time.Time `json:"created_at"`              // 创建时间
+	DeletedAt int       `json:"deleted_at,omitempty"`
+}
+
+func (RejectRecord) TableName() string {
+	return "reject_record"
+}
+
+// ImageWhitelist 镜像白名单
+type ImageWhitelist struct {
+	ID           int64     `json:"id"`
+	Library      string    `gorm:"uniqueIndex:uniq_idx_library_image_tag,priority:1" json:"library"`        // 仓库名
+	FullRepoName string    `gorm:"uniqueIndex:uniq_idx_library_image_tag,priority:2" json:"full_repo_name"` // 镜像名
+	Tag          string    `gorm:"uniqueIndex:uniq_idx_library_image_tag,priority:3" json:"tag"`            // 版本号
+	Digest       string    `json:"digest"`
+	CreatedAt    time.Time `json:"created_at"` //
+}
+
+func (ImageWhitelist) TableName() string {
+	return "image_whitelist"
+}
+
+// RejectPolicy 阻断策略表
+type RejectPolicy struct {
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`             // 策略名
+	Library     []string       `gorm:"-" json:"library"` // 生效仓库名
+	LibraryJSON datatypes.JSON `gorm:"type:jsonb,column:library_json" json:"-"`
+	Comment     string         `json:"comment"`  // 备注
+	Operator    string         `json:"operator"` // 操作员名字
+
+	VulnScore int64  `json:"vuln_score"` // 漏洞按分数阻断(低于多少分后阻断)
+	VulnLevel string `json:"vuln_level"` // 漏洞按严重级别阻断
+
+	SensitiveFilePolicy string `json:"sensitive_file_policy"` // 敏感文件规则
+	MaliciousPolicy     string `json:"malicious_policy"`      // 恶意文件规则
+
+	CicdEnable    bool         `gorm:"cicd_enable" json:"cicd_enable"`
+	K8sEnable     bool         `gorm:"k8s_enable" json:"k8s_enable"`
+	RejectVulns   []RejectVuln `gorm:"-" json:"reject_vulns"`
+	Mode          string       `gorm:"mode" json:"mode"`                     // 阻断模式(基本模式,安全模式)
+	OnlineMonitor bool         `gorm:"online_monitor" json:"online_monitor"` // 是否开启在线监控
+	CreatedAt     time.Time    `json:"created_at"`                           //
+	UpdatedAt     time.Time    `json:"updated_at"`
+	Enable        bool         `json:"enable"` // 是否启用该策略
+	IsGlobal      bool         `json:"-"`
+	DeletedAt     int          `json:"deleted_at,omitempty"`
+}
+
+func (RejectPolicy) TableName() string {
+	return "reject_policy"
+}
+
+// RejectVuln 自定义的镜像阻断
+type RejectVuln struct {
+	ID             int64     `json:"id"`
+	RejectPolicyID int64     `gorm:"uniqueIndex:uniq_idx_vuln,priority:1" json:"reject_policy_id"`
+	Library        string    `gorm:"uniqueIndex:uniq_idx_vuln,priority:2" json:"library"` // 生效仓库名
+	Name           string    `gorm:"uniqueIndex:uniq_idx_vuln,priority:3" json:"name"`    // 形如CVE-2021-28831
+	RejectPolicy   string    `json:"reject_policy"`                                       // 阻断动作
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+func (RejectVuln) TableName() string {
+	return "reject_vuln"
 }

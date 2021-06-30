@@ -64,3 +64,8 @@ dependencies:
     version: 1.7.4
     repository: "file://./subcharts/holmes"
     condition: holmes.enabled
+
+  - name: image-validator
+    version: 0.1.0
+    repository: "file://./subcharts/image-validator"
+    condition: image-validator.enabled

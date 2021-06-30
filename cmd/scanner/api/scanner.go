@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -25,6 +28,59 @@ const (
 type Scanner struct {
 	Srv component.ScannerSrv
 	log *logging.Logger
+}
+
+func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
+	containerInfo := []model.RejectOnlineMoniterImage{}
+	ctx.BindJSON(&containerInfo)
+	fmt.Println("recv Info : ", containerInfo)
+	flag := s.Srv.TickOnlineScan(ctx, containerInfo)
+	type tmpRes struct {
+		Flag bool `json:"flag"`
+	}
+	res := tmpRes{}
+	res.Flag = flag
+	response.JSONOK(ctx, response.WithItem(res))
+}
+
+func (s *Scanner) AddPolicyConfig(ctx *gin.Context) {
+	PostInfo := model.RejectPolicyConfigResponse{}
+	ctx.BindJSON(&PostInfo)
+	if len(PostInfo.Polices) == 0 {
+		s.Srv.AddGlobalPolicyConfig(ctx, PostInfo)
+	} else {
+		s.Srv.AddPolicyConfig(ctx, PostInfo)
+	}
+	response.JSONOK(ctx)
+}
+
+func (s *Scanner) AddPolicy(ctx *gin.Context) {
+	PostInfo := model.RejectPolicyConfigResponse{}
+	ctx.BindJSON(&PostInfo)
+
+	fmt.Printf("收到的内容为 %v\n", PostInfo)
+	// var err error
+	// var id int64
+	type tmpRes struct {
+		Id int64 `json:"id"`
+	}
+	id, err := s.Srv.AddSinglePolicy(ctx, PostInfo)
+	res := tmpRes{}
+	res.Id = id
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(res))
+}
+
+func (s *Scanner) GetPolicy(ctx *gin.Context) {
+	res, err := s.Srv.GetPolicyConfig(ctx)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(res))
 }
 
 func (s *Scanner) GetSimpleImageDetail(ctx *gin.Context) {
@@ -112,12 +168,65 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 	// json := make(map[string]interface{})
 	ctx.BindJSON(&tmp)
 	// fmt.Println("收获JSON为:", json)
-	err := s.Srv.TickScanOne(ctx, tmp.ImgId, "")
+	err := s.Srv.TickScanOne(ctx, tmp.ImgId, "", consts.ScanTaskComeFromWeb)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(resp{Status: "OK"}))
+}
+
+func (s *Scanner) ListRegistry(ctx *gin.Context) {
+	noRejectPolicy, _ := strconv.ParseBool(ctx.Query("no_policy"))
+
+	registries, _, err := s.Srv.ListRegistry(ctx, noRejectPolicy)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	urls := make([]string, 0)
+	for _, reg := range registries {
+		urls = append(urls, reg.Url)
+	}
+	response.JSONOK(ctx, response.WithItems(urls))
+}
+
+func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
+	s.log.WithContext(ctx).Infof("收到CICD的请求")
+	type tmpRecv struct {
+		Library      string `json:"library"`
+		ProjectName  string `json:"project_name"`
+		FullRepoName string `json:"full_repo_name"`
+		Tag          string `json:"tag"`
+		MaxSecond    string `json:"max_second"`
+	}
+
+	tmp := tmpRecv{}
+	if err := ctx.BindJSON(&tmp); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	second, _ := strconv.ParseInt(tmp.MaxSecond, 10, 64)
+
+	if tmp.ProjectName == "" && strings.Contains(tmp.FullRepoName, "/") {
+		split := strings.Split(tmp.FullRepoName, "/")
+		if len(split) >= 2 {
+			tmp.ProjectName = split[0]
+			tmp.FullRepoName = strings.Join(split[1:], "/")
+		}
+	}
+	if !strings.Contains(tmp.Library, "http") {
+		tmp.Library = "https://" + tmp.Library
+	}
+	safe, err := s.Srv.ScanOneForDetectImage(ctx, tmp.Library, tmp.ProjectName, tmp.FullRepoName, tmp.Tag, int(second))
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	type resp struct {
+		Safe bool `json:"safe"`
+	}
+	ctx.JSON(http.StatusOK, resp{Safe: safe})
 }
 
 func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
@@ -204,6 +313,25 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		response.WithStartIndex(offset))
 }
 
+func (s *Scanner) CheckProjectAndCreateIfNotExist(ctx *gin.Context) {
+	projectName := ctx.Param("projectName")
+	library := ctx.Query("library")
+	if !strings.Contains(library, "http") {
+		library = "https://" + library
+	}
+
+	err := s.Srv.CheckProjectAndCreateIfNotExist(ctx, library, projectName)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	type Resp struct {
+		Existed bool `json:"existed"`
+	}
+	ctx.JSON(http.StatusOK, Resp{Existed: true})
+}
+
 // ListImgLayers 镜像的回溯信息
 func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 	imgDigest := ctx.Param("imgDigest")
@@ -227,7 +355,7 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*image))
 }
 
-func NewScannerSrv(srv component.ScannerSrv) *Scanner {
+func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
 	return &Scanner{
 		Srv: srv,
 		log: logging.GetLogger(),

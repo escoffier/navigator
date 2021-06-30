@@ -24,18 +24,20 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/protobuf v1.5.2
+	github.com/google/go-containerregistry v0.1.2 //ct
+	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/googleapis/gnostic v0.4.0 //indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/jackc/pgproto3/v2 v2.1.0 // indirect
 	github.com/json-iterator/go v1.1.10
 	github.com/klauspost/compress v1.10.3 // indirect
-	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lib/pq v1.8.0
 	github.com/mattn/go-colorable v0.1.6
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mozilla/tls-observatory v0.0.0-20180409132520-8791a200eb40
+	github.com/mozilla/tls-observatory v0.0.0-20200317151703-4fa42e1c2dee
 	github.com/oceanicdev/chi-param v1.1.0
 	github.com/olivere/elastic/v7 v7.0.21
 	github.com/opencontainers/go-digest v1.0.0
@@ -81,6 +83,7 @@ require (
 	k8s.io/client-go v0.17.17
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
 	sigs.k8s.io/controller-runtime v0.3.0
+	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (

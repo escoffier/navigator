@@ -31,9 +31,9 @@ type HTTPData struct {
 	Updated          string                 `json:"updated,omitempty"`
 	Deleted          bool                   `json:"deleted,omitempty"`
 	CurrentItemCount int64                  `json:"currentItemCount,omitempty"`
-	ItemsPerPage     int64                  `json:"itemsPerPage,omitempty"`
-	StartIndex       int64                  `json:"startIndex,omitempty"`
-	TotalItems       int64                  `json:"totalItems,omitempty"`
+	ItemsPerPage     int64                  `json:"itemsPerPage"`
+	StartIndex       int64                  `json:"startIndex"`
+	TotalItems       int64                  `json:"totalItems"`
 	PageIndex        int64                  `json:"pageIndex,omitempty"`
 	TotalPages       int64                  `json:"totalPages,omitempty"`
 	Items            json.RawMessage        `json:"items,omitempty"`

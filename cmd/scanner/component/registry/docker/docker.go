@@ -6,6 +6,9 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
+
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
@@ -13,8 +16,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
-	"io"
-	"strings"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 type RegistryV2 struct {
 	ctx            context.Context
 	config         Opts
-	registryClient *registry2.Registry //client for pull manifest
+	registryClient *registry2.Registry // client for pull manifest
 }
 
 type Opts struct {
@@ -77,6 +78,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 			)
 			manifestV2, err := r.pullImageManifestV2(repo, tag)
 			if err == nil {
+				// pull config json
 				imageDigest, err = ManifestV2Digest(manifestV2)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
@@ -88,7 +90,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 					continue
 				}
 
-				//pull config json
+				// pull config json
 				configDigest = manifestV2.Config.Digest
 				configBlob, err = r.pullConfigBlob(repo, configDigest)
 				if err != nil {
@@ -128,10 +130,100 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 
 			extender(*i)
 		}
-
 	}
 
 	return images, nil
+}
+
+func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
+	fullRopoName := projectName + "/" + repoName
+	tags, err := r.ListRepoTags(fullRopoName)
+	if err != nil {
+		return nil, err
+	}
+	hasTag := false
+	// 查看是否有这个tag
+	for _, tg := range tags {
+		if tg == tag {
+			hasTag = true
+			break
+		}
+	}
+
+	if !hasTag {
+		return nil, errors.New("not fond the image")
+	}
+
+	var (
+		manifestV2    *schema2.DeserializedManifest
+		manifestV2Str []byte
+		manifestV1    *schema1.SignedManifest
+		manifestV1Str []byte
+		configBlob    string
+		configDigest  digest.Digest
+		imageDigest   string
+	)
+	manifestV2, err = r.pullImageManifestV2(fullRopoName, tag)
+	if err == nil {
+		// pull config json
+		imageDigest, err = ManifestV2Digest(manifestV2)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get manifest digest err, repo %s ,digest %s", fullRopoName, tag)
+			return nil, err
+		}
+		manifestV2Str, err = manifestV2.MarshalJSON()
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get manifest string err, repo %s ,digest %s", fullRopoName, tag)
+			return nil, err
+		}
+
+		// pull config json
+		configDigest = manifestV2.Config.Digest
+		configBlob, err = r.pullConfigBlob(fullRopoName, configDigest)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", fullRopoName, tag)
+			return nil, err
+
+		}
+	} else {
+		// pull manifest v2 err,try v1
+		logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, fullRopoName, tag)
+		manifestV1, err = r.pullImageManifestV1(fullRopoName, tag)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, fullRopoName, tag)
+			return nil, err
+		}
+		manifestV1Str, err = manifestV1.MarshalJSON()
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get manifest v1 str err %v, repo %s ,digest %s", err, fullRopoName, tag)
+			return nil, err
+		}
+
+		// according: github.com/google/go-containerregistry@v0.1.2/pkg/v1/remote/descriptor.go
+		// use http-header "Docker-Content-digest" as manifest-v1 image digest
+		tmp, err := r.registryClient.ManifestDigest(fullRopoName, tag)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,digest %s", err, fullRopoName, tag)
+			return nil, err
+		}
+		imageDigest = tmp.String()
+	}
+
+	image := r.makeImage(fullRopoName, tag)
+	image.ImageDigest = imageDigest
+	image.ManifestV2 = string(manifestV2Str)
+	image.ManifestV1 = string(manifestV1Str)
+	image.ConfigJson = configBlob
+
+	return image, nil
+}
+
+func (r *RegistryV2) CheckProject(projectName string) error {
+	return errors.New("not implement")
+}
+
+func (r *RegistryV2) CreateProject(projectName string, public bool) error {
+	return errors.New("not implement")
 }
 
 func (r *RegistryV2) makeImage(repo, tag string) *registry.Image {
@@ -139,15 +231,15 @@ func (r *RegistryV2) makeImage(repo, tag string) *registry.Image {
 		ImageDigest: "",
 		Repository:  repo,
 		Tag:         tag,
-		//Size: 0,
-		//LastPullTime: t.PullTime,
-		//LastPushTime: t.PushTime,
+		// Size: 0,
+		// LastPullTime: t.PullTime,
+		// LastPushTime: t.PushTime,
 	}
 	return &i
 }
 
 func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	//caculate image digest
+	// caculate image digest
 	data, err := m.MarshalJSON()
 	if err != nil {
 		return "", err
@@ -222,8 +314,8 @@ func newRegistryClient(config *Opts) (*registry2.Registry, error) {
 	if err != nil && config.SkipTLSVerify {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:
 		// https://github.com/golang/go/issues/30322
-		//var hostnameErr *x509.HostnameError
-		//if errors.As(err, &hostnameErr) { ... }
+		// var hostnameErr *x509.HostnameError
+		// if errors.As(err, &hostnameErr) { ... }
 		// Therefore we must unwrap the error from HTTP package manually and try to cast
 
 		// Check for any type of error defined in x509 package.

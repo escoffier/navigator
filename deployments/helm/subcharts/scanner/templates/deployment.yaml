@@ -54,6 +54,7 @@ spec:
           "--clair-secretpattern=/config/patterns.json",
           "--redclair-skipregistrytlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-master:6379",
+          "--harbor-configPath=/config/registry.yaml",
           "--harbor-username={{ .Values.harbor.harborUsername }}",
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
@@ -81,11 +82,19 @@ spec:
             name: {{ include "scanner.name" . }}-layer
         volumeMounts:
           - name: scannerfiles
-            mountPath: "/config"
+            mountPath: "/config/patterns.json"
+            subPath: patterns.json
+          - name: registryfiles
+            mountPath: "/config/registry.yaml"
+            subPath: registry.yaml
           - name: dockersock
             mountPath: "/var/run/docker.sock"
           - name: tmp
             mountPath: "/tmp/"
+          - mountPath: /eventcenter-config
+            name: scanner-eventcenter-config
+          - mountPath: /auth/ca
+            name: ca-cert
         resources:
 {{ toYaml .Values.resources | indent 10 }}
       {{- if .Values.hostAliases }}
@@ -101,3 +110,20 @@ spec:
       - name: scannerfiles
         configMap:
           name: {{ template "scanner.fullname" . }}-configmap
+          items:
+            - key: patterns.json
+              path: patterns.json
+      - name: registryfiles
+        configMap:
+          name: {{ template "scanner.fullname" . }}-configmap
+          items:
+            - key: registry.yaml
+              path: registry.yaml
+      - name: scanner-eventcenter-config
+        secret:
+          defaultMode: 420
+          secretName: eventcenter-tls-client-cert-secret
+      - name: ca-cert
+        secret:
+          defaultMode: 400
+          secretName: eventcenter-tls-ca-secret

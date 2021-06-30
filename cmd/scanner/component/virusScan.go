@@ -21,6 +21,8 @@ import (
 	"time"
 	"unsafe"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
@@ -40,9 +42,10 @@ import (
 type VirusScan struct {
 	ctx           context.Context
 	mongodb       *mongo.Database
-	postgresSvc   *ScannerDB
+	postgresSvc   *store.ScannerDB
 	redisClient   *redis.Client
 	scanTasksChan chan model.VirusScanTask
+	cicdTasksChan chan model.VirusScanTask
 	numWorkers    int
 	statusQueue   sync.Map
 }
@@ -57,13 +60,14 @@ const (
 	viursMaxLayerScanRetires      = 3
 )
 
-func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *ScannerDB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
+func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
 	return &VirusScan{
 		ctx:           ctx,
 		mongodb:       db,
 		postgresSvc:   postgresSvc,
 		redisClient:   rc,
 		scanTasksChan: make(chan model.VirusScanTask, 1000),
+		cicdTasksChan: make(chan model.VirusScanTask, 5),
 		numWorkers:    clairOpts.NumWorkers,
 		statusQueue:   sync.Map{},
 	}, nil
@@ -114,7 +118,7 @@ func (virusScan *VirusScan) failDanglingTasks(ctx context.Context) error {
 }
 
 func (virusScan *VirusScan) Run(ctx context.Context, llms *layerManage.LocalLayerManageSrv) error {
-	//TODO FailTaskRestart
+	// TODO FailTaskRestart
 	virusScan.failDanglingTasks(ctx)
 
 	var wg sync.WaitGroup
@@ -149,31 +153,31 @@ func removeContents(dir string) error {
 
 func (virusScan *VirusScan) clamavScan(ctx context.Context, scanPath string, digestNum string) ([]model.VirusInfo, error) {
 
-	//clamLogFile, err := ioutil.TempFile("/tmpscan/", "log")
+	// clamLogFile, err := ioutil.TempFile("/tmpscan/", "log")
 	clamLogPath := scanPath[0:len(scanPath)-1] + ".log"
 	cmd := exec.Command("/usr/bin/clamdscan", "--quiet", "-m", scanPath, "-l", clamLogPath)
 	defer os.Remove(clamLogPath)
-	//defer os.RemoveAll("/tmpscan/" + digestNum + "/")
+	// defer os.RemoveAll("/tmpscan/" + digestNum + "/")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
-		//扫描到病毒时err返回值为1,所以不能退出,错误时ParseSummrylogs读不到日志文件，会返回空集。
+		// 扫描到病毒时err返回值为1,所以不能退出,错误时ParseSummrylogs读不到日志文件，会返回空集。
 		errString := fmt.Sprintf("%s", err)
 		if strings.Compare("exit status 1", errString) != 0 {
 			zerolog.Ctx(ctx).Info().Err(err).Str("Out:", out.String()).Str("Stderr:", stderr.String()).Str("ScanPath:", scanPath).Msg("Cla ERROR")
 			return []model.VirusInfo{}, fmt.Errorf("ClamScan Error %w", err)
 		}
-		//os.Remove("/configs/" + digestMy + "layer.tar")
-		//return []model.ClamAvVirus{}
+		// os.Remove("/configs/" + digestMy + "layer.tar")
+		// return []model.ClamAvVirus{}
 	}
 
 	zerolog.Ctx(ctx).Info().Msg("Clamscan ok")
 	VirusInfos := virusScan.ParseSummrylogs(clamLogPath, scanPath)
-	//defer os.Remove(clamLogPath)
-	//defer os.RemoveAll("/tmpscan/" + digestNum + "/")
+	// defer os.Remove(clamLogPath)
+	// defer os.RemoveAll("/tmpscan/" + digestNum + "/")
 	return VirusInfos, nil
 }
 
@@ -205,7 +209,7 @@ func (virusScan *VirusScan) ParseSummrylogs(logPath string, scanPath string) []m
 	return ClamAvVirus
 }
 
-//解析&过滤layer.tar中的文件
+// 解析&过滤layer.tar中的文件
 func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string) (uint64, error) {
 	tarFile, err := os.Open(tarFileName)
 	if err != nil {
@@ -228,10 +232,10 @@ func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string) (uint6
 		test := header.FileInfo()
 		if header.Typeflag == tar.TypeDir {
 			continue
-		} else if (header.Typeflag == tar.TypeLink) || (header.Typeflag == tar.TypeSymlink) { //过滤软链接和硬链接
+		} else if (header.Typeflag == tar.TypeLink) || (header.Typeflag == tar.TypeSymlink) { // 过滤软链接和硬链接
 			continue
 		} else {
-			//fmt.Println(header.Name)
+			// fmt.Println(header.Name)
 			perm := test.Mode().Perm()
 			flag := perm & os.FileMode(73)
 			if uint32(flag) == uint32(73) {
@@ -253,9 +257,14 @@ func (virusScan *VirusScan) createFile(name string) (*os.File, error) {
 	return os.Create(name)
 }
 
-func (virusScan *VirusScan) AddScanTask(task model.VirusScanTask) {
-	virusScan.statusQueue.Store(task.ImageDigest, model.VirusScanQueueInfo{Status: model.VirusScanWait, StartAt: time.Now()}) //加入状态缓存
-	virusScan.scanTasksChan <- task
+func (virusScan *VirusScan) AddScanTask(task model.VirusScanTask, comeFrom int) {
+	virusScan.statusQueue.Store(task.ImageDigest, model.VirusScanQueueInfo{Status: model.VirusScanWait, StartAt: time.Now()}) // 加入状态缓存
+	switch comeFrom {
+	case consts.ScanTaskComeFromCICD:
+		virusScan.cicdTasksChan <- task
+	default:
+		virusScan.scanTasksChan <- task
+	}
 }
 
 func (virusScan *VirusScan) workerRun(ctx context.Context, id int, wg *sync.WaitGroup, llms *layerManage.LocalLayerManageSrv) {
@@ -282,7 +291,7 @@ loop:
 func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.VirusScanTask, llms *layerManage.LocalLayerManageSrv) {
 	scanCtx, scanCtxCancel := context.WithTimeout(ctx, virusScanOneTimeout)
 	defer scanCtxCancel()
-	defer virusScan.statusQueue.Delete(scanTask.ImageDigest) //删除状态缓存
+	defer virusScan.statusQueue.Delete(scanTask.ImageDigest) // 删除状态缓存
 	zerolog.Ctx(ctx).Info().
 		Str("ID", scanTask.ID.Hex()).
 		Str("URL", scanTask.URL).
@@ -306,8 +315,8 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 	if err != nil {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:
 		// https://github.com/golang/go/issues/30322
-		//var hostnameErr *x509.HostnameError
-		//if errors.As(err, &hostnameErr) { ... }
+		// var hostnameErr *x509.HostnameError
+		// if errors.As(err, &hostnameErr) { ... }
 		// Therefore we must unwrap the error from HTTP package manually and try to cast
 
 		// Check for any type of error defined in x509 package.
@@ -332,10 +341,10 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 		virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't read manifest", err, false)
 		return
 	}
-	virusScan.statusQueue.Store(scanTask.ImageDigest, model.VirusScanQueueInfo{Status: model.VirusScanDoing, StartAt: time.Now()}) //更新状态缓存
+	virusScan.statusQueue.Store(scanTask.ImageDigest, model.VirusScanQueueInfo{Status: model.VirusScanDoing, StartAt: time.Now()}) // 更新状态缓存
 	currentlyCachedLayers, toScan, err := virusScan.getCachedGraph(ctx, layers, scanTask)
 	if err != nil {
-		//rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't get cache graph", err)
+		// rcSvc.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't get cache graph", err)
 		virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusFailed, "Couldn't get cache graph", err, false)
 		return
 	}
@@ -376,11 +385,11 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 		PerLayerReport: perLayerReport,
 	}
 	scanTask.ScanReport = *report
-	//flag := false
-	//if len(virus) != 0 {
+	// flag := false
+	// if len(virus) != 0 {
 	//	flag = true
-	//}
-	//err = virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil, flag)
+	// }
+	// err = virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil, flag)
 	virusScan.logToLayer(ctx, scanTask, scanTask.ImageID)
 	virusScan.logPostgres(ctx, scanTask, scanTask.TableID)
 	/*if err != nil {
@@ -420,7 +429,7 @@ func (virusScan *VirusScan) logPostgres(ctx context.Context, scanTask model.Viru
 			tmp.VirusInfo = v
 			res = append(res, tmp)
 		}
-		//tmp.VirusInfo = scanTask.ScanReport.Virus.Virus
+		// tmp.VirusInfo = scanTask.ScanReport.Virus.Virus
 		jsondata, _ := json.Marshal(res)
 		scanImage.MaliciousInfoJSON = jsondata
 	} else {
@@ -500,7 +509,7 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 			Err(err).
 			Str("scanTask", fmt.Sprintf("%+v", scanTask)).
 			Msg("error in updating task in Mongo")
-		//return err
+		// return err
 	}
 
 	/*	if flag == true {
@@ -571,7 +580,7 @@ func (virusScan *VirusScan) generateVirusScanResult(virusInfos []model.VirusInfo
 }
 
 func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registry, digest string, repository string, client *layerManage.LocalLayerManageClient, scanTask model.VirusScanTask) ([]model.VirusInfo, error) {
-	//d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
+	// d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
 	digestNum := strings.Split(digest, ":")[1]
 	timeUnix := time.Now().Unix()
 	timeUnixStr := strconv.FormatInt(timeUnix, 10)
@@ -594,7 +603,7 @@ func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registr
 	if err != nil {
 		return []model.VirusInfo{}, fmt.Errorf("Clamscan Error %w", err)
 	}
-	//os.Remove("/tmpscan/" + digest + "layer.tar")
+	// os.Remove("/tmpscan/" + digest + "layer.tar")
 	if len(virusInfos) != 0 {
 		zerolog.Ctx(ctx).Info().Str("Filename:", virusInfos[0].FileName).Str("Virusname:", virusInfos[0].VirusName).Str("FilePath", virusInfos[0].FilePath).Msg("The digest scan result")
 	}
@@ -680,7 +689,7 @@ func (virusScan *VirusScan) readManifest(ctx context.Context, version string, hu
 		for _, layer := range manifest.Manifest.Layers {
 			layerDigest := layer.Digest.String()
 			if _, ok := uniqueLayers[layerDigest]; ok {
-				//return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
+				// return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
 				continue
 			}
 			uniqueLayers[layerDigest] = true
@@ -718,7 +727,7 @@ func (virusScan *VirusScan) decodeUsernamePassword(scanTask model.VirusScanTask)
 }
 
 func (virusScan *VirusScan) GetAllScanStatus() (int, int) {
-	//res := []model.VirusScanStatusInfo{}
+	// res := []model.VirusScanStatusInfo{}
 	waitNum := 0
 	doingNum := 0
 	virusScan.statusQueue.Range(func(k, v interface{}) bool {
@@ -728,7 +737,7 @@ func (virusScan *VirusScan) GetAllScanStatus() (int, int) {
 		if v.(model.VirusScanQueueInfo).Status == "doing" {
 			doingNum += 1
 		}
-		//res = append(res, model.VirusScanStatusInfo{Digest: k.(string), Status: v.(model.VirusScanQueueInfo).Status})
+		// res = append(res, model.VirusScanStatusInfo{Digest: k.(string), Status: v.(model.VirusScanQueueInfo).Status})
 		return true
 	})
 	return waitNum, doingNum

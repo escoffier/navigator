@@ -1,10 +1,7 @@
 package store
 
 import (
-	"bytes"
 	"context"
-	"crypto/cipher"
-	"crypto/des"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -13,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -41,10 +39,16 @@ type ScannerDalInterface interface {
 	SearchScanImage(param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
 	UpdateScanImage(where string, updater map[string]interface{}) error
 	InsertScanImage(sis []model.ScanImage) (int64, error)
-	SearchAssetsContainers(parm SearchAssetsContainersParam, filter *model.Filter) ([]model.AssetContainer, int64, error)
-	SearchRegistry(parm SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
-	GetImageOverView(parm GetImageOverViewParm) ([]ImageGroup, error)
-	GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string) (model.ScanTask, model.VirusScanTask, error)
+	InsertAdapterImageList(im model.ImageList) (int64, error)
+	SearchAssetsContainers(param SearchAssetsContainersParam, filter *model.Filter) ([]model.AssetContainer, int64, error)
+	SearchRegistry(param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
+	GetImageOverView(param GetImageOverViewParm) ([]ImageGroup, error)
+	SearchRejectPolicy(param SearchRejectPolicyParam) ([]model.RejectPolicy, error)
+	CreateRejectRecord(data model.RejectRecord) (*model.RejectRecord, error)
+
+	GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList)
+
+	GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string, auth string) (model.ScanTask, model.VirusScanTask, error)
 	SearchScanAllStatus(ctx context.Context) harbor.ScanAllStatus
 	GetVulnTotal(ctx context.Context) (int, error)
 	GetVulnSeverityCount(ctx context.Context) (model.SeverityCount, error)
@@ -59,6 +63,22 @@ type ScannerDalInterface interface {
 	SetAllImagePending(ctx context.Context) error
 
 	GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail
+
+	OverviewForInterval(interval int, intervalType string) ([]IntervalDateGroup, error)
+	OverviewReasonTopN(param OverviewReasonParam, filter *model.Filter) ([]model.RejectReasonStatistic, error)
+	SearchRejectRecord(param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error)
+	CreateImageWhitelist(data model.ImageWhitelist) (*model.ImageWhitelist, error)
+	SearchImageWhitelist(param SearchImageWhitelistParam, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
+	DeleteImageWhitelist(param DeleteImageWhitelistParam) error
+
+	GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.RejectPolicy, error)
+	AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error)
+	UpdatePolicy(ctx context.Context, policy model.RejectPolicy)
+	DeletePolicy(ctx context.Context, policyId int64)
+	IsInRegistry(ctx context.Context, library string) bool
+	GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []int64
+	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
+	GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy
 }
 
 type ScannerOrm struct {
@@ -66,6 +86,129 @@ type ScannerOrm struct {
 	ctx   context.Context // 一个空的context
 	psql  *gorm.DB
 	log   *logging.Logger
+}
+
+func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
+	res := s.psql.Model(model.Registry{}).Where("url = ?", library).First(&model.Registry{})
+	if res.RowsAffected < 1 {
+		return false
+	}
+	return true
+}
+
+func (s *ScannerOrm) GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList) {
+	resScanImage := model.ScanImage{}
+	s.psql.Model(model.ScanImage{}).Where("image_id = ?", imgId).First(&resScanImage)
+	resImageList := model.ImageList{}
+	s.psql.Model(model.ImageList{}).Where("id = ?", imgId).First(&resImageList)
+	return resScanImage, resImageList
+}
+
+func (s *ScannerOrm) GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy {
+	res := []model.RejectPolicy{}
+	s.psql.Model(model.RejectPolicy{}).Where("is_global = ?", true).Find(&res)
+	return res
+}
+
+func (s *ScannerOrm) AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy) {
+	res := s.psql.Model(&model.RejectPolicy{}).Where("is_global = ?", true).First(&model.RejectPolicy{})
+	if res.RowsAffected < 1 {
+		s.psql.Model(model.RejectPolicy{}).Create(&policy)
+	} else {
+		// fmt.Println("在更新")
+		s.psql.Model(&model.RejectPolicy{}).Where("is_global = ?", true).Select("cicd_enable", "k8s_enable", "mode", "online_monitor").Updates(&policy)
+	}
+	s.psql.Model(&model.RejectPolicy{}).Where("is_global = ?", false).Omit("is_global").Select("cicd_enable", "k8s_enable", "mode", "online_monitor").Updates(&policy)
+}
+
+func (s *ScannerOrm) SearchRejectPolicy(param SearchRejectPolicyParam) ([]model.RejectPolicy, error) {
+	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
+	defer cancelFunc()
+	db := s.psql.Model(new(model.RejectPolicy)).WithContext(ctx).Debug()
+	res := make([]model.RejectPolicy, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	// 序列化
+	for i := range res {
+		libs := make([]string, 0)
+		if err := json.Unmarshal(res[i].LibraryJSON, &libs); err == nil {
+			res[i].Library = libs
+		}
+	}
+	if param.Library != "" {
+		ans := make([]model.RejectPolicy, 0)
+		for i := range res {
+			for j := range res[i].Library {
+				if res[i].Library[j] == param.Library {
+					ans = append(ans, res[i])
+				}
+			}
+		}
+		return ans, nil
+	}
+	return res, nil
+}
+
+func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []int64 {
+	var resIds []int64
+	for k := range imageLists {
+		var id int64
+		s.psql.Model(model.ImageList{}).Select("id").
+			Where("full_repo_name=? AND tags=? AND library=?", imageLists[k].FullRepoName, imageLists[k].Tags, imageLists[k].Library).First(&id)
+		if id != 0 {
+			resIds = append(resIds, id)
+		}
+		/*if resScanImage.ImageId != 0 {
+			s.psql.Model(model.ScanImage{}).Where("image_id = ? AND status = ?", resScanImage.ImageId, model.ScanStatusSucceeded).First(&resScanImage)
+			if resScanImage.ID != 0 {
+				return resScanImage
+			}
+		}*/
+	}
+	return resIds
+}
+
+func (s ScannerOrm) DeletePolicy(ctx context.Context, policyId int64) {
+	s.psql.Model(model.RejectPolicy{}).Where("id = ? ", policyId).Delete(model.RejectPolicy{})
+	s.psql.Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyId).Delete(model.RejectVuln{})
+}
+
+func (s ScannerOrm) UpdatePolicy(ctx context.Context, policy model.RejectPolicy) {
+	s.psql.Model(model.RejectPolicy{}).Where("id = ?", policy.ID).Updates(&policy)
+	s.psql.Model(&model.RejectPolicy{}).Where("id = ?", policy.ID).Omit("is_global").Select("cicd_enable", "k8s_enable", "mode", "online_monitor", "vuln_score", "enable").Updates(&policy)
+	s.psql.Model(model.RejectVuln{}).Where("reject_policy_id = ?", policy.ID).Delete(model.RejectVuln{})
+	tmpVuln := []model.RejectVuln{}
+	tmpVuln = policy.RejectVulns
+	for k := range tmpVuln {
+		tmpVuln[k].RejectPolicyID = policy.ID
+	}
+	s.psql.Model(model.RejectVuln{}).Create(&tmpVuln)
+}
+
+func (s ScannerOrm) AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error) {
+	s.psql.Model(model.RejectPolicy{}).Create(&policy)
+	tmpVuln := []model.RejectVuln{}
+	tmpVuln = policy.RejectVulns
+	for k := range tmpVuln {
+		tmpVuln[k].RejectPolicyID = policy.ID
+	}
+	s.psql.Model(model.RejectVuln{}).Create(&tmpVuln)
+	return policy.ID, nil
+}
+
+func (s ScannerOrm) GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.RejectPolicy, error) {
+	tmpPolicies := []model.RejectPolicy{}
+	err := s.psql.Model(model.RejectPolicy{}).Where("deleted_at = 0 And is_global != true").Find(&tmpPolicies).Error
+	if err != nil {
+		return []model.RejectPolicy{}, nil
+	}
+	if getVuln == true {
+		for k := range tmpPolicies {
+			s.psql.Model(model.RejectVuln{}).Where("reject_policy_id = ?", tmpPolicies[k].ID).Find(&tmpPolicies[k].RejectVulns)
+		}
+	}
+	return tmpPolicies, nil
 }
 
 func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail {
@@ -85,7 +228,7 @@ func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest
 	return resDetail
 }
 
-func (s ScannerOrm) SetAllImagePending(ctx context.Context) error {
+func (s *ScannerOrm) SetAllImagePending(ctx context.Context) error {
 
 	err := s.psql.Model(model.ScanImage{}).Where("status != ?", model.ScanStatusInProgress).Update("status", model.ScanStatusPending).Error
 	if err != nil {
@@ -94,7 +237,7 @@ func (s ScannerOrm) SetAllImagePending(ctx context.Context) error {
 	return nil
 }
 
-func (s ScannerOrm) GetRelationImage(ctx context.Context, vulnImageLists []model.VulnImageList) ([]model.VulnDetailContainer, error) {
+func (s *ScannerOrm) GetRelationImage(ctx context.Context, vulnImageLists []model.VulnImageList) ([]model.VulnDetailContainer, error) {
 	type tmppodinfo struct {
 		podUID         string
 		podimage       string
@@ -188,7 +331,7 @@ func (s ScannerOrm) GetRelationImage(ctx context.Context, vulnImageLists []model
 	return res, nil
 }
 
-func (s ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error) {
+func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error) {
 	tmp := model.Vuln{}
 	// 取出对应vuln信息
 	err := s.psql.Model(model.Vuln{}).Where("name = ?", name).Find(&tmp).Error
@@ -224,7 +367,7 @@ func (s ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vuln
 	return res, nil
 }
 
-func (s ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
+func (s *ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
 	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
 	defer cancelFunc()
 	db := s.psql.Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version").Order("severity_int desc")
@@ -459,9 +602,8 @@ func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, url string) string
 	if res.RowsAffected < 1 {
 		return ""
 	}
-	key := []byte("talkerss")
 	decryPass := make([]byte, 1024)
-	decryPass, err := s.DesDecrypt(tmp.Password, key)
+	decryPass, err := util.DesDecrypt(tmp.Password, []byte(consts.EncryptPasswordKey))
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("NewCipher Error")
 		return ""
@@ -498,7 +640,7 @@ func (s *ScannerOrm) UpdateToScanImage(ctx context.Context, ScanImage *model.Sca
 	s.psql.Model(tmpImage).Updates(ScanImage)
 }
 
-func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string) (model.ScanTask, model.VirusScanTask, error) {
+func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string, auth string) (model.ScanTask, model.VirusScanTask, error) {
 
 	tmp := model.ImageList{}
 	res := s.psql.Where(&model.ImageList{ID: imgId}).First(&tmp)
@@ -506,8 +648,10 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, from
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应镜像记录")
 	}
 	authStr := s.GetAuthFromRegistry(ctx, tmp.Library)
-	if authStr == "" {
+	if authStr == "" && auth == "" {
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应仓库记录")
+	} else if authStr == "" {
+		authStr = auth
 	}
 	// return tmp, nil
 	task := model.ScanTask{
@@ -618,6 +762,12 @@ func (s *ScannerOrm) SearchScanImage(param SearchScanImageParam, filter *model.F
 			db = db.Where("image_id IN ? ", param.ImageIds)
 		}
 	}
+	if param.NoStatus != "" {
+		db = db.Where("status != ? ", param.NoStatus)
+	}
+	if param.Status != "" {
+		db = db.Where("status = ? ", param.Status)
+	}
 	// 先查总数
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {
@@ -671,10 +821,18 @@ func (s *ScannerOrm) SearchRegistry(param SearchRegistryParam, filter *model.Fil
 	db := s.psql.Model(new(model.Registry)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.RegistryIds) > 0 {
-		db = db.Where("id IN ? ", param.RegistryIds)
+		if len(param.RegistryIds) == 1 {
+			db = db.Where("id = ? ", param.RegistryIds[0])
+		} else {
+			db = db.Where("id IN ? ", param.RegistryIds)
+		}
 	}
 	if len(param.LibraryUrls) > 0 {
-		db = db.Where("url IN ? ", param.LibraryUrls)
+		if len(param.LibraryUrls) == 1 {
+			db = db.Where("url = ? ", param.LibraryUrls[0])
+		} else {
+			db = db.Where("url IN ? ", param.LibraryUrls)
+		}
 	}
 	// 先查总数
 	var cnt int64
@@ -690,7 +848,7 @@ func (s *ScannerOrm) SearchRegistry(param SearchRegistryParam, filter *model.Fil
 	key := []byte("talkerss")
 	for _, re := range res {
 		decryPass := make([]byte, 1024)
-		decryPass, err := s.DesDecrypt(re.Password, key)
+		decryPass, err := util.DesDecrypt(re.Password, key)
 		if err != nil {
 			continue
 		}
@@ -736,9 +894,6 @@ func (s *ScannerOrm) SearchImage(param SearchImageParam, filter *model.Filter) (
 	if param.TagSearch != "" {
 		db = db.Where("tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagSearch))
 	}
-	// if param.OnlineCount == TrueString {
-	//     db = db.Where("on_line_count > ? ", 0)
-	// }
 	if param.BiggerID > 0 {
 		db = db.Where("id > ?", param.BiggerID)
 	}
@@ -848,6 +1003,23 @@ func (s *ScannerOrm) SearchAssetsContainers(param SearchAssetsContainersParam, f
 	return res, cnt, nil
 }
 
+func (s *ScannerOrm) InsertAdapterImageList(im model.ImageList) (int64, error) {
+	tmp := model.ImageList{}
+	res := s.psql.Where("full_repo_name=? AND digest = ? AND registry_id = ?", im.FullRepoName, im.Digest, im.RegistryId).First(&tmp)
+	if res.RowsAffected < 1 {
+		err := s.psql.Create(&im).Error
+		return im.ID, err
+	}
+	if tmp.Status < 0 {
+		im.Status = 0
+	} else {
+		im.Status = tmp.Status
+	}
+	im.OnLineCount = tmp.OnLineCount
+	err := s.psql.Model(tmp).Updates(&im).Error
+	return tmp.ID, err
+}
+
 func NewScannerOrm(mongo *mongo.Client, psql *gorm.DB) *ScannerOrm {
 	return &ScannerOrm{
 		mongo: mongo,
@@ -855,43 +1027,4 @@ func NewScannerOrm(mongo *mongo.Client, psql *gorm.DB) *ScannerOrm {
 		psql:  psql,
 		log:   logging.GetLogger(),
 	}
-}
-
-func (scdb *ScannerOrm) DesEncrypt(origData, key []byte) ([]byte, error) {
-	block, err := des.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	origData = scdb.PKCS5Padding(origData, block.BlockSize())
-	blockMode := cipher.NewCBCEncrypter(block, key)
-	crypted := make([]byte, len(origData))
-	blockMode.CryptBlocks(crypted, origData)
-	return crypted, nil
-}
-
-func (scdb *ScannerOrm) PKCS5Padding(cipherText []byte, blockSize int) []byte {
-	padding := blockSize - len(cipherText)%blockSize
-	padText := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(cipherText, padText...)
-}
-
-func (scdb *ScannerOrm) DesDecrypt(crypted, key []byte) ([]byte, error) {
-	block, err := des.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	blockMode := cipher.NewCBCDecrypter(block, key)
-	origData := make([]byte, len(crypted))
-	// origData := crypted
-	blockMode.CryptBlocks(origData, crypted)
-	origData = scdb.PKCS5UnPadding(origData)
-	// origData = ZeroUnPadding(origData)
-	return origData, nil
-}
-
-func (scdb *ScannerOrm) PKCS5UnPadding(origData []byte) []byte {
-	length := len(origData)
-	// 去掉最后一个字节 unpadding 次
-	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
 }
