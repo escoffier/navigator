@@ -2,10 +2,11 @@ package alert
 
 import (
 	"context"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,7 +26,7 @@ func GenerateSeccompEvent(uuidGenerator *uuid.Generator, arg *SeccompEventArg) *
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
 			Module:   model.AlertModuleContainerSecurity,
-			Category: string(model.AlertKindSeccompProfile),
+			Category: "seccompProfile",
 			Name:     "seccompProfile",
 		},
 		NotifyContext: &pb.Context{
