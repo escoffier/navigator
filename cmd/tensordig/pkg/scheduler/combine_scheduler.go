@@ -38,8 +38,6 @@ func (cs *CombineSchedule) newConsumers(consumersInfo []string) error {
 			c = consumer.NewSeccompGeneration()
 		case "SeccompPrevent":
 			c = consumer.NewSeccompPrevent()
-		case "Reporter":
-			c = consumer.NewReporterConsumer()
 		}
 
 		// consumer init at "Schedule" method using "consumer.Init(cs.combinedChan[i])"
