@@ -67,7 +67,7 @@ emailCheck:
   host: smtp.feishu.cn
   port: 465
   username: console-robot@tensorsecurity.cn
-  password: asdkalsd
+  password: password 
   
 
 

@@ -108,10 +108,10 @@ console:
     host: smtp.feishu.cn
     port: 465
     username: console-robot@tensorsecurity.cn
-    password: r8UJgg7ejpSoDOAF
+    password: password 
 
 daemon:
-  enabled: true
+  enabled: false 
   image:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
