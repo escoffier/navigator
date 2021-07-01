@@ -234,7 +234,7 @@ image-validate: generate
 	docker build -t $(REPOPREFIX)/tensorsec-image-validator:latest -f ./build/image-validate/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty scanner scap-jobs console data drift-prevention holmes image-validate
+all: drift-prevention-client faulty scanner scap-jobs console data drift-prevention holmes image-validate daemon
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
