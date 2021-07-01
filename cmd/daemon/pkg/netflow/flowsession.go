@@ -1,4 +1,4 @@
-package netInfo
+package netflow
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	ct "github.com/florianl/go-conntrack"
 	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/model"
 	"golang.org/x/sys/unix"
 )
 
@@ -112,6 +113,18 @@ func (fs *FlowSession) filterUnusedSession(ip interface{}) bool {
 	return true
 }
 
+func (fs FlowSession) NetProtoConvert(proto uint8) uint8 {
+	switch proto {
+	case unix.IPPROTO_TCP:
+		return 1
+	case unix.IPPROTO_UDP:
+		return 2
+	default:
+		return 0
+	}
+	return 0
+}
+
 func (fs *FlowSession) conntrackInitList() error {
 	nfct, err := ct.Open(&ct.Config{})
 	if err != nil {
@@ -163,7 +176,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	}
 	flag := 0
 	infos := fs.krs.K8sPods
-	netData := K8sNetToplgy{
+	netData := model.K8sNetToplgy{
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -182,7 +195,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	}
 	//
 	netData.DstPort = int(dport)
-	netData.Proto = proto
+	netData.Proto = fs.NetProtoConvert(proto)
 	netData.Status = 1
 	netData.SrcRes.Cluster = "default"
 	netData.DstRes.Cluster = "default"
@@ -261,10 +274,16 @@ func (fs *FlowSession) CronCheckSession(sig chan struct{}) {
 func (fs *FlowSession) onFlowCallback(header syscall.NlMsghdr, flow *netlink.ConntrackFlow) error {
 	nlType := header.Type & 0xff
 	nlType = nlType & IPCTNL_MSG_CT_DELETE
+	iptuple := &flow.Forward
 
+	/*protocol*/
+	if iptuple.Protocol != unix.IPPROTO_TCP && iptuple.Protocol != unix.IPPROTO_UDP {
+		return nil
+	}
+
+	/*message type*/
 	switch nlType {
 	case IPCTNL_MSG_CT_NEW:
-		iptuple := &flow.Forward
 		return fs.ProcSessionData(&iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort, iptuple.Protocol)
 
 	case IPCTNL_MSG_CT_DELETE:

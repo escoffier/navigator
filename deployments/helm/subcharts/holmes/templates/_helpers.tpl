@@ -1,5 +1,30 @@
 {{/* vim: set filetype=mustache: */}}
 {{/*
+Return the daemon image name
+*/}}
+{{- define "daemon.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.tensorsecDaemon.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.tensorsecDaemon.image.repository "context" $)) -}}
+{{- $imageName := .Values.tensorsecDaemon.image.name -}}
+{{- $tag := .Values.tensorsecDaemon.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{{/*
+Return the init pgListerner image name
+*/}}
+{{- define "daemon.pgListerner.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.tensorsecDaemon.pgListerner.image.name -}}
+{{- $tag := .Values.tensorsecDaemon.pgListerner.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "falco.name" -}}

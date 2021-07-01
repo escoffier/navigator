@@ -21,6 +21,7 @@ require (
 	github.com/go-openapi/spec v0.19.9 // indirect
 	github.com/go-openapi/swag v0.19.9 // indirect
 	github.com/go-redis/redis/v8 v8.3.2
+	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/protobuf v1.5.2
@@ -86,6 +87,6 @@ require (
 )
 
 replace (
-	github.com/vishvananda/netlink => ./configs/tensordig/netlink
+	github.com/vishvananda/netlink => ./configs/daemon/netlink
 	gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf
 )

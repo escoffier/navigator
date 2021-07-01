@@ -21,7 +21,7 @@
 	path = cmd/go-audit
 	url = git@gitlab.com:tensorsecurity-rd/go-audit.git
 	branch = tensorsec
-[submodule "configs/tensordig/netlink"]
-	path = configs/tensordig/netlink
-	url = git@gitlab.com:tensorsecurity-rd/netlink.git
-	branch = tensorsec
+[submodule "configs/daemon/netlink"]
+	path = configs/daemon/netlink
+	url = https://gitlab.com/tensorsecurity-rd/netlink
+    branch = tensorsec

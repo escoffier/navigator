@@ -1,4 +1,4 @@
-package netInfo
+package netflow
 
 import (
 	"fmt"

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -10,43 +9,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/config"
 
 	log "github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/netInfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/tensordig/pkg/scheduler"
 )
-
-func NetInit(dbHost, dbUser, dbPwd, dbName, dbPort string) error {
-	db, err := netInfo.NewConnPgDB(dbHost, dbUser, dbPwd, dbName, dbPort)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize db connection, %v", err)
-	}
-
-	err = db.InitMigration()
-	if err != nil {
-		return fmt.Errorf("Failed to make initial migrations, %v", err)
-	}
-
-	k8sResSync, err := netInfo.NewK8sResourceSyncer()
-	if err != nil {
-		return fmt.Errorf("Failed to initialize k8s resource sycner, : %w", err)
-	}
-
-	err = k8sResSync.StartK8sServiceSyncer()
-	if err != nil {
-		return fmt.Errorf("listen k8s event failed, %v.", err)
-	}
-
-	flowsession, err := netInfo.NewFlowSession(k8sResSync, db)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize flow session, %w", err)
-	}
-
-	stopCron := make(chan struct{})
-	flowsession.Start(stopCron)
-
-	close(stopCron)
-
-	return nil
-}
 
 func main() {
 	configFilename := flag.String("config",
@@ -58,11 +22,6 @@ func main() {
 	debug := flag.Bool("debug",
 		false,
 		"Run in debug mode with extended logging")
-	dbHost := flag.String("dbHost", "tensorsec-postgresql", "PostgreSQL host")
-	dbUser := flag.String("dbUser", "postgres", "PostgreSQL username")
-	dbPwd := flag.String("dbPassword", "password", "PostgreSQL password")
-	dbName := flag.String("dbName", "postgres", "PostgreSQL database name")
-	dbPort := flag.String("dbPort", "5432", "PostgreSQL port")
 
 	flag.Parse()
 
@@ -71,22 +30,6 @@ func main() {
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
-
-	//print log
-	// log.Infof("host = %s, user = %s, pwd = %s, name = %s, port = %s, my-ip = %v.", *dbHost, *dbUser, *dbPwd, *dbName, *dbPort, os.Getenv("MY_POD_IP"))
-	// err := NetInit(*dbHost, *dbUser, *dbPwd, *dbName, *dbPort)
-	// if err != nil {
-	// 	log.Errorf("net init failed, %v.", err)
-	// }
-
-	log.Infof("configFilename = %s, exitDelay= %v.", *configFilename, *exitDelay)
-
-	go func() {
-		err := NetInit(*dbHost, *dbUser, *dbPwd, *dbName, *dbPort)
-		if err != nil {
-			log.Errorf("net init failed, %v.", err)
-		}
-	}()
 
 	cs := &scheduler.CombineSchedule{}
 	syscallPIFS, netPIFS, consumersInfo, err := config.ParseYaml(configFilename)
