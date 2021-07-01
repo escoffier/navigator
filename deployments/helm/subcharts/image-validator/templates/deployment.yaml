@@ -25,6 +25,7 @@ spec:
           protocol: TCP
         args:
         - --validateserver=tensorsec-scanner.{{ .Release.Namespace }}.svc:8888
+        - --IgnoredNameSpaces={{ .Values.args.IgnoredNameSpaces }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
         volumeMounts:
