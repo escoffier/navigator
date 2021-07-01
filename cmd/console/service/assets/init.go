@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microseg"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -18,7 +19,7 @@ var (
 )
 
 // Watcher singleton
-func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *AssetsInResourcesService) (*assets.Watcher, error) {
+func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *AssetsInResourcesService, kbmSvc *kubemonitor.Service) (*assets.Watcher, error) {
 	if sa == nil || ov == nil {
 		return nil, errors.New("arguments exist nil")
 	}
@@ -29,6 +30,7 @@ func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *Assets
 		wInstance.AddCallback(ov)
 		wInstance.AddCallback(image.NewAssetsImageAssociator(postgre))
 		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
+		wInstance.AddCallback(kbmSvc.RiskMonitor())
 	})
 	return wInstance, nil
 }

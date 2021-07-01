@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 const (
@@ -113,6 +114,29 @@ func shouldResourceBeFiltered(res *assets.TensorResource) bool {
 	return len(res.OwnerReferences) > 0 && res.OwnerReferences[0].Kind == string(assets.KindDeployment)
 }
 
+func (cl *ResourcesClusterListener) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
+func (cl *ResourcesClusterListener) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
+func (cl *ResourcesClusterListener) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cl *ResourcesClusterListener) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
+func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
+func (cl *ResourcesClusterListener) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
 func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
 
 	switch action {
