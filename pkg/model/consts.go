@@ -5,8 +5,8 @@ const (
 	RejectPolicyAlarm  = "alarm"  // 报警
 	RejectPolicyReject = "reject" // 阻断
 
-	RejectPolicyBaseModel = "safe" // 基本模式
-	RejectPolicySafeModel = "base" // 安全模式
+	RejectPolicyBaseModel = "base" // 基本模式
+	RejectPolicySafeModel = "safe" // 安全模式
 
 	// 漏洞级别
 	VulnLevelNegligible = "Negligible" // 可忽略
@@ -29,6 +29,7 @@ const (
 	RejectReasonHasHighVuln       = 9  // 存在危险漏洞
 	RejectReasonHasCriticalVuln   = 10 // 存在高危漏洞
 	RejectNoLibrary               = 11 // 来源镜像不在本地仓库（安全模式）
+	RejectScanFailure             = 12 // 镜像扫描失败
 )
 
 const (
@@ -47,7 +48,8 @@ const (
 	RejectReasonHasMediumVulnEN     = "Exist Medium vulnerability file"
 	RejectReasonHasHighVulnEN       = "Exist High vulnerability file"
 	RejectReasonHasCriticalVulnEN   = "Exist Critical vulnerability file"
-	RejectNoLibraryEN               = "image not in config registry(in safe mode)"
+	RejectNoLibraryEN               = "image not in config registry"
+	RejectScanFailureEN             = "image scan failure"
 
 	RejectReasonScoreZH             = "漏洞评分低于设置值"
 	RejectReasonHasSensitiveFileZH  = "存在敏感文件"
@@ -59,5 +61,6 @@ const (
 	RejectReasonHasMediumVulnZH     = "存在中危漏洞"
 	RejectReasonHasHighVulnZH       = "存在危险漏洞"
 	RejectReasonHasCriticalVulnZH   = "存在高危漏洞"
-	RejectNoLibraryZH               = "来源镜像不在本地仓库（安全模式）"
+	RejectNoLibraryZH               = "来源镜像不在本地仓库"
+	RejectScanFailureZH             = "镜像扫描失败" // 最后一个兜底的原因
 )

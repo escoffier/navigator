@@ -131,19 +131,21 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 		if newLibrary == "" || newLibrary == "index.docker.io" {
 			if resConfig[0].Mode == "safe" {
 				tmpImageList := model.ImageList{}
-				if index != -1 {
-					tmpImageList.Library = tmpImage[:index]
-					tmpImageList.FullRepoName = tmpImage[index+1 : tagIndex]
+				if newLibrary == "" {
+					tmpImageList.FullRepoName = tmpImage[:tagIndex]
+					tmpImageList.Tags = tmpImage[tagIndex+1:]
 				} else {
-					tmpImageList.FullRepoName = tmpImage[tagIndex+1:]
+					tmpImageList.Library = newLibrary
+					tmpImageList.FullRepoName = tmpImage[:tagIndex]
+					tmpImageList.Tags = tmpImage[tagIndex+1:]
 				}
 				s.CreateSafeReject(ctx, tmpImageList, msgType, 11, model.RejectNoLibraryZH)
 				return false
 			}
 		}
-		tmpLibrary := tmpImage[0:index]
-		if strings.Contains(tmpLibrary, "http://") == false && strings.Contains(tmpLibrary, "https://") == false {
-			tmpLibrary = "https://" + tmpLibrary
+		tmpLibrary := newLibrary
+		if strings.Contains(newLibrary, "http://") == false && strings.Contains(newLibrary, "https://") == false && newLibrary != "index.docker.io" {
+			tmpLibrary = "https://" + newLibrary
 		}
 		tmpFullRepoName := tmpImage[index+1 : tagIndex]
 		tmpTag := tmpImage[tagIndex+1:]
@@ -158,38 +160,46 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 			s.CreateSafeReject(ctx, tmpImageList, msgType, 11, model.RejectNoLibraryZH)
 			return false
 		}
-		//tmpImageLists = append(tmpImageLists, tmpImageList)
-		//_, cnt, _ := s.dbdal.SearchImageWhitelist(store.SearchImageWhitelistParam{
+		// tmpImageLists = append(tmpImageLists, tmpImageList)
+		// _, cnt, _ := s.dbdal.SearchImageWhitelist(store.SearchImageWhitelistParam{
 		//	Library:      tmpImageList.Library,
 		//	FullRepoName: tmpImageList.FullRepoName,
 		//	Tag:          tmpImageList.Tags,
-		//}, nil)
-		//if cnt == 0 {
+		// }, nil)
+		// if cnt == 0 {
 		tmpImageLists = append(tmpImageLists, tmpImageList)
-		//}
+		// }
 	}
-	//if len(tmpImageLists) == 0 {
+	// if len(tmpImageLists) == 0 {
 	//	return true // 全在白名单内
 	//	}
-	resIds := s.dbdal.GetK8sRejectImageList(ctx, tmpImageLists)
-	if len(resIds) == 0 && resConfig[0].Mode == "safe" { //安全模式下不在我们数据库内
-		s.CreateSafeReject(ctx, tmpImageLists[0], msgType, 11, model.RejectNoLibraryZH)
+	imgs := s.dbdal.GetK8sRejectImageList(ctx, tmpImageLists)
+	if len(imgs) == 0 && resConfig[0].Mode == "safe" { // 安全模式下不在我们数据库内
+		s.CreateSafeReject(ctx, tmpImageLists[0], msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
 		return false
-	} else if len(resIds) == 0 && resConfig[0].Mode == "base" {
+	} else if len(imgs) == 0 && resConfig[0].Mode == "base" {
 		return true
 	}
 	var flag bool
 	flag = true
-	for k := range resIds {
-		safe, kVHashs, _ := s.DetectImage(ctx, resIds[k], consts.UsePatternForK8s)
+	for k := range imgs {
+		safe, records, msgs, _ := s.DetectImage(ctx, imgs[k].ID, consts.UsePatternForK8s)
 		s.log.WithContext(ctx).Infof("检测镜像")
-		if len(kVHashs) > 0 {
+		if len(msgs) > 0 {
 			s.log.WithContext(ctx).Infof("发送事件中心")
-			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), kVHashs)
+			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs, fmt.Sprintf("%s/%s:%s", imgs[k].Library, imgs[k].FullRepoName, imgs[k].Tags))
 			if err := sendMsgToEventcenter(ctx, msg); err != nil {
 				s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
 			}
 		}
+		// 存储阻断记录
+		if !safe && len(records) > 0 {
+			res := mergeRejectRecord(imgs[k], records)
+			if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
+				s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
+			}
+		}
+
 		if safe == false {
 			flag = false
 		}
@@ -352,15 +362,23 @@ func (s *ConScannerSrv) ScanOneForDetectImage(ctx context.Context, library, proj
 		s.log.Info().Msg(fmt.Sprintf("第%d次没有查询到结果", i))
 		time.Sleep(time.Second * time.Duration(10))
 	}
-	safe, msgs, err := s.DetectImage(ctx, imgId, consts.UsePatternForCICD)
+	safe, records, msgs, err := s.DetectImage(ctx, imgId, consts.UsePatternForCICD)
 	// 向事件中心发送消息
 	if len(msgs) > 0 {
 		s.log.WithContext(ctx).Infof("向事件中心发送消息")
-		msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindCICD, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs)
+		msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindCICD, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs, fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags))
 		if err := sendMsgToEventcenter(ctx, msg); err != nil {
 			s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
 		}
 	}
+	// 存储阻断记录
+	if !safe && len(records) > 0 {
+		res := mergeRejectRecord(img, records)
+		if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
+			s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
+		}
+	}
+
 	return safe, err
 }
 
@@ -893,46 +911,47 @@ func (s *ConScannerSrv) getRegistry(ctx context.Context, library string) (regist
 }
 
 // DetectImage  判断该镜像是否安全
-func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePattern string) (bool, []model.KVHashs, error) {
+func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePattern string) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+
+	records := make([]ReasonAndDetail, 0)
+	msgs := make([]model.KVHashs, 0)
+	safe := true
+
 	imgs, _, err := s.dbdal.SearchImage(store.SearchImageParam{Ids: []int64{imageId}}, nil)
 	// 如果没有在数据库没有查到镜像，默认安全
 	if err != nil || len(imgs) == 0 {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("没有查到镜像"))
-		return true, nil, nil
+		return true, records, msgs, errors.New("没有查到镜像")
 	}
 	img := imgs[0]
 	policies, err := s.dbdal.SearchRejectPolicy(store.SearchRejectPolicyParam{Library: img.Library})
 	if err != nil || len(policies) == 0 { // 没有策略说明不检测，默认全安全
 		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("没有查到策略:Library:%s", img.Library))
-		return true, nil, nil
+		return true, nil, nil, nil
 	}
 
 	scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{imageId}, Status: model.ScanStatusSucceeded}, nil)
 	if err != nil {
-		return false, nil, err
+		return false, nil, nil, err
 	}
 	// 安全模式只针对k8s部署，对于cicd是要全检测
 	if len(scanImage) == 0 {
-		if usePattern == consts.UsePatternForK8s {
-			// 检测模式是全局的，所以取第一个既可
-			switch policies[0].Mode {
-			case model.RejectPolicyBaseModel:
-				return true, nil, nil
-			case model.RejectPolicySafeModel:
-				return false, nil, errors.New("not scanned")
-			default:
-				return true, nil, nil
-			}
-		}
-		if usePattern == consts.UsePatternForCICD {
-			return false, nil, nil
+		msgZh := fmt.Sprintf("镜像:%s:%s 扫描失败", img.FullRepoName, img.Tags)
+		msgEN := fmt.Sprintf("image:%s:%s scan failure", img.FullRepoName, img.Tags)
+		// 检测模式是全局的，所以取第一个既可
+		if (usePattern == consts.UsePatternForK8s && policies[0].Mode == model.RejectPolicySafeModel) || (usePattern == consts.UsePatternForCICD) {
+			safe = false
+			records = append(records, ReasonAndDetail{
+				RejectReason: model.RejectScanFailure,
+				RejectDetail: msgZh,
+			})
+
+			msgs = append(msgs, model.KVHashs{
+				KVHash: model.KVHash{
+					ZH: model.NewKeyValue(model.RejectScanFailureZH, msgZh),
+					EN: model.NewKeyValue(model.RejectScanFailureEN, msgEN)}})
 		}
 	}
 	scanRes := scanImage[0]
-	// 逐个验证
-	safe := true
-	records := make([]ReasonAndDetail, 0)
-	msgs := make([]model.KVHashs, 0)
 
 	for _, po := range policies {
 		if !po.Enable || (usePattern == consts.UsePatternForCICD && !po.CicdEnable) || (usePattern == consts.UsePatternForK8s && !po.K8sEnable) || po.IsGlobal {
@@ -1075,18 +1094,10 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 			Digest:       img.Digest,
 		}, nil)
 		if err != nil || len(wl) > 0 {
-			return true, msgs, nil
+			safe = true
 		}
 	}
-
-	if len(records) > 0 {
-		res := mergeRejectRecord(img, records)
-		if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
-		}
-	}
-
-	return safe, msgs, nil
+	return safe, records, msgs, nil
 }
 
 func NewConScannerSrv(dbdal store.ScannerDalInterface,
@@ -1283,7 +1294,7 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 	if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
 		s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
 	}
-	msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), tmpHashs)
+	msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), tmpHashs, fmt.Sprintf("%s/%s:%s", ImageList.Library, ImageList.FullRepoName, ImageList.Tags))
 	if err := sendMsgToEventcenter(ctx, msg); err != nil {
 		s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
 	}
@@ -1294,4 +1305,5 @@ type ReasonAndDetail struct {
 	RejectDetail string
 	VulnScore    int64
 	VulnLevel    string
+	Action       string // 下一期需求
 }

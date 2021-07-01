@@ -181,7 +181,7 @@ type RejectReasons struct {
 	EN map[int64]string `json:"en"`
 }
 
-func NewReqBody(ruleKey EventCenterRule, customKV []KVHashs) ReqBody {
+func NewReqBody(ruleKey EventCenterRule, customKV []KVHashs, serviceID string) ReqBody {
 	return ReqBody{
 		RuleKey: ruleKey,
 		NotifyContext: NotifyContext{
@@ -189,7 +189,7 @@ func NewReqBody(ruleKey EventCenterRule, customKV []KVHashs) ReqBody {
 			PodName:   "ImageSecurity-PodName",
 			Namespace: "ImageSecurity-Namespace",
 			Cluster:   "ImageSecurity-Cluster",
-			ServiceID: "ImageSecurity-ServiceID",
+			ServiceID: serviceID,
 			CustomKV:  customKV,
 		},
 		Timestamp: time.Now().Unix(),

@@ -76,7 +76,7 @@ type ScannerDalInterface interface {
 	UpdatePolicy(ctx context.Context, policy model.RejectPolicy)
 	DeletePolicy(ctx context.Context, policyId int64)
 	IsInRegistry(ctx context.Context, library string) bool
-	GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []int64
+	GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []model.ImageList
 	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
 	GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy
 }
@@ -150,14 +150,16 @@ func (s *ScannerOrm) SearchRejectPolicy(param SearchRejectPolicyParam) ([]model.
 	return res, nil
 }
 
-func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []int64 {
-	var resIds []int64
+func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []model.ImageList {
+	res := make([]model.ImageList, 0)
 	for k := range imageLists {
 		var id int64
 		s.psql.Model(model.ImageList{}).Select("id").
 			Where("full_repo_name=? AND tags=? AND library=?", imageLists[k].FullRepoName, imageLists[k].Tags, imageLists[k].Library).First(&id)
 		if id != 0 {
-			resIds = append(resIds, id)
+			imageLists[k].ID = id
+			res = append(res, imageLists[k])
+			// resIds = append(resIds, id)
 		}
 		/*if resScanImage.ImageId != 0 {
 			s.psql.Model(model.ScanImage{}).Where("image_id = ? AND status = ?", resScanImage.ImageId, model.ScanStatusSucceeded).First(&resScanImage)
@@ -166,7 +168,7 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, imageLists []mode
 			}
 		}*/
 	}
-	return resIds
+	return res
 }
 
 func (s ScannerOrm) DeletePolicy(ctx context.Context, policyId int64) {
