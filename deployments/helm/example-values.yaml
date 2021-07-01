@@ -86,6 +86,10 @@ image-validator:
   image:
     #tag: 1.6.8
     tag: *tensorsecVerison
+  args:
+    # Specify which namespace will not be validated by image ValidatingWebhook.
+    # E.g: IgnoredNameSpaces: tensorsec,tensorsec-test-cn,yournamespace
+      IgnoredNameSpaces: tensorsec
 
 
 redis:
