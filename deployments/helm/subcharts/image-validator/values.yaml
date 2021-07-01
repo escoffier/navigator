@@ -18,11 +18,11 @@ service:
 
 resources:
   limits:
-    cpu: 2000m
-    memory: 1024Mi
+    cpu: 200m
+    memory: 256Mi
   requests:
-    cpu: 10m
-    memory: 10Mi
+    cpu: 100m
+    memory: 100Mi
   
 args:
   # Specify which namespace will not be validated by image ValidatingWebhook.
