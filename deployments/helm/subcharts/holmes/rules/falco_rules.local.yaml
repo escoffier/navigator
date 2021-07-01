@@ -74,7 +74,7 @@
   condition: evt.type = execve and evt.dir=<
 
 - macro: create_symlink
-  condition: (evt.type in (symlink, symlinkat) and evt.dir=<
+  condition: evt.type in (symlink, symlinkat) and evt.dir=<
 
 - macro: chmod
   condition: (evt.type in (chmod, fchmod, fchmodat) and evt.dir=<)
