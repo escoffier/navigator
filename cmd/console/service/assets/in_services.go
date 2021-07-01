@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gopkg.in/mgo.v2/bson"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 func GetServiceAssetsService(ctx context.Context) (*ServiceAssetsService, bool) {
@@ -151,6 +152,25 @@ func (cb *ServiceAssetsClusterCallback) expireInactiveServiceEndpoints(ctx conte
 		logging.GetLogger().Err(err).Msgf("delete Tensor service collections error for cluster %s", cb.cluster)
 	}
 
+}
+
+func (cb *ServiceAssetsClusterCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *ServiceAssetsClusterCallback) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *ServiceAssetsClusterCallback) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *ServiceAssetsClusterCallback) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *ServiceAssetsClusterCallback) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *ServiceAssetsClusterCallback) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
+	return nil
 }
 
 func (cb *ServiceAssetsClusterCallback) Name() string {

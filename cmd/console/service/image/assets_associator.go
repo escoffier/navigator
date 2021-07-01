@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 type AssetsImageAssociator struct {
@@ -164,9 +165,30 @@ func (a *AssociatorClusterCB) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, 
 func (a *AssociatorClusterCB) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
 	return nil
 }
+
+func (cb *AssociatorClusterCB) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssociatorClusterCB) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssociatorClusterCB) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cl *AssociatorClusterCB) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
+	// do nothing
+	return nil
+}
+func (cb *AssociatorClusterCB) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssociatorClusterCB) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
+	return nil
+}
 func (a *AssociatorClusterCB) AfterDataSynced(ctx context.Context, dataSynced bool) {
 
 }
+
 func (a *AssociatorClusterCB) Name() string {
 	return "images_assets_associator"
 }

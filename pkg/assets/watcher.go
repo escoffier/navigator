@@ -15,6 +15,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -32,10 +33,17 @@ const (
 	ActionDelete
 	ActionUpdate
 
-	Endpoints2Watch       WatchedType = "endpoints"
-	Services2Watch        WatchedType = "services"
-	Pods2Watch            WatchedType = "pods"
-	TensorResources2Watch WatchedType = "tensorresources"
+	Endpoints2Watch           WatchedType = "endpoints"
+	Services2Watch            WatchedType = "services"
+	Pods2Watch                WatchedType = "pods"
+	Namespaces2Watch          WatchedType = "namespaces"
+	ReplicaSets2Watch         WatchedType = "replicasets"
+	Roles2Watch               WatchedType = "roles"
+	ClusterRoles2Watch        WatchedType = "clusterroles"
+	RoleBindings2Watch        WatchedType = "rolebindings"
+	ClusterRoleBindings2Watch WatchedType = "clusterrolebindings"
+	ServiceAccounts2Watch     WatchedType = "serviceaccounts"
+	TensorResources2Watch     WatchedType = "tensorresources"
 )
 
 type AssetsCallback interface {
@@ -50,6 +58,12 @@ type ClusterCallback interface {
 	OnPodEvent(newPod, oldPod *corev1.Pod, action AssetsAction) error
 	OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error
 	OnServiceEvent(newSvc, oldEvc *corev1.Service, action AssetsAction) error
+	OnRoleEvent(newRole, oldRole *rbacv1.Role, action AssetsAction) error
+	OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action AssetsAction) error
+	OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action AssetsAction) error
+	OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action AssetsAction) error
+	OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action AssetsAction) error
+	OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action AssetsAction) error
 	OnTensorResourceEvent(newResource, oldResource *TensorResource, action AssetsAction) error
 	AfterDataSynced(ctx context.Context, dataSynced bool)
 	Name() string
@@ -577,6 +591,253 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 						eptErr := cb.OnServiceEvent(newSvc, oldSvc, ActionUpdate)
 						if eptErr != nil {
 							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+						}
+					}
+				},
+			})
+		}
+
+		if _, toWatch := toWatchedTypes[Roles2Watch]; toWatch {
+			logging.GetLogger().Info().Msg("start watching roles")
+			rolesInformer := informerFactory.Rbac().V1().Roles().Informer()
+			var role *rbacv1.Role
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &rolesInformer,
+				targetType: reflect.TypeOf(role),
+			})
+
+			rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc: func(newObj interface{}) {
+					newRole, ok := newObj.(*rbacv1.Role)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnRoleEvent(newRole, nil, ActionAdd)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+						}
+					}
+				},
+				DeleteFunc: func(oldObj interface{}) {
+					oldRole, ok := oldObj.(*rbacv1.Role)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.Role")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnRoleEvent(nil, oldRole, ActionDelete)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on role    event %s error", cb.Name()))
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newRole, ok := newObj.(*rbacv1.Role)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
+						return
+					}
+					oldRole, ok := oldObj.(*rbacv1.Role)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
+						return
+					}
+
+					for _, cb := range callbacks {
+						roleErr := cb.OnRoleEvent(newRole, oldRole, ActionUpdate)
+						if roleErr != nil {
+							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on role event %s error", cb.Name()))
+						}
+					}
+				},
+			})
+		}
+
+		if _, toWatch := toWatchedTypes[ServiceAccounts2Watch]; toWatch {
+			logging.GetLogger().Info().Msg("start watching service accounts")
+			saInformer := informerFactory.Core().V1().ServiceAccounts().Informer()
+			var sa *corev1.ServiceAccount
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &saInformer,
+				targetType: reflect.TypeOf(sa),
+			})
+
+		}
+		if _, toWatch := toWatchedTypes[ClusterRoles2Watch]; toWatch {
+			logging.GetLogger().Info().Msg("start watching clusterroles")
+			rolesInformer := informerFactory.Rbac().V1().ClusterRoles().Informer()
+			var role *rbacv1.ClusterRole
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &rolesInformer,
+				targetType: reflect.TypeOf(role),
+			})
+
+			rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc: func(newObj interface{}) {
+					newRole, ok := newObj.(*rbacv1.ClusterRole)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnClusterRoleEvent(newRole, nil, ActionAdd)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on clusterrole event %s error", cb.Name()))
+						}
+					}
+				},
+				DeleteFunc: func(oldObj interface{}) {
+					oldRole, ok := oldObj.(*rbacv1.ClusterRole)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnClusterRoleEvent(nil, oldRole, ActionDelete)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on cluterrole event %s error", cb.Name()))
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newRole, ok := newObj.(*rbacv1.ClusterRole)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+						return
+					}
+					oldRole, ok := oldObj.(*rbacv1.ClusterRole)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+						return
+					}
+
+					for _, cb := range callbacks {
+						roleErr := cb.OnClusterRoleEvent(newRole, oldRole, ActionUpdate)
+						if roleErr != nil {
+							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on ClusterRole event %s error", cb.Name()))
+						}
+					}
+				},
+			})
+		}
+
+		if _, toWatch := toWatchedTypes[ClusterRoleBindings2Watch]; toWatch {
+			logging.GetLogger().Info().Msg("start watching clusterRoleBindings")
+			bindingsInformer := informerFactory.Rbac().V1().ClusterRoleBindings().Informer()
+			var binding *rbacv1.ClusterRoleBinding
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &bindingsInformer,
+				targetType: reflect.TypeOf(binding),
+			})
+
+			bindingsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc: func(newObj interface{}) {
+					newB, ok := newObj.(*rbacv1.ClusterRoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnClusterRoleBindingEvent(newB, nil, ActionAdd)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
+						}
+					}
+				},
+				DeleteFunc: func(oldObj interface{}) {
+					oldB, ok := oldObj.(*rbacv1.ClusterRoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnClusterRoleBindingEvent(nil, oldB, ActionDelete)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newB, ok := newObj.(*rbacv1.ClusterRoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+						return
+					}
+					oldB, ok := oldObj.(*rbacv1.ClusterRoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+						return
+					}
+
+					for _, cb := range callbacks {
+						roleErr := cb.OnClusterRoleBindingEvent(newB, oldB, ActionUpdate)
+						if roleErr != nil {
+							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
+						}
+					}
+				},
+			})
+		}
+
+		if _, toWatch := toWatchedTypes[RoleBindings2Watch]; toWatch {
+			logging.GetLogger().Info().Msg("start watching roleBindings")
+			rolesInformer := informerFactory.Rbac().V1().RoleBindings().Informer()
+			var role *rbacv1.RoleBinding
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &rolesInformer,
+				targetType: reflect.TypeOf(role),
+			})
+
+			rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc: func(newObj interface{}) {
+					newB, ok := newObj.(*rbacv1.RoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnRoleBindingEvent(newB, nil, ActionAdd)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
+						}
+					}
+				},
+				DeleteFunc: func(oldObj interface{}) {
+					oldB, ok := oldObj.(*rbacv1.RoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnRoleBindingEvent(nil, oldB, ActionDelete)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newB, ok := newObj.(*rbacv1.RoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+						return
+					}
+					oldB, ok := oldObj.(*rbacv1.RoleBinding)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+						return
+					}
+
+					for _, cb := range callbacks {
+						roleErr := cb.OnRoleBindingEvent(newB, oldB, ActionUpdate)
+						if roleErr != nil {
+							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
 						}
 					}
 				},

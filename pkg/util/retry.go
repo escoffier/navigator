@@ -12,7 +12,7 @@ var (
 		retry.MaxDelay(1 * time.Second),
 		retry.MaxJitter(200 * time.Millisecond),
 		retry.DelayType(retry.BackOffDelay),
-		retry.LastErrorOnly(true),
+		retry.LastErrorOnly(false),
 	}
 )
 

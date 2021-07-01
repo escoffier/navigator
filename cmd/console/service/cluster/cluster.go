@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -137,7 +138,8 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		// TODO: doesn't support multiple clusters yet.
 		svcService, _ := assetsSvc.GetServiceAssetsService(ctx)
 		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService)
+		kbmSvc, _ := kubemonitor.Get(ctx)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService, kbmSvc)
 		if werr != nil {
 			return werr
 		}
@@ -301,7 +303,8 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 
 		svcService, _ := assetsSvc.GetServiceAssetsService(ctx)
 		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService)
+		kbmSvc, _ := kubemonitor.Get(ctx)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService, kbmSvc)
 		if werr != nil {
 			return werr
 		}

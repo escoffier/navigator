@@ -20,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -142,7 +143,8 @@ func NewConsole(
 	if err != nil {
 		return nil, err
 	}
-	ecCli := pb.NewEventsCenterBizServiceClient(conn)
+	ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
+	ecColCli := pb.NewEventsCenterCollectionServiceClient(conn)
 
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
@@ -237,6 +239,10 @@ func NewConsole(
 		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
 	}
 
+	kbmErr := kubemonitor.Init(ecColCli)
+	if err != nil {
+		logging.GetLogger().Err(kbmErr).Msgf("ERROR: kubeMonitor init error")
+	}
 	svcErr := assetsSvc.Init(mongoDBWrapper, postgresDB)
 	if svcErr != nil {
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
@@ -278,7 +284,7 @@ func NewConsole(
 				redisClient,
 				harborClient,
 				emailOpts,
-				ecCli,
+				ecBuzCli,
 			),
 		},
 		monCliWrapper: mongoCliWrapper,
@@ -358,7 +364,9 @@ func (c *Console) Run() func() {
 	if kubeClient != nil {
 		svcSvc, _ := assetsSvc.GetServiceAssetsService(ctx)
 		inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
-		watcher, werr := assetsSvc.Watcher(c.postgresDB, svcSvc, inResSvc)
+		kbmSvc, _ := kubemonitor.Get(ctx)
+
+		watcher, werr := assetsSvc.Watcher(c.postgresDB, svcSvc, inResSvc, kbmSvc)
 		if werr != nil {
 			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
 		} else {
@@ -396,7 +404,6 @@ func (c *Console) Run() func() {
 }
 
 func postgreCheck(db *rdbtools.GormWrapper) error {
-
 	queryUser := model.User{}
 	err := db.Get().Where("username = ?", model.SUPER_ADMIN).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {

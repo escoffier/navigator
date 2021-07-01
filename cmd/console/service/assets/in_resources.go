@@ -25,6 +25,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -613,6 +614,25 @@ func (cb *AssetsInResourcesClusterCallback) markInactiveAssetContainers(ctx cont
 			fmt.Errorf("couldn't get containers: %w", err))
 	}
 
+	return nil
+}
+
+func (cb *AssetsInResourcesClusterCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssetsInResourcesClusterCallback) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssetsInResourcesClusterCallback) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssetsInResourcesClusterCallback) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssetsInResourcesClusterCallback) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *AssetsInResourcesClusterCallback) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
 	return nil
 }
 
