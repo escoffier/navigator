@@ -297,6 +297,17 @@ holmes:
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
+  tensorsecDaemon:
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      tag: latest
+    db:
+      host: tensorsec-postgresql
+      port: 5432
+      user: postgres
+      password: password
+      name: postgres
   ebpf:
     enabled: false
   falco:

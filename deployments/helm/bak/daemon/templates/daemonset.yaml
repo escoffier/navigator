@@ -1,0 +1,113 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "daemon.fullname" . }}
+  labels:
+    app: "{{ template "daemon.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+    {{- range $key, $value := .Values.labels }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: "{{ template "daemon.fullname" . }}"
+      release: {{ .Release.Name | quote }}
+  updateStrategy:
+    type: {{ .Values.updateStrategy }}
+  template:
+    metadata:
+      annotations:
+        {{- range $key, $value := .Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{/* This forces a restart if the configmap has changed */}}
+      name: "{{ template "daemon.fullname" . }}"
+      labels:
+        app: "{{ template "daemon.fullname" . }}"
+        chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        heritage: {{ .Release.Service | quote }}
+        release: {{ .Release.Name | quote }}
+        {{- range $key, $value := .Values.labels }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+    spec:
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName  }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 -}}
+      {{- end }}
+      serviceAccountName: {{ template "daemon.serviceAccount" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriod }}
+      {{- if .Values.hostNetworking }}
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      {{- if .Values.extraInitContainers.pgListerner.enabled }}
+      initContainers:
+      - name: "postgre-listener"
+        image: {{ include "daemon.pgListerner.image" . }}
+        imagePullPolicy: {{ .Values.extraInitContainers.pgListerner.image.PullPolicy }}
+        command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
+        resources:
+{{ toYaml .Values.extraInitContainers.pgListerner.resources | trim | indent 10 }}
+      {{- end }}
+      containers:
+      - name: tensorsec-daemon
+        image: {{ include "daemon.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        args: [
+          "--dbHost={{ .Values.db.host }}",
+          "--dbUser={{ .Values.db.user }}",
+          "--dbPassword={{ .Values.db.password }}",
+          "--dbName={{ .Values.db.name }}",
+          "--dbPort={{ .Values.db.port }}",
+        ]
+        resources:
+          requests:
+            memory: "300Mi"
+            cpu: "200m"
+          limits:
+            memory: "300Mi"
+            cpu: "200m"
+        env:
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: MY_HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: MY_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName

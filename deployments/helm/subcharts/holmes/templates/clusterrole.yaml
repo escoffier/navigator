@@ -10,6 +10,21 @@ metadata:
     heritage: "{{ .Release.Service }}"
 rules:
   - apiGroups:
+      - ""
+      - "security-profiles-operator.x-k8s.io"
+      - "apps"
+    resources:
+      - seccompprofiles
+      - namespaces
+      - pods
+      - services
+      - deployments
+      - replicasets
+    verbs:
+      - list
+      - watch
+      - get
+  - apiGroups:
       - extensions
       - ""
     resources:

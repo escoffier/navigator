@@ -30,7 +30,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ template "falco.serviceAccountName" .}}
-      {{- if (and .Values.ebpf.enabled .Values.ebpf.settings.hostNetwork) }}
+      {{- if or (and .Values.ebpf.enabled .Values.ebpf.settings.hostNetwork) .Values.tensorsecDaemon.enabled }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
@@ -55,6 +55,34 @@ spec:
       - name: {{ .Values.image.pullSecret }}
       {{- end }}
       containers:
+        - name: tensorsec-daemon
+          image: {{ include "daemon.image" . }}
+          imagePullPolicy: {{ .Values.tensorsecDaemon.image.pullPolicy }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          args: [
+            "--dbHost={{ .Values.tensorsecDaemon.db.host }}",
+            "--dbUser={{ .Values.tensorsecDaemon.db.user }}",
+            "--dbPassword={{ .Values.tensorsecDaemon.db.password }}",
+            "--dbName={{ .Values.tensorsecDaemon.db.name }}",
+            "--dbPort={{ .Values.tensorsecDaemon.db.port }}",
+          ]
+          resources:
+{{ toYaml .Values.tensorsecDaemon.resources | trim | indent 12 }}
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: MY_HOST_IP
+              valueFrom:
+               fieldRef:
+                   fieldPath: status.hostIP
+            - name: MY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
         - name: {{ .Chart.Name }}
           image: {{ template "falco.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -145,9 +173,24 @@ spec:
             {{- if .Values.extraVolumeMounts }}
 {{ toYaml .Values.extraVolumeMounts | indent 12 }}
             {{- end }}
-      {{- if .Values.extraInitContainers }}
+      {{- if (or .Values.extraInitContainers .Values.tensorsecDaemon.pgListerner.enabled) }}
       initContainers:
+      {{- if .Values.tensorsecDaemon.pgListerner.enabled }}
+      - name: "postgre-listener"
+        image: {{ include "daemon.pgListerner.image" . }}
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "50m"
+            memory: "128Mi"
+      {{- end }}
+      {{- if .Values.extraInitContainers }}
 {{ toYaml .Values.extraInitContainers | indent 12 }}
+      {{- end }}
       {{- end }}
       volumes:
         {{- if .Values.docker.enabled }}

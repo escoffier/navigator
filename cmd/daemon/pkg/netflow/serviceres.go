@@ -1,4 +1,4 @@
-package netInfo
+package netflow
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -22,7 +23,7 @@ type K8sResClient struct {
 
 func NewK8sResourceSyncer() (*K8sResClient, error) {
 	var k8sPods K8sResInfos
-	k8sPods.ResInfos = make(map[string]*K8sResData)
+	k8sPods.ResInfos = make(map[string]*model.K8sResData)
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -47,6 +48,7 @@ func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*
 	var tPortName string
 	owners := []*OwnerRef{}
 	tmp := map[string]*OwnerRef{}
+	existflag := false
 
 	services, err := rs.k8sClient.CoreV1().Services(ns).Get(svc, metav1.GetOptions{})
 	if err != nil {
@@ -65,9 +67,14 @@ func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*
 		} else {
 			tPortName = target.StrVal
 		}
+		existflag = true
 		break
 	}
 
+	if !existflag {
+		return owners, targetPort
+	}
+	
 	map2string := func(m map[string]string) string {
 		s := []string{}
 		for k, v := range m {
@@ -115,7 +122,11 @@ func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*
 func (rs K8sResClient) GetOwnerReferences(pod *corev1.Pod) (string, string) {
 	owner := metav1.GetControllerOf(pod)
 	if owner == nil {
-		return pod.GetName(), pod.Kind
+		kind := pod.Kind
+		if len(kind) == 0 || kind == "" {
+			kind = "Pod"
+		}
+		return pod.GetName(), kind
 	}
 
 	ownername := owner.Name
