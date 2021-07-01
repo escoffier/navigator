@@ -74,7 +74,7 @@
   condition: evt.type = execve and evt.dir=<
 
 - macro: create_symlink
-  condition: (evt.type in (symlink, symlinkat) or syscall in (link, linkat)) # and evt.dir=<
+  condition: (evt.type in (symlink, symlinkat) and evt.dir=<
 
 - macro: chmod
   condition: (evt.type in (chmod, fchmod, fchmodat) and evt.dir=<)
@@ -2837,7 +2837,7 @@
   desc: Detect symlink created over sensitive files
   condition: >
     create_symlink
-    # and (evt.arg.target in (sensitive_file_names) or evt.arg.target in (sensitive_directory_names) or link_sensitive_files)
+    and (evt.arg.target in (sensitive_file_names) or evt.arg.target in (sensitive_directory_names) or link_sensitive_files)
   output: >
     Symlinks created over senstivie files (zh_msg=通过敏感文件创建符号链接;检测通过敏感文件创建的符号链接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid target=%evt.arg.target linkpath=%evt.arg.linkpath parent_process=%proc.pname)
   priority: NOTICE
