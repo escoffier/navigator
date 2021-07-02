@@ -5,7 +5,6 @@ type Collection int
 const (
 	AssetsContainersCollection Collection = iota
 	ClusterCollection
-	ScanTasksCollection
 	ComplianceCheckResults
 	ComplianceCheckKubeRecordsCollection
 	ComplianceCheckDockerRecordsCollection
@@ -32,7 +31,6 @@ func GetCollectionNames() []string {
 	return []string{
 		"assets-containers",
 		"cluster",
-		"scantasks",
 		"complianceCheckResults",
 		"kube-bench-records",
 		"docker-bench-records",

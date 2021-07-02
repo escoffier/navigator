@@ -139,14 +139,6 @@ func UpdateAsset(mongodb *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormW
 
 	}
 
-	if shaDigest != "" {
-		scanTask, wasScanned, err := getScanTaskByDigest(mongoCtx, mongodb, shaDigest)
-		assetContainer.WasScanned = wasScanned
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Str("asset", fmt.Sprintf("%+v", assetContainer)).Msg("Failed to get scanner task for image")
-		}
-		UpdateAssetScanningDetails(&assetContainer, &scanTask)
-	}
 	if isDeleteEvent {
 		assetContainer.HistoricisedTimestamp = time.Now()
 	}
@@ -437,47 +429,6 @@ func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEp
 	}
 
 	return nil
-}
-
-func getScanTaskByDigest(ctx context.Context, mongodb *mongotools.DatabaseWrapper, digest string) (model.ScanTask, bool, error) {
-	filter := bson.M{
-		"$and": []bson.M{
-			{"stale": false},
-			{"status": model.ScanStatusSucceeded},
-			{"digest": digest},
-		},
-	}
-
-	findOptions := options.FindOne()
-
-	findOptions.SetMaxTime(time.Second * 10)
-
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-
-	wasScanned := false
-
-	singleResult := mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(mongoCtx, filter, findOptions)
-	if singleResult.Err() == mongo.ErrNoDocuments {
-		// Maybe we haven't scanned this image yet, return no results, but indicate that we don't know
-		return model.ScanTask{}, wasScanned, nil
-	}
-
-	if singleResult.Err() != nil {
-		return model.ScanTask{}, wasScanned,
-			NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find freshest scan: %w", singleResult.Err()))
-	}
-
-	wasScanned = true
-
-	var scanTask model.ScanTask
-	err := singleResult.Decode(&scanTask)
-	if err != nil {
-		return model.ScanTask{}, wasScanned,
-			NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode scan task: %w", err))
-	}
-
-	return scanTask, wasScanned, nil
 }
 
 // GetPodNamesFromOwnerRef returns podname, resourceKind, and error if have.
