@@ -182,6 +182,9 @@ func uuid(ruleName string, evt pkg.KubeMonitorEvent, now time.Time) uint64 {
 	return h.Sum64()
 }
 
+func getEventTargetID(roleName string, kind string) string {
+	return fmt.Sprintf("%s (%s)", roleName, kind)
+}
 func (s *Service) newNotifReq(ctx context.Context, evt pkg.KubeMonitorEvent, rule *pkg.RiskyRoleItem) *pb.SendNotificationReq {
 	defer func() {
 		if r := recover(); r != nil {
@@ -203,7 +206,7 @@ func (s *Service) newNotifReq(ctx context.Context, evt pkg.KubeMonitorEvent, rul
 	switch evt.Kind {
 	case pkg.KindRole:
 		req.NotifyContext.Namespace = evt.TargetRole.Namespace
-		req.NotifyContext.ServiceID = evt.TargetRole.Name
+		req.NotifyContext.ServiceID = getEventTargetID(evt.TargetRole.Name, string(evt.Kind))
 		req.NotifyContext.CustomKV = append(req.NotifyContext.CustomKV,
 			&pb.MultiLanguageKV{
 				KVHash: map[string]*pb.KV{
@@ -231,8 +234,8 @@ func (s *Service) newNotifReq(ctx context.Context, evt pkg.KubeMonitorEvent, rul
 			},
 		)
 	case pkg.KindClusterRole:
-		req.NotifyContext.Namespace = "_ClusterGlobal"
-		req.NotifyContext.ServiceID = evt.TargetClusterRole.Name
+		req.NotifyContext.Namespace = "-"
+		req.NotifyContext.ServiceID = getEventTargetID(evt.TargetClusterRole.Name, string(evt.Kind))
 		req.NotifyContext.CustomKV = append(req.NotifyContext.CustomKV,
 			&pb.MultiLanguageKV{
 				KVHash: map[string]*pb.KV{
