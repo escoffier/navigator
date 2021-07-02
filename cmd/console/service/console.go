@@ -459,58 +459,6 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 
 func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
 	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
-	neededIndexesPerCollection[model.ScanTasksCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"finishedAt": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"firstScanAt": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"scan_report.overallSeverity": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"scan_report.overallSeverityInt": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"repository": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"tag": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"imageDigest": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"stale": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"status": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"digest": 1,
-			}, Options: nil,
-		},
-	}
 	for _, col := range []string{model.ComplianceCheckKubeRecordsCollection.String(),
 		model.ComplianceCheckDockerRecordsCollection.String(),
 		model.ComplianceCheckHostRecordsCollection.String()} {

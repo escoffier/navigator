@@ -15,25 +15,18 @@ import (
 
 	"github.com/go-chi/chi"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // 转发scanner中 /api/v1/scan 开头的接口
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/task/{taskID}", api.getScannerTask())
 		r.Get("/reportsByImageList", api.RedirectToScanner(true))     // don
 		r.Get("/reportsByImageOverview", api.RedirectToScanner(true)) // don
 		r.Get("/reportsByImageDetails", api.RedirectToScanner(true))  // don
-		r.Get("/report/{taskID}", api.getScannerImageVulnerabilities())
 		r.Post("/scan", api.scan())
 		r.Post("/scanone", api.RedirectToScanner(true))
 
@@ -74,113 +67,6 @@ func getTaskObjectIDFromURL(r *http.Request) (primitive.ObjectID, error) {
 		return primitive.NilObjectID, errors.New("taskID is not provided")
 	}
 	return primitive.ObjectIDFromHex(taskID)
-}
-
-// @Summary Get image and its vulnerabilities
-// @Description Get image and its vulnerabilities
-// @Produce json
-// @Param taskID path string true "scan task ID"
-// @Router /api/v1/scanner/report/{taskID} [get]
-func (api *api) getScannerImageVulnerabilities() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// get ObjectID
-		taskObjectID, err := getTaskObjectIDFromURL(r)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't read taskID: %w", err),
-					Suberror{"taskID", ""}))
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		findOneOptions := options.FindOne().SetMaxTime(time.Second * 10)
-
-		// from mongo
-		var scanTask model.ScanTask
-		err = api.mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(
-			ctx, bson.M{"_id": taskObjectID}, findOneOptions).Decode(&scanTask)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-
-		result := &model.ImageScanDetailedResult{}
-		report := scanTask.ScanReport.Vulns
-		result.HarborURL = scanTask.HarborURL
-
-		topVulnsNum := len(report.Vulnerabilities)
-		if len(report.Vulnerabilities) >= 5 {
-			topVulnsNum = 5
-		}
-		result.TopVulns = report.Vulnerabilities[:topVulnsNum]
-
-		if len(result.TopVulns) >= 1 {
-			result.OverallSeverity = report.Vulnerabilities[0].Severity
-		} else {
-			result.OverallSeverity = redclair.SeverityUnknown
-		}
-
-		result.Repository = report.Repository
-		result.Tag = report.Tag
-		result.Digest = report.Digest
-		for i := range report.PerLayerReport {
-			for j := range report.PerLayerReport[i].Sensitives {
-				if lang.Language(ctx) == lang.LanguageZH {
-					description := report.PerLayerReport[i].Sensitives[j].DescriptionZh
-					report.PerLayerReport[i].Sensitives[j].Description = description
-				} else {
-					description := report.PerLayerReport[i].Sensitives[j].DescriptionEn
-					report.PerLayerReport[i].Sensitives[j].Description = description
-				}
-			}
-		}
-		result.PerLayerReport = report.PerLayerReport
-		result.TaskID = scanTask.ID
-		result.SeverityHistogram = scanTask.ScanReport.Vulns.SeverityHistogram
-
-		response.Ok(w, response.WithItem(*result))
-	}
-}
-
-// @Summary Get a scan task by scantask ID
-// @Description Get a scan task
-// @ID v1-scanner-task-get
-// @Produce json
-// @Param taskID path string true "scan task ID"
-// @Router /api/v1/scanner/task/{taskID} [get]
-func (api *api) getScannerTask() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// get ObjectID
-		taskObjectID, err := getTaskObjectIDFromURL(r)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't read taskID: %w", err),
-					Suberror{"taskID", ""}))
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		oneOptions := options.FindOne().SetMaxTime(time.Second * 10)
-		// from mongo
-		var result model.ScanTask
-		err = api.mongodb.Get().Collection(model.ScanTasksCollection.String()).FindOne(
-			ctx, bson.M{"_id": taskObjectID}, oneOptions).Decode(&result)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-		response.Ok(w, response.WithItem(result))
-	}
 }
 
 // @Summary Tell scanner to scan an image
