@@ -67,7 +67,7 @@ func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mon
 		postgresSvc:   postgresSvc,
 		redisClient:   rc,
 		scanTasksChan: make(chan model.VirusScanTask, 1000),
-		cicdTasksChan: make(chan model.VirusScanTask, 5),
+		cicdTasksChan: make(chan model.VirusScanTask, 10),
 		numWorkers:    clairOpts.NumWorkers,
 		statusQueue:   sync.Map{},
 	}, nil
@@ -277,7 +277,21 @@ func (virusScan *VirusScan) workerRun(ctx context.Context, id int, wg *sync.Wait
 loop:
 	for {
 		select {
+		case scanTask := <-virusScan.cicdTasksChan:
+			zerolog.Ctx(ctx).Info().Msg("Received CICD VirusScan task")
+			virusScan.processScanTask(ctx, scanTask, llms)
+			zerolog.Ctx(ctx).Info().Msg("Finish CICD VirusScan task")
+
 		case scanTask := <-virusScan.scanTasksChan:
+		priority:
+			for {
+				select {
+				case scanTask := <-virusScan.cicdTasksChan:
+					virusScan.processScanTask(ctx, scanTask, llms)
+				default:
+					break priority
+				}
+			}
 			zerolog.Ctx(ctx).Info().Msg("Received VirusScan task")
 			virusScan.processScanTask(ctx, scanTask, llms)
 			zerolog.Ctx(ctx).Info().Msg("Finish VirusScan task")

@@ -44,7 +44,7 @@ type ScannerSrv interface {
 	GetImageOverView(ctx context.Context, registerUrl string) (*model.OverView, error)
 	GetScanOneStatus(ctx context.Context, imgId int64, fromUrl string) (*model.ScanOneStatusResponse, error)
 	TickScanOne(ctx context.Context, imgId int64, fromUrl string, comefrom int) error
-	ScanOneForDetectImage(ctx context.Context, library, projectName, repoName, tag string, maxSecond int) (bool, error)
+	ScanOneForCICD(ctx context.Context, library, projectName, repoName, tag string, maxSecond int) (bool, int64, []model.KVHashs, error)
 	ScanAllNow(ctx context.Context, fromUrl string) error
 	GetScanAllStatus(ctx context.Context) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
@@ -187,7 +187,7 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 		s.log.WithContext(ctx).Infof("检测镜像")
 		if len(msgs) > 0 {
 			s.log.WithContext(ctx).Infof("发送事件中心")
-			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs, fmt.Sprintf("%s/%s:%s", imgs[k].Library, imgs[k].FullRepoName, imgs[k].Tags))
+			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs, fmt.Sprintf("%s/%s:%s(image)", imgs[k].Library, imgs[k].FullRepoName, imgs[k].Tags))
 			if err := sendMsgToEventcenter(ctx, msg); err != nil {
 				s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
 			}
@@ -297,25 +297,25 @@ func (s *ConScannerSrv) CheckProjectAndCreateIfNotExist(ctx context.Context, lib
 	return nil
 }
 
-func (s *ConScannerSrv) ScanOneForDetectImage(ctx context.Context, library, projectName, fullRepoName, tag string, maxSecond int) (bool, error) {
+func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, library, projectName, fullRepoName, tag string, maxSecond int) (bool, int64, []model.KVHashs, error) {
 	// cicd集成时，首先会把公司镜像推送到我们自己搭建的harborV2仓库中,然后拉取镜像进行扫描，
 	// 通过library查registryID
 	regs, _, err := s.dbdal.SearchRegistry(store.SearchRegistryParam{LibraryUrls: []string{library}}, nil)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("can not find the library:%s", library))
-		return false, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not find the library:%s,error is %s", library, err.Error())))
+		return false, 0, nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not find the library:%s,error is %s", library, err.Error())))
 	}
 	if len(regs) == 0 {
-		return false, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not find the library:%s", library)))
+		return false, 0, nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not find the library:%s", library)))
 	}
 	regi, err := s.getRegistry(ctx, library)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("can not connect harborV2"))
-		return false, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
+		return false, 0, nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
 	}
 	image, err := regi.GetImage(projectName, fullRepoName, tag)
 	if err != nil {
-		return false, err
+		return false, 0, nil, err
 	}
 	s.log.Info().Msg("从harbor获取到image:" + image.Repository + " " + image.ImageDigest)
 	img := model.ImageList{
@@ -336,12 +336,12 @@ func (s *ConScannerSrv) ScanOneForDetectImage(ctx context.Context, library, proj
 	// 同步镜像到数据库
 	imgId, err := s.scannerDB.InsertImageList(img)
 	if err != nil {
-		return false, err
+		return false, 0, nil, err
 	}
 	// 下达扫描指令
 	s.log.Info().Msg("下达扫描指令,imagId:" + strconv.Itoa(int(imgId)))
 	if err := s.TickScanOne(ctx, imgId, "", consts.ScanTaskComeFromCICD); err != nil {
-		return false, err
+		return false, imgId, nil, err
 	}
 	// 轮询查看扫描结果(默认1分钟)
 	maxTimes := maxSecond / 10
@@ -353,7 +353,7 @@ func (s *ConScannerSrv) ScanOneForDetectImage(ctx context.Context, library, proj
 	for i := 1; i <= maxTimes; i++ {
 		scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{imgId}, Status: model.ScanStatusSucceeded}, nil)
 		if err != nil {
-			return false, err
+			return false, imgId, nil, err
 		}
 		if len(scanImage) > 0 {
 			s.log.Info().Msg("已查询到结果")
@@ -366,7 +366,7 @@ func (s *ConScannerSrv) ScanOneForDetectImage(ctx context.Context, library, proj
 	// 向事件中心发送消息
 	if len(msgs) > 0 {
 		s.log.WithContext(ctx).Infof("向事件中心发送消息")
-		msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindCICD, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs, fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags))
+		msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindCICD, consts.AlertModuleContainerSecurity, consts.ImageSecurity), msgs, fmt.Sprintf("%s/%s:%s(image)", img.Library, img.FullRepoName, img.Tags))
 		if err := sendMsgToEventcenter(ctx, msg); err != nil {
 			s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
 		}
@@ -379,7 +379,7 @@ func (s *ConScannerSrv) ScanOneForDetectImage(ctx context.Context, library, proj
 		}
 	}
 
-	return safe, err
+	return safe, imgId, msgs, err
 }
 
 func (s *ConScannerSrv) GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail {
@@ -1294,7 +1294,7 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 	if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
 		s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
 	}
-	msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), tmpHashs, fmt.Sprintf("%s/%s:%s", ImageList.Library, ImageList.FullRepoName, ImageList.Tags))
+	msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), tmpHashs, fmt.Sprintf("%s/%s:%s(image)", ImageList.Library, ImageList.FullRepoName, ImageList.Tags))
 	if err := sendMsgToEventcenter(ctx, msg); err != nil {
 		s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
 	}

@@ -195,6 +195,7 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 	s.log.WithContext(ctx).Infof("收到CICD的请求")
 	type tmpRecv struct {
 		Library      string `json:"library"`
+		DomainName   string `json:"domain_name"`
 		ProjectName  string `json:"project_name"`
 		FullRepoName string `json:"full_repo_name"`
 		Tag          string `json:"tag"`
@@ -218,15 +219,70 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 	if !strings.Contains(tmp.Library, "http") {
 		tmp.Library = "https://" + tmp.Library
 	}
-	safe, err := s.Srv.ScanOneForDetectImage(ctx, tmp.Library, tmp.ProjectName, tmp.FullRepoName, tmp.Tag, int(second))
+	safe, imgId, msgs, err := s.Srv.ScanOneForCICD(ctx, tmp.Library, tmp.ProjectName, tmp.FullRepoName, tmp.Tag, int(second))
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	type resp struct {
-		Safe bool `json:"safe"`
+	res := make([]string, 0)
+	// 第一行返回镜像是否安全结果
+	res = append(res, fmt.Sprintf("%t", safe))
+	if strings.HasSuffix(tmp.DomainName, "/") {
+		tmp.DomainName = string([]byte(tmp.DomainName)[:len(tmp.DomainName)-1])
 	}
-	ctx.JSON(http.StatusOK, resp{Safe: safe})
+
+	res = append(res, fmt.Sprintf("详情请见:%s/#/image-scanning/recent-scan?id=%d", tmp.DomainName, imgId))
+
+	if len(msgs) > 0 {
+		res = append(res, fmt.Sprintf("扫描后命中策略如下:"))
+		for _, ms := range msgs {
+			res = append(res, fmt.Sprintf("%s", ms.KVHash.ZH.Value))
+		}
+	}
+
+	img, err := s.Srv.GetImageDetail(ctx, imgId)
+	if err != nil {
+		bys, err := json.Marshal(strings.Join(res, " \n"))
+		if err != nil {
+			ctx.Writer.Write(bys)
+		}
+		return
+	}
+	// 拼装镜像扫描数据数据
+	// 先看漏洞
+	if len(img.ImageScanVuln.TopVulns) > 0 {
+		res = append(res, fmt.Sprintf("镜像漏洞信息如下："))
+		res = append(res, fmt.Sprintf("漏洞编号  严重程度  软件包 软件版本"))
+		for _, vu := range img.ImageScanVuln.TopVulns {
+			res = append(res, fmt.Sprintf("%s %s %s %s ", vu.ID, vu.Severity, vu.FeatureName, vu.FixedBy))
+		}
+	}
+	// 再看敏感文件
+	if len(img.ImageScanVuln.SensitiveFiles) > 0 {
+		res = append(res, fmt.Sprintf("镜像敏感文件信息如下："))
+		res = append(res, fmt.Sprintf("敏感文件名  文件路径  文件类型 "))
+		for _, vu := range img.ImageScanVuln.SensitiveFiles {
+			split := strings.Split(vu.Name, "/")
+			if len(split) < 1 {
+				continue
+			}
+			res = append(res, fmt.Sprintf("%s %s ", split[len(split)-1], vu.Name))
+		}
+	}
+	// 再查恶意文件
+	if len(img.ImageScanVirus) > 0 {
+		res = append(res, fmt.Sprintf("镜像恶意文件信息如下："))
+		res = append(res, fmt.Sprintf("镜像名  文件名  文件路径 "))
+		for _, vu := range img.ImageScanVirus {
+			res = append(res, fmt.Sprintf("%s %s %s", vu.Virusname, vu.Filename, vu.Filepath))
+		}
+	}
+
+	bys, err := json.Marshal(strings.Join(res, " \n"))
+	if err != nil {
+		return
+	}
+	ctx.Writer.Write(bys)
 }
 
 func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
