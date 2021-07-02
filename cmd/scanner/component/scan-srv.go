@@ -951,14 +951,13 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 					EN: model.NewKeyValue(model.RejectScanFailureEN, msgEN)}})
 		}
 	}
-	scanRes := scanImage[0]
 
 	for _, po := range policies {
 		if !po.Enable || (usePattern == consts.UsePatternForCICD && !po.CicdEnable) || (usePattern == consts.UsePatternForK8s && !po.K8sEnable) || po.IsGlobal {
 			continue
 		}
 		//  验证恶意文件
-		if len(scanRes.MaliciousInfo) > 0 {
+		if len(scanImage) > 0 && len(scanImage[0].MaliciousInfo) > 0 {
 			s.log.WithContext(ctx).Infof("包含恶意文件,imagId:" + strconv.Itoa(int(img.ID)))
 
 			msgZh := fmt.Sprintf("镜像:%s:%s 存在恶意文件", img.FullRepoName, img.Tags)
@@ -987,7 +986,7 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 			}
 		}
 		// 验证敏感文件
-		if len(scanRes.SensitiveFile) > 0 {
+		if len(scanImage) > 0 && len(scanImage[0].SensitiveFile) > 0 {
 			msgZh := fmt.Sprintf("镜像:%s:%s 存在敏感文件", img.FullRepoName, img.Tags)
 			msgEN := fmt.Sprintf("Image:%s:%s Exist sensitive file", img.FullRepoName, img.Tags)
 			s.log.WithContext(ctx).Infof("包含敏感文件,imagId:" + strconv.Itoa(int(img.ID)))
@@ -1017,69 +1016,70 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 		for i := range po.RejectVulns {
 			customizeVuluMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
 		}
+		if len(scanImage) > 0 {
+			for _, vu := range scanImage[0].VulnInfo {
+				// 先检查自定义漏洞规则
+				if svn, ok := customizeVuluMap[vu.ID]; ok {
+					s.log.WithContext(ctx).Infof("包含自定义漏洞,imagId:" + strconv.Itoa(int(img.ID)))
+					msgZh := fmt.Sprintf("镜像:%s:%s 存在自定义漏洞：%s", img.FullRepoName, img.Tags, vu.ID)
+					msgEN := fmt.Sprintf("Image:%s:%s Exist custom vulnerability：%s", img.FullRepoName, img.Tags, vu.ID)
+					switch svn.RejectPolicy {
+					case model.RejectPolicyReject:
+						safe = false
+						records = append(records, ReasonAndDetail{
+							RejectReason: model.RejectReasonHasCustomizeVuln,
+							RejectDetail: msgZh,
+						})
 
-		for _, vu := range scanRes.VulnInfo {
-			// 先检查自定义漏洞规则
-			if svn, ok := customizeVuluMap[vu.ID]; ok {
-				s.log.WithContext(ctx).Infof("包含自定义漏洞,imagId:" + strconv.Itoa(int(img.ID)))
-				msgZh := fmt.Sprintf("镜像:%s:%s 存在自定义漏洞：%s", img.FullRepoName, img.Tags, vu.ID)
-				msgEN := fmt.Sprintf("Image:%s:%s Exist custom vulnerability：%s", img.FullRepoName, img.Tags, vu.ID)
-				switch svn.RejectPolicy {
-				case model.RejectPolicyReject:
+						msgs = append(msgs, model.KVHashs{
+							KVHash: model.KVHash{
+								ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
+								EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
+					case model.RejectPolicyAlarm:
+						msgs = append(msgs, model.KVHashs{
+							KVHash: model.KVHash{
+								ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
+								EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
+					case model.RejectPolicyIgnore:
+						// 如果自定义了忽略就不再检查评分和评级
+						continue
+					}
+				}
+				//  如果配置了漏洞分数,
+				if po.VulnScore > 0 && CalculateVulnScore(vu.Severity) < po.VulnScore {
 					safe = false
+					msgZh := fmt.Sprintf("漏洞:%s 扫描后评分:%d 低于漏洞阻断分数：%d", vu.ID, CalculateVulnScore(vu.Severity), po.VulnScore)
+					msgEN := fmt.Sprintf("Vulnerability:%s rate %d Lower than : %d", vu.ID, CalculateVulnScore(vu.Severity), po.VulnScore)
+					s.log.WithContext(ctx).Infof("配置了漏洞分数," + msgZh)
+
 					records = append(records, ReasonAndDetail{
-						RejectReason: model.RejectReasonHasCustomizeVuln,
+						RejectReason: model.RejectReasonScore,
 						RejectDetail: msgZh,
+						VulnScore:    po.VulnScore,
+					})
+					msgs = append(msgs, model.KVHashs{
+						KVHash: model.KVHash{
+							ZH: model.NewKeyValue(model.RejectReasonScoreZH, msgZh),
+							EN: model.NewKeyValue(model.RejectReasonScoreEN, msgEN)}})
+				}
+				// 如果配置了漏洞评级
+				if po.VulnLevel != "" && compareSeverity(vu.Severity, po.VulnLevel) {
+					safe = false
+					msgZh := fmt.Sprintf("漏洞:%s扫描后被评级:%s 高于漏洞阻断评级：%s", vu.ID, vu.Severity, po.VulnLevel)
+					msgEN := fmt.Sprintf("Vulnerability:%s Rate %s more than %s", vu.ID, vu.Severity, po.VulnLevel)
+					s.log.WithContext(ctx).Infof("配置了漏洞评级," + msgZh)
+
+					records = append(records, ReasonAndDetail{
+						RejectReason: getSeverityRejectReason(vu.Severity),
+						RejectDetail: msgZh,
+						VulnLevel:    po.VulnLevel,
 					})
 
 					msgs = append(msgs, model.KVHashs{
 						KVHash: model.KVHash{
-							ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
-							EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
-				case model.RejectPolicyAlarm:
-					msgs = append(msgs, model.KVHashs{
-						KVHash: model.KVHash{
-							ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
-							EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
-				case model.RejectPolicyIgnore:
-					// 如果自定义了忽略就不再检查评分和评级
-					continue
+							ZH: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangCh), msgZh),
+							EN: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangEn), msgEN)}})
 				}
-			}
-			//  如果配置了漏洞分数,
-			if po.VulnScore > 0 && CalculateVulnScore(vu.Severity) < po.VulnScore {
-				safe = false
-				msgZh := fmt.Sprintf("漏洞:%s 扫描后评分:%d 低于漏洞阻断分数：%d", vu.ID, CalculateVulnScore(vu.Severity), po.VulnScore)
-				msgEN := fmt.Sprintf("Vulnerability:%s rate %d Lower than : %d", vu.ID, CalculateVulnScore(vu.Severity), po.VulnScore)
-				s.log.WithContext(ctx).Infof("配置了漏洞分数," + msgZh)
-
-				records = append(records, ReasonAndDetail{
-					RejectReason: model.RejectReasonScore,
-					RejectDetail: msgZh,
-					VulnScore:    po.VulnScore,
-				})
-				msgs = append(msgs, model.KVHashs{
-					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.RejectReasonScoreZH, msgZh),
-						EN: model.NewKeyValue(model.RejectReasonScoreEN, msgEN)}})
-			}
-			// 如果配置了漏洞评级
-			if po.VulnLevel != "" && compareSeverity(vu.Severity, po.VulnLevel) {
-				safe = false
-				msgZh := fmt.Sprintf("漏洞:%s扫描后被评级:%s 高于漏洞阻断评级：%s", vu.ID, vu.Severity, po.VulnLevel)
-				msgEN := fmt.Sprintf("Vulnerability:%s Rate %s more than %s", vu.ID, vu.Severity, po.VulnLevel)
-				s.log.WithContext(ctx).Infof("配置了漏洞评级," + msgZh)
-
-				records = append(records, ReasonAndDetail{
-					RejectReason: getSeverityRejectReason(vu.Severity),
-					RejectDetail: msgZh,
-					VulnLevel:    po.VulnLevel,
-				})
-
-				msgs = append(msgs, model.KVHashs{
-					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangCh), msgZh),
-						EN: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangEn), msgEN)}})
 			}
 		}
 	}
