@@ -82,10 +82,12 @@ func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 		al := <-ch
 		cstZone := time.FixedZone("CST", 8*3600)
 		indexStr := "access_" + time.Now().In(cstZone).Format("2006-01-02")
-		_, err := es.Index().Index(indexStr).BodyJson(al).Do(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, err := es.Index().Index(indexStr).BodyJson(al).Do(ctx)
 		if err != nil {
 			logging.GetLogger().Info().Msgf("ES  write es error：%s", err)
 		}
+		cancel()
 	}
 }
 
@@ -118,9 +120,13 @@ func AccessMiddlewares(ch chan model.AccessLog) func(http.Handler) http.Handler 
 			al.Host = r.Host
 			al.RequestURI = r.RequestURI
 			al.Time = time.Now()
-			ch <- al
-			r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-			next.ServeHTTP(w, r)
+			select {
+			case ch <- al:
+				r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+				next.ServeHTTP(w, r)
+			case <-time.After(1 * time.Second):
+				logging.GetLogger().Error().Msg("access log write chan timeout")
+			}
 
 		})
 	}
