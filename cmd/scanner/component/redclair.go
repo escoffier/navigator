@@ -96,7 +96,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		postgresSvc:             postgresSvc,
 		redisClient:             rc,
 		scanTasksChan:           make(chan model.ScanTask, 1000),
-		ciciTasksChan:           make(chan model.ScanTask, 5),
+		ciciTasksChan:           make(chan model.ScanTask, 10),
 		numWorkers:              clairOpts.NumWorkers,
 		redclairEngine:          redclairEng,
 		skipRegistryTLSVerify:   clairOpts.SkipRegistryTLSVerify,
