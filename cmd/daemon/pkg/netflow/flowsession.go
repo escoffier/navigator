@@ -184,10 +184,11 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	srcIp := SrcIP.String()
 	src, err := infos.GetK8sResData(srcIp)
 	if err != nil {
-		flag = 1
-		netData.SrcRes.Name = srcIp
-		netData.SrcRes.Kind = "External"
-		netData.SrcRes.Namespace = "_external"
+		return nil
+		//flag = 1
+		//netData.SrcRes.Name = srcIp
+		//netData.SrcRes.Kind = "External"
+		//netData.SrcRes.Namespace = "_external"
 	} else {
 		netData.SrcRes.Name = src.Name
 		netData.SrcRes.Kind = src.Kind
@@ -203,15 +204,16 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	dstIp := DstIP.String()
 	dst, err := infos.GetK8sResData(dstIp)
 	if err != nil {
-		if flag == 1 {
-			return nil
-		}
-
-		netData.DstRes.Name = dstIp
-		netData.DstRes.Kind = "External"
-		netData.DstRes.Namespace = "_external"
-		netData.CreateUuid()
-		return fs.pg.SaveNetTopology(context.Background(), &netData)
+		return nil
+		//if flag == 1 {
+		//	return nil
+		//}
+		//
+		//netData.DstRes.Name = dstIp
+		//netData.DstRes.Kind = "External"
+		//netData.DstRes.Namespace = "_external"
+		//netData.CreateUuid()
+		//return fs.pg.SaveNetTopology(context.Background(), &netData)
 	}
 
 	if dst.Kind != "Service" {
