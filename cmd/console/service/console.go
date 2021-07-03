@@ -565,23 +565,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[model.VulnerabilitiesInImagesCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"vulnInfo.id": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"historicised_timestamp": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"scanType": 1,
-			}, Options: nil,
-		},
-	}
 	neededIndexesPerCollection[model.PodServiceRelationCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
@@ -706,24 +689,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 		{
 			Keys: bson.M{
 				"updatedAt": 1,
-			}, Options: nil,
-		},
-	}
-
-	neededIndexesPerCollection[model.ImageListCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"full_repo_name": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"tags": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"digest": 1,
 			}, Options: nil,
 		},
 	}

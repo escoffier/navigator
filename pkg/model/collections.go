@@ -11,7 +11,6 @@ const (
 	ComplianceCheckHostRecordsCollection
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
-	VulnerabilitiesInImagesCollection
 	PodServiceRelationCollection
 	PodOwnerRefRelationCollection
 	ServiceRelationCollection
@@ -19,7 +18,6 @@ const (
 	HarborProjectConfigCollection
 	TensorServiceCollection
 	VirusScanTaskCollection
-	ImageListCollection
 	ExportFileTaskCollection
 
 	GCTaskCollection
@@ -37,7 +35,6 @@ func GetCollectionNames() []string {
 		"host-bench-records",
 		"CVE2CNNVD",
 		"checkHistoryEntry",
-		"vulnerabilitiesInImages",
 		"podServiceRelation",
 		"podOwnerRefRelation",
 		"serviceRelation",
@@ -46,7 +43,6 @@ func GetCollectionNames() []string {
 		"tensor-service",
 
 		"virusScanTasks",
-		"imageList",
 		"exportFileTasks",
 
 		"gcTasks",
