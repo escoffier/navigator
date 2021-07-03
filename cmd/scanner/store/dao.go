@@ -44,6 +44,7 @@ type ScannerDalInterface interface {
 	SearchRegistry(param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
 	GetImageOverView(param GetImageOverViewParm) ([]ImageGroup, error)
 	SearchRejectPolicy(param SearchRejectPolicyParam) ([]model.RejectPolicy, error)
+	SearchRejectVuln(param SearchRejectRejectVulnParam) ([]model.RejectVuln, error)
 	CreateRejectRecord(data model.RejectRecord) (*model.RejectRecord, error)
 
 	GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList)
@@ -124,7 +125,7 @@ func (s *ScannerOrm) AddGlobalPolicyConfig(ctx context.Context, policy model.Rej
 func (s *ScannerOrm) SearchRejectPolicy(param SearchRejectPolicyParam) ([]model.RejectPolicy, error) {
 	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
 	defer cancelFunc()
-	db := s.psql.Model(new(model.RejectPolicy)).WithContext(ctx).Debug()
+	db := s.psql.Model(new(model.RejectPolicy)).WithContext(ctx)
 	res := make([]model.RejectPolicy, 0)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, err
@@ -145,9 +146,31 @@ func (s *ScannerOrm) SearchRejectPolicy(param SearchRejectPolicyParam) ([]model.
 				}
 			}
 		}
-		return ans, nil
+		res = ans
 	}
+	// 自定义漏洞
+	for i := range res {
+		vulns, err := s.SearchRejectVuln(SearchRejectRejectVulnParam{RejectID: res[i].ID})
+		if err != nil {
+			s.log.WithContext(ctx).Errorf(err, "查询自定义漏洞出错")
+			continue
+		}
+		res[i].RejectVulns = vulns
+	}
+
 	return res, nil
+}
+
+func (s *ScannerOrm) SearchRejectVuln(param SearchRejectRejectVulnParam) ([]model.RejectVuln, error) {
+	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
+	defer cancelFunc()
+	db := s.psql.Model(new(model.RejectVuln)).WithContext(ctx)
+	if param.RejectID > 0 {
+		db = db.Where("reject_policy_id = ?", param.RejectID)
+	}
+	res := make([]model.RejectVuln, 0)
+	err := db.Find(&res).Error
+	return res, err
 }
 
 func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []model.ImageList {
