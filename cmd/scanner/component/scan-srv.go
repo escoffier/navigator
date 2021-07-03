@@ -954,6 +954,7 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 
 	for _, po := range policies {
 		if !po.Enable || (usePattern == consts.UsePatternForCICD && !po.CicdEnable) || (usePattern == consts.UsePatternForK8s && !po.K8sEnable) || po.IsGlobal {
+			s.log.WithContext(ctx).Infof("该police未生效:name:%s,ID:%d", po.Name, po.ID)
 			continue
 		}
 		//  验证恶意文件
@@ -1020,7 +1021,7 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 			for _, vu := range scanImage[0].VulnInfo {
 				// 先检查自定义漏洞规则
 				if svn, ok := customizeVuluMap[vu.ID]; ok {
-					s.log.WithContext(ctx).Infof("包含自定义漏洞,imagId:" + strconv.Itoa(int(img.ID)))
+					s.log.WithContext(ctx).Infof(fmt.Sprintf("包含自定义漏洞:%s,imagId:%d", vu.ID, img.ID))
 					msgZh := fmt.Sprintf("镜像:%s:%s 存在自定义漏洞：%s", img.FullRepoName, img.Tags, vu.ID)
 					msgEN := fmt.Sprintf("Image:%s:%s Exist custom vulnerability：%s", img.FullRepoName, img.Tags, vu.ID)
 					switch svn.RejectPolicy {
@@ -1040,27 +1041,7 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 							KVHash: model.KVHash{
 								ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
 								EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
-					case model.RejectPolicyIgnore:
-						// 如果自定义了忽略就不再检查评分和评级
-						continue
 					}
-				}
-				//  如果配置了漏洞分数,
-				if po.VulnScore > 0 && CalculateVulnScore(vu.Severity) < po.VulnScore {
-					safe = false
-					msgZh := fmt.Sprintf("漏洞:%s 扫描后评分:%d 低于漏洞阻断分数：%d", vu.ID, CalculateVulnScore(vu.Severity), po.VulnScore)
-					msgEN := fmt.Sprintf("Vulnerability:%s rate %d Lower than : %d", vu.ID, CalculateVulnScore(vu.Severity), po.VulnScore)
-					s.log.WithContext(ctx).Infof("配置了漏洞分数," + msgZh)
-
-					records = append(records, ReasonAndDetail{
-						RejectReason: model.RejectReasonScore,
-						RejectDetail: msgZh,
-						VulnScore:    po.VulnScore,
-					})
-					msgs = append(msgs, model.KVHashs{
-						KVHash: model.KVHash{
-							ZH: model.NewKeyValue(model.RejectReasonScoreZH, msgZh),
-							EN: model.NewKeyValue(model.RejectReasonScoreEN, msgEN)}})
 				}
 				// 如果配置了漏洞评级
 				if po.VulnLevel != "" && compareSeverity(vu.Severity, po.VulnLevel) {
@@ -1081,6 +1062,25 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 							EN: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangEn), msgEN)}})
 				}
 			}
+			//  如果配置了漏洞分数,
+			ans := CalculateVulnScore(scanImage[0], customizeVuluMap)
+			if po.VulnScore > 0 && int64(ans) < po.VulnScore {
+				safe = false
+				msgZh := fmt.Sprintf("镜像:%s:%s 扫描后评分:%d 低于阻断分数：%d", img.FullRepoName, img.Tags, ans, po.VulnScore)
+				msgEN := fmt.Sprintf("Image:%s:%s rate %d Lower than : %d", img.FullRepoName, img.Tags, ans, po.VulnScore)
+				s.log.WithContext(ctx).Infof("配置了漏洞分数," + msgZh)
+
+				records = append(records, ReasonAndDetail{
+					RejectReason: model.RejectReasonScore,
+					RejectDetail: msgZh,
+					VulnScore:    po.VulnScore,
+				})
+				msgs = append(msgs, model.KVHashs{
+					KVHash: model.KVHash{
+						ZH: model.NewKeyValue(model.RejectReasonScoreZH, msgZh),
+						EN: model.NewKeyValue(model.RejectReasonScoreEN, msgEN)}})
+			}
+
 		}
 	}
 
@@ -1117,9 +1117,9 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface,
 	}
 }
 
-func CalculateVulnScore(severity string) int64 {
+func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln) int {
 	// 就先写魔法数字吧，恶心是恶心了点
-	subScore := map[string]int64{
+	subScore := map[string]int{
 		"Critical":   25,
 		"High":       20,
 		"Medium":     15,
@@ -1127,7 +1127,26 @@ func CalculateVulnScore(severity string) int64 {
 		"Negligible": 5,
 		"Unknown":    5,
 	}
-	return 50 - subScore[severity]
+
+	exitScore := map[string]bool{
+		"Critical":   false,
+		"High":       false,
+		"Medium":     false,
+		"Low":        false,
+		"Negligible": false,
+		"Unknown":    false,
+	}
+	ans := 50
+	for _, vu := range imascan.VulnInfo {
+		if cu, ok := cus[vu.ID]; ok && cu.RejectPolicy == model.RejectPolicyIgnore {
+			continue
+		}
+		if !exitScore[vu.Severity] {
+			ans = ans - subScore[vu.Severity]
+			exitScore[vu.Severity] = true
+		}
+	}
+	return ans
 }
 
 func compareSeverity(s1, s2 string) bool {

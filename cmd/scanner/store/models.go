@@ -53,6 +53,9 @@ type GetImageOverViewParm struct {
 type SearchRejectPolicyParam struct {
 	Library string
 }
+type SearchRejectRejectVulnParam struct {
+	RejectID int64
+}
 
 type GetOnlineImageParam struct {
 	SQL string
