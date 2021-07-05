@@ -43,4 +43,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
     && wget https://mirror-hk.koddos.net/apache/tomcat/tomcat-8/v8.5.68/bin/apache-tomcat-8.5.68.tar.gz -O /usr/local/tomcat.tar.gz \
     && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
-    && chmod 755 -R /usr/local/apache-tomcat-8.5.68/
+    && chmod 755 -R /usr/local/apache-tomcat-8.5.68/ \
+    && rm /usr/local/tomcat.tar.gz \
+    && rm jdk-8u151-linux-x64.tar.gz \
+    && apt upgrade -y
