@@ -14,6 +14,9 @@ COPY configs/seccomp-generator-webhook/go.mod .
 COPY configs/seccomp-generator-webhook/go.sum .
 
 RUN GO111MODULE=on go build -v -a \
-    -o /vegeta/seccomp-generator-webhook gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator-webhook
+    -o /vegeta/seccomp-generator-webhook gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator-webhook && rm -rf /go/src/app
+
+FROM golang:1.16.5-alpine3.14
+COPY --from=0 /vegeta/seccomp-generator-webhook /vegeta/seccomp-generator-webhook
 
 ENTRYPOINT ["/vegeta/seccomp-generator-webhook"]

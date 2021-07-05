@@ -10,7 +10,7 @@ ENV GOPROXY https://goproxy.cn
 ENV GO111MODULE on
 ENV CGO_ENABLED 0
 RUN  go mod download
-RUN  go build -o /go/bin/webhook cmd/image-validate/main.go
+RUN  go build -o /go/bin/webhook cmd/image-validate/main.go && rm -rf /go/src/gitlab.com/piccolo_su/vegeta
 
 FROM alpine:3.12
 
