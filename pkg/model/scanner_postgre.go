@@ -25,7 +25,7 @@ type Vuln struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    int
-	Name         string         `gorm:"index:idx_name"` // 形如CVE-2021-28831
+	Name         string         `gorm:"uniqueIndex:idx_name"` // 形如CVE-2021-28831
 	Namespace    string         // 发行版名字：alpine，redhat等
 	Description  string         // 描述
 	Link         []string       `gorm:"-"` // 参考链接
