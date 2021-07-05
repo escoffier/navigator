@@ -185,10 +185,10 @@ func NewReqBody(ruleKey EventCenterRule, customKV []KVHashs, serviceID string) R
 	return ReqBody{
 		RuleKey: ruleKey,
 		NotifyContext: NotifyContext{
-			PodUID:    "ImageSecurity-PodUID",
-			PodName:   "ImageSecurity-PodName",
-			Namespace: "ImageSecurity-Namespace",
-			Cluster:   "ImageSecurity-Cluster",
+			PodUID:    "-",
+			PodName:   "-",
+			Namespace: "-",
+			Cluster:   "default",
 			ServiceID: serviceID,
 			CustomKV:  customKV,
 		},
