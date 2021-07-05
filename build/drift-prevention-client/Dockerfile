@@ -15,5 +15,6 @@ RUN GO111MODULE=on go build -v -a \
 
 FROM golang:1.16.5-alpine3.14
 COPY --from=0 /drift-prevention/file-checker /drift-prevention/file-checker
+COPY --from=0 /drift-prevention/ubuntu/dp.so /drift-prevention/ubuntu/dp.so
 
 CMD ["tail", "-f", "/dev/null"]
