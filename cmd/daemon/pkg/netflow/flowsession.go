@@ -174,7 +174,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	if !ret || !ok {
 		return nil
 	}
-	flag := 0
+	//flag := 0
 	infos := fs.krs.K8sPods
 	netData := model.K8sNetToplgy{
 		CreatedAt: time.Now(),
