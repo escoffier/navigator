@@ -165,6 +165,8 @@ func PatchVolumesVar(source, added []corev1.Volume, base string) *Patch {
 		volumesVar = append(volumesVar, add)
 	}
 
+	volumesVar = append(volumesVar, source...)
+
 	return &Patch{
 		Op:    "add",
 		Path:  base,
@@ -189,6 +191,7 @@ func PatchVolumeMountsVar(source, added []corev1.VolumeMount, base string) *Patc
 		volumeMountsVar = append(volumeMountsVar, add)
 	}
 
+	volumeMountsVar = append(volumeMountsVar, source...)
 	return &Patch{
 		Op:    "add",
 		Path:  base,
