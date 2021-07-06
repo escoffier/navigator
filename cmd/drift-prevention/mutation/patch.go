@@ -26,7 +26,11 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 
 	driftPrevent := false
 	driftDetect := false
+	commandWhitelistPrevent := false
+	commnadWhitelistDetect := false
 
+
+	//TODO: Optimization codes or remove
 	for k, v := range pod.Labels {
 		if k == "tensorsec.driftprevent" {
 			if v == "prevent" {
@@ -35,9 +39,16 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 				driftDetect = true
 			}
 		}
+		if k == "tensorsec.commandprevent" {
+			if v == "prevent" {
+				commandWhitelistPrevent = true
+			} else if v == "detect" {
+				commnadWhitelistDetect = true
+			}
+		}
 	}
 
-	if driftDetect || driftPrevent {
+	if driftDetect || driftPrevent || commandWhitelistPrevent || commnadWhitelistDetect {
 		envs := spec.DeepCopy().Env
 		volumeMounts := spec.DeepCopy().VolumeMounts
 		volumes := spec.DeepCopy().Volumes
@@ -52,6 +63,18 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 				Value: "true",
 			})
 		}
+		if commandWhitelistPrevent {
+			envs = append(envs, corev1.EnvVar{
+				Name:  "COMMAND_DRIFT_PREVENT",
+				Value: "true",
+			})
+		} else if commnadWhitelistDetect {
+			envs = append(envs, corev1.EnvVar{
+				Name:  "COMMAND_DRIFT_DETECT",
+				Value: "true",
+			})
+		}
+
 		myPodNameEnvVar := corev1.EnvVar{
 			Name: "MY_POD_NAME",
 			ValueFrom: &corev1.EnvVarSource{

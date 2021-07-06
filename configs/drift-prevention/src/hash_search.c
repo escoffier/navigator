@@ -8,7 +8,7 @@
 
 static const unsigned int HASH_SEED = 131;
 
-typedef int (*cmp_func)(void * node, void * key, uint32_t key_size);
+typedef int (*cmp_func)(void * node, void * key, void *value, uint32_t key_size);
 typedef int (*add_node_func)(void * node, void * key, uint32_t key_size);
 typedef int (*put_func)(void * node);
 typedef uint64_t (*hash_func)(void * key, uint32_t key_size, uint64_t seed);
@@ -46,7 +46,7 @@ typedef struct{
     uint8_t mem_cache[0];
 }hash_tbl_t;
 
-static void * hashtbl_node_get(void *key, hash_tbl_t *table)
+static void * hashtbl_node_get(void *key, void *value, hash_tbl_t *table)
 {
     if(key == NULL || table == NULL){
         return NULL;
@@ -59,14 +59,22 @@ static void * hashtbl_node_get(void *key, hash_tbl_t *table)
     sig = table->hash(key, strlen((char *)key), HASH_SEED);
     bucket_index = sig & (table->buckets - 1);
     bucket = (hash_bucket_t *)&table->mem_cache[bucket_index * table->bucket_size_cl];
-
+    int command_exits = 0;
     for(node_index = 0; node_index < table->n_entries_per_bucket; node_index++){
         node_addr = &bucket->data[node_index * table->entry_size];
         int res = 0;
-        if((res = table->cmp(node_addr, key, table->key_size-1)) != 0) {
-            node_addr = NULL;
-            if(res<0){
+        if((res = table->cmp(node_addr, key, value, table->key_size-1)) != 0) {
+            if(res < 0 && res != -2){
+                if(!command_exits){
+                    node_addr = NULL;
+                }
                 break;
+            }
+            else if(res == -2){
+                command_exits = 1;
+            }
+            else if(res > 0){
+                node_addr = NULL;
             }
         }else{
             return (void *)node_addr;
@@ -81,10 +89,18 @@ static void * hashtbl_node_get(void *key, hash_tbl_t *table)
             for(node_index = 0; node_index < bucket->total_cnt; node_index++){
                 node_addr = &bucket->data[node_index * table->entry_size];
                 int res = 0;
-                if((res = table->cmp(node_addr, key, 0)) != 0) {
-                    node_addr = NULL;
-                    if(res<0) {
+                if((res = table->cmp(node_addr, key, value, 0)) != 0) {
+                    if(res < 0 && res != -2) {
+                        if(!command_exits){
+                            node_addr = NULL;
+                        }
                         break;
+                    }
+                    else if(res == -2){
+                        command_exits = 1;
+                    }
+                    else if( res > 0){
+                        node_addr = NULL;
                     }
                 }else{
                     return (void *)node_addr;
@@ -92,10 +108,11 @@ static void * hashtbl_node_get(void *key, hash_tbl_t *table)
             }
         }
     }
+
     return (void *)node_addr;
 }
 
-static void * hashtbl_node_insert(void *key, hash_tbl_t *table)
+static void * hashtbl_node_insert(void *key, void *value, hash_tbl_t *table)
 {
     if(key == NULL || table == NULL){
         return NULL;
@@ -110,8 +127,8 @@ static void * hashtbl_node_insert(void *key, hash_tbl_t *table)
     for(node_index = 0; node_index < table->n_entries_per_bucket; node_index++){
         node_addr = &bucket->data[node_index * table->entry_size];
         int res = 0;
-        if((res = table->cmp(node_addr, key, table->key_size)) != 0){
-            if(res<0){
+        if((res = table->cmp(node_addr, key, value,table->key_size)) != 0){
+            if(res == -1){
                 table->add_node(node_addr, key, table->key_size);
                 bucket->node_cnt++;
                 return (void *)node_addr;
@@ -130,8 +147,8 @@ static void * hashtbl_node_insert(void *key, hash_tbl_t *table)
             for(node_index = 0; node_index < bucket->total_cnt; node_index++){
                 node_addr = &bucket->data[node_index * table->entry_size];
                 int res = 0;
-                if((res = table->cmp(node_addr, key, table->key_size))!=0){
-                    if(res<0){
+                if((res = table->cmp(node_addr, key, value, table->key_size))!=0){
+                    if(res == -1){
                         if(table->add_node(node_addr, key, table->key_size)){
                             return NULL;
                         }
@@ -252,6 +269,11 @@ typedef struct _entry {
     uint32_t checksum;
 }entry;
 
+typedef struct _command_whitelist_entry {
+    char filename_args[2*PATH_MAX];  //TODO: ARG_MAX=131072,should use a pointer
+    char cwd[PATH_MAX];
+}command_whitelist_entry;
+
 static uint64_t bkdr_hash(void * key, uint32_t key_size, uint64_t seed)
 {
     if(key == NULL) {
@@ -285,7 +307,7 @@ static int add_whitelist_func(void * node, void * key, uint32_t key_size)
     return 0;
 }
 
-static int cmp_whitelist_func(void * node, void * key, uint32_t key_size)
+static int cmp_whitelist_func(void * node, void * key, void *value, uint32_t key_size)
 {
 
     entry *pstnode = (entry *) node;
@@ -302,6 +324,39 @@ static int cmp_whitelist_func(void * node, void * key, uint32_t key_size)
     return 1;
 }
 
+static int add_command_whitelist_func(void * node, void * key, uint32_t key_size)
+{
+    command_whitelist_entry * pstnode = (command_whitelist_entry *)node;
+    char * filename_args = (char *)key;
+    if(filename_args == NULL){
+        return -1;
+    }
+    if(pstnode){
+        memset(pstnode->filename_args, 0, key_size);
+        memcpy(pstnode->filename_args, filename_args, key_size);
+    }else{
+        return -1;
+    }
+    return 0;
+}
+
+
+static int cmp_command_whitelist_func(void * node, void *key, void *value, uint32_t key_size)
+{
+    command_whitelist_entry *pstnode = (command_whitelist_entry *) node;
+    if( pstnode->filename_args[0] == '\0' ){
+        return -1;
+    }
+    if(!strcmp(pstnode->filename_args, (char *)key) ){
+        if(strcmp(pstnode->cwd, (char *)value)){
+            return -2;
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
 static hash_config_t whitelist_hash_config = {
     .n_entries = 4096,
     .n_entries_per_bucket = 2,
@@ -311,4 +366,15 @@ static hash_config_t whitelist_hash_config = {
     .hash = bkdr_hash,
     .cmp = cmp_whitelist_func,
     .add_node = add_whitelist_func,
+};
+
+static hash_config_t command_whitelist_hash_config = {
+    .n_entries = 256,
+    .n_entries_per_bucket = 2,
+    .key_size = 2*PATH_MAX,//sizeof key
+    .entry_size = sizeof(command_whitelist_entry),
+    .bucket_size = sizeof(hash_bucket_t),
+    .hash = bkdr_hash,
+    .cmp = cmp_command_whitelist_func,
+    .add_node = add_command_whitelist_func,
 };
