@@ -1,4 +1,4 @@
-FROM debian:stable
+FROM ubuntu:20.04
 
 LABEL maintainer="cncf-falco-dev@lists.cncf.io" \
       usage="docker run -i -t --privileged -v /var/run/docker.sock:/host/var/run/docker.sock -v /dev:/host/dev -v /proc:/host/proc:ro -v /boot:/host/boot:ro -v /lib/modules:/host/lib/modules:ro -v /usr:/host/usr:ro -v /etc:/host/etc --name NAME IMAGE"
@@ -54,7 +54,7 @@ RUN sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
 # gcc 5 is no longer included in debian stable, but we need it to
 # build centos kernels, which are 3.x based and explicitly want a gcc
 # version 3, 4, or 5 compiler. So grab copies we've saved from debian
-# snapshots with the prefix https://snapshot.debian.org/archive/debian/20190122T000000Z.    
+# snapshots with the prefix https://snapshot.debian.org/archive/debian/20190122T000000Z.
     && curl -L -o cpp-5_5.5.0-12_amd64.deb https://download.falco.org/dependencies/cpp-5_5.5.0-12_amd64.deb \
     && curl -L -o gcc-5-base_5.5.0-12_amd64.deb https://download.falco.org/dependencies/gcc-5-base_5.5.0-12_amd64.deb \
     && curl -L -o gcc-5_5.5.0-12_amd64.deb https://download.falco.org/dependencies/gcc-5_5.5.0-12_amd64.deb \
@@ -67,11 +67,11 @@ RUN sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
 
 # Since our base Debian image ships with GCC 7 which breaks older kernels, revert the
 # default to gcc-5.
-    && rm -rf /usr/bin/gcc && ln -s /usr/bin/gcc-5 /usr/bin/gcc \   
+    && rm -rf /usr/bin/gcc && ln -s /usr/bin/gcc-5 /usr/bin/gcc \
     && rm -rf /usr/bin/clang \
     && rm -rf /usr/bin/llc \
     && ln -s /usr/bin/clang-7 /usr/bin/clang \
-    && ln -s /usr/bin/llc-7 /usr/bin/llc \  
+    && ln -s /usr/bin/llc-7 /usr/bin/llc \
     && curl -s https://falco.org/repo/falcosecurity-3672BA8F.asc | apt-key add - \
     && echo "deb https://download.falco.org/packages/${VERSION_BUCKET} stable main" | tee -a /etc/apt/sources.list.d/falcosecurity.list \
     && apt-get update -y \
