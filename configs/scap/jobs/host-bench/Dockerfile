@@ -4,7 +4,7 @@ FROM registry.t-appagile.com/tensorsecurity/baseimage-host-bench:latest
 ADD xccdfparser xccdfparser/
 
 RUN cd xccdfparser \
-    && pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip3 install -r requirements.txt . -i https://pypi.tuna.tsinghua.edu.cn/simple \
     && cd - \
 
 # Prefetch remote resources for CentOS8: https://bugzilla.redhat.com/show_bug.cgi?id=1851375
