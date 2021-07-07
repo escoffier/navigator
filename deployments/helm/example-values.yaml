@@ -10,6 +10,7 @@ global:
     url: &harborURL https://harbor.local.tensorsecurity.cn
     username: &harborUsername admin
     password: &harborPassword Harbor12345
+    type: &harborType harbor-v2.0
 
 
 
@@ -44,17 +45,36 @@ scanner:
 #  - ip: "192.168.3.2"
 #    hostnames:
 #    - "harbor.local.tensorsecurity.cn"
-    # scanner registry config
+  # scanner registry config
+  # 
   config:
     registry:
       scanner:
+      # -
+      #   registry:
+      #      type: harbor-v2.0
+      #      options:
+      #        url: https://my.harbor.com
+      #        username: myusername
+      #        password: mypassword
+      #        skiptlsverify: true
+      #        paginationkey:
+      # -
+      #   registry:
+      #      type: registry-v2
+      #      options:
+      #        url: https://my.registry.com
+      #        username: myusername
+      #        password: mypassword
+      #        skiptlsverify: true
+      #        paginationkey:
         -
           registry:
-            type: harbor-v2.0
+            type: *harborType
             options:
-              url: https://registry.t-appagile.com
-              username: admin
-              password: Hrbr12@Tensor.*#)
+              url: *harborURL
+              username: *harborUsername
+              password: *harborPassword
               skiptlsverify: true
               paginationkey:
 
