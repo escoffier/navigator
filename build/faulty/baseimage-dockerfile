@@ -1,6 +1,6 @@
 FROM ubuntu:18.04
 
-ARG MIRROR=archive.ubuntu.com
+ARG MIRROR=mirrors.ustc.edu.cn
 ENV PATH="/usr/lib/go-1.10/bin:$PATH"
 ENV JAVA_HOME="/usr/local/jdk1.8"
 ENV JRE_HOME="${JAVA_HOME}/jre"
@@ -36,14 +36,22 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     php7.2 \
     libapache2-mod-php7.2 \
     git \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -o /tmp/docker-19.03.9.tgz https://download.docker.com/linux/static/stable/x86_64/docker-19.03.9.tgz \
+    && curl -o /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-18.09.9.tgz \
     && wget https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz \
     && tar xvzf /jdk-8u151-linux-x64.tar.gz \
     && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
-    && wget https://mirror-hk.koddos.net/apache/tomcat/tomcat-8/v8.5.68/bin/apache-tomcat-8.5.68.tar.gz -O /usr/local/tomcat.tar.gz \
-    && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
-    && chmod 755 -R /usr/local/apache-tomcat-8.5.68/ \
-    && rm /usr/local/tomcat.tar.gz \
     && rm jdk-8u151-linux-x64.tar.gz \
-    && apt upgrade -y
+    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v8.5.69/bin/apache-tomcat-8.5.69.tar.gz -O /usr/local/tomcat.tar.gz \
+    && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
+    && chmod 755 -R /usr/local/apache-tomcat-8.5.69/ \
+    && rm /usr/local/tomcat.tar.gz \
+    && apt upgrade -y \
+    && rm -rf /var/lib/apt/lists/ \
+    && find /usr/local -type f -executable -exec ldd '{}' ';' \
+    | awk '/=>/ { print $(NF-1) }' \
+    | sort -u \
+    | xargs -r dpkg-query --search \
+    | cut -d: -f1 \
+    | sort -u \
+    | xargs -r apt-mark manual \
+    &&  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false  
