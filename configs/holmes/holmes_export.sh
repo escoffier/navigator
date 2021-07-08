@@ -3,7 +3,7 @@
 function alert() {
 
 
-  read origin_str
+  read -r origin_str
   output=$(echo ${origin_str} | jq -r .output)
   pid=$(echo ${origin_str} | awk -F "proc_pid=" '{print $2}' | awk -F "," '{print $1}')
   ppid=$(echo ${origin_str} | awk -F "proc_ppid=" '{print $2}' | awk -F "," '{print $1}')
