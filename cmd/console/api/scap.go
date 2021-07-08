@@ -758,10 +758,22 @@ func (api *api) exportFile() http.HandlerFunc {
 		//find export file task
 		err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter, findOptions).Decode(&task)
 		if err == nil {
+
+			if task.Status == 1 {
+				var nowtime int64
+				nowtime = time.Now().Unix()
+				if nowtime - task.CreatedAt > 120 {
+					os.Remove(task.FileName)
+				}
+			}
+
 			_, err = os.Stat(task.FileName)
 			if task.Status == 2 || err != nil {
 				task.Status = 2
-				os.Remove(task.FileName)
+				if err == nil {
+					os.Remove(task.FileName)
+				}
+
 				_, delErr := api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
 				if delErr != nil {
 					logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
