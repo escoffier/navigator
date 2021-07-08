@@ -1,2 +1,2 @@
-echo "curl -sSL https://madhuakula.com/kubernetes-goat/k8s-goat-a5e0a28fa75bf429123943abedb065d1 && echo 'id' | sh " > /usr/bin/system-startup && chmod +x /usr/bin/system-startup
+echo "curl -sSL https://www.baidu.com && echo 'id' | sh " > /usr/bin/system-startup && chmod +x /usr/bin/system-startup
 /usr/bin/system-startup
