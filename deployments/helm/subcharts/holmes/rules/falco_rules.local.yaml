@@ -3193,7 +3193,7 @@
   items: [cat, mount, sed, awk]
 
 - list: sensitive_paths
-  items: [/proc/self/status, /proc/self/mounts, /proc/net/unix, /etc/hosts, /etc/mtab, /etc/resolv.conf, /proc/1/mountinfo, /.dockerenv, /run/secrets/kubernetes.io/, /proc/1/cgroup]
+  items: [/proc/self/status, /proc/self/mounts, /proc/net/unix, /etc/hosts, /etc/mtab, /etc/resolv.conf, /proc/1/mountinfo, /.dockerenv, /run/secrets/kubernetes.io/, /proc/1/cgroup, /proc/self/mountinfo]
 
 - rule: Gaining environment information
   desc: Gaining environment information
