@@ -169,7 +169,7 @@ elasticsearch:
   persistence:
     enabled: true
   minimumMasterNodes: 1
-  replicas: 2
+  replicas: 1
   extraEnvs:
     - name: ELASTIC_PASSWORD
       value: Elastic12345
