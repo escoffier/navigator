@@ -2,7 +2,7 @@ import sys, argparse, os, time
 
 attck_dict = {'ca':'credential access', 'def':'defense evasion', 'disc':'discovery', 'exec':'execution', 'exf':'exfiltration', 'move':'lateral movement', 'pers':'persistence', 'priv':'privilege escalation', 'all':'all scripts'}
 
-goat_dict = {'chroot':'CHROOT-CONTAINER-ESCAPE', 'dind':'docker-in-docker', 'info':'Gaining-environment-information', 'bypassns':'K8s-Namespaces-bypass'}
+goat_dict = {'chroot':'CHROOT-CONTAINER-ESCAPE', 'dind':'docker-in-docker', 'info':'Gaining-environment-information', 'bypassns':'K8s-Namespaces-bypass', 'procfs':'procfs-escape', 'cgroup':'cgroup-escape', 'debugfs':'debugfs-escape'}
 
 script_dir = '/test/'
 
