@@ -1,0 +1,14 @@
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: RoleBinding
+metadata:
+  name: {{ include "image-validator.fullname" . }}
+  labels:
+{{ include "image-validator.labels" . | indent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "image-validator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "image-validator.fullname" . }}
+    namespace: {{ .Release.Namespace }}

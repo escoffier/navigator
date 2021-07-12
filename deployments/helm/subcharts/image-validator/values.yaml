@@ -23,8 +23,3 @@ resources:
   requests:
     cpu: 100m
     memory: 100Mi
-  
-args:
-  # Specify which namespace will not be validated by image ValidatingWebhook.
-  # E.g: IgnoredNameSpaces: tensorsec,tensorsec-test-cn,yournamespace
-  IgnoredNameSpaces: tensorsec

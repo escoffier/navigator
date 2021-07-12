@@ -10,6 +10,18 @@ Return the driftPrevention image name
 {{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}
 
+{{/*
+Return the proper tensorsec certgen image name
+*/}}
+{{- define "tensorsec.certgen.image" -}}
+{{- $registryName := (include "tensorsec.tplVaule" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplVaule" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.global.certgen.image.name -}}
+{{- $tag := .Values.global.certgen.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
 {{/* vim: set filetype=mustache: */}}
 {{/*
 Expand the name of the chart.

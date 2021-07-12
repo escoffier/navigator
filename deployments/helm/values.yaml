@@ -11,6 +11,10 @@ global:
     registry: localhost:32000
     repository: tensorsecurity
     pullSecret: harbor-admin-secret
+  certgen:
+    image:
+      name: tensorsec-certgen
+      tag: v1.5.1
 
 clair:
   enabled: true

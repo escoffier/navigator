@@ -1,0 +1,15 @@
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: Role
+metadata:
+  name: {{ include "image-validator.fullname" . }}
+  labels:
+{{ include "image-validator.labels" . | indent 4 }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
