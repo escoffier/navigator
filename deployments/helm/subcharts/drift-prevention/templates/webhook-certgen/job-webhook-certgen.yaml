@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "driftPrevention.fullname" . }}-webhook-certgen-{{ .Release.Revision }}
+  labels:
+    app: "{{ template "driftPrevention.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  template:
+    metadata:
+      name: {{ template "driftPrevention.fullname" . }}-webhook-certgen-{{ .Release.Revision }}
+      labels:
+        app: {{ template "driftPrevention.fullname" . }}
+    spec:
+      initContainers:
+        - name: create
+          image: "{{ template "tensorsec.certgen.image" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - create
+            - --host={{ template "driftPrevention.fullname" . }}-service,{{ template "driftPrevention.fullname" . }}-service.{{ .Release.Namespace }}.svc
+            - --namespace={{ .Release.Namespace }}
+            - --secret-name={{ template "driftPrevention.fullname" . }}-certs
+            - --cert-name=tls.crt
+            - --key-name=tls.key
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      containers:
+        - name: patch
+          image: "{{ template "tensorsec.certgen.image" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - patch
+            - --webhook-name={{ template "driftPrevention.fullname" . }}-{{ .Release.Namespace }}
+            - --namespace={{ .Release.Namespace }}
+            - --patch-mutating=true
+            - --patch-validating=false
+            - --secret-name={{ template "driftPrevention.fullname" . }}-certs
+            - --patch-failure-policy=Ignore
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      restartPolicy: OnFailure
+      serviceAccountName: {{ template "driftPrevention.serviceAccount" . }}-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
