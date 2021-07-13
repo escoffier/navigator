@@ -8,6 +8,10 @@ image:
   pullSecret: harbor-admin-secret
 
 ## Deployment pod host aliases
+#  hostAliases:
+#  - ip: "192.168.x.x"
+#    hostnames:
+#    - "xxx.xxx.com"
 hostAliases: []
 
 nameOverride: "scanner"
