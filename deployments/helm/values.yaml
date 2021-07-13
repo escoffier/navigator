@@ -235,8 +235,8 @@ postgresql:
   image:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
-    name: tensorsec-postgres
-    tag: "latest"
+    name: postgresql
+    tag: 11.5.0-debian-9-r34
     pullSecret: harbor-admin-secret
     pullPolicy: Always
   volumePermissions:
