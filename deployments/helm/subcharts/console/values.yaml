@@ -59,6 +59,10 @@ persistence:
 
 
 ## Deployment pod host aliases
+#  hostAliases:
+#  - ip: "192.168.x.x"
+#    hostnames:
+#    - "xxx.xxx.com"
 hostAliases: []
 
 ## config user email check

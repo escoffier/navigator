@@ -29,6 +29,9 @@ spec:
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
       {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- include "tensorsec.tplvalues" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
       {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.image.pullSecret }}
