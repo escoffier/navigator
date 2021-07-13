@@ -11,5 +11,6 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/eventsCenter", api.eventsCenter())
 		r.Route("/data", api.data())
 		r.Route("/networkTopo", api.networkTopo())
+		r.Route("/assets", api.assets())
 	}
 }

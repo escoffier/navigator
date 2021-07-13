@@ -77,6 +77,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c // indirect
 	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.1.0
+	gorm.io/driver/sqlite v1.1.4
 	gorm.io/gorm v1.21.11
 	k8s.io/api v0.17.17
 	k8s.io/apimachinery v0.17.18-rc.0

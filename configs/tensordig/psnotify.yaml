@@ -1,6 +1,0 @@
-producers:
- syscalls:
- - syscallOpenat:
-   name: openat
-consumers:
-  - Count

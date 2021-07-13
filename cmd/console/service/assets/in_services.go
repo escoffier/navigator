@@ -44,7 +44,7 @@ func (cb *ServiceAssetsService) WatchedTypes() map[assets.WatchedType]struct{} {
 	return map[assets.WatchedType]struct{}{
 		assets.Pods2Watch: {},
 		// assets.Endpoints2Watch: {},
-		assets.Services2Watch: {},
+		//assets.Services2Watch: {},
 	}
 }
 
@@ -102,9 +102,7 @@ func (cb *ServiceAssetsClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, a
 	return nil
 }
 func (cb *ServiceAssetsClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
-	// update mongo storage if there are no service from endpoints.
-	err := assets.OnServiceEvent(cb.parent.mongoDB.Get(), cb.cluster, newSvc, oldEvc, action)
-	return err
+	return nil
 }
 
 func (cb *ServiceAssetsClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {

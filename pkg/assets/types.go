@@ -1,6 +1,8 @@
 package assets
 
 import (
+	"time"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta "k8s.io/api/batch/v1beta1"
@@ -37,6 +39,7 @@ type TensorResource struct {
 	OwnerReferences []metav1.OwnerReference
 	Labels          map[string]string
 	PodTemplate     *corev1.PodTemplateSpec
+	CreateTime      time.Time
 }
 
 func newResourceFromPodNoOwner(cluster string, pod *corev1.Pod) *TensorResource {
@@ -54,6 +57,7 @@ func newResourceFromPodNoOwner(cluster string, pod *corev1.Pod) *TensorResource 
 		OwnerReferences: pod.OwnerReferences,
 		Labels:          pod.Labels,
 		PodTemplate:     &corev1.PodTemplateSpec{Spec: pod.Spec},
+		CreateTime:      pod.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -72,6 +76,7 @@ func newResourceFromReplicationController(cluster string, rs *corev1.Replication
 		OwnerReferences: rs.OwnerReferences,
 		Labels:          rs.Labels,
 		PodTemplate:     rs.Spec.Template,
+		CreateTime:      rs.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -91,6 +96,7 @@ func newResourceFromReplicaSet(cluster string, rs *appsv1.ReplicaSet) *TensorRes
 		OwnerReferences: rs.OwnerReferences,
 		Labels:          rs.Labels,
 		PodTemplate:     &rs.Spec.Template,
+		CreateTime:      rs.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -110,6 +116,7 @@ func newResourceFromStatefulSet(cluster string, ss *appsv1.StatefulSet) *TensorR
 		OwnerReferences: ss.OwnerReferences,
 		Labels:          ss.Labels,
 		PodTemplate:     &ss.Spec.Template,
+		CreateTime:      ss.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -129,6 +136,7 @@ func newResourceFromDaemonSet(cluster string, ss *appsv1.DaemonSet) *TensorResou
 		OwnerReferences: ss.OwnerReferences,
 		Labels:          ss.Labels,
 		PodTemplate:     &ss.Spec.Template,
+		CreateTime:      ss.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -148,6 +156,7 @@ func newResourceFromDeployment(cluster string, ss *appsv1.Deployment) *TensorRes
 		OwnerReferences: ss.OwnerReferences,
 		Labels:          ss.Labels,
 		PodTemplate:     &ss.Spec.Template,
+		CreateTime:      ss.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -166,6 +175,7 @@ func newResourceFromCronJob(cluster string, ss *batchv1beta.CronJob) *TensorReso
 		OwnerReferences: ss.OwnerReferences,
 		Labels:          ss.Labels,
 		PodTemplate:     &ss.Spec.JobTemplate.Spec.Template,
+		CreateTime:      ss.CreationTimestamp.Time,
 	}
 	return &res
 }
@@ -185,6 +195,7 @@ func newResourceFromJob(cluster string, ss *batchv1.Job) *TensorResource {
 		OwnerReferences: ss.OwnerReferences,
 		Labels:          ss.Labels,
 		PodTemplate:     &ss.Spec.Template,
+		CreateTime:      ss.CreationTimestamp.Time,
 	}
 	return &res
 }

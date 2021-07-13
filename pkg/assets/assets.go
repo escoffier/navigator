@@ -269,66 +269,6 @@ func OnPodEventForService(mongodb *mongo.Database, kubeCluster string, newPod, o
 	return nil
 }
 
-func OnServiceEvent(mongodb *mongo.Database, kubeCluster string, newSvc, oldSvc *corev1.Service, action AssetsAction) error {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*15)
-	defer mongoCtxCancel()
-
-	if action == ActionDelete {
-		if oldSvc == nil {
-			return errors.New("no old svc given")
-		}
-
-		filter := bson.M{
-			"$and": []bson.M{
-				{"cluster": kubeCluster},
-				{"namespace": oldSvc.Namespace},
-				{"serviceName": oldSvc.Name},
-			},
-		}
-
-		_, err := mongodb.Collection(model.TensorServiceCollection.String()).DeleteMany(mongoCtx, filter)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("delete service collection error for pod event")
-		}
-	}
-	if action == ActionUpdate || action == ActionAdd {
-		if newSvc == nil {
-			return errors.New("no new svc given")
-		}
-
-		filter := bson.M{
-			"$and": []bson.M{
-				{"cluster": kubeCluster},
-				{"namespace": newSvc.Namespace},
-				{"serviceName": newSvc.Name},
-			},
-		}
-
-		assetService := model.TensorService{
-			Namespace:   newSvc.Namespace,
-			ServiceName: newSvc.Name,
-			Cluster:     kubeCluster,
-			Selectors:   newSvc.Spec.Selector,
-			UpdatedAt:   time.Now().Unix(),
-		}
-		if action == ActionAdd {
-			assetService.CreatedAt = time.Now().Unix()
-		}
-		// There are possibly two types of services: created by controllers; or endpoints. We priorly prefer endpoints.
-
-		update := bson.M{"$set": assetService}
-		opts := options.Update().SetUpsert(true)
-		_, insertErr := mongodb.Collection(model.TensorServiceCollection.String()).UpdateOne(mongoCtx, filter, update, opts)
-
-		if insertErr != nil {
-			logging.GetLogger().Error().Err(insertErr).Str("asset", fmt.Sprintf("%+v", assetService)).Msg("Failed to insert service to mongo")
-			return insertErr
-		}
-
-	}
-	return nil
-}
-
 // OnEndpointsEvent updates the mongo according to the event
 func OnEndpointsEvent(mongodb *mongo.Database, kubeCluster string, newEpt, oldEpt *corev1.Endpoints, action AssetsAction) error {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -508,72 +448,6 @@ func GetPodNamesFromService(mongodb *mongo.Database, cluster, namespace, resName
 	return podsSlice, nil
 }
 
-func GetResNameFromServiceRelation(mongodb *mongo.Database, namespace, snvName string) ([]string, error) {
-	filter := bson.M{
-		"namespace": namespace,
-		"name":      snvName,
-		"resName":   bson.D{{"$ne", ""}, {"$exists", true}},
-	}
-	// from mongo
-
-	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer mongoCtxCancel()
-	opt := options.Find()
-	opt.SetMaxTime(10 * time.Second)
-
-	cur, err := mongodb.Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
-	if err != nil {
-		NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Couldn't find document: %w", err))
-		return nil, err
-	}
-	ResNameSlice := make([]string, 0)
-	for cur.Next(mongoCtx) {
-		var serviceRl model.ServiceRelation
-		err := cur.Decode(&serviceRl)
-		if err != nil {
-			return nil, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't decode document: %w", err))
-		}
-		if serviceRl.ResName != "" {
-			ResNameSlice = append(ResNameSlice, serviceRl.ResName)
-		}
-	}
-	return ResNameSlice, nil
-}
-
-func GetFocusFromServiceRelation(mongodb *mongo.Database, namespace, snvName, username string) (bool, error) {
-
-	filter := bson.M{
-		"namespace": namespace,
-		"name":      snvName,
-		"focusName": username,
-	}
-
-	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer mongoCtxCancel()
-	opt := options.Find()
-	opt.SetMaxTime(10 * time.Second)
-
-	cur, err := mongodb.Collection(model.ServiceRelationCollection.String()).Find(mongoCtx, filter, opt)
-	if err != nil {
-		NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("couldn't find document: %w", err))
-		return false, err
-	}
-	for cur.Next(mongoCtx) {
-		var serviceRl model.ServiceRelation
-		err := cur.Decode(&serviceRl)
-		if err != nil {
-			return false, NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", err))
-		}
-		if serviceRl.FocusName == username {
-			return true, nil
-		}
-	}
-	return false, nil
-
-}
-
 func GetServiceSha256Val(mongodb *mongotools.DatabaseWrapper, namespace, snvName string) ([]string, error) {
 
 	filter := bson.M{
@@ -696,27 +570,6 @@ func GetServiceRepository(mongodb *mongo.Database, namespace, snvName string) ([
 	}
 	return RepositorySlice, nil
 
-}
-
-func GetAliasName(mongodb *mongo.Database, namespace, snvName string) (string, error) {
-	filter := bson.M{
-		"namespace": namespace,
-		"name":      snvName,
-	}
-
-	mongoCtx, mongoCtxCancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer mongoCtxCancel()
-	opt := options.FindOne()
-	opt.SetMaxTime(10 * time.Second)
-	var alias model.ServiceAlias
-	err := mongodb.Collection(model.ServiceAliasCollection.String()).FindOne(mongoCtx, filter, opt).Decode(&alias)
-	if err != nil {
-		NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Couldn't find document: %w", err))
-		return "", err
-	}
-
-	return alias.AliasName, nil
 }
 
 func GetServiceImages(mongodb *mongotools.DatabaseWrapper, namespace, snvName string) ([]string, error) {
