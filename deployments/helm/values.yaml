@@ -211,8 +211,14 @@ elasticsearch:
              # Add a template to adjust number of shards/replicas
              ES_URL=http://localhost:9200
              while [[ "$(curl -s -o /dev/null -w '%{http_code}\n' $ES_URL)" != "200" ]]; do sleep 1; done
-             curl -s -XGET "http://localhost:9200/_cluster/health?pretty=true"  |grep yellow
-             if [ "$?" == "0" ]; then   curl -H "Content-Type: application/json" -XPUT 'http://localhost:9200/_settings' -d '{"index":{"number_of_replicas":0}}'; fi
+             while true ; do
+               curl -s -XGET "http://localhost:9200/_cluster/health?pretty=true"  |grep green
+               if [ "$?" == "0" ]; then   break; fi
+               curl -s -XGET "http://localhost:9200/_cluster/health?pretty=true"  |grep yellow
+               if [ "$?" == "0" ]; then   curl -H "Content-Type: application/json" -XPUT 'http://localhost:9200/_settings' -d '{"index":{"number_of_replicas":0}}'; break; fi
+               sleep 1;
+             done
+
 
 kibana:
   enabled: true
