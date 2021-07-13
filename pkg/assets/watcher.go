@@ -538,6 +538,64 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			})
 		}
 
+		if _, toWatch := toWatchedTypes[Namespaces2Watch]; toWatch {
+			logging.GetLogger().Info().Msg("start watching namespaces")
+			nsInformer := informerFactory.Core().V1().Namespaces().Informer()
+			var ns *corev1.Namespace
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &nsInformer,
+				targetType: reflect.TypeOf(ns),
+			})
+
+			nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc: func(newObj interface{}) {
+					newNs, ok := newObj.(*corev1.Namespace)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnNamespaceEvent(newNs, nil, ActionAdd)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+						}
+					}
+				},
+				DeleteFunc: func(oldObj interface{}) {
+					oldNs, ok := oldObj.(*corev1.Namespace)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *corev1.Service")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnNamespaceEvent(nil, oldNs, ActionDelete)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newNs, ok := newObj.(*corev1.Namespace)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+						return
+					}
+					oldNs, ok := oldObj.(*corev1.Namespace)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+						return
+					}
+
+					for _, cb := range callbacks {
+						eptErr := cb.OnNamespaceEvent(newNs, oldNs, ActionUpdate)
+						if eptErr != nil {
+							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+						}
+					}
+				},
+			})
+		}
 		if _, toWatch := toWatchedTypes[Services2Watch]; toWatch {
 			logging.GetLogger().Info().Msg("start watching services")
 			servicesInformer := informerFactory.Core().V1().Services().Informer()

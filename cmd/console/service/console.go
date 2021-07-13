@@ -154,6 +154,7 @@ func NewConsole(
 	})
 
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+
 		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
@@ -178,6 +179,9 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.ImageList{})
 	postgresDB.Get().AutoMigrate(&model.QuestionInfo{})
 	postgresDB.Get().AutoMigrate(&model.TensorMicrosegResource{})
+	postgresDB.Get().AutoMigrate(&model.TensorResource{})
+	postgresDB.Get().AutoMigrate(&model.TensorContainer{})
+	postgresDB.Get().AutoMigrate(&model.TensorNamespace{})
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -237,6 +241,11 @@ func NewConsole(
 	})
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
+	}
+
+	rlErr := assetsSvc.InitResourcesService(postgresDB)
+	if rlErr != nil {
+		logging.GetLogger().Err(rlErr).Msgf("ERROR: InitResourcesService init error")
 	}
 
 	kbmErr := kubemonitor.Init(ecColCli)
@@ -362,11 +371,11 @@ func (c *Console) Run() func() {
 			Msg("When validating kube client")
 	}
 	if kubeClient != nil {
-		svcSvc, _ := assetsSvc.GetServiceAssetsService(ctx)
 		inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
+		resSvc, _ := assetsSvc.GetResourcesService(ctx)
 
-		watcher, werr := assetsSvc.Watcher(c.postgresDB, svcSvc, inResSvc, kbmSvc)
+		watcher, werr := assetsSvc.Watcher(c.postgresDB, inResSvc, kbmSvc, resSvc)
 		if werr != nil {
 			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
 		} else {

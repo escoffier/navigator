@@ -136,10 +136,10 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 
 		// TODO: maybe a hook mechanism so cluster service doesn't depend on onlinevulns service?
 		// TODO: doesn't support multiple clusters yet.
-		svcService, _ := assetsSvc.GetServiceAssetsService(ctx)
 		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService, kbmSvc)
+		resSvc, _ := assetsSvc.GetResourcesService(ctx)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, inResService, kbmSvc, resSvc)
 		if werr != nil {
 			return werr
 		}
@@ -301,10 +301,10 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't remove document: %w", sessionError))
 		}
 
-		svcService, _ := assetsSvc.GetServiceAssetsService(ctx)
+		resSvc, _ := assetsSvc.GetResourcesService(ctx)
 		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, svcService, inResService, kbmSvc)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, inResService, kbmSvc, resSvc)
 		if werr != nil {
 			return werr
 		}

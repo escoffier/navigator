@@ -19,18 +19,22 @@ var (
 )
 
 // Watcher singleton
-func Watcher(postgre *rdbtools.GormWrapper, sa *ServiceAssetsService, ov *AssetsInResourcesService, kbmSvc *kubemonitor.Service) (*assets.Watcher, error) {
-	if sa == nil || ov == nil {
+func Watcher(postgre *rdbtools.GormWrapper,
+	ov *AssetsInResourcesService,
+	kbmSvc *kubemonitor.Service,
+	tsRes *TensorResourcesService,
+) (*assets.Watcher, error) {
+	if ov == nil || postgre == nil || kbmSvc == nil {
 		return nil, errors.New("arguments exist nil")
 	}
 	initOnce.Do(func() {
 		logging.GetLogger().Info().Msgf("Init assets.Watcher: stack = %s", debug.Stack())
 		wInstance = assets.NewWatcher()
-		wInstance.AddCallback(sa)
 		wInstance.AddCallback(ov)
 		wInstance.AddCallback(image.NewAssetsImageAssociator(postgre))
 		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
 		wInstance.AddCallback(kbmSvc.RiskMonitor())
+		wInstance.AddCallback(tsRes)
 	})
 	return wInstance, nil
 }
