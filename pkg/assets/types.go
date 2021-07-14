@@ -42,7 +42,7 @@ type TensorResource struct {
 	CreateTime      time.Time
 }
 
-func newResourceFromPodNoOwner(cluster string, pod *corev1.Pod) *TensorResource {
+func newResourceFromPodNoOwnerOrStaticPod(cluster string, pod *corev1.Pod) *TensorResource {
 	if pod == nil {
 		return nil
 	}

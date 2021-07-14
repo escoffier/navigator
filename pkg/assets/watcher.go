@@ -290,8 +290,8 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					}
 
 					if toWatchResources {
-						if len(pod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
-							res := newResourceFromPodNoOwner(clusterName, pod)
+						if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+							res := newResourceFromPodNoOwnerOrStaticPod(clusterName, pod)
 							e := resourceEvent{
 								oldResource: res,
 								newResource: nil,
@@ -324,9 +324,9 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					}
 
 					if toWatchResources {
-						if len(newPod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
-							newRes := newResourceFromPodNoOwner(clusterName, newPod)
-							oldRes := newResourceFromPodNoOwner(clusterName, oldPod)
+						if len(newPod.OwnerReferences) == 0 || newPod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+							newRes := newResourceFromPodNoOwnerOrStaticPod(clusterName, newPod)
+							oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterName, oldPod)
 							e := resourceEvent{
 								oldResource: oldRes,
 								newResource: newRes,
