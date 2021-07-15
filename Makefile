@@ -99,6 +99,14 @@ data: generate 		## Build cleaner binary
 		-o dist/tensor-cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
 	docker build -t $(REPOPREFIX)/tensorsec-cleaner:latest -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
 
+.PHONY: scanner-cicd
+scanner-cicd: generate
+	echo "+ $@"
+	go build -v \
+                --ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/cmd.Version=$(VERSION)" \
+                -o dist/tensor-scanner-cicd gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd
+
+
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
@@ -234,7 +242,7 @@ image-validate: generate
 	docker build -t $(REPOPREFIX)/tensorsec-image-validator:latest -f ./build/image-validate/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty scanner scap-jobs console data drift-prevention holmes image-validate daemon
+all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data drift-prevention holmes image-validate daemon
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages

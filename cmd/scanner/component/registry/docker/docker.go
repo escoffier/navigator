@@ -136,8 +136,12 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 }
 
 func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
-	fullRopoName := projectName + "/" + repoName
-	tags, err := r.ListRepoTags(fullRopoName)
+
+	if projectName != "" {
+		repoName = projectName + "/" + repoName
+	}
+
+	tags, err := r.ListRepoTags(repoName)
 	if err != nil {
 		return nil, err
 	}
@@ -163,59 +167,67 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		configDigest  digest.Digest
 		imageDigest   string
 	)
-	manifestV2, err = r.pullImageManifestV2(fullRopoName, tag)
+	manifestV2, err = r.pullImageManifestV2(repoName, tag)
 	if err == nil {
 		// pull config json
 		imageDigest, err = ManifestV2Digest(manifestV2)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest digest err, repo %s ,digest %s", fullRopoName, tag)
+			logging.GetLogger().Error().Msgf("get manifest digest err, repo %s ,digest %s", repoName, tag)
 			return nil, err
 		}
 		manifestV2Str, err = manifestV2.MarshalJSON()
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest string err, repo %s ,digest %s", fullRopoName, tag)
+			logging.GetLogger().Error().Msgf("get manifest string err, repo %s ,digest %s", repoName, tag)
 			return nil, err
 		}
 
 		// pull config json
 		configDigest = manifestV2.Config.Digest
-		configBlob, err = r.pullConfigBlob(fullRopoName, configDigest)
+		configBlob, err = r.pullConfigBlob(repoName, configDigest)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", fullRopoName, tag)
+			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", repoName, tag)
 			return nil, err
 
 		}
 	} else {
 		// pull manifest v2 err,try v1
-		logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, fullRopoName, tag)
-		manifestV1, err = r.pullImageManifestV1(fullRopoName, tag)
+		logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, repoName, tag)
+		manifestV1, err = r.pullImageManifestV1(repoName, tag)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, fullRopoName, tag)
+			logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, repoName, tag)
 			return nil, err
 		}
 		manifestV1Str, err = manifestV1.MarshalJSON()
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest v1 str err %v, repo %s ,digest %s", err, fullRopoName, tag)
+			logging.GetLogger().Error().Msgf("get manifest v1 str err %v, repo %s ,digest %s", err, repoName, tag)
 			return nil, err
 		}
 
 		// according: github.com/google/go-containerregistry@v0.1.2/pkg/v1/remote/descriptor.go
 		// use http-header "Docker-Content-digest" as manifest-v1 image digest
-		tmp, err := r.registryClient.ManifestDigest(fullRopoName, tag)
+		tmp, err := r.registryClient.ManifestDigest(repoName, tag)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,digest %s", err, fullRopoName, tag)
+			logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,digest %s", err, repoName, tag)
 			return nil, err
 		}
 		imageDigest = tmp.String()
 	}
 
-	image := r.makeImage(fullRopoName, tag)
+	image := r.makeImage(repoName, tag)
 	image.ImageDigest = imageDigest
 	image.ManifestV2 = string(manifestV2Str)
 	image.ManifestV1 = string(manifestV1Str)
 	image.ConfigJson = configBlob
 
 	return image, nil
+}
+
+func (r *RegistryV2) DeleteImages(projectName, repoName, dig string) error {
+	if projectName != "" {
+		repoName = projectName + "/" + repoName
+	}
+	err := r.registryClient.DeleteManifest(repoName, digest.Digest(dig))
+	return err
 }
 
 func (r *RegistryV2) CheckProject(projectName string) error {

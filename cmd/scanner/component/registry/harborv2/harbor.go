@@ -163,6 +163,7 @@ func (h *harborV2) ListProjectReposWithPage(project string, page, pageSize int) 
 func (h *harborV2) ListRepoArtifacts(project, repo string) ([]Artifact, error) {
 	var artifacts []Artifact
 	page := 1
+	repo = strings.Replace(repo, "/", "%252F", -1)
 	for {
 		a, err := h.ListRepoArtifactsWithPage(project, repo, page, DefaultPageSize)
 		if err != nil {
@@ -175,7 +176,7 @@ func (h *harborV2) ListRepoArtifacts(project, repo string) ([]Artifact, error) {
 		}
 		page++
 	}
-	// logging.GetLogger().Info().Msgf("artifacts %v", artifacts)
+	//	logging.GetLogger().Info().Msgf("artifacts %v", artifacts)
 	return artifacts, nil
 }
 
@@ -221,12 +222,14 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 		// get all artifacts in repo
 		for _, r := range repos {
 			// repo name like 'library/xxx',we only need 'xxx'
-			tmp := strings.Split(r.Name, "/")
-			if len(tmp) != 2 {
+			index := strings.Index(r.Name, "/")
+			tmp := r.Name[index+1:]
+			if index == -1 {
 				logging.GetLogger().Error().Msgf("repo %s format err", r.Name)
 				continue
 			}
-			repoName := tmp[1]
+			repoName := tmp
+			fmt.Println("reponame: " + repoName)
 			artifacts, err := h.ListRepoArtifacts(v.Name, repoName)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("repo %s get artifacts err,try next repo.%v", r.Name, err)
@@ -332,6 +335,10 @@ func (h *harborV2) GetImage(projectName, repoName, tag string) (*registry.Image,
 		ConfigJson:   configBlob,
 	}
 	return img, nil
+}
+
+func (h *harborV2) DeleteImages(projectName, repoName, digest string) error {
+	panic("not implement")
 }
 
 // CreateProject 创建project

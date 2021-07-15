@@ -40,6 +40,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mozilla/tls-observatory v0.0.0-20200317151703-4fa42e1c2dee
 	github.com/oceanicdev/chi-param v1.1.0
+	github.com/olekukonko/tablewriter v0.0.5 //ct
 	github.com/olivere/elastic/v7 v7.0.21
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/runc v0.1.1 // indirect
@@ -56,6 +57,9 @@ require (
 	github.com/swaggo/swag v1.6.7 // indirect
 	github.com/tealeg/xlsx v1.0.5
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
+	github.com/tomogoma/generator v0.0.0-20171014125632-4398aab4dd41 // indirect
+	github.com/tomogoma/go-api-guard v0.0.0-20180312041446-a2bad766ec64
+	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vishvananda/netlink v0.0.0 //netlink
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
@@ -77,7 +81,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c // indirect
 	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.1.0
-	gorm.io/driver/sqlite v1.1.4
 	gorm.io/gorm v1.21.11
 	k8s.io/api v0.17.17
 	k8s.io/apimachinery v0.17.18-rc.0

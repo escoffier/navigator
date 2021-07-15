@@ -156,9 +156,11 @@ type RejectPolicyConfigResponse struct {
 }
 
 type RejectOnlineMoniterImage struct {
-	Image    string   `json:"image"`
-	FromType string   `json:"type"`
-	CustomKV []KVHash `json:"custom_KV"`
+	Image    string `json:"image"`
+	Digest   string `json:"digest"`
+	FromType string `json:"type"`
+	// CustomKV      []KVHash      `json:"custom_KV"`
+	NotifyContext *NotifyContext `json:"notify_context"`
 }
 
 type RejectReasonStatistics []RejectReasonStatistic
@@ -181,19 +183,35 @@ type RejectReasons struct {
 	EN map[int64]string `json:"en"`
 }
 
-func NewReqBody(ruleKey EventCenterRule, customKV []KVHashs, serviceID string) ReqBody {
-	return ReqBody{
+func NewReqBody(ruleKey EventCenterRule, notify NotifyContext, uuid uint64) ReqBody {
+	reqBody := ReqBody{
 		RuleKey: ruleKey,
 		NotifyContext: NotifyContext{
-			PodUID:    "-",
-			PodName:   "-",
-			Namespace: "-",
-			Cluster:   "default",
-			ServiceID: serviceID,
-			CustomKV:  customKV,
+			PodUID:    notify.PodUID,
+			PodName:   notify.PodName,
+			Namespace: notify.Namespace,
+			Cluster:   notify.Cluster,
+			ServiceID: notify.ServiceID,
+			CustomKV:  notify.CustomKV,
 		},
 		Timestamp: time.Now().Unix(),
+		UUID:      uuid,
 	}
+	if reqBody.NotifyContext.PodUID == "" {
+		reqBody.NotifyContext.PodUID = "-"
+	}
+	if reqBody.NotifyContext.PodName == "" {
+		reqBody.NotifyContext.PodName = "-"
+	}
+
+	if reqBody.NotifyContext.Namespace == "" {
+		reqBody.NotifyContext.Namespace = "-"
+	}
+	if reqBody.NotifyContext.Cluster == "" {
+		reqBody.NotifyContext.Cluster = "default"
+	}
+
+	return reqBody
 }
 
 func NewEventCenterRule(name, module, category string) EventCenterRule {
@@ -208,6 +226,7 @@ type ReqBody struct {
 	RuleKey       EventCenterRule `json:"RuleKey"`
 	NotifyContext NotifyContext   `json:"NotifyContext"`
 	Timestamp     int64           `json:"Timestamp"`
+	UUID          uint64          `json:"UUID"`
 }
 
 type EventCenterRule struct {
@@ -269,4 +288,28 @@ func GetVuluRuleKey(vuleLeve string, lag string) string {
 	default:
 		return reasonCNMap[vuleLeve]
 	}
+}
+
+type ScanOneForCICDRequest struct {
+	Image     string `json:"image"`
+	MaxSecond string `json:"max_second"`
+	Insecure  bool   `json:"insecure"`
+}
+
+type ScanOneForCICDResponse struct {
+	IsScan      bool       `json:"is_scan"`
+	Safe        bool       `json:"safe"`
+	ImageDetail *ImageList `json:"-"`
+	Msg         []KVHashs  `json:"-"`
+
+	RejectMsg [][]string `json:"reject_msg"`
+
+	Vulu      [][]string `json:"vulu"`
+	Sensitive [][]string `json:"sensitive"`
+	Virus     [][]string `json:"virus"`
+}
+
+type ScanOneCICDResultRequest struct {
+	ImageID int64  `json:"id"`
+	Library string `json:"library"`
 }

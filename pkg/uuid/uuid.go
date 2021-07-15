@@ -3,9 +3,11 @@ package uuid
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"go.uber.org/atomic"
+	"hash/fnv"
 	"math"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 type Generator struct {
@@ -34,4 +36,12 @@ func (g *Generator) GenerateUUID() uint64 {
 	binary.BigEndian.PutUint16(buf[4:6], g.processRand)
 	binary.BigEndian.PutUint16(buf[6:], uint16(g.counter.Inc()%uint32(math.MaxUint16)))
 	return binary.BigEndian.Uint64(buf[:])
+}
+
+func GenerateUUIDFromString(ss string) uint64 {
+	h := fnv.New64a()
+	if _, err := h.Write([]byte(ss)); err != nil {
+		return 0
+	}
+	return h.Sum64()
 }

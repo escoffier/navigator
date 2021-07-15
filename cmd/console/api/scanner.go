@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -21,7 +22,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// 转发scanner中 /api/v1/scan 开头的接口
+// 转发scanner中的接口
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/reportsByImageList", api.RedirectToScanner(true))     // don
@@ -46,6 +47,7 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Get("/register/projects/{projectName}", api.RedirectToScanner())
 		r.Get("/register/registries", api.RedirectToScanner())
+		r.Get("/register/registry", api.RedirectToScanner())
 
 		r.Get("/imagereject/overview", api.RedirectToScanner())
 		r.Get("/imagereject/images", api.RedirectToScanner())
@@ -57,6 +59,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/imagereject/policy", api.RedirectToScanner())
 		r.Delete("/imagereject/policy/{id}", api.RedirectToScanner())
 		r.Post("/imagereject/scanone/cicd", api.RedirectToScanner())
+		r.Post("/imagereject/result/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
 	}
 }
@@ -231,14 +234,18 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 		log.WithContext(api.ctx).Infof("preUrl", pre)
 		var newUrl string
 
-		if len(repaleceScannner) > 0 && repaleceScannner[0] {
-			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
-				strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1/scan", 1))
+		if strings.Contains(pre, "openapi") == false {
+			if len(repaleceScannner) > 0 && repaleceScannner[0] {
+				newUrl = fmt.Sprintf("%s%s", api.scannerURL,
+					strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1/scan", 1))
+			} else {
+				newUrl = fmt.Sprintf("%s%s", api.scannerURL,
+					strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1", 1))
+			}
 		} else {
 			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
-				strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1", 1))
+				strings.Replace(pre, "/api/openapi/scanner", "/api/v1", 1))
 		}
-
 		log.WithContext(api.ctx).Infof("newUrl", newUrl)
 		log.WithContext(api.ctx).Infof("scannerURL", api.scannerURL)
 
@@ -247,9 +254,22 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
 			return
 		}
+		var httpTimeout time.Duration
+		httpTimeout = 60
+		if strings.Contains(newUrl, "cicd") {
+			httpTimeout = 1000
+		}
+
 		proxy := httputil.ReverseProxy{
 			Director: func(request *http.Request) {
 				request.URL = u
+			},
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout:   httpTimeout * time.Second,
+					KeepAlive: httpTimeout * time.Second,
+					DualStack: true,
+				}).DialContext,
 			},
 		}
 		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))

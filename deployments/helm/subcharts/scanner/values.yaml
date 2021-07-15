@@ -7,6 +7,58 @@ image:
   pullPolicy: Always
   pullSecret: harbor-admin-secret
 
+dockerregistry:
+  image:
+    name: tensorsec-scanner-registry
+    tag: 2.7.1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "200Mi"
+    limits:
+      cpu: "200m"
+      memory: "512Mi"
+  service:
+    type: ClusterIP
+    # clusterIP:
+    port: 5000
+    # nodePort:
+  persistence:
+    accessMode: 'ReadWriteOnce'
+    enabled: true
+    size: 10Gi
+    #storageClass: ""
+  # Set this to name of secret for tls certs
+  # tlsSecretName: registry.docker.example.com
+  secrets:
+    # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
+    # e.g. "htpasswd -nbBC10 $username $password"
+    # Default: tensorse:TensorSec@Passw0rd
+    htpasswd: "tensorsec:$2y$10$zYHR.AGhdeKnjpxIKU3.3.XH9MeEUdmSJZil9MUWlqB8b2Q3th7PK"
+  configData:
+    version: 0.1
+    log:
+      fields:
+        service: registry
+    storage:
+      cache:
+        blobdescriptor: inmemory
+      delete:
+        enabled: true
+    http:
+      addr: :5000
+      headers:
+        X-Content-Type-Options: [nosniff]
+    health:
+      storagedriver:
+        enabled: true
+        interval: 10s
+        threshold: 3
+  securityContext:
+    enabled: true
+    runAsUser: 1000
+    fsGroup: 1000
+
 ## Deployment pod host aliases
 #  hostAliases:
 #  - ip: "192.168.x.x"

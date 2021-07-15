@@ -12,6 +12,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -52,7 +53,7 @@ func SetupRoutes(
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	emailOpts *flag.EmailOpts,
-	//imageService *image.ImageService,
+	// imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 ) {
 	log.Debug().Msg("setting up routes...")
@@ -70,6 +71,14 @@ func SetupRoutes(
 	)
 	r.Get("/ping", response.Pong)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
+
+	// Open Api
+	r.Route("/api/openapi", func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Use(apikey.ScannerValid())
+			r.Route("/scanner", api.scanner())
+		})
+	})
 
 	// api v2
 	r.Route("/api/v2", func(r chi.Router) {

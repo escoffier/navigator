@@ -34,6 +34,7 @@ type ClusterService struct {
 	mongodb       *mongotools.DatabaseWrapper
 	postgreDB     *rdbtools.GormWrapper
 	clustersCache *rcache.ClustersCache
+	scannerURL    string
 }
 
 func Init(
@@ -41,12 +42,14 @@ func Init(
 	postgreDB *rdbtools.GormWrapper,
 	mongodb *mongotools.DatabaseWrapper,
 	redisClient *redis.Client,
+	scannerURL string,
 ) error {
 	once.Do(func() {
 		instance = &ClusterService{
 			mongodb:       mongodb,
 			postgreDB:     postgreDB,
 			clustersCache: rcache.NewClustersCache(ctx, mongodb, redisClient),
+			scannerURL:    scannerURL,
 		}
 	})
 
@@ -118,7 +121,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		var id primitive.ObjectID
 		queryResult := collection.FindOne(sessionContext, filter)
 
-		//if find the record then return
+		// if find the record then return
 		if queryResult.Err() == nil {
 			sessionError = queryResult.Err()
 			return NewClusterAlreadyExists(http.StatusBadRequest, fmt.Errorf("Cluster already exists: %w", sessionError))
@@ -139,7 +142,7 @@ func (s *ClusterService) AddCluster(ctx context.Context, clusterName string, kub
 		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
 		resSvc, _ := assetsSvc.GetResourcesService(ctx)
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, inResService, kbmSvc, resSvc)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, inResService, kbmSvc, resSvc, s.scannerURL)
 		if werr != nil {
 			return werr
 		}
@@ -304,7 +307,7 @@ func (s *ClusterService) DeleteCluster(ctx context.Context, clusterObjectID prim
 		resSvc, _ := assetsSvc.GetResourcesService(ctx)
 		inResService, _ := assetsSvc.GetAssetsInResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
-		watcher, werr := assetsSvc.Watcher(s.postgreDB, inResService, kbmSvc, resSvc)
+		watcher, werr := assetsSvc.Watcher(s.postgreDB, inResService, kbmSvc, resSvc, s.scannerURL)
 		if werr != nil {
 			return werr
 		}

@@ -307,6 +307,10 @@ func (h *harborV1) GetImage(projectName, repoName, tag string) (*registry.Image,
 	return img, nil
 }
 
+func (h *harborV1) DeleteImages(projectName, repoName, digest string) error {
+	panic("not implement")
+}
+
 // CreateProject 创建project
 func (h *harborV1) CreateProject(projectName string, public bool) error {
 	url := fmt.Sprintf("%s/%s/projects", h.config.URL, ApiVersion)

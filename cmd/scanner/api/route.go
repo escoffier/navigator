@@ -72,12 +72,14 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 		v5.DELETE("/policy/:id", apiRejectSrv.DeletePolicy)
 		v5.POST("/online_moniter", apiScannerSrv.TickOnlineScan)
 		v5.POST("/scanone/cicd", apiScannerSrv.ScanOneForDetectImage)
+		v5.POST("/result/cicd", apiScannerSrv.ScanOneForCICDRequest)
 	}
 	// 和仓库相关
 	v6 := router.Group("/api/v1/register")
 	{
 		v6.GET("/projects/:projectName", apiScannerSrv.CheckProjectAndCreateIfNotExist)
 		v6.GET("/registries", apiScannerSrv.ListRegistry)
+		v6.GET("/registry", apiScannerSrv.GetRegistry)
 	}
 	// 对接harbor扫描器
 	v7 := router.Group("/harbor/api/v1")

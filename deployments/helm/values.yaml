@@ -56,8 +56,21 @@ scanner:
     harborURL: https://harbor.example
     harborUsername: admin
     harborSecretName: harbor-api-tensorsec
-
-
+  dockerregistry:
+    persistence:
+      enabled: true
+      size: 10Gi
+    secrets:
+      # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
+      # e.g. "htpasswd -nbBC10 $username $password"
+      # Default: tensorse:TensorSec@Passw0rd
+      htpasswd: "tensorsec:$2y$10$9fuDB4Of8Zw.6OVaQvduhe9gsI/T3NTVYBbvvtU2cHeianQH5iLM2"
+    service:
+      type: ClusterIP
+      # clusterIP:
+      port: 5000
+      # nodePort:
+    
 drift-prevention:
   enabled: true
   image:

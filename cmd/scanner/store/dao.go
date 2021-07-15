@@ -35,9 +35,13 @@ const (
 
 type ScannerDalInterface interface {
 	SearchImage(param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
+	DeleteImage(param DeleteImageParam) error
+
 	SearchScanLayer(param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
 	SearchScanImage(param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
-	UpdateScanImage(where string, updater map[string]interface{}) error
+	UpdateImage(where string, updater map[string]interface{}) error
+	DeleteScanImage(param DeleteScanImageParam) error
+
 	InsertScanImage(sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(im model.ImageList) (int64, error)
 	SearchAssetsContainers(param SearchAssetsContainersParam, filter *model.Filter) ([]model.AssetContainer, int64, error)
@@ -77,7 +81,7 @@ type ScannerDalInterface interface {
 	UpdatePolicy(ctx context.Context, policy model.RejectPolicy)
 	DeletePolicy(ctx context.Context, policyId int64)
 	IsInRegistry(ctx context.Context, library string) bool
-	GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []model.ImageList
+	GetK8sRejectImageList(ctx context.Context, image model.ImageList) *model.ImageList
 	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
 	GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy
 }
@@ -87,6 +91,24 @@ type ScannerOrm struct {
 	ctx   context.Context // 一个空的context
 	psql  *gorm.DB
 	log   *logging.Logger
+}
+
+func (s *ScannerOrm) DeleteImage(param DeleteImageParam) error {
+	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
+	defer cancelFunc()
+	db := s.psql.Model(new(model.ImageList)).WithContext(ctx)
+	db = db.Where("id = ? ", param.ImageId)
+	err := db.Delete(&model.ImageList{}).Error
+	return err
+}
+
+func (s *ScannerOrm) DeleteScanImage(param DeleteScanImageParam) error {
+	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
+	defer cancelFunc()
+	db := s.psql.Model(new(model.ScanImage)).WithContext(ctx)
+	db = db.Where("image_id = ? ", param.ImageId)
+	err := db.Delete(&model.ScanImage{}).Error
+	return err
 }
 
 func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
@@ -173,25 +195,26 @@ func (s *ScannerOrm) SearchRejectVuln(param SearchRejectRejectVulnParam) ([]mode
 	return res, err
 }
 
-func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, imageLists []model.ImageList) []model.ImageList {
-	res := make([]model.ImageList, 0)
-	for k := range imageLists {
-		var id int64
+func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.ImageList) *model.ImageList {
+	var id int64
+	// 如果传了digest就先查digest
+	if image.Digest != "" {
 		s.psql.Model(model.ImageList{}).Select("id").
-			Where("full_repo_name=? AND tags=? AND library=?", imageLists[k].FullRepoName, imageLists[k].Tags, imageLists[k].Library).First(&id)
+			Where("digest = ? AND AND library = ?", image.Digest, image.Library).First(&id)
 		if id != 0 {
-			imageLists[k].ID = id
-			res = append(res, imageLists[k])
-			// resIds = append(resIds, id)
+			image.ID = id
+			return &image
 		}
-		/*if resScanImage.ImageId != 0 {
-			s.psql.Model(model.ScanImage{}).Where("image_id = ? AND status = ?", resScanImage.ImageId, model.ScanStatusSucceeded).First(&resScanImage)
-			if resScanImage.ID != 0 {
-				return resScanImage
-			}
-		}*/
 	}
-	return res
+
+	s.psql.Model(model.ImageList{}).Select("id").
+		Where("full_repo_name = ? AND tags = ? AND library = ?", image.FullRepoName, image.Tags, image.Library).Order("updated_at desc").First(&id)
+	if id != 0 {
+		image.ID = id
+		return &image
+	}
+
+	return nil
 }
 
 func (s ScannerOrm) DeletePolicy(ctx context.Context, policyId int64) {
@@ -579,13 +602,13 @@ func (s *ScannerOrm) InsertScanImage(sis []model.ScanImage) (int64, error) {
 	return db.RowsAffected, db.Error
 }
 
-func (s *ScannerOrm) UpdateScanImage(where string, updater map[string]interface{}) error {
+func (s *ScannerOrm) UpdateImage(where string, updater map[string]interface{}) error {
 	if where == "" {
 		return errors.New("no where")
 	}
 	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
 	defer cancelFunc()
-	db := s.psql.Model(new(model.ScanImage)).WithContext(ctx).Where(where).Updates(updater)
+	db := s.psql.Model(new(model.ImageList)).WithContext(ctx).Where(where).Updates(updater)
 	return db.Error
 }
 
@@ -852,13 +875,13 @@ func (s *ScannerOrm) SearchRegistry(param SearchRegistryParam, filter *model.Fil
 			db = db.Where("id IN ? ", param.RegistryIds)
 		}
 	}
-	if len(param.LibraryUrls) > 0 {
-		if len(param.LibraryUrls) == 1 {
-			db = db.Where("url = ? ", param.LibraryUrls[0])
-		} else {
-			db = db.Where("url IN ? ", param.LibraryUrls)
-		}
+	if param.LibraryUrl != "" {
+		db = db.Where("url = ? ", param.LibraryUrl)
 	}
+	if param.UseType > 0 {
+		db = db.Where("use_type = ? ", param.UseType)
+	}
+
 	// 先查总数
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {
@@ -871,17 +894,18 @@ func (s *ScannerOrm) SearchRegistry(param SearchRegistryParam, filter *model.Fil
 	}
 	// 加解密
 	key := []byte("talkerss")
-	for _, re := range res {
+	for i := range res {
 		decryPass := make([]byte, 1024)
-		decryPass, err := util.DesDecrypt(re.Password, key)
+		decryPass, err := util.DesDecrypt(res[i].Password, key)
 		if err != nil {
 			continue
 		}
-		tmpStr := re.Username + ":" + string(decryPass)
+		res[i].PasswordString = string(decryPass)
+		tmpStr := res[i].Username + ":" + string(decryPass)
 		authByte := []byte(tmpStr)
 		encodeStr := base64.StdEncoding.EncodeToString(authByte)
 		authStr := "Basic " + encodeStr
-		re.AuthStr = authStr
+		res[i].AuthStr = authStr
 	}
 
 	return res, cnt, nil
@@ -927,6 +951,12 @@ func (s *ScannerOrm) SearchImage(param SearchImageParam, filter *model.Filter) (
 	}
 	if param.Tag != "" {
 		db = db.Where("tags = ?", param.Tag)
+	}
+	if param.FromType > 0 {
+		db = db.Where("from_type = ? ", param.FromType)
+	}
+	if param.NotFromType > 0 {
+		db = db.Where("from_type != ?", param.NotFromType)
 	}
 	// 先查总数
 	var cnt int64

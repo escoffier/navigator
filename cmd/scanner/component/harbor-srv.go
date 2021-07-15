@@ -112,6 +112,7 @@ func (Harbor *Harbor) GetTags(ctx context.Context, url string, authorization str
 		projectName = fullRepoName[0:index]
 		fullRepoName = fullRepoName[index+1:]
 	}
+	fullRepoName = strings.Replace(fullRepoName, "/", "%252F", -1)
 	tagUrl := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s/tags", url, "api/v2.0", projectName, fullRepoName, digest)
 	//fmt.Printf("username %s password %s :\n", username, password)
 	body, err := Harbor.reqHarbor(ctx, tagUrl, username, password, authorization)

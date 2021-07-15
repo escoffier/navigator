@@ -95,6 +95,7 @@ func NewScanner(
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
 	// postgres
+
 	postgresDB, err := gorm.Open(postgres.Open(clairOpts.PostgresConnectionString), &gorm.Config{})
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
@@ -118,7 +119,6 @@ func NewScanner(
 	postgresDB.AutoMigrate(&model.RejectVuln{})
 
 	scannerDB := store.NewScannerDB(postgresDB)
-
 	// Redis DB client
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisOpts.Endpoint,
@@ -149,11 +149,6 @@ func NewScanner(
 	}
 
 	// harbor client
-	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("ERROR: harbor client init error :%s ", err)
-		return nil, err
-	}
 
 	// callback cache
 	globalCache := cache.New(60*time.Minute, 10*time.Minute)
@@ -171,7 +166,6 @@ func NewScanner(
 		redclair:        redclairSvc,
 		viursScan:       virusScan,
 		mongoClient:     mongodb,
-		harborClient:    harborClient,
 		ctx:             mainCtx,
 		cancel:          mainCancel,
 		localLayerMange: llms,
@@ -372,6 +366,7 @@ func newConScannerSrv(
 	dal := store.NewScannerOrm(mongoClient, db)
 
 	srv := component.NewConScannerSrv(dal, redclair, virusScan, store.NewScannerDB(db), globalCache)
+	go srv.DeleteCICDImage(context.Background()) // 起协程删除cache仓库的image
 	return srv
 }
 

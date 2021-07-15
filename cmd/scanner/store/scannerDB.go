@@ -34,7 +34,7 @@ func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, ScanImage *model.S
 
 func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) {
 	tmpImage := model.ScanImage{ID: tableID}
-	scdb.PostgresDB.Model(tmpImage).Updates(ScanImage)
+	scdb.PostgresDB.Model(tmpImage).Updates(ScanImage).Debug()
 }
 
 func (scdb *ScannerDB) GetImageID(ctx context.Context, digest string, fullRepoName string) (int64, error) {
@@ -124,11 +124,14 @@ func (scdb *ScannerDB) InsertToRegistry(ctx context.Context, Registry *model.Reg
 	/*decryPass := make([]byte, 1024)
 	decryPass, err = scdb.DesDecrypt(encryPass, key)
 	fmt.Println("初始化时解压后的密码:", string(decryPass))*/
+	if Registry.UseType == 2 {
+		scdb.PostgresDB.Model(model.Registry{}).Where("use_type=2").Update("use_type", 0)
+	}
 	tmpRegistry := model.Registry{}
-	res := scdb.PostgresDB.Where("url = ?", Registry.Url).First(&tmpRegistry)
+	res := scdb.PostgresDB.Model(Registry).Where("url = ?", Registry.Url).First(&tmpRegistry)
 	Registry.ID = tmpRegistry.ID
 	if res.RowsAffected >= 1 {
-		if err := scdb.PostgresDB.Updates(&Registry).Error; err != nil {
+		if err := scdb.PostgresDB.Updates(&Registry).Debug().Error; err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "InsertToRegistry Updates Registry error%s ", err.Error())
 		}
 		return
@@ -172,7 +175,7 @@ func (scdb *ScannerDB) GetScanOneStatus(ctx context.Context, repositoryName stri
 
 func (scdb *ScannerDB) InsertImageList(im model.ImageList) (int64, error) {
 	tmp := model.ImageList{}
-	res := scdb.PostgresDB.Where("full_repo_name = ? AND tags = ? AND library = ?", im.FullRepoName, im.Tags, im.Library).First(&tmp)
+	res := scdb.PostgresDB.Where("full_repo_name = ? AND tags = ? AND library = ? AND from_type = ?", im.FullRepoName, im.Tags, im.Library, im.FromType).First(&tmp)
 	if res.RowsAffected < 1 {
 		err := scdb.PostgresDB.Create(&im).Error
 		return im.ID, err

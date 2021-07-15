@@ -109,7 +109,7 @@ func (r *Redclair) ScanLayer(ctx context.Context, hub *registry.Registry, digest
 		return "", []model.VulnerabilityInfo{}, []model.Sensitive{}, fmt.Errorf("Failed to get vulnerabilities: %w", err)
 	}
 
-	if !r.offlineMode {
+	if !r.offlineMode && scanTask.Stale != true {
 		err = r.enrichWithCNNVD(ctx, vulnerabilities)
 		if err != nil {
 			//client.DeleteLayer(digest)
