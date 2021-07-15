@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta "k8s.io/api/batch/v1beta1"
@@ -19,6 +17,9 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
@@ -260,7 +261,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					// send no owner pods to tensor resources
 					if toWatchResources {
 						if len(pod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
-							res := newResourceFromPodNoOwner(clusterName, pod)
+							res := newResourceFromPodNoOwnerOrStaticPod(clusterName, pod)
 							e := resourceEvent{
 								oldResource: nil,
 								newResource: res,
