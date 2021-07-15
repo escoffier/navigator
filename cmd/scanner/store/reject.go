@@ -137,6 +137,7 @@ func (s *ScannerOrm) OverviewReasonTopN(param OverviewReasonParam, filter *model
 		model.RejectReasonHasCriticalVuln:   model.RejectReasonHasCriticalVulnZH,
 		model.RejectNoLibrary:               model.RejectNoLibraryZH,
 		model.RejectScanFailure:             model.RejectScanFailureZH,
+		model.RejectScanNotScanned:          model.RejectScanScanNotScannedZH,
 	}
 	reasonENMap := map[int64]string{
 		model.RejectReasonScore:             model.RejectReasonScoreEN,
@@ -151,6 +152,7 @@ func (s *ScannerOrm) OverviewReasonTopN(param OverviewReasonParam, filter *model
 		model.RejectReasonHasCriticalVuln:   model.RejectReasonHasCriticalVulnEN,
 		model.RejectNoLibrary:               model.RejectNoLibraryEN,
 		model.RejectScanFailure:             model.RejectScanFailureEN,
+		model.RejectScanNotScanned:          model.RejectScanScanNotScannedEN,
 	}
 	for i := range res {
 		res[i].RejectReasonStringCN = reasonCNMap[res[i].RejectReason]

@@ -30,6 +30,7 @@ const (
 	RejectReasonHasCriticalVuln   = 10 // 存在高危漏洞
 	RejectNoLibrary               = 11 // 来源镜像不在本地仓库（安全模式）
 	RejectScanFailure             = 12 // 镜像扫描失败
+	RejectScanNotScanned          = 13 // 镜像未扫描
 )
 
 const (
@@ -50,6 +51,7 @@ const (
 	RejectReasonHasCriticalVulnEN   = "Exist Critical vulnerability file"
 	RejectNoLibraryEN               = "image not in config registry"
 	RejectScanFailureEN             = "image scan failure"
+	RejectScanScanNotScannedEN      = "image not scanned"
 
 	RejectReasonScoreZH             = "漏洞评分低于设置值"
 	RejectReasonHasSensitiveFileZH  = "存在敏感文件"
@@ -62,5 +64,18 @@ const (
 	RejectReasonHasHighVulnZH       = "存在危险漏洞"
 	RejectReasonHasCriticalVulnZH   = "存在高危漏洞"
 	RejectNoLibraryZH               = "来源镜像不在本地仓库"
-	RejectScanFailureZH             = "镜像扫描失败" // 最后一个兜底的原因
+	RejectScanFailureZH             = "镜像扫描失败" //
+	RejectScanScanNotScannedZH      = "镜像未扫描"  //
+)
+
+const (
+	UsePatternForCICD   = "for_cicd"
+	UsePatternForK8s    = "for_k8s"
+	UsePatternForOnline = "for_online"
+)
+const RegistryUseTypeBuff = 2 // 表示CICD的中转仓库
+
+const (
+	ImageFromTypeCICD   = 2
+	ImageFromTypeNormal = 1
 )

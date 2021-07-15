@@ -85,6 +85,7 @@ type Console struct {
 	harborClient  *harbor.HarborRESTClient
 	ctx           context.Context
 	cancel        context.CancelFunc
+	scannerURL    string
 }
 
 // NewConsole is to create a new Console struct.
@@ -258,7 +259,7 @@ func NewConsole(
 	}
 
 	// cluster service
-	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient)
+	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient, fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port))
 
 	// scap service
 	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper)
@@ -303,6 +304,7 @@ func NewConsole(
 		ctx:           mainCtx,
 		cancel:        mainCancel,
 		harborClient:  harborClient,
+		scannerURL:    fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 	}, nil
 }
 
@@ -375,7 +377,7 @@ func (c *Console) Run() func() {
 		kbmSvc, _ := kubemonitor.Get(ctx)
 		resSvc, _ := assetsSvc.GetResourcesService(ctx)
 
-		watcher, werr := assetsSvc.Watcher(c.postgresDB, inResSvc, kbmSvc, resSvc)
+		watcher, werr := assetsSvc.Watcher(c.postgresDB, inResSvc, kbmSvc, resSvc, c.scannerURL)
 		if werr != nil {
 			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
 		} else {

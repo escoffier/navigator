@@ -57,8 +57,6 @@ spec:
           "--redclair-skipregistrytlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-master:6379",
           "--harbor-configPath=/config/registry.yaml",
-          "--harbor-username={{ .Values.harbor.harborUsername }}",
-          "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
           "-v"]
         env:

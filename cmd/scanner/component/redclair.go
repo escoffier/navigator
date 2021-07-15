@@ -138,6 +138,7 @@ func (rcSvc *RedClairService) Run(ctx context.Context, llms *layerManage.LocalLa
 func (rcSvc *RedClairService) AddScanTask(task model.ScanTask, comeFrom int) {
 	switch comeFrom {
 	case consts.ScanTaskComeFromCICD:
+		task.Stale = true
 		rcSvc.ciciTasksChan <- task
 	default:
 		rcSvc.scanTasksChan <- task
@@ -533,7 +534,6 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 			return
 		}
 	}
-	fmt.Printf("userName: %s password:%s", username, password)
 
 	hub, err := registry.New(scanTask.URL, username, password)
 	if err != nil && rcSvc.skipRegistryTLSVerify {
@@ -668,9 +668,8 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		logging.GetLogger().Error().Msgf("Construct scanImage error：%+v", err)
 	}
 	rcSvc.logLayerTable(ctx, scanTask, scanTask.ImageID)
-	rcSvc.logPostgres(ctx, scanImage, scanTask.TableID, scanTask, model.ScanStatusSucceeded, "", nil)
 	rcSvc.logVulnTable(ctx, scanTask, scanTask.ImageID)
-
+	rcSvc.logPostgres(ctx, scanImage, scanTask.TableID, scanTask, model.ScanStatusSucceeded, "", nil)
 	zerolog.Ctx(ctx).Info().Msg("Processing of scan task finished")
 }
 

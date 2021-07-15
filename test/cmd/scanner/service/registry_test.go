@@ -33,7 +33,7 @@ func TestSyncRepo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	syncInterval := uint(5)
-	r, err := service.NewSyncRepoImageByConfig(configPath, syncInterval)
+	r, err := component.NewSyncRepoImage(ctx, configPath, syncInterval, scannerDB)
 	if err != nil {
 		t.Fatalf("new sync repo image err:%v", err)
 	}
@@ -50,11 +50,11 @@ func TestSyncRepo(t *testing.T) {
 			return nil
 		}, &wg)
 	}
-	r.MockRun(func(image registry.Image) error {
-		te.OutPut()
-		fmt.Println("image", image.ImageDigest)
-		return nil
-	})
+	//r.MockRun(func(image registry.Image) error {
+	//	te.OutPut()
+	//	fmt.Println("image", image.ImageDigest)
+	//	return nil
+	//})
 
 	t.Log("end")
 }

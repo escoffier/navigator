@@ -25,8 +25,8 @@ type Vuln struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    int
-	Name         string         `gorm:"uniqueIndex:idx_name"` // 形如CVE-2021-28831
-	Namespace    string         // 发行版名字：alpine，redhat等
+	Name         string         `gorm:"uniqueIndex:uniq_idx_vuln,priority:1"` // 形如CVE-2021-28831
+	Namespace    string         `gorm:"uniqueIndex:uniq_idx_vuln,priority:2"` // 发行版名字：alpine，redhat等
 	Description  string         // 描述
 	Link         []string       `gorm:"-"` // 参考链接
 	LinkJSON     datatypes.JSON `gorm:"type:jsonb"`
@@ -46,8 +46,8 @@ type VulnImage struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt int
-	VulnName  string
-	ImageId   int64 `gorm:"index:idx_image_id"` // 镜像id
+	VulnName  string `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:1"`
+	ImageId   int64  `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2"` // 镜像id
 }
 
 type ScanLayer struct { // 层级扫描结果
@@ -55,8 +55,8 @@ type ScanLayer struct { // 层级扫描结果
 	CreatedAt    time.Time           `json:"created_at"`
 	UpdatedAt    time.Time           `json:"updated_at"`
 	DeletedAt    int                 `json:"deleted_at"`
-	ImageId      int64               `gorm:"index:idx_image_id"   json:"image_id"`
-	LayerDigest  string              `gorm:"index:idx_digest" json:"layer_digest"`
+	ImageId      int64               `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
+	LayerDigest  string              `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
 	VulnInfoJSON datatypes.JSON      `gorm:"type:jsonb" json:"-"` // 包含扫描结果的json
 	VulnInfo     []VulnerabilityInfo `gorm:"-" json:"vuln_info"`
 
@@ -77,7 +77,7 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	DeletedAt             int
-	ImageId               int64                      `gorm:"index:idx_image_id"`
+	ImageId               int64                      `gorm:"uniqueIndex:idx_scan_image"`
 	RiskScore             float64                    `gorm:"column:risk_score" json:"risk_score" bson:"risk_score"`
 	VulnInfo              []VulnerabilityInfo        `gorm:"-"`
 	VulnInfoJSON          datatypes.JSON             `gorm:"type:jsonb"` // 漏洞结果汇总
@@ -109,12 +109,12 @@ type ImageList struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Url            string
-	FullRepoName   string                 `gorm:"index:idx_digest_name,priority:1"  json:"full_repo_name"`
-	Tags           string                 `gorm:"column:tags" json:"tags"`
-	Digest         string                 `gorm:"index:idx_digest_name,priority:2" json:"digest"`
+	FullRepoName   string                 `gorm:"uniqueIndex:uniq_inx_image,priority:1"  json:"full_repo_name"`
+	Tags           string                 `gorm:"uniqueIndex:uniq_inx_image,priority:2" json:"tags"`
+	Digest         string                 `gorm:"index:idx_image_digest" json:"digest"`
 	OS             string                 `gorm:"column:os" json:"os"`
 	Size           int                    `gorm:"column:size" json:"size"`
-	Library        string                 `gorm:"column:library" json:"library"`
+	Library        string                 `gorm:"uniqueIndex:uniq_inx_image,priority:3" json:"library"`
 	Questions      []QuestionInfo         `gorm:"-" json:"questions"`
 	CompleteTime   string                 `gorm:"column:complete_time" json:"complete_time"`
 	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
@@ -122,8 +122,6 @@ type ImageList struct {
 	ScanStatus     string                 `gorm:"-" json:"scan_status"`
 	ImageScanVirus []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
 
-	// CreateTime     string                 `gorm:"column:create_time" json:"create_time" bson:"create_time"`
-	// PushTime     string         `gorm:"column:push_time;index" json:"push_time" bson:"push_time"`
 	OnLineCount   int  `gorm:"column:on_line_count;default:0" json:"-"`
 	Status        int  `gorm:"column:status;default:0" json:"status"` //  status: -1 not ready images 0 normal status
 	RegistryId    uint // 来源registry，id为registry表的id
@@ -137,6 +135,7 @@ type ImageList struct {
 	ManifestV1JSON datatypes.JSON `gorm:"type:jsonb"` // manifest内容
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
 	ConfigJson     datatypes.JSON `gorm:"type:jsonb"` // config内容,包括layer diffid
+	FromType       int            `gorm:"uniqueIndex:uniq_inx_image,priority:4,default:0" json:"from_type"`
 }
 
 func (i ImageList) TableName() string {
@@ -146,9 +145,9 @@ func (i ImageList) TableName() string {
 // ImageRelate 镜像关联信息表
 type ImageRelate struct {
 	ID          int64  `gorm:"primary_key,AUTO_INCREMENT" json:"id" `
-	Digest      string `gorm:"uniqueIndex:uniq_idx_digest_library,priority:1" json:"digest"`
-	Library     string `gorm:"uniqueIndex:uniq_idx_digest_library,priority:2" json:"library"`
-	ContainerID string `gorm:"column:container_id;uniqueIndex:uniq_idx_digest_library,priority:3" json:"container_id"`
+	Digest      string `gorm:"uniqueIndex:uniq_idx_image_relate,priority:1" json:"digest"`
+	Library     string `gorm:"uniqueIndex:uniq_idx_image_relate,priority:2" json:"library"`
+	ContainerID string `gorm:"column:container_id;uniqueIndex:uniq_idx_image_relate,priority:3" json:"container_id"`
 }
 
 func (i ImageRelate) TableName() string {
@@ -166,18 +165,20 @@ type Package struct {
 
 // Registry Registry表
 type Registry struct {
-	ID          uint `gorm:"primaryKey"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   int
-	Url         string `gorm:"index:idx_url"` // 如:docker.io/v2, quay.io/v2
-	Username    string // user for login registry
-	Password    []byte // DES加密
-	TLS         int    // 1-use tls,0-not use
-	Token       string
-	Description string
-	ApiVersion  string
-	AuthStr     string `gorm:"-" json:"auth_str"` // 用户名和密码加密后的数据，不存入数据库中
+	ID             uint `gorm:"primaryKey" json:"id"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      int
+	Url            string `gorm:"index:idx_url" json:"url"`        // 如:docker.io/v2, quay.io/v2
+	Username       string `gorm:"column:username" json:"username"` // user for login registry
+	Password       []byte `gorm:"column:password" json:"-"`        // DES加密
+	PasswordString string `gorm:"-" json:"password"`
+	TLS            int    // 1-use tls,0-not use
+	Token          string `gorm:"column:token" json:"token"`
+	Description    string `gorm:"column:description"  json:"description"`
+	ApiVersion     string `gorm:"column:api_version" json:"api_version"`
+	AuthStr        string `gorm:"-" json:"auth_str"` // 用户名和密码加密后的数据，不存入数据库中
+	UseType        int    `gorm:"column:use_type"`   // 1-用户仓库,2-buf仓库
 }
 
 func (Registry) TableName() string {
@@ -372,14 +373,14 @@ type Malicious struct {
 // RejectRecord 拦截记录表
 type RejectRecord struct {
 	ID               int64          `json:"id"`
-	Library          string         `json:"library"`                                             // 仓库名
-	FullRepoName     string         `gorm:"index:idx_repo_tag,priority:1" json:"full_repo_name"` // 镜像名
-	Tag              string         `gorm:"index:idx_repo_tag,priority:2" json:"tag"`            // 版本号
-	RejectDetail     string         `json:"reject_detail"`                                       // 阻断原因(详细)用|分隔
-	RejectReasonJson datatypes.JSON `gorm:"type:jsonb,column:reject_reason_json" json:"-"`       // 阻断原因(大类) {"1":"1"}
-	RejectReason     []int64        `gorm:"-" json:"reject_reason"`                              // 阻断原因(大类)
-	VulnScore        int64          `json:"vuln_score"`                                          // 被阻断时设置的策略漏洞评分
-	VulnLevel        string         `json:"vuln_level"`                                          // 被阻断时设置的策略漏洞评级
+	Library          string         `json:"library"`                                                  // 仓库名
+	FullRepoName     string         `gorm:"index:idx_reject_record,priority:1" json:"full_repo_name"` // 镜像名
+	Tag              string         `gorm:"index:idx_reject_record,priority:2" json:"tag"`            // 版本号
+	RejectDetail     string         `json:"reject_detail"`                                            // 阻断原因(详细)用|分隔
+	RejectReasonJson datatypes.JSON `gorm:"type:jsonb,column:reject_reason_json" json:"-"`            // 阻断原因(大类) {"1":"1"}
+	RejectReason     []int64        `gorm:"-" json:"reject_reason"`                                   // 阻断原因(大类)
+	VulnScore        int64          `json:"vuln_score"`                                               // 被阻断时设置的策略漏洞评分
+	VulnLevel        string         `json:"vuln_level"`                                               // 被阻断时设置的策略漏洞评级
 
 	RejectAt  time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
 	CreatedAt time.Time `json:"created_at"`              // 创建时间
@@ -393,9 +394,9 @@ func (RejectRecord) TableName() string {
 // ImageWhitelist 镜像白名单
 type ImageWhitelist struct {
 	ID           int64     `json:"id"`
-	Library      string    `gorm:"uniqueIndex:uniq_idx_library_image_tag,priority:1" json:"library"`        // 仓库名
-	FullRepoName string    `gorm:"uniqueIndex:uniq_idx_library_image_tag,priority:2" json:"full_repo_name"` // 镜像名
-	Tag          string    `gorm:"uniqueIndex:uniq_idx_library_image_tag,priority:3" json:"tag"`            // 版本号
+	Library      string    `gorm:"uniqueIndex:uniq_idx_white_image,priority:3" json:"library"`        // 仓库名
+	FullRepoName string    `gorm:"uniqueIndex:uniq_idx_white_image,priority:1" json:"full_repo_name"` // 镜像名
+	Tag          string    `gorm:"uniqueIndex:uniq_idx_white_image,priority:2" json:"tag"`            // 版本号
 	Digest       string    `json:"digest"`
 	CreatedAt    time.Time `json:"created_at"` //
 }

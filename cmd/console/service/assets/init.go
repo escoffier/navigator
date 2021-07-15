@@ -23,6 +23,7 @@ func Watcher(postgre *rdbtools.GormWrapper,
 	ov *AssetsInResourcesService,
 	kbmSvc *kubemonitor.Service,
 	tsRes *TensorResourcesService,
+	scannerURL string,
 ) (*assets.Watcher, error) {
 	if ov == nil || postgre == nil || kbmSvc == nil {
 		return nil, errors.New("arguments exist nil")
@@ -35,6 +36,7 @@ func Watcher(postgre *rdbtools.GormWrapper,
 		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
 		wInstance.AddCallback(kbmSvc.RiskMonitor())
 		wInstance.AddCallback(tsRes)
+		wInstance.AddCallback(image.NewOnlineMonitor(postgre, scannerURL))
 	})
 	return wInstance, nil
 }

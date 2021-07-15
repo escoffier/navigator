@@ -61,6 +61,8 @@ type Registry interface {
 	CreateProject(projectName string, public bool) error
 
 	GetImage(projectName, fullRepoName, tag string) (*Image, error)
+	// 删除Image
+	DeleteImages(projectName, repoName, digest string) error
 
 	// ListImages return all images
 	ListImages(extender ImageListExtender) ([]Image, error)

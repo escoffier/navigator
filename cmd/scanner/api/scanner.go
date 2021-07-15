@@ -32,8 +32,10 @@ type Scanner struct {
 
 func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 	containerInfo := []model.RejectOnlineMoniterImage{}
-	ctx.BindJSON(&containerInfo)
-	fmt.Println("recv Info : ", containerInfo)
+	if err := ctx.BindJSON(&containerInfo); err != nil {
+		s.log.WithContext(ctx).Errorf(err, "BindJSON error")
+		return
+	}
 	flag := s.Srv.TickOnlineScan(ctx, containerInfo)
 	type tmpRes struct {
 		Flag bool `json:"flag"`
@@ -186,103 +188,163 @@ func (s *Scanner) ListRegistry(ctx *gin.Context) {
 	}
 	urls := make([]string, 0)
 	for _, reg := range registries {
-		urls = append(urls, reg.Url)
+		if reg.UseType != model.RegistryUseTypeBuff {
+			urls = append(urls, reg.Url)
+		}
 	}
 	response.JSONOK(ctx, response.WithItems(urls))
 }
 
-func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
-	s.log.WithContext(ctx).Infof("收到CICD的请求")
-	type tmpRecv struct {
-		Library      string `json:"library"`
-		DomainName   string `json:"domain_name"`
-		ProjectName  string `json:"project_name"`
-		FullRepoName string `json:"full_repo_name"`
-		Tag          string `json:"tag"`
-		MaxSecond    string `json:"max_second"`
-	}
+func (s *Scanner) GetRegistry(ctx *gin.Context) {
+	usetype := ctx.Query("usetype")
 
-	tmp := tmpRecv{}
-	if err := ctx.BindJSON(&tmp); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	second, _ := strconv.ParseInt(tmp.MaxSecond, 10, 64)
-
-	if tmp.ProjectName == "" && strings.Contains(tmp.FullRepoName, "/") {
-		split := strings.Split(tmp.FullRepoName, "/")
-		if len(split) >= 2 {
-			tmp.ProjectName = split[0]
-			tmp.FullRepoName = strings.Join(split[1:], "/")
-		}
-	}
-	if !strings.Contains(tmp.Library, "http") {
-		tmp.Library = "https://" + tmp.Library
-	}
-	safe, imgId, msgs, err := s.Srv.ScanOneForCICD(ctx, tmp.Library, tmp.ProjectName, tmp.FullRepoName, tmp.Tag, int(second))
+	registries, _, err := s.Srv.ListRegistry(ctx, false)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	res := make([]string, 0)
-	// 第一行返回镜像是否安全结果
-	res = append(res, fmt.Sprintf("%t", safe))
-	if strings.HasSuffix(tmp.DomainName, "/") {
-		tmp.DomainName = string([]byte(tmp.DomainName)[:len(tmp.DomainName)-1])
+	type res struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
 
-	res = append(res, fmt.Sprintf("详情请见:%s/#/image-scanning/recent-scan?id=%d", tmp.DomainName, imgId))
-
-	if len(msgs) > 0 {
-		res = append(res, fmt.Sprintf("扫描后命中策略如下:"))
-		for _, ms := range msgs {
-			res = append(res, fmt.Sprintf("%s", ms.KVHash.ZH.Value))
+	for _, reg := range registries {
+		ans := res{
+			Username: reg.Username,
+			Password: reg.PasswordString,
+		}
+		if strconv.Itoa(reg.UseType) == usetype {
+			response.JSONOK(ctx, response.WithItem(ans))
+			return
 		}
 	}
+	response.JSONError(ctx, errors.New("no library"))
+}
 
-	img, err := s.Srv.GetImageDetail(ctx, imgId)
-	if err != nil {
-		bys, err := json.Marshal(strings.Join(res, " \n"))
-		if err != nil {
-			ctx.Writer.Write(bys)
-		}
+func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
+	tmp := new(model.ScanOneCICDResultRequest)
+
+	if err := ctx.BindJSON(tmp); err != nil {
+		response.JSONError(ctx, err)
 		return
 	}
-	// 拼装镜像扫描数据数据
-	// 先看漏洞
-	if len(img.ImageScanVuln.TopVulns) > 0 {
-		res = append(res, fmt.Sprintf("镜像漏洞信息如下："))
-		res = append(res, fmt.Sprintf("漏洞编号  严重程度  软件包 软件版本"))
-		for _, vu := range img.ImageScanVuln.TopVulns {
-			res = append(res, fmt.Sprintf("%s %s %s %s ", vu.ID, vu.Severity, vu.FeatureName, vu.FixedBy))
-		}
+	fmt.Printf("接收到的信息为%v\n", tmp)
+	resp, err := s.Srv.ScanOneForCICDResult(ctx, tmp)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
 	}
-	// 再看敏感文件
-	if len(img.ImageScanVuln.SensitiveFiles) > 0 {
-		res = append(res, fmt.Sprintf("镜像敏感文件信息如下："))
-		res = append(res, fmt.Sprintf("敏感文件名  文件路径  文件类型 "))
-		for _, vu := range img.ImageScanVuln.SensitiveFiles {
-			split := strings.Split(vu.Name, "/")
-			if len(split) < 1 {
-				continue
+	if resp != nil {
+		// 整理数据
+		resp.Vulu = make([][]string, 0)
+		resp.RejectMsg = make([][]string, 0)
+		resp.Sensitive = make([][]string, 0)
+		resp.Virus = make([][]string, 0)
+
+		if len(resp.Msg) > 0 {
+			resp.RejectMsg = append(resp.RejectMsg, []string{"扫描命中策略"})
+			for i := range resp.Msg {
+				resp.RejectMsg = append(resp.RejectMsg, []string{resp.Msg[i].KVHash.ZH.Value})
 			}
-			res = append(res, fmt.Sprintf("%s %s ", split[len(split)-1], vu.Name))
 		}
-	}
-	// 再查恶意文件
-	if len(img.ImageScanVirus) > 0 {
-		res = append(res, fmt.Sprintf("镜像恶意文件信息如下："))
-		res = append(res, fmt.Sprintf("镜像名  文件名  文件路径 "))
-		for _, vu := range img.ImageScanVirus {
-			res = append(res, fmt.Sprintf("%s %s %s", vu.Virusname, vu.Filename, vu.Filepath))
-		}
-	}
 
-	bys, err := json.Marshal(strings.Join(res, " \n"))
-	if err != nil {
+		// 拼装镜像扫描数据数据
+		// 先看漏洞
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.TopVulns) > 0 {
+			resp.Vulu = append(resp.Vulu, []string{"漏洞编号", "严重程度", "软件包", "软件版本"})
+			for _, vu := range resp.ImageDetail.ImageScanVuln.TopVulns {
+				resp.Vulu = append(resp.Vulu, []string{vu.ID, vu.Severity, vu.FeatureName, vu.FeatureVersion})
+			}
+		}
+		// 再看敏感文件
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.SensitiveFiles) > 0 {
+			resp.Sensitive = append(resp.Sensitive, []string{"敏感文件名", "文件路径", "文件类型"})
+			for _, vu := range resp.ImageDetail.ImageScanVuln.SensitiveFiles {
+				split := strings.Split(vu.Name, "/")
+				if len(split) < 1 {
+					continue
+				}
+				resp.Sensitive = append(resp.Sensitive, []string{split[len(split)-1], vu.Name, ""})
+			}
+		}
+		// 再查恶意文件
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVirus) > 0 {
+			resp.Virus = append(resp.Virus, []string{"敏感文件名", "文件路径", "文件类型"})
+			for _, vu := range resp.ImageDetail.ImageScanVirus {
+				resp.Virus = append(resp.Virus, []string{vu.Virusname, vu.Filename, vu.Filepath})
+			}
+		}
+	} else {
+		resp = &model.ScanOneForCICDResponse{}
+		resp.IsScan = false
+	}
+	response.JSONOK(ctx, response.WithItem(*resp))
+}
+
+func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
+	tmp := new(model.ScanOneForCICDRequest)
+
+	if err := ctx.BindJSON(tmp); err != nil {
+		response.JSONError(ctx, err)
 		return
 	}
-	ctx.Writer.Write(bys)
+	s.log.WithContext(ctx).Infof("CICD 收到的请求,image:%s,Insecure:%t", tmp.Image, tmp.Insecure)
+
+	hasHttp := strings.Contains(tmp.Image, "http://")
+	hasHttps := strings.Contains(tmp.Image, "https://")
+	if !hasHttps && !hasHttp {
+		if !tmp.Insecure {
+			tmp.Image = "https://" + tmp.Image
+		} else {
+			tmp.Image = "http://" + tmp.Image
+		}
+	}
+	resp, err := s.Srv.ScanOneForCICD(ctx, tmp)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	/*
+		// 整理数据
+		resp.Vulu = make([][]string, 0)
+		resp.RejectMsg = make([][]string, 0)
+		resp.Sensitive = make([][]string, 0)
+		resp.Virus = make([][]string, 0)
+
+		if len(resp.Msg) > 0 {
+			resp.RejectMsg = append(resp.RejectMsg, []string{"扫描命中策略"})
+			for i := range resp.Msg {
+				resp.RejectMsg = append(resp.RejectMsg, []string{resp.Msg[i].KVHash.ZH.Value})
+			}
+		}
+
+		// 拼装镜像扫描数据数据
+		// 先看漏洞
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.TopVulns) > 0 {
+			resp.Vulu = append(resp.Vulu, []string{"漏洞编号", "严重程度", "软件包", "软件版本"})
+			for _, vu := range resp.ImageDetail.ImageScanVuln.TopVulns {
+				resp.Vulu = append(resp.Vulu, []string{vu.ID, vu.Severity, vu.FeatureName, vu.FeatureVersion})
+			}
+		}
+		// 再看敏感文件
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.SensitiveFiles) > 0 {
+			resp.Sensitive = append(resp.Sensitive, []string{"敏感文件名", "文件路径", "文件类型"})
+			for _, vu := range resp.ImageDetail.ImageScanVuln.SensitiveFiles {
+				split := strings.Split(vu.Name, "/")
+				if len(split) < 1 {
+					continue
+				}
+				resp.Sensitive = append(resp.Sensitive, []string{split[len(split)-1], vu.Name, ""})
+			}
+		}
+		// 再查恶意文件
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVirus) > 0 {
+			resp.Virus = append(resp.Virus, []string{"敏感文件名", "文件路径", "文件类型"})
+			for _, vu := range resp.ImageDetail.ImageScanVirus {
+				resp.Virus = append(resp.Virus, []string{vu.Virusname, vu.Filename, vu.Filepath})
+			}
+		}*/
+	response.JSONOK(ctx, response.WithItem(*resp))
 }
 
 func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
@@ -381,7 +443,6 @@ func (s *Scanner) CheckProjectAndCreateIfNotExist(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-
 	type Resp struct {
 		Existed bool `json:"existed"`
 	}

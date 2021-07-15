@@ -30,10 +30,6 @@ const TimeFormat = "2006-01-02 15:04:05.000000Z"
 const TimeFormatWithHour = "2006-01-02 15"
 const TimeFormatWithDay = "2006-01-02"
 
-const (
-	UsePatternForCICD = "for_cicd"
-	UsePatternForK8s  = "for_k8s"
-)
 const DuplicateKey = "duplicate key value"
 
 const (
@@ -49,4 +45,6 @@ const (
 	GRPC_CA_PATH                                        = "/auth/ca/tls.crt"
 	TENSORSEC_EVENTCENTER_SERVICE_HOST                  = "https://tensorsec-eventcenter"
 	TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP = ":8080"
+
+	EventIntervalUUID = 2 // 表示每2分钟生成一个uuid
 )

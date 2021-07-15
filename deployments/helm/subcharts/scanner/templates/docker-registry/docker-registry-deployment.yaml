@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "scanner.fullname" . }}-dockerregistry
+  labels:
+    app: {{ template "scanner.fullname" . }}-dockerregistry
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "scanner.fullname" . }}-dockerregistry
+      release: {{ .Release.Name }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ template "scanner.fullname" . }}-dockerregistry
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      {{- if .Values.dockerregistry.securityContext.enabled }}
+      securityContext:
+        fsGroup: {{ .Values.dockerregistry.securityContext.fsGroup }}
+        runAsUser: {{ .Values.dockerregistry.securityContext.runAsUser }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-dockerregistry
+          image: {{ include "scanner.docker.registry.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+          - /bin/registry
+          - serve
+          - /etc/docker/registry/config.yml
+          ports:
+            - containerPort: 5000
+          resources:
+{{ toYaml .Values.dockerregistry.resources | indent 12 }}
+          env:
+            {{- if .Values.dockerregistry.secrets.htpasswd }}
+            - name: REGISTRY_AUTH
+              value: "htpasswd"
+            - name: REGISTRY_AUTH_HTPASSWD_REALM
+              value: "Registry Realm"
+            - name: REGISTRY_AUTH_HTPASSWD_PATH
+              value: "/auth/htpasswd"
+            {{- end }}
+            {{- if .Values.dockerregistry.tlsSecretName }}
+            - name: REGISTRY_HTTP_TLS_CERTIFICATE
+              value: /etc/ssl/docker/tls.crt
+            - name: REGISTRY_HTTP_TLS_KEY
+              value: /etc/ssl/docker/tls.key
+            {{- end }}
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: "/var/lib/registry"
+            {{- if .Values.dockerregistry.persistence.deleteEnabled }}
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.dockerregistry.secrets.htpasswd }}
+            - name: auth
+              mountPath: /auth
+              readOnly: true
+            {{- end }}
+            - name: data
+              mountPath: /var/lib/registry/
+            - name: "{{ template "scanner.fullname" . }}-dockerregistry"
+              mountPath: "/etc/docker/registry"
+            {{- if .Values.dockerregistry.tlsSecretName }}
+            - mountPath: /etc/ssl/docker
+              name: tls-cert
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if .Values.dockerregistry.secrets.htpasswd }}
+        - name: auth
+          secret:
+            secretName: {{ template "scanner.fullname" . }}-dockerregistry
+            items:
+            - key: htpasswd
+              path: htpasswd
+        {{- end }}
+        - name: data
+          {{- if .Values.dockerregistry.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ template "scanner.fullname" . }}-dockerregistry
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: {{ template "scanner.fullname" . }}-dockerregistry
+          configMap:
+            name: {{ template "scanner.fullname" . }}-dockerregistry
+        {{- if .Values.dockerregistry.tlsSecretName }}
+        - name: tls-cert
+          secret:
+            secretName: {{ .Values.dockerregistry.tlsSecretName }}
+        {{- end }}

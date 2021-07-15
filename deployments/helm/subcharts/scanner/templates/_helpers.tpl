@@ -1,12 +1,24 @@
 {{/* vim: set filetype=mustache: */}}
 {{/*
-Return the clair image name
+Return the scanner image name
 */}}
 {{- define "scanner.image" -}}
 {{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
 {{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
 {{- $imageName := .Values.image.name -}}
 {{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
+{/*
+Return the scanner docker registry image name
+*/}}
+{{- define "scanner.docker.registry.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.dockerregistry.image.name -}}
+{{- $tag := .Values.dockerregistry.image.tag | toString -}}
 
 {{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}

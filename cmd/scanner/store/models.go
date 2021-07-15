@@ -16,6 +16,16 @@ type SearchImageParam struct {
 	FullRepoName   string // 这里是精确匹配
 	Where          string // 外面传一个附加的字符串的where条件
 	BiggerID       int64  // 取大于该ID的数据
+	FromType       int
+	NotFromType    int
+}
+
+type DeleteImageParam struct {
+	ImageId int64
+}
+
+type DeleteScanImageParam struct {
+	ImageId int64
 }
 
 type SearchScanLayerParam struct {
@@ -44,7 +54,8 @@ type SearchAssetsContainersParam struct {
 type SearchRegistryParam struct {
 	RegistryIds []uint
 	Fields      []string // 只想要的字端
-	LibraryUrls []string
+	LibraryUrl  string
+	UseType     int
 }
 
 type GetImageOverViewParm struct {

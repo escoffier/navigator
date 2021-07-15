@@ -21,6 +21,7 @@ type SyncRepoImage struct {
 	config       Config
 	psql         *store.ScannerDB
 	syncInterval uint
+	fromType     int
 }
 
 func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint, psql *store.ScannerDB) ([]SyncRepoImage, error) {
@@ -28,7 +29,7 @@ func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint,
 	config, err := LoadConfig(configPath)
 
 	if err != nil {
-		logging.GetLogger().Fatal().Msg("failed to load configuration")
+		logging.GetLogger().Fatal().Msg(fmt.Sprintf("failed to load configuration,configPath:%s,error:%s", configPath, err.Error()))
 		return nil, err
 	}
 	var res []SyncRepoImage
@@ -39,13 +40,17 @@ func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint,
 		} else {
 			tls = 0
 		}
-		tmpRgistry := model.Registry{Url: config[i].Registry.Options["url"].(string), Username: config[i].Registry.Options["username"].(string), Password: []byte(config[i].Registry.Options["password"].(string)), TLS: tls, ApiVersion: config[i].Registry.Type}
+		tmpRgistry := model.Registry{UseType: config[i].Registry.Options["usetype"].(int), Url: config[i].Registry.Options["url"].(string), Username: config[i].Registry.Options["username"].(string), Password: []byte(config[i].Registry.Options["password"].(string)), TLS: tls, ApiVersion: config[i].Registry.Type}
 		psql.InsertToRegistry(ctx, &tmpRgistry)
+		if tmpRgistry.UseType != 1 {
+			continue
+		}
 		config[i].RegistryID = int64(tmpRgistry.ID)
 		s := SyncRepoImage{
 			config:       config[i],
 			psql:         psql,
 			syncInterval: syncInterval,
+			fromType:     tmpRgistry.UseType,
 		}
 		res = append(res, s)
 	}
@@ -122,5 +127,6 @@ func TransImageToImagelist(r SyncRepoImage, image registry.Image) model.ImageLis
 	TransImagelist.ManifestV1JSON = []byte(image.ManifestV1)
 	TransImagelist.ManifestV2JSON = []byte(image.ManifestV2)
 	TransImagelist.ConfigJson = []byte(image.ConfigJson)
+	TransImagelist.FromType = r.fromType
 	return TransImagelist
 }
