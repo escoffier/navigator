@@ -33,6 +33,9 @@ console:
     harborPassword: *harborPassword
   email:
     enabled: false
+  version:
+    softName: tensor
+    softVersion: v1.9
 
 scanner:
   image:
