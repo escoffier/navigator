@@ -43,7 +43,7 @@ func (s *RejectApi) ListImages(ctx *gin.Context) {
 	rejectReason := strings.Split(ctx.Query("reject_reason"), ",")
 	rjr := make([]int64, 0)
 	for _, rr := range rejectReason {
-		if i, _ := strconv.ParseInt(rr, 10, 64); i >= model.RejectReasonScore && i <= model.RejectReasonHasCriticalVuln {
+		if i, err := strconv.ParseInt(rr, 10, 64); err == nil {
 			rjr = append(rjr, i)
 		}
 	}
