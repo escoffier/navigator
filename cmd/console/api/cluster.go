@@ -6,23 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
-
-func (api *api) config() func(chi.Router) {
-	return func(r chi.Router) {
-		r.Get("/clusters", api.listClusters())
-		r.Post("/cluster", api.addCluster())
-		r.Get("/cluster/{clusterID}", api.getCluster())
-		r.Delete("/cluster/{clusterID}", api.delCluster())
-		r.Put("/cluster/{clusterID}", api.updateCluster())
-	}
-}
 
 // @Summary Get single cluster information
 // @Description Get single cluster information

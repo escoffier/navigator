@@ -762,7 +762,7 @@ func (api *api) exportFile() http.HandlerFunc {
 			if task.Status == 1 {
 				var nowtime int64
 				nowtime = time.Now().Unix()
-				if nowtime - task.CreatedAt > 120 {
+				if nowtime-task.CreatedAt > 120 {
 					os.Remove(task.FileName)
 				}
 			}

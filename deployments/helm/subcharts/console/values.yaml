@@ -151,3 +151,7 @@ mongo:
 redis:
   redisSecretName: tensorsec-redis
 
+version:
+  softName: tensor
+  softVersion: v1.9
+

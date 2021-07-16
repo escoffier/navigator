@@ -89,4 +89,3 @@ func (pg *PgDb) UpdateActiveTime(tx context.Context, uuid uint32) error {
 func (pg *PgDb) UpdateStatus(tx context.Context, t time.Time, status int) error {
 	return pg.Db.WithContext(tx).Where("updated_at < ?", t).Updates(&model.K8sNetToplgy{Status: status}).Error
 }
-

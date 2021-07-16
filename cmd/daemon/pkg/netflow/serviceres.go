@@ -74,7 +74,7 @@ func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*
 	if !existflag {
 		return owners, targetPort
 	}
-	
+
 	map2string := func(m map[string]string) string {
 		s := []string{}
 		for k, v := range m {

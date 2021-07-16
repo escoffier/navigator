@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
@@ -36,6 +37,9 @@ func (api *api) eventsCenter() func(chi.Router) {
 		r.Get("/signals", api.getSignals())
 		r.Get("/statistics", api.getStatistics())
 		r.Get("/signalProcessTree", api.getSignalProcessTree())
+		r.Get("/config", api.getEventCenterConfig())
+		r.Post("/config", api.updateEventCenterConfig())
+		r.Get("/warn", api.checkNeedAlert())
 	}
 }
 
@@ -145,7 +149,10 @@ func (api *api) getEvents() http.HandlerFunc {
 		}
 
 		kind := r.URL.Query().Get("kind")
+
+		id, _ := param.QueryInt(r, "id")
 		rsp, err := api.ecCli.GetAssociationEvents(ctx, &pb.GetAssociationEventsReq{
+			ID:         int32(id),
 			Offset:     int32(offset),
 			Limit:      int32(limit),
 			SortOrder:  hashSortOrder[sortOrder],
@@ -577,4 +584,120 @@ func convertSignals(signals []*pb.Signal) []*signal {
 		})
 	}
 	return result
+}
+
+func (api *api) getEventCenterConfig() http.HandlerFunc {
+	type rsp struct {
+		WarnSeverity     uint32   `json:"warnSeverity"`
+		MailNotification bool     `json:"mailNotification"`
+		Mails            []string `json:"mails"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)
+		defer cancel()
+		setting, err := api.ecCli.GetNotifySettings(ctx, &pb.GetNotifySettingsReq{})
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("GetNotifySettings fail, err:%s", err.Error())))
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItem(rsp{
+			WarnSeverity:     setting.ThresholdSeverity,
+			Mails:            setting.Emails,
+			MailNotification: setting.EmailNotification,
+		}))
+	}
+}
+
+func (api *api) updateEventCenterConfig() http.HandlerFunc {
+	type req struct {
+		WarnSeverity     uint32   `json:"warnSeverity"`
+		MailNotification bool     `json:"mailNotification"`
+		Mails            []string `json:"mails"`
+	}
+
+	checkReq := func(r req) bool {
+		if r.WarnSeverity > 10 {
+			return false
+		}
+
+		if r.MailNotification && len(r.Mails) == 0 {
+			return false
+		}
+
+		return true
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
+		defer cancel()
+		var cliReq req
+		err := util.DecodeJSONBody(w, r, &cliReq)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if !checkReq(cliReq) {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid req")))
+			return
+		}
+
+		_, err = api.ecCli.UpdateNotifySettings(ctx, &pb.UpdateNotifySettingsReq{
+			EmailNotification: cliReq.MailNotification,
+			Emails:            cliReq.Mails,
+			ThresholdSeverity: cliReq.WarnSeverity,
+		})
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("UpdateNotifySettings fail, err:%s", err.Error())))
+			return
+		}
+
+		response.Ok(w, response.WithItem(cliReq), response.WithApiVersion(eventCenterAPIVersion))
+	}
+}
+
+func (api *api) checkNeedAlert() http.HandlerFunc {
+	type rsp struct {
+		NeedAlert bool `json:"needAlert"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)
+		defer cancel()
+
+		timestamp, err := param.QueryInt64(r, "timestamp")
+		if err != nil || timestamp < 0 {
+			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+			return
+		}
+
+		interval, err := param.QueryInt64(r, "interval")
+		if err != nil || interval < 0 {
+			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+			return
+		}
+
+		result, err := api.ecCli.CheckNeedAlert(ctx, &pb.CheckNeedAlertReq{
+			Timestamp: timestamp,
+			Interval:  interval,
+		})
+
+		if err != nil {
+			logging.GetLogger().Warn().Msgf("CheckEventUpdate fail, err: %s", err.Error())
+			response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItem(rsp{}))
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItem(rsp{
+			NeedAlert: result.NeedAlert,
+		}))
+	}
+
 }
