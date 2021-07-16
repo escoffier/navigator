@@ -142,7 +142,12 @@ func NewConsole(
 		panic(err)
 	}
 
-	conn, err := grpc.Dial(eventGrpcUrl, grpc.WithTransportCredentials(cred))
+	const (
+		maxGrpcReceiveMsgSize = 1024 * 1024 * 1024
+	)
+
+	conn, err := grpc.Dial(eventGrpcUrl, grpc.WithTransportCredentials(cred),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxGrpcReceiveMsgSize)))
 	if err != nil {
 		return nil, err
 	}
