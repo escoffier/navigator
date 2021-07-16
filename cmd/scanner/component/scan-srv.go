@@ -115,12 +115,15 @@ func (s *ConScannerSrv) AddGlobalPolicyConfig(ctx context.Context, policy model.
 
 func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
 	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
-
 	var flag bool = true
 	if len(containerInfo) == 0 || len(resConfig) == 0 {
 		return true
 	}
-	tmpImageLists := []model.ImageList{}
+	if strings.Contains(containerInfo[0].FromType, "k8s") && resConfig[0].K8sEnable == false {
+		return true
+	} else if strings.Contains(containerInfo[0].FromType, model.UsePatternForOnline) && resConfig[0].OnlineMonitor == false {
+		return true
+	}
 
 	msgType := consts.AlertKindK8s
 	detectType := model.UsePatternForK8s
@@ -177,7 +180,7 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 		img := s.dbdal.GetK8sRejectImageList(ctx, tmpImageList)
 		if img == nil {
 			if resConfig[0].Mode == model.RejectPolicySafeModel {
-				s.CreateSafeReject(ctx, tmpImageLists[0], msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
+				s.CreateSafeReject(ctx, tmpImageList, msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
 				flag = false
 			}
 			continue
