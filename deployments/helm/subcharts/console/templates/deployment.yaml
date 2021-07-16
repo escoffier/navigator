@@ -126,6 +126,10 @@ spec:
           value: /audit
         - name: TENSORSEC_PPROF_PORT
           value: "{{ .Values.debugService.containerPort }}"
+        - name: SOFT_NAME
+          value: {{ .Values.version.softName }}
+        - name: SOFT_VERSION
+          value: {{ .Values.version.softVersion }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}

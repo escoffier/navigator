@@ -29,7 +29,6 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*Patch {
 	commandWhitelistPrevent := false
 	commnadWhitelistDetect := false
 
-
 	//TODO: Optimization codes or remove
 	for k, v := range pod.Labels {
 		if k == "tensorsec.driftprevent" {
