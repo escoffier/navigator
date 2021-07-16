@@ -48,7 +48,7 @@ scanner:
     secrets:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
       # e.g. "htpasswd -nbBC10 $username $password"
-      # Default: tensorse:TensorSec@Passw0rd
+      # Default: tensorsec:TensorSec@Passw0rd
       htpasswd: "tensorsec:$2y$10$zYHR.AGhdeKnjpxIKU3.3.XH9MeEUdmSJZil9MUWlqB8b2Q3th7PK"
     service:
       type: ClusterIP
