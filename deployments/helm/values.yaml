@@ -126,6 +126,9 @@ console:
     port: 465
     username: console-robot@tensorsecurity.cn
     password: password 
+  version:
+    softName: tensor
+    softVersion: v1.9
 
 daemon:
   enabled: false 
