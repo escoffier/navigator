@@ -114,11 +114,12 @@ func (s *ConScannerSrv) AddGlobalPolicyConfig(ctx context.Context, policy model.
 }
 
 func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
+	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
+
 	var flag bool = true
-	if len(containerInfo) == 0 {
+	if len(containerInfo) == 0 || len(resConfig) == 0 {
 		return true
 	}
-	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
 	tmpImageLists := []model.ImageList{}
 
 	msgType := consts.AlertKindK8s
@@ -319,7 +320,6 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 	if err != nil || cnt == 0 {
 		return nil, err
 	}
-	// todo
 	scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{req.ImageID}, NoStatus: model.ScanStatusInProgress}, nil)
 	if err != nil {
 		s.log.WithContext(ctx).Infof("CICD 已查询扫描结果出错,%s", err.Error())
