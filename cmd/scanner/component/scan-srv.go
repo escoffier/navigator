@@ -325,7 +325,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 	}
 	scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{req.ImageID}, NoStatus: model.ScanStatusInProgress}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Infof("CICD 已查询扫描结果出错,%s", err.Error())
+		s.log.WithContext(ctx).Infof("CICD 查询扫描结果出错,%s", err.Error())
 		return nil, err
 	}
 	if len(scanImage) == 0 {
@@ -351,7 +351,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 		}
 	}
 	// 存储阻断记录
-	s.log.WithContext(ctx).Infof("CICD 检测完毕，镜像：%s/%s:%s 安全：%t", req.Library, img[0].FullRepoName, img[0].Tags, safe)
+	s.log.WithContext(ctx).Infof("CICD 检测完毕，镜像：%s/%s:%s 安全：%t,records条数:%d,msg条数：%d", req.Library, img[0].FullRepoName, img[0].Tags, safe, len(records), len(msgs))
 	if !safe && len(records) > 0 {
 		s.log.WithContext(ctx).Infof("CICD 检测完毕,镜像被阻断，存储阻断记录")
 		res := mergeRejectRecord(img[0], records)
@@ -1074,13 +1074,13 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 	policies, err := s.dbdal.SearchRejectPolicy(store.SearchRejectPolicyParam{Library: policeReg})
 	if err != nil || len(policies) == 0 { // 没有策略说明不检测，默认全安全
 		s.log.WithContext(ctx).Infof("CICD 该仓库:%s 没有配置策略，默认全部安全", policeReg)
-		return true, nil, nil, nil
+		return true, records, msgs, nil
 	}
 
 	scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{imageId}, Status: model.ScanStatusSucceeded}, nil)
 	if err != nil {
 		s.log.WithContext(ctx).Infof("CICD 没有查询到镜像扫描结果:%d,error:%s", imageId, err.Error())
-		return false, nil, nil, err
+		return false, records, msgs, err
 	}
 	// 安全模式只针对k8s部署，对于cicd是要全检测.检测后不能直接返回，要检查白名单
 	if len(scanImage) == 0 {
@@ -1108,7 +1108,7 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage[0], img, po)
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage[0], img, po)
-			if !sa1 || sa2 || !sa3 || !sa4 || !sa5 {
+			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 {
 				safe = false
 			}
 			records = append(records, mergeRecord(red1, red2, red3, red4, red5)...)
@@ -1217,7 +1217,6 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
-	//  验证恶意文件
 	// 验证敏感文件
 	if len(scanImage.SensitiveFile) > 0 {
 		s.log.WithContext(ctx).Infof("CICD 包含敏感文件,imagId:" + strconv.Itoa(int(img.ID)))
