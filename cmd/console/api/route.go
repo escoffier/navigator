@@ -14,6 +14,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -173,7 +174,7 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 				return
 			}
 
-			accessListUrl, err := model.GetAccessUrl(postgresDB, u.ModuleID)
+			accessListUrl, err := dal.GetAccessUrl(postgresDB, u.ModuleID)
 			if err != nil {
 				RespAndLog(w, r.Context(),
 					NewMongoError(http.StatusInsufficientStorage,

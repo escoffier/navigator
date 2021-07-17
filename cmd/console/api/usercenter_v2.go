@@ -8,6 +8,8 @@ import (
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/login", api.login())
+		r.Post("/createCaptcha", api.createCaptcha())
+		r.Post("/getCaptchaImage", api.getCaptchaImage())
 		r.Post("/forgetpwd", api.forgetPwd())
 		r.Post("/activeuser", api.activeUser())
 		r.Post("/loadUser", api.loadUser())
@@ -25,6 +27,10 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Post("/editUser", api.editUser())
 			r.Post("/delSuperUser", api.delSuperUser())
 			r.Post("/resetPassword", api.resetPassword())
+			r.Post("/loginConfig", api.setConfig())
+			r.Get("/loginConfig", api.readConfig())
+			r.Post("/user/ban", api.userBan())
+			r.Post("/user/unban", api.userUnban())
 		})
 	}
 }

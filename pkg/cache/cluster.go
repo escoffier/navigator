@@ -10,7 +10,6 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,7 +18,7 @@ import (
 type ClustersCache struct {
 	ctx     context.Context
 	mongodb *mongotools.DatabaseWrapper
-	ch      *util.CacheHelper
+	ch      *CacheHelper
 }
 
 func NewClustersCache(
@@ -32,12 +31,12 @@ func NewClustersCache(
 		ctx:     ctx,
 		mongodb: mongodb,
 	}
-	c.ch = util.NewCacheHelper(
+	c.ch = NewCacheHelper(
 		ctx,
 		"Clusters",
 		redisClient,
 		c.getClustersNewestEntryTimestamp,
-		util.TimestampKey,
+		TimestampKey,
 	)
 	c.ch.AddToRegistry(c.getClustersData)
 	return c

@@ -192,16 +192,16 @@ func (Registry) TableName() string {
 // docker_version and os.version are not part of the spec but included
 // for backwards compatibility.
 type ConfigFile struct {
-	Architecture  string    `json:"architecture"`
-	Author        string    `json:"author,omitempty"`
-	Container     string    `json:"container,omitempty"`
-	Created       time.Time `json:"created,omitempty"`
-	DockerVersion string    `json:"docker_version,omitempty"`
-	History       []History `json:"history,omitempty"`
-	OS            string    `json:"os"`
-	RootFS        RootFS    `json:"rootfs"`
-	Config        Config    `json:"config"`
-	OSVersion     string    `json:"os.version,omitempty"`
+	Architecture  string       `json:"architecture"`
+	Author        string       `json:"author,omitempty"`
+	Container     string       `json:"container,omitempty"`
+	Created       time.Time    `json:"created,omitempty"`
+	DockerVersion string       `json:"docker_version,omitempty"`
+	History       []History    `json:"history,omitempty"`
+	OS            string       `json:"os"`
+	RootFS        RootFS       `json:"rootfs"`
+	Config        TensorConfig `json:"config"`
+	OSVersion     string       `json:"os.version,omitempty"`
 }
 
 // History is one entry of a list recording how this container image was built.

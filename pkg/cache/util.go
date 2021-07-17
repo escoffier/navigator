@@ -8,17 +8,16 @@ import (
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func dataToIds(ctx context.Context, filter bson.M, findOptions *options.FindOptions, coll *mongo.Collection) ([]model.CacheEntry, error) {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, util.MongoTimeout)
+	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer mongoCtxCancel()
 
-	mt := time.Second * 60
+	mt := time.Second * 10
 	findOptions.SetMaxTime(mt)
 	findOptions.SetProjection(bson.M{"_id": 1})
 

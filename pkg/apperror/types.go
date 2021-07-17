@@ -64,6 +64,53 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
+func NewCaptchaError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "captcha value is wrong",
+			Chinese:   "验证码错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+func NewLoginError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "username and password not match",
+			Chinese:   "用户名/密码错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAccountBanError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "the account is banned",
+			Chinese:   "账户已被锁定，请联系管理员",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 

@@ -89,7 +89,6 @@ func newScapper(
 		MongoSecretName:    mongoOpts.SecretName,
 		ScapService:        scapService,
 	}
-	s.initCheckUnFinishedJobs(context.Background())
 
 	return s
 }
@@ -129,7 +128,7 @@ func (s *Scapper) checkCheckStatusWithDelay(check scapper.Check, checkHistory mo
 
 // initCheckUnFinishedJobs will check all unfinished jobs, setting them finished if timeout.
 // it's used to prevent the case: ongoing jobs are watched by console to set timeout; if console crashed or redeployed, these jobs will lose watches and being unfinished.
-func (s *Scapper) initCheckUnFinishedJobs(ctx context.Context) error {
+func (s *Scapper) InitCheckUnFinishedJobs(ctx context.Context) error {
 	nowStamp := time.Now().Unix()
 	mongoCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
