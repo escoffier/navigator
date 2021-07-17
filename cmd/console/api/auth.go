@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dchest/captcha"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -17,6 +20,7 @@ import (
 
 const (
 	JWT_KEY_USERNAME = "user_name"
+	JWT_KEY_USERROLE = "user_role"
 )
 
 // User defines the obj in the userCache
@@ -45,12 +49,15 @@ type LoginResponse struct {
 // @Produce json
 // @Param username body string true "Username"
 // @Param password body string true "Password"
+// @Param captcha body string true "Captcha"
 // @Success 200 {object} api.LoginResponse "Login response"
 // @Router /api/v1/auth/login [post]
 func (api *api) login() http.HandlerFunc {
 	type credentials struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username     string `json:"username"`
+		Password     string `json:"password"`
+		CaptchaID    string `json:"captchaID"`
+		CaptchaValue string `json:"captchavalue"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		creds := &credentials{}
@@ -77,28 +84,51 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
+		if !captcha.VerifyString(creds.CaptchaID, creds.CaptchaValue) {
+			RespAndLog(w, ctx,
+				NewCaptchaError(http.StatusBadRequest,
+					fmt.Errorf("captcha value error")))
+			return
+		}
+
 		var (
 			findUser *model.User
 			ok       bool
 		)
 
-		ok, findUser, err = model.LoginCheckByPostgres(ctx, api.postgresDB, creds.Username, creds.Password)
+		ok, findUser, err = dal.LoginCheckByPostgres(ctx, api.postgresDB, creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
 					fmt.Errorf("Error when checking login credentials in database: %w", err)))
 			return
 		} else if !ok {
+			limiter := usercenter.GetLimiter(ctx)
+			banning := limiter.LoginFailToReachLimit(ctx, creds.Username)
+			if banning {
+				RespAndLog(w, r.Context(),
+					NewAccountBanError(http.StatusPreconditionFailed,
+						fmt.Errorf("the account %s is banned", creds.Username)))
+				return
+			}
+
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusPreconditionFailed,
-					fmt.Errorf("Couldn't find Username: %w", err)))
+					fmt.Errorf("user and password not match: %w", err)))
 			return
 		}
 
+		if findUser.BanStatus == 1 {
+			RespAndLog(w, r.Context(),
+				NewAccountBanError(http.StatusPreconditionFailed,
+					fmt.Errorf("the account %s is banned", creds.Username)))
+			return
+		}
 		// matched password
 		// generated a jwt, set cookie and put it in the userCache
 		jwtmc := jwt.MapClaims{
 			JWT_KEY_USERNAME: creds.Username,
+			JWT_KEY_USERROLE: findUser.Rule,
 		}
 		jwtauth.SetIssuedNow(jwtmc)
 		_, tokenString, _ := api.tokenAuth.Encode(jwtmc)
@@ -175,7 +205,7 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
-		username, ok := model.CheckHashCode(r.Context(), api.postgresDB, ru.HashCode)
+		username, ok := dal.CheckHashCode(r.Context(), api.postgresDB, ru.HashCode)
 		if !ok {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("hashcode is error")))
@@ -183,7 +213,7 @@ func (api *api) activeUser() http.HandlerFunc {
 		}
 
 		// active user
-		err = model.ActiveUser(r.Context(), api.postgresDB, username, ru.Pwd)
+		err = dal.ActiveUser(r.Context(), api.postgresDB, username, ru.Pwd)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("database error:%+v", err)))
@@ -210,7 +240,9 @@ func testWithLogJson(middle string, payload interface{}) {
 func (api *api) forgetPwd() http.HandlerFunc {
 
 	type reqForgetUser struct {
-		Username string `json:"username" binding:"required,max=32"`
+		Username     string `json:"username" binding:"required,max=32"`
+		CaptchaID    string `json:"captchaID"`
+		CaptchaValue string `json:"captchavalue"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		rf := reqForgetUser{}
@@ -224,7 +256,14 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
-		exist, _, err := model.SelectUser(ctx, api.postgresDB, rf.Username)
+		if !captcha.VerifyString(rf.CaptchaID, rf.CaptchaValue) {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("captcha value error")))
+			return
+		}
+
+		exist, _, err := dal.SelectUser(ctx, api.postgresDB, rf.Username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -236,7 +275,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		emailHashCode := model.RandStringBytesMaskImprSrcUnsafe(64)
+		emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
 
 		bool := model.SendEmail(rf.Username, r.Host, emailHashCode, api.emailOpts)
 		if !bool {
@@ -245,7 +284,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		err = model.InsertEmail(ctx, api.postgresDB, rf.Username, emailHashCode)
+		err = dal.InsertEmail(ctx, api.postgresDB, rf.Username, emailHashCode)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))

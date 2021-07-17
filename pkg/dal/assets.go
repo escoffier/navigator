@@ -1,4 +1,4 @@
-package assets
+package dal
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -112,7 +113,7 @@ func (q *ResourcesQueryOption) WithNamespace(ns string) *ResourcesQueryOption {
 	q.whereCondition["namespace"] = ns
 	return q
 }
-func (q *ResourcesQueryOption) WithResourceKind(kind ResourceKind) *ResourcesQueryOption {
+func (q *ResourcesQueryOption) WithResourceKind(kind assets.ResourceKind) *ResourcesQueryOption {
 	q.whereCondition["kind"] = kind
 	return q
 }
@@ -208,7 +209,7 @@ func (q *ResContainersQueryOption) WithNamespace(ns string) *ResContainersQueryO
 	q.whereCondition["namespace"] = ns
 	return q
 }
-func (q *ResContainersQueryOption) WithResourceKind(kind ResourceKind) *ResContainersQueryOption {
+func (q *ResContainersQueryOption) WithResourceKind(kind assets.ResourceKind) *ResContainersQueryOption {
 	q.whereCondition["resource_kind"] = kind
 	return q
 }
@@ -284,7 +285,7 @@ func doSoftDeleteResource(ctx context.Context, db *gorm.DB, uuid uint32, updateT
 }
 
 // SoftDeleteResource will delete the resources and related containers using transactions.
-func SoftDeleteResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource *TensorResource, updateTime time.Time) error {
+func SoftDeleteResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource *assets.TensorResource, updateTime time.Time) error {
 	uuid := getResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -300,7 +301,7 @@ func SoftDeleteResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource
 	})
 }
 
-func newModelFromTensorResource(resource *TensorResource, updateTime time.Time) *model.TensorResource {
+func newModelFromTensorResource(resource *assets.TensorResource, updateTime time.Time) *model.TensorResource {
 	m := new(model.TensorResource)
 	m.ID = getResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
 	m.Name = resource.Name
@@ -360,7 +361,7 @@ func doUpsertResource(ctx context.Context, rdb *gorm.DB, resourceModel *model.Te
 }
 
 // UpsertResource will update tensor_resources and also tensor_containers using transactions. One fail will cause the whole update rollback.
-func UpsertResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource *TensorResource, updateTime time.Time) (*model.TensorResource, error) {
+func UpsertResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource *assets.TensorResource, updateTime time.Time) (*model.TensorResource, error) {
 	resourceModel := newModelFromTensorResource(resource, updateTime)
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -378,7 +379,7 @@ func UpsertResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource *Te
 	return resourceModel, err
 }
 
-func fromContainerToModel(container corev1.Container, resource *TensorResource, updateTime time.Time) *model.TensorContainer {
+func fromContainerToModel(container corev1.Container, resource *assets.TensorResource, updateTime time.Time) *model.TensorContainer {
 	contModel := new(model.TensorContainer)
 	contModel.ID = util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, container.Name)
 	contModel.Name = container.Name
@@ -397,7 +398,7 @@ func fromContainerToModel(container corev1.Container, resource *TensorResource, 
 	return contModel
 }
 
-func newModelContainersFromResource(resource *TensorResource, updateTime time.Time) []*model.TensorContainer {
+func newModelContainersFromResource(resource *assets.TensorResource, updateTime time.Time) []*model.TensorContainer {
 	if resource.PodTemplate == nil {
 		return nil
 	}
@@ -428,7 +429,7 @@ func upsertOneContainer(ctx context.Context, rdb *gorm.DB, containerModel *model
 	}
 	return nil
 }
-func doUpsertResourceContainers(ctx context.Context, rdb *gorm.DB, resource *TensorResource, updateTime time.Time) ([]*model.TensorContainer, error) {
+func doUpsertResourceContainers(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) ([]*model.TensorContainer, error) {
 	contModels := newModelContainersFromResource(resource, updateTime)
 
 	for _, contModel := range contModels {
@@ -492,7 +493,7 @@ func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *rdbtools.GormW
 	})
 }
 
-func doSoftDeleteResourceContainers(ctx context.Context, rdb *gorm.DB, resource *TensorResource, updateTime time.Time) error {
+func doSoftDeleteResourceContainers(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) error {
 	if resource.PodTemplate == nil {
 		return nil
 	}

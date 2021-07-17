@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -40,7 +41,7 @@ func (api *api) userList() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		docNum, userList, err := model.SelectUserAll(ctx, api.postgresDB, limit, offset)
+		docNum, userList, err := dal.SelectUserAll(ctx, api.postgresDB, limit, offset)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusInternalServerError,
@@ -75,7 +76,7 @@ func (api *api) userModule() http.HandlerFunc {
 		}
 
 		username, _ := claims[JWT_KEY_USERNAME].(string)
-		_, u, err := model.SelectUser(r.Context(), api.postgresDB, username)
+		_, u, err := dal.SelectUser(r.Context(), api.postgresDB, username)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewInvalidAuthToken(http.StatusUnauthorized,
@@ -85,12 +86,12 @@ func (api *api) userModule() http.HandlerFunc {
 
 		if username == model.SUPER_ADMIN {
 
-			mdgroup := model.GetAdminModuleGroup(r.Context(), api.postgresDB)
+			mdgroup := dal.GetAdminModuleGroup(r.Context(), api.postgresDB)
 			response.Ok(w, response.WithItems(mdgroup))
 		} else {
 
 			//get model
-			mdgroup, err := model.GetModuleGroup(r.Context(), api.postgresDB, u.ModuleID)
+			mdgroup, err := dal.GetModuleGroup(r.Context(), api.postgresDB, u.ModuleID)
 			if err == nil {
 				response.Ok(w, response.WithItems(mdgroup))
 			} else {
@@ -165,7 +166,7 @@ func (api *api) addUser() http.HandlerFunc {
 		}
 
 		u, _ := userPtr.(*model.User)
-		if u.Rule == "normal" {
+		if u.Rule == model.ROLE_NORMAL {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
@@ -174,7 +175,7 @@ func (api *api) addUser() http.HandlerFunc {
 		}
 
 		tx := api.postgresDB.Get().Begin()
-		exist, _, err := model.SelectUser(ctx, api.postgresDB, rq.UserName)
+		exist, _, err := dal.SelectUser(ctx, api.postgresDB, rq.UserName)
 		if err != nil {
 			tx.Rollback()
 			RespAndLog(w, ctx,
@@ -196,7 +197,7 @@ func (api *api) addUser() http.HandlerFunc {
 						fmt.Errorf("email format error")))
 				return
 			}
-			emailHashCode := model.RandStringBytesMaskImprSrcUnsafe(64)
+			emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
 			bool := model.SendEmail(rq.UserName, r.Host, emailHashCode, api.emailOpts)
 			if !bool {
 				tx.Rollback()
@@ -204,7 +205,7 @@ func (api *api) addUser() http.HandlerFunc {
 					SendmailError(http.StatusInternalServerError, fmt.Errorf("send email error")))
 				return
 			}
-			err = model.InsertEmail(r.Context(), api.postgresDB, rq.UserName, emailHashCode)
+			err = dal.InsertEmail(r.Context(), api.postgresDB, rq.UserName, emailHashCode)
 			if err != nil {
 				tx.Rollback()
 				RespAndLog(w, ctx,
@@ -212,7 +213,7 @@ func (api *api) addUser() http.HandlerFunc {
 				return
 			}
 
-			err = model.InsertUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+			err = dal.InsertUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
 			if err != nil {
 				tx.Rollback()
 				RespAndLog(w, ctx,
@@ -220,14 +221,14 @@ func (api *api) addUser() http.HandlerFunc {
 				return
 			}
 		} else {
-			err := model.InsertUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+			err := dal.InsertUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
 			if err != nil {
 				RespAndLog(w, ctx,
 					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
 				return
 			}
 
-			err = model.ActiveUser(r.Context(), api.postgresDB, rq.UserName, model.DEFAULT_PWD)
+			err = dal.ActiveUser(r.Context(), api.postgresDB, rq.UserName, model.DEFAULT_PWD)
 			if err != nil {
 				RespAndLog(w, ctx,
 					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -271,7 +272,7 @@ func (api *api) delSuperUser() http.HandlerFunc {
 			return
 		}
 
-		err = model.DelSuperUser(ctx, api.postgresDB, username)
+		err = dal.DelSuperUser(ctx, api.postgresDB, username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -338,14 +339,14 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		u, _ := userPtr.(*model.User)
-		if u.Rule == "normal" {
+		if u.Rule == model.ROLE_NORMAL {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
 			return
 		}
 
-		exist, queryUser, err := model.SelectUser(ctx, api.postgresDB, rq.UserName)
+		exist, queryUser, err := dal.SelectUser(ctx, api.postgresDB, rq.UserName)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -363,7 +364,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		err = model.UpdateUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+		err = dal.UpdateUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -371,7 +372,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		var findUser *model.User
-		_, findUser, err = model.SelectUser(ctx, api.postgresDB, rq.UserName)
+		_, findUser, err = dal.SelectUser(ctx, api.postgresDB, rq.UserName)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,

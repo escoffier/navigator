@@ -26,7 +26,7 @@ const (
 type ScapCache struct {
 	ctx     context.Context
 	mongodb *mongotools.DatabaseWrapper
-	ch      *util.CacheHelper
+	ch      *CacheHelper
 }
 
 func NewScapCache(
@@ -40,12 +40,12 @@ func NewScapCache(
 		ctx:     ctx,
 		mongodb: mongodb,
 	}
-	c.ch = util.NewCacheHelper(
+	c.ch = NewCacheHelper(
 		ctx,
 		"Scap",
 		redisClient,
 		c.getScapMaxEntryTimestamp(checkType),
-		util.FinishedAtKey,
+		FinishedAtKey,
 	)
 
 	for _, checkType := range []model.ComplianceCheckType{model.ComplianceCheckTargetTypeDocker, model.ComplianceCheckTargetTypeHost, model.ComplianceCheckTargetTypeKube} {

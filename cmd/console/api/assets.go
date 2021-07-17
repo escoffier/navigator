@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -165,7 +166,7 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		rquery := assetsPkg.ResourcesQuery()
+		rquery := dal.ResourcesQuery()
 		if clusterKey != "" {
 			rquery = rquery.WithCluster(clusterKey)
 		}
@@ -244,7 +245,7 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		rquery := assetsPkg.ResourceContainersQuery()
+		rquery := dal.ResourceContainersQuery()
 		if clusterKey != "" {
 			rquery = rquery.WithCluster(clusterKey)
 		}

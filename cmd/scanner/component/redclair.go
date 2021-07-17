@@ -17,23 +17,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/heroku/docker-registry-client/registry"
+	_ "github.com/lib/pq"
+	"github.com/rs/zerolog"
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"go.mongodb.org/mongo-driver/mongo"
-
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"github.com/go-redis/redis/v8"
-	"github.com/heroku/docker-registry-client/registry"
-	"github.com/rs/zerolog"
-
-	_ "github.com/lib/pq"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -1088,7 +1086,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 	}
 	rcSvc.postgresSvc.UpdateToScanImage(ctx, scanImage, tableID)
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
-		err := util.ScanFinish(rcSvc.postgresSvc.PostgresDB, scanTask.ImageDigest)
+		err := dal.ScanFinish(rcSvc.postgresSvc.PostgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
@@ -1104,41 +1102,41 @@ func (rcSvc *RedClairService) logImageQuestion(ctx context.Context, scanTask mod
 	if scanTask.Status == model.ScanStatusSucceeded {
 		if scanTask.ScanReport.Vulns.Vulnerabilities != nil {
 			if len(scanTask.ScanReport.Vulns.Vulnerabilities) > 0 {
-				err = util.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
+				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 				}
 			} else {
-				err = util.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 				}
 			}
 		} else {
-			err = util.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
+			err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
 			}
 		}
 		if scanTask.ScanReport.Vulns.Sensitives != nil {
 			if len(scanTask.ScanReport.Vulns.Sensitives) > 0 {
-				err = util.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
+				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 				}
 			} else {
-				err = util.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
 				}
 			}
 		} else {
-			err = util.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
+			err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
 		}
 	}
 
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
-		err := util.ScanFinish(rcSvc.postgresSvc.PostgresDB, scanTask.ImageDigest)
+		err := dal.ScanFinish(rcSvc.postgresSvc.PostgresDB, scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}

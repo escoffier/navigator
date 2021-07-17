@@ -1,4 +1,4 @@
-package model
+package dal
 
 import (
 	"context"
@@ -13,10 +13,12 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"go.mongodb.org/mongo-driver/bson"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gopkg.in/mgo.v2/bson"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +28,10 @@ const (
 	letterIdxMask           = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax            = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 	MongoUserCollectionName = "rbac_user"
+)
+
+var (
+	ErrUserBanned = errors.New("The user is banned")
 )
 
 func RandStringBytesMaskImprSrcUnsafe(n int) string {
@@ -55,7 +61,7 @@ func UpdateUserPwd(ctx context.Context, postgresDB *rdbtools.GormWrapper, userNa
 		return err
 	}
 
-	err = postgresDB.Get().WithContext(pgCtx).Model(&User{}).Where("username = ? ", userName).Update("pwd", fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))).Error
+	err = postgresDB.Get().WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Update("pwd", fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))).Error
 
 	if err != nil {
 		return errors.New("UpdateUserPwd() -> mongodb.Collection().UpdateOne() err : " + err.Error())
@@ -63,16 +69,16 @@ func UpdateUserPwd(ctx context.Context, postgresDB *rdbtools.GormWrapper, userNa
 	return nil
 }
 
-func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit, offset int64) (int64, []User, error) {
-	user := []User{}
+func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit, offset int64) (int64, []model.User, error) {
+	user := []model.User{}
 	var count int64
 
-	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	postgresDB.Get().WithContext(pgCtx).Where("username != ?", SUPER_ADMIN).Model(&User{}).Count(&count)
+	postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.SUPER_ADMIN).Model(&model.User{}).Count(&count)
 
-	p := postgresDB.Get().WithContext(pgCtx).Where("username != ?", SUPER_ADMIN).Limit(int(limit)).Offset(int(offset)).Order("id")
-	err := p.Where("username != ?", SUPER_ADMIN).Find(&user).Error
+	p := postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.SUPER_ADMIN).Limit(int(limit)).Offset(int(offset)).Order("id")
+	err := p.Where("username != ?", model.SUPER_ADMIN).Find(&user).Error
 	if err != nil {
 		return count, user, err
 	}
@@ -87,20 +93,20 @@ func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit,
 	return count, user, nil
 }
 
-func GetModuleGroup(ctx context.Context, db *rdbtools.GormWrapper, moduleID string) ([]ModuleGroup, error) {
+func GetModuleGroup(ctx context.Context, db *rdbtools.GormWrapper, moduleID string) ([]model.ModuleGroup, error) {
 
 	var moduleSLID []string
 	json.Unmarshal([]byte(moduleID), &moduleSLID)
-	var m []ModuleGroup
+	var m []model.ModuleGroup
 	err := db.Get().WithContext(ctx).Where("id in  (?) and id not in (?)", moduleSLID, []int{1}).Find(&m).Error
 	return m, err
 }
 
 func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 	var (
-		m      []ModuleGroup
+		m      []model.ModuleGroup
 		ids    []int
-		url    []Url
+		url    []model.Url
 		strURL []string
 	)
 	var moduleSLID []string
@@ -127,9 +133,37 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 	return strURL, nil
 }
 
-func GetAdminModuleGroup(ctx context.Context, db *rdbtools.GormWrapper) []ModuleGroup {
+func SetAccountBanStatus(ctx context.Context, rdb *rdbtools.GormWrapper, userName string, banStatus bool) error {
+	bstatus := 0
+	if banStatus {
+		bstatus = 1
+	}
 
-	var m []ModuleGroup
+	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	var innerErr error
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
+		defer oneCancel()
+		innerErr = rdb.Get().WithContext(oneCtx).Model(&model.User{}).Where("username = ?", userName).Update("ban_status", bstatus).Error
+		if innerErr == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return innerErr
+	})
+
+	if err == nil {
+		if innerErr != nil {
+			return innerErr
+		}
+		return nil
+	}
+	return err
+}
+
+func GetAdminModuleGroup(ctx context.Context, db *rdbtools.GormWrapper) []model.ModuleGroup {
+
+	var m []model.ModuleGroup
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -138,9 +172,9 @@ func GetAdminModuleGroup(ctx context.Context, db *rdbtools.GormWrapper) []Module
 	return m
 }
 
-func SelectUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName string) (bool, *User, error) {
+func SelectUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName string) (bool, *model.User, error) {
 
-	queryUser := User{}
+	queryUser := model.User{}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -156,7 +190,7 @@ func SelectUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName 
 
 func InsertUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
 	data, _ := json.Marshal(moduleID)
-	user := User{UserName: userName, Checked: false, CreateAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
+	user := model.User{UserName: userName, Checked: false, CreateAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -169,11 +203,11 @@ func InsertUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 
 func UpdateUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
 	data, _ := json.Marshal(moduleID)
-	user := User{Rule: role, ModuleID: string(data)}
+	user := model.User{Rule: role, ModuleID: string(data)}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err = postgresDB.Get().WithContext(pgCtx).Model(&User{}).Where("username = ? ", userName).Updates(user).Error
+	err = postgresDB.Get().WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Updates(user).Error
 	if err != nil {
 		return err
 	}
@@ -184,11 +218,11 @@ func InsertEmail(ctx context.Context, postgresDB *rdbtools.GormWrapper, username
 	pgCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
-	err := postgresDB.Get().WithContext(pgCtx).Delete(Email{}, "username = ?", username).Error
+	err := postgresDB.Get().WithContext(pgCtx).Delete(model.Email{}, "username = ?", username).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("Insert email to delete error: username: %s", username)
 	}
-	email := Email{HashCode: hashcode, UserName: username, CreateAt: time.Now().Unix()}
+	email := model.Email{HashCode: hashcode, UserName: username, CreateAt: time.Now().Unix()}
 
 	err = postgresDB.Get().WithContext(pgCtx).Create(&email).Error
 	return err
@@ -197,18 +231,18 @@ func InsertEmail(ctx context.Context, postgresDB *rdbtools.GormWrapper, username
 func DelSuperUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName string) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err := postgresDB.Get().WithContext(pgCtx).Model(User{}).Where("username = ? ", userName).Updates(User{Pwd: ""}).Error
+	err := postgresDB.Get().WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Pwd: ""}).Error
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, pwd string) (bool, *User, error) {
+func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, pwd string) (bool, *model.User, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	queryUser := User{}
+	queryUser := model.User{}
 	err := postgresDB.Get().WithContext(pgCtx).Where("username = ?", userName).First(&queryUser).Error
 	if err != nil {
 		return false, nil, err
@@ -221,7 +255,7 @@ func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper,
 }
 
 func CheckHashCode(ctx context.Context, postgresDB *rdbtools.GormWrapper, hashCode string) (string, bool) {
-	queryEmail := Email{}
+	queryEmail := model.Email{}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -242,13 +276,13 @@ func ActiveUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 		return err
 	}
 	hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))
-	err = postgresDB.Get().WithContext(pgCtx).Model(User{}).Where("username = ? ", userName).Updates(User{Checked: true, Pwd: hashPwd}).Error
+	err = postgresDB.Get().WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Checked: true, Pwd: hashPwd}).Error
 
 	if err != nil {
 		return err
 	}
 
-	err = postgresDB.Get().WithContext(pgCtx).Where("username = ? ", userName).Delete(&Email{}).Error
+	err = postgresDB.Get().WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error
 
 	if err != nil {
 		return err
@@ -256,7 +290,7 @@ func ActiveUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 	return nil
 }
 
-func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []MongoUser, err error) {
+func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.MongoUser, err error) {
 
 	opt := options.Find().SetMaxTime(time.Second * 2)
 
@@ -267,9 +301,9 @@ func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []MongoUser
 		return
 	}
 
-	mongoUserSlice := make([]MongoUser, 0)
+	mongoUserSlice := make([]model.MongoUser, 0)
 	for cur.Next(ctx) {
-		var mu MongoUser
+		var mu model.MongoUser
 		err := cur.Decode(&mu)
 		if err != nil {
 			return nil, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", err))

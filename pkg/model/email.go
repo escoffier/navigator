@@ -2,10 +2,11 @@ package model
 
 import (
 	"crypto/tls"
+	"strconv"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/gomail.v2"
-	"strconv"
 )
 
 func SendMails(mailTo []string, subject string, body string, emailOpts *flag.EmailOpts) error {

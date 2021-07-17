@@ -10,11 +10,11 @@ import (
 	"time"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // @Summary Trigger scan of all images in Harbor.
@@ -74,7 +74,7 @@ func (api *api) harborScanStatus() http.HandlerFunc {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get current status of scan all: %w", err))
 			return
 		}
-		Doingnum, Waitnum := util.GetAllVirusScanStatus(ctx, api.scannerURL)
+		Doingnum, Waitnum := dal.GetAllVirusScanStatus(ctx, api.scannerURL)
 		status.Total = status.Total + Doingnum + Waitnum
 		status.Metrics.Running = status.Metrics.Running + Doingnum
 		status.Metrics.Pending = status.Metrics.Pending + Waitnum
@@ -177,7 +177,7 @@ func (api *api) harborScanOneStatus() http.HandlerFunc {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get current status of scan one: %w", err))
 			return
 		}
-		virusStatus, err := util.GetAllVirusScanOneStatus(ctx, api.scannerURL, digest)
+		virusStatus, err := dal.GetAllVirusScanOneStatus(ctx, api.scannerURL, digest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("GetAllVirusScanOneStatus error :%+v ", err)
 		}

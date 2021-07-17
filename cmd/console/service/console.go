@@ -16,6 +16,30 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
+	"gitlab.com/piccolo_su/vegeta/pkg/pb"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/event"
@@ -29,28 +53,6 @@ import (
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-
-	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
-	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 )
 
 var (
@@ -190,6 +192,7 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.TensorResource{})
 	postgresDB.Get().AutoMigrate(&model.TensorContainer{})
 	postgresDB.Get().AutoMigrate(&model.TensorNamespace{})
+	postgresDB.Get().AutoMigrate(&model.TensorConfig{})
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -265,6 +268,10 @@ func NewConsole(
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
 	}
 
+	ucErr := usercenter.Init(postgresDB)
+	if ucErr != nil {
+		logging.GetLogger().Err(svcErr).Msgf("ERROR: usercenter limiter init error")
+	}
 	// cluster service
 	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient, fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port))
 
@@ -409,6 +416,12 @@ func (c *Console) Run() func() {
 		log.Error().Err(err).Msg("When starting cron jobs")
 	}
 
+	scapper, _ := scapper.GetScapper(ctx)
+	err = scapper.InitCheckUnFinishedJobs(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("When scapper InitCheckUnFinishedJobs")
+	}
+
 	log.Info().Msg("TensorNavigator started")
 
 	return func() {
@@ -431,7 +444,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	queryUser := model.User{}
 	err := db.Get().Where("username = ?", model.SUPER_ADMIN).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
-		salt := model.RandStringBytesMaskImprSrcUnsafe(8)
+		salt := dal.RandStringBytesMaskImprSrcUnsafe(8)
 		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.SUPER_PWD+salt)))
 		user := model.User{UserName: model.SUPER_ADMIN, Checked: true, CreateAt: time.Now().Unix(), Rule: model.ROLE_SUPERADMIN, Salt: salt, Pwd: hashPwd}
 		err = db.Get().Create(&user).Error

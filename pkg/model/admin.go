@@ -53,6 +53,7 @@ type User struct {
 	ModuleGroup []ModuleGroup `gorm:"-" json:"module_group"`
 	Checked     bool          `json:"checked"`
 	CreateAt    int64         `json:"create_at"`
+	BanStatus   int32         `json:"ban_status" gorm:"column:ban_status"`
 }
 
 func (u User) TableName() string {

@@ -1,4 +1,4 @@
-package user
+package usercenter
 
 import "gitlab.com/piccolo_su/vegeta/pkg/model"
 

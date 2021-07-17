@@ -5,10 +5,11 @@ go 1.15
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/PuerkitoBio/goquery v1.6.0
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/aws/aws-sdk-go v1.34.28 // indirect
 	github.com/badoux/checkmail v1.2.1
 	github.com/containerd/continuity v0.0.0-20191214063359-1097c8bae83b // indirect
+	github.com/dchest/captcha v0.0.0-20200903113550-03f5f0333e1f
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
@@ -22,7 +23,7 @@ require (
 	github.com/go-openapi/spec v0.19.9 // indirect
 	github.com/go-openapi/swag v0.19.9 // indirect
 	github.com/go-redis/redis/v8 v8.3.2
-	github.com/gofrs/uuid v3.2.0+incompatible
+	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/protobuf v1.5.2
@@ -32,10 +33,10 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
-	github.com/jackc/pgproto3/v2 v2.1.0 // indirect
+	github.com/jackc/pgx/v4 v4.12.0 // indirect
 	github.com/json-iterator/go v1.1.10
 	github.com/klauspost/compress v1.10.3 // indirect
-	github.com/lib/pq v1.8.0
+	github.com/lib/pq v1.10.2
 	github.com/mattn/go-colorable v0.1.6
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-homedir v1.1.0
@@ -53,9 +54,9 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.0
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	github.com/swaggo/http-swagger v0.0.0-20190614090009-c2865af9083e
-	github.com/swaggo/swag v1.6.7
+	github.com/swaggo/swag v1.6.7 // indirect
 	github.com/tealeg/xlsx v1.0.5
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
 	github.com/tomogoma/generator v0.0.0-20171014125632-4398aab4dd41 // indirect
@@ -64,10 +65,11 @@ require (
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vishvananda/netlink v0.0.0 //netlink
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
-	go.mongodb.org/mongo-driver v1.5.3
-	go.uber.org/atomic v1.6.0
-	go.uber.org/zap v1.14.1
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
+	go.mongodb.org/mongo-driver v1.6.0
+	go.uber.org/atomic v1.9.0
+	go.uber.org/multierr v1.7.0 // indirect
+	go.uber.org/zap v1.18.1
+	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
@@ -79,10 +81,9 @@ require (
 	gopkg.in/ini.v1 v1.57.0 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c // indirect
 	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.1.0
-	gorm.io/gorm v1.21.11
+	gorm.io/gorm v1.21.12
 	k8s.io/api v0.17.17
 	k8s.io/apimachinery v0.17.18-rc.0
 	k8s.io/client-go v0.17.17
