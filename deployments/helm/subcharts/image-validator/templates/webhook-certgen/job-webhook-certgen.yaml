@@ -49,6 +49,8 @@ spec:
             requests:
               cpu: 50m
               memory: 64Mi
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
       restartPolicy: OnFailure
       serviceAccountName: {{ include "image-validator.fullname" . }}
       securityContext:
