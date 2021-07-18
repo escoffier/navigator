@@ -51,6 +51,8 @@ spec:
             requests:
               cpu: 50m
               memory: 64Mi
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
       restartPolicy: OnFailure
       serviceAccountName: {{ template "driftPrevention.serviceAccount" . }}-service-account
       securityContext:
