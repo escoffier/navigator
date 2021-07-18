@@ -152,6 +152,6 @@ redis:
   redisSecretName: tensorsec-redis
 
 version:
-  softName: tensor
-  softVersion: v1.9
+  softName: Navigator
+  softVersion: v1.10.0
 

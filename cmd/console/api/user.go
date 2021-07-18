@@ -99,6 +99,7 @@ func (api *api) setConfig() http.HandlerFunc {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("no acess: %w", authErr)))
+			return
 		}
 		rq := usercenter.LimiterConfig{}
 		err := json.NewDecoder(r.Body).Decode(&rq)
@@ -185,6 +186,7 @@ func (api *api) userUnban() http.HandlerFunc {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("no acess: %w", authErr)))
+			return
 		}
 		err = dal.SetAccountBanStatus(r.Context(), api.postgresDB, rq.User, false)
 		if err != nil {
