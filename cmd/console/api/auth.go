@@ -40,6 +40,7 @@ type LoginResponse struct {
 	Status           string `json:"status"`
 	Type             string `json:"type"`
 	Token            string `json:"token"`
+	Role             string `json:"role"`
 }
 
 // @Summary Login API
@@ -140,6 +141,7 @@ func (api *api) login() http.HandlerFunc {
 			Status:           "ok",
 			Type:             "account",
 			Token:            tokenString,
+			Role:             findUser.Rule,
 		}))
 	}
 }

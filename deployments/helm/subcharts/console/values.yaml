@@ -154,4 +154,3 @@ redis:
 version:
   softName: Navigator
   softVersion: v1.10.0
-
