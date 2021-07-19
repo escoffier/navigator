@@ -45,7 +45,7 @@ type MongoUser struct {
 
 type User struct {
 	ID          int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-" bson:"_id"`
-	UserName    string        `gorm:"index:username;column:username" json:"userName" bson:"user_name"` // index
+	UserName    string        `gorm:"index:username,unique;column:username" json:"userName" bson:"user_name"` // index
 	Pwd         string        `json:"-" bson:"pwd"`
 	Salt        string        `gorm:"column:salt" json:"-"`
 	Rule        string        `gorm:"column:rule" json:"rule"`
