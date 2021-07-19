@@ -198,6 +198,26 @@ func (api *api) userUnban() http.HandlerFunc {
 		response.Ok(w, response.WithItem(BanStatus{BanStatus: 0}))
 	}
 }
+
+func checkPwdFormat(pwd string) (matched bool, err error) {
+	if len(pwd) < 8 {
+		return false, fmt.Errorf("password len < 8")	
+	}
+	if m, err := regexp.MatchString("0-9]+", pwd); !m || err != nil {
+		return m, fmt.Errorf("0-9")	
+	}
+	if m, err := regexp.MatchString("[a-z]+", pwd); !m || err != nil {
+		return m, fmt.Errorf("a-z")	
+	}
+	if m, err := regexp.MatchString("[A-Z]+", pwd); !m || err != nil {
+		return m, fmt.Errorf("A-Z")	
+	}
+	if m, err := regexp.MatchString("[~!@#$%^&*\.]+", pwd); !m || err != nil {
+		return m, fmt.Errorf("A-Z")	
+	} 
+	return true, nil	
+}
+
 func (api *api) resetPassword() http.HandlerFunc {
 	type reqResetPwd struct {
 		OldPwd string `json:"oldpwd"`
@@ -221,6 +241,13 @@ func (api *api) resetPassword() http.HandlerFunc {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("pwd error")))
+			return
+		}
+
+		checked, err := checkPwdFormat(rq.Pwd)
+		if !checked {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest, err))
 			return
 		}
 
