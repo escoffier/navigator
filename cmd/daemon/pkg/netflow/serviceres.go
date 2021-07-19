@@ -267,8 +267,9 @@ func (rs K8sResClient) ListenPodsEvent(factory *informers.SharedInformerFactory)
 				return
 			}
 
+			network := pod.Spec.HostNetwork
 			podIp := pod.Status.PodIP
-			if podIp == "" || podIp == "None" {
+			if network == true || podIp == "" || podIp == "None" {
 				return
 			}
 
@@ -284,8 +285,9 @@ func (rs K8sResClient) ListenPodsEvent(factory *informers.SharedInformerFactory)
 				return
 			}
 
+			network := pod.Spec.HostNetwork
 			podIp := pod.Status.PodIP
-			if podIp == "" || podIp == "None" {
+			if network == true || podIp == "" || podIp == "None" {
 				return
 			}
 
@@ -299,8 +301,9 @@ func (rs K8sResClient) ListenPodsEvent(factory *informers.SharedInformerFactory)
 				return
 			}
 
+			network := pod.Spec.HostNetwork
 			podIp := pod.Status.PodIP
-			if podIp == "" || podIp == "None" {
+			if network == true || podIp == "" || podIp == "None" {
 				return
 			}
 
