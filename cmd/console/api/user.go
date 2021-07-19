@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -201,21 +202,21 @@ func (api *api) userUnban() http.HandlerFunc {
 
 func checkPwdFormat(pwd string) (matched bool, err error) {
 	if len(pwd) < 8 {
-		return false, fmt.Errorf("password len < 8")	
+		return false, fmt.Errorf("password len < 8")
 	}
 	if m, err := regexp.MatchString("0-9]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("0-9")	
+		return m, fmt.Errorf("0-9")
 	}
 	if m, err := regexp.MatchString("[a-z]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("a-z")	
+		return m, fmt.Errorf("a-z")
 	}
 	if m, err := regexp.MatchString("[A-Z]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("A-Z")	
+		return m, fmt.Errorf("A-Z")
 	}
-	if m, err := regexp.MatchString("[~!@#$%^&*\.]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("A-Z")	
-	} 
-	return true, nil	
+	if m, err := regexp.MatchString("[~!@#$%^&*\\.]+", pwd); !m || err != nil {
+		return m, fmt.Errorf("A-Z")
+	}
+	return true, nil
 }
 
 func (api *api) resetPassword() http.HandlerFunc {
