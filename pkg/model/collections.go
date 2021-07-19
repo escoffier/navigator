@@ -11,12 +11,9 @@ const (
 	ComplianceCheckHostRecordsCollection
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
-	PodServiceRelationCollection
 	PodOwnerRefRelationCollection
-	ServiceRelationCollection
-	ServiceAliasCollection
 	HarborProjectConfigCollection
-	TensorServiceCollection
+
 	VirusScanTaskCollection
 	ExportFileTaskCollection
 
@@ -35,12 +32,8 @@ func GetCollectionNames() []string {
 		"host-bench-records",
 		"CVE2CNNVD",
 		"checkHistoryEntry",
-		"podServiceRelation",
 		"podOwnerRefRelation",
-		"serviceRelation",
-		"serviceAlias",
 		"harborProjectConfig",
-		"tensor-service",
 
 		"virusScanTasks",
 		"exportFileTasks",

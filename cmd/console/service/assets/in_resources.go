@@ -32,7 +32,6 @@ import (
 var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
 var (
 	inResInstance *AssetsInResourcesService
-	inSvcInstance *ServiceAssetsService
 	once          sync.Once
 )
 
@@ -44,7 +43,6 @@ func Init(mongo *mongotools.DatabaseWrapper, postgresDB *rdbtools.GormWrapper) e
 			return
 		}
 		inResInstance = newAssetsInResources(mongo, postgresDB)
-		inSvcInstance = newServiceAssetsService(mongo)
 	})
 	return err
 }
