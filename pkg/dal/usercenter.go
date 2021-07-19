@@ -20,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/mgo.v2/bson"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -178,7 +179,7 @@ func SelectUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName 
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err := postgresDB.Get().WithContext(pgCtx).Where("username = ?", userName).First(&queryUser).Error
+	err := postgresDB.Get().WithContext(pgCtx).Model(&queryUser).Where("username = ?", userName).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		return false, nil, nil
 	}
@@ -194,7 +195,7 @@ func InsertUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err = postgresDB.Get().WithContext(pgCtx).Create(&user).Error
+	err = postgresDB.Get().WithContext(pgCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
 	if err != nil {
 		return err
 	}
