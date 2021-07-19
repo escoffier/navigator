@@ -353,7 +353,6 @@ func (c *Console) Run() func() {
 	err := c.monCliWrapper.Connect(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("When in connecting to Mongo database")
-		panic(fmt.Errorf("When connecting to Mongo database: %w", err))
 	}
 
 	testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
@@ -378,7 +377,6 @@ func (c *Console) Run() func() {
 		log.Error().
 			Err(err).
 			Msg("When creating mongo indices")
-		panic(fmt.Errorf("When creating mongo indices: %w", err))
 	}
 
 	err = addDefaultCluster(ctx, c.mongoDB)
@@ -602,33 +600,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 			}, Options: nil,
 		},
 	}
-	neededIndexesPerCollection[model.PodServiceRelationCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"name": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"namespace": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"cluster": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"podUid": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"ip": 1,
-			}, Options: nil,
-		},
-	}
 	neededIndexesPerCollection[model.PodOwnerRefRelationCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
@@ -651,48 +622,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 			}, Options: nil,
 		},
 	}
-
-	neededIndexesPerCollection[model.ServiceRelationCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"name": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"namespace": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"focusName": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"resName": 1,
-			}, Options: nil,
-		},
-	}
-
-	neededIndexesPerCollection[model.ServiceAliasCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"name": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"namespace": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"aliasName": 1,
-			}, Options: nil,
-		},
-	}
-
 	neededIndexesPerCollection[model.HarborProjectConfigCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
@@ -702,30 +631,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 		{
 			Keys: bson.M{
 				"CreatedAt": 1,
-			}, Options: nil,
-		},
-	}
-
-	neededIndexesPerCollection[model.TensorServiceCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"namespace": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"cluster": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"serviceName": 1,
-			}, Options: nil,
-		},
-
-		{
-			Keys: bson.M{
-				"updatedAt": 1,
 			}, Options: nil,
 		},
 	}

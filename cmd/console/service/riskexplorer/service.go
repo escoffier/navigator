@@ -273,11 +273,8 @@ func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeTy
 	var podNames []string
 	var err error
 	switch nodeType {
-	case model.NodeTypeService:
-		podNames, err = assets.GetPodNamesFromService(s.mongoDB.Get(), cluster, namespace, service)
 	case model.NodeTypeOwnerRef:
 		podNames, _, err = assets.GetPodNamesFromOwnerRef(s.mongoDB.Get(), cluster, namespace, service)
-
 	}
 	filter := bson.M{
 		"isDeleted": false,
