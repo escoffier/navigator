@@ -260,7 +260,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 
 		if !captcha.VerifyString(rf.CaptchaID, rf.CaptchaValue) {
 			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
+				NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
 			return
 		}
