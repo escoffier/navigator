@@ -97,7 +97,7 @@ spec:
             secretKeyRef:
               name: {{ .Values.redis.redisSecretName }}
               key: redis-password
-        {{- if .Values.emailCheck.enabled }}
+        {{- if .Values.emailCheck.smtpEnabled }}
         - name: TENSORSEC_EMAIL_PASSWORD
           value: {{ .Values.emailCheck.smtpPassword }}
         {{- end }}
