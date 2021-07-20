@@ -369,6 +369,13 @@
   condition: ssh_port
 
 - rule: Disallowed SSH Connection
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect any new ssh connection to a host other than those in an allowed group of hosts
   condition: (inbound_outbound) and ssh_port and not allowed_ssh_hosts
   output: Disallowed SSH Connection (zh_msg=禁止SSH连接;侦测任何新的SSH连接到允许的主机组以外的主机,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)
@@ -396,6 +403,13 @@
   items: [google.com, www.yahoo.com]
 
 - rule: Unexpected outbound connection destination
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names
   condition: >
     consider_all_outbound_conns and outbound and not
@@ -419,6 +433,13 @@
   items: [google.com]
 
 - rule: Unexpected inbound connection source
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect any inbound connection from a source outside of an allowed set of ips, networks, or domain names
   condition: >
     consider_all_inbound_conns and inbound and not
@@ -455,6 +476,13 @@
   items: [/etc/zsh]
 
 - rule: Modify Shell Configuration File
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect attempt to modify shell configuration files
   condition: >
     open_write and
@@ -478,6 +506,13 @@
   condition: (never_true)
 
 - rule: Read Shell Configuration File
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect attempts to read shell configuration files by non-shell programs
   condition: >
     open_read and
@@ -505,6 +540,13 @@
     fd.name startswith /var/spool/cron/crontabs/root
 
 - rule: Schedule Cron Jobs
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect cron jobs scheduled
   condition: >
     ((open_write and cron_dir_action) or
@@ -960,6 +1002,13 @@
   condition: (never_true)
 
 - rule: Update Package Repository
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect package repositories get updated
   condition: >
     ((open_write and access_repositories) or (modify and modify_repositories))
@@ -981,6 +1030,13 @@
   condition: (never_true)
 
 - rule: Write below binary dir
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     bin_dir and evt.dir = < and open_write
@@ -1037,6 +1093,13 @@
   condition: (never_true)
 
 - rule: Write below monitored dir
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     evt.dir = < and open_write and monitored_dir
@@ -1065,6 +1128,13 @@
   condition: (never_true)
 
 - rule: Read ssh information
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Any attempt to read files below ssh directories by non-ssh programs
   condition: >
     ((open_read or open_directory) and
@@ -1353,6 +1423,13 @@
     and not multipath_writing_conf
 
 - rule: Write below etc
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: an attempt to write to any file below /etc
   condition: write_etc_common
   output: "File below /etc opened for writing (zh_msg=写入/etc路径下文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
@@ -1464,6 +1541,13 @@
   condition: (never_true)
 
 - rule: Read sensitive file trusted after startup
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information) by a trusted program after startup. Trusted programs might read these files
@@ -1503,6 +1587,13 @@
   condition: (container and container.image.repository in (read_sensitive_file_images))
 
 - rule: Read sensitive file untrusted
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information). Exceptions are made for known trusted programs.
@@ -1547,6 +1638,13 @@
 
 # Only let rpm-related programs write to the rpm database
 - rule: Write below rpm database
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: an attempt to write to the rpm database by any non-rpm related program
   condition: >
     fd.name startswith /var/lib/rpm and open_write
@@ -1585,6 +1683,13 @@
   condition: (never_true)
 
 - rule: DB program spawned process
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     a database-server related program spawned a new process other than itself.
     This shouldn\'t occur and is a follow on from some SQL injection attacks.
@@ -1605,6 +1710,13 @@
   condition: (never_true)
 
 - rule: Modify binary dirs
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: an attempt to modify any file below a set of binary directories.
   condition: bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
   output: >
@@ -1618,6 +1730,13 @@
   condition: (never_true)
 
 - rule: Mkdir binary dirs
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: an attempt to create a directory below a set of binary directories.
   condition: >
     mkdir
@@ -1651,6 +1770,13 @@
   condition: (container.image.repository endswith weaveworks/scope and proc.name=scope)
 
 - rule: Change thread namespace
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     an attempt to change a program/thread\'s namespace (commonly done
     as a part of creating a container) by calling setns.
@@ -1787,6 +1913,13 @@
 # (the ./run and ./finish scripts), but the processes runsv can not
 # spawn shells.
 - rule: Run shell untrusted
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: an attempt to spawn a shell below a non-shell application. Specific applications are monitored.
   condition: >
     spawned_process
@@ -1992,6 +2125,13 @@
               container.image.repository endswith /tensorsec-holmes)
 
 - rule: Launch Privileged Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect the initial process started in a privileged container. Exceptions are made for known trusted images.
   condition: >
     container_started and container
@@ -2034,6 +2174,13 @@
   condition: (not proc.pname exists or proc.pname in (runc:[0:PARENT], runc:[1:CHILD], runc, docker-runc, exe, docker-runc-cur))
 
 - rule: Launch Sensitive Mount Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     Detect the initial process started by a container that has a mount from a sensitive host directory
     (i.e. /proc). Exceptions are made for known trusted images.
@@ -2059,6 +2206,13 @@
   condition: (container.id exists)
 
 - rule: Launch Disallowed Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: >
     Detect the initial process started by a container that is not in a list of allowed containers.
   condition: container_started and container and not allowed_containers
@@ -2075,6 +2229,13 @@
 #  priority: WARNING
 
 - rule: System user interactive
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: an attempt to run interactive commands by a system (i.e. non-login) user
   condition: spawned_process and system_users and interactive and not user_known_system_user_login
   output: "System user ran an interactive command (zh_msg=系统用户互动;尝试通过系统用户进行交互式命令,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)"
@@ -2087,6 +2248,13 @@
   condition: (never_true)
 
 - rule: Terminal shell in container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
   condition: >
     spawned_process and container
@@ -2162,6 +2330,13 @@
 # sockfamily ip is to exclude certain processes (like 'groups') that communicate on unix-domain sockets
 # systemd can listen on ports to launch things like sshd on demand
 - rule: System procs network activity
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: any network activity performed by system binaries that are not expected to send or receive any network traffic
   condition: >
     (fd.sockfamily = ip and (system_procs or proc.name in (shell_binaries)))
@@ -2201,6 +2376,13 @@
   condition: (proc.name in (http_proxy_binaries))
 
 - rule: Program run with disallowed http proxy env
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: An attempt to run a program with a disallowed HTTP_PROXY environment variable
   condition: >
     spawned_process and
@@ -2226,6 +2408,13 @@
   condition: (never_true)
 
 - rule: Interpreted procs inbound network activity
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Any inbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (inbound and consider_interpreted_inbound
@@ -2237,6 +2426,13 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Interpreted procs outbound network activity
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Any outbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (outbound and consider_interpreted_outbound
@@ -2280,6 +2476,13 @@
   condition: fd.port in (expected_udp_ports)
 
 - rule: Unexpected UDP Traffic
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: UDP traffic not on port 53 (DNS) or other commonly used ports
   condition: (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
   output: >
@@ -2328,6 +2531,13 @@
 
 # sshd, mail programs attempt to setuid to root even when running as non-root. Excluding here to avoid meaningless FPs
 - rule: Non sudo setuid
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     an attempt to change users by calling setuid. sudo/su are excluded. users "root" and "nobody"
     suing to itself are also excluded, as setuid calls typically involve dropping privileges.
@@ -2355,6 +2565,13 @@
   condition: (proc.name=chage and (proc.cmdline contains "-l" or proc.cmdline contains "--list"))
 
 - rule: User mgmt binaries
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     activity by any programs that can manage users, passwords, or permissions. sudo and su are excluded.
     Activity in containers is also excluded--some containers create custom users on top
@@ -2392,6 +2609,13 @@
 # (we may need to add additional checks against false positives, see:
 # https://bugs.launchpad.net/ubuntu/+source/rkhunter/+bug/86153)
 - rule: Create files below dev
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: creating any files below /dev other than known programs that manage devices. Some rootkits hide files in /dev.
   condition: >
     fd.directory = /dev and
@@ -2421,6 +2645,13 @@
 # metadata about the instance. It may be desirable to prevent access
 # to this IP from containers.
 - rule: Contact EC2 Instance Metadata Service From Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect attempts to contact the EC2 Instance Metadata Service from a container
   condition: outbound and fd.sip="169.254.169.254" and container and not ec2_metadata_containers
   output: Outbound connection to EC2 instance metadata service (zh_msg=从容器联系云元数据服务;检测容器中联系云元数据服务的尝试,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag)
@@ -2440,6 +2671,13 @@
 # On GCP, AWS and Azure, 169.254.169.254 is a special IP used to fetch
 # metadata about the instance. The metadata could be used to get credentials by attackers.
 - rule: Contact cloud metadata service from container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect attempts to contact the Cloud Instance Metadata Service from a container
   condition: outbound and fd.sip="169.254.169.254" and container and consider_metadata_access and not user_known_metadata_access
   output: Outbound connection to cloud instance metadata service (zh_msg=从容器联系云元数据服务;检测容器中联系云元数据服务的尝试,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag)
@@ -2468,6 +2706,13 @@
   condition: proc.args contains "tensor"
 
 - rule: Contact K8S API Server From Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect attempts to contact the K8S API Server from a container
   condition: >
     evt.type=connect and evt.dir=< and
@@ -2491,6 +2736,13 @@
   condition: container
 
 - rule: Unexpected K8s NodePort Connection
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod"
   desc: Detect attempts to use K8s NodePorts from a container
   condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
   output: Unexpected K8s NodePort Connection (zh_msg=意外的K8s节点端口连接;检测从容器中尝试k8s节点端口连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id image=%container.image.repository)
@@ -2514,6 +2766,13 @@
 
 # Container is supposed to be immutable. Package management should be done in building the image.
 - rule: Launch Package Management Process in Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Package management process ran inside container
   condition: >
     spawned_process
@@ -2529,6 +2788,13 @@
   tags: [process, mitre_persistence]
 
 - rule: RS-NC(Netcat Remote Code Execution in Container)
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     spawned_process and container and not ignore_proc_args and
@@ -2541,6 +2807,13 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through telnet
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=recvfrom and proc.name = "telnet" and container and not ignore_proc_args and proc.name = "telnet"
@@ -2552,6 +2825,13 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through ruby
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket  and  proc.pname = "ruby"
@@ -2563,6 +2843,13 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through awk
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket and container and not ignore_proc_args and proc.name = "awk"
@@ -2577,6 +2864,13 @@
 - macro: user_known_network_tool_activities
   condition: (never_true)
 - rule: Launch Suspicious Network Tool in Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect network tools launched inside container
   condition: >
     spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities
@@ -2593,6 +2887,13 @@
   condition: (never_true)
 
 - rule: Launch Suspicious Network Tool on Host
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect network tools launched on the host
   condition: >
     spawned_process and
@@ -2628,6 +2929,13 @@
     )
 
 - rule: Search Private Keys or Passwords
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     Detect grep private keys or passwords activity.
   condition: >
@@ -2663,6 +2971,13 @@
               container.image.repository endswith "containernetworking/azure-npm")
 
 - rule: Clear Log Activities
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect clearing of critical log files
   condition: >
     open_write and
@@ -2686,6 +3001,13 @@
   condition: (never_true)
 
 - rule: Remove Bulk Data from Disk
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect process running to clear bulk data from disk
   condition: spawned_process and clear_data_procs and not user_known_remove_data_activities
   output: >
@@ -2722,6 +3044,13 @@
   condition: (evt.arg.name startswith /var/lib/docker or fd.name startswith /var/lib/docker)
 
 - rule: Delete or rename shell history
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect shell history deletion
   condition: >
     (modify_shell_history or truncate_shell_history) and
@@ -2736,6 +3065,13 @@
 # This rule is deprecated and will/should never be triggered. Keep it here for backport compatibility.
 # Rule Delete or rename shell history is the preferred rule to use now.
 - rule: Delete Bash History
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect bash history deletion
   condition: >
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
@@ -2759,6 +3095,13 @@
   condition: (never_true)
 
 - rule: Set Setuid or Setgid bit
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: >
     When the setuid or setgid bits are set for an application,
     this means that the application will run with the privileges of the owning user or group respectively.
@@ -2786,6 +3129,13 @@
   condition: (never_true)
 
 - rule: Create Hidden Files or Directories
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect hidden files or directories created
   condition: >
     ((modify and evt.arg.newpath contains "/.") or
@@ -2813,6 +3163,13 @@
   condition: (never_true)
 
 - rule: Launch Remote File Copy Tools in Container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect remote file copy tools launched in container
   condition: >
     spawned_process
@@ -2834,6 +3191,13 @@
     evt.arg.target contains security)
 
 - rule: Create Symlink Over Sensitive Files
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect symlink created over sensitive files
   condition: >
     create_symlink
@@ -2932,6 +3296,13 @@
 # The rule is disabled by default.
 # Note: falco will send DNS request to resolve miner pool domain which may trigger alerts in your environment.
 - rule: Detect outbound connections to common miner pool ports
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Miners typically connect to miner pools on common ports.
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
 #  enabled: false
@@ -2940,6 +3311,13 @@
   tags: [network, mitre_execution]
 
 - rule: Detect crypto miners using the Stratum protocol
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
   condition: spawned_process and proc.cmdline contains "stratum+tcp"
   output: Possible miner running (zh_msg=可能正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository)
@@ -2970,6 +3348,13 @@
   condition: (user_known_k8s_client_container)
 
 - rule: The docker client is executed in a container
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect a k8s client tool executed inside a container
   condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
   output: "Docker or kubernetes client executed in container (zh_msg=容器中调用主机docker.sock,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)"
@@ -2986,6 +3371,13 @@
   items: []
 
 - rule: CVE-2020-14386(Packet socket created in container)
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and privilege escalation(CVE-2020-14386) by attacker.
   condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
@@ -3167,6 +3559,13 @@
   items: [chroot]
 
 - rule: Escape to access by chroot
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Container escape to access host system
   condition: >
     (evt.type=chroot and container)
@@ -3177,6 +3576,13 @@
   items: [ifconfig, zmap]
 
 - rule: Namespaces bypass
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Kubernetes Namespaces bypass
   condition: >
     (open_read and container and
@@ -3196,6 +3602,13 @@
   items: [/proc/self/status, /proc/self/mounts, /proc/net/unix, /etc/hosts, /etc/mtab, /etc/resolv.conf, /proc/1/mountinfo, /.dockerenv, /run/secrets/kubernetes.io/, /proc/1/cgroup, /proc/self/mountinfo]
 
 - rule: Gaining environment information
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Gaining environment information
   condition: >
     open_read and container and ((proc.name in (show_information_binaries)) and
@@ -3207,6 +3620,13 @@
   items: [sudoedit]
 
 - rule: CVE-2021-3156(Linux sudo Privilege Escalation)
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Linux sudo Privilege Escalation
   condition: (evt.type=execve and container and proc.name in (sensitive_cmd))
   output: Linux sudo Privilege Escalation (zh_msg=CVE-2021-3156(Linux sudo 权限提升),rule_type=Privilege Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
@@ -3219,6 +3639,13 @@
   condition: proc.name in (docker_binaries)
 
 - rule: CVE-2019-5736(Modify Container Entrypoint)
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
     open_write and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container
@@ -3233,6 +3660,13 @@
 
 # Detect an SCTP bind from inside a container
 - rule: CVE-2019-3874(Memory cgroups escape via sctp)
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Potential exploit of CVE-2019-3874 - see https://bugzilla.redhat.com/show_bug.cgi?id=1686373
   condition: >
     sctp_bind and container
@@ -3243,6 +3677,13 @@
 
 #CVE-2019-14287
 - rule: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: When sudo is configured to allow a user to run commands as an arbitrary user via the ALL keyword in a Runas specification, it is possible to run commands as root by specifying the user ID -1 or 4294967295. This can be used by a user with sufficient sudo privileges to run commands as root even if the Runas specification explicitly disallows root access as long as the ALL keyword is listed first in the Runas specification
   condition: >
     spawned_process and
@@ -3253,6 +3694,13 @@
   tags: [filesystem, mitre_privilege_escalation]
 
 - rule: Reverse shell through socket and dup
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Detect reverse shell established remote connection
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6")
   output: >
@@ -3261,6 +3709,13 @@
   tags: [container, shell, mitre_execution]
 
 - rule: Escape to access rule by procfs
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Container escape to access host system
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
@@ -3268,6 +3723,13 @@
   priority: ALERT
 
 - rule: Escape to access rule by lxcfs
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Container escape to access host system
   condition: >
    open_write and container and proc.name=debugfs
@@ -3275,6 +3737,13 @@
   priority: ALERT
 
 - rule: Escape to access rule by cgroup
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Container escape to access host system
   condition: >
    evt.type=mount and proc.name=mount and proc.cmdline contains "cgroup" and container
@@ -3282,6 +3751,13 @@
   priority: ALERT
 
 - rule: Network scanning through interpreted language
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+    zh:
+      key: "处置建议"
+      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
   desc: Interpretative language detected scanning network
   condition: >
    interpreted_procs and evt.type=connect

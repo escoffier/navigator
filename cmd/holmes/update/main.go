@@ -15,24 +15,24 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-	"gopkg.in/yaml.v2"
 )
-
 
 type lateversionResp struct {
 	Data struct {
 		Item struct {
-			Data       string   `json:"data"`
-			Closerules []string `json:"closedRules"`
-			LatestDataVersion int `json:"latestDataVersion"`
-			LatestSettingVersion int `json:"latestSettingVersion"`
-			DataChanged bool `json:"dataChanged"`
-			SettingChanged bool `json:"settingChanged"`
+			Data                 string   `json:"data"`
+			Closerules           []string `json:"closedRules"`
+			LatestDataVersion    int      `json:"latestDataVersion"`
+			LatestSettingVersion int      `json:"latestSettingVersion"`
+			DataChanged          bool     `json:"dataChanged"`
+			SettingChanged       bool     `json:"settingChanged"`
 		} `json:"item"`
 	} `json:"data"`
 }
@@ -74,6 +74,11 @@ func closeRules(streamBytes []byte, closeRules []string) []byte {
 	}
 	retBytes := []byte(rulesStr)
 	return retBytes
+}
+
+type kv struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 func sendRulesToEventCenter(rulesData []byte) error {
@@ -134,6 +139,24 @@ func sendRulesToEventCenter(rulesData []byte) error {
 			},
 		}
 
+		if len(item.Suggestion) > 0 {
+			var kvHash = make(map[string]*pb.KV, len(item.Suggestion))
+			for l, v := range item.Suggestion {
+				if l == "" || v == nil {
+					continue
+				}
+				kvHash[l] = &pb.KV{
+					Key:   v.Key,
+					Value: v.Value,
+				}
+			}
+			if len(kvHash) > 0 {
+				rule.CustomKV = append(rule.CustomKV, &pb.MultiLanguageKV{
+					KVHash: kvHash,
+				})
+			}
+		}
+
 		rules = append(rules, rule)
 	}
 
@@ -159,7 +182,7 @@ func updateLoop(token, url string, dataVersion, settingVersion int) {
 	os.Exit(0)
 }
 
-func startHolmesWithDefaultRules(cmdLine string) (err error){
+func startHolmesWithDefaultRules(cmdLine string) (err error) {
 	log.Debug("Start with default rules")
 
 	defaultRulesFile := "/etc/holmes/holmes_rules.yaml"
@@ -178,7 +201,7 @@ func startHolmesWithDefaultRules(cmdLine string) (err error){
 	log.Info("Rules Version: ", header.Version[0], header.Version[1])
 
 	err = sendRulesToEventCenter(rulesContext)
-	if err != nil{
+	if err != nil {
 		log.Error(err)
 		err = nil
 	}
@@ -225,7 +248,7 @@ func startHolmesWithDefaultRules(cmdLine string) (err error){
 	return err
 }
 
-func startHolmesProcess(cmdLine, rulesFile string) error{
+func startHolmesProcess(cmdLine, rulesFile string) error {
 
 	name := strings.Split(cmdLine, " ")[0]
 	argsList := strings.Split(cmdLine, " ")[1:]
@@ -266,7 +289,6 @@ func startHolmesProcess(cmdLine, rulesFile string) error{
 }
 
 func main() {
-
 
 	consoleAddr := "tensorsec-console:8889"
 	if len(os.Getenv("CONSOLE_HTTP_ADDR")) > 0 {
@@ -320,7 +342,6 @@ func main() {
 	if err != nil {
 		log.Error(err)
 	}
-
 
 	log.Info("Rules Version: ", header.Version[0], header.Version[1])
 

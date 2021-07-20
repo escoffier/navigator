@@ -62,10 +62,16 @@ type LatestATTCKRuleInfo struct {
 }
 
 type RuleFromYaml struct {
-	Rule     string `yaml:"rule"`
-	Priority string `yaml:"priority"`
-	Desc     string `yaml:"desc"`
-	Output   string `yaml:"output"`
+	Rule       string         `yaml:"rule"`
+	Priority   string         `yaml:"priority"`
+	Desc       string         `yaml:"desc"`
+	Output     string         `yaml:"output"`
+	Suggestion map[string]*KV `yaml:"suggestion"`
+}
+
+type KV struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 func Str2SeverityNum(s string) uint8 {
