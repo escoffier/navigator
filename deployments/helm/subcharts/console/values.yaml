@@ -67,11 +67,11 @@ hostAliases: []
 
 ## config user email check
 emailCheck:
-  enabled: false
-  host: smtp.feishu.cn
-  port: 465
-  username: console-robot@tensorsecurity.cn
-  password: password 
+  smtpEnabled: false
+  smtpHost: smtp.feishu.cn
+  smtpPort: 465
+  smtpUsername: console-robot@tensorsecurity.cn
+  smtpPassword: password
   
 
 

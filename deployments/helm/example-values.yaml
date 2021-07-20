@@ -31,8 +31,12 @@ console:
     harborURL: *harborURL
     harborUsername: *harborUsername
     harborPassword: *harborPassword
-  email:
-    enabled: false
+  emailCheck:
+    smtpEnabled: false
+    smtpHost: smtp.feishu.cn
+    smtpPort: 465
+    smtpUsername: console-robot@tensorsecurity.cn
+    smtpPassword: password
   version:
     softName: tensor
     softVersion: v1.9
