@@ -32,7 +32,7 @@ func (s *RejectApi) Overview(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*overview))
 }
 
-func (s *RejectApi) ListImages(ctx *gin.Context) {
+func (s *RejectApi) ListRejectRecord(ctx *gin.Context) {
 	search := ctx.Query("search")
 	filter := model.GetFilter(ctx)
 	libraries := make([]string, 0)
@@ -77,6 +77,7 @@ func (s *RejectApi) ListWhitelist(ctx *gin.Context) {
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
+
 func (s *RejectApi) DeleteWhitelist(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	err := s.Srv.DeleteImageWhitelist(ctx, id)
@@ -86,13 +87,14 @@ func (s *RejectApi) DeleteWhitelist(ctx *gin.Context) {
 	}
 	response.JSONOK(ctx)
 }
+
 func (s *RejectApi) CreateWhitelist(ctx *gin.Context) {
 	wi := new(model.ImageWhitelist)
 	if err := ctx.BindJSON(wi); err != nil {
 		response.JSONError(ctx, errors.New(fmt.Sprintf("解析传参出错：%s", err.Error())))
 		return
 	}
-	res, err := s.Srv.CreateImageWhitelist(ctx, wi.FullRepoName, wi.Library, wi.Tag)
+	res, err := s.Srv.CreateImageWhitelist(ctx, wi.FullRepoName, wi.Library, wi.Tag, wi.Digest)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

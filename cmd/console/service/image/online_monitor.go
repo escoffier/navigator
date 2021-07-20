@@ -156,10 +156,11 @@ func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.C
 	cancelCtx, cancelFucn := context.WithCancel(ctx)
 	defer cancelFucn()
 	response, err := client.Do(req.WithContext(cancelCtx))
-	defer response.Body.Close()
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "detectImage 请求scanner服务出错")
+		return err
 	}
+	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		logging.GetLogger().WithContext(ctx).Errorf(errors.New("detectImage 请求scanner服务出错"), "")
 	}

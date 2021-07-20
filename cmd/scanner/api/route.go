@@ -62,7 +62,7 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 	{
 
 		v5.GET("/overview", apiRejectSrv.Overview)
-		v5.GET("/images", apiRejectSrv.ListImages)
+		v5.GET("/images", apiRejectSrv.ListRejectRecord)
 		v5.POST("/whitelist", apiRejectSrv.CreateWhitelist)
 		v5.GET("/whitelist", apiRejectSrv.ListWhitelist)
 		v5.DELETE("/whitelist/:id", apiRejectSrv.DeleteWhitelist)
