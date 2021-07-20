@@ -231,7 +231,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 		// /api/v1/scan/reportsByImageOverview?offset=1
 		start := time.Now()
 		pre := r.URL.String()
-		log.WithContext(api.ctx).Infof("preUrl", pre)
+		log.WithContext(api.ctx).Infof("preUrl:%s", pre)
 		var newUrl string
 
 		if strings.Contains(pre, "openapi") == false {
