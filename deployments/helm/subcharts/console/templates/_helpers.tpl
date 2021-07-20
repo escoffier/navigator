@@ -33,6 +33,13 @@ Return the job tensorsec cleaner image name
 {{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}
 
+
+{{- define "console.genImagePullSecret" }}
+{{- with .Values.harbor }}
+{{- printf "{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}" .harborURL .harborUsername .harborPassword (printf "%s:%s" .harborUsername .harborPassword | b64enc) | b64enc }}
+{{- end }}
+{{- end }}
+
 {{/*
 Use the fullname if the serviceAccount value is not set
 */}}
