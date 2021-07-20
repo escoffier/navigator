@@ -48,10 +48,12 @@ spec:
           "--postgres-pvc=data-tensorsec-postgresql-0",
           "--postgres-pod=tensorsec-postgresql-0",
           "--postgres-data-path={{ .Values.postgresql.postgresqlDataDir }}",
-          "--email-username={{ .Values.emailCheck.username }}",
-          "--email-host={{ .Values.emailCheck.host }}",
-          "--email-port={{ .Values.emailCheck.port }}",
-          "--email-check={{ .Values.emailCheck.enabled }}",
+          "--email-check={{ .Values.emailCheck.smtpEnabled }}",
+          {{- if .Values.emailCheck.smtpEnabled }}
+          "--email-username={{ .Values.emailCheck.smtpUsername }}",
+          "--email-host={{ .Values.emailCheck.smtpHost }}",
+          "--email-port={{ .Values.emailCheck.smtpPort }}",
+          {{- end }}
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
           "--microseg-host=tensorsec-microseg",
@@ -95,8 +97,10 @@ spec:
             secretKeyRef:
               name: {{ .Values.redis.redisSecretName }}
               key: redis-password
+        {{- if .Values.emailCheck.enabled }}
         - name: TENSORSEC_EMAIL_PASSWORD
-          value: {{ .Values.emailCheck.password }}
+          value: {{ .Values.emailCheck.smtpPassword }}
+        {{- end }}
         - name: TENSORSEC_HARBOR_PASSWORD
           valueFrom:
             secretKeyRef:

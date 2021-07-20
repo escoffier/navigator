@@ -121,11 +121,11 @@ console:
     harborPassword: Harbor12345
     harborSecretName: harbor-api-tensorsec
   emailCheck:
-    enabled: false
-    host: smtp.feishu.cn
-    port: 465
-    username: console-robot@tensorsecurity.cn
-    password: password 
+    smtpEnabled: false
+    smtpHost: smtp.feishu.cn
+    smtpPort: 465
+    smtpUsername: console-robot@tensorsecurity.cn
+    smtpPassword: password
   version:
     softName: tensor
     softVersion: v1.9
