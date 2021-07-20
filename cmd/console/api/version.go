@@ -11,7 +11,6 @@ import (
 	param "github.com/oceanicdev/chi-param"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -46,8 +45,8 @@ func (api *api) getSystemVersion() http.HandlerFunc {
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		response.Ok(w, response.WithItem(rsp{Version: fmt.Sprintf("%s %s",
-			env.GetEnvWithDefault(softNameEnv, defaultSoftName),
-			env.GetEnvWithDefault(softVersionEnv, defaultSoftVersion),
+			util.GetEnvWithDefault(softNameEnv, defaultSoftName),
+			util.GetEnvWithDefault(softVersionEnv, defaultSoftVersion),
 		)}),
 			response.WithApiVersion(versionAPIVersion))
 	}

@@ -42,13 +42,6 @@ type ruleItem struct {
 	disabled    bool
 }
 
-type RuleFromYaml struct {
-	Rule     string `yaml:"rule"`
-	Priority string `yaml:"priority"`
-	Desc     string `yaml:"desc"`
-	Output   string `yaml:"output"`
-}
-
 const (
 	nameKey        = "name"
 	descriptionKey = "description"
@@ -67,65 +60,6 @@ func compare(a, b *ruleItem) bool {
 	return a.name < b.name
 }
 
-func str2SeverityNum(s string) uint8 {
-	retNum := uint8(0)
-	switch s {
-	case "EMERGENCY":
-		return 10
-	case "ALERT":
-		return 9
-	case "CRITICAL":
-		return 8
-	case "ERROR":
-		return 7
-	case "WARNING":
-		return 6
-	case "NOTICE":
-		return 5
-	case "INFO":
-		return 2
-	case "DEBUG":
-		return 1
-	}
-	return retNum
-}
-
-func getInfoFromOutput(k, output string) (string, error) {
-	retStr := ""
-	resultList := strings.Split(output, k)
-	if len(resultList) < 2 {
-		return "", errors.New("can't find key")
-	}
-	retStr = resultList[1]
-	resultList = strings.Split(retStr, ",")
-	retStr = resultList[0]
-	return retStr, nil
-}
-
-func tsRuleType(in string) string {
-	retStr := "其他"
-	switch in {
-	case "Execution":
-		return "命令执行"
-	case "Privilege Escalation":
-		return "权限提升"
-	case "Persistence":
-		return "后门维持"
-	case "Discovery":
-		return "内网信息探测"
-	case "Credential Access":
-		return "凭证获取"
-	case "Defense Evasion":
-		return "检测避免"
-	case "Exfiltration":
-		return "数据泄漏"
-	case "Lateral Movement":
-		return "横向移动"
-
-	}
-	return retStr
-}
-
 var (
 	ErrInvalidRuleData = errors.New("invalid rule data")
 )
@@ -138,7 +72,7 @@ func parseItems(data []byte) (version string, rules map[string]*ruleItem, err er
 	}
 	version = fmt.Sprintf("v%d.%d", header.Version[0], header.Version[1])
 
-	var fDataRules []RuleFromYaml
+	var fDataRules []model.RuleFromYaml
 	rules = make(map[string]*ruleItem)
 	err = yaml.Unmarshal(rulesContext, &fDataRules)
 	if err != nil {
@@ -150,13 +84,13 @@ func parseItems(data []byte) (version string, rules map[string]*ruleItem, err er
 			continue
 		}
 
-		ruleType, err := getInfoFromOutput("rule_type=", item.Output)
+		ruleType, err := model.GetInfoFromOutput("rule_type=", item.Output)
 		if err != nil {
 			ruleType = "Other"
 		}
-		ruleTypeZh := tsRuleType(ruleType)
+		ruleTypeZh := model.TranslateRuleType(ruleType)
 		descZh := ""
-		zhMsg, err := getInfoFromOutput("zh_msg=", item.Output)
+		zhMsg, err := model.GetInfoFromOutput("zh_msg=", item.Output)
 		if err != nil {
 			continue
 		}
@@ -175,7 +109,7 @@ func parseItems(data []byte) (version string, rules map[string]*ruleItem, err er
 		rules[item.Rule] = &ruleItem{
 			name:        item.Rule,
 			description: item.Desc,
-			severity:    str2SeverityNum(item.Priority),
+			severity:    model.Str2SeverityNum(item.Priority),
 			ruleType:    ruleType,
 			adapter:     tsAdapter,
 		}

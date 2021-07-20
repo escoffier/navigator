@@ -42,11 +42,11 @@ func initPGCleanerRequirement(t *testing.T) {
 	}
 
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		env.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		env.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		env.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		env.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
-		env.GetEnvWithDefault(env.PostgresPassword, ""),
+		util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
+		util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
+		util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
+		util2.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
+		util2.GetEnvWithDefault(env.PostgresPassword, ""),
 	)
 
 	var err error
@@ -122,13 +122,13 @@ func TestRestore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "psql",
-		"-h", env.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		"-U", env.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		"-d", env.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
+		"-h", util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
+		"-U", util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
+		"-d", util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
 		"-c", fmt.Sprintf("\\copy tests from '%s'", dumpPath),
 	)
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "PGPASSWORD=%s", env.GetEnvWithDefault(env.PostgresPassword, ""))
+	cmd.Env = append(cmd.Env, "PGPASSWORD=%s", util2.GetEnvWithDefault(env.PostgresPassword, ""))
 	stdout, stderr, err := util2.ExecuteCmd(cmd)
 	if err != nil {
 		t.Log(stderr)

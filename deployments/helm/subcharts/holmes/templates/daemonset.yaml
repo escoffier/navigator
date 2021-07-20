@@ -105,6 +105,8 @@ spec:
 {{ toYaml .Values.extraArgs | indent 12 }}
         {{- end }}
           env:
+            - name: CONSOLE_HTTP_ADDR
+              value: {{ .Values.consoleInfo.httpAddr }}
           {{- if .Values.ebpf.enabled }}
             - name: FALCO_BPF_PROBE
               value: {{ .Values.ebpf.path }}
@@ -229,8 +231,8 @@ spec:
                 path: falco.yaml
               # - key: falco_rules.yaml
               #   path: falco_rules.yaml
-              - key: falco_rules.local.yaml
-                path: falco_rules.local.yaml
+#              - key: falco_rules.local.yaml
+#                path: falco_rules.local.yaml
               # - key: application_rules.yaml
               #   path: rules.available/application_rules.yaml
               # {{- if .Values.auditLog.enabled }}

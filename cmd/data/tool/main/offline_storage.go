@@ -2,13 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
+
 	"github.com/urfave/cli/v2"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/cleaner"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"io/ioutil"
+	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
@@ -30,7 +33,7 @@ func ClearHotOfflineStorage(*cli.Context) error {
 }
 
 func NewOfflineStorageCleaners() (cleaners []def.Cleaner, err error) {
-	confBytes, err := ioutil.ReadFile(env.GetEnvWithDefault(env.ConfPath, env.DefaultConfPath))
+	confBytes, err := ioutil.ReadFile(util2.GetEnvWithDefault(env.ConfPath, env.DefaultConfPath))
 	if err != nil {
 		logging.GetLogger().Error().Msgf("load conf file fail, err:%s", err.Error())
 		return nil, err
@@ -46,7 +49,7 @@ func NewOfflineStorageCleaners() (cleaners []def.Cleaner, err error) {
 	logging.GetLogger().Info().Msgf("conf:%+v", offlineConf)
 
 	esCleaner, err := cleaner.NewESCleaner(
-		env.GetEnvWithDefault(env.ElasticURL, env.DefaultElasticURL), offlineConf.ESIndexPrefixes)
+		util2.GetEnvWithDefault(env.ElasticURL, env.DefaultElasticURL), offlineConf.ESIndexPrefixes)
 	if err != nil {
 		return nil, err
 	}

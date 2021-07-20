@@ -36,7 +36,8 @@ tensorsecDaemon:
        memory: "128Mi"
        cpu: "50m"
 
-
+consoleInfo:
+  httpAddr: "tensorsec-console:8889"
 
 nameOverride: "holmes"
 fullnameOverride: "tensorsec-holmes"

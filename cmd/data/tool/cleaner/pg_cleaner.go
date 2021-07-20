@@ -96,15 +96,15 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, t
 
 func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	cmd := exec.CommandContext(ctx, "psql",
-		"-h", env.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		"-U", env.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		"-d", env.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
+		"-h", util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
+		"-U", util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
+		"-d", util.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
 		"-c", fmt.Sprintf("\\copy (select * from %s where %s < '%s' order by %s asc, id asc limit %d) TO '%s'",
 			table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), table.TimeField, table.Batch, tmpPath),
 	)
 
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", env.GetEnvWithDefault(env.PostgresPassword, "")))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", util.GetEnvWithDefault(env.PostgresPassword, "")))
 
 	logging.GetLogger().Info().Msgf("execute psql cmd:%s", cmd.String())
 	stdout, stderr, err := util.ExecuteCmd(cmd)

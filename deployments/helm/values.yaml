@@ -338,7 +338,7 @@ holmes:
     enabled: false
   falco:
     rulesFile:
-      - /etc/falco/falco_rules.local.yaml
+      - /etc/holmes/holmes_rules.yaml
     jsonOutput: true
     jsonIncludeOutputProperty: true
     httpOutput:
@@ -361,6 +361,9 @@ holmes:
     - name: ca-cert
       secret:
         secretName: eventcenter-tls-ca-secret
+    - name: server-cert
+      secret:
+        secretName: eventcenter-tls-server-cert-secret
   # Add extra volumeMounts to Falco container in Falco daemonset
   extraVolumeMounts:
     - mountPath: /auth/client
@@ -368,6 +371,9 @@ holmes:
       readOnly: true
     - mountPath: /auth/ca
       name: ca-cert
+      readOnly: true
+    - mountPath: /auth/server
+      name: server-cert
       readOnly: true
 
 image-validator:

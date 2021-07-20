@@ -39,10 +39,10 @@ func initMongoCleanerRequirement(t *testing.T) {
 
 	var err error
 	mongodb, err = util.NewMongoClient(
-		env.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
-		env.GetEnvWithDefault(env.MongoPassword, ""),
-		env.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
-		env.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
+		util2.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
+		util2.GetEnvWithDefault(env.MongoPassword, ""),
+		util2.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
+		util2.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,10 +87,10 @@ func TestInsertMongo(t *testing.T) {
 func TestMongoRestore(t *testing.T) {
 	initMongoCleanerRequirement(t)
 	var mongoURI string
-	mongoUsername := env.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername)
-	mongoPassword := env.GetEnvWithDefault(env.MongoPassword, "")
-	mongoEndpoint := env.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint)
-	mongoDatabase := env.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase)
+	mongoUsername := util2.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername)
+	mongoPassword := util2.GetEnvWithDefault(env.MongoPassword, "")
+	mongoEndpoint := util2.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint)
+	mongoDatabase := util2.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase)
 
 	if mongoUsername != "" && mongoPassword != "" {
 		mongoURI = fmt.Sprintf("mongodb://%s:%s@%s", mongoUsername, mongoPassword, mongoEndpoint)

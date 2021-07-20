@@ -75,7 +75,7 @@ ifeq ($(USEMIRROR),true)
 else
 	@echo "scap-jobs will not use mirror"
 	cd configs/scap/jobs/kube-bench && \
-		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX)/ VERSION=latest build-docker 
+		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX)/ VERSION=latest build-docker
 	cd configs/scap/jobs/docker-bench-security && \
 		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
 	cd configs/scap/jobs/host-bench && \
@@ -144,7 +144,7 @@ endif
 
 .PHONY: faulty
 faulty: drift-prevention-client     ## Build faulty docker to test CVEs
-	@echo "+ $@" 		
+	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "faulty will use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
@@ -175,7 +175,7 @@ endif
 
 .PHONY: drift-prevention
 drift-prevention:     ## Build drift-prevention docker
-	@echo "+ $@" 		
+	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "drift-prevention will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention:latest -f ./build/drift-prevention/Dockerfile \
@@ -187,7 +187,7 @@ endif
 
 .PHONY: seccomp-generator
 seccomp-generator: generate	## Build seccomp-generator docker
-	@echo "+ $@" 		
+	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator/cmd.Version=$(VERSION)" \
 		-o dist/vegeta-seccomp-generator gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator
@@ -195,7 +195,7 @@ seccomp-generator: generate	## Build seccomp-generator docker
 
 .PHONY: seccomp-generator-webhook
 seccomp-generator-webhook:     ## Build seccomp-generator-webhook docker
-	@echo "+ $@" 		
+	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "seccomp-generator-webhook will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest -f ./build/seccomp-generator-webhook/Dockerfile \
@@ -207,7 +207,7 @@ endif
 
 .PHONY: go-audit
 go-audit:     ## Build go-audit docker
-	@echo "+ $@" 		
+	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "go-audit will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-go-audit:latest -f ./build/go-audit/Dockerfile \
@@ -219,7 +219,14 @@ endif
 
 .PHONY: holmes
 holmes:     ## Build holmes docker
-	@echo "+ $@"            
+	@echo "+ $@"
+	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/update/cmd.Version=$(VERSION)" \
+		-o dist/holmes-rules-update gitlab.com/piccolo_su/vegeta/cmd/holmes/update
+	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
+		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
+	./dist/holmes-rules-pack --input configs/holmes/rules/holmes_rules.yaml --output ./dist/tensorsec-holmes-rules.thr
 ifeq ($(USEMIRROR),true)
 	@echo "holmes will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile \
@@ -304,7 +311,7 @@ ifeq ($(USERELEASE),true)
 	# docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-daemon:latest $(REPOPREFIX)/tensorsec-daemon:$(RELEASEVERSION)
-	
+
 	docker tag $(REPOPREFIX)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"

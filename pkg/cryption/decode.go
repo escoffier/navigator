@@ -6,7 +6,6 @@ import (
 	"fmt"
 )
 
-
 const (
 	dataBlockSize  = 32
 	rulesBlockSize = 16
@@ -25,7 +24,7 @@ func xorBytes(b1, b2 []byte, len int) []byte {
 func cmpMD5(origin [md5.Size]byte, check []byte, offset uint8) bool {
 	i := uint8(0)
 	for ; i < md5.Size; i++ {
-		if origin[i] != check[(i + offset) % md5.Size] {
+		if origin[i] != check[(i+offset)%md5.Size] {
 			return true
 		}
 	}
@@ -33,7 +32,7 @@ func cmpMD5(origin [md5.Size]byte, check []byte, offset uint8) bool {
 }
 
 func cmpHeader(header FileHeader) bool {
-	for k,v := range []byte("tensor"){
+	for k, v := range []byte("tensor") {
 		if header.MagicNum[k] != v {
 			return true
 		}
@@ -41,7 +40,7 @@ func cmpHeader(header FileHeader) bool {
 	return false
 }
 
-func decodeBlock(fData []byte, blockSize uint8) ([]byte, []byte, error){
+func decodeBlock(fData []byte, blockSize uint8) ([]byte, []byte, error) {
 	copyData := make([]byte, len(fData))
 	copy(copyData, fData)
 	keyStr := "testtesttesttest"
@@ -53,22 +52,22 @@ func decodeBlock(fData []byte, blockSize uint8) ([]byte, []byte, error){
 	blockSizeInt := int(blockSize)
 	md5LoopValue := make([]byte, md5.Size)
 
-	for ; i * blockSizeInt < len(copyData); i++ {
+	for ; i*blockSizeInt < len(copyData); i++ {
 		l := i * blockSizeInt
 		var r int
-		if ((i + 1) * blockSizeInt) < len(copyData)  {
+		if ((i + 1) * blockSizeInt) < len(copyData) {
 			r = (i + 1) * blockSizeInt
 		} else {
 			r = len(copyData)
 		}
-		buf = copyData[l : r]
+		buf = copyData[l:r]
 		header, buf, err := readDataBlock(buf)
 		if err != nil {
 			fmt.Println(err)
 			return nil, nil, err
 		}
 		tmpMD5 := make([]byte, md5.Size)
-		tmpMD5  = header.MD5Checksum[:md5.Size]
+		tmpMD5 = header.MD5Checksum[:md5.Size]
 		md5LoopValue = xorBytes(md5LoopValue, tmpMD5, md5.Size)
 		decrypted := AesDecryptCFB(buf, key)
 
@@ -95,7 +94,7 @@ func ReadRulesData(fData []byte) (FileHeader, []byte, []byte, error) {
 		return FileHeader{}, nil, nil, err
 	}
 
-	if cmpMD5( header.MD5, md5Value, header.MD5Offset) {
+	if cmpMD5(header.MD5, md5Value, header.MD5Offset) {
 		fmt.Println("checksum error")
 		return FileHeader{}, nil, nil, err
 	}

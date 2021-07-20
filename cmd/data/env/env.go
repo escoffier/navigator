@@ -1,7 +1,5 @@
 package env
 
-import "os"
-
 const (
 	TaskID = "TASK_ID"
 
@@ -44,10 +42,3 @@ const (
 	AuditPath        = "AUDIT_PATH"
 	DefaultAuditPath = "/audit"
 )
-
-func GetEnvWithDefault(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}

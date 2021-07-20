@@ -28,7 +28,7 @@ func NewGenerator() (*Generator, error) {
 	}, nil
 }
 
-// Generate UUID
+// GenerateUUID
 // NOTE: If functions are called more than math.MaxUint16 times in one second, it will generate duplicate ID
 func (g *Generator) GenerateUUID() uint64 {
 	var buf [8]byte

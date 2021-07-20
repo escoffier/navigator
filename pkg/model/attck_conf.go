@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"errors"
+	"strings"
+	"time"
+)
 
 type ATTCKRuleData struct {
 	ID      uint32 `gorm:"primaryKey;autoIncrement;column:id"`
@@ -55,4 +59,69 @@ type LatestATTCKRuleInfo struct {
 	LatestSettingVersion uint32   `json:"latestSettingVersion"`
 	Data                 string   `json:"data"`
 	ClosedRules          []string `json:"closedRules"`
+}
+
+type RuleFromYaml struct {
+	Rule     string `yaml:"rule"`
+	Priority string `yaml:"priority"`
+	Desc     string `yaml:"desc"`
+	Output   string `yaml:"output"`
+}
+
+func Str2SeverityNum(s string) uint8 {
+	retNum := uint8(0)
+	switch s {
+	case "EMERGENCY":
+		return 10
+	case "ALERT":
+		return 9
+	case "CRITICAL":
+		return 8
+	case "ERROR":
+		return 7
+	case "WARNING":
+		return 6
+	case "NOTICE":
+		return 5
+	case "INFO":
+		return 2
+	case "DEBUG":
+		return 1
+	}
+	return retNum
+}
+
+func GetInfoFromOutput(k, output string) (string, error) {
+	retStr := ""
+	resultList := strings.Split(output, k)
+	if len(resultList) < 2 {
+		return "", errors.New("can't find key")
+	}
+	retStr = resultList[1]
+	resultList = strings.Split(retStr, ",")
+	retStr = resultList[0]
+	return retStr, nil
+}
+
+func TranslateRuleType(in string) string {
+	retStr := "其他"
+	switch in {
+	case "Execution":
+		return "命令执行"
+	case "Privilege Escalation":
+		return "权限提升"
+	case "Persistence":
+		return "后门维持"
+	case "Discovery":
+		return "内网信息探测"
+	case "Credential Access":
+		return "凭证获取"
+	case "Defense Evasion":
+		return "检测避免"
+	case "Exfiltration":
+		return "数据泄漏"
+	case "Lateral Movement":
+		return "横向移动"
+	}
+	return retStr
 }

@@ -2,7 +2,10 @@ FROM registry.t-appagile.com/tensorsecurity/baseimage-holmes:latest
 
 COPY ./configs/holmes/docker-entrypoint.sh /
 COPY ./configs/holmes/holmes_export.sh /
+COPY ./dist/holmes-rules-update /
+# COPY ./configs/holmes/rules/holmes_rules.yaml /etc/holmes/holmes_rules.yaml
+COPY ./dist/tensorsec-holmes-rules.thr /etc/holmes/tensorsec-holmes-rules.thr
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-CMD ["/usr/bin/holmes"]
+#CMD ["/usr/bin/holmes"]
