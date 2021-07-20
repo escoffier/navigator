@@ -198,10 +198,15 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 			return nil, err
 		}
 
-		// calculate deprecated ruleMasks
 		var deprecatedRuleMasks []string
 		for _, rule := range h.items {
+			if rule.disabled && rules[rule.name] != nil {
+				// set disabled
+				rules[rule.name].disabled = true
+			}
+
 			if _, ok := rules[rule.name]; !ok && rule.disabled {
+				// deprecated ruleMasks
 				deprecatedRuleMasks = append(deprecatedRuleMasks, rule.name)
 			}
 		}
@@ -224,7 +229,6 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 
 		h.baseOffset = baseOffset
 		h.currentVersion = &confVersion
-
 		h.updateRules(rules)
 		if len(deprecatedRuleMasks) > 0 {
 			h.onlineOffset++
