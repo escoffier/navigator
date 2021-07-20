@@ -381,10 +381,10 @@ type RejectRecord struct {
 	RejectReason     []int64        `gorm:"-" json:"reject_reason"`                                   // 阻断原因(大类)
 	VulnScore        int64          `json:"vuln_score"`                                               // 被阻断时设置的策略漏洞评分
 	VulnLevel        string         `json:"vuln_level"`                                               // 被阻断时设置的策略漏洞评级
-
-	RejectAt  time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
-	CreatedAt time.Time `json:"created_at"`              // 创建时间
-	DeletedAt int       `json:"deleted_at,omitempty"`
+	Digest           string         `json:"digest"`
+	RejectAt         time.Time      `gorm:"index"  json:"reject_at"` // 阻断时间
+	CreatedAt        time.Time      `json:"created_at"`              // 创建时间
+	DeletedAt        int            `json:"deleted_at,omitempty"`
 }
 
 func (RejectRecord) TableName() string {

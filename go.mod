@@ -6,7 +6,6 @@ require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/PuerkitoBio/goquery v1.6.0
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/aws/aws-sdk-go v1.34.28 // indirect
 	github.com/badoux/checkmail v1.2.1
 	github.com/containerd/continuity v0.0.0-20191214063359-1097c8bae83b // indirect
 	github.com/dchest/captcha v0.0.0-20200903113550-03f5f0333e1f

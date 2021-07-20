@@ -241,7 +241,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 		}
 		if resp.StatusCode != 200 {
 			errRes, _ := ioutil.ReadAll(resp.Body)
-			log.Error().Msg(string(errRes))
+			log.Warn().Msgf("get scan result err,try again.%v", string(errRes))
 			return fmt.Errorf("response err.%d", resp.StatusCode)
 		} else {
 			err = json.NewDecoder(resp.Body).Decode(&resultInfo)
@@ -256,7 +256,12 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 		return nil
 	}, retryOptions...)
 
-	log.Debug().Msgf("resStr:%v", resInfo)
+	if err != nil {
+		log.Error().Msgf("get scan result err.%v", err)
+		os.Exit(2)
+	}
+
+	log.Debug().Msgf("scan result:%v,is scan:%v", resultInfo.Data.Item.Safe, resultInfo.Data.Item.IsScan)
 
 	//输出结果
 	outputTable(resultInfo.Data.Item.RejectMsg)
@@ -264,8 +269,11 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	outputTable(resultInfo.Data.Item.Sensitive)
 	outputTable(resultInfo.Data.Item.Virus)
 	if resultInfo.Data.Item.Safe == false {
+		log.Info().Msgf("scan found vulnerabilities.")
 		os.Exit(2)
 	}
+	log.Info().Msgf("scan image vulnerabilities pass.")
+	os.Exit(0)
 }
 
 func main() {

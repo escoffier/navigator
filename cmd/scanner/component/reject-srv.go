@@ -18,7 +18,7 @@ import (
 type ImageRejectSrv interface {
 	GetOverview(ctx context.Context, graph string) (*model.ImageRejectOverview, error)
 	ListRejectRecord(ctx context.Context, search string, libraries []string, rejectReasons []int64, filter *model.Filter) ([]model.RejectRecord, int64, error)
-	CreateImageWhitelist(ctx context.Context, name, library, tag string) (*model.ImageWhitelist, error)
+	CreateImageWhitelist(ctx context.Context, name, library, tag, digest string) (*model.ImageWhitelist, error)
 	ListImageWhitelist(ctx context.Context, search string, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
 	DeleteImageWhitelist(ctx context.Context, imageWhiteId int64) error
 	DeletePolicy(ctx context.Context, id int64)
@@ -112,29 +112,55 @@ func (s *ImageReject) ListRejectRecord(ctx context.Context, search string, libra
 	filter *model.Filter) ([]model.RejectRecord, int64, error) {
 	records, cnt, err := s.dbdal.SearchRejectRecord(store.SearchRejectRecordParam{Libraries: libraries, RejectReasons: rejectReasons, Search: search}, filter)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, response.NewHttpError(http.StatusBadRequest, err)
 	}
 	return records, cnt, nil
 }
 
-func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, tag string) (*model.ImageWhitelist, error) {
-	// 这里先去数据库查一下
-	image, cnt, err := s.dbdal.SearchImage(store.SearchImageParam{
-		Library:      library,
-		Tag:          tag,
-		FullRepoName: name,
-	}, nil)
-	if err != nil || cnt <= 0 || len(image) <= 0 {
-		return nil, response.NewHttpError(http.StatusBadRequest, errors.New("该镜像不在本地仓库中，不能加入白名单"))
+func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, tag, digest string) (*model.ImageWhitelist, error) {
+	// library必须在我们的注册仓库，镜像可以不在我们的数据库中(7-19确定方案),K8s的阻断记录是没有digest的，
+	rys, _, err := s.dbdal.SearchRegistry(store.SearchRegistryParam{LibraryUrl: library}, nil)
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Infof("CreateImageWhitelist查询library出错")
+		return nil, response.NewHttpError(http.StatusBadRequest, errors.New(fmt.Sprintf("查询仓库：%s 出错：%s", library, err.Error())))
 	}
+	if len(rys) == 0 {
+		return nil, response.NewHttpError(http.StatusBadRequest, errors.New(fmt.Sprintf("该仓库：%s 不是注册仓库，不能加白", library)))
+	}
+	// 这里验证一下参数
+	if name == "" {
+		return nil, response.NewHttpError(http.StatusBadRequest, errors.New("no name"))
+	}
+	if library == "" {
+		return nil, response.NewHttpError(http.StatusBadRequest, errors.New("no library"))
+	}
+	if tag == "" {
+		return nil, response.NewHttpError(http.StatusBadRequest, errors.New("no tag"))
+	}
+
 	iw, err := s.dbdal.CreateImageWhitelist(model.ImageWhitelist{
 		Library:      library,
 		FullRepoName: name,
 		Tag:          tag,
-		Digest:       image[0].Digest,
+		Digest:       digest,
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
+			// 如果是从k8s的阻断记录添加的白名单，这时是没有digest的，这里如果再加的话就要更新操作
+			if digest != "" {
+				whitelist, _, err := s.dbdal.SearchImageWhitelist(store.SearchImageWhitelistParam{Library: library, FullRepoName: name, Tag: tag}, nil)
+				if err == nil && len(whitelist) > 0 && whitelist[0].Digest == "" {
+					// 更新
+					logging.GetLogger().WithContext(ctx).Infof("更新白名单的Digest")
+					if err := s.dbdal.UpdateImageWhitelist(fmt.Sprintf("library = '%s' AND full_repo_name = '%s' AND tag = '%s'",
+						library, name, tag), map[string]interface{}{"digest": digest}); err == nil {
+						return iw, nil
+					} else {
+						logging.GetLogger().WithContext(ctx).Errorf(err, "更新白名单的Digest出错")
+						return nil, response.NewHttpError(http.StatusBadRequest, errors.New("更新白名单的Digest出错"))
+					}
+				}
+			}
 			return nil, response.NewHttpError(http.StatusBadRequest, errors.New("已存在，请不要重复添加"))
 		}
 		return nil, response.NewHttpError(http.StatusBadRequest, errors.New(fmt.Sprintf("创建出错：%s", err.Error())))

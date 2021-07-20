@@ -21,7 +21,11 @@ type SearchImageParam struct {
 }
 
 type DeleteImageParam struct {
-	ImageId int64
+	ImageId      int64
+	FullRepoName string
+	Tags         string
+	Library      string
+	FromType     int
 }
 
 type DeleteScanImageParam struct {

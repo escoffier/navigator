@@ -269,7 +269,7 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 		}
 		// 再查恶意文件
 		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVirus) > 0 {
-			resp.Virus = append(resp.Virus, []string{"敏感文件名", "文件路径", "文件类型"})
+			resp.Virus = append(resp.Virus, []string{"恶义病毒名", "文件名", "文件路径"})
 			for _, vu := range resp.ImageDetail.ImageScanVirus {
 				resp.Virus = append(resp.Virus, []string{vu.Virusname, vu.Filename, vu.Filepath})
 			}

@@ -74,6 +74,7 @@ type ScannerDalInterface interface {
 	SearchRejectRecord(param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error)
 	CreateImageWhitelist(data model.ImageWhitelist) (*model.ImageWhitelist, error)
 	SearchImageWhitelist(param SearchImageWhitelistParam, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
+	UpdateImageWhitelist(where string, update map[string]interface{}) error
 	DeleteImageWhitelist(param DeleteImageWhitelistParam) error
 
 	GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.RejectPolicy, error)
@@ -93,11 +94,39 @@ type ScannerOrm struct {
 	log   *logging.Logger
 }
 
+func (s *ScannerOrm) UpdateImageWhitelist(where string, updater map[string]interface{}) error {
+	if where == "" {
+		return errors.New("no where for update condition")
+	}
+	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
+	defer cancelFunc()
+	db := s.psql.Model(new(model.ImageWhitelist)).WithContext(ctx).Where(where).Updates(updater)
+	return db.Error
+
+}
+
 func (s *ScannerOrm) DeleteImage(param DeleteImageParam) error {
 	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
 	defer cancelFunc()
 	db := s.psql.Model(new(model.ImageList)).WithContext(ctx)
-	db = db.Where("id = ? ", param.ImageId)
+	if param.ImageId <= 0 && (param.Library == "" && param.Tags == "" && param.FullRepoName == "" && param.FromType <= 0) {
+		return errors.New("no condition for delete image")
+	}
+	if param.ImageId > 0 {
+		db = db.Where("id = ? ", param.ImageId)
+	}
+	if param.Library != "" {
+		db = db.Where("library = ? ", param.Library)
+	}
+	if param.FullRepoName != "" {
+		db = db.Where("full_repo_name = ? ", param.FullRepoName)
+	}
+	if param.Tags != "" {
+		db = db.Where("tags = ? ", param.Tags)
+	}
+	if param.FromType > 0 {
+		db = db.Where("from_type = ? ", param.FromType)
+	}
 	err := db.Delete(&model.ImageList{}).Error
 	return err
 }
@@ -112,7 +141,7 @@ func (s *ScannerOrm) DeleteScanImage(param DeleteScanImageParam) error {
 }
 
 func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
-	res := s.psql.Model(model.Registry{}).Where("url = ?", library).First(&model.Registry{})
+	res := s.psql.Model(model.Registry{}).Where("url = ? AND use_type!=0", library).First(&model.Registry{})
 	if res.RowsAffected < 1 {
 		return false
 	}
@@ -200,17 +229,25 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.Image
 	// 如果传了digest就先查digest
 	if image.Digest != "" {
 		s.psql.Model(model.ImageList{}).Select("id").
-			Where("digest = ? AND AND library = ?", image.Digest, image.Library).First(&id)
+			Where("digest = ? AND library = ?", image.Digest, image.Library).First(&id)
 		if id != 0 {
 			image.ID = id
 			return &image
 		}
 	}
-
-	s.psql.Model(model.ImageList{}).Select("id").
-		Where("full_repo_name = ? AND tags = ? AND library = ?", image.FullRepoName, image.Tags, image.Library).Order("updated_at desc").First(&id)
-	if id != 0 {
-		image.ID = id
+	var ids []int64
+	res := s.psql.Model(model.ImageList{}).Select("id").
+		Where("full_repo_name = ? AND tags = ? AND library = ?", image.FullRepoName, image.Tags, image.Library).Order("updated_at desc").Find(&ids)
+	if res.RowsAffected > 0 {
+		for k := range ids {
+			tmp := []model.ScanImage{}
+			resScan := s.psql.Model(model.ScanImage{}).Where("image_id = ? AND status != ?", ids[k], model.ScanStatusInProgress).Find(&tmp)
+			if resScan.RowsAffected > 0 {
+				image.ID = ids[k]
+				return &image
+			}
+		}
+		image.ID = ids[0] // 随便返回一个，避免返回未在仓库中，后续会返回镜像未扫描的
 		return &image
 	}
 
@@ -277,8 +314,12 @@ func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest
 }
 
 func (s *ScannerOrm) SetAllImagePending(ctx context.Context) error {
-
-	err := s.psql.Model(model.ScanImage{}).Where("status != ?", model.ScanStatusInProgress).Update("status", model.ScanStatusPending).Error
+	var ids []int64
+	err := s.psql.Model(model.ImageList{}).Select("id").Find(&ids).Error //避免scan_image有数据但imagelist没有的情况
+	if err != nil {
+		return err
+	}
+	err = s.psql.Model(model.ScanImage{}).Where("status != ? AND image_id in ?", model.ScanStatusInProgress, ids).Update("status", model.ScanStatusPending).Error
 	if err != nil {
 		return err
 	}
@@ -533,7 +574,9 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 		SeverityHistogramJSON datatypes.JSON
 	}
 	tmp := []tmpRes{}
-	err := s.psql.Model(model.ScanImage{}).Select("image_id,risk_score,severity_histogram_json").Where("status = ?", model.ScanStatusSucceeded).Limit(5).Order("risk_score desc").Find(&tmp).Error
+	err := s.psql.Model(model.ScanImage{}).Select("scan_images.image_id,scan_images.risk_score,scan_images.severity_histogram_json").
+		Joins("right join tensor_image_list on tensor_image_list.id=scan_images.id").
+		Where("scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("scan_images.risk_score desc").Find(&tmp).Error
 	if err != nil {
 		return []model.ImageRiskScore{}, nil
 	}
@@ -617,7 +660,8 @@ func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStat
 	var tmpScanImage []model.ScanImage
 	var total int64
 	var doingNum, errorNum, successNum, pendingNum int
-	s.psql.Model(&model.ScanImage{}).Select("image_id", "status").Scan(&tmpScanImage) // 可能分段查询更好,todo
+	s.psql.Model(&model.ScanImage{}).Select("scan_images.image_id,scan_images.status").Joins("right join tensor_image_list on tensor_image_list.id=scan_images.image_id").
+		Where("tensor_image_list.from_type = 1").Scan(&tmpScanImage).Debug() // 可能分段查询更好,todo
 	s.psql.Model(&model.ImageList{}).Where("status = 0").Count(&total)
 	for _, v := range tmpScanImage {
 		if v.Status == "inprogress" {
