@@ -239,6 +239,9 @@ func DelSuperUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userNam
 	return nil
 }
 
+func GetSaltedPwd(pwd, salt string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
+}
 func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, pwd string) (bool, *model.User, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -248,7 +251,7 @@ func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper,
 	if err != nil {
 		return false, nil, err
 	}
-	if fmt.Sprintf("%x", md5.Sum([]byte(pwd+queryUser.Salt))) == queryUser.Pwd {
+	if GetSaltedPwd(pwd, queryUser.Salt) == queryUser.Pwd {
 		return true, &queryUser, nil
 	} else {
 		return false, nil, nil

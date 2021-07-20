@@ -238,23 +238,23 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
-		if rq.OldPwd == "" || len(rq.Pwd) > 32 || rq.Pwd == "" {
+		if rq.OldPwd == "" || len(rq.Pwd) > 16 || len(rq.Pwd) < 8 || rq.Pwd == "" {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("pwd error")))
 			return
 		}
 
-		checked, err := checkPwdFormat(rq.Pwd)
-		if !checked {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest, err))
-			return
-		}
+		// checked, err := checkPwdFormat(rq.Pwd)
+		// if !checked {
+		// 	RespAndLog(w, r.Context(),
+		// 		NewMalformedRequestError(http.StatusBadRequest, err))
+		// 	return
+		// }
 
 		user := r.Context().Value(userKey).(*model.User)
 
-		if rq.OldPwd != user.Pwd {
+		if dal.GetSaltedPwd(rq.OldPwd, user.Salt) != user.Pwd {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("oldpwd error")))
