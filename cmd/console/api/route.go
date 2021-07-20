@@ -12,6 +12,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -77,6 +78,7 @@ func SetupRoutes(
 	r.Route("/api/openapi", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(apikey.ScannerValid())
+			r.Route("/ATTCK", api.ATTCK())
 			r.Route("/scanner", api.scanner())
 		})
 	})

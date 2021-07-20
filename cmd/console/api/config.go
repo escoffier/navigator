@@ -31,7 +31,6 @@ func (api *api) config() func(chi.Router) {
 		r.Put("/ATTCK", api.updateATTCKConf())
 		r.Get("/ATTCK/ruleList", api.getATTCKRuleList())
 		r.Post("/ATTCK/ruleSwitch", api.updateRuleSwitch())
-		r.Get("/ATTCK/latestData", api.getATTCKLatestData())
 	}
 }
 
@@ -182,34 +181,5 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItems(switches), response.WithApiVersion(versionAPIVersion))
-	}
-}
-
-func (api *api) getATTCKLatestData() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
-		defer cancel()
-		service, ok := config.GetServiceInstance()
-		if !ok {
-			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-
-		curDataVersion, err := param.QueryUint32(r, "curDataVersion")
-		if err != nil {
-			curDataVersion = 0
-		}
-		curSettingVersion, err := param.QueryUint32(r, "curSettingVersion")
-		if err != nil {
-			curSettingVersion = 0
-		}
-
-		info, err := service.GetATTCKConfData(ctx, curDataVersion, curSettingVersion)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-
-		response.Ok(w, response.WithItem(*info), response.WithApiVersion(versionAPIVersion))
 	}
 }
