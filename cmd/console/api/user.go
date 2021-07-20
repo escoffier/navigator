@@ -256,7 +256,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 
 		if dal.GetSaltedPwd(rq.OldPwd, user.Salt) != user.Pwd {
 			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest,
+				NewPasswordNotMatchError(http.StatusBadRequest,
 					fmt.Errorf("oldpwd error")))
 			return
 		}

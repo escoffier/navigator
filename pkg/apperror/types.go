@@ -303,6 +303,22 @@ func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) er
 	}
 }
 
+func NewPasswordNotMatchError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MalformedRequestError{
+		detailedError{
+			err:       err,
+			English:   "Password not match",
+			Chinese:   "密码不匹配",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewGCTaskInProgressError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 
