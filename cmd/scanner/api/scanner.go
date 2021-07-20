@@ -36,6 +36,12 @@ func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 		s.log.WithContext(ctx).Errorf(err, "BindJSON error")
 		return
 	}
+	if len(containerInfo) == 0 {
+		s.log.WithContext(ctx).Infof("收到TickOnlineScan,空数据")
+		return
+	}
+
+	s.log.WithContext(ctx).Infof("收到TickOnlineScan,from_type:%s,image:%s", containerInfo[0].FromType, containerInfo[0].Image)
 	flag := s.Srv.TickOnlineScan(ctx, containerInfo)
 	type tmpRes struct {
 		Flag bool `json:"flag"`

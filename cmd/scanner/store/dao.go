@@ -658,11 +658,12 @@ func (s *ScannerOrm) UpdateImage(where string, updater map[string]interface{}) e
 func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStatus {
 	var status harbor.ScanAllStatus
 	var tmpScanImage []model.ScanImage
-	var total int64
+	var total int
 	var doingNum, errorNum, successNum, pendingNum int
 	s.psql.Model(&model.ScanImage{}).Select("scan_images.image_id,scan_images.status").Joins("right join tensor_image_list on tensor_image_list.id=scan_images.image_id").
-		Where("tensor_image_list.from_type = 1").Scan(&tmpScanImage).Debug() // 可能分段查询更好,todo
-	s.psql.Model(&model.ImageList{}).Where("status = 0").Count(&total)
+		Where("tensor_image_list.from_type = 1").Find(&tmpScanImage).Debug() // 可能分段查询更好,todo
+	total = len(tmpScanImage)
+	//s.psql.Model(&model.ImageList{}).Where("status = 0").Count(&total)
 	for _, v := range tmpScanImage {
 		if v.Status == "inprogress" {
 			doingNum++

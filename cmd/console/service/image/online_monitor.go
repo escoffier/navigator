@@ -74,9 +74,9 @@ func (s *OnlineMonitorCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.A
 		Namespace: newPod.Namespace,
 		Cluster:   newPod.ClusterName,
 	}
-	// logging.GetLogger().WithContext(ctx).Infof(fmt.Sprintf("NotifyContext PodId:%s,PodName:%s,Namespace:%s,Cluster:%s", notify.PodUID, notify.PodName, notify.Namespace, notify.Cluster))
+	logging.GetLogger().WithContext(ctx).Infof(fmt.Sprintf("k8s在线 NotifyContext PodId:%s,PodName:%s,Namespace:%s,Cluster:%s,action:%v", notify.PodUID, notify.PodName, notify.Namespace, notify.Cluster, action))
 
-	if action == assets.ActionAdd {
+	if action != assets.ActionDelete {
 		if err := s.detectImage(ctx, newPod.Status.ContainerStatuses, &notify); err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "k8s在线监控镜像OnPodEvent出错")
 		}
@@ -126,6 +126,7 @@ func (s *OnlineMonitorCB) Name() string {
 
 func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.ContainerStatus, notify *model.NotifyContext) error {
 	body := make([]model.RejectOnlineMoniterImage, 0)
+	logging.GetLogger().WithContext(ctx).Infof("在线监控detectImage,containers:%d", len(containers))
 
 	for i := range containers {
 		rej := model.RejectOnlineMoniterImage{
