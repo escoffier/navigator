@@ -15,6 +15,9 @@ global:
 
 
 
+clair:
+  image:
+    tag: *tensorsecVerison
 
 console:
   image:
