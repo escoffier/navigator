@@ -166,11 +166,11 @@ func (c *MongoCleaner) dumpCollection(ctx context.Context, collection string, ti
 
 func mongoExport(ctx context.Context, collection *conf.DumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	var mongoURI string
-	mongoUsername := env.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername)
-	mongoPassword := env.GetEnvWithDefault(env.MongoPassword, "")
-	mongoEndpoint := env.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint)
-	mongoDatabase := env.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase)
-	mongoReadReference := env.GetEnvWithDefault(env.MongoReadPreference, env.DefaultMongoReadPreference)
+	mongoUsername := util.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername)
+	mongoPassword := util.GetEnvWithDefault(env.MongoPassword, "")
+	mongoEndpoint := util.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint)
+	mongoDatabase := util.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase)
+	mongoReadReference := util.GetEnvWithDefault(env.MongoReadPreference, env.DefaultMongoReadPreference)
 
 	if mongoUsername != "" && mongoPassword != "" {
 		mongoURI = fmt.Sprintf("mongodb://%s:%s@%s/%s", mongoUsername, mongoPassword, mongoEndpoint, mongoDatabase)

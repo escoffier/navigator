@@ -5,11 +5,13 @@ import (
 	"io/ioutil"
 
 	"github.com/urfave/cli/v2"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/cleaner"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
@@ -31,7 +33,7 @@ func DumpHotLogicStorage(*cli.Context) error {
 }
 
 func NewLogicStorageCleaners() (cleaners []def.Cleaner, err error) {
-	confBytes, err := ioutil.ReadFile(env.GetEnvWithDefault(env.ConfPath, env.DefaultConfPath))
+	confBytes, err := ioutil.ReadFile(util2.GetEnvWithDefault(env.ConfPath, env.DefaultConfPath))
 	if err != nil {
 		logging.GetLogger().Error().Msgf("load conf file fail, err:%s", err.Error())
 		return nil, err

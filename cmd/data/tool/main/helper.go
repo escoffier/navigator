@@ -11,24 +11,26 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func NewMongoClientFromEnv() (*mongotools.DatabaseWrapper, error) {
 	return util.NewMongoClient(
-		env.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
-		env.GetEnvWithDefault(env.MongoPassword, ""),
-		env.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
-		env.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
+		util2.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
+		util2.GetEnvWithDefault(env.MongoPassword, ""),
+		util2.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
+		util2.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
 }
 
 func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		env.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		env.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		env.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		env.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
-		env.GetEnvWithDefault(env.PostgresPassword, ""),
+		util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
+		util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
+		util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
+		util2.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
+		util2.GetEnvWithDefault(env.PostgresPassword, ""),
 	)
 
 	return util.NewPostgresClient(postgresqlDSN)

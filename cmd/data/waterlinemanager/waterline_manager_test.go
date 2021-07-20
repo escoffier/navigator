@@ -2,14 +2,17 @@ package waterlinemanager
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
@@ -32,10 +35,10 @@ func initWaterlineManagerRequirement(t *testing.T) {
 
 	var err error
 	mongodb, err := util.NewMongoClient(
-		env.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
-		env.GetEnvWithDefault(env.MongoPassword, ""),
-		env.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
-		env.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
+		util2.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
+		util2.GetEnvWithDefault(env.MongoPassword, ""),
+		util2.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
+		util2.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
 	if err != nil {
 		t.Fatal(err)
 	}
