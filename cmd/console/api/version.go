@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -41,13 +40,14 @@ func (api *api) version() func(chi.Router) {
 
 func (api *api) getSystemVersion() http.HandlerFunc {
 	type rsp struct {
-		Version string `json:"version"`
+		SoftName string `json:"softName"`
+		Version  string `json:"version"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		response.Ok(w, response.WithItem(rsp{Version: fmt.Sprintf("%s %s",
-			util.GetEnvWithDefault(softNameEnv, defaultSoftName),
-			util.GetEnvWithDefault(softVersionEnv, defaultSoftVersion),
-		)}),
+		response.Ok(w, response.WithItem(rsp{
+			SoftName: util.GetEnvWithDefault(softNameEnv, defaultSoftName),
+			Version:  util.GetEnvWithDefault(softVersionEnv, defaultSoftVersion),
+		}),
 			response.WithApiVersion(versionAPIVersion))
 	}
 }
