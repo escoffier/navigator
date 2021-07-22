@@ -14,9 +14,6 @@ import (
 )
 
 const (
-	defaultWindowSec = 10 * 60
-	defaultThreshold = 5
-
 	ConfigKey = "usercenter_loginfailconf"
 )
 
@@ -24,7 +21,7 @@ var (
 	instance *LoginRateLimiter
 )
 
-func GetLimiter(ctx context.Context) *LoginRateLimiter {
+func GetLimiter(_ context.Context) *LoginRateLimiter {
 	return instance
 }
 
@@ -62,6 +59,7 @@ func (l *LimiterConfig) SetThreshold(t int32) {
 func (l *LimiterConfig) windowSec(sec int64) int64 {
 	return atomic.LoadInt64(&l.RateLimitWindowSecs)
 }
+
 func (l *LimiterConfig) getThreshold() int32 {
 	return atomic.LoadInt32(&l.RateLimitThreshold)
 }
@@ -102,7 +100,7 @@ func readConfigs(rdb *rdbtools.GormWrapper) (LimiterConfig, error) {
 	return config, nil
 }
 
-// NOTICE: shuold use cycled arrays here
+// NOTICE: should use cycled arrays here
 type failStatus struct {
 	count     int32
 	createdAt time.Time
@@ -132,7 +130,7 @@ func (l *LoginRateLimiter) UpdateEnable(enable int32) {
 	l.config.SetEnable(enable)
 }
 
-func (l *LoginRateLimiter) getOrCreateStatus(ctx context.Context, userName string) *failStatus {
+func (l *LoginRateLimiter) getOrCreateStatus(_ context.Context, userName string) *failStatus {
 	status, _ := l.counts.LoadOrStore(userName, newFailStatus())
 	return status.(*failStatus)
 }

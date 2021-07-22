@@ -16,6 +16,20 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -40,19 +54,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -440,11 +441,11 @@ func (c *Console) Run() func() {
 
 func postgreCheck(db *rdbtools.GormWrapper) error {
 	queryUser := model.User{}
-	err := db.Get().Where("username = ?", model.SUPER_ADMIN).First(&queryUser).Error
+	err := db.Get().Where("username = ?", model.UserSuperAdmin).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		salt := dal.RandStringBytesMaskImprSrcUnsafe(8)
-		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.SUPER_PWD+salt)))
-		user := model.User{UserName: model.SUPER_ADMIN, Checked: true, CreateAt: time.Now().Unix(), Rule: model.ROLE_SUPERADMIN, Salt: salt, Pwd: hashPwd}
+		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.PasswordSuperAdmin+salt)))
+		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreateAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
 		err = db.Get().Create(&user).Error
 		if err != nil {
 			return err
@@ -455,23 +456,23 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	db.Get().AutoMigrate(&model.ModuleGroup{}, &model.Url{})
 
 	mg1 := model.ModuleGroup{
-		ModuleName_zh: "用户中心",
-		ModuleName_en: "User Center",
+		ModuleNameZh: "用户中心",
+		ModuleNameEn: "User Center",
 	}
 
 	mg2 := model.ModuleGroup{
-		ModuleName_zh: "平台",
-		ModuleName_en: "Platform",
+		ModuleNameZh: "平台",
+		ModuleNameEn: "Platform",
 	}
 
 	mg3 := model.ModuleGroup{
-		ModuleName_zh: "容器安全",
-		ModuleName_en: "Container Security",
+		ModuleNameZh: "容器安全",
+		ModuleNameEn: "Container Security",
 	}
 
 	mg4 := model.ModuleGroup{
-		ModuleName_zh: "微隔离",
-		ModuleName_en: "Micro Segmentation",
+		ModuleNameZh: "微隔离",
+		ModuleNameEn: "Micro Segmentation",
 	}
 
 	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg1)

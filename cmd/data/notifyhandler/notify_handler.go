@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"strconv"
+
 	"github.com/badoux/checkmail"
+	"gopkg.in/gomail.v2"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gopkg.in/gomail.v2"
-	"strconv"
 )
 
 type EmailConf struct {
@@ -58,7 +60,7 @@ func (h *Handler) loadAdminEmails(ctx context.Context) ([]string, error) {
 	platformModuleID := strconv.Itoa(module.Id)
 
 	var users []*model.User
-	err = h.db.Get().WithContext(ctx).Where("rule = ?", model.ROLE_ADMIN).Select("username, module_id").Find(&users).Error
+	err = h.db.Get().WithContext(ctx).Where("rule = ?", model.RoleAdmin).Select("username, module_id").Find(&users).Error
 	if err != nil {
 		return nil, err
 	}

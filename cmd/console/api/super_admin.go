@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -17,16 +17,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
-
-func (api *api) superAdmin() func(chi.Router) {
-	return func(r chi.Router) {
-		r.Get("/userList", api.userList())
-		r.Post("/resetPassword", api.resetPassword())
-		r.Get("/userModule", api.userModule())
-		r.Post("/addUser", api.addUser())
-		r.Post("/delSuperUser", api.delSuperUser())
-	}
-}
 
 func (api *api) userList() http.HandlerFunc {
 
@@ -84,7 +74,7 @@ func (api *api) userModule() http.HandlerFunc {
 			return
 		}
 
-		if username == model.SUPER_ADMIN {
+		if username == model.UserSuperAdmin {
 
 			mdgroup := dal.GetAdminModuleGroup(r.Context(), api.postgresDB)
 			response.Ok(w, response.WithItems(mdgroup))
@@ -133,6 +123,8 @@ func (api *api) addUser() http.HandlerFunc {
 					fmt.Errorf("request busy")))
 			return
 		}
+
+		// FIX: concurrency write map
 		api.optUserMap[rq.UserName] = struct{}{}
 		defer delete(api.optUserMap, rq.UserName)
 
@@ -166,7 +158,7 @@ func (api *api) addUser() http.HandlerFunc {
 		}
 
 		u, _ := userPtr.(*model.User)
-		if u.Rule == model.ROLE_NORMAL {
+		if u.Rule == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
@@ -228,7 +220,7 @@ func (api *api) addUser() http.HandlerFunc {
 				return
 			}
 
-			err = dal.ActiveUser(r.Context(), api.postgresDB, rq.UserName, model.DEFAULT_PWD)
+			err = dal.ActiveUser(r.Context(), api.postgresDB, rq.UserName, model.DefaultPassword)
 			if err != nil {
 				RespAndLog(w, ctx,
 					PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -239,48 +231,6 @@ func (api *api) addUser() http.HandlerFunc {
 		tx.Commit()
 		response.Ok(w, response.WithItem(resp{Status: "OK"}))
 	}
-}
-
-func (api *api) delSuperUser() http.HandlerFunc {
-	type resp struct {
-		Status string `json:"status"`
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer cancel()
-		token, claims, err := jwtauth.FromContext(r.Context())
-
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("Error when get token & claims from context: %w", err)))
-			return
-		}
-		if token == nil || !token.Valid {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("Token empty or invalid")))
-			return
-		}
-
-		username, _ := claims[JWT_KEY_USERNAME].(string)
-		if username != model.ROLE_SUPERADMIN {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("user error auth forbidden")))
-			return
-		}
-
-		err = dal.DelSuperUser(ctx, api.postgresDB, username)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
-			return
-		}
-		response.Ok(w, response.WithItem(resp{Status: "OK"}))
-	}
-
 }
 
 func (api *api) editUser() http.HandlerFunc {
@@ -302,7 +252,7 @@ func (api *api) editUser() http.HandlerFunc {
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-		if rq.UserName == "" || rq.RoleName == "" || len(rq.UserName) > 32 || (rq.RoleName != "admin" && rq.RoleName != "normal") {
+		if rq.UserName == "" || rq.RoleName == "" || len(rq.UserName) > 32 || (rq.RoleName != model.RoleAdmin && rq.RoleName != model.RoleNormal) {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("username or role error")))
@@ -339,7 +289,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		u, _ := userPtr.(*model.User)
-		if u.Rule == model.ROLE_NORMAL {
+		if u.Rule == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
@@ -357,7 +307,7 @@ func (api *api) editUser() http.HandlerFunc {
 				UserNotExistError(http.StatusInternalServerError, fmt.Errorf("user name already exist:%+v", err)))
 			return
 		}
-		if queryUser.Rule == model.ROLE_ADMIN && rq.RoleName == model.ROLE_NORMAL {
+		if queryUser.Rule == model.RoleAdmin && rq.RoleName == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))

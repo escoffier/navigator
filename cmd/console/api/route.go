@@ -176,6 +176,12 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 				return
 			}
 
+			ctx := context.WithValue(r.Context(), userKey, userPtr)
+			if r.Method == http.MethodGet {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			accessListUrl, err := dal.GetAccessUrl(postgresDB, u.ModuleID)
 			if err != nil {
 				RespAndLog(w, r.Context(),
@@ -185,25 +191,22 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 			}
 			hasAccess := false
 
-			if r.Method != http.MethodGet {
-				currentURL := strings.ToLower(r.URL.Path)
-				for i := range accessListUrl {
-					url := strings.ToLower(accessListUrl[i])
-					if strings.HasPrefix(currentURL, url) {
-						hasAccess = true
-						break
-					}
+			currentURL := strings.ToLower(r.URL.Path)
+			for i := range accessListUrl {
+				url := strings.ToLower(accessListUrl[i])
+				if strings.HasPrefix(currentURL, url) {
+					hasAccess = true
+					break
 				}
 			}
 
-			if r.Method != "GET" && !hasAccess {
+			if !hasAccess {
 				RespAndLog(w, r.Context(),
 					NewNoAccess(http.StatusForbidden,
 						fmt.Errorf("access invalid")))
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), userKey, userPtr)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

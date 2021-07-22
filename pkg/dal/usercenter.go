@@ -11,28 +11,25 @@ import (
 	"time"
 	"unsafe"
 
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"gopkg.in/mgo.v2/bson"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const (
+	MongoUserCollectionName = "rbac_user"
 	letterIdxBits           = 6                    // 6 bits to represent a letter index
 	letterIdxMask           = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax            = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
-	MongoUserCollectionName = "rbac_user"
-)
-
-var (
-	ErrUserBanned = errors.New("The user is banned")
 )
 
 func RandStringBytesMaskImprSrcUnsafe(n int) string {
@@ -76,10 +73,10 @@ func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit,
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.SUPER_ADMIN).Model(&model.User{}).Count(&count)
+	postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Model(&model.User{}).Count(&count)
 
-	p := postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.SUPER_ADMIN).Limit(int(limit)).Offset(int(offset)).Order("id")
-	err := p.Where("username != ?", model.SUPER_ADMIN).Find(&user).Error
+	p := postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Limit(int(limit)).Offset(int(offset)).Order("id")
+	err := p.Where("username != ?", model.UserSuperAdmin).Find(&user).Error
 	if err != nil {
 		return count, user, err
 	}
@@ -227,16 +224,6 @@ func InsertEmail(ctx context.Context, postgresDB *rdbtools.GormWrapper, username
 
 	err = postgresDB.Get().WithContext(pgCtx).Create(&email).Error
 	return err
-}
-
-func DelSuperUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName string) error {
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	err := postgresDB.Get().WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Pwd: ""}).Error
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func GetSaltedPwd(pwd, salt string) string {
