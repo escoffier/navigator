@@ -25,7 +25,6 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Get("/userModule", api.userModule())
 			r.Post("/addUser", api.addUser())
 			r.Post("/editUser", api.editUser())
-			r.Post("/delSuperUser", api.delSuperUser())
 			r.Post("/resetPassword", api.resetPassword())
 			r.Post("/loginConfig", api.setConfig())
 			r.Get("/loginConfig", api.readConfig())

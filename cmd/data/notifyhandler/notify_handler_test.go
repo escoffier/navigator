@@ -44,18 +44,18 @@ func initHandler(t *testing.T) {
 	assert.Equal(t, nil, db.Get().AutoMigrate(&model.User{}))
 
 	mg1 := model.ModuleGroup{
-		ModuleName_zh: "用户中心",
-		ModuleName_en: "User Center",
+		ModuleNameZh: "用户中心",
+		ModuleNameEn: "User Center",
 	}
 
 	mg2 := model.ModuleGroup{
-		ModuleName_zh: "平台",
-		ModuleName_en: "Platform",
+		ModuleNameZh: "平台",
+		ModuleNameEn: "Platform",
 	}
 
 	mg3 := model.ModuleGroup{
-		ModuleName_zh: "容器安全",
-		ModuleName_en: "Container security",
+		ModuleNameZh: "容器安全",
+		ModuleNameEn: "Container security",
 	}
 
 	assert.Equal(t, nil, db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg1).Error)
@@ -66,21 +66,21 @@ func initHandler(t *testing.T) {
 		ID:       1,
 		UserName: "weichangan@tensorsecurity.cn",
 		ModuleID: `["2","3"]`,
-		Rule:     model.ROLE_ADMIN,
+		Rule:     model.RoleAdmin,
 	}).Error)
 
 	assert.Equal(t, nil, db.Get().Create(&model.User{
 		ID:       2,
 		UserName: "nonsense",
 		ModuleID: `["2","3"]`,
-		Rule:     model.ROLE_ADMIN,
+		Rule:     model.RoleAdmin,
 	}).Error)
 
 	assert.Equal(t, nil, db.Get().Create(&model.User{
 		ID:       3,
 		UserName: "nonsense@tensorsecurity.cn",
 		ModuleID: `["1", "3"]`,
-		Rule:     model.ROLE_ADMIN,
+		Rule:     model.RoleAdmin,
 	}).Error)
 
 	handler = NewHandler(db, &EmailConf{

@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/patrickmn/go-cache"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -22,12 +22,6 @@ import (
 var (
 	ErrNoAccess = errors.New("access invalid")
 )
-
-func (api *api) user() func(chi.Router) {
-	return func(r chi.Router) {
-		r.Post("/resetPassword", api.resetPassword())
-	}
-}
 
 func (api *api) verifyAuthorization(ctx context.Context) error {
 	token, claims, err := jwtauth.FromContext(ctx)
@@ -49,11 +43,11 @@ func (api *api) verifyAuthorization(ctx context.Context) error {
 	}
 
 	u, _ := userPtr.(*model.User)
-	if u.Rule == model.ROLE_NORMAL {
+	if u.Rule == model.RoleNormal {
 		return ErrNoAccess
 	}
 
-	if userRole == model.ROLE_ADMIN || userRole == model.ROLE_SUPERADMIN {
+	if userRole == model.RoleAdmin || userRole == model.RoleSuperAdmin {
 		return nil
 	} else {
 		return ErrNoAccess
@@ -308,7 +302,7 @@ func (api *api) loadUser() http.HandlerFunc {
 		for _, v := range u {
 			bool, _, _ := dal.SelectUser(ctx, api.postgresDB, v.UserName)
 			if !bool {
-				err := dal.InsertUser(ctx, api.postgresDB, v.UserName, model.ROLE_NORMAL, []string{"1"})
+				err := dal.InsertUser(ctx, api.postgresDB, v.UserName, model.RoleNormal, []string{"1"})
 				if err != nil {
 					RespAndLog(w, ctx,
 						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))

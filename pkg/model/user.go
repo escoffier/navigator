@@ -3,10 +3,10 @@ package model
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 type ModuleGroup struct {
-	Id            int    `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
-	ModuleName_zh string `json:"module_name_zh"`
-	ModuleName_en string `json:"module_name_en"`
-	Url           []Url  `gorm:"-" json:"-"`
+	Id           int    `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
+	ModuleNameZh string `json:"module_name_zh"`
+	ModuleNameEn string `json:"module_name_en"`
+	Url          []Url  `gorm:"-" json:"-"`
 }
 
 func (m ModuleGroup) TableName() string {
@@ -24,12 +24,12 @@ func (u Url) TableName() string {
 }
 
 const (
-	ROLE_SUPERADMIN = "super-admin"
-	ROLE_ADMIN      = "admin"
-	ROLE_NORMAL     = "normal"
-	SUPER_ADMIN     = "SuperAdmin"
-	SUPER_PWD       = "9a39820591e511160e9f993d30d92b19"
-	DEFAULT_PWD     = "tanzhen2020"
+	RoleSuperAdmin     = "super-admin"
+	RoleAdmin          = "admin"
+	RoleNormal         = "normal"
+	UserSuperAdmin     = "SuperAdmin"
+	PasswordSuperAdmin = "9a39820591e511160e9f993d30d92b19"
+	DefaultPassword    = "tanzhen2020"
 )
 
 type MongoUser struct {
@@ -44,8 +44,8 @@ type MongoUser struct {
 }
 
 type User struct {
-	ID          int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-" bson:"_id"`
-	UserName    string        `gorm:"index:username,unique;column:username" json:"userName" bson:"user_name"` // index
+	ID          int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-"`
+	UserName    string        `gorm:"index:username,unique;column:username" json:"userName"` // index
 	Pwd         string        `json:"-" bson:"pwd"`
 	Salt        string        `gorm:"column:salt" json:"-"`
 	Rule        string        `gorm:"column:rule" json:"rule"`
@@ -61,10 +61,10 @@ func (u User) TableName() string {
 }
 
 type Email struct {
-	ID       int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id" bson:"_id"`
-	HashCode string `gorm:"index:hash_code;column:hash_code;size:64" json:"hash_code"`
+	ID       int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
+	HashCode string `gorm:"index:hash_code, unique;column:hash_code;size:64" json:"hash_code"`
 	CreateAt int64  `json:"create_at"`
-	UserName string `gorm:"index:username;column:username" json:"userName" bson:"user_name"` // index
+	UserName string `gorm:"index:email_username, unique;column:username" json:"userName"` // index
 }
 
 func (e Email) TableName() string {
