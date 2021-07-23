@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"net/http"
 	"reflect"
 	"regexp"
@@ -19,6 +18,8 @@ import (
 	param "github.com/oceanicdev/chi-param"
 	"github.com/olivere/elastic/v7"
 	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -26,7 +27,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type api struct {
@@ -35,7 +35,6 @@ type api struct {
 	tokenAuth    *jwtauth.JWTAuth
 	mongodb      *mongotools.DatabaseWrapper
 	postgresDB   *rdbtools.GormWrapper
-	optUserMap   map[string]struct{}
 	es           *elastic.Client
 	microsegURL  string
 	scannerURL   string
@@ -70,7 +69,6 @@ func newAPI(
 		tokenAuth:                   tokenAuth,
 		mongodb:                     mongodb,
 		postgresDB:                  postgresDB,
-		optUserMap:                  make(map[string]struct{}),
 		scannerURL:                  scannerURL,
 		microsegURL:                 microsegURL,
 		redisClient:                 redisClient,

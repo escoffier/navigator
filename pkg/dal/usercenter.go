@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -30,6 +31,8 @@ const (
 	letterIdxBits           = 6                    // 6 bits to represent a letter index
 	letterIdxMask           = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax            = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+
+	ModuleUserCenter = 1
 )
 
 func RandStringBytesMaskImprSrcUnsafe(n int) string {
@@ -68,15 +71,18 @@ func UpdateUserPwd(ctx context.Context, postgresDB *rdbtools.GormWrapper, userNa
 }
 
 func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit, offset int64) (int64, []model.User, error) {
-	user := []model.User{}
+	var user []model.User
 	var count int64
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Model(&model.User{}).Count(&count)
+	var err = postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Model(&model.User{}).Count(&count).Error
+	if err != nil {
+		return 0, nil, err
+	}
 
 	p := postgresDB.Get().WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Limit(int(limit)).Offset(int(offset)).Order("id")
-	err := p.Where("username != ?", model.UserSuperAdmin).Find(&user).Error
+	err = p.Where("username != ?", model.UserSuperAdmin).Find(&user).Error
 	if err != nil {
 		return count, user, err
 	}
@@ -94,9 +100,12 @@ func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit,
 func GetModuleGroup(ctx context.Context, db *rdbtools.GormWrapper, moduleID string) ([]model.ModuleGroup, error) {
 
 	var moduleSLID []string
-	json.Unmarshal([]byte(moduleID), &moduleSLID)
+	var err = json.Unmarshal([]byte(moduleID), &moduleSLID)
+	if err != nil {
+		return nil, err
+	}
 	var m []model.ModuleGroup
-	err := db.Get().WithContext(ctx).Where("id in  (?) and id not in (?)", moduleSLID, []int{1}).Find(&m).Error
+	err = db.Get().WithContext(ctx).Where("id in  (?) and id not in (?)", moduleSLID, []int{ModuleUserCenter}).Find(&m).Error
 	return m, err
 }
 
@@ -108,13 +117,19 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 		strURL []string
 	)
 	var moduleSLID []string
-	json.Unmarshal([]byte(moduleID), &moduleSLID)
+	var err error
+	if moduleID != "" {
+		err = json.Unmarshal([]byte(moduleID), &moduleSLID)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	pgCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	err := db.Get().WithContext(pgCtx).Where("Id in (?)", moduleSLID).Find(&m).Error
+	err = db.Get().WithContext(pgCtx).Where("Id in (?)", moduleSLID).Find(&m).Error
 	if err != nil {
-		return strURL, err
+		return nil, err
 	}
 
 	for _, v := range m {
@@ -123,7 +138,7 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 	ids = append(ids, 1)
 	err = db.Get().Where("url_id in (?)", ids).Find(&url).Error
 	if err != nil {
-		return strURL, err
+		return nil, err
 	}
 	for _, v := range url {
 		strURL = append(strURL, v.UrlName)
@@ -132,9 +147,9 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 }
 
 func SetAccountBanStatus(ctx context.Context, rdb *rdbtools.GormWrapper, userName string, banStatus bool) error {
-	bstatus := 0
+	bStatus := 0
 	if banStatus {
-		bstatus = 1
+		bStatus = 1
 	}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
@@ -143,7 +158,7 @@ func SetAccountBanStatus(ctx context.Context, rdb *rdbtools.GormWrapper, userNam
 	err := util.RetryWithBackoff(pgCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
 		defer oneCancel()
-		innerErr = rdb.Get().WithContext(oneCtx).Model(&model.User{}).Where("username = ?", userName).Update("ban_status", bstatus).Error
+		innerErr = rdb.Get().WithContext(oneCtx).Model(&model.User{}).Where("username = ?", userName).Update("ban_status", bStatus).Error
 		if innerErr == gorm.ErrRecordNotFound {
 			return nil
 		}
@@ -165,7 +180,7 @@ func GetAdminModuleGroup(ctx context.Context, db *rdbtools.GormWrapper) []model.
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	db.Get().WithContext(pgCtx).Where("id not in  (?)", []int{1}).Find(&m)
+	db.Get().WithContext(pgCtx).Where("id not in  (?)", []int{ModuleUserCenter}).Find(&m)
 	logging.GetLogger().Info().Msgf("moduleGroup:%+v", m)
 	return m
 }
@@ -187,16 +202,27 @@ func SelectUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName 
 }
 
 func InsertUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
-	data, _ := json.Marshal(moduleID)
+	data, err := json.Marshal(moduleID)
+	if err != nil {
+		return err
+	}
 	user := model.User{UserName: userName, Checked: false, CreateAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err = postgresDB.Get().WithContext(pgCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
+	return postgresDB.Get().WithContext(pgCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
+}
+
+func InsertUserV2(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
+	data, err := json.Marshal(moduleID)
 	if err != nil {
 		return err
 	}
-	return
+	user := model.User{UserName: userName, Checked: false, CreateAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
+
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return postgresDB.Get().WithContext(pgCtx).Create(&user).Error
 }
 
 func UpdateUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
@@ -205,17 +231,14 @@ func UpdateUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err = postgresDB.Get().WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Updates(user).Error
-	if err != nil {
-		return err
-	}
-	return
+	return postgresDB.Get().WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Updates(user).Error
 }
 
 func InsertEmail(ctx context.Context, postgresDB *rdbtools.GormWrapper, username, hashcode string) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
+	// TODO insert on duplicate key update
 	err := postgresDB.Get().WithContext(pgCtx).Delete(model.Email{}, "username = ?", username).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("Insert email to delete error: username: %s", username)
@@ -273,12 +296,7 @@ func ActiveUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 		return err
 	}
 
-	err = postgresDB.Get().WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error
-
-	if err != nil {
-		return err
-	}
-	return nil
+	return postgresDB.Get().WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error
 }
 
 func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.MongoUser, err error) {
@@ -302,4 +320,12 @@ func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.Mon
 		mongoUserSlice = append(mongoUserSlice, mu)
 	}
 	return mongoUserSlice, nil
+}
+
+func IsPostgresDuplicateError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), "duplicate")
 }

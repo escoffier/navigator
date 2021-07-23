@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/dchest/captcha"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -64,7 +65,7 @@ func (api *api) getCaptchaImage() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to get captcha", err)))
+					fmt.Errorf("failed to get captcha, err:%s", err)))
 			return
 		}
 
