@@ -1,27 +1,27 @@
 [submodule "configs/scap/jobs/docker-bench-security"]
 	path = configs/scap/jobs/docker-bench-security
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/docker-bench-security.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/docker-bench-security.git
 	branch = forkmaster
 [submodule "configs/scap/jobs/kube-bench"]
 	path = configs/scap/jobs/kube-bench
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/kube-bench.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/kube-bench.git
 	branch = forkmaster
 [submodule "configs/scap/jobs/host-bench/xccdfparser"]
 	path = configs/scap/jobs/host-bench/xccdfparser
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/xccdfparser.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/xccdfparser.git
 [submodule "configs/tensordig/bcc"]
 	path = configs/tensordig/bcc
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/bcc.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/bcc.git
 	branch = tensordig
 [submodule "configs/tensordig/gobpf"]
 	path = configs/tensordig/gobpf
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/gobpf.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/gobpf.git
 	branch = tensordig
 [submodule "cmd/go-audit"]
 	path = cmd/go-audit
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/go-audit.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/go-audit.git
 	branch = tensorsec
 [submodule "configs/daemon/netlink"]
 	path = configs/daemon/netlink
-	url = git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/netlink.git
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/netlink.git
     branch = tensorsec
