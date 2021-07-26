@@ -252,7 +252,7 @@ postgresql:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     name: postgresql
-    tag: 11.5.0-debian-9-r34
+    tag: 11.6.0-debian-10-r5
     pullSecret: harbor-admin-secret
     pullPolicy: Always
   volumePermissions:

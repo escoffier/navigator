@@ -25,7 +25,7 @@ dependencies:
 #    condition: daemon.enabled
 
   - name: postgresql
-    version: 6.3.9
+    version: 8.3.3
     repository: "file://./subcharts/postgresql"
     condition: postgresql.enabled
 
