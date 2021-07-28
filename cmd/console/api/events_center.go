@@ -25,7 +25,7 @@ const (
 )
 
 const (
-	maxEventBatchSize  = 20
+	maxEventBatchSize  = 100
 	maxSignalBatchSize = 20
 )
 
