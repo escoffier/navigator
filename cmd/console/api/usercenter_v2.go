@@ -10,6 +10,7 @@ func (api *api) userCenter() func(chi.Router) {
 		r.Post("/login", api.login())
 		r.Post("/createCaptcha", api.createCaptcha())
 		r.Post("/getCaptchaImage", api.getCaptchaImage())
+		r.Get("/getCaptchaValue", api.getCaptchaValue())
 		r.Post("/forgetpwd", api.forgetPwd())
 		r.Post("/activeuser", api.activeUser())
 		r.Post("/loadUser", api.loadUser())
@@ -33,5 +34,3 @@ func (api *api) userCenter() func(chi.Router) {
 		})
 	}
 }
-
-

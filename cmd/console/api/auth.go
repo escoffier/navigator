@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dchest/captcha"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -85,7 +85,7 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		if !captcha.VerifyString(creds.CaptchaID, creds.CaptchaValue) {
+		if !CaptchaVerifyString(creds.CaptchaID, creds.CaptchaValue) {
 			RespAndLog(w, ctx,
 				NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
@@ -258,7 +258,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
-		if !captcha.VerifyString(rf.CaptchaID, rf.CaptchaValue) {
+		if !CaptchaVerifyString(rf.CaptchaID, rf.CaptchaValue) {
 			RespAndLog(w, ctx,
 				NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
