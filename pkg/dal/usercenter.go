@@ -259,6 +259,9 @@ func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper,
 	queryUser := model.User{}
 	err := postgresDB.Get().WithContext(pgCtx).Where("username = ?", userName).First(&queryUser).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false, nil, nil
+		}
 		return false, nil, err
 	}
 	if GetSaltedPwd(pwd, queryUser.Salt) == queryUser.Pwd {

@@ -43,6 +43,7 @@ type AssetDoesntExistError struct{ detailedError }
 type RedisCacheError struct{ detailedError }
 type GCTaskError struct{ detailedError }
 type ArgError struct{ detailedError }
+type CommonError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -922,6 +923,20 @@ func AccountUnActive(httpCode int, err error, suberrors ...Suberror) error {
 			Suberrors: suberrors,
 			File:      file,
 			Line:      line,
+		},
+	}
+}
+
+func NewCommonError(httpCode int, err error, zhMsg, enMsg string) error {
+	_, file, line, _ := runtime.Caller(1)
+	return CommonError{
+		detailedError{
+			err:      err,
+			English:  enMsg,
+			Chinese:  zhMsg,
+			HTTPCode: httpCode,
+			File:     file,
+			Line:     line,
 		},
 	}
 }

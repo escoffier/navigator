@@ -18,3 +18,4 @@ settings.json
 cmd/console/frontend/src/pages/.umi
 cmd/data/tool/cleaner/dump_test/
 cmd/data/tool/main/tensor-cleaner
+cmd/console/api/testCaptcha.png
