@@ -142,6 +142,20 @@ else
 endif
 
 
+.PHONY: canary
+canary:   ## Build canary docker to test CVEs
+	@echo "+ $@"
+ifeq ($(USEMIRROR),true)
+	@echo "canary will use mirror"
+	docker build -t $(REPOPREFIX)/canary:latest -f ./build/canary/Dockerfile \
+		--build-arg MIRROR=mirrors.aliyun.com --build-arg TAG=$(RELEASEVERSION) .
+else
+	@echo "canary will not use mirror"
+	docker build -t $(REPOPREFIX)/canary:latest -f ./build/canary/Dockerfile \
+		--build-arg TAG=$(RELEASEVERSION) .
+endif
+
+
 .PHONY: faulty
 faulty: drift-prevention-client     ## Build faulty docker to test CVEs
 	@echo "+ $@"
@@ -249,7 +263,7 @@ image-validate: generate
 	docker build -t $(REPOPREFIX)/tensorsec-image-validator:latest -f ./build/image-validate/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data drift-prevention holmes image-validate daemon
+all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data drift-prevention holmes image-validate daemon canary
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -272,6 +286,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/canary:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -284,6 +299,7 @@ else
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
+	docker push $(REPOPREFIX)/canary:latest
 	#docker push $(REPOPREFIX)/tensorsec-seccomp-generator:latest
 	#docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
 	# docker push $(REPOPREFIX)/tensorsec-go-audit:latest
@@ -306,6 +322,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/canary:latest $(REPOPREFIX)/canary:$(RELEASEVERSION)
 	#docker tag $(REPOPREFIX)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
 	#docker tag $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
 	# docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
@@ -325,6 +342,7 @@ else
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
+	docker tag $(REPOPREFIXOLD)/canary:latest $(REPOPREFIX)/canary:latest
 	#docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:latest
 	#docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
 	# docker tag $(REPOPREFIXOLD)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:latest
