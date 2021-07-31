@@ -88,12 +88,11 @@ func (api *api) getEvents() http.HandlerFunc {
 		var events = make([]*Event, 0, len(pbEvents))
 		for _, event := range pbEvents {
 			timeWindowEvent, ok := event.Detail.Content.(*pb.EventDetail_TimeWindow)
-			if !ok || len(timeWindowEvent.TimeWindow.Rules) != 1 {
+			if !ok {
 				continue
 			}
 
 			detail := timeWindowEvent.TimeWindow
-			rule := detail.Rules[0]
 
 			var history = make([]*History, 0, len(detail.History))
 			for _, h := range detail.History {
@@ -111,13 +110,13 @@ func (api *api) getEvents() http.HandlerFunc {
 				NodeType:  detail.NodeType,
 				NodeKey:   detail.NodeKey,
 				Rule: &Rule{
-					Name:           rule.Name,
-					Module:         rule.Module,
-					Category:       rule.Category,
-					Description:    rule.Description,
-					CustomKV:       rule.CustomKV,
-					DisplayAdapter: rule.DisplayAdapter,
-					Severity:       rule.Severity,
+					Name:           event.Rule.Name,
+					Module:         event.Rule.Module,
+					Category:       event.Rule.Category,
+					Description:    event.Rule.Description,
+					CustomKV:       event.Rule.CustomKV,
+					DisplayAdapter: event.Rule.DisplayAdapter,
+					Severity:       event.Rule.Severity,
 				},
 				History:   history,
 				Timestamp: event.Timestamp,
