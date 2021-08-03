@@ -152,31 +152,18 @@ daemon:
 eventcenterAuth:
   enabled: true
 
-redis:
+redis-ha:
   enabled: true
   image:
     registry:  "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     name: redis
-    tag: 6.0.8-debian-10-r35
+    tag: 6.2.5-alpine
     pullSecret: harbor-admin-secret
-  sentinel:
-    image:
-      registry:  "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
-      name: redis-sentinel
-      tag: 6.0.8-debian-10-r36
-  password: Redis12345
-  usePassword: true
-  cluster:
-    slaveCount: 1
-  master:
-    persistence:
-      enabled: true
-    disableCommands: []
-  slave:
-    persistence:
-      enabled: true
+  auth: true
+  redisPassword: Redis12345
+  persistentVolume:
+    enabled: true
 
 elasticsearch:
   enabled: true

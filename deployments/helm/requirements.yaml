@@ -34,11 +34,10 @@ dependencies:
     repository: "file://./subcharts/mongodb"
     condition: mongodb.enabled
 
-  # TODO: https://github.com/bitnami/charts/tree/master/bitnami/redis#tldr
-  - name: redis
-    version: 11.2.1
-    repository: "file://./subcharts/redis"
-    condition: redis.enabled
+  - name: redis-ha
+    version: 4.4.6
+    repository: "file://./subcharts/redis-ha"
+    condition: redis-ha.enabled
 
   - name: elasticsearch
     version: 7.9.1

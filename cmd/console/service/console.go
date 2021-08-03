@@ -5,11 +5,13 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"math"
 	"net/http"
 	"os"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -158,11 +160,16 @@ func NewConsole(
 	ecColCli := pb.NewEventsCenterCollectionServiceClient(conn)
 
 	// Redis DB client
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisOpts.Endpoint,
-		Password: redisOpts.Password, // TODO: Add authorization
-		DB:       0,                  // TODO: Add DB
+	sa := strings.Split(redisOpts.Endpoint,",")
+	redisClient,err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
+		MasterName: "mymaster",
+		SentinelAddrs: sa,
+		Password: redisOpts.Password,
+		DB: 0,
 	})
+	if err != nil {
+		return nil,err
+	}
 
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
 

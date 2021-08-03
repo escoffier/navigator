@@ -229,7 +229,6 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 				continue
 			}
 			repoName := tmp
-			fmt.Println("reponame: " + repoName)
 			artifacts, err := h.ListRepoArtifacts(v.Name, repoName)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("repo %s get artifacts err,try next repo.%v", r.Name, err)
@@ -510,5 +509,6 @@ func newRegistryClient(config *HarborOpts) (*registry2.Registry, error) {
 		logging.GetLogger().Err(err).Msg("new registry client failed.")
 		return nil, err
 	}
+	hub.Logf = registry.RegistryClientLog
 	return hub, nil
 }

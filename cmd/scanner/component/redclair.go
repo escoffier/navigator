@@ -42,6 +42,7 @@ const (
 	redisCleanupTimeout      = time.Minute * 1
 	cacheInvalidatorInterval = time.Hour * 999999 // 跳过这个函数
 	maxLayerScanRetires      = 3
+	redisTTL                 = time.Hour * 24
 )
 
 // 没找到Map的Const写法
@@ -325,7 +326,7 @@ func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) error {
 	}
 
 	if lastUpdatedTime < lastUpdate.Value {
-		_, err := rcSvc.redisClient.Set(ctx, "DBupdate", strconv.FormatInt(lastUpdate.Value, 10), redis.KeepTTL).Result()
+		_, err := rcSvc.redisClient.Set(ctx, "DBupdate", strconv.FormatInt(lastUpdate.Value, 10), redisTTL).Result()
 		if err != nil {
 			return fmt.Errorf("Cannot persist DB update time to cache: %w", err)
 		}
@@ -394,7 +395,7 @@ func (rcSvc *RedClairService) cacheLastVulnerabilityUpdateTime(ctx context.Conte
 	if err != nil {
 		return fmt.Errorf("Failed to get vulnerability update time: %w", err)
 	}
-	_, err = rcSvc.redisClient.Set(ctx, "lastUpdateVulnerability", dbVulnerabilityUpdateTime.MaxCreatedAt, redis.KeepTTL).Result()
+	_, err = rcSvc.redisClient.Set(ctx, "lastUpdateVulnerability", dbVulnerabilityUpdateTime.MaxCreatedAt, redisTTL).Result()
 	if err != nil {
 		return fmt.Errorf("Cannot persist DB vulnerability update time to cache: %w", err)
 	}
@@ -897,7 +898,7 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 		} else {
 			redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
 			defer redisCtxCancel()
-			_, err := rcSvc.redisClient.Set(redisCtx, namespace+"_"+layer, cacheEntry, redis.KeepTTL).Result()
+			_, err := rcSvc.redisClient.Set(redisCtx, namespace+"_"+layer, cacheEntry, redisTTL).Result()
 			if err != nil {
 				zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 				return nil

@@ -20,9 +20,9 @@ dependencies:
 - name: mongodb
   repository: file://./subcharts/mongodb
   version: 7.2.10
-- name: redis
-  repository: file://./subcharts/redis
-  version: 11.2.1
+- name: redis-ha
+  repository: file://./subcharts/redis-ha
+  version: 4.4.6
 - name: elasticsearch
   repository: file://./subcharts/elasticsearch
   version: 7.9.1
