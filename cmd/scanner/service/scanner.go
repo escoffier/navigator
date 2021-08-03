@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	logg "log"
 	"net/http"
 	"os/exec"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,19 +121,30 @@ func NewScanner(
 	postgresDB.AutoMigrate(&model.RejectVuln{})
 
 	scannerDB := store.NewScannerDB(postgresDB)
+
 	// Redis DB client
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisOpts.Endpoint,
+	sa := strings.Split(redisOpts.Endpoint,",")
+	redisClient,err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
+		MasterName: "mymaster",
+		SentinelAddrs: sa,
 		Password: redisOpts.Password,
-		DB:       2, // TODO: Add DB
+		DB: 2,
 	})
+	if err != nil {
+		return nil,err
+	}
 
 	// Redis DB1 clinet
-	redisClientOne := redis.NewClient(&redis.Options{
-		Addr:     redisOpts.Endpoint,
+	redisClientOne,err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
+		MasterName: "mymaster",
+		SentinelAddrs: sa,
 		Password: redisOpts.Password,
-		DB:       1, // TODO: Add DB
+		DB: 1,
 	})
+	if err != nil {
+		return nil,err
+	}
+
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 

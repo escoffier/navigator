@@ -135,13 +135,9 @@ image-validator:
     #tag: 1.6.8
     tag: *tensorsecVerison
 
-redis:
-  master:
-    persistence:
-      enabled: *persistenceStorage
-  slave:
-    persistence:
-      enabled: *persistenceStorage
+redis-ha:
+  persistence:
+    enabled: *persistenceStorage
 postgresql:
   persistence:
     enabled: *persistenceStorage

@@ -570,7 +570,7 @@ func (virusScan *VirusScan) updateCacheEntry(ctx context.Context, currentLayerCa
 		} else {
 			redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
 			defer redisCtxCancel()
-			_, err := virusScan.redisClient.Set(redisCtx, "virusScan"+"_"+layer, cacheEntry, redis.KeepTTL).Result()
+			_, err := virusScan.redisClient.Set(redisCtx, "virusScan"+"_"+layer, cacheEntry, redisTTL).Result()
 			if err != nil {
 				zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 				return nil
