@@ -23,8 +23,9 @@ import (
 )
 
 var (
-	ErrNoAccess = errors.New("access invalid")
-	ErrSendEmailFail = errors.New("send email fail")
+	ErrNoAccess          = errors.New("access invalid")
+	ErrSendEmailFail     = errors.New("send email fail")
+	ErrUserAlreadyExists = fmt.Errorf("user already exists")
 )
 
 func (api *api) verifyAuthorization(ctx context.Context) error {
@@ -300,7 +301,7 @@ func (api *api) loadUser() http.HandlerFunc {
 			return
 		}
 		for _, v := range u {
-			bool, _, _ := dal.SelectUser(ctx, api.postgresDB, v.UserName)
+			bool, _, _ := dal.SelectUser(ctx, api.postgresDB.Get(), v.UserName)
 			if !bool {
 				err := dal.InsertUser(ctx, api.postgresDB, v.UserName, model.RoleNormal, []string{"1"})
 				if err != nil {
@@ -309,7 +310,7 @@ func (api *api) loadUser() http.HandlerFunc {
 					return
 				}
 
-				err = dal.ActiveUser(ctx, api.postgresDB, v.UserName, v.Pwd)
+				err = dal.ActiveUser(ctx, api.postgresDB.Get(), v.UserName, v.Pwd)
 				if err != nil {
 					RespAndLog(w, ctx,
 						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -373,7 +374,7 @@ func (api *api) userModule() http.HandlerFunc {
 		}
 
 		username, _ := claims[JWT_KEY_USERNAME].(string)
-		_, u, err := dal.SelectUser(r.Context(), api.postgresDB, username)
+		_, u, err := dal.SelectUser(r.Context(), api.postgresDB.Get(), username)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewInvalidAuthToken(http.StatusUnauthorized,
@@ -449,47 +450,44 @@ func (api *api) addUser() http.HandlerFunc {
 			return
 		}
 
-		var duplicate bool
-		var sendMailFail bool
 		err = api.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
-			innerErr := dal.InsertUserV2(ctx, api.postgresDB, req.UserName, req.RoleName, req.ModuleID)
+			innerErr := dal.InsertUserV2(ctx, tx, req.UserName, req.RoleName, req.ModuleID)
 			if innerErr != nil {
 				if dal.IsPostgresDuplicateError(innerErr) {
-					duplicate = true
-					return nil
+					return ErrUserAlreadyExists
 				}
 				return innerErr
 			}
 
 			if api.emailOpts.Check {
 				emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
-				innerErr = dal.InsertEmail(ctx, api.postgresDB, req.UserName, emailHashCode)
+				innerErr = dal.InsertEmail(ctx, tx, req.UserName, emailHashCode)
 				if innerErr != nil {
 					return innerErr
 				}
 
-				if sendMailFail = !model.SendEmail(req.UserName, r.Host, emailHashCode, api.emailOpts); sendMailFail {
+				if !model.SendEmail(req.UserName, r.Host, emailHashCode, api.emailOpts) {
 					return ErrSendEmailFail
 				}
 				return nil
 			}
 
-			return dal.ActiveUser(ctx, api.postgresDB, req.UserName, model.DefaultPassword)
+			return dal.ActiveUser(ctx, tx, req.UserName, model.DefaultPassword)
 		})
 
 		if err != nil {
-			if sendMailFail {
+			if err == ErrSendEmailFail {
 				RespAndLog(w, ctx, SendmailError(http.StatusInternalServerError, ErrSendEmailFail))
 				return
 			}
 
-			RespAndLog(w, ctx, err)
-			return
-		}
+			if err == ErrUserAlreadyExists {
+				RespAndLog(w, ctx,
+					UserExistError(http.StatusBadRequest, fmt.Errorf("user name already exist")))
+				return
+			}
 
-		if duplicate {
-			RespAndLog(w, ctx,
-				UserExistError(http.StatusInternalServerError, fmt.Errorf("user name already exist")))
+			RespAndLog(w, ctx, err)
 			return
 		}
 
@@ -560,7 +558,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		exist, queryUser, err := dal.SelectUser(ctx, api.postgresDB, rq.UserName)
+		exist, queryUser, err := dal.SelectUser(ctx, api.postgresDB.Get(), rq.UserName)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -586,7 +584,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		var findUser *model.User
-		_, findUser, err = dal.SelectUser(ctx, api.postgresDB, rq.UserName)
+		_, findUser, err = dal.SelectUser(ctx, api.postgresDB.Get(), rq.UserName)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
