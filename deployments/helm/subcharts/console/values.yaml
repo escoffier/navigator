@@ -149,7 +149,7 @@ mongo:
   mongoDataPath: /bitnami/mongodb/data
 
 redis:
-  redisSecretName: tensorsec-redis
+  redisSecretName: tensorsec-redis-ha
 
 version:
   softName: Navigator

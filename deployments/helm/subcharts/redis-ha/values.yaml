@@ -4,9 +4,20 @@
 image:
   registry: docker.io
   repository: redis
-  tag: 5.0.6-alpine
-  pullPolicy: Always
+  name: redis
+  tag: 6.2.5-alpine
+  pullPolicy: IfNotPresent
   pullSecret: harbor-admin-secret
+
+## Reference to one or more secrets to be used when pulling images
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+## This imagePullSecrets is only for redis images
+##
+#imagePullSecrets: []
+# - name: "image-pull-secret"
+
+nameOverride: "redis-ha"
+fullnameOverride: "tensorsec-redis-ha"
 
 ## replicas number for each component
 replicas: 3
@@ -16,9 +27,6 @@ replicas: 3
 
 ## Custom labels for the redis pod
 labels: {}
-
-nameOverride: redis-ha
-fullnameOverride: tensorsec-redis-ha
 
 ## Pods Service Account
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
@@ -168,10 +176,10 @@ redis:
 
   resources:
     requests:
-      memory: 512Mi
+      memory: 200Mi
       cpu: 100m
     limits:
-      memory: 1024Mi
+      memory: 700Mi
       cpu: 200m
 
 ## Sentinel specific configuration options
@@ -345,7 +353,13 @@ persistentVolume:
   # reclaimPolicy per https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reclaiming
   reclaimPolicy: ""
 init:
-  resources: {}
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 50m
 
 # To use a hostPath for data, set persistentVolume.enabled to false
 # and define hostPath.path.

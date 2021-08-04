@@ -25,8 +25,8 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
-{{/*
-Return Redis image
+{/*
+Return redis image
 */}}
 {{- define "redis.image" -}}
 {{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}

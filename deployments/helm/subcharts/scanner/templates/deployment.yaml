@@ -55,7 +55,7 @@ spec:
           "--clair-postgresconnectionstring={{ .Values.clair.postgresURI }}",
           "--clair-secretpattern=/config/patterns.json",
           "--redclair-skipregistrytlsverify", # Insecure
-          "--redis-endpoint=tensorsec-redis-master:6379",
+          "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
           "--harbor-configPath=/config/registry.yaml",
           "--harbor-skiptlsverify", # Insecure
           "-v"]
@@ -69,7 +69,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: {{ .Values.redis.redisSecretName }}
-                key: password
+                key: auth
           - name: TENSORSEC_HARBOR_PASSWORD
             valueFrom:
               secretKeyRef:

@@ -58,7 +58,7 @@ spec:
           "--vegeta-scanner-port=8888",
           "--microseg-host=tensorsec-microseg",
           "--microseg-port=8090",
-          "--redis-endpoint=tensorsec-redis-master:6379",
+          "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
           "--scap-job-repo={{ include "console.registryPath" . }}",
           "--scap-job-tag={{ .Values.scap.tag }}",
           "--elastic-host={{ .Values.elastic.host }}",
@@ -96,7 +96,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ .Values.redis.redisSecretName }}
-              key: redis-password
+              key: auth
         {{- if .Values.emailCheck.smtpEnabled }}
         - name: TENSORSEC_EMAIL_PASSWORD
           value: {{ .Values.emailCheck.smtpPassword }}
