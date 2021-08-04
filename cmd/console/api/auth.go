@@ -215,7 +215,7 @@ func (api *api) activeUser() http.HandlerFunc {
 		}
 
 		// active user
-		err = dal.ActiveUser(r.Context(), api.postgresDB, username, ru.Pwd)
+		err = dal.ActiveUser(r.Context(), api.postgresDB.Get(), username, ru.Pwd)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("database error:%+v", err)))
@@ -265,7 +265,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		exist, _, err := dal.SelectUser(ctx, api.postgresDB, rf.Username)
+		exist, _, err := dal.SelectUser(ctx, api.postgresDB.Get(), rf.Username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -286,7 +286,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		err = dal.InsertEmail(ctx, api.postgresDB, rf.Username, emailHashCode)
+		err = dal.InsertEmail(ctx, api.postgresDB.Get(), rf.Username, emailHashCode)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))

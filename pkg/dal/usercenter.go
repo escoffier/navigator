@@ -57,7 +57,7 @@ func RandStringBytesMaskImprSrcUnsafe(n int) string {
 func UpdateUserPwd(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName string, pwd string) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	_, u, err := SelectUser(pgCtx, postgresDB, userName)
+	_, u, err := SelectUser(pgCtx, postgresDB.Get(), userName)
 	if err != nil {
 		return err
 	}
@@ -185,13 +185,13 @@ func GetAdminModuleGroup(ctx context.Context, db *rdbtools.GormWrapper) []model.
 	return m
 }
 
-func SelectUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName string) (bool, *model.User, error) {
+func SelectUser(ctx context.Context, postgresDB *gorm.DB, userName string) (bool, *model.User, error) {
 
 	queryUser := model.User{}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	err := postgresDB.Get().WithContext(pgCtx).Model(&queryUser).Where("username = ?", userName).First(&queryUser).Error
+	err := postgresDB.WithContext(pgCtx).Model(&queryUser).Where("username = ?", userName).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		return false, nil, nil
 	}
@@ -213,7 +213,7 @@ func InsertUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 	return postgresDB.Get().WithContext(pgCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
 }
 
-func InsertUserV2(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
+func InsertUserV2(ctx context.Context, postgresDB *gorm.DB, userName, role string, moduleID []string) (err error) {
 	data, err := json.Marshal(moduleID)
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func InsertUserV2(ctx context.Context, postgresDB *rdbtools.GormWrapper, userNam
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	return postgresDB.Get().WithContext(pgCtx).Create(&user).Error
+	return postgresDB.WithContext(pgCtx).Create(&user).Error
 }
 
 func UpdateUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
@@ -234,18 +234,18 @@ func UpdateUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName,
 	return postgresDB.Get().WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Updates(user).Error
 }
 
-func InsertEmail(ctx context.Context, postgresDB *rdbtools.GormWrapper, username, hashcode string) error {
+func InsertEmail(ctx context.Context, postgresDB *gorm.DB, username, hashcode string) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
 	// TODO insert on duplicate key update
-	err := postgresDB.Get().WithContext(pgCtx).Delete(model.Email{}, "username = ?", username).Error
+	err := postgresDB.WithContext(pgCtx).Delete(model.Email{}, "username = ?", username).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("Insert email to delete error: username: %s", username)
 	}
 	email := model.Email{HashCode: hashcode, UserName: username, CreateAt: time.Now().Unix()}
 
-	err = postgresDB.Get().WithContext(pgCtx).Create(&email).Error
+	err = postgresDB.WithContext(pgCtx).Create(&email).Error
 	return err
 }
 
@@ -284,22 +284,27 @@ func CheckHashCode(ctx context.Context, postgresDB *rdbtools.GormWrapper, hashCo
 	return queryEmail.UserName, true
 }
 
-func ActiveUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, pwd string) error {
+func ActiveUser(ctx context.Context, postgresDB *gorm.DB, userName, pwd string) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, u, err := SelectUser(pgCtx, postgresDB, userName)
+	exists, u, err := SelectUser(pgCtx, postgresDB, userName)
 	if err != nil {
 		return err
 	}
+
+	if !exists {
+		return fmt.Errorf("user not exists")
+	}
+
 	hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))
-	err = postgresDB.Get().WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Checked: true, Pwd: hashPwd}).Error
+	err = postgresDB.WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Checked: true, Pwd: hashPwd}).Error
 
 	if err != nil {
 		return err
 	}
 
-	return postgresDB.Get().WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error
+	return postgresDB.WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error
 }
 
 func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.MongoUser, err error) {
