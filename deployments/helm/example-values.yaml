@@ -136,7 +136,7 @@ image-validator:
     tag: *tensorsecVerison
 
 redis-ha:
-  persistence:
+  persistentVolume:
     enabled: *persistenceStorage
 postgresql:
   persistence:

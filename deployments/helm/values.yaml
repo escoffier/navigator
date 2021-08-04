@@ -42,14 +42,13 @@ clair:
 scanner:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
   redis:
-    password: Redis12345
-    redisSecretName: redis-secret
+    redisSecretName: tensorsec-redis-ha
   clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   harbor:
@@ -74,7 +73,7 @@ scanner:
 drift-prevention:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
@@ -85,7 +84,7 @@ drift-prevention:
 console:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
@@ -133,7 +132,7 @@ console:
 daemon:
   enabled: false 
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     pullSecret: harbor-admin-secret
   extraInitContainers:
@@ -155,7 +154,7 @@ eventcenterAuth:
 redis-ha:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     name: redis
     tag: 6.2.5-alpine
@@ -163,12 +162,12 @@ redis-ha:
   auth: true
   redisPassword: Redis12345
   persistentVolume:
-    enabled: true
+  enabled: true
 
 elasticsearch:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     name: elasticsearch
     tag: 7.9.1
@@ -226,7 +225,7 @@ elasticsearch:
 kibana:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     pullSecret: harbor-admin-secret
 
@@ -236,7 +235,7 @@ postgresql:
   # but we use helm chart designed for bitnami/postgresql.
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     name: postgresql
     tag: 11.6.0-debian-10-r5
@@ -277,14 +276,14 @@ postgresql:
 mongodb:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: 4.4.6-debian-10-r8
     pullSecret: harbor-admin-secret
   volumePermissions:
     enabled: true
     image:
-      registry:  "{{ .Values.global.image.registry }}"
+      registry: "{{ .Values.global.image.registry }}"
       repository: "{{ .Values.global.image.repository }}"
   auth:
     username: redstone
@@ -306,13 +305,13 @@ seccompGenerator:
 holmes:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
   tensorsecDaemon:
     image:
-      registry:  "{{ .Values.global.image.registry }}"
+      registry: "{{ .Values.global.image.registry }}"
       repository: "{{ .Values.global.image.repository }}"
       tag: latest
     db:
@@ -366,6 +365,6 @@ holmes:
 image-validator:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
+    registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest

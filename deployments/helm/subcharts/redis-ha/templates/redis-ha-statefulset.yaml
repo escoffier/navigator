@@ -115,7 +115,7 @@ spec:
       {{- end }}
 {{- if and .Values.hostPath.path .Values.hostPath.chown }}
       - name: hostpath-chown
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        image: {{ include "redis.image" . }}
         securityContext:
           runAsNonRoot: false
           runAsUser: 0
@@ -128,7 +128,7 @@ spec:
           mountPath: /data
 {{- end }}
       - name: config-init
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        image: {{ include "redis.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.init.resources | indent 10 }}
@@ -161,7 +161,7 @@ spec:
           mountPath: /data
       containers:
       - name: redis
-        image: {{ template "redis.image" . }}
+        image: {{ include "redis.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - redis-server
@@ -192,7 +192,7 @@ spec:
         - mountPath: /data
           name: data
       - name: sentinel
-        image: {{ template "redis.image" . }}
+        image: {{ include "redis.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
           - redis-sentinel
