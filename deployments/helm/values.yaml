@@ -162,7 +162,7 @@ redis-ha:
   auth: true
   redisPassword: Redis12345
   persistentVolume:
-  enabled: true
+    enabled: true
 
 elasticsearch:
   enabled: true
