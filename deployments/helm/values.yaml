@@ -161,6 +161,7 @@ redis-ha:
     pullSecret: harbor-admin-secret
   auth: true
   redisPassword: Redis12345
+  hardAntiAffinity: false
   persistentVolume:
     enabled: true
 

@@ -111,7 +111,7 @@ haproxy:
     runAsNonRoot: true
 
   ## Whether the haproxy pods should be forced to run on separate nodes.
-  hardAntiAffinity: true
+  hardAntiAffinity: false
 
   ## Additional affinities to add to the haproxy pods.
   additionalAffinities: {}
