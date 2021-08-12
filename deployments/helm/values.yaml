@@ -230,48 +230,65 @@ kibana:
     repository: "{{ .Values.global.image.repository }}"
     pullSecret: harbor-admin-secret
 
-postgresql:
+postgresql-ha:
   # Note for maintainers:
   # Some confusion may appear here because we use docker image created from "official" dockerhub base image postgresql
   # but we use helm chart designed for bitnami/postgresql.
   enabled: true
-  image:
+  postgresqlImage:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
-    name: postgresql
-    tag: 11.6.0-debian-10-r5
-    pullSecrets: harbor-admin-secret
+    name: postgresql-repmgr
+    tag: 11.6.0
+    pullSecrets: ["harbor-admin-secret"]
+    pullPolicy: Always
+  postgresql:
+    username: postgres
+    password: password
+    database: postgres
+    maxConnections: "1024"
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: 500m
+      requests:
+        memory: 256Mi
+        cpu: 250m
+  pgpoolImage:
+    registry: "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: pgpool
+    tag: 4.2.3-debian-10-r38
+    pullSecrets: ["harbor-admin-secret"]
+    pullPolicy: Always
+  pgpool:
+    maxPool: "4"
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: 500m
+      requests:
+        memory: 256Mi
+        cpu: 250m
+  volumePermissionsImage:
+    registry: "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: bitnami-shell
+    tag: 10-debian-10-r125
+    pullSecrets: ["harbor-admin-secret"]
     pullPolicy: Always
   volumePermissions:
-      image:
-        registry: "{{ .Values.global.image.registry }}"
-        repository: "{{ .Values.global.image.repository }}"
+    enabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
   persistence:
     enabled: true
     size: 10Gi
-  # Use the same PGDATA as the travis job that builds arminc/clair-db
-  # (https://github.com/arminc/clair-local-scan/blob/master/.travis.yml)
-  postgresqlDataDir: /bitnami/postgresql/data 
-  postgresqlUsername: postgres
-  postgresqlPassword: password
-  postgresqlDatabase: postgres
-  # Based on https://github.com/timescale/timescaledb/issues/522#issuecomment-437162196
-  # Otherwise we get CrashLoopBackoff: chmod: /var/lib/postgresql/clair: Operation not permitted
-  securityContext:
-    enabled: true
-    fsGroup: 70
-    runAsUser: 70
-  replication:
-    enabled: false
-  resources:
-    limits:
-      memory: 512Mi
-      cpu: 500m
-    requests:
-      memory: 256Mi
-      cpu: 250m
-  metrics:
-    enabled: false
 
 
 mongodb:

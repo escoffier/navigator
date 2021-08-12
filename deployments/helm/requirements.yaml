@@ -24,10 +24,10 @@ dependencies:
 #    repository: "file://./subcharts/daemon"
 #    condition: daemon.enabled
 
-  - name: postgresql
-    version: 8.3.3
-    repository: "file://./subcharts/postgresql"
-    condition: postgresql.enabled
+  - name: postgresql-ha
+    version: 7.8.3
+    repository: "file://./subcharts/postgresql-ha"
+    condition: postgresql-ha.enabled
 
   - name: mongodb
     version: 7.2.10

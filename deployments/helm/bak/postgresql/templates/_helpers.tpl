@@ -67,6 +67,20 @@ Return the proper PostgreSQL image name
 {{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}
 
+
+{{/*
+Return PostgreSQL postgres user password
+*/}}
+{{- define "postgresql.postgres.password" -}}
+{{- if .Values.global.postgresql.postgresqlPostgresPassword }}
+    {{- .Values.global.postgresql.postgresqlPostgresPassword -}}
+{{- else if .Values.postgresqlPostgresPassword -}}
+    {{- .Values.postgresqlPostgresPassword -}}
+{{- else -}}
+    {{- randAlphaNum 10 -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Return PostgreSQL password
 */}}
@@ -162,6 +176,7 @@ Return the proper PostgreSQL metrics image name
 {{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}
 
+
 {{/*
 Get the password secret.
 */}}
@@ -227,14 +242,24 @@ Get the initialization scripts Secret name.
 {{- end -}}
 
 {{/*
+Get the metrics ConfigMap name.
+*/}}
+{{- define "postgresql.metricsCM" -}}
+{{- printf "%s-metrics" (include "postgresql.fullname" .) -}}
+{{- end -}}
+
+{{/*
 Return the proper Docker Image Registry Secret Names
 */}}
+{{/*
 {{- define "postgresql.imagePullSecrets" -}}
+*/}}
 {{/*
 Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
 but Helm 2.9 and 2.10 does not support it, so we need to implement this if-else logic.
 Also, we can not use a single if because lazy evaluation is not an option
 */}}
+{{/*
 {{- if .Values.global }}
 {{- if .Values.global.imagePullSecrets }}
 imagePullSecrets:
@@ -266,6 +291,7 @@ imagePullSecrets:
 {{- end }}
 {{- end -}}
 {{- end -}}
+*/}}
 
 {{/*
 Get the readiness probe command
@@ -273,12 +299,12 @@ Get the readiness probe command
 {{- define "postgresql.readinessProbeCommand" -}}
 - |
 {{- if (include "postgresql.database" .) }}
-  pg_isready -U {{ include "postgresql.username" . | quote }} -d {{ (include "postgresql.database" .) | quote }} -h 127.0.0.1 -p {{ template "postgresql.port" . }}
+  exec pg_isready -U {{ include "postgresql.username" . | quote }} -d {{ (include "postgresql.database" .) | quote }} -h 127.0.0.1 -p {{ template "postgresql.port" . }}
 {{- else }}
-  pg_isready -U {{ include "postgresql.username" . | quote }} -h 127.0.0.1 -p {{ template "postgresql.port" . }}
+  exec pg_isready -U {{ include "postgresql.username" . | quote }} -h 127.0.0.1 -p {{ template "postgresql.port" . }}
 {{- end }}
 {{- if contains "bitnami/" .Values.image.repository }}
-  [ -f /opt/bitnami/postgresql/tmp/.initialized ]
+  [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
 {{- end -}}
 {{- end -}}
 
@@ -314,5 +340,55 @@ but Helm 2.9 and 2.10 does not support it, so we need to implement this if-else 
             {{- printf "storageClassName: %s" .Values.persistence.storageClass -}}
         {{- end -}}
     {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Renders a value that contains template.
+Usage:
+{{ include "postgresql.tplValue" ( dict "value" .Values.path.to.the.Value "context" $) }}
+*/}}
+{{- define "postgresql.tplValue" -}}
+    {{- if typeIs "string" .value }}
+        {{- tpl .value .context }}
+    {{- else }}
+        {{- tpl (.value | toYaml) .context }}
+    {{- end }}
+{{- end -}}
+
+{{/*
+Return the appropriate apiVersion for statefulset.
+*/}}
+{{- define "postgresql.statefulset.apiVersion" -}}
+{{- if semverCompare "<1.14-0" .Capabilities.KubeVersion.GitVersion -}}
+{{- print "apps/v1beta2" -}}
+{{- else -}}
+{{- print "apps/v1" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Compile all warnings into a single message, and call fail.
+*/}}
+{{- define "postgresql.validateValues" -}}
+{{- $messages := list -}}
+{{- $messages := append $messages (include "postgresql.validateValues.ldapConfigurationMethod" .) -}}
+{{- $messages := without $messages "" -}}
+{{- $message := join "\n" $messages -}}
+
+{{- if $message -}}
+{{- printf "\nVALUES VALIDATION:\n%s" $message | fail -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Validate values of Postgresql - If ldap.url is used then you don't need the other settings for ldap
+*/}}
+{{- define "postgresql.validateValues.ldapConfigurationMethod" -}}
+{{- if and .Values.ldap.enabled (and (not (empty .Values.ldap.url)) (not (empty .Values.ldap.server))) }}
+postgresql: ldap.url, ldap.server
+    You cannot set both `ldap.url` and `ldap.server` at the same time.
+    Please provide a unique way to configure LDAP.
+    More info at https://www.postgresql.org/docs/current/auth-ldap.html
 {{- end -}}
 {{- end -}}
