@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: tensorsec-postgresql-headless
+  name: {{ template "postgresql.fullname" . }}-headless
   labels:
     app: {{ template "postgresql.name" . }}
     chart: {{ template "postgresql.chart" . }}
@@ -11,9 +11,9 @@ spec:
   type: ClusterIP
   clusterIP: None
   ports:
-  - name: postgresql
-    port: {{ template "postgresql.port" . }}
-    targetPort: postgresql
+    - name: tcp-postgresql
+      port: {{ template "postgresql.port" . }}
+      targetPort: tcp-postgresql
   selector:
     app: {{ template "postgresql.name" . }}
     release: {{ .Release.Name | quote }}
