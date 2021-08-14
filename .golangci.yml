@@ -1,0 +1,14 @@
+#linters:
+#  disable-all: true
+#  enable:
+#    - megacheck
+#    - govet
+#    - errcheck
+#    - deadcode
+#    - ineffassign
+#    - unused
+##    - typecheck
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  timeout: 10m
+

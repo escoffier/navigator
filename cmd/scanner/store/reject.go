@@ -17,8 +17,9 @@ import (
 )
 
 // CreateRejectRecord 创建记录，
-func (s *ScannerOrm) CreateRejectRecord(data model.RejectRecord) (*model.RejectRecord, error) {
-
+func (s *ScannerOrm) CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
 	// if data.Library == "" {
 	// 	return nil, errors.New("no library")
 	// }
@@ -53,18 +54,18 @@ func (s *ScannerOrm) CreateRejectRecord(data model.RejectRecord) (*model.RejectR
 		}
 	}
 
-	err := s.psql.Create(&data).Debug().Error
+	err := s.psql.Get().WithContext(ctx).Create(&data).Debug().Error
 	return &data, err
 }
 
-func (s *ScannerOrm) OverviewForInterval(interval int, intervalType string) ([]IntervalDateGroup, error) {
+func (s *ScannerOrm) OverviewForInterval(ctx context.Context, interval int, intervalType string) ([]IntervalDateGroup, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
 
 	if interval < 1 {
 		return nil, errors.New("interval must more than 1")
 	}
 
-	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Hour*30)
-	defer cancelFunc()
 	var (
 		startAt   time.Time
 		sql       string
@@ -83,9 +84,9 @@ func (s *ScannerOrm) OverviewForInterval(interval int, intervalType string) ([]I
 		timeParse = consts.TimeFormatWithDay
 	}
 
-	logging.GetLogger().WithContext(ctx).Infof(fmt.Sprintf("OverviewForInterval sql:%s", sql))
+	logging.GetLogger().WithContext(ctx).Infof("OverviewForInterval sql:%s", sql)
 	res := make([]IntervalDateGroup, 0)
-	err := s.psql.Debug().Raw(sql, now, startAt).Scan(&res).Error
+	err := s.psql.Get().Debug().Raw(sql, now, startAt).Scan(&res).Error
 	if err != nil {
 		return res, err
 	}
@@ -98,10 +99,13 @@ func (s *ScannerOrm) OverviewForInterval(interval int, intervalType string) ([]I
 	return res, err
 }
 
-func (s *ScannerOrm) OverviewReasonTopN(param OverviewReasonParam, filter *model.Filter) ([]model.RejectReasonStatistic, error) {
+func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReasonParam, filter *model.Filter) ([]model.RejectReasonStatistic, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
 	res := make([]model.RejectReasonStatistic, 0)
 	// 取全表数据
-	records, _, err := s.SearchRejectRecord(SearchRejectRecordParam{
+	records, _, err := s.SearchRejectRecord(ctx, SearchRejectRecordParam{
 		Fields: []string{"reject_reason_json"},
 	}, &model.Filter{PageSize: math.MaxInt64})
 	if err != nil {
@@ -165,10 +169,10 @@ func (s *ScannerOrm) OverviewReasonTopN(param OverviewReasonParam, filter *model
 	return res, err
 }
 
-func (s *ScannerOrm) SearchRejectRecord(param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(s.ctx, time.Second*30)
+func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Model(new(model.RejectRecord)).WithContext(ctx).Debug()
+	db := s.psql.Get().Model(new(model.RejectRecord)).WithContext(ctx).Debug()
 	if !param.StartAt.IsZero() {
 		db = db.Where("reject_at >= ?", param.StartAt) // fixme
 	}
@@ -236,7 +240,10 @@ func (s *ScannerOrm) SearchRejectRecord(param SearchRejectRecordParam, filter *m
 	return res, cnt, nil
 }
 
-func (s *ScannerOrm) CreateImageWhitelist(data model.ImageWhitelist) (*model.ImageWhitelist, error) {
+func (s *ScannerOrm) CreateImageWhitelist(ctx context.Context, data model.ImageWhitelist) (*model.ImageWhitelist, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
 	if data.FullRepoName == "" {
 		return nil, errors.New("no full repo name")
 	}
@@ -246,12 +253,15 @@ func (s *ScannerOrm) CreateImageWhitelist(data model.ImageWhitelist) (*model.Ima
 	if data.Library == "" {
 		return nil, errors.New("no library")
 	}
-	err := s.psql.Create(&data).Error
+	err := s.psql.Get().WithContext(ctx).Create(&data).Error
 	return &data, err
 }
 
-func (s *ScannerOrm) SearchImageWhitelist(param SearchImageWhitelistParam, filter *model.Filter) ([]model.ImageWhitelist, int64, error) {
-	db := s.psql.Model(new(model.ImageWhitelist))
+func (s *ScannerOrm) SearchImageWhitelist(ctx context.Context, param SearchImageWhitelistParam, filter *model.Filter) ([]model.ImageWhitelist, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageWhitelist))
 	if param.SearchWord != "" {
 		db = db.Where("full_repo_name LIKE ? OR tag LIKE ?  ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
 	}
@@ -281,7 +291,10 @@ func (s *ScannerOrm) SearchImageWhitelist(param SearchImageWhitelistParam, filte
 	return res, cnt, nil
 }
 
-func (s *ScannerOrm) DeleteImageWhitelist(param DeleteImageWhitelistParam) error {
-	err := s.psql.Where("id = ?", param.WhiteId).Delete(&model.ImageWhitelist{}).Error
+func (s *ScannerOrm) DeleteImageWhitelist(ctx context.Context, param DeleteImageWhitelistParam) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	err := s.psql.Get().WithContext(ctx).Where("id = ?", param.WhiteId).Delete(&model.ImageWhitelist{}).Error
 	return err
 }

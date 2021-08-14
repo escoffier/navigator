@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "webhook.fullname" . }}
+  labels:
+{{ include "webhook.labels" . | indent 4 }}
+data:
+  image-validator.yaml: |-
+    imageValidateHost: tensorsec-scanner.{{ .Release.Namespace }}.svc:8888
+    ignoredNameSpaces: [{{ .Values.imageValidator.ignoredNameSpaces }},{{ .Release.Namespace }}]
+  microseg.yaml: |-
+{{ toYaml .Values.microseg.appCfg | trim | indent 4 }}
+  presets.yaml: |-
+    env:
+    - name: LD_PRELOAD
+      value: "/tensorsec/dp.so"
+    - name: TENSORSEC_EVENTCENTER_NEW_ADDR
+      value: "tensorsec-eventcenter.{{ .Release.Namespace }}.svc.cluster.local"
+    - name: TENSORSEC_EVENTCENTER_NEW_PORT
+      value: "8080"
+    volumemounts:
+    - name: "{{ .Values.presets.volumes.clientName }}"
+      mountpath: "{{ .Values.presets.volumes.clientMountPath }}"
+      readonly: true
+    - name: {{ .Values.presets.volumes.caName }}
+      mountpath: "{{ .Values.presets.volumes.caMountPath }}"
+      readonly: true
+    volumes:
+      - name: "{{ .Values.presets.volumes.clientName }}"
+        volumesource:
+          secret:
+            defaultmode: 420
+            secretname: "{{ .Values.presets.volumes.clientSecretName }}"
+      - name: "{{ .Values.presets.volumes.caName }}"
+        volumesource:
+          secret:
+            defaultmode: 420
+            secretname: "{{ .Values.presets.volumes.caSecretName }}"

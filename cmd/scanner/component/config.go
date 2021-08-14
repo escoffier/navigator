@@ -1,6 +1,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -71,7 +72,7 @@ func LoadConfig(path string) (config []Config, err error) {
 func LoadConfigFromDb(psql *store.ScannerDB) (*Config, error) {
 	var config Config
 	tmpMap := make(map[string]interface{})
-	tmpRegistry := psql.FindRegistryAll() // 单仓库
+	tmpRegistry := psql.FindRegistryAll(context.Background()) // 单仓库
 	tmpMap["url"] = tmpRegistry.Url
 	tmpMap["username"] = tmpRegistry.Username
 	key := []byte("talkerss")

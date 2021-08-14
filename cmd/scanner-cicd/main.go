@@ -23,10 +23,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const (
-	defaultMaxTimeout = 900 //max time out 15min
-)
-
 type ScanOneCICDResultRequest struct {
 	ImageID int64  `json:"id"`
 	Library string `json:"library"`
@@ -120,6 +116,9 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 			return err
 		}
 		err = json.NewDecoder(resp.Body).Decode(&accountInfo)
+		if err != nil {
+			log.Error().Err(err).Msg("unmarshal resp Body error")
+		}
 		resp.Body.Close()
 		log.Info().Msgf("get cache certificate success")
 		return nil
@@ -144,7 +143,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	err = osCmd.Run()
 	if err != nil {
 		log.Error().Err(err).Msgf("docker login err :%v %v %v\n", err, stderr.String(), out.String())
-		if strings.Contains(stderr.String(), "Error") == true {
+		if strings.Contains(stderr.String(), "Error") {
 			os.Exit(2)
 		}
 		os.Exit(2)
@@ -157,7 +156,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	log.Debug().Msgf("%v", osCmd.Args)
 	if err != nil {
 		log.Error().Err(err).Msgf("docker tag err :%v %v %v\n", err, stderr.String(), out.String())
-		if strings.Contains(stderr.String(), "Error") == true {
+		if strings.Contains(stderr.String(), "Error") {
 			os.Exit(2)
 		}
 	}
@@ -167,7 +166,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	log.Debug().Msgf("%v", osCmd.Args)
 	if err != nil {
 		log.Error().Err(err).Msgf("docker push err :%v %v %v\n", err, stderr.String(), out.String())
-		if strings.Contains(stderr.String(), "Error") == true {
+		if strings.Contains(stderr.String(), "Error") {
 			os.Exit(2)
 		}
 		//return
@@ -182,6 +181,9 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	data.Library = bufRegistryUrl
 	data.MaxSecond = fmt.Sprintf("%d", maxSecond)
 	jsonSrt, err := json.Marshal(data)
+	if err != nil {
+		log.Error().Err(err).Msg("marshal json error")
+	}
 	getScanUrl := consoleUrl + "api/openapi/scanner/imagereject/scanone/cicd"
 	resInfo := resJson{}
 	err = util.RetryWithBackoff(ctx, func() error {
@@ -219,6 +221,9 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	getScanResultUrl := consoleUrl + "api/openapi/scanner/imagereject/result/cicd"
 	tmpData := resInfo.Data.Item
 	resJsonStr, err := json.Marshal(tmpData)
+	if err != nil {
+		log.Error().Err(err).Msg("marshal json error")
+	}
 	resultInfo := resultInfo{}
 
 	tryInterval := 30
@@ -249,7 +254,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 				log.Error().Err(err).Msg("decode response data err")
 				return err
 			}
-			if resultInfo.Data.Item.IsScan == true {
+			if resultInfo.Data.Item.IsScan {
 				return nil
 			}
 		}
@@ -268,7 +273,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	outputTable(resultInfo.Data.Item.Vulu)
 	outputTable(resultInfo.Data.Item.Sensitive)
 	outputTable(resultInfo.Data.Item.Virus)
-	if resultInfo.Data.Item.Safe == false {
+	if !resultInfo.Data.Item.Safe {
 		log.Info().Msgf("scan found vulnerabilities.")
 		os.Exit(2)
 	}

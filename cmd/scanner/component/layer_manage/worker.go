@@ -2,8 +2,6 @@ package layerManage
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -68,7 +66,7 @@ func (wg *WorkerGroup) Run() {
 	go wg.startWorker()
 }
 
-func (wg *WorkerGroup) initWorkers() error {
+func (wg *WorkerGroup) initWorkers() {
 	wg.workers = make([]*Worker, wg.workerNum)
 	for i := 0; i < wg.workerNum; i++ {
 		wg.workers[i] = &Worker{
@@ -78,10 +76,9 @@ func (wg *WorkerGroup) initWorkers() error {
 			rc:   nil,
 		}
 	}
-	return nil
 }
 
-func (wg *WorkerGroup) startWorker() error {
+func (wg *WorkerGroup) startWorker() {
 	for i := 0; i < wg.workerNum; i++ {
 		wg.swg.Add(1)
 		go func(i int) {
@@ -95,12 +92,10 @@ func (wg *WorkerGroup) startWorker() error {
 		}(i)
 	}
 	wg.swg.Wait()
-	return nil
 }
 
-func (wg *WorkerGroup) workerRun(i int, swg *sync.WaitGroup) error {
+func (wg *WorkerGroup) workerRun(i int, swg *sync.WaitGroup) {
 	wg.workers[i].doTask(swg)
-	return nil
 }
 
 func (w *Worker) createRegistryClient(username, password, repository, url string, skipTls bool) (err2 error) {
@@ -118,13 +113,13 @@ func (w *Worker) createRegistryClient(username, password, repository, url string
 }
 
 //for test
-func (w *Worker) fakeDownloadBlob() (io.ReadCloser, error) {
+// func (w *Worker) fakeDownloadBlob() (io.ReadCloser, error) {
 
-	r := ioutil.NopCloser(strings.NewReader("hello world")) // r type is io.ReadCloser
+// 	r := ioutil.NopCloser(strings.NewReader("hello world")) // r type is io.ReadCloser
 
-	return r, nil
-}
-func (w *Worker) doTask(wg *sync.WaitGroup) error {
+// 	return r, nil
+// }
+func (w *Worker) doTask(wg *sync.WaitGroup) {
 
 	errMsg := ""
 	for {
@@ -154,8 +149,14 @@ func (w *Worker) doTask(wg *sync.WaitGroup) error {
 				log.Error().Msgf("worker %d create registry client err:%s", w.id, errMsg)
 
 				//reset task status,wait other worker pick it
-				w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
-				w.llms.NotifyLayerPulled(task.digest)
+				err := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+				if err != nil {
+					log.Error().Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl err:%s", w.id, err)
+				}
+				if err != nil {
+					err = w.llms.NotifyLayerPulled(task.digest)
+				}
+				log.Error().Msgf("worker %d create registry client  NotifyLayerPulled err:%s", w.id, err)
 				continue
 			}
 		}
@@ -175,8 +176,14 @@ func (w *Worker) doTask(wg *sync.WaitGroup) error {
 			log.Error().Msgf("worker %d pull task err:%s", w.id, errMsg)
 
 			//update task to pull err
-			w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
-			w.llms.NotifyLayerPulled(task.digest)
+			err := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+			if err != nil {
+				log.Error().Msgf("worker %d pull task UpdateTaskStatusAndLayerUrl err:%s", w.id, err)
+			}
+			if err != nil {
+				err = w.llms.NotifyLayerPulled(task.digest)
+			}
+			log.Error().Msgf("worker %d pull tasks  NotifyLayerPulled err:%s", w.id, err)
 			continue
 		}
 
@@ -184,16 +191,24 @@ func (w *Worker) doTask(wg *sync.WaitGroup) error {
 		fullFilePath, err := w.llms.fs.SaveFile(task.digest, reader)
 		reader.Close()
 		if err != nil {
-			w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+			inerr := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+			if inerr != nil {
+				log.Error().Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl err:%s", w.id, inerr)
+			}
 			log.Error().Msgf("worker %d pull task err.repository %s,digest %s,err %v", w.id, task.repository, task.digest, err)
 		} else {
 			// update task to succeed
-			w.llms.UpdateTaskStatusAndLayerUrl(task.digest, fullFilePath, LayerPulled)
+			inerr := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, fullFilePath, LayerPulled)
+			if inerr != nil {
+				log.Error().Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl err:%s", w.id, inerr)
+			}
 			log.Info().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
 		}
 		//notify layer pulled
-		w.llms.NotifyLayerPulled(task.digest)
+		err = w.llms.NotifyLayerPulled(task.digest)
+		if err != nil {
+			log.Error().Msgf("worker %d NotifyLayerPulled err.%v", w.id, err)
+		}
 	}
 
-	return nil
 }

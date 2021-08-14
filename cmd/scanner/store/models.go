@@ -6,6 +6,7 @@ import (
 
 type SearchImageParam struct {
 	Library        string
+	Libraries      []string
 	Ids            []int64
 	FullRepoSearch string // full_repo_name字段的模糊匹配
 	TagSearch      string // tag字段的模糊匹配
@@ -47,12 +48,7 @@ type SearchScanImageParam struct {
 	NoSerialization bool
 	NoStatus        string
 	Status          string
-}
-
-type SearchAssetsContainersParam struct {
-	Digests    []string
-	NotDeleted string   // true,false,all
-	Fields     []string // 只想要的字段
+	Fields          []string // 只想要的字端
 }
 
 type SearchRegistryParam struct {
@@ -66,7 +62,8 @@ type GetImageOverViewParm struct {
 	SQL string
 }
 type SearchRejectPolicyParam struct {
-	Library string
+	Library  string
+	IsGlobal bool
 }
 type SearchRejectRejectVulnParam struct {
 	RejectID int64
@@ -132,10 +129,7 @@ func (idg IntervalDateGroups) Len() int {
 }
 
 func (idg IntervalDateGroups) Less(i, j int) bool {
-	if idg[i].IntervalDateTime.Before(idg[j].IntervalDateTime) {
-		return true
-	}
-	return false
+	return idg[i].IntervalDateTime.Before(idg[j].IntervalDateTime)
 }
 
 func (idg IntervalDateGroups) Swap(i, j int) {

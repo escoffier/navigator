@@ -1,15 +1,20 @@
 package util
 
-import "context"
+import (
+	"context"
 
-const (
-	CtxKeyUser = "_username"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-func GetUserFromContext(ctx context.Context) string {
-	val := ctx.Value(CtxKeyUser)
+const (
+	CtxUserKey = "ctx_userinfo"
+)
+
+func GetUserFromContext(ctx context.Context) (*model.User, bool) {
+	val := ctx.Value(CtxUserKey)
 	if val == nil {
-		return ""
+		return nil, false
 	}
-	return val.(string)
+	uinfo, ok := val.(*model.User)
+	return uinfo, ok
 }

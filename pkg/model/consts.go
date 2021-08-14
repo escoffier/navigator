@@ -31,6 +31,7 @@ const (
 	RejectNoLibrary               = 11 // 来源镜像不在本地仓库（安全模式）
 	RejectScanFailure             = 12 // 镜像扫描失败
 	RejectScanNotScanned          = 13 // 镜像未扫描
+	RejectNotMatchDigest          = 14 // 不信任的镜像
 )
 
 const (
@@ -52,6 +53,7 @@ const (
 	RejectNoLibraryEN               = "image not in config registry"
 	RejectScanFailureEN             = "image scan failure"
 	RejectScanScanNotScannedEN      = "image not scanned"
+	RejectReasonNotMatchDigestEN    = "untrusted image"
 
 	RejectReasonScoreZH             = "漏洞评分低于设置值"
 	RejectReasonHasSensitiveFileZH  = "存在敏感文件"
@@ -64,8 +66,9 @@ const (
 	RejectReasonHasHighVulnZH       = "存在危险漏洞"
 	RejectReasonHasCriticalVulnZH   = "存在高危漏洞"
 	RejectNoLibraryZH               = "来源镜像不在本地仓库"
-	RejectScanFailureZH             = "镜像扫描失败" //
-	RejectScanScanNotScannedZH      = "镜像未扫描"  //
+	RejectScanFailureZH             = "镜像扫描失败"
+	RejectScanScanNotScannedZH      = "镜像未扫描"
+	RejectReasonNotMatchDigestZH    = "非可信镜像"
 )
 
 const (

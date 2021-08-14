@@ -144,8 +144,8 @@ func (harborApi *harborApi) getHarborPluginReport(ctx *gin.Context) {
 		//var vulns []model.VulnerabilityInfo
 
 		tmpReport := model.VulnerabilityReport{}
-		json.Unmarshal(result.VulnInfoJSON, &tmpReport.Vulnerabilities)
-		json.Unmarshal(result.SensitiveFileJSON, &tmpReport.Sensitives)
+		_ = json.Unmarshal(result.VulnInfoJSON, &tmpReport.Vulnerabilities)
+		_ = json.Unmarshal(result.SensitiveFileJSON, &tmpReport.Sensitives)
 		tmpReport.Digest = image.Digest
 		//tmpReport.Tag = image.Tags
 		tmpReport.Repository = image.FullRepoName

@@ -1,0 +1,52 @@
+image:
+  registry: localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-webhook
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+nameOverride: "webhook"
+fullnameOverride: "tensorsec-webhook"
+
+service:
+  type: ClusterIP
+  port: 443
+  targetPort: 9443
+  ## Specify the nodePort value for the NodePort service types.
+  #nodePort:
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 100Mi
+
+validators: ImageValidator
+mutators: "DriftPreventionMutator,MicroSegMutator"
+
+imageValidator:
+  ## Specify which namespace of your cluster will not use image-validator webhook
+  ## suggestion is "kube-system" and teh namespace which deployed Tensorsec profduct
+  ignoredNameSpaces: kube-system
+
+microseg:
+  appCfg:
+    pgMaster:
+      host: "tensorsec-postgresql"
+      user: "postgres"
+      password: "password"
+      dbName: "postgres"
+      port: "5432"
+    runMode: "dev"
+
+presets:
+  volumes:
+    clientName: "client-cert"
+    clientSecretName: "eventcenter-tls-client-cert-secret"
+    clientMountPath: "/auth/client"
+    caName: "ca-cert"
+    caSecretName: "eventcenter-tls-ca-secret"
+    caMountPath: "/auth/ca"

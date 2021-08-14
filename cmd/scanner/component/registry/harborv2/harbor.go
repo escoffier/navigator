@@ -42,18 +42,10 @@ type HarborOpts struct {
 	SkipTLSVerify bool
 }
 
-func (h *harborV2) projectsToIds(projects []Project) []string {
-	res := make([]string, 0)
-	for _, v := range projects {
-		res = append(res, fmt.Sprintf("%s", v.ProjectID))
-	}
-	return res
-}
-
 func (h *harborV2) reqHarbor(url string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
+		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 	req.SetBasicAuth(h.config.Username, h.config.Password)
 	var resp *http.Response
@@ -72,7 +64,7 @@ func (h *harborV2) reqHarbor(url string) (io.ReadCloser, error) {
 
 	// defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
+		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 
 	return resp.Body, nil
@@ -112,7 +104,7 @@ func (h *harborV2) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	var projects []Project
 	err = json.NewDecoder(data).Decode(&projects)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("decode harbor projects body err.%v", err.Error()))
+		return nil, fmt.Errorf(fmt.Sprintf("decode harbor projects body err.%v", err.Error()))
 	}
 
 	// logging.GetLogger().Info().Msgf("projects %+v",projects)
@@ -153,7 +145,7 @@ func (h *harborV2) ListProjectReposWithPage(project string, page, pageSize int) 
 	var repos []Repository
 	err = json.NewDecoder(data).Decode(&repos)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
+		return nil, fmt.Errorf(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
 	}
 
 	// logging.GetLogger().Info().Msgf("repos %+v",repos)
@@ -194,7 +186,7 @@ func (h *harborV2) ListRepoArtifactsWithPage(project, repo string, page, pageSiz
 	var artifacts []Artifact
 	err = json.NewDecoder(data).Decode(&artifacts)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("decode harbor artifacts body err.%v", err.Error()))
+		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifacts body err.%v", err.Error()))
 	}
 
 	// logging.GetLogger().Info().Msgf("artifacts %v",artifacts)
@@ -269,8 +261,11 @@ func (h *harborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 					i.ConfigJson = configBlob
 
 					// do some extend stuff
-					extender(*i)
-
+					err := extender(*i)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
+						continue
+					}
 					images = append(images, *i)
 				}
 			} // end of for artifacts
@@ -293,7 +288,7 @@ func (h *harborV2) GetImage(projectName, repoName, tag string) (*registry.Image,
 	var artifact Artifact
 	err = json.NewDecoder(data).Decode(&artifact)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("decode harbor artifact body err.%v", err.Error()))
+		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifact body err.%v", err.Error()))
 	}
 	// add mainfest
 	var (
@@ -369,7 +364,7 @@ func (h *harborV2) CreateProject(projectName string, public bool) error {
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return errors.New(fmt.Sprintf("status code is %d", resp.StatusCode))
+		return fmt.Errorf(fmt.Sprintf("status code is %d", resp.StatusCode))
 	}
 	return nil
 }
@@ -389,7 +384,7 @@ func (h *harborV2) CheckProject(projectName string) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(fmt.Sprintf("status code is %d", resp.StatusCode))
+		return fmt.Errorf(fmt.Sprintf("status code is %d", resp.StatusCode))
 	}
 	return nil
 }
@@ -448,7 +443,10 @@ func (h *harborV2) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 }
 
 func init() {
-	registry.Register(HarborVersion, openRegistry)
+	err := registry.Register(HarborVersion, openRegistry)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+	}
 }
 
 func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {

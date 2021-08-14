@@ -12,7 +12,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/patrickmn/go-cache"
 	httpSwagger "github.com/swaggo/http-swagger"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -24,13 +23,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type key int
 
 const (
-	userKey               key = iota
-	UserSessionExpiration     = 30 * time.Minute
+	UserSessionExpiration = 10 * time.Minute
 )
 
 var (
@@ -132,7 +131,7 @@ func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {
 			u, _ := userPtr.(*model.User)
 			userCache.Set(username, u, cache.DefaultExpiration)
 
-			ctx := context.WithValue(r.Context(), userKey, userPtr)
+			ctx := context.WithValue(r.Context(), util.CtxUserKey, u)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -176,7 +175,7 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), userKey, userPtr)
+			ctx := context.WithValue(r.Context(), util.CtxUserKey, u)
 			if r.Method == http.MethodGet {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

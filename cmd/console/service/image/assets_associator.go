@@ -25,7 +25,7 @@ func NewAssetsImageAssociator(postgre *rdbtools.GormWrapper) *AssetsImageAssocia
 		postgre: postgre,
 	}
 }
-func (a *AssetsImageAssociator) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
+func (a *AssetsImageAssociator) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	// for the service online count should be clear before watching to the cluster to have pods registered again.
 	imageListRefCountClear(ctx, a.postgre)
 
