@@ -1,4 +1,4 @@
-// +build ci
+// +build !ci
 
 package service
 

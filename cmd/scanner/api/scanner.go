@@ -1,14 +1,17 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -17,20 +20,16 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
+const (
+	digestLength         = 71
+	repositoryNameLength = 64
+)
+
 type Scanner struct {
 	Srv component.ScannerSrv
 	log *logging.Logger
 }
 
-// TickOnlineScan
-// @Summary TickOnlineScan
-// @Title TickOnlineScan
-// @Author guolingkai@tensorsecurity.cn
-// @Description k8s&在线监控生成接口
-// @Tags reject
-// @Param body body	[]model.RejectOnlineMoniterImage{NotifyContext=model.NotifyContext{CustomKV=[]model.KVHashs{KVHash=model.KVHash{}}}} true "JSON数据"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyFlagRes{}}}
-// @Router	/api/v1/imagereject/online_moniter [post]
 func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 	containerInfo := []model.RejectOnlineMoniterImage{}
 	if err := ctx.BindJSON(&containerInfo); err != nil {
@@ -52,21 +51,9 @@ func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-// AddPolicyConfig
-// @Summary AddPolicyConfig
-// @Title AddPolicyConfig
-// @Author guolingkai@tensorsecurity.cn
-// @Description 修改全局config/更新单条策略
-// @Tags reject
-// @Param body body	model.RejectPolicyConfigResponse{policies=[]model.RejectPolicy{reject_vulns=[]model.RejectVuln}} true "JSON数据"
-// @Success 200 {object} ApiWithItem{data{}}
-// @Router	/api/v1/imagereject/policy [put]
 func (s *Scanner) AddPolicyConfig(ctx *gin.Context) {
 	PostInfo := model.RejectPolicyConfigResponse{}
-	if err := ctx.BindJSON(&PostInfo); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
+	ctx.BindJSON(&PostInfo)
 	if len(PostInfo.Polices) == 0 {
 		s.Srv.AddGlobalPolicyConfig(ctx, PostInfo)
 	} else {
@@ -75,21 +62,9 @@ func (s *Scanner) AddPolicyConfig(ctx *gin.Context) {
 	response.JSONOK(ctx)
 }
 
-// AddPolicy
-// @Summary AddPolicy
-// @Title 新增策略
-// @Author guolingkai@tensorsecurity.cn
-// @Description 新增策略接口
-// @Tags reject
-// @Param body body	model.RejectPolicyConfigResponse true "JSON数据"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyIdRes{}}}
-// @Router	/api/v1/imagereject/policy [post]
 func (s *Scanner) AddPolicy(ctx *gin.Context) {
 	PostInfo := model.RejectPolicyConfigResponse{}
-	if err := ctx.BindJSON(&PostInfo); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
+	ctx.BindJSON(&PostInfo)
 
 	fmt.Printf("收到的内容为 %v\n", PostInfo)
 	// var err error
@@ -107,14 +82,6 @@ func (s *Scanner) AddPolicy(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-// GetPolicy
-// @Summary GetPolicy
-// @Title GetPolicy
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取策略及全局配置列表
-// @Tags reject
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.RejectPolicyConfigResponse{}}}
-// @Router	/api/v1/imagereject/policy [get]
 func (s *Scanner) GetPolicy(ctx *gin.Context) {
 	res, err := s.Srv.GetPolicyConfig(ctx)
 	if err != nil {
@@ -124,18 +91,6 @@ func (s *Scanner) GetPolicy(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-// reportsBySimpleImageDetails
-// @Summary reportsBySimpleImageDetails
-// @Title reportsBySimpleImageDetails
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取简略的镜像扫描详情（目前只有风险探索页面在使用，没有前端访问）
-// @Tags Internal API
-// @Param tag query  string true "image tag"
-// @Param digest query  string true "image digest"
-// @Param library query  string true "image from library"
-// @Param full_repo_name query  string true "image full_repo_name"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.SimpleImageDetail{sensitive_info=[]model.Sensitive{},vuln_info=[]model.VulnerabilityInfo{}}}}
-// @Router	/api/v1/scan/reportsBySimpleImageDetails [get]
 func (s *Scanner) GetSimpleImageDetail(ctx *gin.Context) {
 	tag := ctx.Query("tag")
 	digest := ctx.Query("digest")
@@ -145,34 +100,16 @@ func (s *Scanner) GetSimpleImageDetail(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-// query/:name
-// @Summary query/:name
-// @Title query/:name
-// @Author guolingkai@tensorsecurity.cn
-// @Description 用于console通过vuln_nmae获取关联镜像信息
-// @Tags Internal API
-// @Param name query string true "vuln name like CVE-2020-XXXX"
-// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.VulnImageList{}}}
-// @Router /api/v1/vulns/query/:name [get]
-func (s *Scanner) ListImageInfoFromVuln(ctx *gin.Context) {
-	name := ctx.Param("name")
-	res, err := s.Srv.GetImagesFromVuln(ctx, name)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
+func (s *Scanner) ListVulnRelation(ctx *gin.Context) {
+	tmp := []model.VulnImageList{}
+	str := ctx.Query("imageinfo")
+	str, _ = url.QueryUnescape(str)
+	fmt.Println("解码串为:", str)
+	json.Unmarshal([]byte(str), &tmp)
+	res, _ := s.Srv.GetRelationImage(ctx, tmp)
 	response.JSONOK(ctx, response.WithItems(res))
 }
 
-// detail/:name
-// @Summary detail/:name
-// @Title detail/:name
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取漏洞详细信息
-// @Tags Vuln
-// @Param name query string true "vuln name"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnDetail{}}}
-// @Router /api/v1/vulns/detail/:name [get]
 func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	name := ctx.Param("name")
 	res, err := s.Srv.GetVulnDetails(ctx, name)
@@ -183,17 +120,6 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-// all
-// @Summary all
-// @Title all
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取漏洞列表
-// @Tags Vuln
-// @Param search query string false "for vuln like "
-// @Param offset query int true "int"
-// @Param limit query int true "int"
-// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.VulnList{}}}
-// @Router	/api/v1/vulns/all [get]
 func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 	search := ctx.Query("search")
 	if len(search) > 64 {
@@ -216,27 +142,11 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 		response.WithStartIndex(offset))
 }
 
-// statistic
-// @Summary statistic
-// @Title statistic
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取漏洞视角概览信息
-// @Tags Vuln
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnOverview{top5=[]model.ImageRiskScore{}}}}
-// @Router	/api/v1/vulns/statistic [get]
 func (s *Scanner) ListScannedByVulnOverview(ctx *gin.Context) {
 	res, _ := s.Srv.GetVulnOverView(ctx)
 	response.JSONOK(ctx, response.WithItem(res), response.WithExportFileStatus(0))
 }
 
-// scanStatus
-// @Summary scanStatus
-// @Title scanStatus
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取镜像列表的扫描状态
-// @Tags Scan
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=ScanStatusRes{harborStatus=harbor.ScanAllStatus{metrics=harbor.ScanAllStatusMetrics}}}}
-// @Router	/api/v1/scan/harbor/GetScanStatus [get]
 func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 	type respT struct {
 		ScanAllStatus harbor.ScanAllStatus `json:"harborStatus"`
@@ -248,35 +158,13 @@ func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(resp))
 }
 
-// ScanAllNow
-// @Summary ScanAllNow
-// @Title ScanAllNow
-// @Author guolingkai@tensorsecurity.cn
-// @Description 扫描全部列表中的镜像
-// @Tags Scan
-// @Success 200 {object} ApiWithItem{data{}}
-// @Router	/api/v1/scan/harbor/scanAllNow [post]
 func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 	registerUrl := ctx.Query("fromUrl")
 	// asynchronous execution, no matter what return no error
-	go func() {
-		if err := s.Srv.ScanAllNow(ctx, registerUrl); err != nil {
-			log.Err(err).Msg("scan all error")
-		}
-	}()
-
+	go s.Srv.ScanAllNow(ctx, registerUrl)
 	response.JSONOK(ctx)
 }
 
-// ScanOne
-// @Summary ScanOne
-// @Title ScanOne
-// @Author guolingkai@tensorsecurity.cn
-// @Description 扫描列表中某一个镜像，参数为单个id
-// @Tags Scan
-// @Param body body OnlyIdRes true "Json数据"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyStatusRes{}}}
-// @Router	/api/v1/scan/scanone [post]
 func (s *Scanner) StartScanOne(ctx *gin.Context) {
 	type resp struct {
 		Status string `json:"status"`
@@ -286,10 +174,7 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 	}
 	tmp := tmpRecv{}
 	// json := make(map[string]interface{})
-	if err := ctx.BindJSON(&tmp); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
+	ctx.BindJSON(&tmp)
 	// fmt.Println("收获JSON为:", json)
 	err := s.Srv.TickScanOne(ctx, tmp.ImgId, "", consts.ScanTaskComeFromWeb)
 	if err != nil {
@@ -299,15 +184,6 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(resp{Status: "OK"}))
 }
 
-// registries
-// @Summary registries
-// @Title registries
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取registry列表信息
-// @Tags registry
-// @Param no_policy query bool true "是否需要配置策略的仓库"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyAccountRes{}}}
-// @Router	/api/v1/register/registries [get]
 func (s *Scanner) ListRegistry(ctx *gin.Context) {
 	noRejectPolicy, _ := strconv.ParseBool(ctx.Query("no_policy"))
 
@@ -325,15 +201,6 @@ func (s *Scanner) ListRegistry(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(urls))
 }
 
-// registry
-// @Summary registry
-// @Title registry
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取registry具体信息
-// @Tags registry
-// @Param usetype query string true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyAccountRes{}}}
-// @Router	/api/v1/register/registry [get]
 func (s *Scanner) GetRegistry(ctx *gin.Context) {
 	usetype := ctx.Query("usetype")
 
@@ -360,15 +227,6 @@ func (s *Scanner) GetRegistry(ctx *gin.Context) {
 	response.JSONError(ctx, errors.New("no library"))
 }
 
-// /result/cicd
-// @Summary /result/cicd
-// @Title /result/cicd
-// @Author guolingkai@tensorsecurity.cn
-// @Description CICD的第二个API，获取CICD扫描结果
-// @Tags reject
-// @Param body body model.ScanOneCICDResultRequest true "JSON数据"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ScanOneForCICDResponse{}}}
-// @Router	/api/v1/imagereject/result/cicd [post]
 func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 	tmp := new(model.ScanOneCICDResultRequest)
 
@@ -429,15 +287,6 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*resp))
 }
 
-// /scanone/cicd
-// @Summary /scanone/cicd
-// @Title /scanone/cicd
-// @Author guolingkai@tensorsecurity.cn
-// @Description CICD的第一个API，用于触发CICD扫描
-// @Tags reject
-// @Param body body model.ScanOneForCICDRequest true "JSON数据"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ScanOneStatusResponse{}}}
-// @Router	/api/v1/imagereject/scanone/cicd [post]
 func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 	tmp := new(model.ScanOneForCICDRequest)
 
@@ -504,16 +353,11 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*resp))
 }
 
-// ScanOneStatus
-// @Summary ScanOneStatus
-// @Title ScanOneStatus
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取单个镜像的扫描状态
-// @Tags Scan
-// @Param id query int true "Image ID"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ScanOneStatusResponse{}}}
-// @Router	/api/v1/scan/harbor/scanOneStatus [get]
 func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
+	type respT struct {
+		EndTime    time.Time `json:"end_time"`
+		ScanStatus string    `json:"scan_status"`
+	}
 	imgId, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, errors.New("no image id"))
@@ -527,15 +371,6 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
-// reportsByImageOverview
-// @Summary reportsByImageOverview
-// @Title reportsByImageOverview
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取单个镜像的扫描状态
-// @Tags Scan
-// @Param fromUrl query string false "registry url"
-// @Success 200 {object} ApiWithItem{data=ApiWithItem{item=model.OverView{online=model.SafeOver{}}}}
-// @Router	/api/v1/scan/reportsByImageOverview [get]
 func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
 	registerUrl := ctx.Query("fromUrl")
 
@@ -547,15 +382,6 @@ func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*view))
 }
 
-// reportsByImageDetails
-// @Summary reportsByImageDetails
-// @Title reportsByImageDetails
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取单个镜像的扫描状态
-// @Tags Scan
-// @Param id query int ture "image id"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageList{questions=[]model.QuestionInfo{},image_scan_vuln=model.ImageScanSummaryResult{},image_scan_virus=[]model.VirusFileInfo}}}
-// @Router	/api/v1/scan/reportsByImageDetails [get]
 func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 	imgId, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
 	if err != nil {
@@ -569,19 +395,6 @@ func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*img))
 }
 
-// ScanOneStatus
-// @Summary ScanOneStatus
-// @Title ScanOneStatus
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取单个镜像的扫描状态
-// @Tags Scan
-// @Param search query string false "for image like "
-// @Param kind query int false "0:vuln,1:vrius,2:senstive"
-// @Param online query bool true "is online?"
-// @Param offset query int true "int"
-// @Param limit query int true "int"
-// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.ImageResponse{}}}
-// @Router	/api/v1/scan/reportsByImageList [get]
 func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	search := ctx.Query("search")
 	if len(search) > 64 {

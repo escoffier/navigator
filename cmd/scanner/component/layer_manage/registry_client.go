@@ -1,6 +1,7 @@
 package layerManage
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ const (
 )
 
 type RegistryClient struct {
+	ctx                   context.Context
 	username              string
 	password              string
 	repository            string
@@ -59,38 +61,38 @@ func NewRegistryClient(username, password, repository, url string, skipRegistryT
 	return rci, nil
 }
 
-// func (rc *RegistryClient) readManifest(ctx context.Context, version, repository, digest string) ([]string, error) {
-// 	layers := make([]string, 0)
-// 	uniqueLayers := make(map[string]bool)
-// 	if version == "v1" {
-// 		manifest, err := rc.registryClient.Manifest(repository, digest)
-// 		if err != nil {
-// 			return []string{}, fmt.Errorf("Could not read docker V1 manifest: %w", err)
-// 		}
-// 		for _, layer := range manifest.Manifest.FSLayers {
-// 			layerDigest := layer.BlobSum.String()
-// 			if _, ok := uniqueLayers[layerDigest]; ok {
-// 				return []string{}, fmt.Errorf("Found duplicate layer digest in V1 manifest")
-// 			}
-// 			uniqueLayers[layerDigest] = true
-// 			layers = append([]string{layerDigest}, layers...)
-// 		}
-// 	} else if version == "v2" {
-// 		manifest, err := rc.registryClient.ManifestV2(repository, digest)
-// 		if err != nil {
-// 			return []string{}, fmt.Errorf("Could not read docker V2 manifest: %w", err)
-// 		}
-// 		for _, layer := range manifest.Manifest.Layers {
-// 			layerDigest := layer.Digest.String()
-// 			if _, ok := uniqueLayers[layerDigest]; ok {
-// 				return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
-// 			}
-// 			uniqueLayers[layerDigest] = true
-// 			layers = append(layers, layerDigest)
-// 		}
-// 	}
-// 	return layers, nil
-// }
+func (rc *RegistryClient) readManifest(ctx context.Context, version, repository, digest string) ([]string, error) {
+	layers := make([]string, 0)
+	uniqueLayers := make(map[string]bool)
+	if version == "v1" {
+		manifest, err := rc.registryClient.Manifest(repository, digest)
+		if err != nil {
+			return []string{}, fmt.Errorf("Could not read docker V1 manifest: %w", err)
+		}
+		for _, layer := range manifest.Manifest.FSLayers {
+			layerDigest := layer.BlobSum.String()
+			if _, ok := uniqueLayers[layerDigest]; ok {
+				return []string{}, fmt.Errorf("Found duplicate layer digest in V1 manifest")
+			}
+			uniqueLayers[layerDigest] = true
+			layers = append([]string{layerDigest}, layers...)
+		}
+	} else if version == "v2" {
+		manifest, err := rc.registryClient.ManifestV2(repository, digest)
+		if err != nil {
+			return []string{}, fmt.Errorf("Could not read docker V2 manifest: %w", err)
+		}
+		for _, layer := range manifest.Manifest.Layers {
+			layerDigest := layer.Digest.String()
+			if _, ok := uniqueLayers[layerDigest]; ok {
+				return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
+			}
+			uniqueLayers[layerDigest] = true
+			layers = append(layers, layerDigest)
+		}
+	}
+	return layers, nil
+}
 
 func (rc *RegistryClient) DownloadBlob(repository string, digest digest.Digest) (r io.ReadCloser, err error) {
 	if rc.registryClient == nil {

@@ -38,8 +38,5 @@ dependencies:
 - name: holmes
   repository: file://./subcharts/holmes
   version: 1.7.4
-- name: webhook
-  repository: "file://./subcharts/webhook"
-  version: 0.1.0
 digest: sha256:a886dcb05628aaebec903d5990440df4e6e36e0c32de461d5d7d20bfd5e048db
 generated: "2021-06-10T15:57:17.244805728+08:00"

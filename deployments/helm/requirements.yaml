@@ -68,8 +68,3 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/image-validator"
     condition: image-validator.enabled
-
-  - name: webhook
-    version: 0.1.0
-    repository: "file://./subcharts/webhook"
-    condition: webhook.enabled

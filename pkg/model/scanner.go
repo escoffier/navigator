@@ -51,11 +51,6 @@ type ImageScanSummaryResult struct {
 	StartedAt         int64                 `json:"startedAt"`
 	FinishedAt        int64                 `json:"finishedAt"`
 	SeverityHistogram SeverityHistogramInfo `json:"severityHistogram"`
-	RiskScore         float64               `json:"risk_score"`
-	VirusScore        float64               `json:"virus_score"`
-	VulnScore         float64               `json:"vuln_score"`
-	SensitiveScore    float64               `json:"sensitive_score"`
-	WebshellScore     float64               `json:"webshell_score"`
 }
 
 type ImageScanDetailedResult struct {
@@ -183,7 +178,6 @@ type VulnDetailContainer struct {
 type VulnImageList struct {
 	FullRepoName string `json:"full_repo_name"`
 	Library      string `json:"library"`
-	Tags         string `json:"tags"`
 	Digest       string `json:"digest"`
 	ImageId      int    `json:"id" gorm:"column:id"`
 }
@@ -207,20 +201,4 @@ type ReportImgBackInfo struct {
 type SimpleImageDetail struct {
 	Vulnerabilities []VulnerabilityInfo `json:"vuln_info"`
 	Sensitives      []Sensitive         `json:"sensitive_info"`
-}
-
-type ImageVulnsSumData struct {
-	CriticalNum int64 `json:"critical_num"`
-	HighNum     int64 `json:"high_num"`
-	MediumNum   int64 `json:"medium_num"`
-	LowNum      int64 `json:"low_num"`
-	UnknownNum  int64 `json:"unknown_num"`
-}
-
-type ImageVirusSumData struct {
-	CriticalNum int64 `json:"critical_num"` // 只需写入这个字段，含有病毒的文件数量。
-	HighNum     int64 `json:"high_num"`
-	MediumNum   int64 `json:"medium_num"`
-	LowNum      int64 `json:"low_num"`
-	UnknownNum  int64 `json:"unknown_num"`
 }

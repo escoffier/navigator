@@ -37,7 +37,7 @@ func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository
 
 		return "", "", err
 	}
-	log.Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository, rq.Digest)
+	log.Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository,rq.Digest)
 
 	req, err := http.NewRequest("POST", llmc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta "k8s.io/api/batch/v1beta1"
@@ -18,11 +17,13 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
 	defaultStartWatchTimeout = 10 * time.Second
-	resyncInterval           = 12 * time.Hour
 )
 
 type AssetsAction uint8
@@ -48,7 +49,7 @@ const (
 
 type AssetsCallback interface {
 	// called before watch events
-	BeforWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) ClusterCallback
+	BeforWatchNewCluster(ctx context.Context, clusterName string) ClusterCallback
 
 	WatchedTypes() map[WatchedType]struct{}
 	Name() string
@@ -193,25 +194,12 @@ func getInformerFuncForResources(echan chan resourceEvent, cluster string, resFa
 		},
 	}
 }
-
-func ShouldResourceBeFiltered(res *TensorResource) bool {
-	if res.Kind != KindReplicaSet {
-		return false
-	}
-	if len(res.OwnerReferences) == 0 {
-		return false
-	}
-	for _, or := range res.OwnerReferences {
-		if or.Controller != nil && *or.Controller {
-			if or.Kind == string(KindDeployment) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kubernetes.Clientset) error {
+	if util.IsNonSingletonPodInTestingEnv() {
+		logging.GetLogger().Info().Msg("In Testing env and console not singleton. Disable ")
+		return nil
+	}
+
 	logging.GetLogger().Info().Msg("starts to watch kubernetes informers")
 
 	if k8sClients == nil || len(k8sClients) == 0 {
@@ -233,7 +221,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			for t := range cb.WatchedTypes() {
 				toWatchedTypes[t] = struct{}{}
 			}
-			callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterName, resyncInterval)
+			callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterName)
 		}
 
 		// whether to watch tensor resources; need pod informer.
@@ -243,7 +231,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			tsResEventsChan = make(chan resourceEvent, 50)
 		}
 
-		informerFactory := informers.NewSharedInformerFactory(newClient, resyncInterval)
+		informerFactory := informers.NewSharedInformerFactory(newClient, time.Minute*2)
 
 		informerStatuses := make([]*informerStatus, 0, 5)
 		if _, podsWatch := toWatchedTypes[Pods2Watch]; podsWatch {
@@ -272,7 +260,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 					// send no owner pods to tensor resources
 					if toWatchResources {
-						if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						if len(pod.OwnerReferences) == 0 { // for no owner pods, we will watch them for tensor resources.
 							res := newResourceFromPodNoOwnerOrStaticPod(clusterName, pod)
 							e := resourceEvent{
 								oldResource: nil,

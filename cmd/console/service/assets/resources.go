@@ -3,9 +3,7 @@ package assets
 import (
 	"context"
 	"errors"
-	"fmt"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,9 +22,9 @@ var (
 	rlOnce   sync.Once
 )
 
-func InitResourcesService(postgre *rdbtools.GormWrapper, scannerURL string) error {
+func InitResourcesService(postgre *rdbtools.GormWrapper) error {
 	rlOnce.Do(func() {
-		instance = newTensorResourcesService(postgre, scannerURL)
+		instance = newTensorResourcesService(postgre)
 	})
 	return nil
 }
@@ -44,33 +42,29 @@ const (
 type TensorResourcesService struct {
 	rdb              *rdbtools.GormWrapper
 	clusterListeners map[string]*TensorResourcesClusterListener
-	scannerURL       string
 
 	clMux sync.RWMutex
 }
 
-func newTensorResourcesService(rdb *rdbtools.GormWrapper, scannerURL string) *TensorResourcesService {
+func newTensorResourcesService(rdb *rdbtools.GormWrapper) *TensorResourcesService {
 	return &TensorResourcesService{
 		rdb:              rdb,
-		scannerURL:       scannerURL,
 		clusterListeners: make(map[string]*TensorResourcesClusterListener, 5),
 	}
 }
 
-func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit int) ([]*model.TensorCluster, int64, error) {
-	return dal.GetClusters(ctx, rl.rdb, offset, limit)
+func (rl *TensorResourcesService) GetClusters(ctx context.Context) ([]string, error) {
+	// currently, we are not supporting real multi-clusters. will soon make them store in databases.
+	return rl.getClusters(), nil
 }
-
-func (rl *TensorResourcesService) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
-	// TODO create the k8s client and so on
-	return dal.AddCluster(ctx, rl.rdb, cluster)
-}
-
-func (rl *TensorResourcesService) UpdateCluster(ctx context.Context, clusterKey, newClusterName, newDescription string) error {
-	return dal.UpdateCluster(ctx, rl.rdb, clusterKey, newClusterName, newDescription)
-}
-
 func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
+	ckey, ok := queryOptions.GetClusterOption()
+	if ok {
+		_, existed := rl.getClusterListener(ckey)
+		if !existed {
+			return nil, 0, errors.New("cluster not found")
+		}
+	}
 	resources, err := dal.GetResources(ctx, rl.rdb, queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
@@ -82,6 +76,10 @@ func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions
 	return resources, resCnt, nil
 }
 func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey, nameQuery string, offset, limit int) ([]*model.TensorNamespace, int64, error) {
+	_, existed := rl.getClusterListener(clusterKey)
+	if !existed {
+		return nil, 0, errors.New("cluster not found")
+	}
 	ns, err := dal.GetNamespacesByCluster(ctx, rl.rdb, clusterKey, nameQuery, offset, limit)
 	if err != nil {
 		return nil, 0, err
@@ -93,50 +91,20 @@ func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey,
 	return ns, cnt, nil
 }
 
-func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, clusterKey, namespace, resKind, resName string) ([]*model.PodResourceRelation, error) {
-	return dal.GetResourcePodsList(ctx, rl.rdb, clusterKey, namespace, resKind, resName)
-}
 func (rl *TensorResourcesService) GetResourceContainers(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*model.TensorContainer, int64, error) {
+	ckey, ok := queryOptions.GetClusterOption()
+	if ok {
+		_, existed := rl.getClusterListener(ckey)
+		if !existed {
+			return nil, 0, errors.New("cluster not found")
+		}
+	}
 	containers, err := dal.GetResourceContainers(ctx, rl.rdb, queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-
 	cnt, err := dal.CountResourceContainers(ctx, rl.rdb, queryOptions)
 	return containers, cnt, err
-}
-
-func (rl *TensorResourcesService) GetImagesWithGivenVuln(ctx context.Context, vulnName string) ([]*model.ImageInfo, error) {
-	return dal.GetImagesWithGivenVuln(ctx, rl.scannerURL, vulnName)
-}
-
-func getImageIDFrom(m *model.ImageInfo) string {
-	lib := m.Library
-	if strings.Index(m.Library, "http://") == 0 {
-		lib = m.Library[7:]
-	} else if strings.Index(m.Library, "https://") == 0 {
-		lib = m.Library[8:]
-	}
-	return fmt.Sprintf("%s/%s:%s", lib, m.FullRepoName, m.Tags)
-}
-func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context.Context, vulnName string, offset, limit int) ([]*model.TensorContainer, int64, error) {
-	images, err := rl.GetImagesWithGivenVuln(ctx, vulnName)
-	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "GetImagesWithGivenVuln %s error", vulnName)
-		return nil, 0, err
-	}
-	imageIDs := make([]string, 0, len(images))
-	for _, image := range images {
-		imageIDs = append(imageIDs, getImageIDFrom(image))
-	}
-
-	containers, totalCnt, err := rl.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCustom("image", imageIDs), offset, limit)
-	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "GetResourceContainers %s error. imageList: %v", vulnName, imageIDs)
-		return nil, 0, err
-	}
-
-	return containers, totalCnt, nil
 }
 
 func (rl *TensorResourcesService) addClusterListener(clusterKey string, l *TensorResourcesClusterListener) {
@@ -165,7 +133,7 @@ func (rl *TensorResourcesService) getClusterListener(clusterKey string) (*Tensor
 }
 
 // called before watch events
-func (rl *TensorResourcesService) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
+func (rl *TensorResourcesService) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
 	cl := newTensorResourcesClusterListener(rl, clusterName)
 	rl.addClusterListener(clusterName, cl)
 	return cl
@@ -279,9 +247,6 @@ func (cl *TensorResourcesClusterListener) doOnResource(ctx context.Context, resE
 			if resEvent.newResource == nil {
 				return errors.New("newResource is nil")
 			}
-			if assets.ShouldResourceBeFiltered(resEvent.newResource) {
-				return nil
-			}
 			_, err := dal.UpsertResource(ctx, cl.parent.rdb, resEvent.newResource, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
@@ -308,9 +273,6 @@ func (cl *TensorResourcesClusterListener) doOnResource(ctx context.Context, resE
 		case assets.TensorResources2Watch:
 			if resEvent.oldResource == nil {
 				return errors.New("oldResource is nil")
-			}
-			if assets.ShouldResourceBeFiltered(resEvent.oldResource) {
-				return nil
 			}
 			err := dal.SoftDeleteResource(ctx, cl.parent.rdb, resEvent.oldResource, resEvent.updateTime)
 			if err != nil {

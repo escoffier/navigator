@@ -5,6 +5,4 @@ type ResourceInfo struct {
 	Namespace string
 	Kind      string
 	Resource  string
-	Port      int
-	Protocol  string
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -77,7 +78,7 @@ func (Harbor *Harbor) GetRegistryDriver(url string, authorization string) regist
 func (h *Harbor) reqHarbor(ctx context.Context, url string, username string, password string, auth string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 	req.SetBasicAuth("admin", "Harbor12345")
 	//req.Header.Set("Authorization", auth)
@@ -97,7 +98,7 @@ func (h *Harbor) reqHarbor(ctx context.Context, url string, username string, pas
 
 	// defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 
 	return resp.Body, nil
@@ -146,13 +147,12 @@ func (Harbor *Harbor) AddHarborScanTask(ctx context.Context, scanReq model.Scann
 		RegistryId: 0,
 		//FirstPushTime:  image.Created,
 	}
-	imgId, err := Harbor.dbdal.InsertAdapterImageList(ctx, img)
+	imgId, err := Harbor.dbdal.InsertAdapterImageList(img)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("InserImage Error")
 	}
 	resTask, _, err := Harbor.dbdal.GetTaskFromImageList(ctx, imgId, "", scanReq.Authorization)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("GetTaskFromImageList Error")
 	}
 	imageIds = append(imageIds, imgId)
 	Harbor.redclair.AddScanTask(resTask, consts.ScanTaskComeFromWeb)

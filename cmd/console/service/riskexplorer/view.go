@@ -7,16 +7,15 @@ import (
 )
 
 type NamespaceSummary struct {
-	Name          string             `json:"namespaceName"`
-	ClusterKey    string             `json:"clusterKey"`
-	ResourcesList []*ResourceSummary `json:"resourcesList"`
+	Name         string            `json:"namespaceName"`
+	ServicesList []*ServiceSummary `json:"serviceList"`
 }
 
-type ResourceSummary struct {
+type ServiceSummary struct {
 	ContainersList []*ContainerSummary `json:"containerList"`
 	FinalSeverity  string              `json:"finalSeverity"`
 	RiskLevel      int                 `json:"riskLevel"`
-	ResourceName   string              `json:"resourceName"`
+	ServiceName    string              `json:"serviceName"`
 	NodeType       string              `json:"nodeType"`
 	ResourceKind   string              `json:"resourceKind"`
 	Namespace      string              `json:"namespace"`
@@ -24,15 +23,15 @@ type ResourceSummary struct {
 }
 
 type ContainerSummary struct {
+	ContainerID   string           `json:"containerID"`
 	Name          string           `json:"name"`
 	Namespace     string           `json:"namespaceName"`
-	ResourceName  string           `json:"resourceName"`
+	ServiceName   string           `json:"serviceName"`
 	FinalSeverity string           `json:"finalSeverity,omitempty"`
-	Image         string           `json:"image"`
 	RiskTypes     map[RiskType]int `json:"tag,omitempty"`
 }
 
-type ResourceDetail struct {
+type ServiceDetail struct {
 	Containers []*ContainerDetail `json:"containers"`
 	RiskItems  []*RiskTypeDetail  `json:"riskItems"`
 }

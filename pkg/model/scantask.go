@@ -153,7 +153,7 @@ type RejectPolicyConfigResponse struct {
 	Mode          string         `json:"mode"`
 	OnlineMonitor bool           `json:"online_monitor"`
 	Polices       []RejectPolicy `json:"policies"`
-} //@name RejectPolicyConfigResponse
+}
 
 type RejectOnlineMoniterImage struct {
 	Image    string `json:"image"`

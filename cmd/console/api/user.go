@@ -11,6 +11,8 @@ import (
 
 	"github.com/go-chi/jwtauth"
 	"github.com/patrickmn/go-cache"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -18,8 +20,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 var (
@@ -251,7 +251,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 		// 	return
 		// }
 
-		user := r.Context().Value(util.CtxUserKey).(*model.User)
+		user := r.Context().Value(userKey).(*model.User)
 
 		if dal.GetSaltedPwd(rq.OldPwd, user.Salt) != user.Pwd {
 			RespAndLog(w, r.Context(),
