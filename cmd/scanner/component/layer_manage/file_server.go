@@ -49,7 +49,10 @@ func NewFileServer(ctx context.Context, rootPath, externalIp, serverIp string, p
 }
 
 func (fs *FileServer) CreateHTTPRootDir() error {
-	os.Mkdir(FileServerCache, 0777)
+	err := os.Mkdir(FileServerCache, 0777)
+	if err != nil {
+		return err
+	}
 	fs.serverRootPath = filepath.Join(FileServerCache, FileServerRootDir)
 	return os.MkdirAll(fs.serverRootPath, os.ModePerm)
 }
@@ -119,7 +122,7 @@ func (fs *FileServer) SaveFile(digest string, r io.ReadCloser) (string, error) {
 	fullFilePath := filepath.Join(fp, LayerFileName)
 	log.Info().Msgf("save file %s,digest %s,server root path %s,fp %s", fullFilePath, digest, fs.serverRootPath, fp)
 	outFile, err := os.Create(fullFilePath)
-	defer outFile.Close()
+	defer func() { outFile.Close() }()
 	if err != nil {
 		return "", fmt.Errorf("create layer file err,digest %s,err %v", digest, err)
 	}

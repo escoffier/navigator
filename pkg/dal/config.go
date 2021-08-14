@@ -39,15 +39,19 @@ func GetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string) (*mod
 }
 
 func newConfig(ctx context.Context, key string, val []byte, utime time.Time) *model.TensorConfig {
-	user := util.GetUserFromContext(ctx)
+	user, ok := util.GetUserFromContext(ctx)
+	userName := ""
+	if ok {
+		userName = user.UserName
+	}
 	c := model.TensorConfig{
 		Key:       key,
 		Config:    val,
 		CreatedAt: utime,
 		UpdatedAt: utime,
 		Status:    0,
-		Creator:   user,
-		Updater:   user,
+		Creator:   userName,
+		Updater:   userName,
 	}
 	return &c
 }

@@ -1,5 +1,3 @@
-//go:generate swag init
-
 package main
 
 import (
@@ -7,8 +5,14 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
+// @title Vegeta API·
+// @version 1.0
+// @description This is the Vegeta central server - Scanner
+
+// @BasePath /
+
 func main() {
-	util.InitPprofMontitor()
+	_ = util.InitPprofMontitor()
 
 	cmd.Execute()
 }

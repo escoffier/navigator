@@ -3,21 +3,19 @@ package riskexplorer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/go-redis/redis/v8"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"gopkg.in/mgo.v2/bson"
 )
 
 var (
@@ -25,15 +23,21 @@ var (
 	initOnce  sync.Once
 )
 
-func Init(mongoDB *mongotools.DatabaseWrapper) *RiskExplorerService {
+const (
+	maxCount = 200
+	limit    = 100
+)
+
+func Init(scannerURL string, redisCli *redis.Client) error {
 	initOnce.Do(func() {
 		singleton = &RiskExplorerService{
-			mongoDB:   mongoDB,
-			reporters: make([]RiskTypeReporter, 0, 2),
+			reporters:  make([]RiskTypeReporter, 0, 2),
+			scannerURL: scannerURL,
 		}
 		// add more reporters here
+		singleton.reporters = append(singleton.reporters, NewImageVulnsReporter(redisCli))
 	})
-	return singleton
+	return nil
 }
 
 func Get(ctx context.Context) (*RiskExplorerService, bool) {
@@ -43,9 +47,7 @@ func Get(ctx context.Context) (*RiskExplorerService, bool) {
 type RiskType string
 
 const (
-	KeyCompliance       RiskType = "ComplianceCheck"
 	KeyImageVulns       RiskType = "ImageVulnerabilities"
-	KeyAppAttacks       RiskType = "ApplicationAttacks"
 	KeyRuntimeDetection RiskType = "RuntimeDetection"
 )
 
@@ -96,119 +98,83 @@ func (s Severity) String() string {
 
 type RiskTypeReporter interface {
 	Key() RiskType
-	LoadSummary(tx context.Context) (TotalSummary, error)
-	LoadDetails(tx context.Context, cluster, nodeType, namespace, service string) (ServiceDetails, error)
+	LoadSummary(ctx context.Context, assetsSummary []*NamespaceSummary) (TotalSummary, error)
 }
 
 type TotalSummary interface {
-	ServiceSummary(tx context.Context, cluster, nodeType, namespace, service string) (severity Severity, statsCount int, err error)
-	Key() RiskType
-}
-
-type ServiceDetails interface {
-	ServiceDetails(ctx context.Context) (json.RawMessage, error)
-	ContainerDetails(ctx context.Context, name string, digest string) (json.RawMessage, error)
+	ResourceSummary(tx context.Context, clusterKey, namespace, resourceKind, resourceName string) (severity Severity, statsCount int, err error)
 	Key() RiskType
 }
 
 type RiskExplorerService struct {
-	mongoDB   *mongotools.DatabaseWrapper
-	reporters []RiskTypeReporter
+	scannerURL string
+	reporters  []RiskTypeReporter
 }
 
-func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string, scannerURL string) ([]*NamespaceSummary, error) {
-	// TODO: decouple the vulns with assets and make the imageVulns as a reporter
-	inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
-	items, err := inResSvc.ListCurrentOnlineVulnerabilities(ctx, cluster, 0, 10000, scannerURL)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("list current vulns error for cluster %s", cluster)
-		return nil, err
-	}
+func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQueryOption) ([]*NamespaceSummary, error) {
+	resSvc, _ := assetsSvc.GetResourcesService(ctx)
+	totalCount := maxCount
+	offset := 0
+	failCnt := 0
 
-	summaries := make([]TotalSummary, 0, len(s.reporters))
-	for _, reporter := range s.reporters {
-		summary, reErr := reporter.LoadSummary(ctx)
-		if reErr != nil {
-			logging.GetLogger().Err(reErr).Msgf("reporter %s error: %v", reporter.Key(), reErr)
+	nsMap := make(map[string]*NamespaceSummary, 10)
+	for offset < totalCount {
+		containers, tcount, err := resSvc.GetResourceContainers(ctx, queryOpt, offset, limit)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("query resource containers error. opt: %+v offset: %d limit: %d", queryOpt, offset, limit)
+			failCnt++
+			if failCnt == 3 {
+				offset += limit
+				failCnt = 0
+			}
 			continue
 		}
-		summaries = append(summaries, summary)
-	}
-	nsMap := make(map[string]*NamespaceSummary, 10)
-	for _, item := range items {
-		nsItem, nsExist := nsMap[item.Namespace]
-		if !nsExist {
-			nsItem = new(NamespaceSummary)
-			nsItem.Name = item.Namespace
-			nsMap[item.Namespace] = nsItem
-		}
+		failCnt = 0
+		totalCount = int(tcount)
+		offset += len(containers)
 
-		var svcItem *ServiceSummary
-		for _, svc := range nsItem.ServicesList {
-			if item.ServiceName == svc.ServiceName {
-				svcItem = svc
-				break
+		for _, container := range containers {
+			nsItem, nsExist := nsMap[container.Namespace]
+			if !nsExist {
+				nsItem = new(NamespaceSummary)
+				nsItem.ClusterKey = container.ClusterKey
+				nsItem.Name = container.Namespace
+				nsMap[container.Namespace] = nsItem
 			}
-		}
-		if svcItem == nil {
-			svcItem = new(ServiceSummary)
-			svcItem.ServiceName = item.ServiceName
-			svcItem.Namespace = item.Namespace
-			svcItem.NodeType = item.NodeType
-			svcItem.ResourceKind = item.ResourceKind
-			svcItem.ContainersList = make([]*ContainerSummary, 0, 2)
-			svcItem.RiskTypes = make(map[RiskType]int, 1)
-			nsItem.ServicesList = append(nsItem.ServicesList, svcItem)
-		}
-		for _, rcont := range item.RunningContainers {
+
+			var svcItem *ResourceSummary
+			for _, svc := range nsItem.ResourcesList {
+				if container.ResourceName == svc.ResourceName && container.ResourceKind == svc.ResourceKind {
+					svcItem = svc
+					break
+				}
+			}
+			if svcItem == nil {
+				svcItem = new(ResourceSummary)
+				svcItem.ResourceName = container.ResourceName
+				svcItem.Namespace = container.Namespace
+				svcItem.NodeType = "ownerReference"
+				svcItem.ResourceKind = container.ResourceKind
+				svcItem.ContainersList = make([]*ContainerSummary, 0, 2)
+				svcItem.RiskTypes = make(map[RiskType]int, 1)
+				nsItem.ResourcesList = append(nsItem.ResourcesList, svcItem)
+			}
+
 			var contSumm *ContainerSummary
-			for _, container := range svcItem.ContainersList {
-				if container.ContainerID == rcont {
-					contSumm = container
+			for _, cont := range svcItem.ContainersList {
+				if cont.Name == container.Name {
+					contSumm = cont
 					break
 				}
 			}
 			if contSumm == nil {
 				contSumm = new(ContainerSummary)
-				contSumm.ContainerID = rcont
-				sps := strings.Split(rcont, "@")
-				if len(sps) > 0 {
-					contSumm.Name = sps[0]
-				}
-				contSumm.ServiceName = item.ServiceName
-				contSumm.Namespace = item.Namespace
+				contSumm.Name = container.Name
+				contSumm.ResourceName = container.ResourceName
+				contSumm.Namespace = container.Namespace
 				contSumm.RiskTypes = make(map[RiskType]int, 0)
+				contSumm.Image = container.Image
 				svcItem.ContainersList = append(svcItem.ContainersList, contSumm)
-			}
-		}
-
-		svcItem.RiskLevel = int(SeverityUnknown)
-		svcItem.FinalSeverity = SeverityUnknown.String()
-		imageVulnsCount := 0
-		// make up the image scans vulnerabilities
-		for _, vulns := range item.TopVulns {
-			severity := GetSeverityFromString(vulns.Severity)
-
-			if int(severity) > svcItem.RiskLevel {
-				svcItem.RiskLevel = int(severity)
-				svcItem.FinalSeverity = severity.String()
-			}
-			if severity > SeverityNegligible {
-				imageVulnsCount++
-			}
-		}
-		if imageVulnsCount > 0 {
-			svcItem.RiskTypes[KeyImageVulns] = imageVulnsCount
-		}
-
-		for _, summ := range summaries {
-			sev, statsCnt, err := summ.ServiceSummary(ctx, cluster, item.NodeType, item.Namespace, svcItem.ServiceName)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("%s-%s-%s reporter %s summary err", cluster, item.Namespace, svcItem.ServiceName, summ.Key())
-				continue
-			}
-			if sev > SeverityNegligible {
-				svcItem.RiskTypes[summ.Key()] = statsCnt
 			}
 		}
 	}
@@ -219,19 +185,44 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, cluster string, 
 		nsSlice[i] = nsSumm
 		i++
 	}
+	summaries := make([]TotalSummary, 0, len(s.reporters))
+	for _, reporter := range s.reporters {
+		summary, lsErr := reporter.LoadSummary(ctx, nsSlice)
+		if lsErr != nil {
+			logging.GetLogger().Err(lsErr).Msgf("reporter %s error", reporter.Key())
+			continue
+		}
+		summaries = append(summaries, summary)
+	}
+	for _, summ := range summaries {
+		for _, nsSum := range nsSlice {
+			for _, svcSum := range nsSum.ResourcesList {
+				sev, statsCnt, err := summ.ResourceSummary(ctx, nsSum.ClusterKey, svcSum.Namespace, svcSum.ResourceKind, svcSum.ResourceName)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("%s-%s-%s-%s reporter %s summary err", nsSum.ClusterKey, svcSum.Namespace, svcSum.ResourceKind, svcSum.ResourceName, summ.Key())
+					continue
+				}
+				if sev > SeverityNegligible {
+					svcSum.RiskTypes[summ.Key()] = statsCnt
+				}
+				if svcSum.RiskLevel < int(sev) {
+					svcSum.RiskLevel = int(sev)
+				}
+				if sev > GetSeverityFromString(svcSum.FinalSeverity) {
+					svcSum.FinalSeverity = sev.String()
+				}
+			}
+		}
+	}
+
 	return nsSlice, nil
+
 }
 
-func getImageVulnsRiskData(ctx context.Context, assetCont *model.AssetContainer, Vulns []model.VulnerabilityInfo, Sensitive []model.Sensitive) (json.RawMessage, bool) {
-	idStr := ""
-	if !assetCont.TaskID.IsZero() {
-		idStr = assetCont.TaskID.Hex()
-	}
+func getImageVulnsRiskData(ctx context.Context, Vulns []model.VulnerabilityInfo, Sensitive []model.Sensitive) (json.RawMessage, bool) {
 	imageVulns := ImageVulnsDetails{
-		ScanTaskID:      idStr,
 		SensitiveFiles:  Sensitive,
 		Vulnerabilities: Vulns,
-		HarborURL:       assetCont.HarborURL,
 	}
 
 	for i, _ := range imageVulns.SensitiveFiles {
@@ -246,186 +237,98 @@ func getImageVulnsRiskData(ctx context.Context, assetCont *model.AssetContainer,
 
 	mar, err := json.Marshal(imageVulns)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get image vulns data error. assetCont: %+v", assetCont)
+		logging.GetLogger().Err(err).Msgf("marshal vulns error. data: %+v", imageVulns)
 		return nil, false
 	}
 	return mar, true
 }
 
-func (s *RiskExplorerService) ServiceDetail(ctx context.Context, cluster, nodeType, namespace, service string, scannerUrl string) (*ServiceDetail, error) {
-	type tmpdata struct {
-		Item model.SimpleImageDetail `json:"item"`
-	}
-	type tmpInfo struct {
-		ApiVersion string  `json:"apiVersion"`
-		Data       tmpdata `json:"data"`
-	}
-	detailHandlers := make([]ServiceDetails, 0, len(s.reporters))
-	for _, reporter := range s.reporters {
-		sdetails, derr := reporter.LoadDetails(ctx, cluster, nodeType, namespace, service)
-		if derr != nil {
-			logging.GetLogger().Err(derr).Msgf("%s reporter load details error", reporter.Key())
-			continue
-		}
-		detailHandlers = append(detailHandlers, sdetails)
-	}
+func getRepositoryAndTagFromImage(imageID string) (string, string) {
+	splits := strings.SplitN(imageID, ":", 2)
+	return splits[0], splits[1]
+}
 
-	var podNames []string
-	var err error
-	switch nodeType {
-	case model.NodeTypeOwnerRef:
-		podNames, _, err = assets.GetPodNamesFromOwnerRef(s.mongoDB.Get(), cluster, namespace, service)
+type data struct {
+	Item model.SimpleImageDetail `json:"item"`
+}
+type imageInfo struct {
+	ApiVersion string `json:"apiVersion"`
+	Data       data   `json:"data"`
+}
+
+func (s *RiskExplorerService) getImageScanDetail(ctx context.Context, container *ContainerDetail) (model.SimpleImageDetail, error) {
+	var tmpLibary, tmpFullRepoName string
+	repo := strings.Replace(container.Repository, "http://", "", 1)
+	repo = strings.Replace(container.Repository, "https://", "", 1)
+	idx := strings.Index(repo, "/")
+	if idx > 0 {
+		tmpLibary = repo[:idx]
+		tmpFullRepoName = repo[idx+1:]
+	} else {
+		tmpLibary = repo
+		tmpFullRepoName = ""
 	}
-	filter := bson.M{
-		"isDeleted": false,
-		"cluster":   cluster,
-		"namespace": namespace,
-		"podName":   bson.M{"$in": podNames},
-	}
-	findOptions := options.Find().SetMaxTime(time.Second * 1)
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*1)
-	defer mongoCtxCancel()
-	cursor, err := s.mongoDB.Get().Collection(model.AssetsContainersCollection.String()).Find(mongoCtx, filter, findOptions)
+	url := fmt.Sprintf("%s/api/v1/scan/reportsBySimpleImageDetails/?full_repo_name=%s&library=%s&tag=%s", s.scannerURL, tmpFullRepoName, tmpLibary, container.RepoTag)
+	resp, err := http.Get(url)
 	if err != nil {
-		return nil, apperror.NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Couldn't get containers: %w", err))
+		logging.GetLogger().Err(err).Msgf("getImageScanDetail http get error. url: %s", url)
+		return model.SimpleImageDetail{}, err
 	}
-	defer func() {
-		if err := cursor.Close(ctx); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("When closing cursor, but ignoring.")
+
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		logging.GetLogger().Error().Msgf("getImageScanDetail http get error. url: %s status code: %d", url, resp.StatusCode)
+		return model.SimpleImageDetail{}, errors.New("http code not 200")
+	}
+
+	resScanImage := imageInfo{}
+	err = json.NewDecoder(resp.Body).Decode(&resScanImage)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("get image scan decode error")
+		return model.SimpleImageDetail{}, err
+	}
+	return resScanImage.Data.Item, nil
+}
+
+func (s *RiskExplorerService) ResourceDetail(ctx context.Context, clusterKey, namespace, resourceKind, resourceName string) (*ResourceDetail, error) {
+
+	resSvc, _ := assetsSvc.GetResourcesService(ctx)
+	containers, _, err := resSvc.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCluster(clusterKey).WithNamespace(namespace).WithResourceKind(assets.ResourceKind(resourceKind)).WithResourceName(resourceName), 0, 100)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("get resource containers in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
+		return nil, err
+	}
+	pods, err := resSvc.GetResourcePods(ctx, clusterKey, namespace, resourceKind, resourceName)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("get resource pods in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
+	}
+	rdetail := new(ResourceDetail)
+	rdetail.Containers = make([]*ContainerDetail, len(containers))
+	for i, container := range containers {
+		rdetail.Containers[i] = new(ContainerDetail)
+		repo, tag := getRepositoryAndTagFromImage(container.Image)
+		rdetail.Containers[i].Repository = repo
+		rdetail.Containers[i].RepoTag = tag
+		rdetail.Containers[i].InstancesRunning = make([]NodeInfo, len(pods))
+		for j, pod := range pods {
+			rdetail.Containers[i].InstancesRunning[j] = NodeInfo{
+				Node:    pod.HostIP,
+				PodName: pod.PodName,
+			}
 		}
-	}()
-
-	svcDetail := new(ServiceDetail)
-
-	for _, dhandle := range detailHandlers {
-		msg, err := dhandle.ServiceDetails(ctx)
+		imageDetail, err := s.getImageScanDetail(ctx, rdetail.Containers[i])
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("service detail err.")
+			logging.GetLogger().Err(err).Msgf("get image scan detail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
 			continue
 		}
-		if len(msg) > 0 {
-			svcDetail.RiskItems = append(svcDetail.RiskItems, &RiskTypeDetail{
-				RiskType: string(dhandle.Key()),
-				RiskData: msg,
+		imageVulnsData, ok := getImageVulnsRiskData(ctx, imageDetail.Vulnerabilities, imageDetail.Sensitives)
+		if ok {
+			rdetail.Containers[i].RiskItems = append(rdetail.Containers[i].RiskItems, &RiskTypeDetail{
+				RiskType: string(KeyImageVulns),
+				RiskData: imageVulnsData,
 			})
 		}
 	}
 
-	contMap := make(map[string]*ContainerDetail, 2)
-	foundAny := false
-	for cursor.Next(ctx) {
-		foundAny = true
-
-		var container model.AssetContainer
-		err := cursor.Decode(&container)
-		if err != nil {
-			return nil, apperror.NewMongoError(http.StatusInternalServerError,
-				fmt.Errorf("Couldn't decode document: %w", err))
-		}
-
-		nameDigest := fmt.Sprintf("%s@%s", container.Name, container.Digest)
-		var tmpLibrary string
-		if strings.Contains(container.Image, "http") == false {
-			lastIndex := strings.Index(container.Image, "/")
-			if lastIndex == -1 {
-				tmpLibrary = "https://" + container.Image
-			} else {
-				tmpLibrary = "https://" + container.Image[:lastIndex]
-			}
-		} else {
-			lastIndex := strings.Index(container.Image, "/")
-			if lastIndex == -1 {
-				tmpLibrary = container.Image
-			} else {
-				tmpLibrary = container.Image[:lastIndex]
-			}
-		}
-		tmpFullRepoName := container.Repository[strings.Index(container.Repository, "/")+1:]
-		resp, err := http.Get(scannerUrl + "/api/v1/scan/reportsBySimpleImageDetails/?" + "digest=" + container.Digest +
-			"&full_repo_name=" + tmpFullRepoName + "&library=" + tmpLibrary + "&tag=" + container.Tag)
-		if err != nil {
-			continue
-		}
-		resScanImage := tmpInfo{}
-		fmt.Println(resp.Body)
-		err = json.NewDecoder(resp.Body).Decode(&resScanImage)
-		resp.Body.Close()
-		if err != nil {
-			fmt.Println("解析失败:", err)
-			resScanImage = tmpInfo{}
-		} else {
-			fmt.Println("解析后after:", resScanImage.Data.Item.Vulnerabilities)
-		}
-		var contDetail *ContainerDetail
-		var ok bool
-		if contDetail, ok = contMap[nameDigest]; !ok {
-			contDetail = &ContainerDetail{
-				Name:                container.Name,
-				Digest:              container.Digest,
-				Repository:          container.Repository,
-				RepoTag:             container.Tag,
-				InstancesRunning:    make([]NodeInfo, 0, 10),
-				InstancesTerminated: make([]NodeInfo, 0),
-				InstancesWaiting:    make([]NodeInfo, 0, 0),
-				RiskItems:           make([]*RiskTypeDetail, 0, len(s.reporters)),
-			}
-			imageVulnsData, ok := getImageVulnsRiskData(ctx, &container, resScanImage.Data.Item.Vulnerabilities, resScanImage.Data.Item.Sensitives)
-			if ok {
-				contDetail.RiskItems = append(contDetail.RiskItems, &RiskTypeDetail{
-					RiskType: string(KeyImageVulns),
-					RiskData: imageVulnsData,
-				})
-			}
-
-			contMap[nameDigest] = contDetail
-		}
-
-		node := NodeInfo{
-			PodName: container.PodName,
-			Node:    container.Node,
-		}
-
-		if container.State == "Terminated" {
-			contDetail.InstancesTerminated = append(contDetail.InstancesTerminated, node)
-		} else if container.State == "Running" {
-			contDetail.InstancesRunning = append(contDetail.InstancesRunning, node)
-		} else {
-			contDetail.InstancesWaiting = append(contDetail.InstancesWaiting, node)
-		}
-	}
-
-	err = cursor.Err()
-	if err != nil {
-		return nil, apperror.NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("Cursor error: %w", err))
-	}
-
-	if !foundAny {
-		return nil, apperror.NewMongoError(http.StatusNotFound,
-			fmt.Errorf("Such resource has no containers"))
-	}
-
-	svcDetail.Containers = make([]*ContainerDetail, len(contMap))
-	i := 0
-	for _, contDetail := range contMap {
-		svcDetail.Containers[i] = contDetail
-		i++
-
-		for _, dhandler := range detailHandlers {
-			raw, err := dhandler.ContainerDetails(ctx, contDetail.Name, contDetail.Digest)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("get cont detail for %s/%s errored for reporter %s", contDetail.Name, contDetail.Digest, dhandler.Key())
-				continue
-			}
-			if len(raw) > 0 {
-				contDetail.RiskItems = append(contDetail.RiskItems, &RiskTypeDetail{
-					RiskType: string(dhandler.Key()),
-					RiskData: raw,
-				})
-			}
-		}
-	}
-
-	return svcDetail, nil
+	return rdetail, nil
 }

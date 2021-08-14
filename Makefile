@@ -260,6 +260,8 @@ migrate: generate		## Build scanner binary
 .PHONY: image-validate
 image-validate: generate
 	@echo "build image-validate"
+	go build -v \
+		-o dist/image-validator gitlab.com/piccolo_su/vegeta/cmd/image-validate
 	docker build -t $(REPOPREFIX)/tensorsec-image-validator:latest -f ./build/image-validate/Dockerfile .
 
 .PHONY: all

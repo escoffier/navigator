@@ -35,7 +35,7 @@ func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint,
 	var res []SyncRepoImage
 	for i := range config {
 		var tls int
-		if config[i].Registry.Options["skiptlsverify"].(bool) == true {
+		if config[i].Registry.Options["skiptlsverify"].(bool) {
 			tls = 1
 		} else {
 			tls = 0
@@ -109,7 +109,7 @@ func (s *SyncRepoImage) Run(extender registry.ImageListExtender, wg *sync.WaitGr
 		time.Sleep(time.Duration(s.syncInterval) * time.Second)
 	}
 
-	return nil
+	//return nil
 }
 
 func TransImageToImagelist(r SyncRepoImage, image registry.Image) model.ImageList {

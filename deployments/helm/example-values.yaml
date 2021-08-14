@@ -135,6 +135,10 @@ image-validator:
     #tag: 1.6.8
     tag: *tensorsecVerison
 
+webhook:
+  image:
+    tag: *tensorsecVerison
+
 redis-ha:
   persistentVolume:
     enabled: *persistenceStorage

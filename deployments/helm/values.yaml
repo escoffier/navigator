@@ -71,7 +71,7 @@ scanner:
       # nodePort:
     
 drift-prevention:
-  enabled: true
+  enabled: false
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
@@ -381,6 +381,13 @@ holmes:
       readOnly: true
 
 image-validator:
+  enabled: false
+  image:
+    registry: "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
+
+webhook:
   enabled: true
   image:
     registry: "{{ .Values.global.image.registry }}"

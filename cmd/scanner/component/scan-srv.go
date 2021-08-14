@@ -6,9 +6,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -34,11 +34,11 @@ const (
 	PkgType           = "pkg_info_json"
 	SensitiveFileType = "sensitive_file_json"
 	MaliciousInfoType = "malicious_info_json"
+	DaoTimeOut        = 30 * time.Second
 )
 
 type ScannerSrv interface {
 	CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error
-	SearchAssetsContainers(ctx context.Context, digests []string, filter *model.Filter) ([]model.AssetContainer, int64, error)
 	SearchImages(ctx context.Context, searchWord, kind string, isOnline bool, filter *model.Filter) ([]model.ImageList, int64, error)
 	GetImageDetail(ctx context.Context, imgId int64) (*model.ImageList, error)
 	GetImageOverView(ctx context.Context, registerUrl string) (*model.OverView, error)
@@ -52,8 +52,8 @@ type ScannerSrv interface {
 	ListImgLayers(ctx context.Context, imgDigest string, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayer, error)
 	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
+	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
 	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
-	GetRelationImage(ctx context.Context, vulnImageLists []model.VulnImageList) ([]model.VulnDetailContainer, error)
 	GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail
 	GetPolicyConfig(ctx context.Context) (model.RejectPolicyConfigResponse, error)
 	AddSinglePolicy(ctx context.Context, policy model.RejectPolicyConfigResponse) (int64, error)
@@ -74,16 +74,16 @@ type ConScannerSrv struct {
 }
 
 func (s *ConScannerSrv) ListRegistry(ctx context.Context, noPolice bool) ([]model.Registry, int64, error) {
-	registries, i, err := s.dbdal.SearchRegistry(store.SearchRegistryParam{}, nil)
+	registries, i, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, "ListRegistry error %s", err.Error())
+		logging.GetLogger().Err(err).Msgf("ListRegistry SearchRegistry error %s", err.Error())
 		return nil, 0, response.NewHttpError(http.StatusBadRequest, err)
 	}
 	// 只返回还没有配置策略的仓库
 	if noPolice {
-		policies, err := s.dbdal.SearchRejectPolicy(store.SearchRejectPolicyParam{})
+		policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{})
 		if err != nil {
-			s.log.WithContext(ctx).Errorf(err, "查询配置策略出错")
+			logging.GetLogger().Err(err).Msgf("get reject policy error")
 			return registries, i, nil
 		}
 		exit := make(map[string]bool)
@@ -113,107 +113,42 @@ func (s *ConScannerSrv) AddGlobalPolicyConfig(ctx context.Context, policy model.
 	s.dbdal.AddGlobalPolicyConfig(ctx, tmpPolicy)
 }
 
-func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
+func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
 	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
 	var flag bool = true
-	if len(containerInfo) == 0 || len(resConfig) == 0 {
-		return true
-	}
-	if strings.Contains(containerInfo[0].FromType, "k8s") && resConfig[0].K8sEnable == false {
-		return true
-	} else if strings.Contains(containerInfo[0].FromType, model.UsePatternForOnline) && resConfig[0].OnlineMonitor == false {
-		return true
-	}
-
 	msgType := consts.AlertKindK8s
-	detectType := model.UsePatternForK8s
-
-	if strings.Contains(strings.ToLower(containerInfo[0].FromType), "k8s") {
-		msgType = consts.AlertKindK8s
-		detectType = model.UsePatternForK8s
-	} else if strings.ToLower(containerInfo[0].FromType) == model.UsePatternForOnline {
-		msgType = consts.AlertKindOnline
-		detectType = model.UsePatternForOnline
-	}
-
 	for k := range containerInfo {
-		newLibrary := s.GetImageLibrary(containerInfo[k].Image)
-		tmpImage := containerInfo[k].Image
-		ref, err := name.ParseReference(tmpImage)
+		tmpImage, err := s.GetImageLibraryNameTag(containerInfo[k].Image)
 		if err != nil {
-			s.log.WithContext(ctx).Infof("解析image:%s出错：%s", tmpImage, err.Error())
+			logging.GetLogger().Info().Msgf("K8sDeployDetect parsing image:%s error %s", containerInfo[k].Image, err.Error())
 			continue
 		}
-		tag := ref.Identifier()
-		repositoryName := ref.Context().RepositoryStr()
-		tmpImageList := model.ImageList{
-			Library:      newLibrary,
-			FullRepoName: repositoryName,
-			Tags:         tag,
-		}
-		if newLibrary == "" {
+		tmpImage.Digest = containerInfo[k].Digest
+
+		if tmpImage.Library == "" {
 			flag = false
 			// 存储阻断记录
-			s.CreateSafeReject(ctx, tmpImageList, msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
+			s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
 			continue
 		}
-		httpLibrary := newLibrary
-		httpsLibrary := newLibrary
-		if !strings.Contains(newLibrary, "http://") && !strings.Contains(newLibrary, "https://") {
-			httpsLibrary = "https://" + newLibrary
-			httpLibrary = "http://" + newLibrary
+
+		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+			Libraries: []string{tmpImage.Library, "https://" + tmpImage.Library, "http://" + tmpImage.Library},
+			Tag:       tmpImage.Tags, FullRepoName: tmpImage.FullRepoName}, nil)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("search image error")
+			return false
 		}
-		tmpHttpImageList := model.ImageList{
-			FullRepoName: repositoryName,
-			Tags:         tag,
-			Library:      httpLibrary,
-			Digest:       containerInfo[k].Digest,
-		}
-		tmpHttpsImageList := model.ImageList{
-			FullRepoName: repositoryName,
-			Tags:         tag,
-			Library:      httpsLibrary,
-			Digest:       containerInfo[k].Digest,
-		}
-		s.log.WithContext(ctx).Infof("收到的镜像为 HTTP:%v HTTPS:%v", tmpHttpImageList, tmpHttpsImageList)
-		isHttpInDB := s.dbdal.IsInRegistry(ctx, httpLibrary)
-		isHttpsInDB := s.dbdal.IsInRegistry(ctx, httpsLibrary)
-		if isHttpInDB == false && isHttpsInDB == false && resConfig[0].Mode == "safe" && msgType == consts.AlertKindK8s {
-			s.CreateSafeReject(ctx, tmpHttpsImageList, msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
-			flag = false
-			continue
-		}
-		if isHttpInDB {
-			tmpImageList = tmpHttpImageList
-		} else {
-			tmpImageList = tmpHttpsImageList
-		}
-		img := s.dbdal.GetK8sRejectImageList(ctx, tmpImageList)
-		if img == nil {
-			if resConfig[0].Mode == model.RejectPolicySafeModel && msgType == consts.AlertKindK8s {
-				s.CreateSafeReject(ctx, tmpImageList, msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
+
+		if len(imgs) == 0 {
+			if resConfig[0].Mode == model.RejectPolicySafeModel {
+				s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.RejectNoLibraryZH)
 				flag = false
 			}
-			if detectType == model.UsePatternForOnline {
-				msgZh := fmt.Sprintf("镜像：%s/%s:%s 未查到对应镜像", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)
-				msgEN := fmt.Sprintf("image:%s%s:%s no image found", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)
-				msg := model.NewReqBody(
-					model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
-					model.NotifyContext{
-						ServiceID: fmt.Sprintf("%s/%s:%s(image)", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags),
-						CustomKV:  []model.KVHashs{model.KVHashs{KVHash: model.KVHash{ZH: model.NewKeyValue(model.RejectNoLibraryZH, msgZh), EN: model.NewKeyValue(model.RejectNoLibraryEN, msgEN)}}}},
-					generateUUId(tmpImageList, msgType, consts.EventIntervalUUID),
-				)
-				if err := sendMsgToEventcenter(ctx, msg); err != nil {
-					s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
-				}
-				s.log.WithContext(ctx).Infof("在线镜像监控，%s,发消息到事件中心", msgZh)
-			}
-
 			continue
 		}
-		safe, records, msgs, _ := s.DetectImage(ctx, img.ID, detectType, img.Library)
-		// 发送消息
+		img := imgs[0]
+		safe, records, msgs, _ := s.DetectImageForK8s(ctx, imgs[0].ID, img.Library)
 		if len(msgs) > 0 {
 			notify := model.NotifyContext{
 				ServiceID: fmt.Sprintf("%s/%s:%s(image)", img.Library, img.FullRepoName, img.Tags),
@@ -227,33 +162,102 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 				notify.Namespace = containerInfo[k].NotifyContext.Namespace
 				notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
 			}
-			if msgType == consts.AlertKindOnline {
-				notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
-					EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
-					ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
-				}})
-				notify.ServiceID = ""
-			}
+			notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
+				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
+				ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
+			}})
+			notify.ServiceID = ""
 
-			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), notify, generateUUId(*img, msgType, consts.EventIntervalUUID))
+			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), notify, generateUUId(img, msgType, consts.EventIntervalUUID))
 			if err := sendMsgToEventcenter(ctx, msg); err != nil {
-				s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错,msgType:%s error:%s", msgType, err.Error())
+				logging.GetLogger().Err(err).Msgf("TickOnlineScan sendMsgToEventcenter sending message to event center, msg Type: %s error:%s", msgType, err.Error())
 			}
 		}
 		// 存储阻断记录
-		if !safe && len(records) > 0 && msgType == consts.AlertKindK8s {
-			res := mergeRejectRecord(*img, records)
-			if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
-				s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
+		if !safe && len(records) > 0 {
+			res := mergeRejectRecord(img, records)
+			if _, err := s.dbdal.CreateRejectRecord(ctx, res); err != nil {
+				logging.GetLogger().Err(err).Msgf("TickOnlineScan CreateRejectRecord create record error %s", err.Error())
 			}
 		}
 
-		if safe == false {
+		if !safe {
 			flag = false
 		}
 	}
 	return flag
+}
 
+func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
+	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
+	if len(containerInfo) == 0 || len(resConfig) == 0 {
+		return true
+	}
+	if strings.Contains(containerInfo[0].FromType, "k8s") && !resConfig[0].K8sEnable {
+		return true
+	} else if strings.Contains(containerInfo[0].FromType, model.UsePatternForOnline) && !resConfig[0].OnlineMonitor {
+		return true
+	}
+
+	if strings.Contains(containerInfo[0].FromType, "k8s") {
+		return s.K8sDeployDetect(ctx, containerInfo)
+	}
+	if containerInfo[0].FromType == model.UsePatternForOnline {
+		s.K8sOnlineMonitor(ctx, containerInfo)
+		return true
+	}
+	return true
+}
+
+// K8sOnlineMonitor  k8s在线监控时的镜像检测
+func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) {
+	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
+	if len(containerInfo) == 0 || len(resConfig) == 0 || !resConfig[0].OnlineMonitor {
+		return
+	}
+
+	for k := range containerInfo {
+		tmpImageList, err := s.GetImageLibraryNameTag(containerInfo[k].Image)
+		if err != nil {
+			logging.GetLogger().Info().Msgf("K8sOnlineMonitor parsing image:%s error %s", containerInfo[k].Image, err.Error())
+			continue
+		}
+		tmpImageList.Digest = containerInfo[k].Digest
+
+		if tmpImageList.Library == "" {
+			// 存储阻断记录
+			s.CreateSafeReject(ctx, *tmpImageList, consts.AlertKindOnline, model.RejectNoLibrary, model.RejectNoLibraryZH)
+			continue
+		}
+
+		// 进行检测
+		_, _, msgs, _ := s.DetectImageForK8sOnlineMonitor(ctx, *tmpImageList)
+		// 发送消息
+		if len(msgs) > 0 {
+			notify := model.NotifyContext{
+				CustomKV: msgs,
+			}
+
+			if containerInfo[k].NotifyContext != nil {
+				notify.PodName = containerInfo[k].NotifyContext.PodName
+				notify.PodUID = containerInfo[k].NotifyContext.PodUID
+				notify.Cluster = containerInfo[k].NotifyContext.Cluster
+				notify.Namespace = containerInfo[k].NotifyContext.Namespace
+				notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
+			}
+			notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
+				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)},
+				ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)},
+			}})
+
+			msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindOnline, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
+				notify, generateUUId(*tmpImageList, consts.AlertKindOnline, consts.EventIntervalUUID))
+			if err := sendMsgToEventcenter(ctx, msg); err != nil {
+				logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor sendMsgToEventcenter sending message to event center, msg Type: %s error:%s", consts.AlertKindOnline, err.Error())
+			}
+		}
+	}
+	// return
 }
 
 func (s *ConScannerSrv) AddPolicyConfig(ctx context.Context, policy model.RejectPolicyConfigResponse) {
@@ -270,10 +274,10 @@ func (s *ConScannerSrv) AddPolicyConfig(ctx context.Context, policy model.Reject
 }
 
 func (s *ConScannerSrv) AddSinglePolicy(ctx context.Context, policy model.RejectPolicyConfigResponse) (int64, error) {
-	tmpPolicy := model.RejectPolicy{}
-	tmpPolicy = policy.Polices[0]
+	// tmpPolicy := model.RejectPolicy{}
+	tmpPolicy := policy.Polices[0]
 	for k := range tmpPolicy.Library {
-		if strings.Contains(policy.Polices[0].Library[k], "http://") == false && strings.Contains(policy.Polices[0].Library[k], "https://") == false {
+		if !strings.Contains(policy.Polices[0].Library[k], "http://") && !strings.Contains(policy.Polices[0].Library[k], "https://") {
 			policy.Polices[0].Library[k] = "https://" + policy.Polices[0].Library[k]
 		}
 	}
@@ -315,7 +319,10 @@ func (s *ConScannerSrv) GetPolicyConfig(ctx context.Context) (model.RejectPolicy
 		res.Mode = PolicyRes[0].Mode
 		res.Polices = PolicyRes
 		for k := range PolicyRes {
-			json.Unmarshal(PolicyRes[k].LibraryJSON, &res.Polices[k].Library)
+			err := json.Unmarshal(PolicyRes[k].LibraryJSON, &res.Polices[k].Library)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("GetPolicyConfig JsonUnmarshal error %v", err)
+			}
 		}
 		// res.Polices = PolicyRes
 	} else {
@@ -334,12 +341,12 @@ func (s *ConScannerSrv) GetPolicyConfig(ctx context.Context) (model.RejectPolicy
 func (s *ConScannerSrv) CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error {
 	regi, err := s.getRegistry(ctx, "", model.RegistryUseTypeBuff)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("can not connect harborV2"))
-		return response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
+		logging.GetLogger().Err(err).Msgf("can not connect harborV2")
+		return response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
 	}
 	if err := regi.CheckProject(projectName); err != nil {
 		if err := regi.CreateProject(projectName, true); err != nil {
-			return response.NewHttpError(http.StatusInternalServerError, errors.New(fmt.Sprintf("can not create project error is %s", err.Error())))
+			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(fmt.Sprintf("can not create project error is %s", err.Error())))
 		}
 	}
 	return nil
@@ -347,30 +354,36 @@ func (s *ConScannerSrv) CheckProjectAndCreateIfNotExist(ctx context.Context, lib
 
 func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error) {
 
-	img, _, err := s.dbdal.SearchImage(store.SearchImageParam{Ids: []int64{req.ImageID}}, nil)
+	img, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{req.ImageID}}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Infof("CICD 查询镜像详情出错:%s", err.Error())
+		logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult search image detail error :%s", err.Error())
 		return nil, err
 	}
 	if len(img) == 0 {
-		s.log.WithContext(ctx).Infof("CICD 未查询到对应的镜像:%s/%s", req.Library, req.ImageID)
+		logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult has not search the image :%s/%d", req.Library, req.ImageID)
 		return nil, err
 	}
-	scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{req.ImageID}, NoStatus: model.ScanStatusInProgress}, nil)
+	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{req.ImageID}, NoStatus: model.ScanStatusInProgress}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Infof("CICD 查询扫描结果出错,%s", err.Error())
+		logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult search scan_image error:%s", err.Error())
 		return nil, err
 	}
 	if len(scanImage) == 0 {
-		s.log.WithContext(ctx).Infof("CICD 正在扫描中")
-		return nil, errors.New("CICD 镜像正在扫描中")
+		logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult scanning")
+		return nil, fmt.Errorf("CICD 镜像正在扫描中")
 	}
 	imgDetail, _ := s.GetImageDetail(ctx, req.ImageID)
 
-	safe, records, msgs, err := s.DetectImage(ctx, req.ImageID, model.UsePatternForCICD, req.Library)
+	safe, records, msgs, err := s.DetectImageForCICD(ctx, req.ImageID, req.Library)
 	// 向事件中心发送消息
 	if len(msgs) > 0 {
-		s.log.WithContext(ctx).Infof("CICD 检测完毕，向事件中心发送消息")
+		logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult detect complete,send message to the event center")
+
+		msgs = append(msgs, model.KVHashs{KVHash: model.KVHash{
+			EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img[0].Library, img[0].FullRepoName, img[0].Tags)},
+			ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img[0].Library, img[0].FullRepoName, img[0].Tags)},
+		}})
+
 		msg := model.NewReqBody(
 			model.NewEventCenterRule(consts.AlertKindCICD, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
 			model.NotifyContext{
@@ -380,26 +393,26 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 		)
 
 		if err := sendMsgToEventcenter(ctx, msg); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "CICD 发送消息到事件中心出错 error:%s", err.Error())
+			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult sending message to event center error:%s", err.Error())
 		}
 	}
 	// 存储阻断记录
-	s.log.WithContext(ctx).Infof("CICD 检测完毕，镜像：%s/%s:%s 安全：%t,records条数:%d,msg条数：%d", req.Library, img[0].FullRepoName, img[0].Tags, safe, len(records), len(msgs))
+	logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult detect complete, image: %s%s:%s safe: %t, length of records: %d, length of msg: %d", req.Library, img[0].FullRepoName, img[0].Tags, safe, len(records), len(msgs))
 	if !safe && len(records) > 0 {
-		s.log.WithContext(ctx).Infof("CICD 检测完毕,镜像被阻断，存储阻断记录")
+		logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult detect completed ,blocked, insert reject record")
 		res := mergeRejectRecord(img[0], records)
 		res.Library = req.Library
-		if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
+		if _, err := s.dbdal.CreateRejectRecord(ctx, res); err != nil {
+			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult insert reject record error %s", err.Error())
 		}
 	}
 	if !safe {
 		// 删除记录
-		if err := s.dbdal.DeleteImage(store.DeleteImageParam{ImageId: req.ImageID}); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "CICD 删除记录Image记录出错 error %s", err.Error())
+		if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{ImageId: req.ImageID}); err != nil {
+			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete tensor_image_list record error %s", err.Error())
 		}
-		if err := s.dbdal.DeleteScanImage(store.DeleteScanImageParam{ImageId: req.ImageID}); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "CICD 删除记录ScanImage记录出错 error %s", err.Error())
+		if err := s.dbdal.DeleteScanImage(ctx, store.DeleteScanImageParam{ImageId: req.ImageID}); err != nil {
+			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete scan_image record error %s", err.Error())
 		}
 	}
 
@@ -415,7 +428,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	// cicd集成时，首先会把公司镜像推送到我们自己搭建的仓库中(默认docker-registry),然后拉取镜像进行扫描，
 	// 通过library查registryID
 	if req == nil {
-		return nil, errors.New("CICD no ScanOneForCICD req")
+		return nil, fmt.Errorf("CICD no ScanOneForCICD req")
 	}
 	hasHttp := strings.Contains(req.Image, "http://")
 	hasHttps := strings.Contains(req.Image, "https://")
@@ -427,21 +440,22 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	} else if hasHttps || (!hasHttps && !hasHttp) {
 		lib = "https://" + lib
 	}
-	s.log.WithContext(ctx).Infof("CICD 流程解析到镜像:%s/%s:%s", lib, repo, tag)
-	regs, _, err := s.dbdal.SearchRegistry(store.SearchRegistryParam{UseType: model.RegistryUseTypeBuff}, nil)
+	logging.GetLogger().Info().Msgf("CICD parsed the image: %s%s:%s", lib, repo, tag)
+	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.RegistryUseTypeBuff}, nil)
+
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("CICD 没有配置CICD中转仓库,请配置"))
-		return nil, response.NewHttpError(http.StatusPreconditionFailed, errors.New("can not find the RegistryUseTypeBuff library"))
+		logging.GetLogger().Err(err).Msgf("CICD find the BuffRegistry library error")
+		return nil, response.NewHttpError(http.StatusPreconditionFailed, fmt.Errorf("can not find the RegistryUseTypeBuff library"))
 	}
 	if len(regs) == 0 {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("CICD 没有配置CICD中转仓库,请配置"))
-		return nil, response.NewHttpError(http.StatusPreconditionFailed, errors.New("can not find the RegistryUseTypeBuff library"))
+		logging.GetLogger().Err(err).Msgf("CICD can not find the BuffRegistry library")
+		return nil, response.NewHttpError(http.StatusPreconditionFailed, fmt.Errorf("can not find the RegistryUseTypeBuff library"))
 	}
-	s.log.WithContext(ctx).Infof("CICD 流程查询到使用的中转registry:%s", regs[0].Url)
+	logging.GetLogger().Info().Msgf("CICD BuffRegistry registry is :%s", regs[0].Url)
 	regi, err := s.getRegistry(ctx, "", model.RegistryUseTypeBuff)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, "CICD 连接中转仓库失败:%s", regs[0].Url)
-		return nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("CICD can not connect docker-registry error is %s", err.Error())))
+		logging.GetLogger().Err(err).Msgf("CICD  connection BuffRegistry error :%s", regs[0].Url)
+		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("CICD can not connect docker-registry error is %s", err.Error())))
 	}
 	projectName, repoName := "", repo
 	split := strings.Split(repo, "/")
@@ -449,13 +463,13 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		projectName = split[0]
 		repoName = strings.Join(split[1:], "/")
 	}
-	s.log.WithContext(ctx).Infof(fmt.Sprintf("CICD ScanOneForCICD library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
+	logging.GetLogger().Info().Msgf(fmt.Sprintf("CICD ScanOneForCICD library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
 	image, err := regi.GetImage(projectName, repoName, tag)
 	if err != nil {
-		s.log.WithContext(ctx).Infof(fmt.Sprintf("CICD 拉取中转仓库中的镜像失败 library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
+		logging.GetLogger().Info().Msgf(fmt.Sprintf("CICD pull the image from BuffRegistry erorr，library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
 		return nil, err
 	}
-	s.log.WithContext(ctx).Infof("CICD 拉取到中转仓库的镜像，进行扫描：%s/%s:%s", regs[0].Url, image.Repository, image.Tag)
+	logging.GetLogger().Info().Msgf("CICD pull image from BuffRegistry: %s%s:%s", regs[0].Url, image.Repository, image.Tag)
 	img := model.ImageList{
 		FullRepoName:   image.Repository,
 		Tags:           image.Tag,
@@ -473,37 +487,35 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		FromType:       model.ImageFromTypeCICD,
 	}
 	// 同步镜像到数据库
-	imgId, err := s.scannerDB.InsertImageList(img)
+	imgId, err := s.scannerDB.InsertImageList(ctx, img)
 	if err != nil && !strings.Contains(err.Error(), "duplicate key") {
-		s.log.WithContext(ctx).Infof(fmt.Sprintf("CICD 同步镜像到数据库出错 library:%s,projectName:%s,repoName:%s,tag:%s,error is :%s", regs[0].Url, projectName, repoName, tag, err.Error()))
+		logging.GetLogger().Err(err).Msgf("CICD insert image tensor_image_list error image %s/%s:%s", regs[0].Url, img.FullRepoName, tag)
 		return nil, err
 	}
 	// 下达扫描指令,这里会去拉取镜像，所以只能存中转镜像的library
-	s.log.WithContext(ctx).Infof("CICD 下达扫描指令,imagId:%d,镜像名:%s/%s:%s", imgId, regs[0].Url, image.Repository, image.Tag)
+	logging.GetLogger().Info().Msgf("CICD start scan,imagId:%d,image:%s/%s:%s", imgId, regs[0].Url, image.Repository, image.Tag)
 
 	if err := s.TickScanOne(ctx, imgId, "", consts.ScanTaskComeFromCICD); err != nil {
-		s.log.WithContext(ctx).Errorf(err, "CICD 下达扫描指令失败,imagId:"+strconv.Itoa(int(imgId)))
+		logging.GetLogger().Err(err).Msgf("CICD TickScanOne failure, imag Id:" + strconv.Itoa(int(imgId)))
 		// 这里不返回，因为后面要删除记录
 	}
 	// 更新library,这一步的目的是为了下面在做镜像扫描时能通过library找到相关的策略
 	update := map[string]interface{}{"library": lib}
 
 	// 先删除原来的，再更新现在的,不然就会存在更新失败的情况
-	if err := s.dbdal.DeleteImage(store.DeleteImageParam{
+	if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{
 		FullRepoName: img.FullRepoName,
 		Tags:         img.Tags,
 		Library:      lib,
 		FromType:     model.ImageFromTypeCICD,
 	}); err != nil {
-		// 如果出错，不会影响主逻辑，不需要返回
-		s.log.WithContext(ctx).Errorf(err, "CICD 删除原Image记录出错 error %s", err.Error())
+		logging.GetLogger().Err(err).Msgf("CICD delete pre image error %s", err.Error())
 		return nil, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
-	if err := s.dbdal.UpdateImage(fmt.Sprintf("id = %d", imgId), update); err != nil {
-		s.log.WithContext(ctx).Errorf(err, "CICD 更新记录Image记录出错 error %s", err.Error())
+	if err := s.dbdal.UpdateImage(ctx, fmt.Sprintf("id = %d", imgId), update); err != nil {
+		logging.GetLogger().Err(err).Msgf("CICD update tensor_image_list library error %s", err.Error())
 	}
-	s.log.WithContext(ctx).Infof("CICD scanOne流程结束，返回结果")
 	return &model.ScanOneCICDResultRequest{
 		ImageID: imgId,
 		Library: lib,
@@ -515,8 +527,8 @@ func (s *ConScannerSrv) GetSimpleImageDetail(ctx context.Context, tag string, di
 	return res
 }
 
-func (s *ConScannerSrv) GetRelationImage(ctx context.Context, vulnImageLists []model.VulnImageList) ([]model.VulnDetailContainer, error) {
-	res, err := s.dbdal.GetRelationImage(ctx, vulnImageLists)
+func (s *ConScannerSrv) GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error) {
+	res, err := s.dbdal.GetImagesFromVuln(ctx, name)
 	return res, err
 }
 
@@ -551,14 +563,14 @@ func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (model.VulnOverview
 
 // ImgLayerInfo Get detailed information about  the layer
 func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayer, error) {
-	layers, _, err := s.dbdal.SearchScanLayer(store.SearchScanLayerParam{LayerDigests: []string{layerDigest}}, filter)
+	layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: []string{layerDigest}}, filter)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("ReportImgBackInfo.SearchScanLayer error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ReportImgBackInfo.SearchScanLayer error:%s", err.Error()))
 		return nil, response.NewHttpError(http.StatusBadRequest, err)
 	}
 	if len(layers) == 0 {
-		s.log.WithContext(ctx).Errorf(err, "ImgLayerInfo.SearchScanLayer not fond the image layer")
-		return nil, response.NewHttpError(http.StatusBadRequest, errors.New("not fond the layer"))
+		logging.GetLogger().Err(err).Msgf("ImgLayerInfo.SearchScanLayer not fond the image layer")
+		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond the layer"))
 	}
 	return &layers[0], nil
 }
@@ -566,14 +578,14 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, layerDigest string, fi
 // ListImgLayers List  all layers  information  with  this image. order by created time
 func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imgDigest string, filter *model.Filter) ([]model.ReportImgBackInfo, error) {
 	// step1 get image info
-	imgs, _, err := s.dbdal.SearchImage(store.SearchImageParam{Digests: []string{imgDigest}}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Digests: []string{imgDigest}}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("ReportImgBackInfo.SearchImage error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ReportImgBackInfo.SearchImage error:%s", err.Error()))
 		return nil, response.NewHttpError(http.StatusBadRequest, err)
 	}
 	if len(imgs) == 0 {
-		s.log.WithContext(ctx).Errorf(err, "ReportImgBackInfo.SearchImage not fond the image")
-		return nil, response.NewHttpError(http.StatusBadRequest, errors.New("not fond thd image"))
+		logging.GetLogger().Err(err).Msgf("ReportImgBackInfo.SearchImage not fond the image")
+		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond thd image"))
 	}
 	// step2 组装信息
 	manifest := imgs[0].ManifestV2.Layers
@@ -615,16 +627,15 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imgDigest string, fil
 
 	// 获取各层的信息
 	if len(layerDigests) > 0 {
-		layers, _, err := s.dbdal.SearchScanLayer(store.SearchScanLayerParam{LayerDigests: layerDigests}, filter)
+		layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: layerDigests, ImageIds: []int64{imgs[0].ID}}, filter)
 		if err != nil {
-			s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("ReportImgBackInfo.SearchScanLayer error:%s", err.Error()))
+			logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ReportImgBackInfo.SearchScanLayer error:%s", err.Error()))
 			return nil, response.NewHttpError(http.StatusBadRequest, err)
 		}
-		// We don't have much data, so we just loop through two levels
+
 		for i := range res {
 			for j := range layers {
 				if res[i].ImageDigest == layers[j].LayerDigest {
-					// 软件包信息，恶意文件信息
 					for k := range layers[j].VulnInfo {
 						res[i].Vulus = append(res[i].Vulus, layers[j].VulnInfo[k].ID)
 					}
@@ -647,7 +658,7 @@ func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context) harbor.ScanAllStat
 }
 
 func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
-	s.log.Info().Msg(fmt.Sprintf("全量扫描开始:%s", time.Now().Format("2006-01-02 15:04:05")))
+	logging.GetLogger().Info().Msgf(fmt.Sprintf("start of full scan:%s", time.Now().Format("2006-01-02 15:04:05")))
 	err := s.dbdal.SetAllImagePending(ctx)
 	if err != nil {
 		return err
@@ -657,14 +668,14 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 	var bathSize int64 = 1000
 	for {
 		// step1: search image_list
-		imgs, _, err := s.dbdal.SearchImage(store.SearchImageParam{BiggerID: lastID, FromType: 1}, &model.Filter{
+		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{BiggerID: lastID, FromType: model.ImageFromTypeNormal}, &model.Filter{
 			PageSize:  bathSize, // 批量取
 			PageIndex: 1,
 			SortBy:    "asc",
 			SortFiled: "id",
 		})
 		if err != nil {
-			s.log.WithContext(ctx).Errorf(err, "ScanAllNow.SearchImage error:%s", err.Error())
+			logging.GetLogger().Err(err).Msgf("ScanAllNow.SearchImage error:%s", err.Error())
 			return err
 		}
 		if len(imgs) == 0 {
@@ -675,9 +686,9 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 		for i := range imgs {
 			imgIds = append(imgIds, imgs[i].ID)
 		}
-		scanImages, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: imgIds}, nil)
+		scanImages, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imgIds}, nil)
 		if err != nil {
-			s.log.WithContext(ctx).Errorf(err, "ScanAllNow.SearchScanImage error:%s", err.Error())
+			logging.GetLogger().Err(err).Msgf("ScanAllNow.SearchScanImage error:%s", err.Error())
 			continue
 		}
 		scanImageMap := make(map[int64]*model.ScanImage)
@@ -690,7 +701,7 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 				continue
 			}
 			if err := s.TickScanOne(ctx, imgs[i].ID, fromUrl, consts.ScanTaskComeFromWeb); err != nil {
-				s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("ScanAllNow.TickScanOne error:%s", err.Error()))
+				logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ScanAllNow.TickScanOne error:%s", err.Error()))
 				continue
 			}
 		}
@@ -699,7 +710,7 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 			break
 		}
 	}
-	s.log.Info().Msg(fmt.Sprintf("全量扫描结束:%s,一共用时：%d 秒", time.Now().Format("2006-01-02 15:04:05"), time.Now().Unix()-start))
+	logging.GetLogger().Info().Msgf(fmt.Sprintf("End of full scan: %s, spend %d second", time.Now().Format("2006-01-02 15:04:05"), time.Now().Unix()-start))
 	return nil
 }
 
@@ -708,27 +719,35 @@ func (s *ConScannerSrv) TickScanOne(ctx context.Context, imgId int64, fromUrl st
 	if err != nil {
 		return err
 	}
-	s.log.Info().Msgf("task is :%v", resTask)
+
+	logging.GetLogger().Info().Msgf("TickScanOne task is :%v", resTask)
+	start := time.Now()
+
 	s.redclair.AddScanTask(resTask, comeFrom)
 	s.virusScan.AddScanTask(resVirusTask, comeFrom)
+
+	if time.Since(start) > time.Second*20 && comeFrom == consts.ScanTaskComeFromCICD {
+		logging.GetLogger().Info().Msgf("time out to send task for scan,comefrom :%d", comeFrom)
+		return fmt.Errorf("time out to send task")
+	}
 	return nil
 }
 
 func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromUrl string) (*model.ScanOneStatusResponse, error) {
 	scanStatus := "not_scan"
 	res := model.ScanOneStatusResponse{ScanStatus: scanStatus, EndTime: time.Now().Format("2006-01-02 15:04:05")}
-	imgs, _, err := s.dbdal.SearchImage(store.SearchImageParam{Ids: []int64{imgId}, Library: fromUrl}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imgId}, Library: fromUrl}, nil)
 	if err != nil {
-		s.log.Error().Msg(fmt.Sprintf("GetScanOneStatus.SearchImage error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetScanOneStatus.SearchImage error:%s", err.Error()))
 		return &res, nil
 	}
 	if len(imgs) == 0 {
 		return &res, nil
 	}
 	// 查scan_image
-	scs, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
 	if err != nil {
-		s.log.Error().Msg(fmt.Sprintf("GetScanOneStatus.SearchScanImage error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetScanOneStatus.SearchScanImage error:%s", err.Error()))
 		return &res, nil
 	}
 	if len(scs) == 0 {
@@ -763,43 +782,51 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 	return &res, nil
 }
 
-func (s *ConScannerSrv) SearchAssetsContainers(ctx context.Context, digests []string, filter *model.Filter) ([]model.AssetContainer, int64, error) {
-	cts, i, err := s.dbdal.SearchAssetsContainers(store.SearchAssetsContainersParam{Digests: digests, NotDeleted: store.TrueString}, filter)
-	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("SearchAssetsContainers.SearchAssetsContainers error:%s", err.Error()))
-		return nil, 0, response.NewHttpError(http.StatusBadRequest, err)
-	}
-	return cts, i, nil
-}
-
+// <<<<<<< HEAD
+// func (s *ConScannerSrv) SearchAssetsContainers(ctx
+// context.Context, digests[]
+// string, filter * model.Filter) ([]model.AssetContainer, int64, error) {
+// cts, i, err := s.dbdal.SearchAssetsContainers(store.SearchAssetsContainersParam{Digests: digests, NotDeleted: store.TrueString}, filter)
+// if err != nil {
+// logging.GetLogger().Err(err).Msgf(fmt.Sprintf("SearchAssetsContainers.SearchAssetsContainers error:%s", err.Error()))
+// return nil, 0, response.NewHttpError(http.StatusBadRequest, err)
+// }
+// return cts, i, nil
+// }
+//
+// ====== =
+// >>>>>>> master / dev_2_0
 func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model.ImageList, error) {
-	imgs, _, err := s.dbdal.SearchImage(store.SearchImageParam{Ids: []int64{imgId}}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imgId}}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("GetImageDetail.SearchImage error %s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetImageDetail.SearchImage error %s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	if len(imgs) == 0 {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("GetImageDetail.not find the image"))
-		return nil, response.NewHttpError(http.StatusInternalServerError, errors.New("not find the image"))
+		logging.GetLogger().Err(err).Msgf("GetImageDetail.not find the image")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not find the image"))
 	}
 
 	img := &imgs[0]
-	// 增加关联镜像的信息
-	cts, _, err := s.dbdal.SearchAssetsContainers(store.SearchAssetsContainersParam{Digests: []string{img.Digest}, NotDeleted: store.TrueString}, nil)
-	if err != nil {
-		s.log.Error().Msg(fmt.Sprintf("SearchImages.SearchAssetsContainers:error:%s", err.Error()))
-		return nil, response.NewHttpError(http.StatusGone, err)
-	}
-	img.Container = append(img.Container, cts...)
-
+	// <<<<<<< HEAD
+	// // 增加关联镜像的信息
+	// cts, _, err := s.dbdal.SearchAssetsContainers(store.SearchAssetsContainersParam{Digests: []string{img.Digest}, NotDeleted: store.TrueString}, nil)
+	// if err != nil {
+	// 	logging.GetLogger().Err(err).Msgf(fmt.Sprintf("SearchImages.SearchAssetsContainers:error:%s", err.Error()))
+	// 	return nil, response.NewHttpError(http.StatusGone, err)
+	// }
+	// img.Container = append(img.Container, cts...)
+	//
+	// ====== =
+	// >>>>>>> master / dev_2_0
 	// 查扫描结果
-	scs, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{img.ID}}, nil)
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{img.ID}}, nil)
 	if err != nil {
-		s.log.Error().Msg(fmt.Sprintf("SearchImages.SearchScanImage:error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("SearchImages.SearchScanImage:error:%s", err.Error()))
 		return nil, response.NewHttpError(http.StatusGone, err)
 	}
 	if len(scs) == 0 {
-		s.log.Info().Msg("未找查到镜像扫描结果")
+		logging.GetLogger().Info().Msgf("GetImageDetail not found the scan_image,imageID:%d", imgId)
 		return img, nil
 	}
 
@@ -817,6 +844,11 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 		FinishedAt:        scs[0].FinishAt,
 		OverallSeverity:   scs[0].OverallSeverity,
 		SeverityHistogram: scs[0].SeverityHistogram,
+		VulnScore:         scs[0].VulnScore,
+		VirusScore:        scs[0].VirusScore,
+		WebshellScore:     scs[0].WebshellScore,
+		SensitiveScore:    scs[0].SensitiveScore,
+		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40),
 	}
 	img.ImageScanVuln = imageScanResult
 	// 增加病毒信息
@@ -833,9 +865,9 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string) (*model.OverView, error) {
 	overView := new(model.OverView)
 	// 查总数
-	_, total, err := s.dbdal.SearchImage(store.SearchImageParam{Library: registerUrl, FromType: model.ImageFromTypeNormal}, model.EmptyFilterForTheTotalQuery())
+	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Library: registerUrl, FromType: model.ImageFromTypeNormal}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("GetImageOverView.SearchImage error %s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetImageOverView.SearchImage error %s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	allResMap := make(map[string]map[string]*store.ImageGroup)
@@ -853,7 +885,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 	} else {
 		onlineSql = onlineSql + " ;"
 	}
-	onlineRes, err := s.dbdal.GetOnlineImage(store.GetOnlineImageParam{SQL: onlineSql})
+	onlineRes, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 	if err != nil {
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
@@ -882,7 +914,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, searchType string, overView *model.OverView, allResMap map[string]map[string]*store.ImageGroup) error {
 	hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.digest, a.library from %s a join %s b on a.id = b.image_id where  b.%s is not null group by b.image_id,a.digest,  a.library;", store.ImageTable, store.ImageScanTable, searchType)
 
-	hasVuluRes, err := s.dbdal.GetImageOverView(store.GetImageOverViewParm{SQL: hasVuluSql})
+	hasVuluRes, err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasVuluSql})
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
@@ -915,16 +947,16 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, searchWord, kind strin
 	// 种类的搜索
 	if kind != "" {
 		kindImageId := make([]int64, 0)
-		qs, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{Kind: kind, NoSerialization: true}, nil)
+		qs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{Kind: kind, NoSerialization: true, Fields: []string{"image_id"}}, nil)
 		if err != nil {
-			s.log.WithContext(ctx).Errorf(err, "SearchQuestionInfo error:%s", err.Error())
+			logging.GetLogger().Err(err).Msgf("SearchQuestionInfo error:%s", err.Error())
 			return nil, 0, response.NewHttpError(http.StatusGone, err)
 		}
 		for i := range qs {
 			kindImageId = append(kindImageId, qs[i].ImageId)
 		}
 		if len(kindImageId) == 0 {
-			s.log.Info().Msg("SearchScanImage not fond scan image")
+			logging.GetLogger().Info().Msgf("SearchScanImage not fond scan image")
 			return []model.ImageList{}, 0, nil
 		}
 		param.Ids = kindImageId
@@ -941,7 +973,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, searchWord, kind strin
 	}
 	if isOnline {
 		onlineSql := fmt.Sprintf("select distinct a.digest, a.library  from  %s a  join %s b  on  a.digest = b.digest ;", store.ImageTable, store.ImageRelateTable)
-		online, err := s.dbdal.GetOnlineImage(store.GetOnlineImageParam{SQL: onlineSql})
+		online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 		if err != nil {
 			return nil, 0, response.NewHttpError(http.StatusInternalServerError, err)
 		}
@@ -950,17 +982,21 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, searchWord, kind strin
 			onlineDigests = append(onlineDigests, im.Digest)
 		}
 		if len(onlineDigests) == 0 {
-			s.log.Info().Msg("GetOnlineImage not fond scan image")
+			logging.GetLogger().Info().Msgf("GetOnlineImage not fond scan image")
 			return []model.ImageList{}, 0, nil
 		}
 		param.Digests = onlineDigests
 	}
 
-	imgs, cnt, err := s.dbdal.SearchImage(param, filter)
+	imgs, cnt, err := s.dbdal.SearchImage(ctx, param, filter)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, "SearchImages.SearchImage error :%s", err.Error())
+		logging.GetLogger().Err(err).Msgf("SearchImages.SearchImage error :%s", err.Error())
 		return nil, 0, response.NewHttpError(http.StatusGone, err)
 	}
+	if len(imgs) == 0 {
+		return imgs, 0, nil
+	}
+
 	imageIds := make([]int64, 0)
 	imgeMap := make(map[int64]*model.ImageList)
 	for i := range imgs {
@@ -972,9 +1008,9 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, searchWord, kind strin
 	}
 
 	// 为了兼容前端把questionInfo信息加上
-	scs, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: imageIds, NoSerialization: true}, nil)
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imageIds, NoSerialization: true}, nil)
 	if err != nil {
-		s.log.Error().Msg(fmt.Sprintf("SearchImages.SearchScanImage:error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("SearchImages.SearchScanImage:error:%s", err.Error()))
 		return nil, 0, response.NewHttpError(http.StatusGone, err)
 	}
 
@@ -1009,17 +1045,17 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, searchWord, kind strin
 func (s *ConScannerSrv) getRegistry(ctx context.Context, library string, useType int) (registry.Registry, error) {
 	// cicd集成时，首先会把公司镜像推送到我们自己搭建的harborV2仓库中,然后拉取镜像进行扫描，
 	// 通过library查registryID
-	regs, _, err := s.dbdal.SearchRegistry(store.SearchRegistryParam{LibraryUrl: library, UseType: useType}, nil)
+	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryUrl: library, UseType: useType}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("can not find the library:%s", library))
-		return nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not find the library:%s,error is %s", library, err.Error())))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("can not find the library:%s", library))
+		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("can not find the library:%s,error is %s", library, err.Error())))
 	}
 	if len(regs) == 0 {
-		return nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not find the library:%s", library)))
+		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("can not find the library:%s", library)))
 	}
 	decryPass, err := util.DesDecrypt(regs[0].Password, []byte(consts.EncryptPasswordKey))
 	if err != nil {
-		return nil, errors.New("decrypt error:%s" + err.Error())
+		return nil, fmt.Errorf("decrypt error:%s" + err.Error())
 	}
 
 	regi, err := registry.Open(registry.RegistrableComponentConfig{
@@ -1032,65 +1068,78 @@ func (s *ConScannerSrv) getRegistry(ctx context.Context, library string, useType
 		},
 	})
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("can not connect harborV2"))
-		return nil, response.NewHttpError(http.StatusBadGateway, errors.New(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
+		logging.GetLogger().Err(err).Msgf("can not connect harborV2")
+		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
 	}
 	return regi, nil
 }
 
-// DetectImage  判断该镜像是否安全
-func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePattern string, policeReg string) (bool, []ReasonAndDetail, []model.KVHashs, error) {
-	s.log.WithContext(ctx).Infof("CICD %s,查询检测结果，进行检测:imageId：%d", usePattern, imageId)
+// DetectImageForCICD CICD 检查镜像是否正确
+func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, policeReg string) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+	logging.GetLogger().Info().Msgf("CICD,start DetectImage,imageId：%d", imageId)
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 
-	imgs, _, err := s.dbdal.SearchImage(store.SearchImageParam{Ids: []int64{imageId}}, nil)
-	// 如果没有在数据库没有查到镜像，默认安全
-	if err != nil || len(imgs) == 0 {
-		s.log.WithContext(ctx).Infof("CICD %s,没有查到对应镜像:%d", usePattern, imageId)
-		return true, records, msgs, errors.New(fmt.Sprintf("%s,没有查到对应镜像:%d", usePattern, imageId))
-	}
-	img := imgs[0]
-	img.Library = policeReg
-	policies, err := s.dbdal.SearchRejectPolicy(store.SearchRejectPolicyParam{Library: policeReg})
-	if err != nil || len(policies) == 0 { // 没有策略说明不检测，默认全安全
-		s.log.WithContext(ctx).Infof("CICD 该仓库:%s 没有配置策略，默认全部安全", policeReg)
-		return true, records, msgs, nil
-	}
-
-	scanImage, _, err := s.dbdal.SearchScanImage(store.SearchScanImageParam{ImageIds: []int64{imageId}, Status: model.ScanStatusSucceeded}, nil)
+	// 先查镜像是否存在
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imageId}}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Infof("CICD 没有查询到镜像扫描结果:%d,error:%s", imageId, err.Error())
+		logging.GetLogger().Err(err).Msgf("CICD,find the image :%d,error", imageId)
 		return false, records, msgs, err
 	}
-	// 安全模式只针对k8s部署，对于cicd是要全检测.检测后不能直接返回，要检查白名单
-	if len(scanImage) == 0 {
-		s.log.WithContext(ctx).Infof("CICD 未查询到扫描结果,ImageID:%d", imageId)
-		sa6, red6, ms6 := s.checkNoScanImage(ctx, usePattern, img, policies[0])
-		if !sa6 {
-			safe = false
-		}
-		records = append(records, red6...)
-		msgs = append(msgs, ms6...)
+	// 如果没有在数据库没有查到镜像，默认不安全
+	if len(imgs) == 0 {
+		logging.GetLogger().Info().Msgf("CICD,not find the image:%d", imageId)
+		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,没有查到对应镜像:%d", imageId))
 	}
-	if len(scanImage) > 0 {
+
+	img := imgs[0]
+	img.Library = policeReg
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CICD library:%s get reject policy error", policeReg)
+		return true, records, msgs, err
+	}
+
+	if len(policies) == 0 { // 没有策略说明不检测，默认全安全
+		logging.GetLogger().Info().Msgf("CICD library:%s has no reject policy, all safe by default", policeReg)
+		return true, records, msgs, nil
+	}
+	scanImageRes, err := s.checkScanImageExist(ctx, model.UsePatternForCICD, img, policies[0])
+	// ====== =
+	// policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg})
+	// if err != nil || len(policies) == 0 { // 没有策略说明不检测，默认全安全
+	// 	s.log.WithContext(ctx).Infof("CICD 该仓库:%s 没有配置策略，默认全部安全", policeReg)
+	// 	return true, records, msgs, nil
+	// }
+	//
+	// scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imageId}, Status: model.ScanStatusSucceeded}, nil)
+	// >>>>>>> master / dev_2_0
+	if err != nil {
+		logging.GetLogger().Info().Msgf("CICD search scan_image: %d, error: %s", imageId, err.Error())
+		return false, records, msgs, err
+	}
+	records = append(records, scanImageRes.Records...)
+	msgs = append(msgs, scanImageRes.Msg...)
+
+	if scanImageRes.ScanImag != nil {
+		scanImage := *scanImageRes.ScanImag
 		for _, po := range policies {
-			if !po.Enable || (usePattern == model.UsePatternForCICD && !po.CicdEnable) || (usePattern == model.UsePatternForK8s && !po.K8sEnable) || po.IsGlobal {
-				s.log.WithContext(ctx).Infof("CICD 该police在该流程下未生效:name:%s,ID:%d", po.Name, po.ID)
+			if !po.Enable || !po.CicdEnable || po.IsGlobal {
+				logging.GetLogger().Info().Msgf("CICD reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
 			// 恶意文件
-			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage[0], img, po)
+			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
 			// 敏感文件
-			sa2, red2, ms2 := s.checkSensitiveFile(ctx, scanImage[0], img, po)
+			sa2, red2, ms2 := s.checkSensitiveFile(ctx, scanImage, img, po)
 			// 漏洞评分
-			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage[0], img, po)
+			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage, img, po)
 			// 自定义漏洞规则
-			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage[0], img, po)
+			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage, img, po)
 			// 漏洞评级
-			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage[0], img, po)
+			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
 			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 {
 				safe = false
 			}
@@ -1102,72 +1151,225 @@ func (s *ConScannerSrv) DetectImage(ctx context.Context, imageId int64, usePatte
 	// 检查白名单,要检查一下Digest,防止通过Library+FullRepoName+Tags的方式绕过检测
 	// 镜像存在白名单中，只是不阻断，任然要进行扫描检测，对检测结果仍然要发事件中心
 	if !safe {
-		s.log.WithContext(ctx).Infof("CICD 检查白名单:%s/%s:%s,Digest:%s", img.Library, img.FullRepoName, img.Tags, img.Digest)
-		param := store.SearchImageWhitelistParam{
-			Library:      img.Library,
-			FullRepoName: img.FullRepoName,
-			Tag:          img.Tags,
-			Digest:       img.Digest,
-		}
-		if usePattern == model.UsePatternForK8s {
-			param.Digest = ""
-		}
-
-		wl, _, err := s.dbdal.SearchImageWhitelist(param, nil)
-		if err != nil {
-			s.log.WithContext(ctx).Infof("CICD 检查白名单出错:%s/%s:%s,Digest:%s", img.Library, img.FullRepoName, img.Tags, img.Digest)
-		} else if len(wl) > 0 {
-			s.log.WithContext(ctx).Infof("CICD 镜像：%s/%s:%s,Digest:%s扫描后，命中了阻断策略，但是该镜像已加白名单，不阻断", img.Library, img.FullRepoName, img.Tags, img.Digest)
+		if in, _ := s.checkWhitelist(ctx, img, model.UsePatternForCICD); in {
+			s.log.WithContext(ctx).Infof("CICD DetectImageForCICD:%s/%s:%s,Digest:%s", img.Library, img.FullRepoName, img.Tags, img.Digest)
 			safe = true
 			for i := range msgs {
 				msgs[i].KVHash.ZH.Value = strings.Replace(msgs[i].KVHash.ZH.Value, "被阻断", "但镜像已加入白名单中，未被阻断", 1)
 				msgs[i].KVHash.EN.Value = strings.Replace(msgs[i].KVHash.EN.Value, ",blocked", ",but image has add to the whitelist,unblocked", 1)
 			}
-		} else {
-			s.log.WithContext(ctx).Infof("CICD 镜像：%s/%s:%s扫描后，命中了阻断策略，未查到白名单信息", img.Library, img.FullRepoName, img.Tags)
 		}
 	}
 	return safe, records, msgs, nil
 }
 
-func (s *ConScannerSrv) checkNoScanImage(ctx context.Context, usePattern string, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+// DetectImageForK8sOnlineMonitor  判断该镜像是否安全
+func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, image model.ImageList) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+	logging.GetLogger().Info().Msgf("K8sOnlineMonitor,start DetectImage,image：%s/%s:%s", image.Library, image.FullRepoName, image.Tags)
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
-	// 检测模式是全局的，所以取第一个既可
-	if usePattern == model.UsePatternForCICD {
-		msgZh := fmt.Sprintf("镜像：%s/%s:%s 扫描失败", img.Library, img.FullRepoName, img.Tags)
-		msgEN := fmt.Sprintf("image:%s/%s:%s scan failure", img.Library, img.FullRepoName, img.Tags)
-		s.log.WithContext(ctx).Infof(msgZh)
+
+	// 先查镜像是否存在
+	checkImageRes := s.checkImageExist(ctx, model.UsePatternForOnline, image)
+	if !checkImageRes.Safe || checkImageRes.Image == nil {
 		safe = false
-		records = append(records, ReasonAndDetail{
+		msgs = append(msgs, checkImageRes.Msg...)
+		// 没有查到镜像就要返回了
+		return safe, records, msgs, nil
+	}
+
+	// 对于delete Pod所发的update事件，这时是没有digest
+	if checkImageRes.Image != nil && image.Digest != "" && checkImageRes.Image.Digest != image.Digest {
+		safe = false
+		msgZh := fmt.Sprintf("镜像：%s/%s:%s是非可信镜像", checkImageRes.Image.Library, image.FullRepoName, image.Tags)
+		msgEN := fmt.Sprintf("image:%s%s:%s is untrusted image", checkImageRes.Image.Library, image.FullRepoName, image.Tags)
+		logging.GetLogger().Info().Msgf("untrusted image,k8s digest:%s,database:%s", image.Digest, checkImageRes.Image.Digest)
+
+		msgs = append(msgs, model.KVHashs{
+			KVHash: model.KVHash{
+				ZH: model.NewKeyValue(model.RejectReasonNotMatchDigestZH, msgZh),
+				EN: model.NewKeyValue(model.RejectReasonNotMatchDigestEN, msgEN)}})
+		return safe, records, msgs, nil
+	}
+
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: checkImageRes.Image.Library})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor library:%s get reject policy error", checkImageRes.Image.Library)
+		return true, records, msgs, err
+	}
+
+	if len(policies) == 0 { // 没有策略说明不检测，默认全安全
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor library:%s has no reject policy, all safe by default", checkImageRes.Image.Library)
+		return true, records, msgs, nil
+	}
+
+	img := *checkImageRes.Image
+	checkScanImage, err := s.checkScanImageExist(ctx, model.UsePatternForOnline, img, policies[0])
+	if err != nil {
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor search scan_image: %d, error: %s", checkImageRes.Image.ID, err.Error())
+		return safe, records, msgs, nil
+	}
+	records = append(records, checkScanImage.Records...)
+	msgs = append(msgs, checkScanImage.Msg...)
+	if !checkScanImage.Safe {
+		safe = false
+	}
+
+	if checkScanImage.ScanImag != nil {
+		scanImage := *checkScanImage.ScanImag
+		for _, po := range policies {
+			if !po.Enable || !po.OnlineMonitor || po.IsGlobal {
+				logging.GetLogger().Info().Msgf("K8sOnlineMonitor reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
+				continue
+			}
+			// 恶意文件
+			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
+			// 敏感文件
+			sa2, red2, ms2 := s.checkSensitiveFile(ctx, scanImage, img, po)
+			// 漏洞评分
+			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage, img, po)
+			// 自定义漏洞规则
+			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage, img, po)
+			// 漏洞评级
+			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
+			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 {
+				safe = false
+			}
+			records = append(records, mergeRecord(red1, red2, red3, red4, red5)...)
+			msgs = append(msgs, mergeMsg(ms1, ms2, ms3, ms4, ms5)...)
+		}
+	}
+
+	if !safe {
+		if in, _ := s.checkWhitelist(ctx, img, model.UsePatternForOnline); in {
+			safe = true
+			for i := range msgs {
+				// 在线监控不可能会阻断，所以这里改一下文案
+				msgs[i].KVHash.ZH.Value = strings.Replace(msgs[i].KVHash.ZH.Value, "被阻断", "按策略应该被阻断,但已加白名单", 1)
+				msgs[i].KVHash.EN.Value = strings.Replace(msgs[i].KVHash.EN.Value, ",blocked", ",should be blocked by reject policy，but has in white list", 1)
+			}
+		} else {
+			for i := range msgs {
+				// 在线监控不可能会阻断，所以这里改一下文案
+				msgs[i].KVHash.ZH.Value = strings.Replace(msgs[i].KVHash.ZH.Value, "被阻断", "按策略应该被阻断", 1)
+				msgs[i].KVHash.EN.Value = strings.Replace(msgs[i].KVHash.EN.Value, ",blocked", ",should be blocked by reject policy", 1)
+			}
+		}
+	}
+	return safe, records, msgs, nil
+}
+
+// checkInWhitelist 检测白名单
+func (s *ConScannerSrv) checkWhitelist(ctx context.Context, img model.ImageList, usePattern string) (bool, error) {
+	logging.GetLogger().Info().Msgf("checkWhitelist checking whitelist: %s%s:%s, Digest:%s", img.Library, img.FullRepoName, img.Tags, img.Digest)
+	param := store.SearchImageWhitelistParam{
+		Library:      img.Library,
+		FullRepoName: img.FullRepoName,
+		Tag:          img.Tags,
+	}
+
+	wl, _, err := s.dbdal.SearchImageWhitelist(ctx, param, nil)
+	if err != nil {
+		logging.GetLogger().Info().Msgf("checkWhitelist checking whitelist error:%s/%s:%s,Digest:%s", img.Library, img.FullRepoName, img.Tags, img.Digest)
+		return false, err
+	}
+
+	if len(wl) > 0 {
+		logging.GetLogger().Info().Msgf("checkWhitelist image：%s/%s:%s,Digest:%s， Hit the reject policy ，but the image in whitelist,not block", img.Library, img.FullRepoName, img.Tags, img.Digest)
+		return true, nil
+	}
+	logging.GetLogger().Info().Msgf("checkWhitelist image：%s/%s:%s，Hit the reject policy，not find image in whitelist", img.Library, img.FullRepoName, img.Tags)
+	return false, nil
+}
+
+// 未找到扫描结果时拼装消息和阻断记录 拼装数据
+func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern string, img model.ImageList, po model.RejectPolicy) (checkSanImageRes, error) {
+	res := checkSanImageRes{
+		Safe:    false,
+		Records: make([]ReasonAndDetail, 0),
+		Msg:     make([]model.KVHashs, 0),
+	}
+
+	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{img.ID}, Status: model.ScanStatusSucceeded}, nil)
+	if err != nil {
+		logging.GetLogger().Info().Msgf("checkScanImageExist search scan_image: %d, error: %s", img.ID, err.Error())
+		return res, err
+	}
+
+	if len(scanImage) > 0 {
+		res.ScanImag = &scanImage[0]
+		return res, nil
+	}
+
+	if usePattern == model.UsePatternForCICD {
+		// msgZh := fmt.Sprintf("镜像：%s/%s:%s 扫描失败", img.Library, img.FullRepoName, img.Tags)
+		msgZh := "扫描失败"
+		msgLog := fmt.Sprintf("image:%s/%s:%s scan failure", img.Library, img.FullRepoName, img.Tags)
+		msgEN := "scan failure"
+		logging.GetLogger().Info().Msgf(msgLog)
+
+		res.Safe = false
+		res.Records = append(res.Records, ReasonAndDetail{
 			RejectReason: model.RejectScanFailure,
 			RejectDetail: msgZh,
 		})
 
-		msgs = append(msgs, model.KVHashs{
+		res.Msg = append(res.Msg, model.KVHashs{
 			KVHash: model.KVHash{
 				ZH: model.NewKeyValue(model.RejectScanFailureZH, msgZh),
 				EN: model.NewKeyValue(model.RejectScanFailureEN, msgEN)}})
+	} else if usePattern == model.UsePatternForK8s {
+		// 其他都认为安全
+		if po.Mode == model.RejectPolicySafeModel {
+			msgZh := "镜像未扫描，被阻断"
+			msgEN := "image not scanned blocked"
+			msgLog := fmt.Sprintf("image:%s/%s:%s not scanned,blocked", img.Library, img.FullRepoName, img.Tags)
+			res.Safe = false
+			logging.GetLogger().Info().Msgf(msgLog)
+			res.Records = append(res.Records, ReasonAndDetail{
+				RejectReason: model.RejectScanNotScanned,
+				RejectDetail: msgZh,
+			})
+
+			res.Msg = append(res.Msg, model.KVHashs{
+				KVHash: model.KVHash{
+					ZH: model.NewKeyValue(model.RejectScanFailureZH, msgZh),
+					EN: model.NewKeyValue(model.RejectScanFailureEN, msgEN)}})
+		}
 	}
+	return res, nil
+}
 
-	// 检测模式是全局的，所以取第一个既可
-	if usePattern == model.UsePatternForK8s && po.Mode == model.RejectPolicySafeModel {
-		msgZh := fmt.Sprintf("镜像：%s/%s:%s 未扫描,被阻断", img.Library, img.FullRepoName, img.Tags)
-		msgEN := fmt.Sprintf("image:%s/%s:%s not scanned blocked", img.Library, img.FullRepoName, img.Tags)
-		safe = false
-		s.log.WithContext(ctx).Infof(msgZh)
-		records = append(records, ReasonAndDetail{
-			RejectReason: model.RejectScanNotScanned,
-			RejectDetail: msgZh,
-		})
+// 未找到镜像
+func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, img model.ImageList) checkImageRes {
+	res := checkImageRes{
+		Safe:    true,
+		Records: make([]ReasonAndDetail, 0),
+		Msg:     make([]model.KVHashs, 0),
+	}
+	// 通过library+fullreponame+tag的方式去查询
+	img1, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Libraries: []string{img.Library, "https://" + img.Library, "http://" + img.Library}, FullRepoName: img.FullRepoName, Tag: img.Tags}, nil)
+	if err != nil || len(img1) == 0 {
+		res.Safe = false
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("%s search image：%s/%s:%s", usePattern, img.Library, img.FullRepoName, img.Tags)
+		}
+		msgZh := "未查到对应镜像"
+		msgLog := fmt.Sprintf("checkImageExist image:%s%s:%s no image found", img.Library, img.FullRepoName, img.Tags)
+		msgEN := "not found image"
 
-		msgs = append(msgs, model.KVHashs{
+		logging.GetLogger().Info().Msgf(msgLog)
+		res.Msg = append(res.Msg, model.KVHashs{
 			KVHash: model.KVHash{
 				ZH: model.NewKeyValue(model.RejectScanFailureZH, msgZh),
 				EN: model.NewKeyValue(model.RejectScanFailureEN, msgEN)}})
+		return res
+		// 如果需要，加阻断记录
 	}
-	return safe, records, msgs
+	res.Image = &img1[0]
+	return res
 }
 
 func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
@@ -1176,10 +1378,11 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 	safe := true
 	//  验证恶意文件
 	if len(scanImage.MaliciousInfo) > 0 {
-		s.log.WithContext(ctx).Infof("CICD 包含恶意文件,imagId:" + strconv.Itoa(int(img.ID)))
+		logging.GetLogger().Info().Msgf("contains malicious files, imag Id:" + strconv.Itoa(int(img.ID)))
 
-		msgZh := fmt.Sprintf("镜像：%s/%s:%s 存在恶意文件", img.Library, img.FullRepoName, img.Tags)
-		msgEN := fmt.Sprintf("image:%s%s:%s Exist malicious file", img.Library, img.FullRepoName, img.Tags)
+		msgZh := "存在恶意文件"
+		msgEN := "contains malicious file"
+		msgLog := fmt.Sprintf("image:%s%s:%s contains malicious file", img.Library, img.FullRepoName, img.Tags)
 
 		switch po.MaliciousPolicy {
 		case model.RejectPolicyReject:
@@ -1191,16 +1394,16 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.RejectReasonHasMaliciousZH, msgZh+",被阻断"),
+					ZH: model.NewKeyValue(model.RejectReasonHasMaliciousZH, msgZh+"，被阻断"),
 					EN: model.NewKeyValue(model.RejectReasonHasMaliciousEN, msgEN+",blocked")}})
-			s.log.WithContext(ctx).Infof("CICD %s,被阻断", msgZh)
+			logging.GetLogger().Info().Msgf(" %s,has blocked", msgLog)
 
 		case model.RejectPolicyAlarm:
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.RejectReasonHasMaliciousZH, msgZh+",未阻断，发消息到事件中心"),
-					EN: model.NewKeyValue(model.RejectReasonHasMaliciousEN, msgEN+",unblocked, send message to event center")}})
-			s.log.WithContext(ctx).Infof("CICD %s,不阻断，只发消息到事件中心", msgZh)
+					ZH: model.NewKeyValue(model.RejectReasonHasMaliciousZH, msgZh+"，未阻断，只告警"),
+					EN: model.NewKeyValue(model.RejectReasonHasMaliciousEN, msgEN+",unblocked,just alert")}})
+			logging.GetLogger().Info().Msgf("%s,not blocked,only send messages to the event center", msgLog)
 		}
 	}
 	return safe, records, msgs
@@ -1212,9 +1415,10 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 	safe := true
 	// 验证敏感文件
 	if len(scanImage.SensitiveFile) > 0 {
-		s.log.WithContext(ctx).Infof("CICD 包含敏感文件,imagId:" + strconv.Itoa(int(img.ID)))
-		msgZh := fmt.Sprintf("镜像：%s/%s:%s 存在敏感文件", img.Library, img.FullRepoName, img.Tags)
-		msgEN := fmt.Sprintf("Image:%s/%s:%s Exist sensitive file", img.Library, img.FullRepoName, img.Tags)
+		logging.GetLogger().Info().Msgf("Contains sensitive files, imag Id:" + strconv.Itoa(int(img.ID)))
+		msgZh := "包含敏感文件"
+		msgEN := "contain sensitive file"
+		msgLog := fmt.Sprintf("Image:%s/%s:%s Contains sensitive file", img.Library, img.FullRepoName, img.Tags)
 
 		switch po.SensitiveFilePolicy {
 		case model.RejectPolicyReject:
@@ -1226,17 +1430,17 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.RejectReasonHasSensitiveFileZH, msgZh+",被阻断"),
-					EN: model.NewKeyValue(model.RejectReasonHasSensitiveFileEN, msgEN+",未阻断，发消息到事件中心")}})
+					ZH: model.NewKeyValue(model.RejectReasonHasSensitiveFileZH, msgZh+"，被阻断"),
+					EN: model.NewKeyValue(model.RejectReasonHasSensitiveFileEN, msgEN+",unblocked,just alert")}})
 
-			s.log.WithContext(ctx).Infof("CICD %s,被阻断", msgZh)
+			logging.GetLogger().Info().Msgf("%s,has blocked", msgLog)
 
 		case model.RejectPolicyAlarm:
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.RejectReasonHasSensitiveFileZH, msgZh+",未阻断，发消息到事件中心"),
-					EN: model.NewKeyValue(model.RejectReasonHasSensitiveFileEN, msgEN+",unblocked, send message to event center")}})
-			s.log.WithContext(ctx).Infof("CICD %s,不阻断，只发消息到事件中心", msgZh)
+					ZH: model.NewKeyValue(model.RejectReasonHasSensitiveFileZH, msgZh+",未阻断，只告警"),
+					EN: model.NewKeyValue(model.RejectReasonHasSensitiveFileEN, msgEN+",unblocked,just alert")}})
+			logging.GetLogger().Info().Msgf("%s,not blocked, only send messages to the event center", msgLog)
 		}
 	}
 	return safe, records, msgs
@@ -1250,35 +1454,51 @@ func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.
 	for i := range po.RejectVulns {
 		customizeVuluMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
 	}
+	cusBlockVluns := make([]string, 0)
+	cusAlertVluns := make([]string, 0)
+
 	for _, vu := range scanImage.VulnInfo {
 		// 自定义漏洞规则
 		if svn, ok := customizeVuluMap[vu.ID]; ok {
-			s.log.WithContext(ctx).Infof("CICD 包含自定义漏洞,imagId:" + strconv.Itoa(int(img.ID)))
-			msgZh := fmt.Sprintf("镜像：%s/%s:%s 包含自定义漏洞：%s", img.Library, img.FullRepoName, img.Tags, vu.ID)
-			msgEN := fmt.Sprintf("Image：%s/%s:%s contain custom vulnerability：%s", img.Library, img.FullRepoName, img.Tags, vu.ID)
+			logging.GetLogger().Info().Msgf("Contains custom vulnerabilities, imag Id:" + strconv.Itoa(int(img.ID)))
+
 			switch svn.RejectPolicy {
 			case model.RejectPolicyReject:
+				cusBlockVluns = append(cusBlockVluns, vu.ID)
 				safe = false
-				records = append(records, ReasonAndDetail{
-					RejectReason: model.RejectReasonHasCustomizeVuln,
-					RejectDetail: msgZh,
-				})
-
-				msgs = append(msgs, model.KVHashs{
-					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
-						EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
-
-				s.log.WithContext(ctx).Infof(fmt.Sprintf("CICD 策略配置了自定义漏洞，%s，被阻断", msgZh))
-
 			case model.RejectPolicyAlarm:
-				msgs = append(msgs, model.KVHashs{
-					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, msgZh),
-						EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, msgEN)}})
-				s.log.WithContext(ctx).Infof("CICD 策略配置了自定义漏洞,%s,不阻断，只发消息到事件中心", msgZh)
+				cusAlertVluns = append(cusAlertVluns, vu.ID)
 			}
 		}
+	}
+	// 组装消息
+	cusVuluZH, cusVuluEN := "", ""
+	if len(cusBlockVluns) > 0 {
+		cusVuluZH = fmt.Sprintf("包含自定义漏洞：%s，被阻断", strings.Join(cusBlockVluns, "，"))
+		cusVuluEN = fmt.Sprintf("contain custom vulnerability:%s,blocked", strings.Join(cusBlockVluns, ","))
+	}
+	if cusVuluEN != "" && cusVuluZH != "" && len(cusAlertVluns) > 0 {
+		cusVuluEN = cusVuluEN + ","
+		cusVuluZH = cusVuluZH + "，"
+	}
+
+	if len(cusAlertVluns) > 0 {
+		cusVuluZH = fmt.Sprintf("%s包含自定义漏洞：%s，未阻断，只告警", cusVuluZH, strings.Join(cusAlertVluns, "，"))
+		cusVuluEN = fmt.Sprintf("%scontain custom vulnerability:%s,unblocked,just alert", cusVuluEN, strings.Join(cusAlertVluns, ","))
+	}
+
+	if cusVuluEN != "" && cusVuluZH != "" {
+		msgs = append(msgs, model.KVHashs{
+			KVHash: model.KVHash{
+				ZH: model.NewKeyValue(model.RejectReasonHasCustomizeVulnZH, cusVuluZH),
+				EN: model.NewKeyValue(model.RejectReasonHasCustomizeVulnEN, cusVuluEN)}})
+
+		records = append(records, ReasonAndDetail{
+			RejectReason: model.RejectReasonHasCustomizeVuln,
+			RejectDetail: cusVuluZH,
+		})
+
+		logging.GetLogger().Info().Msgf(fmt.Sprintf("has custom vulnerability, %s", cusVuluEN))
 	}
 	return safe, records, msgs
 }
@@ -1291,6 +1511,7 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 	for i := range po.RejectVulns {
 		customizeVuluMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
 	}
+	vumMap := make(map[string][]string)
 	for _, vu := range scanImage.VulnInfo {
 		if _, ok := customizeVuluMap[vu.ID]; ok {
 			continue
@@ -1298,24 +1519,32 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 		// 如果配置了漏洞评级
 		if po.VulnLevel != "" && compareSeverity(vu.Severity, po.VulnLevel) {
 			safe = false
-			msgZh := fmt.Sprintf("镜像：%s/%s:%s,包含漏洞:%s，评级:%s 高于漏洞阻断评级：%s",
-				img.Library, img.FullRepoName, img.Tags, vu.ID, vu.Severity, po.VulnLevel)
-			msgEN := fmt.Sprintf("image:%s/%s:%s include Vulnerability:%s Rate %s more than %s",
-				img.Library, img.FullRepoName, img.Tags, vu.ID, vu.Severity, po.VulnLevel)
-			s.log.WithContext(ctx).Infof(fmt.Sprintf("CICD 策略配置了漏洞评级，%s,被阻断", msgZh))
+			if vumMap[vu.Severity] == nil {
+				vumMap[vu.Severity] = make([]string, 0)
+			}
+			vumMap[vu.Severity] = append(vumMap[vu.Severity], vu.ID)
+		}
+	}
+	for level, vuns := range vumMap {
+		if len(vuns) > 0 {
+			zh := fmt.Sprintf("包含漏洞：%s，评级：%s，高于漏洞阻断评级：%s", strings.Join(vuns, "，"), level, po.VulnLevel)
+			en := fmt.Sprintf("include Vulnerability:%s Rate:%s, more than:%s", strings.Join(vuns, ","), level, po.VulnLevel)
 
-			records = append(records, ReasonAndDetail{
-				RejectReason: getSeverityRejectReason(vu.Severity),
-				RejectDetail: msgZh,
-				VulnLevel:    po.VulnLevel,
-			})
+			logging.GetLogger().Info().Msgf(fmt.Sprintf("vulnerability severity than the config, %s, blocked", en))
 
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangCh), msgZh+",被阻断"),
-					EN: model.NewKeyValue(model.GetVuluRuleKey(vu.Severity, model.LangEn), msgEN+",blocked")}})
+					ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangCh), zh+"，被阻断"),
+					EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+",blocked")}})
+
+			records = append(records, ReasonAndDetail{
+				RejectReason: getSeverityRejectReason(level),
+				RejectDetail: zh,
+				VulnLevel:    po.VulnLevel,
+			})
 		}
 	}
+
 	return safe, records, msgs
 }
 
@@ -1331,9 +1560,10 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 	ans := CalculateVulnScore(scanImage, customizeVuluMap)
 	if po.VulnScore > 0 && int64(ans) < po.VulnScore {
 		safe = false
-		msgZh := fmt.Sprintf("镜像：%s/%s:%s 评分:%d 低于阻断分数：%d", img.Library, img.FullRepoName, img.Tags, ans, po.VulnScore)
-		msgEN := fmt.Sprintf("Image:%s/%s:%s rate %d Lower than : %d", img.Library, img.FullRepoName, img.Tags, ans, po.VulnScore)
-		s.log.WithContext(ctx).Infof("CICD 策略配置了漏洞分数，%s,被阻断", msgZh)
+		msgZh := fmt.Sprintf("漏洞综合评分：%d，低于阻断分数：%d", ans, po.VulnScore)
+		msgEN := fmt.Sprintf("vulnerability rate %d,Lower than:%d", ans, po.VulnScore)
+		msgLog := fmt.Sprintf("Image:%s/%s:%s rate %d Lower than:%d", img.Library, img.FullRepoName, img.Tags, ans, po.VulnScore)
+		logging.GetLogger().Info().Msgf("vulnerability score than the config，%s，被阻断", msgLog)
 
 		records = append(records, ReasonAndDetail{
 			RejectReason: model.RejectReasonScore,
@@ -1348,12 +1578,7 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 	return safe, records, msgs
 }
 
-func NewConScannerSrv(dbdal store.ScannerDalInterface,
-	redclair *RedClairService,
-	virusScan *VirusScan,
-	scdb *store.ScannerDB,
-	globalCache *cache.Cache,
-) *ConScannerSrv {
+func NewConScannerSrv(dbdal store.ScannerDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache) *ConScannerSrv {
 
 	return &ConScannerSrv{
 		dbdal:       dbdal,
@@ -1367,9 +1592,9 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface,
 
 // DeleteCICDImage 定期删除cicd仓库的镜像
 func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
-	ticker := time.Tick(time.Hour * 12) // 每12个小时删除一次
+	ticker := time.NewTicker(time.Hour * 12) // 每12个小时删除一次
 	for {
-		<-ticker
+		<-ticker.C
 		s.deleteCICDImage(context.Background())
 	}
 }
@@ -1377,34 +1602,34 @@ func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
 // DeleteCICDImage 定期删除cicd仓库的镜像
 func (s *ConScannerSrv) deleteCICDImage(ctx context.Context) {
 
-	regs, _, err := s.dbdal.SearchRegistry(store.SearchRegistryParam{UseType: model.RegistryUseTypeBuff}, nil)
+	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.RegistryUseTypeBuff}, nil)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("CICD 没有配置CICD中转仓库,请配置"))
+		logging.GetLogger().Err(err).Msgf("CICD find BuffRegistry error")
 		return
 	}
 	if len(regs) == 0 {
-		s.log.WithContext(ctx).Errorf(err, fmt.Sprintf("CICD 没有配置CICD中转仓库,请配置"))
+		logging.GetLogger().Err(err).Msgf("CICD not find BuffRegistry ")
 		return
 	}
-	s.log.WithContext(ctx).Infof("CICD 流程查询到使用的中转registry:%s", regs[0].Url)
+	logging.GetLogger().Info().Msgf("CICD find BuffRegistry registry: %s", regs[0].Url)
 	regi, err := s.getRegistry(ctx, "", model.RegistryUseTypeBuff)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf(err, "CICD 连接中转仓库失败:%s", regs[0].Url)
+		logging.GetLogger().Err(err).Msgf("CICD connect BuffRegistry :%s", regs[0].Url)
 		return
 	}
 	// 先查询镜像，然后一个一个的删除
 	images, err := regi.ListImages(func(image registry.Image) error {
-		s.log.WithContext(ctx).Infof("CICD异步删除cache仓库时查询到镜像:%s", image.Repository)
+		logging.GetLogger().Info().Msgf("CICD  deleteCICDImage search image in %s", image.Repository)
 		return nil
 	})
 	if err != nil {
-		s.log.WithContext(ctx).Infof("CICD异步删除cache仓库时查询镜像出错:%s", err.Error())
+		logging.GetLogger().Info().Msgf("CICD asynchronously delete BuffRegistry image error: %s", err.Error())
 	}
 	for i := range images {
 		if err := regi.DeleteImages("", images[i].Repository, images[i].ImageDigest); err != nil {
-			s.log.WithContext(ctx).Infof("CICD异步删除cache仓库镜像出错:%s", err.Error())
+			logging.GetLogger().Info().Msgf("CICD asynchronous delete  BuffRegistry image error: %s", err.Error())
 		} else {
-			s.log.WithContext(ctx).Infof("CICD异步删除cache仓库镜像:%s", images[i].Repository)
+			logging.GetLogger().Info().Msgf("CICD asynchronous delete BuffRegistry image :%s", images[i].Repository)
 		}
 	}
 }
@@ -1467,9 +1692,10 @@ func getSeverityRejectReason(severity string) int64 {
 
 // 发送消息到事件中心
 func sendMsgToEventcenter(ctx context.Context, reqBody model.ReqBody) error {
+
 	caCert, err := ioutil.ReadFile(consts.GRPC_CA_PATH)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Infof("CICD 打开/auth/ca/tls.crt出错")
+		logging.GetLogger().WithContext(ctx).Errorf(err, "CICD open /auth/ca/tls.crr error ")
 		return err
 	}
 
@@ -1480,7 +1706,7 @@ func sendMsgToEventcenter(ctx context.Context, reqBody model.ReqBody) error {
 
 	cert, err := tls.LoadX509KeyPair(consts.HTTPS_CLIENT_CERT_PATH, consts.HTTPS_CLIENT_PRIVATE_KEY)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Infof("CICD LoadX509KeyPair/eventcenter-config/tls.crt出错")
+		logging.GetLogger().WithContext(ctx).Errorf(err, "CICD LoadX509KeyPair/eventcenter-config/tls.crt error")
 		return err
 	}
 
@@ -1497,7 +1723,7 @@ func sendMsgToEventcenter(ctx context.Context, reqBody model.ReqBody) error {
 		return err
 	}
 
-	logging.GetLogger().Info().Msg(fmt.Sprintf("CICD消息内容：%s", string(JSONBytes)))
+	// logging.GetLogger().Info().Msg(fmt.Sprintf("send msg to event center：%s", string(JSONBytes)))
 
 	host := consts.TENSORSEC_EVENTCENTER_SERVICE_HOST
 	port := os.Getenv("TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP")
@@ -1507,24 +1733,24 @@ func sendMsgToEventcenter(ctx context.Context, reqBody model.ReqBody) error {
 
 	uri := fmt.Sprintf("%s:%s%s", host, port, consts.EventcenterURI)
 
-	logging.GetLogger().WithContext(ctx).Infof("CICD 请求事件中心的URI:%s", uri)
+	// logging.GetLogger().WithContext(ctx).Infof("CICD event center URI:%s", uri)
 
 	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(JSONBytes))
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Infof("CICD 请求事件中心 http.NewRequest error :%s", err.Error())
+		logging.GetLogger().WithContext(ctx).Infof("CICD send msg to event center http.NewRequest error :%s", err.Error())
 		return err
 	}
 
 	rsp, err := cli.Do(req)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Infof("CICD 请求事件中心 cli.Do(req) error :%s", err.Error())
+		logging.GetLogger().WithContext(ctx).Infof("CICD get event center cli.Do(req) error :%s", err.Error())
 		return err
 	}
 	defer rsp.Body.Close()
 	body, _ := ioutil.ReadAll(rsp.Body)
 	if rsp.StatusCode >= http.StatusMultipleChoices || rsp.StatusCode < http.StatusOK {
-		logging.GetLogger().WithContext(ctx).Infof(fmt.Sprintf("CICD镜像阻断发送到事件中心出错,出错信息:%s", string(body)))
-		return errors.New(string(body))
+		logging.GetLogger().WithContext(ctx).Infof("CICD send msg to event centor, error message: %s", string(body))
+		return fmt.Errorf(string(body))
 	}
 	return nil
 }
@@ -1572,20 +1798,29 @@ func mergeRejectRecord(img model.ImageList, record []ReasonAndDetail) model.Reje
 	return res
 }
 
-func (s *ConScannerSrv) GetImageLibrary(imageName string) string {
+func (s *ConScannerSrv) GetImageLibraryNameTag(imageName string) (*model.ImageList, error) {
+
 	var nameOpts []name.Option
 	nameOpts = append(nameOpts, name.Insecure)
 
 	ref, err := name.ParseReference(imageName, nameOpts...)
 	if err != nil {
-		fmt.Println("parse image name err", err)
-		return ""
+		return nil, err
 	}
 
 	repo := ref.Context()
 
 	registryStr := repo.RegistryStr()
-	return registryStr
+
+	tag := ref.Identifier()
+	repositoryName := ref.Context().RepositoryStr()
+
+	img := &model.ImageList{
+		Tags:         tag,
+		FullRepoName: repositoryName,
+		Library:      registryStr,
+	}
+	return img, nil
 }
 
 func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.ImageList, msgType string, reason int64, detail string) {
@@ -1604,8 +1839,8 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 	tmpReasonAndDetails = append(tmpReasonAndDetails, tmpReasonAndDetail)
 	if msgType == consts.AlertKindK8s {
 		res := mergeRejectRecord(img, tmpReasonAndDetails)
-		if _, err := s.dbdal.CreateRejectRecord(res); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "存储阻断记录出错 error %s", err.Error())
+		if _, err := s.dbdal.CreateRejectRecord(ctx, res); err != nil {
+			logging.GetLogger().Err(err).Msgf("CICD store reject_record error %s", err.Error())
 		}
 	}
 	if len(tmpHashs) > 0 {
@@ -1617,7 +1852,7 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 			generateUUId(img, msgType, consts.EventIntervalUUID),
 		)
 		if err := sendMsgToEventcenter(ctx, msg); err != nil {
-			s.log.WithContext(ctx).Errorf(err, "发送消息到事件中心出错 error:%s", err.Error())
+			logging.GetLogger().Err(err).Msgf("send msg to event center error:%s", err.Error())
 		}
 	}
 }
@@ -1675,4 +1910,98 @@ func mergeMsg(reds ...[]model.KVHashs) []model.KVHashs {
 		}
 	}
 	return res
+}
+
+func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, policeReg string) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+	logging.GetLogger().Info().Msgf("K8s,start DetectImage,imageId：%d", imageId)
+	records := make([]ReasonAndDetail, 0)
+	msgs := make([]model.KVHashs, 0)
+	safe := true
+
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imageId}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CICD,find the image :%d,error", imageId)
+		return false, records, msgs, err
+	}
+	// 如果没有在数据库没有查到镜像，默认不安全
+	if len(imgs) == 0 {
+		logging.GetLogger().Info().Msgf("CICD,not find the image:%d", imageId)
+		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,没有查到对应镜像:%d", imageId))
+	}
+
+	img := imgs[0]
+	img.Library = policeReg
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CICD library:%s get reject policy error", policeReg)
+		return true, records, msgs, err
+	}
+
+	if len(policies) == 0 { // 没有策略说明不检测，默认全安全
+		logging.GetLogger().Info().Msgf("CICD library:%s has no reject policy, all safe by default", policeReg)
+		return true, records, msgs, nil
+	}
+	scanImageRes, err := s.checkScanImageExist(ctx, model.UsePatternForCICD, img, policies[0])
+	if err != nil {
+		logging.GetLogger().Info().Msgf("CICD search scan_image: %d, error: %s", imageId, err.Error())
+		return false, records, msgs, err
+	}
+	records = append(records, scanImageRes.Records...)
+	msgs = append(msgs, scanImageRes.Msg...)
+
+	if !scanImageRes.Safe {
+		safe = scanImageRes.Safe
+	}
+
+	if scanImageRes.ScanImag != nil {
+		scanImage := *scanImageRes.ScanImag
+		for _, po := range policies {
+			if !po.Enable || !po.CicdEnable || po.IsGlobal {
+				logging.GetLogger().Info().Msgf("CICD reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
+				continue
+			}
+			// 恶意文件
+			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
+			// 敏感文件
+			sa2, red2, ms2 := s.checkSensitiveFile(ctx, scanImage, img, po)
+			// 漏洞评分
+			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage, img, po)
+			// 自定义漏洞规则
+			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage, img, po)
+			// 漏洞评级
+			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
+			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 {
+				safe = false
+			}
+			records = append(records, mergeRecord(red1, red2, red3, red4, red5)...)
+			msgs = append(msgs, mergeMsg(ms1, ms2, ms3, ms4, ms5)...)
+		}
+	}
+
+	// 检查白名单,K8s不检查Digest
+	// 镜像存在白名单中，只是不阻断，任然要进行扫描检测，对检测结果仍然要发事件中心
+	if !safe {
+		if in, _ := s.checkWhitelist(ctx, img, model.UsePatternForK8s); in {
+			safe = true
+			for i := range msgs {
+				msgs[i].KVHash.ZH.Value = strings.Replace(msgs[i].KVHash.ZH.Value, "被阻断", "但镜像已加入白名单中，未被阻断", 1)
+				msgs[i].KVHash.EN.Value = strings.Replace(msgs[i].KVHash.EN.Value, ",blocked", ",but image has add to the whitelist,unblocked", 1)
+			}
+		}
+	}
+	return safe, records, msgs, nil
+}
+
+type checkImageRes struct {
+	Safe    bool
+	Records []ReasonAndDetail
+	Msg     []model.KVHashs
+	Image   *model.ImageList
+}
+
+type checkSanImageRes struct {
+	Safe     bool
+	Records  []ReasonAndDetail
+	Msg      []model.KVHashs
+	ScanImag *model.ScanImage
 }

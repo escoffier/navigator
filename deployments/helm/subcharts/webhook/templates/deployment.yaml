@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "webhook.fullname" . }}
+  labels:
+{{ include "webhook.labels" . | indent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "webhook.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "webhook.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: {{ template "webhook.fullname" . }}
+        image: "{{ template "tensorsec.image" . }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 9443
+          protocol: TCP
+        args:
+        - --validators={{ .Values.validators }}
+        - --mutators={{ .Values.mutators }}
+        resources:
+{{ toYaml .Values.resources | trim | indent 10 }}
+        volumeMounts:
+        - mountPath: /etc/tensorsec/certs
+          name: webhook-certs
+          readOnly: true
+        - mountPath: /etc/tensorsec/config
+          name: webhook-config
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      restartPolicy: Always
+      volumes:
+      - name: webhook-certs
+        secret:
+          secretName: {{ template "webhook.fullname" . }}-certs
+      - name: webhook-config
+        configMap:
+          name: {{ template "webhook.fullname" . }}    
+

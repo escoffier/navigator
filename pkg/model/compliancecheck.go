@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -15,6 +17,20 @@ const (
 	ComplianceCheckTargetTypeDocker ComplianceCheckType = "docker"
 	ComplianceCheckTargetTypeHost   ComplianceCheckType = "host"
 )
+
+type ComplianceCronConfig struct {
+	ClusterKey      string     `json:"clusterKey"`
+	KubeBenchCron   CronConfig `json:"kubeBenchCron"`
+	DockerBenchCron CronConfig `json:"dockerBenchCron"`
+	HostBenchCron   CronConfig `json:"hostBenchCron"`
+}
+
+type CronConfig struct {
+	CronString string     `json:"cronString" `
+	CronID     int        `json:"cronID"`
+	PrevRun    *time.Time `json:"prevRun"`
+	NextRun    *time.Time `json:"nextRun"`
+}
 
 type ComplianceCheckEntryBase struct {
 	MetadataEntry `json:"-" bson:",inline"`
