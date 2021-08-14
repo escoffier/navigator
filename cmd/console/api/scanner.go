@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -253,13 +254,24 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
 			return
 		}
+		var httpTimeout time.Duration
+		httpTimeout = 60
+		if strings.Contains(newUrl, "cicd") {
+			httpTimeout = 1000
+		}
 
 		proxy := httputil.ReverseProxy{
 			Director: func(request *http.Request) {
 				request.URL = u
 			},
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout:   httpTimeout * time.Second,
+					KeepAlive: httpTimeout * time.Second,
+					DualStack: true,
+				}).DialContext,
+			},
 		}
-
 		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
 		proxy.ServeHTTP(w, r)
 		log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))

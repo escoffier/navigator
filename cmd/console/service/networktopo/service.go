@@ -15,13 +15,6 @@ var (
 	once     sync.Once
 )
 
-type NetProtocol = uint8
-
-const (
-	TCP NetProtocol = iota + 1
-	UDP
-)
-
 func Init(postgresDB *rdbtools.GormWrapper) error {
 	if postgresDB == nil {
 		return errors.New("illegal argument")
@@ -65,13 +58,6 @@ func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns
 			Namespace: t.DstNamespace,
 			Kind:      t.DstKind,
 			Resource:  t.DstName,
-			Port:      t.DstPort,
-		}
-		switch t.Proto {
-		case TCP:
-			r.Protocol = "TCP"
-		case UDP:
-			r.Protocol = "UDP"
 		}
 		res = append(res, r)
 	}
@@ -97,13 +83,6 @@ func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, d
 			Namespace: t.SrcNamespace,
 			Kind:      t.SrcKind,
 			Resource:  t.SrcName,
-			Port:      t.DstPort,
-		}
-		switch t.Proto {
-		case TCP:
-			r.Protocol = "TCP"
-		case UDP:
-			r.Protocol = "UDP"
 		}
 		res = append(res, r)
 	}

@@ -7,55 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/avast/retry-go"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
 )
 
-type imageListWithVulnResp struct {
-	APIVersion string `json:"apiVersion"`
-	Data       struct {
-		Items []*model.ImageInfo `json:"items"`
-	} `json:"data"`
-}
-
-func GetImagesWithGivenVuln(ctx context.Context, scannerURL, imageVulnName string) ([]*model.ImageInfo, error) {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
-	url := fmt.Sprintf("%s/api/v1/vulns/query/%s", scannerURL, imageVulnName)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("new reuqest for GetImagesWithGivenVuln error. url: %s", url)
-	}
-
-	var resp imageListWithVulnResp
-	handler := func(resp *http.Response, err error) error {
-		if err != nil {
-			return apperror.NewConnectionError(http.StatusInternalServerError, fmt.Errorf("failed to send request to scanner: %w. url: %s", err, url))
-		}
-		defer util.CloseBodyWithLog(resp.Body)
-
-		if resp.StatusCode != http.StatusOK {
-
-			return apperror.NewConnectionError(resp.StatusCode, fmt.Errorf("scanner API returned status %d", resp.StatusCode))
-		}
-		err = json.NewDecoder(resp.Body).Decode(&resp)
-		if err != nil {
-			return apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to decode message from Harbor: %w", err))
-		}
-		return nil
-	}
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, handler, retry.Attempts(3))
-	if err != nil {
-		return nil, err
-	}
-	return resp.Data.Items, nil
-}
-func ImageQuestion(ctx context.Context, postgresDB *gorm.DB, linkObjectId string, questionId int, exist bool, digest string) error {
+func ImageQuestion(postgresDB *gorm.DB, linkObjectId string, questionId int, exist bool, digest string) error {
 	qs := model.QuestionInfo{}
 	if exist {
 		pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -86,11 +44,11 @@ func ImageQuestion(ctx context.Context, postgresDB *gorm.DB, linkObjectId string
 	return nil
 }
 
-func ScanFinish(ctx context.Context, postgresDB *gorm.DB, digest string) error {
+func ScanFinish(postgresDB *gorm.DB, digest string) error {
 
 	cstZone := time.FixedZone("CST", 8*3600)
 	timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Where("status = ?", 0).Updates(model.ImageList{CompleteTime: timeStr}).Error

@@ -43,10 +43,18 @@ type HarborOpts struct {
 	SkipTLSVerify bool
 }
 
+func (h *harborV1) projectsToIds(projects []Project) []string {
+	res := make([]string, 0)
+	for _, v := range projects {
+		res = append(res, fmt.Sprintf("%s", v.ProjectID))
+	}
+	return res
+}
+
 func (h *harborV1) reqHarbor(url string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 	req.SetBasicAuth(h.config.Username, h.config.Password)
 	var resp *http.Response
@@ -65,7 +73,7 @@ func (h *harborV1) reqHarbor(url string) (io.ReadCloser, error) {
 
 	// defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 
 	return resp.Body, nil
@@ -105,7 +113,7 @@ func (h *harborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	var projects []Project
 	err = json.NewDecoder(data).Decode(&projects)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("decode harbor projects body err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("decode harbor projects body err.%v", err.Error()))
 	}
 
 	// logging.GetLogger().Info().Msgf("projects %+v",projects)
@@ -146,7 +154,7 @@ func (h *harborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repo
 	var repos []Repository
 	err = json.NewDecoder(data).Decode(&repos)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
 	}
 
 	// logging.GetLogger().Info().Msgf("repos %+v",repos)
@@ -167,7 +175,7 @@ func (h *harborV1) ListRepoTags(repo string) ([]Tag, error) {
 	var tags []Tag
 	err = json.NewDecoder(data).Decode(&tags)
 	if err != nil {
-		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifacts body err.%v", err.Error()))
+		return nil, errors.New(fmt.Sprintf("decode harbor artifacts body err.%v", err.Error()))
 	}
 
 	// logging.GetLogger().Info().Msgf("artifacts %v",artifacts)
@@ -235,11 +243,8 @@ func (h *harborV1) ListImages(extender registry.ImageListExtender) ([]registry.I
 				i.ConfigJson = configBlob
 				images = append(images, *i)
 
-				err = extender(*i)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("HarborV1 Insert imagelist error %v", err)
-					continue
-				}
+				extender(*i)
+
 			} // end of for artifacts
 		} // end of for repos
 	}
@@ -339,7 +344,7 @@ func (h *harborV1) CreateProject(projectName string, public bool) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("status code is %d", resp.StatusCode))
+		return errors.New(fmt.Sprintf("status code is %d", resp.StatusCode))
 	}
 	return nil
 }
@@ -358,7 +363,7 @@ func (h *harborV1) CheckProject(projectName string) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("status code is %d", resp.StatusCode))
+		return errors.New(fmt.Sprintf("status code is %d", resp.StatusCode))
 	}
 	return nil
 }
@@ -416,10 +421,7 @@ func (h *harborV1) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 }
 
 func init() {
-	err := registry.Register(HarborVersion, openRegistry)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("init harborV1 error:%v", err)
-	}
+	registry.Register(HarborVersion, openRegistry)
 }
 
 func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {

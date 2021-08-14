@@ -2,13 +2,10 @@ package dal
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
@@ -40,12 +37,6 @@ var (
 		"labels",
 		"updated_at",
 		"status",
-	}
-	onDupUpdatedColsForPodResRel = []string{
-		"status",
-		"updated_at",
-		"pod_ip",
-		"host_ip",
 	}
 )
 
@@ -126,10 +117,6 @@ func (q *ResourcesQueryOption) WithResourceKind(kind assets.ResourceKind) *Resou
 	q.whereCondition["kind"] = kind
 	return q
 }
-func (q *ResourcesQueryOption) WithCustom(column, value string) *ResourcesQueryOption {
-	q.whereCondition[column] = value
-	return q
-}
 func (q *ResourcesQueryOption) WithResourceName(name string) *ResourcesQueryOption {
 	q.whereCondition["name"] = name
 	return q
@@ -172,7 +159,6 @@ func CountResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resou
 	}
 	return resCount, nil
 }
-
 func GetResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *ResourcesQueryOption, offset, limit int) (resources []*model.TensorResource, err error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -213,9 +199,6 @@ func ResourceContainersQuery() *ResContainersQueryOption {
 
 func (q *ResContainersQueryOption) GetClusterOption() (string, bool) {
 	v, ok := q.whereCondition["cluster_key"]
-	if !ok {
-		return "", false
-	}
 	return v.(string), ok
 }
 func (q *ResContainersQueryOption) WithCluster(clusterKey string) *ResContainersQueryOption {
@@ -236,10 +219,6 @@ func (q *ResContainersQueryOption) WithResourceName(name string) *ResContainersQ
 }
 func (q *ResContainersQueryOption) WithContainerName(cname string) *ResContainersQueryOption {
 	q.whereCondition["name"] = cname
-	return q
-}
-func (q *ResContainersQueryOption) WithCustom(column string, value interface{}) *ResContainersQueryOption {
-	q.whereCondition[column] = value
 	return q
 }
 func (q *ResContainersQueryOption) WithColumnQuery(column, query string) *ResContainersQueryOption {
@@ -412,7 +391,6 @@ func fromContainerToModel(container corev1.Container, resource *assets.TensorRes
 	contModel.ImagePullPolicy = container.ImagePullPolicy
 	contModel.Ports = container.Ports
 	contModel.SecurityContext = (*model.SecurityContext)(container.SecurityContext)
-	contModel.Spec = (*model.ContainerSpec)(&container)
 
 	contModel.CreatedAt = resource.CreateTime
 	contModel.UpdatedAt = updateTime
@@ -605,280 +583,5 @@ func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *rdbtools.GormWrapper, 
 			"status":     1,
 			"updated_at": now,
 		}).Error
-	})
-}
-
-func getRedisKeyForPodResRelByName(clusterKey, namespace, podName string) string {
-	return fmt.Sprintf("podname-res-rel:%s/%s/%s", clusterKey, namespace, podName)
-}
-func getRedisKeyForPodResRelByPodIP(clusterKey, podIP string) string {
-	return fmt.Sprintf("podip-res-rel:%s/%s", clusterKey, podIP)
-}
-func getRedisKeyForPodResRelByUID(clusterKey, podUID string) string {
-	return fmt.Sprintf("poduid-res-rel:%s/%s", clusterKey, podUID)
-}
-func getRedisKeyForResourceControlled(clusterKey, namespace, kind, name string) string {
-	return fmt.Sprintf("res-controlled:%s/%s/%s/%s", clusterKey, namespace, kind, name)
-}
-
-type prqKind string
-
-const (
-	podIP   prqKind = "podIP"
-	podUID  prqKind = "podUID"
-	podName prqKind = "podName"
-)
-
-type PodResRelationQuery struct {
-	kind   prqKind
-	value  string
-	value2 string
-}
-
-func (q *PodResRelationQuery) WithPodIP(ip string) *PodResRelationQuery {
-	q.kind = podIP
-	q.value = ip
-	return q
-}
-func (q *PodResRelationQuery) WithPodUID(uid string) *PodResRelationQuery {
-	q.kind = podUID
-	q.value = uid
-	return q
-}
-func (q *PodResRelationQuery) WithPodName(name, namespace string) *PodResRelationQuery {
-	q.kind = podName
-	q.value = name
-	q.value2 = namespace
-	return q
-}
-
-func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, clusterKey string, query *PodResRelationQuery) (*model.PodResourceRelation, error) {
-	var rkey string
-	switch query.kind {
-	case podIP:
-		rkey = getRedisKeyForPodResRelByPodIP(clusterKey, query.value)
-	case podUID:
-		rkey = getRedisKeyForPodResRelByUID(clusterKey, query.value)
-	case podName:
-		rkey = getRedisKeyForPodResRelByName(clusterKey, query.value2, query.value)
-	default:
-		return nil, errors.New("illegal queryKind")
-	}
-
-	rctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-	val := ""
-	rerr := util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 200*time.Millisecond)
-		defer oneCancel()
-
-		res, err := redisCli.Get(oneCtx, rkey).Result()
-		if err != nil {
-			return err
-		}
-		val = res
-		return nil
-	})
-	if rerr != nil {
-		return nil, rerr
-	}
-	var r model.PodResourceRelation
-	jerr := json.Unmarshal([]byte(val), &r)
-	if jerr != nil {
-		return nil, jerr
-	}
-	return &r, nil
-}
-
-func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
-	rel := model.PodResourceRelation{
-		ClusterKey:   clusterKey,
-		Namespace:    pod.GetNamespace(),
-		PodName:      pod.GetName(),
-		ResourceName: resourceName,
-		ResourceKind: resKind,
-		PodUID:       string(pod.GetUID()),
-		PodIP:        pod.Status.PodIP,
-		HostIP:       pod.Status.HostIP,
-	}
-	rel.CreatedAt = pod.GetCreationTimestamp().Time
-	rel.UpdatedAt = updateTime
-	rel.ID = util.GenerateUUID(clusterKey, rel.Namespace, rel.ResourceKind, rel.ResourceName, rel.PodUID)
-
-	rCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rCtx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rCtx, 300*time.Millisecond)
-		defer oneCancel()
-		return rdb.Get().WithContext(oneCtx).Model(&rel).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForPodResRel),
-		}).Create(&rel).Error
-	})
-}
-
-func DeletePodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, pod *corev1.Pod, clusterKey string) error {
-	rCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rCtx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rCtx, 300*time.Millisecond)
-		defer oneCancel()
-		return rdb.Get().WithContext(oneCtx).Where("cluster_key = ? AND pod_uid = ?", clusterKey, string(pod.GetUID())).Delete(&model.PodResourceRelation{}).Error
-	})
-}
-
-func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time) error {
-	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rCtx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rCtx, 5000*time.Millisecond)
-		defer oneCancel()
-		return rdb.Get().WithContext(oneCtx).Where("updated_at < ?", ts).Delete(&model.PodResourceRelation{}).Error
-	})
-}
-
-func UpsertPodResourceRelation(ctx context.Context, redisCli *redis.Client, pod *corev1.Pod, resourceName, resKind, clusterKey string, ttl time.Duration) error {
-	rel := model.PodResourceRelation{
-		ClusterKey:      clusterKey,
-		Namespace:       pod.GetNamespace(),
-		PodName:         pod.GetName(),
-		ResourceName:    resourceName,
-		ResourceKind:    resKind,
-		PodUID:          string(pod.GetUID()),
-		PodIP:           pod.Status.PodIP,
-		HostIP:          pod.Status.HostIP,
-		CreateTimestamp: pod.GetCreationTimestamp().Unix(),
-	}
-
-	relBytes, err := json.Marshal(rel)
-	if err != nil {
-		return err
-	}
-	rctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 300*time.Millisecond)
-		defer oneCancel()
-		pipe := redisCli.Pipeline()
-
-		relStr := string(relBytes)
-		pipe.Set(oneCtx, getRedisKeyForPodResRelByName(clusterKey, pod.GetNamespace(), pod.GetName()), relStr, ttl)
-		if rel.PodIP != "" {
-			pipe.Set(oneCtx, getRedisKeyForPodResRelByPodIP(clusterKey, rel.PodIP), relStr, ttl)
-		}
-		pipe.Set(oneCtx, getRedisKeyForPodResRelByUID(clusterKey, rel.PodUID), relStr, ttl)
-		// pipe.SAdd(ctx, getRedisKeyForResourceControlled(clusterKey, rel.Namespace, resKind, resourceName), rel.PodUID)
-		_, err := pipe.Exec(oneCtx)
-		return err
-	})
-}
-
-func DeletePodResourceRelation(ctx context.Context, redisCli *redis.Client, pod *corev1.Pod, clusterKey string) error {
-	rctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 200*time.Millisecond)
-		defer oneCancel()
-		pipe := redisCli.Pipeline()
-		pipe.Del(oneCtx, getRedisKeyForPodResRelByName(clusterKey, pod.GetNamespace(), pod.GetName()))
-		if pod.Status.PodIP != "" {
-			pipe.Del(oneCtx, getRedisKeyForPodResRelByPodIP(clusterKey, pod.Status.PodIP))
-		}
-		pipe.Del(oneCtx, getRedisKeyForPodResRelByUID(clusterKey, string(pod.GetUID())))
-		// pipe.SRem(oneCtx, getRedisKeyForResourceControlled(clusterKey, pod.GetNamespace(), resKind, resourceName), string(pod.GetUID()))
-		_, err := pipe.Exec(oneCtx)
-		return err
-	})
-}
-
-func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey, namespace, resKind, resName string) ([]*model.PodResourceRelation, error) {
-	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
-	defer cancel()
-
-	var rels []*model.PodResourceRelation
-	notFound := false
-	err := util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
-		defer oneCancel()
-
-		err := rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("cluster_key = ? AND namespace = ? AND resource_kind = ? AND resource_name = ? AND status = ?", clusterKey, namespace, resKind, resName, 0).Find(&rels).Error
-		if err == gorm.ErrRecordNotFound {
-			notFound = true
-			return nil
-		}
-		return err
-	})
-	if notFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return rels, nil
-}
-
-func GetClusters(ctx context.Context, rdb *rdbtools.GormWrapper, offset, limit int) (clusters []*model.TensorCluster, totalCnt int64, err error) {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
-	err = util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		oneErr := rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("key").Offset(offset).Limit(limit).Find(&clusters).Error
-		if oneErr != nil {
-			return oneErr
-		}
-		return rdb.Get().WithContext(ctx).Model(&model.TensorCluster{}).Where("status = ?", 0).Count(&totalCnt).Error
-	})
-	return
-}
-func UpdateCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey string, name string, description string) error {
-	if clusterKey == "" {
-		return errors.New("illegal argument")
-	}
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
-	userInfo, ok := util.GetUserFromContext(ctx)
-	updateMap := map[string]interface{}{
-		"name":        name,
-		"description": description,
-		"updated_at":  time.Now(),
-	}
-	if ok {
-		updateMap["updater"] = userInfo.UserName
-	}
-
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("key = ? AND status = ?", clusterKey, 0).Updates(updateMap).Error
-	})
-}
-func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.TensorCluster) error {
-	if cluster == nil || cluster.Key == "" {
-		return errors.New("illegal argument")
-	}
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
-	userInfo, ok := util.GetUserFromContext(ctx)
-	if ok {
-		cluster.Creator = userInfo.UserName
-		cluster.Updater = userInfo.UserName
-	}
-	cluster.CreatedAt = time.Now()
-	cluster.UpdatedAt = cluster.CreatedAt
-
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "key"}},
-			DoNothing: true,
-		}).Create(cluster).Error
 	})
 }

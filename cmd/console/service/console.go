@@ -18,6 +18,20 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -42,19 +56,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -200,10 +201,7 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.TensorContainer{})
 	postgresDB.Get().AutoMigrate(&model.TensorNamespace{})
 	postgresDB.Get().AutoMigrate(&model.TensorConfig{})
-	postgresDB.Get().AutoMigrate(&model.PodResourceRelation{})
-	postgresDB.Get().AutoMigrate(&model.TensorCluster{})
 
-	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
@@ -264,7 +262,7 @@ func NewConsole(
 		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
 	}
 
-	rlErr := assetsSvc.InitResourcesService(postgresDB, scannerURL)
+	rlErr := assetsSvc.InitResourcesService(postgresDB)
 	if rlErr != nil {
 		logging.GetLogger().Err(rlErr).Msgf("ERROR: InitResourcesService init error")
 	}
@@ -273,7 +271,7 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Err(kbmErr).Msgf("ERROR: kubeMonitor init error")
 	}
-	svcErr := assetsSvc.Init(redisClient, postgresDB)
+	svcErr := assetsSvc.Init(mongoDBWrapper, postgresDB)
 	if svcErr != nil {
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
 	}
@@ -296,10 +294,7 @@ func NewConsole(
 	c.Start()
 	cron.Init(c, mongoDBWrapper, mainCtx)
 
-	reErr := riskexplorer.Init(scannerURL)
-	if reErr != nil {
-		logging.GetLogger().Err(reErr).Msgf("ERROR: riskexplorerService init error")
-	}
+	riskexplorer.Init(mongoDBWrapper)
 
 	// networkTopo service
 	ntErr := networktopo.Init(postgresDB)
@@ -310,6 +305,7 @@ func NewConsole(
 	err = config.Init(postgresDB)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: config service init error")
+		return nil, err
 	}
 
 	return &Console{
@@ -320,7 +316,7 @@ func NewConsole(
 				mongoDBWrapper,
 				postgresDB,
 				es,
-				scannerURL,
+				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 				fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
@@ -336,7 +332,7 @@ func NewConsole(
 		ctx:           mainCtx,
 		cancel:        mainCancel,
 		harborClient:  harborClient,
-		scannerURL:    scannerURL,
+		scannerURL:    fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
 	}, nil
 }
 
@@ -403,7 +399,7 @@ func (c *Console) Run() func() {
 			Msg("When validating kube client")
 	}
 	if kubeClient != nil {
-		inResSvc, _ := assetsSvc.GetPodResourcesService(ctx)
+		inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
 		resSvc, _ := assetsSvc.GetResourcesService(ctx)
 
@@ -567,6 +563,70 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 		{
 			Keys: bson.M{
 				"numInconclusive": 1,
+			}, Options: nil,
+		},
+	}
+	neededIndexesPerCollection[model.AssetsContainersCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"lastUpdateTime": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podName": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"name": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podOwnerKind": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podOwnerName": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"isDeleted": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"digest": 1,
+			}, Options: nil,
+		},
+	}
+	neededIndexesPerCollection[model.PodOwnerRefRelationCollection.String()] = []mongo.IndexModel{
+		{
+			Keys: bson.M{
+				"ownerRefName": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"namespace": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"cluster": 1,
+			}, Options: nil,
+		},
+		{
+			Keys: bson.M{
+				"podUid": 1,
 			}, Options: nil,
 		},
 	}

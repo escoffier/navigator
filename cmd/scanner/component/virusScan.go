@@ -14,26 +14,29 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"go.mongodb.org/mongo-driver/mongo"
+
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/rs/zerolog"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type VirusScan struct {
@@ -48,8 +51,13 @@ type VirusScan struct {
 }
 
 const (
-	virusScanOneTimeout = time.Minute * 15
-	virusSingleScore    = 40
+	virusScanOneTimeout           = time.Minute * 15
+	virusRetryInterval            = time.Second * 5
+	virusMongoTimeout             = time.Second * 10
+	virusRedisTimeout             = time.Second * 10
+	virusRedisCleanupTimeout      = time.Minute * 1
+	virusCacheInvalidatorInterval = time.Hour * 2
+	viursMaxLayerScanRetires      = 3
 )
 
 func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
@@ -111,23 +119,35 @@ func (virusScan *VirusScan) failDanglingTasks(ctx context.Context) error {
 
 func (virusScan *VirusScan) Run(ctx context.Context, llms *layerManage.LocalLayerManageSrv) error {
 	// TODO FailTaskRestart
-	err := virusScan.failDanglingTasks(ctx)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("virusScan failDanglingTasks error %v", err)
-	}
+	virusScan.failDanglingTasks(ctx)
 
 	var wg sync.WaitGroup
-	err = os.Mkdir("/tmpscan", 0777)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("virusScan Mkdir error %v", err)
-		return err
-	}
+	os.Mkdir("/tmpscan", 0777)
 	for i := 0; i < virusScan.numWorkers; i++ {
 		wg.Add(1)
 		go virusScan.workerRun(ctx, i, &wg, llms)
 	}
 	wg.Wait()
 	log.Info().Msg("All VirusScan workers finished")
+	return nil
+}
+
+func removeContents(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -180,7 +200,7 @@ func (virusScan *VirusScan) ParseSummrylogs(logPath string, scanPath string) []m
 			fileName := tmpResult[0][strings.LastIndex(tmpResult[0], "/")+1:]
 			ClamAvVirus = append(ClamAvVirus, model.VirusInfo{FileName: fileName, FilePath: strings.Replace(tmpResult[0], replaceString, "", 1), VirusName: tmpResult[1]})
 		}
-		//tmp = strings.Index(val, "Infected files")
+		tmp = strings.Index(val, "Infected files")
 		/*if tmp != -1 {
 			tmpbyte := val[16:]
 			inFectedCount, _ = strconv.Atoi(tmpbyte)
@@ -200,7 +220,8 @@ func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string) (uint6
 		return 0, fmt.Errorf("Failed to DecompressStream: %w", err)
 	}
 	tarReader := tar.NewReader(decompressStreamReader)
-	var count uint64 = 0
+	var count uint64
+	count = 0
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -219,14 +240,8 @@ func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string) (uint6
 			flag := perm & os.FileMode(73)
 			if uint32(flag) == uint32(73) {
 				file, _ := virusScan.createFile(dst + header.Name)
-				_, err := io.Copy(file, tarReader)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("virusScan io.Copy error %v", err)
-				}
-				err = os.Chmod(dst+header.Name, 0666)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("virusScan os.Chmod error %v", err)
-				}
+				io.Copy(file, tarReader)
+				os.Chmod(dst+header.Name, 0666)
 				count++
 			}
 		}
@@ -354,10 +369,7 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 		return
 	}
 	for i := range toScan {
-		err := virusScan.virusProcessLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
-		if err != nil {
-			logging.GetLogger().Error().Msgf("VirusScan get ToScan error :%v", err)
-		}
+		virusScan.virusProcessLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
 	}
 	zerolog.Ctx(ctx).Info().Msg("Virus scan finished, processed all layers")
 
@@ -375,7 +387,9 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 			LayerDigest: digest,
 			ViursInfo:   cachedLayer.ScanReport.Virus,
 		})
-		virus = append(virus, cachedLayer.ScanReport.Virus...)
+		for _, v := range cachedLayer.ScanReport.Virus {
+			virus = append(virus, v)
+		}
 	}
 	report.Virus = model.VirusReport{
 		Repository:     scanTask.Repository,
@@ -390,7 +404,6 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 	//	flag = true
 	// }
 	// err = virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil, flag)
-	virusScan.updateRiskVirusCacheEntry(ctx, scanTask)
 	virusScan.logToLayer(ctx, scanTask, scanTask.ImageID)
 	virusScan.logPostgres(ctx, scanTask, scanTask.TableID)
 	/*if err != nil {
@@ -402,7 +415,7 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 
 func (virusScan *VirusScan) logToLayer(ctx context.Context, scanTask model.VirusScanTask, ImageID int64) {
 	for _, v := range scanTask.ScanReport.Virus.PerLayerReport {
-		if len(v.ViursInfo) <= 0 {
+		if len(v.ViursInfo) < 0 {
 			continue
 		} else {
 			res := []model.Malicious{}
@@ -416,7 +429,7 @@ func (virusScan *VirusScan) logToLayer(ctx context.Context, scanTask model.Virus
 			}
 			jsondata, _ := json.Marshal(res)
 			tmpScanLayer.MaliciousInfoJSON = jsondata
-			virusScan.postgresSvc.InsertVirusLayer(ctx, tmpScanLayer)
+			virusScan.postgresSvc.InsertVirusLayer(tmpScanLayer)
 		}
 	}
 }
@@ -425,7 +438,6 @@ func (virusScan *VirusScan) logPostgres(ctx context.Context, scanTask model.Viru
 	scanImage := model.ScanImage{}
 	if len(scanTask.ScanReport.Virus.Virus) > 0 {
 		res := []model.Malicious{}
-		scanImage.VirusScore = virusSingleScore
 		for _, v := range scanTask.ScanReport.Virus.Virus {
 			tmp := model.Malicious{}
 			tmp.VirusInfo = v
@@ -437,7 +449,7 @@ func (virusScan *VirusScan) logPostgres(ctx context.Context, scanTask model.Viru
 	} else {
 		return
 	}
-	virusScan.postgresSvc.InsertVirusInfo(ctx, scanImage, tableID)
+	virusScan.postgresSvc.InsertVirusInfo(scanImage, tableID)
 }
 
 func (virusScan *VirusScan) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.VirusCachedLayer) (*model.VirusCachedLayer, error) {
@@ -490,7 +502,7 @@ func (virusScan *VirusScan) getCachedEntry(ctx context.Context, digest string, c
 	}
 }
 
-func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTask model.VirusScanTask, status string, message string, originalErr error, flag bool) {
+func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTask model.VirusScanTask, status string, message string, originalErr error, flag bool) error {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
 	defer mongoCtxCancel()
 
@@ -526,6 +538,7 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
 	}*/
+	return nil
 }
 
 func (virusScan *VirusScan) virusProcessLayer(ctx context.Context, hub *registry.Registry, scanTask model.VirusScanTask, currentlyCachedLayers *map[string]*model.VirusCachedLayer, digest string, client *layerManage.LocalLayerManageClient) error {
@@ -591,10 +604,7 @@ func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registr
 	if err != nil {
 		return []model.VirusInfo{}, fmt.Errorf("Get local layer manage client err %v", err)
 	}
-	err = os.Mkdir("/tmpscan/"+digestNum+timeUnixStr+"/", 0777)
-	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("ScanLayer make Tmp Dir err %v", err)
-	}
+	os.Mkdir("/tmpscan/"+digestNum+timeUnixStr+"/", 0777)
 	defer os.RemoveAll("/tmpscan/" + digestNum + timeUnixStr + "/")
 	fileCount, err := virusScan.parseLayerTar(layerPath, "/tmpscan/"+digestNum+timeUnixStr+"/")
 	if err != nil {
@@ -622,7 +632,8 @@ func (virusScan *VirusScan) getCachedGraph(ctx context.Context, layers []string,
 		cachedLayer := &model.VirusCachedLayer{
 			Digest: layer,
 		}
-		iter := virusScan.redisClient.Scan(ctx, 0, "*virusScan_"+layer, 0).Iterator()
+		var iter *redis.ScanIterator
+		iter = virusScan.redisClient.Scan(ctx, 0, "*virusScan_"+layer, 0).Iterator()
 		if err := iter.Err(); err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to get cache entry")
 			currentLayerCache[layer] = cachedLayer
@@ -748,7 +759,7 @@ func (virusScan *VirusScan) GetAllScanStatus() (int, int) {
 
 func (virusScan *VirusScan) GetSha256ScanStatus(sha string) string {
 	res, ok := virusScan.statusQueue.Load(sha)
-	if !ok {
+	if ok == false {
 		return ""
 	}
 	return res.(model.VirusScanQueueInfo).Status
@@ -772,25 +783,5 @@ func (virusScan *VirusScan) GetLayerPath(ctx context.Context, client *layerManag
 }
 func (virusScan *VirusScan) DeleteLayerPath(ctx context.Context, client *layerManage.LocalLayerManageClient, digest string) {
 	zerolog.Ctx(ctx).Info().Str("Digest:", digest).Msg("VirusScan Delete Layer")
-	err := client.DeleteLayer(digest)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("virusScan DeleteLayerPath error %v", err)
-	}
-}
-
-func (virusScan *VirusScan) updateRiskVirusCacheEntry(ctx context.Context, scantask model.VirusScanTask) {
-	url := strings.Replace(scantask.URL, "https://", "", 1)
-	url = strings.Replace(url, "http://", "", 1)
-	image := "riskexp-image-virus-" + url + "/" + scantask.Repository + ":" + scantask.Tag
-	sumData := model.ImageVirusSumData{}
-	sumData.CriticalNum = int64(len(scantask.ScanReport.Virus.Virus))
-	bytes, err := json.Marshal(sumData)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Risk Virus json Marshal error")
-		return
-	}
-	err = virusScan.redisClient.Set(ctx, image, bytes, riskTTL).Err()
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
-	}
+	client.DeleteLayer(digest)
 }

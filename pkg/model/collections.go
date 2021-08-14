@@ -3,13 +3,15 @@ package model
 type Collection int
 
 const (
-	ClusterCollection Collection = iota
+	AssetsContainersCollection Collection = iota
+	ClusterCollection
 	ComplianceCheckResults
 	ComplianceCheckKubeRecordsCollection
 	ComplianceCheckDockerRecordsCollection
 	ComplianceCheckHostRecordsCollection
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
+	PodOwnerRefRelationCollection
 	HarborProjectConfigCollection
 
 	VirusScanTaskCollection
@@ -22,6 +24,7 @@ const (
 
 func GetCollectionNames() []string {
 	return []string{
+		"assets-containers",
 		"cluster",
 		"complianceCheckResults",
 		"kube-bench-records",
@@ -29,6 +32,7 @@ func GetCollectionNames() []string {
 		"host-bench-records",
 		"CVE2CNNVD",
 		"checkHistoryEntry",
+		"podOwnerRefRelation",
 		"harborProjectConfig",
 
 		"virusScanTasks",

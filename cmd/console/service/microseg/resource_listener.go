@@ -28,7 +28,7 @@ func NewResourcesListener(rdb *rdbtools.GormWrapper) *ResourcesListener {
 		rdb: rdb,
 	}
 }
-func (rl *ResourcesListener) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
+func (rl *ResourcesListener) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
 	return &ResourcesClusterListener{
 		parent: rl,
 		stTime: time.Now(),
@@ -72,11 +72,7 @@ func newModelFromResource(res *assets.TensorResource) *model.TensorMicrosegResou
 	m.CreatedAt = now
 	m.UpdatedAt = now
 	m.Status = 0
-	m.NetworkType = model.PodNetwork
-	m.ResourceTag = 0
-	if res.PodTemplate.Spec.HostNetwork == true {
-		m.NetworkType = model.HostNetwork
-	}
+
 	return m
 }
 func (cl *ResourcesClusterListener) upsertMicrosegResource(ctx context.Context, res *assets.TensorResource) error {
@@ -111,6 +107,13 @@ func (cl *ResourcesClusterListener) removeMicrosegResource(ctx context.Context, 
 	})
 }
 
+func shouldResourceBeFiltered(res *assets.TensorResource) bool {
+	if res.Kind != assets.KindReplicaSet {
+		return false
+	}
+	return len(res.OwnerReferences) > 0 && res.OwnerReferences[0].Kind == string(assets.KindDeployment)
+}
+
 func (cl *ResourcesClusterListener) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
 	// do nothing
 	return nil
@@ -143,7 +146,7 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 		}
 
 		// Because we have watched the changes of Deployments, the replicasets that are controlled by a Deployment will be ignored
-		if assets.ShouldResourceBeFiltered(newResource) {
+		if shouldResourceBeFiltered(newResource) {
 			return nil
 		}
 		err := cl.upsertMicrosegResource(context.Background(), newResource)
@@ -157,7 +160,7 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 		}
 
 		// Because we have watched the changes of Deployments, the replicasets that are controlled by a Deployment will be ignored
-		if assets.ShouldResourceBeFiltered(oldResource) {
+		if shouldResourceBeFiltered(oldResource) {
 			return nil
 		}
 		err := cl.removeMicrosegResource(context.Background(), oldResource)

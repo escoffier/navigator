@@ -128,11 +128,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 			i.ConfigJson = configBlob
 			images = append(images, *i)
 
-			err = extender(*i)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
-				continue
-			}
+			extender(*i)
 		}
 	}
 
@@ -297,10 +293,7 @@ func (r *RegistryV2) pullConfigBlob(repo string, configDigest digest.Digest) (st
 }
 
 func init() {
-	err := registry.Register(Version, openRegistry)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("init harborV1 error:%v", err)
-	}
+	registry.Register(Version, openRegistry)
 }
 
 func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {

@@ -68,3 +68,4 @@ type Registry interface {
 	// ListImages return all images
 	ListImages(extender ImageListExtender) ([]Image, error)
 }
+

@@ -20,7 +20,7 @@ var (
 
 // Watcher singleton
 func Watcher(postgre *rdbtools.GormWrapper,
-	ov *PodResourcesService,
+	ov *AssetsInResourcesService,
 	kbmSvc *kubemonitor.Service,
 	tsRes *TensorResourcesService,
 	scannerURL string,
