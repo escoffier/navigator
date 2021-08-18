@@ -16,7 +16,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
-	"github.com/olivere/elastic/v7"
 	"github.com/patrickmn/go-cache"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -35,7 +34,6 @@ type api struct {
 	tokenAuth    *jwtauth.JWTAuth
 	mongodb      *mongotools.DatabaseWrapper
 	postgresDB   *rdbtools.GormWrapper
-	es           *elastic.Client
 	microsegURL  string
 	scannerURL   string
 	redisClient  *redis.Client

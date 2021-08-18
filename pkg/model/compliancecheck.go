@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -11,10 +13,28 @@ const (
 	ComplianceCheckStatusCompleted  = "completed"
 	ComplianceCheckStatusFailed     = "failed"
 
+	ScanStateCompleted  = 0
+	ScanStateInProgress = 1
+	ScanStateFailed     = 2
+
 	ComplianceCheckTargetTypeKube   ComplianceCheckType = "kube"
 	ComplianceCheckTargetTypeDocker ComplianceCheckType = "docker"
 	ComplianceCheckTargetTypeHost   ComplianceCheckType = "host"
 )
+
+type ComplianceCronConfig struct {
+	ClusterKey      string     `json:"clusterKey"`
+	KubeBenchCron   CronConfig `json:"kubeBenchCron"`
+	DockerBenchCron CronConfig `json:"dockerBenchCron"`
+	HostBenchCron   CronConfig `json:"hostBenchCron"`
+}
+
+type CronConfig struct {
+	CronString string     `json:"cronString" `
+	CronID     int        `json:"cronID"`
+	PrevRun    *time.Time `json:"prevRun"`
+	NextRun    *time.Time `json:"nextRun"`
+}
 
 type ComplianceCheckEntryBase struct {
 	MetadataEntry `json:"-" bson:",inline"`
@@ -26,18 +46,6 @@ type ComplianceCheckEntryBase struct {
 	CreatedAt     int64              `json:"created_at" bson:"createdAt,omitempty"`
 	FinishedAt    int64              `json:"finished_at" bson:"finishedAt,omitempty"`
 	Logs          string             `json:"logs" bson:"logs,omitempty"`
-}
-
-func GetMongoCollectionForCheckType(checkType ComplianceCheckType) string {
-	if checkType == ComplianceCheckTargetTypeKube {
-		return ComplianceCheckKubeRecordsCollection.String()
-	} else if checkType == ComplianceCheckTargetTypeDocker {
-		return ComplianceCheckDockerRecordsCollection.String()
-	} else if checkType == ComplianceCheckTargetTypeHost {
-		return ComplianceCheckHostRecordsCollection.String()
-	} else {
-		return ""
-	}
 }
 
 func IsAnyCheckType(checkType ComplianceCheckType) bool {

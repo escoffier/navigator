@@ -1,4 +1,21 @@
 # Note - container OS does *not* need to be the same as scanned host's OS. 
+FROM golang:1.15.0 AS build
+
+ARG GOPROXY=
+RUN export GOPROXY=$GOPROXY
+
+WORKDIR /go/src/app
+
+COPY bench-tool/go.mod .
+COPY bench-tool/go.sum .
+COPY bench-tool/main.go .
+COPY bench-tool/database.go .
+COPY bench-tool/run.go .
+
+ENV GOPROXY="https://goproxy.io"
+RUN GO111MODULE=on CGO_ENABLED=0 go install -a
+
+
 FROM registry.t-appagile.com/tensorsecurity/baseimage-host-bench:latest
 
 ADD xccdfparser xccdfparser/
@@ -16,6 +33,8 @@ RUN cd xccdfparser \
     && sed "s#https://www.redhat.com/security/data/oval/com.redhat.rhsa-RHEL7.xml#file:security-data-oval-com.redhat.rhsa-RHEL7.xml#g" /usr/share/xml/scap/ssg/content/ssg-centos7-ds.xml > ssg-rhel7-offline-ds.xml
 
 ADD tailoring-file-centos.xml tailoring/
+
+COPY --from=build /go/bin/bench-tool .
 
 ADD entrypoint.sh .
 

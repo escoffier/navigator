@@ -51,7 +51,7 @@ func (w *KubeRiskyMonitor) OutputChannel() <-chan KubeMonitorEvent {
 }
 
 // called before watch events
-func (w *KubeRiskyMonitor) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
+func (w *KubeRiskyMonitor) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	cm := &KubeClusterMonitor{
 		clusterName:  clusterName,
 		parent:       w,

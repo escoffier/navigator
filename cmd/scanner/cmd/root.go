@@ -72,8 +72,11 @@ var rootCmd = &cobra.Command{
 			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
 			Msg("Harbor REST client options")
 
+		webshellServerAddr, _ := cmd.Flags().GetString("webshell-server-addr")
+		logging.GetLogger().Info().Str("webshell-server-addr", webshellServerAddr).Msg("webshell options")
+
 		scanner, err := service.NewScanner(
-			httpOpts, mongoOpts, clairOpts, redisOpts, updateOpts, harborOpts)
+			httpOpts, mongoOpts, clairOpts, redisOpts, updateOpts, harborOpts, webshellServerAddr)
 		if err != nil {
 			return err
 		}
@@ -95,6 +98,7 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
+	rootCmd.Flags().String("webshell-server-addr", "http://tensorsec-scanner-webshell-server", "webshell server addr")
 
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddMongoFlags(rootCmd)

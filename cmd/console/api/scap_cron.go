@@ -83,19 +83,13 @@ func (api *api) getCron() http.HandlerFunc {
 
 		clusterObjectID, err := getClusterIDFromURL(r)
 		if err != nil {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("Couldn't read ClusterID: %w", err),
-					Suberror{"clusterID", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID: %w", err), Suberror{"clusterID", ""}))
 			return
 		}
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("checkType param missing"),
-					Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
 			return
 		}
 
@@ -110,9 +104,7 @@ func (api *api) getCron() http.HandlerFunc {
 		cronService, _ := cron.Get(ctx)
 		cronConfig, err := cronService.GetCron(ctx, clusterObjectID, checkType)
 		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError,
-					fmt.Errorf("Failed to get cron: %w", err)))
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to get cron: %w", err)))
 			return
 		}
 		resp.CronString = cronConfig

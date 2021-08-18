@@ -64,3 +64,12 @@ type PolicyDetails struct {
 	ErrorOn      []PolicyNodeRet `json:"errorOn"`
 	WaitingOn    []PolicyNodeRet `json:"waitingOn"`
 }
+
+type Check struct {
+	CheckType string
+	CheckUUID string
+	ClusterID string
+	NodeName  string
+	Namespace string
+	Operator  string
+}

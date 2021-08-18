@@ -1,0 +1,200 @@
+package mutation
+
+import (
+	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/settings/v1alpha1"
+)
+
+//// Patch represents a JSON patch to be applied
+//type Patch struct {
+//	Op    string      `json:"op"`
+//	Path  string      `json:"path"`
+//	Value interface{} `json:"value,omitempty"`
+//}
+
+const (
+	envPatchTemplate          = "/spec/containers/%d/env"
+	volumeMountsPatchTemplate = "/spec/containers/%d/volumeMounts"
+	volumesPatchTemplate      = "/spec/volumes"
+)
+
+// PatchPod patches a single pod with the provided preset spec
+func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*processors.Patch {
+	patches := make([]*processors.Patch, 0)
+
+	driftPrevent := false
+	driftDetect := false
+	commandWhitelistPrevent := false
+	commnadWhitelistDetect := false
+
+	//TODO: Optimization codes or remove
+	for k, v := range pod.Labels {
+		if k == "tensorsec.driftprevent" {
+			if v == "prevent" {
+				driftPrevent = true
+			} else if v == "detect" {
+				driftDetect = true
+			}
+		}
+		if k == "tensorsec.commandprevent" {
+			if v == "prevent" {
+				commandWhitelistPrevent = true
+			} else if v == "detect" {
+				commnadWhitelistDetect = true
+			}
+		}
+	}
+
+	if driftDetect || driftPrevent || commandWhitelistPrevent || commnadWhitelistDetect {
+		envs := spec.DeepCopy().Env
+		volumeMounts := spec.DeepCopy().VolumeMounts
+		volumes := spec.DeepCopy().Volumes
+		if driftDetect {
+			envs = append(envs, corev1.EnvVar{
+				Name:  "DRIFT_DETECT",
+				Value: "true",
+			})
+		} else if driftPrevent {
+			envs = append(envs, corev1.EnvVar{
+				Name:  "DRIFT_PREVENT",
+				Value: "true",
+			})
+		}
+		if commandWhitelistPrevent {
+			envs = append(envs, corev1.EnvVar{
+				Name:  "COMMAND_DRIFT_PREVENT",
+				Value: "true",
+			})
+		} else if commnadWhitelistDetect {
+			envs = append(envs, corev1.EnvVar{
+				Name:  "COMMAND_DRIFT_DETECT",
+				Value: "true",
+			})
+		}
+
+		myPodNameEnvVar := corev1.EnvVar{
+			Name: "MY_POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.name",
+				},
+			},
+		}
+		envs = append(envs, myPodNameEnvVar)
+
+		myPodNamespaceEnvVar := corev1.EnvVar{
+			Name: "MY_POD_NAMESPACE",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.namespace",
+				},
+			},
+		}
+		envs = append(envs, myPodNamespaceEnvVar)
+
+		myPodUIDEnvVar := corev1.EnvVar{
+			Name: "MY_POD_UID",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.uid",
+				},
+			},
+		}
+		envs = append(envs, myPodUIDEnvVar)
+
+		volumesPatch := PatchVolumesVar(pod.Spec.Volumes, volumes, volumesPatchTemplate)
+		patches = append(patches, volumesPatch)
+		for i, container := range pod.Spec.Containers {
+			envPatch := PatchEnvVar(container.Env, envs, fmt.Sprintf(envPatchTemplate, i))
+			patches = append(patches, envPatch)
+
+			volumeMountsPatch := PatchVolumeMountsVar(container.VolumeMounts, volumeMounts, fmt.Sprintf(volumeMountsPatchTemplate, i))
+			patches = append(patches, volumeMountsPatch)
+		}
+
+	}
+
+	return patches
+}
+
+// PatchEnvVar creates a patch for updating a containers environment variables.
+func PatchEnvVar(source, added []corev1.EnvVar, base string) *processors.Patch {
+	idx := make(map[string]bool)
+	for _, src := range source {
+		idx[src.Name] = true
+	}
+
+	envVars := make([]corev1.EnvVar, 0)
+
+	for _, add := range added {
+		if _, exists := idx[add.Name]; exists {
+			// already exists on source, skip
+			continue
+		}
+		idx[add.Name] = true
+
+		envVars = append(envVars, add)
+	}
+
+	envVars = append(envVars, source...)
+
+	return &processors.Patch{
+		Op:    "add",
+		Path:  base,
+		Value: envVars,
+	}
+}
+
+func PatchVolumesVar(source, added []corev1.Volume, base string) *processors.Patch {
+	idx := make(map[string]bool)
+	for _, src := range source {
+		idx[src.Name] = true
+	}
+	volumesVar := make([]corev1.Volume, 0)
+
+	for _, add := range added {
+		if _, exists := idx[add.Name]; exists {
+			// already exists on source, skip
+			continue
+		}
+		idx[add.Name] = true
+
+		volumesVar = append(volumesVar, add)
+	}
+
+	volumesVar = append(volumesVar, source...)
+
+	return &processors.Patch{
+		Op:    "add",
+		Path:  base,
+		Value: volumesVar,
+	}
+}
+
+func PatchVolumeMountsVar(source, added []corev1.VolumeMount, base string) *processors.Patch {
+	idx := make(map[string]bool)
+	for _, src := range source {
+		idx[src.Name] = true
+	}
+	volumeMountsVar := make([]corev1.VolumeMount, 0)
+
+	for _, add := range added {
+		if _, exists := idx[add.Name]; exists {
+			// already exists on source, skip
+			continue
+		}
+		idx[add.Name] = true
+
+		volumeMountsVar = append(volumeMountsVar, add)
+	}
+
+	volumeMountsVar = append(volumeMountsVar, source...)
+	return &processors.Patch{
+		Op:    "add",
+		Path:  base,
+		Value: volumeMountsVar,
+	}
+
+}

@@ -12,8 +12,11 @@ import (
 	"reflect"
 	"strings"
 
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/golang/gddo/httputil/header"
 	"github.com/rs/zerolog/log"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -181,4 +184,12 @@ func MinInt(res ...int) int {
 		}
 	}
 	return ans
+}
+
+func DeepCopy(dst, src interface{}) error {
+	eventData, err := jsoniter.Marshal(src)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("deep marshal errror:%+v", err)
+	}
+	return jsoniter.Unmarshal(eventData, &dst)
 }

@@ -65,6 +65,12 @@ if [ $retval -ne 0 ]; then
   exit $retval
 fi
 
+# write data to postgreDB
+[ ! -e "./bench-tool" ] && echo "can not find host bench-tool!"
+./bench-tool --outputfile=out.json
+exit 0
+
+#write data to mongo
 echo "Converting output json to mongo record: Node name: $NODE_NAME, Check ID: $CHECK_ID"
 jq -n \
     --arg nodeName "$NODE_NAME" \

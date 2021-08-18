@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorsec-webhook
+  namespace: tensorsec-test-cn
+spec:
+  selector:
+    matchLabels:
+      app: tensorsec-webhook
+  template:
+    metadata:
+      labels:
+        app: tensorsec-webhook
+    spec:
+      serviceAccountName: tensorsec-webhook
+      containers:
+        - name: tensorsec-webhook
+          image: localhost:32000/tensorsec-webhook:latest
+          args:
+            - --validators=ImageValidator
+            - --mutators=MicroSegMutator,DriftPreventionMutator
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: /etc/tensorsec/certs
+              name: webhook-certs
+              readOnly: true
+            - mountPath: /etc/tensorsec/config
+              name: webhook-config
+      imagePullSecrets:
+        - name: harbor-admin-secret
+      volumes:
+        - name: webhook-config
+          configMap:
+            name: tensorsec-webhook
+        - name: webhook-certs
+          secret:
+            secretName: tensorsec-webhook
+
+

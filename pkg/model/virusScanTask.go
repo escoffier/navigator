@@ -17,10 +17,21 @@ type VirusInfo struct {
 	VirusName string `json:"virusname" bson:"virusname"`
 }
 
+// WebShellInfo is the result of webshell detection
+type WebShellInfo struct {
+	FileName string `json:"filename" bson:"filename"`
+	FilePath string `json:"filepath" bson:"filepath"`
+	// the score of webshell detection
+	Score int64 `json:"score" bson:"score"`
+	// the code-segments which contain webshell
+	Codes []string `json:"codes" bson:"codes"`
+}
+
 type VirusLayerReport struct {
-	LayerNo     int         `json:"layerNo"`
-	LayerDigest string      `json:"layerDigest"`
-	ViursInfo   []VirusInfo `json:"virus_info"`
+	LayerNo      int            `json:"layerNo"`
+	LayerDigest  string         `json:"layerDigest"`
+	ViursInfo    []VirusInfo    `json:"virus_info"`
+	WebShellInfo []WebShellInfo `json:"web_shell_info"`
 }
 
 type VirusReport struct {
@@ -28,6 +39,7 @@ type VirusReport struct {
 	Tag            string             `json:"tag"`
 	Digest         string             `json:"digest"`
 	Virus          []VirusInfo        `json:"virus_info" bson:"virus_info"`
+	WebShellInfo   []WebShellInfo     `json:"web_shell_info"`
 	PerLayerReport []VirusLayerReport `json:"perLayerReport"`
 }
 

@@ -1,0 +1,24 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-tensorwall-sidecar
+  labels:
+    app: tensor-webhook
+webhooks:
+  - name: tensorwall.sec.com
+    clientConfig:
+      url: "https://192.168.254.1:9443/mutating"
+#      service:
+#        name: tensor-webhook-svc
+#        namespace: tensorsec-tensorwall
+#        path: "/mutating"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: ["apps", "extensions", ""]
+        apiVersions: ["v1", "v1beta1"]
+        resources: [ "pods"]
+#    namespaceSelector:
+#      matchLabels:
+#        tensor-sidecar-inject: enabled
+

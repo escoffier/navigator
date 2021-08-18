@@ -5,12 +5,24 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
+
+func checkRulesFile(in []byte) error {
+	var rulesContext []model.RuleFromYaml
+	err := yaml.Unmarshal(in, &rulesContext)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func writeOutputFile(fp *os.File, header *cryption.FileHeader, data []byte) error {
 
@@ -56,6 +68,14 @@ func main() {
 	defer fp.Close()
 
 	fileBytes, err := ioutil.ReadFile(*inputRulesFilename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err = checkRulesFile(fileBytes); err != nil {
+		fmt.Println(err)
+		return
+	}
 	data, md5, blockNum := cryption.EncryptionRules(fileBytes)
 	versionList := strings.Split(*version, ".")
 	versionNum := [2]uint16{0, 0}

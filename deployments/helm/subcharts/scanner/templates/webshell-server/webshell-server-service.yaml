@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "scanner.fullname" . }}-webshell-server
+  labels:
+    app: {{ template "scanner.fullname" . }}-webshell-server
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.webshell.service.type }}
+  {{- if (and (eq .Values.webshell.service.type "ClusterIP") (not (empty .Values.webshell.service.clusterIP))) }}
+  clusterIP: {{ .Values.webshell.service.clusterIP }}
+  {{- end }}
+  ports:
+  - port: {{ .Values.webshell.service.port }}
+    protocol: TCP
+    name: http
+    targetPort: 80
+    {{- if (and (eq .Values.webshell.service.type "NodePort") (not (empty .Values.webshell.service.nodePort))) }}
+    nodePort: {{ .Values.service.nodePort }}
+    {{- end }}
+  selector:
+    app: {{ template "scanner.fullname" . }}-webshell-server
+    release: {{ .Release.Name }}

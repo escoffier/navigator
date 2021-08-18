@@ -7,7 +7,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -22,14 +21,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/{checkType}/{clusterID}/reports", api.getScapReports())
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
 		r.Get("/{checkType}/{nodeName}/{checkID}/details", api.getNodeCheckDetails())
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
@@ -59,8 +54,6 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		filter := bson.M{}
-
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{"checkID", ""}))
@@ -72,7 +65,6 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("nodeName param missing"), Suberror{"nodeName", ""}))
 			return
 		}
-		filter["nodeName"] = nodeName
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
@@ -88,31 +80,29 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		}
 
 		scapService, _ := scapper.GetService(ctx)
-
-		col := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType))
-
 		nodeCheckDetails := &scap.NodeCheckDetails{}
+
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			err := scapService.GetKubeNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := scapService.GetNodeChecKubeDetails(ctx, nodeName, checkID, string(checkType), nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube history entries: %w", err)))
 				return
 			}
+
 		case model.ComplianceCheckTargetTypeDocker:
-			err := scapService.GetDockerNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+			err := scapService.GetNodeCheckDockerDetails(ctx, nodeName, checkID, string(checkType), nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker history entries: %w", err)))
 				return
 			}
-		case model.ComplianceCheckTargetTypeHost:
-			err := scapService.GetHostNodeCheckDetails(ctx, col, filter, checkID, nodeCheckDetails)
+
+		case model.ComplianceCheckTargetTypeHost :
+			err := scapService.GetNodeCheckHostDetails(ctx, nodeName, checkID, string(checkType), nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
 				return
 			}
-		default:
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("checkType is error, %v.", checkType)))
 		}
 
 		response.Ok(w, response.WithItem(*nodeCheckDetails))
@@ -147,67 +137,25 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 			return
 		}
 
-		sortBy, err := api.sortByFromQuery(r, model.GetDefaultScapSortableName(), model.GetScapSortableNames()...)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		sortOrder, err := api.sortOrderFromQuery(r, "asc")
+		sortBy := "created_at"
+		sortOrder, err := api.sortOrderFromQuery(r, "desc")
 		if err != nil {
 			RespAndLog(w, r.Context(), err)
 			return
 		}
 
 		offset, limit := api.getOffsetAndLimit(r)
-
 		scapService, _ := scapper.GetService(ctx)
-		clusterService, _ := cluster.Get(ctx)
 
-		items, docNum, err := scapService.GetCheckHistory(ctx, checkType, "", offset, limit, model.GetScapSortableField(sortBy), sortOrder)
+		items, docNum, err := scapService.GetCheckHistory(ctx, offset, limit, string(checkType), sortBy, sortOrder)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
 			return
 		}
-		// We want to return cluster names to frontend for nice rendering
-		clusterNames := make(map[string]string)
-		inactiveClusters := make(map[string]bool)
-		for i := range items {
-			if _, ok := inactiveClusters[items[i].ClusterID]; ok {
-				// Scap check references to deleted cluster
-				continue
-			}
-			if _, ok := clusterNames[items[i].ClusterID]; !ok {
-				clusterIDPrimitive, err := primitive.ObjectIDFromHex(items[i].ClusterID)
-				if err != nil {
-					RespAndLog(w, ctx, NewFieldError(http.StatusInternalServerError, fmt.Errorf("Cluster with invalid ID %s: %w", items[i].ClusterID, err)))
-					return
-				}
-
-				queryCluster, err := clusterService.GetCluster(ctx, clusterIDPrimitive, true)
-				if err != nil {
-					switch err.(type) {
-					case ClusterDoesntExistError:
-						// Scap check references a deleted cluster
-						inactiveClusters[items[i].ClusterID] = true
-						continue
-					default:
-						RespAndLog(w, ctx, fmt.Errorf("Couldn't get cluster: %w", err))
-						return
-					}
-				}
-
-				clusterNames[items[i].ClusterID] = queryCluster.ClusterName
-			}
-			items[i].ClusterName = clusterNames[items[i].ClusterID]
-			if items[i].FinishedAt == -1 {
-				items[i].FinishedAt = 0
-			}
-		}
 
 		response.Ok(w,
 			response.WithItems(items),
-			response.WithTotalItems(docNum),
+			response.WithTotalItems(int64(docNum)),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
 	}
@@ -250,40 +198,6 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		}
 
 		offset, limit := api.getOffsetAndLimit(r)
-		sortOrder, err := api.sortOrderFromQuery(r, "asc")
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		policyNumber := r.URL.Query().Get("policyNumber")
-
-		sortBy, err := api.sortByFromQuery(r, "policyNumber", "name", "numFailed", "numSuccessful", "numInfo", "numWarn")
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		filter := bson.M{"checkId": checkID}
-
-		findOptions := options.Find().SetMaxTime(time.Second * 2)
-
-		count, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-		if count == 0 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID not existing"), Suberror{"checkID", checkID}))
-			return
-		}
-
-		cursor, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err)))
-			return
-		}
-		defer cursor.Close(ctx)
 
 		waitingOn := []string{}
 		errorOn := []string{}
@@ -291,20 +205,27 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
 		scapService, _ := scapper.GetService(ctx)
-		if checkType == model.ComplianceCheckTargetTypeKube {
-			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+		err := scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkID)
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get scan node state failed, %w", err)))
+			return
+		}
+
+		switch checkType {
+		case model.ComplianceCheckTargetTypeKube:
+			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, checkID, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
 				return
 			}
-		} else if checkType == model.ComplianceCheckTargetTypeDocker {
-			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+		case model.ComplianceCheckTargetTypeDocker:
+			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, checkID, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
 				return
 			}
-		} else if checkType == model.ComplianceCheckTargetTypeHost {
-			err := scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+		case model.ComplianceCheckTargetTypeHost :
+			err := scapService.GetHostBreakdownEntries(ctx, checkMap, checkID, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
 				return
@@ -316,17 +237,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			results = append(results, v)
 		}
 
-		err = cursor.Err()
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Cursor error: %w", err)))
-			return
-		}
-
 		docNum := int64(len(checkMap))
-
-		sort.Slice(results, func(i, j int) bool {
-			return api.sortBy(results[i], results[j], sortBy, sortOrder)
-		})
 
 		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
 		resultsLimit := int(math.Min(float64(offset+limit), float64(len(results))))
@@ -377,62 +288,38 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 		}
 
 		scapService, _ := scapper.GetService(ctx)
-		latest, err := scapService.GetLatestHistory(ctx, checkType, "", "createdAt", sortOrder)
+		checkId, err := scapService.GetLatestHistory(ctx, string(checkType), "created_at", sortOrder)
 		if err != nil {
 			response.Ok(w, response.WithTotalItems(0))
 			return
 		}
-		checkID := latest.CheckID
-
-		policyNumber := r.URL.Query().Get("policyNumber")
-
-		sortBy, err := api.sortByFromQuery(r, "policyNumber", "name", "numFailed", "numSuccessful", "numInfo", "numWarn")
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		filter := bson.M{"checkId": checkID}
-
-		findOptions := options.Find().SetMaxTime(time.Second * 2)
-
-		count, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-		if count == 0 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID not existing"), Suberror{"checkID", checkID}))
-			return
-		}
-
-		cursor, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find documents: %w", err)))
-			return
-		}
-		defer cursor.Close(ctx)
 
 		waitingOn := []string{}
 		errorOn := []string{}
 		successOn := []string{}
 		checkMap := make(map[string]*scap.CheckBreakdown)
 
+		err = scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkId)
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get scan node state failed, %w", err)))
+			return
+		}
+
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, checkId, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeDocker:
-			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, checkId, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeHost:
-			err := scapService.GetHostBreakdownEntries(ctx, checkMap, &waitingOn, &errorOn, &successOn, policyNumber, cursor)
+			err := scapService.GetHostBreakdownEntries(ctx, checkMap, checkId, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
 				return
@@ -447,20 +334,11 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 			results = append(results, v)
 		}
 
-		err = cursor.Err()
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Cursor error: %w", err)))
-			return
-		}
-
 		docNum := int64(len(checkMap))
-
-		sort.Slice(results, func(i, j int) bool {
-			return api.sortBy(results[i], results[j], sortBy, sortOrder)
-		})
 
 		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
 		resultsLimit := int(math.Min(float64(offset+limit), float64(len(results))))
+
 		response.Ok(w,
 			response.WithCustomField("waitingOn", waitingOn),
 			response.WithCustomField("errorOn", errorOn),
@@ -468,7 +346,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 			response.WithItems(results[resultsOffset:resultsLimit]),
 			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
-			response.WithCheckId(checkID),
+			response.WithCheckId(checkId),
 			response.WithStartIndex(offset))
 	}
 }
@@ -492,8 +370,8 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		policyNumber := chi.URLParam(r, "policyNumber")
-		if policyNumber == "" {
+		policyId := chi.URLParam(r, "policyNumber")
+		if policyId == "" {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("policyNumber param missing"), Suberror{"policyNumber", ""}))
 			return
 		}
@@ -510,26 +388,6 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		filter := bson.M{"checkId": checkID}
-
-		count, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).CountDocuments(ctx, filter)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't find document: %w", err)))
-			return
-		}
-		if count == 0 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID not existing"), Suberror{"checkID", checkID}))
-			return
-		}
-
-		findOptions := options.Find().SetMaxTime(time.Second * 2)
-		cursor, err := api.mongodb.Get().Collection(model.GetMongoCollectionForCheckType(checkType)).Find(ctx, filter, findOptions)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't update cluster: %w", err)))
-			return
-		}
-		defer cursor.Close(ctx)
-
 		policyDetails := &scap.PolicyDetails{}
 		policyDetails.CheckID = checkID
 
@@ -537,19 +395,19 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			err := scapService.GetKubePolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := scapService.GetKubePolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube policy details: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeDocker:
-			err := scapService.GetDockerPolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := scapService.GetDockerPolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker policy details: %w", err)))
 				return
 			}
 		case model.ComplianceCheckTargetTypeHost:
-			err := scapService.GetHostPolicyDetails(ctx, policyDetails, policyNumber, cursor)
+			err := scapService.GetHostPolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host policy details: %w", err)))
 				return
@@ -558,60 +416,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("checkType is error, %v.", checkType)))
 		}
 
-		err = cursor.Err()
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Cursor error: %w", err)))
-			return
-		}
-
 		response.Ok(w, response.WithItem(*policyDetails))
-	}
-}
-
-// @Summary Get scap reports
-// @Description Get scap report for cluster and filter criteria
-// @ID v1-scap-job-get
-// @Produce json
-// @Param checkType path string true "kube/docker/host"
-// @Param clusterID path string true "cluster ID"
-// @Param checkID query string false "check ID"
-// @Param nodeName query string false "node name"
-// @Param status query string false "status (inprogress/error/completed)"
-// @Router /api/v1/scap/{checkType}/{clusterID}/reports [get]
-func (api *api) getScapReports() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
-		defer cancel()
-
-		clusterObjectID, err := getClusterIDFromURL(r)
-		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID: %w", err), Suberror{"clusterID", ""}))
-			return
-		}
-
-		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
-		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
-			return
-
-		}
-		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)")))
-			return
-		}
-
-		checkID := r.URL.Query().Get("checkId")
-		nodeName := r.URL.Query().Get("nodeName")
-		status := r.URL.Query().Get("status")
-
-		scapper, _ := scapper.GetScapper(ctx)
-		results, err := scapper.GetJobEntriesForCheck(ctx, clusterObjectID.Hex(), checkType, checkID, nodeName, status)
-		if err != nil {
-			RespAndLog(w, ctx, err)
-			return
-		}
-
-		response.Ok(w, response.WithItems(results))
 	}
 }
 
@@ -659,7 +464,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		}
 
 		scapper, _ := scapper.GetScapper(ctx)
-		checkUUID, err := scapper.RunComplianceCheck(ctx, api.ctx, clusterObjectID, cluster, checkType, username)
+		checkUUID, err := scapper.RunComplianceCheck(ctx, api.ctx, cluster, checkType, username)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 			return
@@ -751,12 +556,9 @@ func (api *api) exportFile() http.HandlerFunc {
 		}
 
 		var task model.ExportTask
-		task.Status = 1
-		filter := bson.M{"checkId": checkID, "username": username}
-
-		findOptions := options.FindOne().SetMaxTime(time.Second * 1)
-		//find export file task
-		err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter, findOptions).Decode(&task)
+		tbname := task.TableName()
+		query := "task_id = ? and username = ?"
+		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err == nil {
 
 			if task.Status == 1 {
@@ -773,8 +575,7 @@ func (api *api) exportFile() http.HandlerFunc {
 				if err == nil {
 					os.Remove(task.FileName)
 				}
-
-				_, delErr := api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
+				delErr := api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 				if delErr != nil {
 					logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
 				}
@@ -783,13 +584,14 @@ func (api *api) exportFile() http.HandlerFunc {
 			return
 		}
 		language := lang.Language(ctx)
+		task.Status = 1
 		task.UserName = username
 		task.CheckType = string(checkType)
 		task.CheckId = checkID
 		task.CreatedAt = time.Now().Unix()
 		task.FileName = fmt.Sprintf("/var/www/%s-%s-%v.xlsx", string(checkType), string(language), task.CreatedAt)
 		//insert task data to mongo
-		_, err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).InsertOne(ctx, task)
+		err = api.postgresDB.Get().WithContext(ctx).Create(&task).Error
 		if err != nil {
 			task.Status = 2
 		} else {
@@ -823,12 +625,9 @@ func (api *api) getFile() http.HandlerFunc {
 			return
 		}
 		var task model.ExportTask
-		//filter
-		filter := bson.M{"checkId": checkID, "username": username}
-
-		findOptions := options.FindOne().SetMaxTime(time.Second * 1)
-		//find export file task
-		err = api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).FindOne(ctx, filter, findOptions).Decode(&task)
+		tbname := task.TableName()
+		query := "task_id = ? and username = ?"
+		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err != nil {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("%v", err)))
 			return
@@ -839,7 +638,7 @@ func (api *api) getFile() http.HandlerFunc {
 			return
 		}
 		//delete record
-		_, delErr := api.mongodb.Get().Collection(model.ExportFileTaskCollection.String()).DeleteMany(ctx, filter)
+		delErr := api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 		if delErr != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
 		}

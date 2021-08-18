@@ -66,6 +66,9 @@ type ScanLayer struct { // 层级扫描结果
 	MaliciousInfoJSON datatypes.JSON `gorm:"type:jsonb" json:"-"`     // 恶意文件
 	MaliciousInfo     []Malicious    `gorm:"-" json:"malicious_info"` // 恶意文件
 
+	WebshellInfoJSON datatypes.JSON `gorm:"type:jsonb" json:"-"`    // webshell
+	WebshellInfo     []Webshell     `gorm:"-" json:"webshell_info"` // webshell
+
 	SensitiveFileJSON datatypes.JSON `gorm:"type:jsonb" json:"-"` // 敏感文件
 	SensitiveFile     []Sensitive    `gorm:"-" json:"sensitive_file"`
 
@@ -73,17 +76,25 @@ type ScanLayer struct { // 层级扫描结果
 }
 
 type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scantasks表
-	ID                    int64 `gorm:"primaryKey"`
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	DeletedAt             int
-	ImageId               int64                      `gorm:"uniqueIndex:idx_scan_image"`
-	RiskScore             float64                    `gorm:"column:risk_score" json:"risk_score" bson:"risk_score"`
-	VulnInfo              []VulnerabilityInfo        `gorm:"-"`
-	VulnInfoJSON          datatypes.JSON             `gorm:"type:jsonb"` // 漏洞结果汇总
-	PkgInfoJSON           datatypes.JSON             `gorm:"type:jsonb"` // 软件包信息
-	MaliciousInfoJSON     datatypes.JSON             `gorm:"type:jsonb"` // 恶意文件
-	MaliciousInfo         []Malicious                `gorm:"-"`          // 恶意文件
+	ID                int64 `gorm:"primaryKey"`
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	DeletedAt         int
+	ImageId           int64               `gorm:"uniqueIndex:idx_scan_image"`
+	RiskScore         float64             `gorm:"column:risk_score" json:"risk_score" bson:"risk_score"`
+	VulnScore         float64             `gorm:"column:vuln_score" json:"vuln_score"`
+	SensitiveScore    float64             `gorm:"column:sensitive_score" json:"sensitive_score"`
+	VirusScore        float64             `gorm:"column:virus_score" json:"virus_score"`
+	WebshellScore     float64             `gorm:"column:webshell_score" json:"webshell_score"`
+	VulnInfo          []VulnerabilityInfo `gorm:"-"`
+	VulnInfoJSON      datatypes.JSON      `gorm:"type:jsonb"` // 漏洞结果汇总
+	PkgInfoJSON       datatypes.JSON      `gorm:"type:jsonb"` // 软件包信息
+	MaliciousInfoJSON datatypes.JSON      `gorm:"type:jsonb"` // 恶意文件
+	MaliciousInfo     []Malicious         `gorm:"-"`          // 恶意文件
+	WebshellInfo      []Webshell          `gorm:"-"`          // webshell
+	WebshellInfoJSON  datatypes.JSON      `gorm:"type:jsonb"` // webshell
+	//	WebshellInfo          []Webshell                 `gorm:"-"`          // webshell
+	//WebshellInfoJSON      datatypes.JSON             `gorm:"type:jsonb"` // webshell
 	SensitiveFile         []Sensitive                `gorm:"-"`
 	SensitiveFileJSON     datatypes.JSON             `gorm:"type:jsonb"` // 敏感文件
 	PerLayerReport        []VulnerabilityLayerReport `gorm:"-"`
@@ -105,32 +116,32 @@ func (i ScanImage) TableName() string {
 
 // 镜像信息表
 type ImageList struct {
-	ID             int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	Url            string
-	FullRepoName   string                 `gorm:"uniqueIndex:uniq_inx_image,priority:1"  json:"full_repo_name"`
-	Tags           string                 `gorm:"uniqueIndex:uniq_inx_image,priority:2" json:"tags"`
-	Digest         string                 `gorm:"index:idx_image_digest" json:"digest"`
-	OS             string                 `gorm:"column:os" json:"os"`
-	Size           int                    `gorm:"column:size" json:"size"`
-	Library        string                 `gorm:"uniqueIndex:uniq_inx_image,priority:3" json:"library"`
-	Questions      []QuestionInfo         `gorm:"-" json:"questions"`
-	CompleteTime   string                 `gorm:"column:complete_time" json:"complete_time"`
-	ImageScanVuln  ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
-	Container      []AssetContainer       `gorm:"-" json:"container"`
-	ScanStatus     string                 `gorm:"-" json:"scan_status"`
-	ImageScanVirus []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
-
-	OnLineCount   int  `gorm:"column:on_line_count;default:0" json:"-"`
-	Status        int  `gorm:"column:status;default:0" json:"status"` //  status: -1 not ready images 0 normal status
-	RegistryId    uint // 来源registry，id为registry表的id
-	FirstPushTime time.Time
-	LastPushTime  time.Time  `gorm:"not null"` // 上次push时间
-	LastPullTime  time.Time  // 上次pull时间
-	ManifestV1    ManifestV1 `gorm:"-" json:"manifest_v1" `
-	ManifestV2    ManifestV2 `gorm:"-" json:"manifest_v2"`
-	ConfigFile    ConfigFile `gorm:"-" json:"config"`
+	ID            int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	Url           string
+	FullRepoName  string                 `gorm:"uniqueIndex:uniq_inx_image,priority:1"  json:"full_repo_name"`
+	Tags          string                 `gorm:"uniqueIndex:uniq_inx_image,priority:2" json:"tags"`
+	Digest        string                 `gorm:"index:idx_image_digest" json:"digest"`
+	OS            string                 `gorm:"column:os" json:"os"`
+	Size          int                    `gorm:"column:size" json:"size"`
+	Library       string                 `gorm:"uniqueIndex:uniq_inx_image,priority:3" json:"library"`
+	Questions     []QuestionInfo         `gorm:"-" json:"questions"`
+	CompleteTime  string                 `gorm:"column:complete_time" json:"complete_time"`
+	ImageScanVuln ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
+	// Container      []AssetContainer       `gorm:"-" json:"container"`
+	ScanStatus        string             `gorm:"-" json:"scan_status"`
+	ImageScanVirus    []VirusFileInfo    `gorm:"-" json:"image_scan_virus"`
+	ImageScanWebshell []WebshellFileInfo `gorm:"-" json:"image_scan_webshell"`
+	OnLineCount       int                `gorm:"column:on_line_count;default:0" json:"-"`
+	Status            int                `gorm:"column:status;default:0" json:"status"` //  status: -1 not ready images 0 normal status
+	RegistryId        uint               // 来源registry，id为registry表的id
+	FirstPushTime     time.Time
+	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
+	LastPullTime      time.Time  // 上次pull时间
+	ManifestV1        ManifestV1 `gorm:"-" json:"manifest_v1" `
+	ManifestV2        ManifestV2 `gorm:"-" json:"manifest_v2"`
+	ConfigFile        ConfigFile `gorm:"-" json:"config"`
 
 	ManifestV1JSON datatypes.JSON `gorm:"type:jsonb"` // manifest内容
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
@@ -367,7 +378,11 @@ type ContainerConfigV1 struct {
 
 // 恶意文件
 type Malicious struct {
-	VirusInfo VirusInfo `json:"virus_info"`
+	VirusInfo VirusInfo `json:"virus_info,omitempty"`
+}
+
+type Webshell struct {
+	WebShellInfo WebShellInfo `json:"webshell_info,omitempty"`
 }
 
 // RejectRecord 拦截记录表
@@ -430,7 +445,7 @@ type RejectPolicy struct {
 	Enable        bool         `json:"enable"` // 是否启用该策略
 	IsGlobal      bool         `json:"-"`
 	DeletedAt     int          `json:"deleted_at,omitempty"`
-}
+} //@name RejectPolicy
 
 func (RejectPolicy) TableName() string {
 	return "reject_policy"

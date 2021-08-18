@@ -1,14 +1,18 @@
 package model
 
 type ExportTask struct {
-	Status     uint8  `json:"status" bson:"status"`
-	CheckType  string `json:"checkType" bson:"checkType"`
-	ClusterId  string `json:"clusterId" bson:"clusterId"`
-	CheckId    string `json:"checkId" bson:"checkId"`
-	FileName   string `josn:"filename" bson:"filename"`
-	UserName   string `json:"username" bson:"username"`
-	CreatedAt  int64  `json:"createdAt" bson:"createdAt"`
-	FinishedAt int64  `json:"finishedAt" bson:"finishedAt"`
+	Status     uint8  `gorm:"column:status"`
+	CheckType  string `gorm:"column:check_type"`
+	ClusterId  string `gorm:"column:cluster_id"`
+	CheckId    string `gorm:"column:task_id"`
+	FileName   string `gorm:"column:filename"`
+	UserName   string `gorm:"column:username"`
+	CreatedAt  int64  `gorm:"column:created_at"`
+	FinishedAt int64  `gorm:"column:finished_at"`
+}
+
+func (et *ExportTask) TableName() string {
+	return "scan_export_task"
 }
 
 type ScapRetData struct {

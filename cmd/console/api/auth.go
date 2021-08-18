@@ -9,13 +9,13 @@ import (
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
@@ -181,7 +181,7 @@ func (api *api) logout() http.HandlerFunc {
 // @Success 200 {object} api.User "Current user"
 // @Router /api/v1/auth/user [get]
 func user(w http.ResponseWriter, r *http.Request) {
-	u := r.Context().Value(userKey).(*User)
+	u := r.Context().Value(util.CtxUserKey).(*User)
 	response.Ok(w, response.WithItem(*u))
 }
 

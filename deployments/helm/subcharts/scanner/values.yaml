@@ -59,6 +59,23 @@ dockerregistry:
     runAsUser: 1000
     fsGroup: 1000
 
+webshell:
+  image:
+    name: webshell-server
+  replicas: 2
+  resources:
+    limits:
+      cpu: "300m"
+      memory: "500Mi" 
+    requests:
+      cpu: "100m"
+      memory: "200Mi"
+  service:
+    type: ClusterIP
+    # clusterIP:
+    port: 80
+    # nodePort:
+
 ## Deployment pod host aliases
 #  hostAliases:
 #  - ip: "192.168.x.x"

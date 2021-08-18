@@ -65,6 +65,8 @@ scanner:
       # clusterIP:
       port: 5000
       # nodePort:
+  webshell:
+    replicas: 2
 #  hostAliases:
 #  - ip: "192.168.3.2"
 #    hostnames:
@@ -133,6 +135,10 @@ holmes:
 image-validator:
   image:
     #tag: 1.6.8
+    tag: *tensorsecVerison
+
+webhook:
+  image:
     tag: *tensorsecVerison
 
 redis-ha:

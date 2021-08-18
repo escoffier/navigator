@@ -9,3 +9,8 @@ func GetMillisecondTime(t time.Time) time.Time {
 func GetMillisecondTimestampByTime(t time.Time) int64 {
 	return t.UnixNano() / 1e6
 }
+
+func GetTimeByMillisecondTimestamp(timestamp int64) time.Time {
+	return time.Unix(0, timestamp*1e6)
+}
+

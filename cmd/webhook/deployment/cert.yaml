@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tensorsec-image-certs
+  namespace: tensorsec-test-cn
+spec:
+  secretName: tensorsec-webhook-certs
+  dnsNames:
+    - tensorsec-image-validator.tensorsec-test-cn.svc
+  issuerRef:
+    name: tensorsec-selfsigned
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tensorsec-selfsigned
+  namespace: tensorsec-test-cn
+spec:
+  selfSigned: {}

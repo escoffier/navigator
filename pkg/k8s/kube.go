@@ -4,9 +4,9 @@ package k8s
 import (
 	b64 "encoding/base64"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"os"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

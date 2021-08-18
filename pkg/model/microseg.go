@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+type NetworkType = int
+
+const (
+	PodNetwork = iota
+	HostNetwork
+)
+
 type TensorMicrosegResource struct {
 	ID          uint32 `gorm:"type:bigint;primarykey"`
 	SegmentID   uint32 `gorm:"type:bigint;index:idx_res_sid"`
@@ -15,6 +22,8 @@ type TensorMicrosegResource struct {
 	Kind        string `gorm:"type:varchar(100)"` // Deployment/StatefulSet/DaemonSet/Job/Cronjob/ReplicaSet/ReplicationController
 	Name        string `gorm:"type:varchar(100)"`
 	Policy      string `gorm:"type:varchar(100)"`
+	NetworkType int    `gorm:"type:smallint"`
+	ResourceTag int    `gorm:"type:smallint"`
 	Status      int    `gorm:"type:smallint"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time

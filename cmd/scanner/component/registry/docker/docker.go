@@ -23,9 +23,9 @@ const (
 )
 
 type RegistryV2 struct {
-	ctx            context.Context
-	config         Opts
-	registryClient *registry2.Registry // client for pull manifest
+	Ctx            context.Context
+	Config         Opts
+	RegistryClient *registry2.Registry // client for pull manifest
 }
 
 type Opts struct {
@@ -36,7 +36,7 @@ type Opts struct {
 }
 
 func (r *RegistryV2) ListRepos() ([]string, error) {
-	repos, err := r.registryClient.Repositories()
+	repos, err := r.RegistryClient.Repositories()
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (r *RegistryV2) ListRepos() ([]string, error) {
 }
 
 func (r *RegistryV2) ListRepoTags(repo string) ([]string, error) {
-	tags, err := r.registryClient.Tags(repo)
+	tags, err := r.RegistryClient.Tags(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 				configDigest  digest.Digest
 				imageDigest   string
 			)
-			manifestV2, err := r.pullImageManifestV2(repo, tag)
+			manifestV2, err := r.PullImageManifestV2(repo, tag)
 			if err == nil {
 				// pull config json
 				imageDigest, err = ManifestV2Digest(manifestV2)
@@ -92,7 +92,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 
 				// pull config json
 				configDigest = manifestV2.Config.Digest
-				configBlob, err = r.pullConfigBlob(repo, configDigest)
+				configBlob, err = r.PullConfigBlob(repo, configDigest)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", repo, tag)
 					continue
@@ -100,7 +100,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 			} else {
 				// pull manifest v2 err,try v1
 				logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, repo, tag)
-				manifestV1, err = r.pullImageManifestV1(repo, tag)
+				manifestV1, err = r.PullImageManifestV1(repo, tag)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, repo, tag)
 					continue
@@ -113,7 +113,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 
 				// according: github.com/google/go-containerregistry@v0.1.2/pkg/v1/remote/descriptor.go
 				// use http-header "Docker-Content-digest" as manifest-v1 image digest
-				tmp, err := r.registryClient.ManifestDigest(repo, tag)
+				tmp, err := r.RegistryClient.ManifestDigest(repo, tag)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,digest %s", err, repo, tag)
 					continue
@@ -121,14 +121,18 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 				imageDigest = tmp.String()
 			}
 
-			i := r.makeImage(repo, tag)
+			i := r.MakeImage(repo, tag)
 			i.ImageDigest = imageDigest
 			i.ManifestV2 = string(manifestV2Str)
 			i.ManifestV1 = string(manifestV1Str)
 			i.ConfigJson = configBlob
 			images = append(images, *i)
 
-			extender(*i)
+			err = extender(*i)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
+				continue
+			}
 		}
 	}
 
@@ -167,7 +171,8 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		configDigest  digest.Digest
 		imageDigest   string
 	)
-	manifestV2, err = r.pullImageManifestV2(repoName, tag)
+	manifestV2, err = r.PullImageManifestV2(repoName, tag)
+
 	if err == nil {
 		// pull config json
 		imageDigest, err = ManifestV2Digest(manifestV2)
@@ -183,7 +188,8 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 
 		// pull config json
 		configDigest = manifestV2.Config.Digest
-		configBlob, err = r.pullConfigBlob(repoName, configDigest)
+		configBlob, err = r.PullConfigBlob(repoName, configDigest)
+
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", repoName, tag)
 			return nil, err
@@ -192,7 +198,8 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 	} else {
 		// pull manifest v2 err,try v1
 		logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, repoName, tag)
-		manifestV1, err = r.pullImageManifestV1(repoName, tag)
+		manifestV1, err = r.PullImageManifestV1(repoName, tag)
+
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, repoName, tag)
 			return nil, err
@@ -205,7 +212,8 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 
 		// according: github.com/google/go-containerregistry@v0.1.2/pkg/v1/remote/descriptor.go
 		// use http-header "Docker-Content-digest" as manifest-v1 image digest
-		tmp, err := r.registryClient.ManifestDigest(repoName, tag)
+		tmp, err := r.RegistryClient.ManifestDigest(repoName, tag)
+
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,digest %s", err, repoName, tag)
 			return nil, err
@@ -213,7 +221,8 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		imageDigest = tmp.String()
 	}
 
-	image := r.makeImage(repoName, tag)
+	image := r.MakeImage(repoName, tag)
+
 	image.ImageDigest = imageDigest
 	image.ManifestV2 = string(manifestV2Str)
 	image.ManifestV1 = string(manifestV1Str)
@@ -226,7 +235,7 @@ func (r *RegistryV2) DeleteImages(projectName, repoName, dig string) error {
 	if projectName != "" {
 		repoName = projectName + "/" + repoName
 	}
-	err := r.registryClient.DeleteManifest(repoName, digest.Digest(dig))
+	err := r.RegistryClient.DeleteManifest(repoName, digest.Digest(dig))
 	return err
 }
 
@@ -238,7 +247,7 @@ func (r *RegistryV2) CreateProject(projectName string, public bool) error {
 	return errors.New("not implement")
 }
 
-func (r *RegistryV2) makeImage(repo, tag string) *registry.Image {
+func (r *RegistryV2) MakeImage(repo, tag string) *registry.Image {
 	i := registry.Image{
 		ImageDigest: "",
 		Repository:  repo,
@@ -256,13 +265,13 @@ func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	digest, _, err := SHA256(bytes.NewReader(data))
+	digest, _, err := registry.SHA256(bytes.NewReader(data))
 
 	return digest.String(), err
 }
 
-func (r *RegistryV2) pullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
-	manifest, err := r.registryClient.ManifestV2(repo, digest)
+func (r *RegistryV2) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
+	manifest, err := r.RegistryClient.ManifestV2(repo, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -270,16 +279,16 @@ func (r *RegistryV2) pullImageManifestV2(repo, digest string) (*schema2.Deserial
 	return manifest, nil
 }
 
-func (r *RegistryV2) pullImageManifestV1(repo, digest string) (*schema1.SignedManifest, error) {
-	manifest, err := r.registryClient.Manifest(repo, digest)
+func (r *RegistryV2) PullImageManifestV1(repo, digest string) (*schema1.SignedManifest, error) {
+	manifest, err := r.RegistryClient.Manifest(repo, digest)
 	if err != nil {
 		return nil, err
 	}
 
 	return manifest, nil
 }
-func (r *RegistryV2) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
-	reader, err := r.registryClient.DownloadBlob(repo, configDigest)
+func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
+	reader, err := r.RegistryClient.DownloadBlob(repo, configDigest)
 	if err != nil {
 		return "", err
 	}
@@ -293,30 +302,33 @@ func (r *RegistryV2) pullConfigBlob(repo string, configDigest digest.Digest) (st
 }
 
 func init() {
-	registry.Register(Version, openRegistry)
+	err := registry.Register(Version, openRegistry)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("init docker registry driver error:%v", err)
+	}
 }
 
 func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {
 	var r RegistryV2
 
-	r.ctx = context.Background()
+	r.Ctx = context.Background()
 
 	// parse config
 	bytes, err := yaml.Marshal(registrableComponentConfig.Options)
 	if err != nil {
 		return nil, fmt.Errorf("registryV2: could not load configuration: %v", err)
 	}
-	err = yaml.Unmarshal(bytes, &r.config)
+	err = yaml.Unmarshal(bytes, &r.Config)
 	if err != nil {
 		return nil, fmt.Errorf("registryV2: could not load configuration: %v", err)
 	}
 
 	// create client to pull image manifest and config
-	rc, err := newRegistryClient(&r.config)
+	rc, err := newRegistryClient(&r.Config)
 	if err != nil {
 		return nil, fmt.Errorf("registryV2:new registry client err:%v", err)
 	}
-	r.registryClient = rc
+	r.RegistryClient = rc
 
 	return &r, nil
 }

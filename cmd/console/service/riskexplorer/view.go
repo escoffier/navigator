@@ -7,31 +7,38 @@ import (
 )
 
 type NamespaceSummary struct {
-	Name         string            `json:"namespaceName"`
-	ServicesList []*ServiceSummary `json:"serviceList"`
+	Name          string             `json:"namespaceName"`
+	ClusterKey    string             `json:"clusterKey"`
+	ResourcesList []*ResourceSummary `json:"resourcesList"`
 }
 
-type ServiceSummary struct {
-	ContainersList []*ContainerSummary `json:"containerList"`
-	FinalSeverity  string              `json:"finalSeverity"`
-	RiskLevel      int                 `json:"riskLevel"`
-	ServiceName    string              `json:"serviceName"`
-	NodeType       string              `json:"nodeType"`
-	ResourceKind   string              `json:"resourceKind"`
-	Namespace      string              `json:"namespace"`
-	RiskTypes      map[RiskType]int    `json:"tag"`
+type RiskTypeDesc struct {
+	Key       string `json:"key"`
+	Count     int    `json:"count"`
+	DisplayZh string `json:"displayZh"`
+	DisplayEn string `json:"displayEn"`
+}
+type ResourceSummary struct {
+	ContainersList []*ContainerSummary       `json:"containerList"`
+	FinalSeverity  string                    `json:"finalSeverity"`
+	RiskLevel      int                       `json:"riskLevel"`
+	ResourceName   string                    `json:"resourceName"`
+	NodeType       string                    `json:"nodeType"`
+	ResourceKind   string                    `json:"resourceKind"`
+	Namespace      string                    `json:"namespace"`
+		RiskTypes      map[string]RiskTypeDesc `json:"tag"`
 }
 
 type ContainerSummary struct {
-	ContainerID   string           `json:"containerID"`
-	Name          string           `json:"name"`
-	Namespace     string           `json:"namespaceName"`
-	ServiceName   string           `json:"serviceName"`
-	FinalSeverity string           `json:"finalSeverity,omitempty"`
-	RiskTypes     map[RiskType]int `json:"tag,omitempty"`
+	Name          string                    `json:"name"`
+	Namespace     string                    `json:"namespaceName"`
+	ResourceName  string                    `json:"resourceName"`
+	FinalSeverity string                    `json:"finalSeverity,omitempty"`
+	Image         string                    `json:"image"`
+	RiskTypes     map[string]RiskTypeDesc `json:"tag,omitempty"`
 }
 
-type ServiceDetail struct {
+type ResourceDetail struct {
 	Containers []*ContainerDetail `json:"containers"`
 	RiskItems  []*RiskTypeDetail  `json:"riskItems"`
 }

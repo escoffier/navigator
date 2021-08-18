@@ -3,7 +3,8 @@ package model
 import "time"
 
 type VirusCachedScanWorkerReport struct {
-	Virus []VirusInfo `json:"virus" bson:"virus"`
+	Virus     []VirusInfo    `json:"virus" bson:"virus"`
+	Webshells []WebShellInfo `json:"webshells" bson:"webshells"`
 }
 
 type VirusCachedLayer struct {
