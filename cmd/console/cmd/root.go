@@ -29,6 +29,7 @@ var rootCmd = &cobra.Command{
 		httpOpts := flag.GetHTTPOpts(cmd)
 		logging.GetLogger().Info().
 			Str("listen", httpOpts.HTTPListen).
+			Str("webhooklisten", httpOpts.HTTPWebHookListen).
 			Msg("HTTP options")
 
 		mongoOpts := flag.GetMongoOpts(cmd)
@@ -69,6 +70,7 @@ var rootCmd = &cobra.Command{
 		logging.GetLogger().Info().
 			Str("scap-job-repo", scapOpts.HostPort).
 			Str("scap-job-tag", scapOpts.ImageTag).
+			Int32("policy-counts", scapOpts.PolicyCounts).
 			Msg("Scap options")
 
 		redisOpts := flag.GetRedisOpts(cmd)

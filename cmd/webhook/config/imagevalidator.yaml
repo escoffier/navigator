@@ -1,0 +1,3 @@
+imageValidateHost: "tensorsec-scanner.tensorsec-test-cn.svc:8888"
+ignoredNameSpaces: [ "kube-system" ]
+ValidatorUrl:

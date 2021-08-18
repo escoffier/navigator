@@ -36,10 +36,13 @@ const (
 	VirusStatusWait  string = "wait"
 )
 
-/*type QuestionInfo struct {
-	ID   string `json:"id"`
-	Time string `json:"time"`
-}*/
+type ImageInfo struct {
+	ID           int64  `json:"id"`
+	Digest       string `json:"digest"`
+	FullRepoName string `json:"full_repo_name"`
+	Library      string `json:"library"`
+	Tags         string `json:"tags"`
+}
 
 type QuestionInfo struct {
 	QID          int    `gorm:"primary_key;AUTO_INCREMENT" json:"-" `
@@ -57,6 +60,13 @@ type VirusFileInfo struct {
 	Filename  string `json:"filename"`
 	Filepath  string `json:"filepath"`
 	Virusname string `json:"virusname"`
+}
+
+type WebshellFileInfo struct {
+	Filename string   `json:"filename"`
+	Filepath string   `json:"filepath"`
+	Score    int64    `json:"score"`
+	Codes    []string `json:"codes"`
 }
 
 type Artifacts struct {

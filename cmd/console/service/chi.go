@@ -15,6 +15,7 @@ import (
 	redis "github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
 	elastic "github.com/olivere/elastic/v7"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"

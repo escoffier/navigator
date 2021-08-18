@@ -12,6 +12,10 @@ spec:
       targetPort: {{ .Values.service.containerPort }}
       protocol: TCP
       name: {{ include "console.name" . }}
+    - name: k8s-audit-webhook
+      port: {{ .Values.service.k8sAuditWebHookPort }}
+      protocol: TCP
+      targetPort: {{ .Values.service.k8sAuditWebHookContainerPort }}
   selector:
     app.kubernetes.io/name: {{ include "console.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}

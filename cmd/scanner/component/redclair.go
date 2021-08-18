@@ -43,27 +43,32 @@ const (
 	cacheInvalidatorInterval = time.Hour * 999999 // 跳过这个函数
 	maxLayerScanRetires      = 3
 	redisTTL                 = time.Hour * 24
+	riskTTL                  = time.Hour * 24 * 14
+	maxVulnScore             = 50
+	maxSensitiveScore        = 10
 )
 
 // 没找到Map的Const写法
 var constMapScore = map[string]model.ConstMapScore{
-	"Critical":   {MaxScore: 40, SingleScore: 10},
-	"High":       {MaxScore: 25, SingleScore: 8},
-	"Medium":     {MaxScore: 15, SingleScore: 5},
-	"Low":        {MaxScore: 10, SingleScore: 3},
-	"Negligible": {MaxScore: 5, SingleScore: 1},
-	"Unknown":    {MaxScore: 5, SingleScore: 1},
+	"Critical":   {MaxScore: 50, SingleScore: 25},
+	"High":       {MaxScore: 50, SingleScore: 20},
+	"Medium":     {MaxScore: 50, SingleScore: 15},
+	"Low":        {MaxScore: 50, SingleScore: 10},
+	"Negligible": {MaxScore: 50, SingleScore: 5},
+	"Unknown":    {MaxScore: 50, SingleScore: 5},
+	"Sensitive":  {MaxScore: 10, SingleScore: 5},
 }
 
 // RedClair ...
 type RedClairService struct {
-	ctx           context.Context
-	mongodb       *mongo.Database
-	postgresSvc   *store.ScannerDB
-	redisClient   *redis.Client
-	scanTasksChan chan model.ScanTask
-	ciciTasksChan chan model.ScanTask
-	numWorkers    int
+	ctx              context.Context
+	mongodb          *mongo.Database
+	postgresSvc      *store.ScannerDB
+	redisClient      *redis.Client
+	redisClientShare *redis.Client
+	scanTasksChan    chan model.ScanTask
+	ciciTasksChan    chan model.ScanTask
+	numWorkers       int
 
 	redclairEngine *redclair.Redclair
 
@@ -77,7 +82,7 @@ type RedClairService struct {
 }
 
 // NewRedClair creates the instance of RedClair
-func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*RedClairService, error) {
+func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, rcs *redis.Client, updateOpts *flag.UpdateOpts) (*RedClairService, error) {
 	redclairEng, err := redclair.NewRedclair(clairOpts, updateOpts, db)
 	if err != nil {
 		return nil, err
@@ -89,6 +94,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		mongodb:                 db,
 		postgresSvc:             postgresSvc,
 		redisClient:             rc,
+		redisClientShare:        rcs,
 		scanTasksChan:           make(chan model.ScanTask, 1000),
 		ciciTasksChan:           make(chan model.ScanTask, 10),
 		numWorkers:              clairOpts.NumWorkers,
@@ -175,7 +181,10 @@ func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.
 	log.Info().Msg("Started cache invalidator worker")
 
 	defer wg.Done()
-	rcSvc.updateLayerCache(ctx)
+	err := rcSvc.updateLayerCache(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("updateLayerCache error %v", err)
+	}
 	ticker := time.NewTicker(cacheInvalidatorInterval)
 loop:
 	for {
@@ -447,8 +456,8 @@ func (rcSvc *RedClairService) appendRemovedVulnerabilities(ctx context.Context, 
 			b.deleted_at = timestamp '9999-01-01 00:00:00.000000+00' 
 			and a.deleted_at != timestamp '9999-01-01 00:00:00.000000+00';`, timeStrOfLastVulnerabilityUpdate, timeStrOfLastVulnerabilityUpdate)
 	vulnerabilityEntry := model.DBVulnerabilityEntry{}
-	rows, err := db.Query(removedVulnerabilitiesQuery)
-	err = rows.Err()
+	rows, _ := db.Query(removedVulnerabilitiesQuery)
+	err := rows.Err()
 	if err != nil {
 		return fmt.Errorf("Failed to get removed vulnerability entries: %w", err)
 	}
@@ -492,8 +501,8 @@ func (rcSvc *RedClairService) appendNewVulnerabilities(ctx context.Context, db *
 			b.name is null;
 	`, timeStrOfLastVulnerabilityUpdate, timeStrOfLastVulnerabilityUpdate)
 	vulnerabilityEntry := model.DBVulnerabilityEntry{}
-	rows, err := db.Query(newVulnerabilitiesQuery)
-	err = rows.Err()
+	rows, _ := db.Query(newVulnerabilitiesQuery)
+	err := rows.Err()
 	if err != nil {
 		return fmt.Errorf("Failed to get new vulnerability entries: %w", err)
 	}
@@ -666,6 +675,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	if err != nil {
 		logging.GetLogger().Error().Msgf("Construct scanImage error：%+v", err)
 	}
+	rcSvc.updateRiskCacheEntry(ctx, scanTask)
 	rcSvc.logLayerTable(ctx, scanTask, scanTask.ImageID)
 	rcSvc.logVulnTable(ctx, scanTask, scanTask.ImageID)
 	rcSvc.logPostgres(ctx, scanImage, scanTask.TableID, scanTask, model.ScanStatusSucceeded, "", nil)
@@ -833,7 +843,7 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []model.Vulne
 }
 
 func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.CachedLayer) (*model.CachedLayer, error) {
-	iter := rcSvc.redisClient.Scan(ctx, 0, "*"+digest, 0).Iterator()
+	iter := rcSvc.redisClient.Scan(ctx, 0, "vulnScan*"+digest, 0).Iterator()
 	if err := iter.Err(); err != nil {
 		zerolog.Ctx(ctx).Err(err).Str("layerDigest", digest).Msg("Failed to iterate over cache entries")
 		if currLayer, exists := currentLayerCache[digest]; exists {
@@ -888,7 +898,7 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 	}
 	(*currentLayerCache)[layer].ScanReport = scanResult
 	(*currentLayerCache)[layer].NameSpace = namespace
-	_, err := rcSvc.redisClient.Get(ctx, namespace+"_"+layer).Result()
+	_, err := rcSvc.redisClient.Get(ctx, "vulnScan"+"_"+layer).Result()
 	if err == redis.Nil {
 		zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Persisting in cache")
 		cacheEntry, err := json.Marshal((*currentLayerCache)[layer])
@@ -898,7 +908,7 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 		} else {
 			redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
 			defer redisCtxCancel()
-			_, err := rcSvc.redisClient.Set(redisCtx, namespace+"_"+layer, cacheEntry, redisTTL).Result()
+			_, err := rcSvc.redisClient.Set(redisCtx, "vulnScan"+"_"+layer, cacheEntry, redisTTL).Result()
 			if err != nil {
 				zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 				return nil
@@ -916,7 +926,7 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 }
 
 func (rcSvc *RedClairService) getParentLayerFromCache(ctx context.Context, parentLayer string, currentLayerCache map[string]*model.CachedLayer) (*model.CachedLayer, error) {
-	iter := rcSvc.redisClient.Scan(ctx, 0, "*"+parentLayer, 0).Iterator()
+	iter := rcSvc.redisClient.Scan(ctx, 0, "vulnScan*"+parentLayer, 0).Iterator()
 	if err := iter.Err(); err != nil {
 		zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayer).Msg("Failed to iterate over cache entries")
 		if currLayer, exists := currentLayerCache[parentLayer]; exists {
@@ -998,7 +1008,7 @@ func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []strin
 		cachedLayer := &model.CachedLayer{
 			Digest: layer,
 		}
-		iter := rcSvc.redisClient.Scan(ctx, 0, "*"+layer, 0).Iterator()
+		iter := rcSvc.redisClient.Scan(ctx, 0, "vulnScan*"+layer, 0).Iterator()
 		if err := iter.Err(); err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to get cache entry")
 			currentLayerCache[layer] = cachedLayer
@@ -1087,61 +1097,15 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 	}
 	rcSvc.postgresSvc.UpdateToScanImage(ctx, scanImage, tableID)
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
-		err := dal.ScanFinish(rcSvc.postgresSvc.PostgresDB, scanTask.ImageDigest)
+		err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
 	}
 	if scanImage.Message != "" {
-		fmt.Println("ERR:", scanImage.Message)
+		logging.GetLogger().Error().Msgf("logPostgres message:%v", message)
 	}
 	// rcSvc.logImageQuestion(ctx, scanTask)
-}
-
-func (rcSvc *RedClairService) logImageQuestion(ctx context.Context, scanTask model.ScanTask) {
-	var err error
-	if scanTask.Status == model.ScanStatusSucceeded {
-		if scanTask.ScanReport.Vulns.Vulnerabilities != nil {
-			if len(scanTask.ScanReport.Vulns.Vulnerabilities) > 0 {
-				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, true, scanTask.ImageDigest)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
-				}
-			} else {
-				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
-				}
-			}
-		} else {
-			err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_VULN, false, scanTask.ImageDigest)
-			if err != nil {
-				logging.GetLogger().Error().Msgf("add image question vulnerabilities error：%+v", err)
-			}
-		}
-		if scanTask.ScanReport.Vulns.Sensitives != nil {
-			if len(scanTask.ScanReport.Vulns.Sensitives) > 0 {
-				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, true, scanTask.ImageDigest)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
-				}
-			} else {
-				err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
-				if err != nil {
-					logging.GetLogger().Error().Msgf("add image question sensitives error：%+v", err)
-				}
-			}
-		} else {
-			err = dal.ImageQuestion(rcSvc.postgresSvc.PostgresDB, scanTask.ID.Hex(), model.QUESTION_SENSITIVE, false, scanTask.ImageDigest)
-		}
-	}
-
-	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
-		err := dal.ScanFinish(rcSvc.postgresSvc.PostgresDB, scanTask.ImageDigest)
-		if err != nil {
-			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
-		}
-	}
 }
 
 func (rcSvc *RedClairService) constructNewLogStruct(ctx context.Context, scanTask model.ScanTask) (*model.ScanImage, error) {
@@ -1172,17 +1136,21 @@ func (rcSvc *RedClairService) constructNewLogStruct(ctx context.Context, scanTas
 	negligibleScore := rcSvc.caculateScore("Negligible", scanTask.ScanReport.Vulns.SeverityHistogram.NumNegligible)
 	unknownScore := rcSvc.caculateScore("Unknown", scanTask.ScanReport.Vulns.SeverityHistogram.NumUnknown)
 	res.RiskScore = criticalScore + highScore + mediumScore + lowScore + negligibleScore + unknownScore
-	/*riskSum := scanTask.ScanReport.Vulns.SeverityHistogram.NumCritical + scanTask.ScanReport.Vulns.SeverityHistogram.NumHigh +
-		scanTask.ScanReport.Vulns.SeverityHistogram.NumMedium + scanTask.ScanReport.Vulns.SeverityHistogram.NumLow +
-		+scanTask.ScanReport.Vulns.SeverityHistogram.NumNegligible + scanTask.ScanReport.Vulns.SeverityHistogram.NumUnknown
-	if riskSum != 0 {
-		res.RiskScore = res.RiskScore / float64(riskSum)
-	}*/
+	if res.RiskScore >= maxVulnScore {
+		res.RiskScore = maxVulnScore
+	}
+	vulnScore := res.RiskScore
+	res.VulnScore = vulnScore
+	sensitiveScore := rcSvc.caculateScore("Sensitive", int64(len(scanTask.ScanReport.Vulns.Sensitives)))
+	if sensitiveScore >= maxSensitiveScore {
+		sensitiveScore = maxSensitiveScore
+	}
+	res.RiskScore += sensitiveScore
+	res.SensitiveScore = sensitiveScore
 	if err != nil {
 		return &model.ScanImage{}, err
 	}
 	return res, nil
-	// json.Unmarshal(&tmpp)
 }
 
 func (rcSvc *RedClairService) logVulnTable(ctx context.Context, scanTask model.ScanTask, imageID int64) {
@@ -1206,7 +1174,10 @@ func (rcSvc *RedClairService) logVulnTable(ctx context.Context, scanTask model.S
 		if err != nil {
 			continue
 		}
-		rcSvc.postgresSvc.InsertToVuln(ctx, &vuln, imageID)
+		err := rcSvc.postgresSvc.InsertToVuln(ctx, &vuln, imageID)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("InsertToVuln error %v", err)
+		}
 	}
 }
 
@@ -1238,4 +1209,25 @@ func (rcSvc *RedClairService) caculateScore(severity string, num int64) float64 
 		score = constMapScore[severity].MaxScore
 	}
 	return score
+}
+
+func (rcSvc *RedClairService) updateRiskCacheEntry(ctx context.Context, scantask model.ScanTask) {
+	url := strings.Replace(scantask.URL, "https://", "", 1)
+	url = strings.Replace(url, "http://", "", 1)
+	image := "riskexp-image-vulns-" + url + "/" + scantask.Repository + ":" + scantask.Tag
+	sumData := model.ImageVulnsSumData{}
+	sumData.CriticalNum = scantask.ScanReport.Vulns.SeverityHistogram.NumCritical
+	sumData.HighNum = scantask.ScanReport.Vulns.SeverityHistogram.NumHigh
+	sumData.MediumNum = scantask.ScanReport.Vulns.SeverityHistogram.NumMedium
+	sumData.LowNum = scantask.ScanReport.Vulns.SeverityHistogram.NumLow
+	sumData.UnknownNum = scantask.ScanReport.Vulns.SeverityHistogram.NumUnknown
+	bytes, err := json.Marshal(sumData)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("Risk Vuln json Marshal error")
+		return
+	}
+	err = rcSvc.redisClientShare.Set(ctx, image, bytes, riskTTL).Err()
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+	}
 }

@@ -88,6 +88,8 @@ service:
   type: ClusterIP
   port: 8889
   containerPort: 8080
+  k8sAuditWebHookPort: 8081
+  k8sAuditWebHookContainerPort: 8081
 
 debugService:
   type:  NodePort
@@ -153,4 +155,14 @@ redis:
 
 version:
   softName: Navigator
-  softVersion: v1.10.0
+  softVersion: v1.11.0
+
+k8sAudit:
+  prefix: "audit_"
+  syslog:
+    enable: "false"
+    network: "udp"
+    addr: ""
+    facility: "1"
+    severity: "5"
+    tag: "k8s-audit"

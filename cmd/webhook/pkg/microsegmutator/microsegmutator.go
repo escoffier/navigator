@@ -1,0 +1,49 @@
+package microsegmutator
+
+import (
+	"context"
+	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/util"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	v1 "k8s.io/api/core/v1"
+)
+
+type MicroSegMutator struct {
+	svc service.Service
+}
+
+func (m *MicroSegMutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *v1.Pod) []*processors.Patch {
+	log.Info("MicroSegMutator processing")
+	return m.svc.MutateLabels(ctx, parameters, pod)
+}
+
+func (m *MicroSegMutator) PreMutate(_ context.Context, _ *v1.Pod, _ *processors.MutatorParameters) bool {
+	return true
+}
+
+func (m *MicroSegMutator) Name() string {
+	return "MicroSegMutator"
+}
+
+func (m *MicroSegMutator) Init() error {
+	log.Info("init MicroSegMutator")
+	err := config.InitMutationConfig(util.MutationDefaultConfigName)
+	if err != nil {
+		log.Errorf("load config failed: %v", err)
+		return err
+	}
+	m.svc = service.NewMutationService(config.MutationPGDB, config.MutationK8sCli)
+	return nil
+}
+
+//func (m *MicroSegMutator) Mutate(pod *v1.Pod, parameters *processors.MutatorParameters) {
+//	m.svc.MutateLabels(pod)
+//	panic("implement me")
+//}
+
+func Register() {
+	var m = MicroSegMutator{}
+	processors.Registry(m.Name(), m)
+}

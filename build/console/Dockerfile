@@ -1,6 +1,7 @@
 FROM busybox:1.31.0-glibc
 
 ADD dist/tensor-console /
+ADD configs/data/policy /policy
 ADD configs/scap/jobs /jobs
 COPY configs/data/jobs/hot-logic/job.yaml /jobs/hot-logic/job.yaml
 COPY configs/data/jobs/hot-offline/job.yaml /jobs/hot-offline/job.yaml

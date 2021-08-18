@@ -13,5 +13,6 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/data", api.data())
 		r.Route("/networkTopo", api.networkTopo())
 		r.Route("/assets", api.assets())
+		r.Route("/audit", api.audit())
 	}
 }

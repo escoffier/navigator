@@ -1,0 +1,51 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: tensorsec-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: tensorsec-tensorwall/tensorsec-injector-certs
+  labels:
+    app: tensor-webhook
+webhooks:
+  - name: mutating.tensorsecurity.cn
+    clientConfig:
+      service:
+        name: tensorsec-webhook
+        namespace: tensorsec-test-cn
+        path: "/mutating"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: [""]
+        apiVersions: ["v1", "v1beta1"]
+        resources: [ "pods"]
+        scope: "Namespaced"
+    sideEffects: None
+    failurePolicy: Ignore
+    admissionReviewVersions: ["v1", "v1beta1"]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: tensorsec-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: tensorsec-test-cn/tensorsec-webhook-certs
+  labels:
+    app: tensor-webhook
+webhooks:
+  - name: validating.tensorsecurity.cn
+    clientConfig:
+      service:
+        name: tensorsec-webhook
+        namespace: tensorsec-test-cn
+        path: "/validating"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - operations: [ "CREATE", "UPDATE" ]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: [ "pods"]
+        scope: "Namespaced"
+    sideEffects: None
+    failurePolicy: Ignore
+    admissionReviewVersions: ["v1", "v1beta1"]

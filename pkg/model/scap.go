@@ -21,10 +21,6 @@ func GetScapSortableField(key string) string {
 	return scapSortableFields()[key]
 }
 
-func GetDefaultScapSortableName() string {
-	return "createdAt"
-}
-
 func GetScapSortableNames() []string {
 	keys := make([]string, len(scapSortableFields()))
 
@@ -34,20 +30,6 @@ func GetScapSortableNames() []string {
 		i++
 	}
 	return keys
-}
-
-type JobEntry struct {
-	MetadataEntry `json:"-" bson:",inline"`
-	ID            primitive.ObjectID     `json:"db_id,omitempty" bson:"_id,omitempty"`
-	CheckID       string                 `json:"check_id" bson:"checkId"`
-	NodeName      string                 `json:"node_name" bson:"nodeName"`
-	ClusterID     string                 `json:"cluster_id" bson:"clusterId"`
-	Operator      string                 `json:"operator" bson:"operator"`
-	Status        string                 `json:"status" bson:"status,omitempty"`
-	CreatedAt     int64                  `json:"created_at" bson:"createdAt,omitempty"`
-	FinishedAt    int64                  `json:"finished_at" bson:"finishedAt,omitempty"`
-	Logs          string                 `json:"logs" bson:"logs,omitempty"`
-	Report        map[string]interface{} `json:"report" bson:"report,omitempty"`
 }
 
 type CheckHistoryEntry struct {
@@ -90,10 +72,102 @@ type ProjectCfg struct {
 		HarborConfigLink     string `json:"harbor_config_link"`
 	} `json:"metadata"`
 }
+
 type CfgScan struct {
 	RuleName         string `json:"rule_name"`
 	RuleDescEn       string `json:"rule_desc_en"`
 	RuleDescCn       string `json:"rule_desc_cn"`
 	Status           string `json:"status"`
 	HarborConfigLink string `json:"harbor_config_link"`
+}
+
+type ScanResult struct {
+	ID            uint32 `gorm:"column:id"`
+	TaskID        string `gorm:"column:task_id"`
+	CheckType     string `gorm:"column:check_type"`
+	NodeName      string `gorm:"column:node_name"`
+	ClusterKey    string `gorm:"column:cluster_key"`
+	PolicyID      string `gorm:"column:policy_id"`
+	State         string `gorm:"column:state"`
+	ActualValue   string `gorm:"column:actual_value"`
+	RemediationEn string `gorm:"column:remediation_en"`
+	RemediationZh string `gorm:"column:remediation_zh"`
+	CreatedAt     int64  `gorm:"column:create_at"`
+	Status        int32  `gorm:"column:status"`
+}
+
+func (sr *ScanResult) TableName() string {
+	return "scan_bench_result"
+}
+
+type ScanHistory struct {
+	TaskID      string `gorm:"column:task_id"`
+	CheckType   string `gorm:"column:check_type"`
+	ClusterKey  string `gorm:"column:cluster_key"`
+	ClusterName string `gorm:"column:cluster_name"`
+	Operator    string `gorm:"column:operator"`
+	State       int32  `gorm:"column:state"`
+	SucNode     int32  `gorm:"column:suc_node"`
+	FailNode    int32  `gorm:"column:fail_node"`
+	CreatedAt   int64  `gorm:"column:created_at"`
+	FinishedAt  int64  `gorm:"column:finished_at"`
+}
+
+func (sh *ScanHistory) TableName() string {
+	return "scan_bench_history"
+}
+
+type ScanNodeRecord struct {
+	TaskID      string `gorm:"column:task_id"`
+	CheckType   string `gorm:"column:check_type"`
+	ClusterKey  string `gorm:"column:cluster_key"`
+	Operator    string `gorm:"column:operator"`
+	NodeName    string `gorm:"column:node_name"`
+	State       int32  `gorm:"column:state"`
+	Message     string `gorm:"column:message"`
+	CreatedAt   int64  `gorm:"column:created_at"`
+	FinishedAt  int64  `gorm:"column:finished_at"`
+	AutoVariate string `gorm:"column:auto_variate"`
+}
+
+func (st *ScanNodeRecord) TableName() string {
+	return "scan_node_record"
+}
+
+type FileExport struct {
+	Status     uint8  `gorm:"column:status"`
+	CheckType  string `gorm:"column:check_type"`
+	ClusterId  string `gorm:"column:cluster_key"`
+	CheckId    string `gorm:"column:check_id"`
+	FileName   string `gorm:"column:file_name"`
+	UserName   string `gorm:"column:operator"`
+	CreatedAt  int64  `gorm:"column:created_at"`
+	FinishedAt int64  `gorm:"column:finished_at"`
+}
+
+func (fe *FileExport) TableName() string {
+	return "file_export_task"
+}
+
+type PolicyDetailInfo struct {
+	PolicyId       string `json:"policy_id" gorm:"column:policy_id"`
+	CheckType      string `json:"check_type" gorm:"column:check_type"`
+	Status         int    `json:"status" gorm:"column:status"`
+	Creator        string `json:"creator" gorm:"column:creator"`
+	CreatedAt      int64  `json:"created_at" gorm:"column:created_at"`
+	Updater        string `json:"updater" gorm:"column:updater"`
+	UpdatedAt      int64  `json:"updated_at" gorm:"column:updated_at"`
+	TitleEn        string `json:"title_en" gorm:"column:title_en"`
+	TitleZh        string `json:"title_zh" gorm:"column:title_zh"`
+	DetailEn       string `json:"detail_en" gorm:"column:detail_en"`
+	DetailZh       string `json:"detail_zh" gorm:"column:detail_zh"`
+	RemediationEn  string `json:"remediation_en" gorm:"column:remediation_en"`
+	RemediationZh  string `json:"remediation_zh" gorm:"column:remediation_zh"`
+	ExpectedResult string `json:"expeced_result" gorm:"column:expeced_result"`
+	Audit          string `json:"audit" gorm:"column:audit"`
+	AuditConfig    string `json:"audit_config" gorm:"column:audit_config"`
+}
+
+func (pd *PolicyDetailInfo) TableName() string {
+	return "scan_policy_detail"
 }

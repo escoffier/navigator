@@ -27,14 +27,14 @@ const (
 	LayerPullErr
 )
 
-type ManifestInfo struct {
-	digest     string
-	repository string
-	manifest   []string
-	username   string
-	password   string
-	skipTls    string
-}
+//type ManifestInfo struct {
+//digest     string
+//repository string
+//manifest   []string
+//username   string
+//password   string
+//skipTls    string
+//}
 
 type LayerInfo struct {
 	digest     string   //layer digest
@@ -67,35 +67,35 @@ type ResponseLayerInfo struct {
 	Repository string `json:"repository"`
 }
 
-type CacheCounter struct {
-	cacheHit  int64
-	cacheMiss int64
-}
+// type CacheCounter struct {
+// 	cacheHit  int64
+// 	cacheMiss int64
+// }
 
 type LocalLayerManageSrv struct {
-	ctx          context.Context
-	serverIp     string
-	port         int
-	server       *gin.Engine
-	layerList    map[string]*LayerInfo    //digest->layer info
-	manifestList map[string]*ManifestInfo //digest->manifest info
-	taskLock     sync.Mutex
-	manifestLock sync.Mutex
-	cacheCounter CacheCounter
-	fs           *FileServer
-	WorkerGroup  *WorkerGroup
+	ctx       context.Context
+	serverIp  string
+	port      int
+	server    *gin.Engine
+	layerList map[string]*LayerInfo //digest->layer info
+	//manifestList map[string]*ManifestInfo //digest->manifest info
+	taskLock sync.Mutex
+	//manifestLock sync.Mutex
+	//cacheCounter CacheCounter
+	fs          *FileServer
+	WorkerGroup *WorkerGroup
 }
 
 func NewLocalLayerManageSrv(ctx context.Context, serverIp string, port, fsPort int, fsExternalIp string) (*LocalLayerManageSrv, error) {
 	l := make(map[string]*LayerInfo)
 	fs, _ := NewFileServer(ctx, FileServerRootDir, fsExternalIp, serverIp, fsPort)
 	llms := &LocalLayerManageSrv{
-		ctx:          ctx,
-		serverIp:     serverIp,
-		port:         port,
-		layerList:    l,
-		fs:           fs,
-		cacheCounter: CacheCounter{},
+		ctx:       ctx,
+		serverIp:  serverIp,
+		port:      port,
+		layerList: l,
+		fs:        fs,
+		//	cacheCounter: CacheCounter{},
 	}
 	wg, _ := NewWorkerGroup(llms, 5)
 	llms.WorkerGroup = wg
@@ -110,8 +110,10 @@ func (llms *LocalLayerManageSrv) Run() error {
 	llms.StartServer()
 
 	//start file server
-	llms.fs.Run(llms.ctx)
-
+	err := llms.fs.Run(llms.ctx)
+	if err != nil {
+		return err
+	}
 	//run worker
 	llms.WorkerGroup.Run()
 
@@ -120,10 +122,7 @@ func (llms *LocalLayerManageSrv) Run() error {
 
 func (llms *LocalLayerManageSrv) IsLayerExist(digest string) bool {
 	_, ok := llms.layerList[digest]
-	if ok {
-		return true
-	}
-	return false
+	return ok
 }
 
 func (llms *LocalLayerManageSrv) IsLayerPulled(digest string) bool {
@@ -133,17 +132,14 @@ func (llms *LocalLayerManageSrv) IsLayerPulled(digest string) bool {
 	return false
 }
 
-func (llms *LocalLayerManageSrv) IncLayerRefCount(digest string) error {
+func (llms *LocalLayerManageSrv) IncLayerRefCount(digest string) {
 	llms.layerList[digest].refCount = llms.layerList[digest].refCount + 1
 	log.Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, llms.layerList[digest].refCount)
-	return nil
 }
 
 func (llms *LocalLayerManageSrv) IsLayerNoRef(digest string) bool {
-	if llms.layerList[digest].refCount == 0 {
-		return true
-	}
-	return false
+	return llms.layerList[digest].refCount == 0
+
 }
 
 func (llms *LocalLayerManageSrv) DecLayerRefCount(digest string) error {
@@ -162,7 +158,7 @@ func (llms *LocalLayerManageSrv) DecLayerRefCount(digest string) error {
 	return nil
 }
 
-func (llms *LocalLayerManageSrv) AddLayerRecord(rq *RequestLayerInfo) error {
+func (llms *LocalLayerManageSrv) AddLayerRecord(rq *RequestLayerInfo) {
 	llms.layerList[rq.Digest] = &LayerInfo{
 		refCount:   1,
 		status:     LayerNotPull,
@@ -174,10 +170,9 @@ func (llms *LocalLayerManageSrv) AddLayerRecord(rq *RequestLayerInfo) error {
 		skipTls:    rq.SkipTls,
 		flag:       make(chan int),
 	}
-	return nil
 }
 
-func (llms *LocalLayerManageSrv) WaitLayerPulled(digest string) error {
+func (llms *LocalLayerManageSrv) WaitLayerPulled(digest string) {
 	for {
 		llms.taskLock.Lock()
 		if _, ok := llms.layerList[digest]; !ok {
@@ -193,7 +188,6 @@ func (llms *LocalLayerManageSrv) WaitLayerPulled(digest string) error {
 
 		time.Sleep(time.Duration(20) * time.Millisecond)
 	}
-	return nil
 }
 
 func (llms *LocalLayerManageSrv) NotifyLayerPulled(digest string) error {
@@ -206,7 +200,7 @@ func (llms *LocalLayerManageSrv) NotifyLayerPulled(digest string) error {
 	//return nil
 }
 
-func (llms *LocalLayerManageSrv) ResponseCodeAndMsg(code int, msg, digest string, ctx *gin.Context) error {
+func (llms *LocalLayerManageSrv) ResponseCodeAndMsg(code int, msg, digest string, ctx *gin.Context) {
 	rsp := ResponseLayerInfo{
 		Code:   code,
 		Msg:    msg,
@@ -218,10 +212,9 @@ func (llms *LocalLayerManageSrv) ResponseCodeAndMsg(code int, msg, digest string
 		ctx.JSON(http.StatusBadRequest, rsp)
 	}
 	log.Info().Msgf("server resp %v", rsp)
-	return nil
 }
 
-func (llms *LocalLayerManageSrv) ResponseOK(digest string, ctx *gin.Context) error {
+func (llms *LocalLayerManageSrv) ResponseOK(digest string, ctx *gin.Context) {
 	LayerHttpPath := fmt.Sprintf("http://%s:%d/%s/%s", llms.fs.externalIp, llms.fs.port, digest, LayerFileName)
 	rsp := ResponseLayerInfo{
 		Code:       0,
@@ -232,10 +225,9 @@ func (llms *LocalLayerManageSrv) ResponseOK(digest string, ctx *gin.Context) err
 		LayerUrl:   llms.layerList[digest].layerUrl,
 	}
 	ctx.JSON(http.StatusOK, rsp)
-	return nil
 }
 
-func (llms *LocalLayerManageSrv) ResponseErr(digest string, ctx *gin.Context) error {
+func (llms *LocalLayerManageSrv) ResponseErr(digest string, ctx *gin.Context) {
 	rsp := ResponseLayerInfo{
 		Code:     1,
 		Msg:      fmt.Sprintf("get layer info err: %d", llms.layerList[digest].status),
@@ -245,7 +237,6 @@ func (llms *LocalLayerManageSrv) ResponseErr(digest string, ctx *gin.Context) er
 	}
 
 	ctx.JSON(http.StatusBadRequest, rsp)
-	return nil
 }
 
 //url : http://0.0.0.0:xxx/layer?repository=xxx&digest=xxx&url=xxx
@@ -284,7 +275,6 @@ func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 	llms.taskLock.Unlock()
 
 	llms.ResponseCodeAndMsg(0, "dec layer ref-count ok", digest, ctx)
-	return
 }
 
 func (llms *LocalLayerManageSrv) handleGet(ctx *gin.Context) {
@@ -380,7 +370,7 @@ func (llms *LocalLayerManageSrv) OpenGinLog() {
 	gin.DefaultWriter = io.MultiWriter(f)
 }
 
-func (llms *LocalLayerManageSrv) CreateServer() error {
+func (llms *LocalLayerManageSrv) CreateServer() {
 	//test
 	llms.OpenGinLog()
 
@@ -400,10 +390,10 @@ func (llms *LocalLayerManageSrv) CreateServer() error {
 		llms.handleClearCache(ctx)
 	})
 	llms.server = server
-	return nil
+
 }
 
-func (llms *LocalLayerManageSrv) StartServer() error {
+func (llms *LocalLayerManageSrv) StartServer() {
 	go func() {
 		address := fmt.Sprintf("%s:%d", llms.serverIp, llms.port)
 		err := llms.server.Run(address)
@@ -413,7 +403,7 @@ func (llms *LocalLayerManageSrv) StartServer() error {
 	}()
 
 	log.Info().Msgf("Server local layer manage srv  port %d", llms.port)
-	return nil
+
 }
 
 func (llms *LocalLayerManageSrv) FindAndModiyPullTask() (LayerInfo, error) {

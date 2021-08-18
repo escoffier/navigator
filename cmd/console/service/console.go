@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"math"
 	"net/http"
 	"os"
@@ -18,20 +17,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -39,6 +24,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -55,7 +41,21 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var (
@@ -85,6 +85,7 @@ func init() {
 type Console struct {
 	lifecycle.Service
 	server        *http.Server
+	webHookServer *http.Server
 	monCliWrapper *mongotools.ClientWrapper
 	mongoDB       *mongotools.DatabaseWrapper
 	postgresDB    *rdbtools.GormWrapper
@@ -160,20 +161,21 @@ func NewConsole(
 	ecColCli := pb.NewEventsCenterCollectionServiceClient(conn)
 
 	// Redis DB client
-	sa := strings.Split(redisOpts.Endpoint,",")
-	redisClient,err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
-		MasterName: "mymaster",
+	sa := strings.Split(redisOpts.Endpoint, ",")
+	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
+		MasterName:    "mymaster",
 		SentinelAddrs: sa,
-		Password: redisOpts.Password,
-		DB: 0,
+		Password:      redisOpts.Password,
+		DB:            0,
 	})
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
+	PgDsn := postgresOpts.PostgresConnectionString
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
 
-		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
@@ -201,7 +203,15 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.TensorContainer{})
 	postgresDB.Get().AutoMigrate(&model.TensorNamespace{})
 	postgresDB.Get().AutoMigrate(&model.TensorConfig{})
+	postgresDB.Get().AutoMigrate(&model.ScanResult{})
+	postgresDB.Get().AutoMigrate(&model.ScanHistory{})
+	postgresDB.Get().AutoMigrate(&model.ScanNodeRecord{})
+	postgresDB.Get().AutoMigrate(&model.PolicyDetailInfo{})
+	postgresDB.Get().AutoMigrate(&model.ExportTask{})
+	postgresDB.Get().AutoMigrate(&model.PodResourceRelation{})
+	postgresDB.Get().AutoMigrate(&model.TensorCluster{})
 
+	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
@@ -262,7 +272,7 @@ func NewConsole(
 		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
 	}
 
-	rlErr := assetsSvc.InitResourcesService(postgresDB)
+	rlErr := assetsSvc.InitResourcesService(postgresDB, scannerURL)
 	if rlErr != nil {
 		logging.GetLogger().Err(rlErr).Msgf("ERROR: InitResourcesService init error")
 	}
@@ -271,7 +281,7 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Err(kbmErr).Msgf("ERROR: kubeMonitor init error")
 	}
-	svcErr := assetsSvc.Init(mongoDBWrapper, postgresDB)
+	svcErr := assetsSvc.Init(redisClient, postgresDB)
 	if svcErr != nil {
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
 	}
@@ -284,7 +294,7 @@ func NewConsole(
 	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient, fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port))
 
 	// scap service
-	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper)
+	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper, PgDsn, postgresDB)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}
@@ -294,7 +304,10 @@ func NewConsole(
 	c.Start()
 	cron.Init(c, mongoDBWrapper, mainCtx)
 
-	riskexplorer.Init(mongoDBWrapper)
+	reErr := riskexplorer.Init(scannerURL, redisClient)
+	if reErr != nil {
+		logging.GetLogger().Err(reErr).Msgf("ERROR: riskexplorerService init error")
+	}
 
 	// networkTopo service
 	ntErr := networktopo.Init(postgresDB)
@@ -305,6 +318,11 @@ func NewConsole(
 	err = config.Init(postgresDB)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: config service init error")
+	}
+
+	err = k8saudit.Init(postgresDB, es)
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: k8s-audit service init error")
 		return nil, err
 	}
 
@@ -316,7 +334,7 @@ func NewConsole(
 				mongoDBWrapper,
 				postgresDB,
 				es,
-				fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
+				scannerURL,
 				fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
@@ -325,6 +343,7 @@ func NewConsole(
 				ecBuzCli,
 			),
 		},
+		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},
 		monCliWrapper: mongoCliWrapper,
 		mongoDB:       mongoDBWrapper,
 		postgresDB:    postgresDB,
@@ -332,14 +351,14 @@ func NewConsole(
 		ctx:           mainCtx,
 		cancel:        mainCancel,
 		harborClient:  harborClient,
-		scannerURL:    fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port),
+		scannerURL:    scannerURL,
 	}, nil
 }
 
 // Run is to run the service.
 func (c *Console) Run() func() {
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -349,6 +368,21 @@ func (c *Console) Run() func() {
 
 		defer wg.Done()
 		if err := c.server.ListenAndServe(); err != nil {
+			if err != http.ErrServerClosed {
+				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
+			}
+		}
+	}()
+	// webhook
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
+
+		defer wg.Done()
+		if err := c.webHookServer.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
 				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
@@ -399,7 +433,7 @@ func (c *Console) Run() func() {
 			Msg("When validating kube client")
 	}
 	if kubeClient != nil {
-		inResSvc, _ := assetsSvc.GetAssetsInResourcesService(ctx)
+		inResSvc, _ := assetsSvc.GetPodResourcesService(ctx)
 		kbmSvc, _ := kubemonitor.Get(ctx)
 		resSvc, _ := assetsSvc.GetResourcesService(ctx)
 
@@ -502,28 +536,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 
 func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
 	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
-	for _, col := range []string{model.ComplianceCheckKubeRecordsCollection.String(),
-		model.ComplianceCheckDockerRecordsCollection.String(),
-		model.ComplianceCheckHostRecordsCollection.String()} {
 
-		neededIndexesPerCollection[col] = []mongo.IndexModel{
-			{
-				Keys: bson.M{
-					"checkId": 1,
-				}, Options: nil,
-			},
-			{
-				Keys: bson.M{
-					"nodeName": 1,
-				}, Options: nil,
-			},
-			{
-				Keys: bson.M{
-					"status": 1,
-				}, Options: nil,
-			},
-		}
-	}
 	neededIndexesPerCollection[model.CheckHistoryEntryCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
@@ -563,70 +576,6 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 		{
 			Keys: bson.M{
 				"numInconclusive": 1,
-			}, Options: nil,
-		},
-	}
-	neededIndexesPerCollection[model.AssetsContainersCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"lastUpdateTime": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"podName": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"name": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"namespace": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"podOwnerKind": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"podOwnerName": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"isDeleted": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"digest": 1,
-			}, Options: nil,
-		},
-	}
-	neededIndexesPerCollection[model.PodOwnerRefRelationCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"ownerRefName": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"namespace": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"cluster": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"podUid": 1,
 			}, Options: nil,
 		},
 	}

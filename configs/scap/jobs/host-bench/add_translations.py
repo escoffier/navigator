@@ -61,25 +61,35 @@ with open(args.translations, 'r') as transfile:
 results_arr = results_raw["results"]
 for i, result in enumerate(results_arr):
 
-    results_arr[i]["description_en"] = result["description"]
-    results_arr[i].pop("description", None)
-    results_arr[i]["title_en"] = result["title"]
-    results_arr[i].pop("title", None)
-    if "rationale" in result:
-        results_arr[i]["rationale_en"] = result["rationale"]
-        results_arr[i].pop("rationale", None)
+#    results_arr[i]["description_en"] = result["description"]
+#    results_arr[i].pop("description", None)
+#    results_arr[i]["title_en"] = result["title"]
+#    results_arr[i].pop("title", None)
+#    if "rationale" in result:
+#        results_arr[i]["rationale_en"] = result["rationale"]
+#        results_arr[i].pop("rationale", None)
 
-    if result["rule-id"] not in translations_map:
-        results_arr[i]["description_zh"] = "没有中文翻译" + result["description_en"]
-        results_arr[i]["title_zh"] = "没有中文翻译" + result["title_en"]
-        if "rationale_en" in result:
-            results_arr[i]["rationale_zh"] = "没有中文翻译" + result["rationale_en"]
-    else:
-        translation_entry = translations_map[result["rule-id"]]
-        results_arr[i]["description_zh"] = translation_entry["description_zh"]
-        results_arr[i]["title_zh"] = translation_entry["title_zh"]
-        if "rationale_zh" in translation_entry:
-            results_arr[i]["rationale_zh"] = translation_entry["rationale_zh"]
+#    if result["rule-id"] not in translations_map:
+#        results_arr[i]["description_zh"] = "没有中文翻译" + result["description_en"]
+#        results_arr[i]["title_zh"] = "没有中文翻译" + result["title_en"]
+#        if "rationale_en" in result:
+#            results_arr[i]["rationale_zh"] = "没有中文翻译" + result["rationale_en"]
+#    else:
+#        translation_entry = translations_map[result["rule-id"]]
+#        results_arr[i]["description_zh"] = translation_entry["description_zh"]
+#        results_arr[i]["title_zh"] = translation_entry["title_zh"]
+#        if "rationale_zh" in translation_entry:
+#            results_arr[i]["rationale_zh"] = translation_entry["rationale_zh"]
+
+    results_arr[i].pop("description_en", None)
+    results_arr[i].pop("description", None)
+    results_arr[i].pop("title_en", None)
+    results_arr[i].pop("title", None)
+    results_arr[i].pop("rationale_en", None)
+    results_arr[i].pop("rationale", None)
+    results_arr[i].pop("description_zh", None)
+    results_arr[i].pop("title_zh", None)
+    results_arr[i].pop("rationale_zh", None)
 
 with open(args.output, 'w') as outfile:
     results_raw["results"] = results_arr

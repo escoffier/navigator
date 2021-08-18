@@ -34,3 +34,22 @@ func GetEnvWithDefault(key, fallback string) string {
 	}
 	return fallback
 }
+
+func GetIntValWithDefault(key string, fallback int) int {
+	if str, ok := os.LookupEnv(key); ok {
+		value, err := strconv.Atoi(str)
+		if err == nil {
+			return value
+		}
+	}
+
+	return fallback
+}
+
+func GetBoolValWithDefault(key string, fallback bool) bool {
+	if str, ok := os.LookupEnv(key); ok {
+		return str == "true"
+	}
+
+	return fallback
+}

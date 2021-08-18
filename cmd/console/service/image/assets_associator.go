@@ -11,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -25,7 +26,7 @@ func NewAssetsImageAssociator(postgre *rdbtools.GormWrapper) *AssetsImageAssocia
 		postgre: postgre,
 	}
 }
-func (a *AssetsImageAssociator) BeforWatchNewCluster(ctx context.Context, clusterName string) assets.ClusterCallback {
+func (a *AssetsImageAssociator) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	// for the service online count should be clear before watching to the cluster to have pods registered again.
 	imageListRefCountClear(ctx, a.postgre)
 
@@ -207,7 +208,7 @@ func (a *AssociatorClusterCB) CreateImageRelate(imageRelate *model.ImageRelate) 
 		imageRelate.Library = "https://" + imageRelate.Library
 	}
 
-	err := a.parent.postgre.Get().WithContext(pgCtx).Create(imageRelate).Error
+	err := a.parent.postgre.Get().WithContext(pgCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(imageRelate).Error
 	return err
 }
 func (a *AssociatorClusterCB) DeleteImageRelate(digest, library, containerId string) error {

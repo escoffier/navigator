@@ -1,0 +1,8 @@
+runMode: "dev"
+pgMaster:
+  host: "tensorsec-postgresql"
+  user: "postgres"
+  password: "password"
+  dbName: "postgres"
+  port: "5432"
+

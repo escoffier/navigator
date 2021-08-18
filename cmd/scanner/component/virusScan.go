@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,58 +19,59 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"go.mongodb.org/mongo-driver/mongo"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/rs/zerolog"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
-
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type VirusScan struct {
-	ctx           context.Context
-	mongodb       *mongo.Database
-	postgresSvc   *store.ScannerDB
-	redisClient   *redis.Client
-	scanTasksChan chan model.VirusScanTask
-	cicdTasksChan chan model.VirusScanTask
-	numWorkers    int
-	statusQueue   sync.Map
+	ctx              context.Context
+	mongodb          *mongo.Database
+	postgresSvc      *store.ScannerDB
+	redisClient      *redis.Client
+	redisClientShare *redis.Client
+	scanTasksChan    chan model.VirusScanTask
+	cicdTasksChan    chan model.VirusScanTask
+	numWorkers       int
+	statusQueue      sync.Map
+	webshellAddr     string
 }
 
 const (
-	virusScanOneTimeout           = time.Minute * 15
-	virusRetryInterval            = time.Second * 5
-	virusMongoTimeout             = time.Second * 10
-	virusRedisTimeout             = time.Second * 10
-	virusRedisCleanupTimeout      = time.Minute * 1
-	virusCacheInvalidatorInterval = time.Hour * 2
-	viursMaxLayerScanRetires      = 3
+	virusScanOneTimeout = time.Minute * 15
+	virusSingleScore    = 40
+	webshellNineToTen   = 40
+	webshellSixToEight  = 30
+	webshellFourToFive  = 20
 )
 
-func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, updateOpts *flag.UpdateOpts) (*VirusScan, error) {
+func NewViursScanService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, rcs *redis.Client, updateOpts *flag.UpdateOpts, webshellAddr string) (*VirusScan, error) {
 	return &VirusScan{
-		ctx:           ctx,
-		mongodb:       db,
-		postgresSvc:   postgresSvc,
-		redisClient:   rc,
-		scanTasksChan: make(chan model.VirusScanTask, 1000),
-		cicdTasksChan: make(chan model.VirusScanTask, 10),
-		numWorkers:    clairOpts.NumWorkers,
-		statusQueue:   sync.Map{},
+		ctx:              ctx,
+		mongodb:          db,
+		postgresSvc:      postgresSvc,
+		redisClient:      rc,
+		redisClientShare: rcs,
+		scanTasksChan:    make(chan model.VirusScanTask, 1000),
+		cicdTasksChan:    make(chan model.VirusScanTask, 10),
+		numWorkers:       clairOpts.NumWorkers,
+		statusQueue:      sync.Map{},
+		webshellAddr:     fmt.Sprintf("%s/v1/php/detector", webshellAddr),
 	}, nil
 }
 
@@ -119,35 +121,23 @@ func (virusScan *VirusScan) failDanglingTasks(ctx context.Context) error {
 
 func (virusScan *VirusScan) Run(ctx context.Context, llms *layerManage.LocalLayerManageSrv) error {
 	// TODO FailTaskRestart
-	virusScan.failDanglingTasks(ctx)
+	err := virusScan.failDanglingTasks(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("virusScan failDanglingTasks error %v", err)
+	}
 
 	var wg sync.WaitGroup
-	os.Mkdir("/tmpscan", 0777)
+	err = os.Mkdir("/tmpscan", 0777)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("virusScan Mkdir error %v", err)
+		return err
+	}
 	for i := 0; i < virusScan.numWorkers; i++ {
 		wg.Add(1)
 		go virusScan.workerRun(ctx, i, &wg, llms)
 	}
 	wg.Wait()
 	log.Info().Msg("All VirusScan workers finished")
-	return nil
-}
-
-func removeContents(dir string) error {
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
-	for _, name := range names {
-		err = os.RemoveAll(filepath.Join(dir, name))
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -200,7 +190,7 @@ func (virusScan *VirusScan) ParseSummrylogs(logPath string, scanPath string) []m
 			fileName := tmpResult[0][strings.LastIndex(tmpResult[0], "/")+1:]
 			ClamAvVirus = append(ClamAvVirus, model.VirusInfo{FileName: fileName, FilePath: strings.Replace(tmpResult[0], replaceString, "", 1), VirusName: tmpResult[1]})
 		}
-		tmp = strings.Index(val, "Infected files")
+		//tmp = strings.Index(val, "Infected files")
 		/*if tmp != -1 {
 			tmpbyte := val[16:]
 			inFectedCount, _ = strconv.Atoi(tmpbyte)
@@ -210,18 +200,23 @@ func (virusScan *VirusScan) ParseSummrylogs(logPath string, scanPath string) []m
 }
 
 // 解析&过滤layer.tar中的文件
-func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string) (uint64, error) {
+func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string, ch chan<- *fileContent) (uint64, error) {
+	defer func() { close(ch) }() // close the channel
 	tarFile, err := os.Open(tarFileName)
 	if err != nil {
 		return 0, fmt.Errorf("Failed to advance tarReader: %w", err)
 	}
+	defer func() { _ = tarFile.Close() }() // close the file
+
 	decompressStreamReader, err := dockerarchive.DecompressStream(tarFile)
 	if err != nil {
 		return 0, fmt.Errorf("Failed to DecompressStream: %w", err)
 	}
+
+	defer func() { _ = decompressStreamReader.Close() }() // close the decompressStreamReader
+
 	tarReader := tar.NewReader(decompressStreamReader)
-	var count uint64
-	count = 0
+	var count uint64 = 0
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -229,20 +224,54 @@ func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string) (uint6
 		} else if err != nil {
 			return count, fmt.Errorf("Failed to advance tarReader: %w", err)
 		}
-		test := header.FileInfo()
-		if header.Typeflag == tar.TypeDir {
+
+		// 检查类型，过滤文件夹、软链接和硬链接
+		switch header.Typeflag {
+		case tar.TypeDir, tar.TypeLink, tar.TypeSymlink:
 			continue
-		} else if (header.Typeflag == tar.TypeLink) || (header.Typeflag == tar.TypeSymlink) { // 过滤软链接和硬链接
-			continue
-		} else {
-			// fmt.Println(header.Name)
-			perm := test.Mode().Perm()
-			flag := perm & os.FileMode(73)
-			if uint32(flag) == uint32(73) {
+		}
+		// fmt.Println(header.Name)
+		perm := header.FileInfo().Mode().Perm()
+		f := perm & os.FileMode(73)
+
+		// 判断文件是否是可执行文件或者webshell后缀的文件
+		if isExecute, isWebshell := uint32(f) == uint32(73), webshellFileExt(filepath.Ext(header.Name)); isExecute || isWebshell {
+			// 这里这样写防止ioutil.ReadAll读取所有的内容
+			if isExecute && !isWebshell {
 				file, _ := virusScan.createFile(dst + header.Name)
-				io.Copy(file, tarReader)
-				os.Chmod(dst+header.Name, 0666)
+				_, err := io.Copy(file, tarReader)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("virusScan io.Copy error %v", err)
+				}
+				err = os.Chmod(dst+header.Name, 0666)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("virusScan os.Chmod error %v", err)
+				}
 				count++
+			} else {
+				content, err := ioutil.ReadAll(tarReader)
+				if err != nil {
+					continue
+				}
+
+				// 可执行文件，用于检测病毒
+				if isExecute {
+					file, _ := virusScan.createFile(dst + header.Name)
+					_, err := io.Copy(file, tarReader)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("virusScan io.Copy error %v", err)
+					}
+					err = os.Chmod(dst+header.Name, 0666)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("virusScan os.Chmod error %v", err)
+					}
+					count++
+				}
+
+				// php文件，检测webshell
+				if isWebshell {
+					ch <- &fileContent{fileName: header.Name, reader: bytes.NewReader(content)}
+				}
 			}
 		}
 	}
@@ -369,33 +398,41 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 		return
 	}
 	for i := range toScan {
-		virusScan.virusProcessLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
+		err := virusScan.virusProcessLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("VirusScan get ToScan error :%v", err)
+		}
 	}
 	zerolog.Ctx(ctx).Info().Msg("Virus scan finished, processed all layers")
 
 	report := &model.VirusScanReport{}
 	virus := make([]model.VirusInfo, 0)
+	var webshell []model.WebShellInfo
 	perLayerReport := make([]model.VirusLayerReport, 0)
 
 	for layerNo, digest := range layers {
+
 		cachedLayer, err := virusScan.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 		if err != nil {
 			cachedLayer = currentlyCachedLayers[digest]
 		}
+
 		perLayerReport = append(perLayerReport, model.VirusLayerReport{
-			LayerNo:     layerNo,
-			LayerDigest: digest,
-			ViursInfo:   cachedLayer.ScanReport.Virus,
+			LayerNo:      layerNo,
+			LayerDigest:  digest,
+			ViursInfo:    cachedLayer.ScanReport.Virus,
+			WebShellInfo: cachedLayer.ScanReport.Webshells,
 		})
-		for _, v := range cachedLayer.ScanReport.Virus {
-			virus = append(virus, v)
-		}
+		virus = append(virus, cachedLayer.ScanReport.Virus...)
+
+		webshell = append(webshell, cachedLayer.ScanReport.Webshells...)
 	}
 	report.Virus = model.VirusReport{
 		Repository:     scanTask.Repository,
 		Tag:            scanTask.Tag,
 		Digest:         scanTask.ImageDigest,
 		Virus:          virus,
+		WebShellInfo:   webshell,
 		PerLayerReport: perLayerReport,
 	}
 	scanTask.ScanReport = *report
@@ -404,6 +441,7 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 	//	flag = true
 	// }
 	// err = virusScan.logAndUpdateMongoStatus(ctx, scanTask, model.ScanStatusSucceeded, "", nil, flag)
+	virusScan.updateRiskVirusCacheEntry(ctx, scanTask)
 	virusScan.logToLayer(ctx, scanTask, scanTask.ImageID)
 	virusScan.logPostgres(ctx, scanTask, scanTask.TableID)
 	/*if err != nil {
@@ -415,41 +453,65 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 
 func (virusScan *VirusScan) logToLayer(ctx context.Context, scanTask model.VirusScanTask, ImageID int64) {
 	for _, v := range scanTask.ScanReport.Virus.PerLayerReport {
-		if len(v.ViursInfo) < 0 {
-			continue
-		} else {
-			res := []model.Malicious{}
-			tmpScanLayer := model.ScanLayer{}
-			tmpScanLayer.LayerDigest = v.LayerDigest
-			tmpScanLayer.ImageId = ImageID
-			for _, virus := range v.ViursInfo {
-				tmpMalicious := model.Malicious{}
-				tmpMalicious.VirusInfo = virus
-				res = append(res, tmpMalicious)
-			}
-			jsondata, _ := json.Marshal(res)
-			tmpScanLayer.MaliciousInfoJSON = jsondata
-			virusScan.postgresSvc.InsertVirusLayer(tmpScanLayer)
+		virusRes := make([]model.Malicious, 0, len(v.ViursInfo))
+		tmpScanLayer := model.ScanLayer{}
+		tmpScanLayer.LayerDigest = v.LayerDigest
+		tmpScanLayer.ImageId = ImageID
+		for _, virus := range v.ViursInfo {
+			tmpMalicious := model.Malicious{}
+			tmpMalicious.VirusInfo = virus
+			virusRes = append(virusRes, tmpMalicious)
 		}
+		if len(virusRes) != 0 {
+			tmpScanLayer.MaliciousInfoJSON, _ = json.Marshal(virusRes)
+		}
+
+		webshellRes := make([]model.Webshell, 0, len(v.WebShellInfo))
+
+		for _, webshell := range v.WebShellInfo {
+			tmpWebshell := model.Webshell{}
+			tmpWebshell.WebShellInfo = webshell
+			webshellRes = append(webshellRes, tmpWebshell)
+		}
+
+		if len(webshellRes) != 0 {
+			tmpScanLayer.WebshellInfoJSON, _ = json.Marshal(webshellRes)
+		}
+
+		virusScan.postgresSvc.InsertVirusLayer(ctx, tmpScanLayer)
 	}
 }
 
 func (virusScan *VirusScan) logPostgres(ctx context.Context, scanTask model.VirusScanTask, tableID int64) {
 	scanImage := model.ScanImage{}
-	if len(scanTask.ScanReport.Virus.Virus) > 0 {
-		res := []model.Malicious{}
-		for _, v := range scanTask.ScanReport.Virus.Virus {
-			tmp := model.Malicious{}
-			tmp.VirusInfo = v
-			res = append(res, tmp)
-		}
-		// tmp.VirusInfo = scanTask.ScanReport.Virus.Virus
-		jsondata, _ := json.Marshal(res)
-		scanImage.MaliciousInfoJSON = jsondata
-	} else {
-		return
+
+	virus := make([]model.Malicious, 0, len(scanTask.ScanReport.Virus.Virus))
+	for _, v := range scanTask.ScanReport.Virus.Virus {
+		tmp := model.Malicious{}
+		tmp.VirusInfo = v
+		virus = append(virus, tmp)
 	}
-	virusScan.postgresSvc.InsertVirusInfo(scanImage, tableID)
+
+	if len(virus) != 0 {
+		scanImage.MaliciousInfoJSON, _ = json.Marshal(virus)
+		scanImage.VirusScore = virusSingleScore
+	}
+
+	webshell := make([]model.Webshell, 0, len(scanTask.ScanReport.Virus.WebShellInfo))
+	webshellFlag := 0 //2 4 and 8
+	for _, v := range scanTask.ScanReport.Virus.WebShellInfo {
+		scanImage.WebshellScore += calculateWebshellScore(v, &webshellFlag)
+		tmp := model.Webshell{WebShellInfo: v}
+		webshell = append(webshell, tmp)
+	}
+	scanImage.WebshellScore = math.Min(40, scanImage.WebshellScore)
+	if len(webshell) != 0 {
+		scanImage.WebshellInfoJSON, _ = json.Marshal(webshell)
+	}
+
+	// tmp.VirusInfo = scanTask.ScanReport.Virus.Virus
+
+	virusScan.postgresSvc.InsertVirusInfo(ctx, scanImage, tableID)
 }
 
 func (virusScan *VirusScan) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.VirusCachedLayer) (*model.VirusCachedLayer, error) {
@@ -502,7 +564,7 @@ func (virusScan *VirusScan) getCachedEntry(ctx context.Context, digest string, c
 	}
 }
 
-func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTask model.VirusScanTask, status string, message string, originalErr error, flag bool) error {
+func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTask model.VirusScanTask, status string, message string, originalErr error, flag bool) {
 	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, mongoTimeout)
 	defer mongoCtxCancel()
 
@@ -538,16 +600,15 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
 	}*/
-	return nil
 }
 
 func (virusScan *VirusScan) virusProcessLayer(ctx context.Context, hub *registry.Registry, scanTask model.VirusScanTask, currentlyCachedLayers *map[string]*model.VirusCachedLayer, digest string, client *layerManage.LocalLayerManageClient) error {
 	currLayer := (*currentlyCachedLayers)[digest]
-	virusInfos, err := virusScan.ScanLayer(ctx, hub, digest, scanTask.Repository, client, scanTask)
-	virusScan.generateVirusScanResult(virusInfos, currLayer)
+	virusInfos, webshellInfo, err := virusScan.ScanLayer(ctx, hub, digest, scanTask.Repository, client, scanTask)
+	virusScan.generateVirusScanResult(virusInfos, webshellInfo, currLayer)
 	if err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("error in Virus ScanLayer")
-		return err
+		//return err
 	}
 	err = virusScan.updateCacheEntry(ctx, currentlyCachedLayers, digest)
 	if err != nil {
@@ -587,13 +648,19 @@ func (virusScan *VirusScan) updateCacheEntry(ctx context.Context, currentLayerCa
 	return nil
 }
 
-func (virusScan *VirusScan) generateVirusScanResult(virusInfos []model.VirusInfo, currLayer *model.VirusCachedLayer) {
+func (virusScan *VirusScan) generateVirusScanResult(virusInfos []model.VirusInfo, webshellInfos []model.WebShellInfo, currLayer *model.VirusCachedLayer) {
 	currLayer.ScanReport = &model.VirusCachedScanWorkerReport{
-		Virus: virusInfos,
+		Virus:     virusInfos,
+		Webshells: webshellInfos,
 	}
 }
 
-func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registry, digest string, repository string, client *layerManage.LocalLayerManageClient, scanTask model.VirusScanTask) ([]model.VirusInfo, error) {
+type fileContent struct {
+	fileName string
+	reader   io.Reader
+}
+
+func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registry, digest string, repository string, client *layerManage.LocalLayerManageClient, scanTask model.VirusScanTask) ([]model.VirusInfo, []model.WebShellInfo, error) {
 	// d := dig.NewDigestFromHex(strings.Split(digest, ":")[0], strings.Split(digest, ":")[1])
 	digestNum := strings.Split(digest, ":")[1]
 	timeUnix := time.Now().Unix()
@@ -602,26 +669,36 @@ func (virusScan *VirusScan) ScanLayer(ctx context.Context, hub *registry.Registr
 	layerPath, err := virusScan.GetLayerPath(ctx, client, scanTask, digest)
 	defer virusScan.DeleteLayerPath(ctx, client, digest)
 	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Get local layer manage client err %v", err)
+		return []model.VirusInfo{}, []model.WebShellInfo{}, fmt.Errorf("Get local layer manage client err %v", err)
 	}
-	os.Mkdir("/tmpscan/"+digestNum+timeUnixStr+"/", 0777)
-	defer os.RemoveAll("/tmpscan/" + digestNum + timeUnixStr + "/")
-	fileCount, err := virusScan.parseLayerTar(layerPath, "/tmpscan/"+digestNum+timeUnixStr+"/")
+	err = os.Mkdir("/tmpscan/"+digestNum+timeUnixStr+"/", 0777)
 	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Failed to parseLayerTar: %w", err)
+		return []model.VirusInfo{}, []model.WebShellInfo{}, fmt.Errorf("ScanLayer make Tmp Dir err %v", err)
 	}
+	defer os.RemoveAll("/tmpscan/" + digestNum + timeUnixStr + "/")
+	sendCh := make(chan *fileContent, 10)
+	revcCh := virusScan.webShellTask(ctx, sendCh, 0)
+
+	fileCount, err := virusScan.parseLayerTar(layerPath, "/tmpscan/"+digestNum+timeUnixStr+"/", sendCh)
+	if err != nil {
+		return []model.VirusInfo{}, []model.WebShellInfo{}, fmt.Errorf("Failed to parseLayerTar: %w", err)
+	}
+
+	// weshell检测结果
+	webshellResult := <-revcCh
+
 	if fileCount == 0 {
-		return []model.VirusInfo{}, nil
+		return []model.VirusInfo{}, webshellResult, nil
 	}
 	virusInfos, err := virusScan.clamavScan(ctx, "/tmpscan/"+digestNum+timeUnixStr+"/", digestNum)
 	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Clamscan Error %w", err)
+		return []model.VirusInfo{}, webshellResult, fmt.Errorf("Clamscan Error %w", err)
 	}
 	// os.Remove("/tmpscan/" + digest + "layer.tar")
 	if len(virusInfos) != 0 {
 		zerolog.Ctx(ctx).Info().Str("Filename:", virusInfos[0].FileName).Str("Virusname:", virusInfos[0].VirusName).Str("FilePath", virusInfos[0].FilePath).Msg("The digest scan result")
 	}
-	return virusInfos, nil
+	return virusInfos, webshellResult, nil
 }
 
 func (virusScan *VirusScan) getCachedGraph(ctx context.Context, layers []string, scanTask model.VirusScanTask) (map[string]*model.VirusCachedLayer, []string, error) {
@@ -632,8 +709,7 @@ func (virusScan *VirusScan) getCachedGraph(ctx context.Context, layers []string,
 		cachedLayer := &model.VirusCachedLayer{
 			Digest: layer,
 		}
-		var iter *redis.ScanIterator
-		iter = virusScan.redisClient.Scan(ctx, 0, "*virusScan_"+layer, 0).Iterator()
+		iter := virusScan.redisClient.Scan(ctx, 0, "*virusScan_"+layer, 0).Iterator()
 		if err := iter.Err(); err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to get cache entry")
 			currentLayerCache[layer] = cachedLayer
@@ -759,7 +835,7 @@ func (virusScan *VirusScan) GetAllScanStatus() (int, int) {
 
 func (virusScan *VirusScan) GetSha256ScanStatus(sha string) string {
 	res, ok := virusScan.statusQueue.Load(sha)
-	if ok == false {
+	if !ok {
 		return ""
 	}
 	return res.(model.VirusScanQueueInfo).Status
@@ -783,5 +859,150 @@ func (virusScan *VirusScan) GetLayerPath(ctx context.Context, client *layerManag
 }
 func (virusScan *VirusScan) DeleteLayerPath(ctx context.Context, client *layerManage.LocalLayerManageClient, digest string) {
 	zerolog.Ctx(ctx).Info().Str("Digest:", digest).Msg("VirusScan Delete Layer")
-	client.DeleteLayer(digest)
+	err := client.DeleteLayer(digest)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("virusScan DeleteLayerPath error %v", err)
+	}
+}
+
+// call webshell server
+func (virusScan *VirusScan) webShellTask(ctx context.Context, ch <-chan *fileContent, taskNum int32) <-chan []model.WebShellInfo {
+	// The default value of taskNum is 6
+	if taskNum <= 0 {
+		taskNum = 6
+	}
+
+	var resultChan = make(chan model.WebShellInfo)
+	var resultChan1 = make(chan []model.WebShellInfo)
+
+	for i, end := int32(0), taskNum; i < end; i++ {
+
+		// run task
+		go func() {
+			defer func() {
+				// The last completed task closes the channel resultChan
+				if atomic.AddInt32(&taskNum, -1) == 0 {
+					close(resultChan)
+				}
+			}()
+
+			for {
+				file, ok := <-ch
+				if !ok {
+					break
+				}
+
+				webshellInfo, err := virusScan.webShellCall(ctx, file.reader)
+				if err != nil || webshellInfo == nil || webshellInfo.Score < 4 {
+					continue
+				}
+
+				webshellInfo.FilePath, webshellInfo.FileName = filepath.Split(file.fileName)
+
+				resultChan <- *webshellInfo
+			}
+
+		}()
+	}
+
+	// result collector
+	go func() {
+		defer func() { close(resultChan1) }()
+
+		r := make([]model.WebShellInfo, 0)
+		for webshellResult := range resultChan {
+			r = append(r, webshellResult)
+		}
+
+		// send all results
+		resultChan1 <- r
+	}()
+
+	return resultChan1
+}
+
+func (virusScan *VirusScan) webShellCall(ctx context.Context, reader io.Reader) (*model.WebShellInfo, error) {
+
+	defer func() {
+		if err := recover(); err != nil {
+			logging.GetLogger().Error().Msgf("call webshell server failed, err: %v ", err)
+		}
+	}()
+
+	req, err := http.NewRequest(http.MethodPost, virusScan.webshellAddr, reader)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	req.Close = true
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		_, _ = io.Copy(ioutil.Discard, res.Body)
+		return nil, fmt.Errorf("error http code: %d", res.StatusCode)
+	}
+	var s = &model.WebShellInfo{}
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+// webshell文件后缀列表
+var extSlice = []string{
+	".php", ".php5", ".php4", ".asp", ".aspx", ".asmx", ".ashx", ".jsp ",
+	".jspa", ".jspx", ".jspf", ".cer", ".htaccess",
+}
+
+// 判断webshell文件后缀是否是给定的后缀
+func webshellFileExt(ext string) bool {
+
+	for i := range extSlice {
+		if extSlice[i] == ext {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (virusScan *VirusScan) updateRiskVirusCacheEntry(ctx context.Context, scantask model.VirusScanTask) {
+	url := strings.Replace(scantask.URL, "https://", "", 1)
+	url = strings.Replace(url, "http://", "", 1)
+	image := "riskexp-image-virus-" + url + "/" + scantask.Repository + ":" + scantask.Tag
+	sumData := model.ImageVirusSumData{}
+	sumData.CriticalNum = int64(len(scantask.ScanReport.Virus.Virus))
+	bytes, err := json.Marshal(sumData)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("Risk Virus json Marshal error")
+		return
+	}
+	err = virusScan.redisClientShare.Set(ctx, image, bytes, riskTTL).Err()
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+	}
+}
+
+func calculateWebshellScore(webshell model.WebShellInfo, flag *int) float64 {
+	if (webshell.Score >= 4 && webshell.Score <= 5) && ((*flag & 2) == 1) {
+		*flag += 2
+		return webshellFourToFive
+	} else if (webshell.Score >= 6 && webshell.Score <= 8) && ((*flag & 4) == 1) {
+		*flag += 4
+		return webshellSixToEight
+	} else if (webshell.Score >= 9 && webshell.Score <= 10) && ((*flag & 8) == 1) {
+		*flag += 8
+		return webshellNineToTen
+	} else {
+		return 0
+	}
 }

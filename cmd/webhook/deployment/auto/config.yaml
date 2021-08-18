@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tensorsec-webhook
+  namespace: tensorsec-test-cn
+data:
+  image-validator.yaml: |-
+    imageValidateHost: tensorsec-scanner.tensorsec-test-cn.svc:8888
+    ignoredNameSpaces: ["kube-system"]
+  microseg.yaml: |-
+    runMode: "dev"
+    pgMaster:
+      host: "tensorsec-postgresql"
+      user: "postgres"
+      password: "password"
+      dbName: "postgres"
+      port: "5432"
+  presets.yaml: |-
+    env:
+      - name: LD_PRELOAD
+        value: "/tensorsec/dp.so"
+      - name: TENSORSEC_EVENTCENTER_NEW_ADDR
+        value: "{{ .Values.eventcenter.addr }}"
+      - name: TENSORSEC_EVENTCENTER_NEW_PORT
+        value: "{{ .Values.eventcenter.port }}"
+    volumemounts:
+      - name: "{{ .Values.volumes.clientName }}"
+        mountpath: "{{ .Values.volumes.clientMountPath }}"
+        readonly: true
+      - name: "{{ .Values.volumes.caName }}"
+        mountpath: "{{ .Values.volumes.caMountPath }}"
+        readonly: true
+    volumes:
+      - name: "{{ .Values.volumes.clientName }}"
+        volumesource:
+          secret:
+            defaultmode: 420
+            secretname: "{{ .Values.volumes.clientSecretName }}"
+      - name: "{{ .Values.volumes.caName }}"
+        volumesource:
+          secret:
+            defaultmode: 420
+            secretname: "{{ .Values.volumes.caSecretName }}"

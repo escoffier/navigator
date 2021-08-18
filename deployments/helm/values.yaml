@@ -69,9 +69,18 @@ scanner:
       # clusterIP:
       port: 5000
       # nodePort:
+  webshell:
+    replicas: 2
+    resources:
+      limits:
+        cpu: "300m"
+        memory: "500Mi" 
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
     
 drift-prevention:
-  enabled: true
+  enabled: false
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
@@ -381,6 +390,13 @@ holmes:
       readOnly: true
 
 image-validator:
+  enabled: false
+  image:
+    registry: "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
+
+webhook:
   enabled: true
   image:
     registry: "{{ .Values.global.image.registry }}"

@@ -23,6 +23,18 @@ Return the scanner docker registry image name
 {{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
 {{- end -}}
 
+{/*
+Return the scanner webshell server image name
+*/}}
+{{- define "scanner.webshell.server.image" -}}
+{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
+{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
+{{- $imageName := .Values.webshell.image.name -}}
+{{- $tag := .Values.image.tag | toString -}}
+
+{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- end -}}
+
 {{/*
 Return the clair image name
 */}}

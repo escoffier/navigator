@@ -37,7 +37,7 @@ func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository
 
 		return "", "", err
 	}
-	log.Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository,rq.Digest)
+	log.Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository, rq.Digest)
 
 	req, err := http.NewRequest("POST", llmc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
@@ -50,18 +50,19 @@ func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository
 	client := &http.Client{}
 	rsp, err := client.Do(req)
 	if err != nil {
-
 		log.Error().Msgf("client do req err %v", err)
 		return "", "", err
 	}
 	defer rsp.Body.Close()
-	log.Info().Msgf("layer manage client request end.%d,body %+v", rsp.StatusCode, rsp.Body)
+	log.Info().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
 
 	if rsp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("request layer err:%v", rsp.StatusCode)
 	}
 
 	body, _ := ioutil.ReadAll(rsp.Body)
+	log.Info().Msgf("layer manage client request end. body: %s", body)
+
 	rspLayerInfo := &ResponseLayerInfo{}
 	err = json.Unmarshal(body, &rspLayerInfo)
 	if err != nil {

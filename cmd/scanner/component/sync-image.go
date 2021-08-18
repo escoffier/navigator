@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/alauda"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv1"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv2"
@@ -35,7 +36,7 @@ func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint,
 	var res []SyncRepoImage
 	for i := range config {
 		var tls int
-		if config[i].Registry.Options["skiptlsverify"].(bool) == true {
+		if config[i].Registry.Options["skiptlsverify"].(bool) {
 			tls = 1
 		} else {
 			tls = 0
@@ -91,7 +92,7 @@ func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint,
 func (s *SyncRepoImage) Run(extender registry.ImageListExtender, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	// Open registry
-	fmt.Printf("\n调用了%v仓库", s.config.Registry.Type)
+	logging.GetLogger().Debug().Msgf("sync registry type:%v",s.config.Registry.Type)
 	r, err := registry.Open(s.config.Registry)
 	if err != nil {
 		logging.GetLogger().Fatal().Str("err", err.Error()).Msg("open config err")
@@ -109,7 +110,7 @@ func (s *SyncRepoImage) Run(extender registry.ImageListExtender, wg *sync.WaitGr
 		time.Sleep(time.Duration(s.syncInterval) * time.Second)
 	}
 
-	return nil
+	//return nil
 }
 
 func TransImageToImagelist(r SyncRepoImage, image registry.Image) model.ImageList {

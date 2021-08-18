@@ -4,50 +4,56 @@ import (
 	"context"
 	"time"
 
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func GetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string) (*model.TensorConfig, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
-	var config []*model.TensorConfig
+	var config model.TensorConfig
 	var innerErr error
 	err := util.RetryWithBackoff(pgCtx, func() error {
 		oneCtx, cancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
 		defer cancel()
 
-		innerErr = rdb.Get().WithContext(oneCtx).Model(&config).Where("key = ? AND status = ?", key, 0).Find(&config).Error
+		innerErr = rdb.Get().WithContext(oneCtx).Model(&config).Where("key = ? AND status = ?", key, 0).First(&config).Error
 		if innerErr == gorm.ErrRecordNotFound {
 			return nil
 		}
 		return innerErr
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	if innerErr == gorm.ErrRecordNotFound {
 		return nil, nil
-	} else if err != nil {
-		return nil, err
-	} else if len(config) == 0 {
-		return nil, nil
 	}
-	return config[0], nil
+
+	return &config, nil
 }
 
 func newConfig(ctx context.Context, key string, val []byte, utime time.Time) *model.TensorConfig {
-	user := util.GetUserFromContext(ctx)
+	user, ok := util.GetUserFromContext(ctx)
+	userName := ""
+	if ok {
+		userName = user.UserName
+	}
 	c := model.TensorConfig{
 		Key:       key,
 		Config:    val,
 		CreatedAt: utime,
 		UpdatedAt: utime,
 		Status:    0,
-		Creator:   user,
-		Updater:   user,
+		Creator:   userName,
+		Updater:   userName,
 	}
 	return &c
 }
