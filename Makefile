@@ -148,16 +148,16 @@ else
 endif
 
 
-.PHONY: canary
-canary:   ## Build canary docker to test CVEs
+.PHONY: scarecrow
+scarecrow:   ## Build scarecrow docker to test CVEs
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
-	@echo "canary will use mirror"
-	docker build -t $(REPOPREFIX)/canary:latest -f ./build/canary/Dockerfile \
+	@echo "scarecrow will use mirror"
+	docker build -t $(REPOPREFIX)/scarecrow:latest -f ./build/scarecrow/Dockerfile \
 		--build-arg MIRROR=mirrors.aliyun.com --build-arg TAG=$(RELEASEVERSION) .
 else
-	@echo "canary will not use mirror"
-	docker build -t $(REPOPREFIX)/canary:latest -f ./build/canary/Dockerfile \
+	@echo "scarecrow will not use mirror"
+	docker build -t $(REPOPREFIX)/scarecrow:latest -f ./build/scarecrow/Dockerfile \
 		--build-arg TAG=$(RELEASEVERSION) .
 endif
 
@@ -303,7 +303,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
-	#docker push $(REPOPREFIX)/canary:$(RELEASEVERSION)
+	#docker push $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 else
@@ -324,7 +324,7 @@ else
 	docker push $(REPOPREFIX)/tensorsec-holmes:latest
 	docker push $(REPOPREFIX)/tensorsec-daemon:latest
 	docker push $(REPOPREFIX)/tensorsec-image-validator:latest
-	#docker push $(REPOPREFIX)/canary:latest
+	#docker push $(REPOPREFIX)/scarecrow:latest
 	docker push $(REPOPREFIX)/webshell-server:latest
 	docker push $(REPOPREFIX)/tensorsec-webhook:latest
 endif
@@ -349,7 +349,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-daemon:latest $(REPOPREFIX)/tensorsec-daemon:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
-	#docker tag $(REPOPREFIX)/canary:latest $(REPOPREFIX)/canary:$(RELEASEVERSION)
+	#docker tag $(REPOPREFIX)/scarecrow:latest $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 else
@@ -370,7 +370,7 @@ else
 	docker tag $(REPOPREFIXOLD)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-daemon:latest $(REPOPREFIX)/tensorsec-daemon:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:latest
-	#docker tag $(REPOPREFIXOLD)/canary:latest $(REPOPREFIX)/canary:latest
+	#docker tag $(REPOPREFIXOLD)/scarecrow:latest $(REPOPREFIX)/scarecrow:latest
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:latest
 endif
