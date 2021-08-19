@@ -308,7 +308,11 @@ func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	var imageId int
-	res := s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").Where("tags = ? AND library = ? AND full_repo_name = ?", tag, library, fullRepoName).First(&imageId)
+	var librarys []string
+	librarys = append(librarys, library)
+	librarys = append(librarys, "http://"+library)
+	librarys = append(librarys, "https://"+library)
+	res := s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").Where("tags = ? AND library In ? AND full_repo_name = ?", tag, librarys, fullRepoName).First(&imageId)
 	if res.Error != nil {
 		return model.SimpleImageDetail{}
 	}

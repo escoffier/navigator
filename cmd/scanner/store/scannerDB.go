@@ -47,7 +47,9 @@ func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.S
 	}
 	ScanImage.RiskScore = ScanImage.SensitiveScore + ScanImage.VulnScore + math.Min(tmpImage.WebshellScore+tmpImage.VirusScore, 40)
 	tmpImage = model.ScanImage{ID: tableID} // 避免一些并发问题（比如病毒扫描此时更新了分数，与数据库中不一样了，model会成为where条件，导致无法更新数据）
-	err = scdb.PostgresDB.Get().WithContext(ctx).Model(tmpImage).Omit("virus_score", "webshell_score").Updates(ScanImage).Error
+	err = scdb.PostgresDB.Get().WithContext(ctx).Model(tmpImage).Select("*").
+		Omit("virus_score", "webshell_score", "id", "image_id", "started_at", "finish_at", "created_at", "malicious_info_json", "webshell_info_json").
+		Updates(ScanImage).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateToScanImage Updata Error:")
 		return
