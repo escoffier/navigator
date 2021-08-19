@@ -8,10 +8,10 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-// TODO
 type ImageVulnsReporter struct {
 	redisCli *redis.Client
 }
@@ -23,14 +23,6 @@ func NewImageVulnsReporter(redisCli *redis.Client) *ImageVulnsReporter {
 }
 func (i *ImageVulnsReporter) Name() string {
 	return "image_reporter"
-}
-
-type ImageVulnsSumData struct {
-	CriticalNum int64 `json:"criticalNum"`
-	HighNum     int64 `json:"highNum"`
-	MediumNum   int64 `json:"mediumNum"`
-	LowNum      int64 `json:"lowNum"`
-	UnknownNum  int64 `json:"unknownNum"`
 }
 
 func (i *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []string) (map[string]map[string]resSumm, error) {
@@ -66,7 +58,7 @@ func (i *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []s
 			logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get. ")
 			continue
 		}
-		var isum ImageVulnsSumData
+		var isum model.ImageVulnsSumData
 		err = json.Unmarshal([]byte(res), &isum)
 		if err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get. ")
@@ -83,7 +75,7 @@ func (i *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []s
 	return imageSums, nil
 }
 
-func getSeverityFrom(isum ImageVulnsSumData) resSumm {
+func getSeverityFrom(isum model.ImageVulnsSumData) resSumm {
 	res := resSumm{}
 	if isum.CriticalNum > 0 {
 		res.severity = SeverityCritical
@@ -169,10 +161,10 @@ func (s ImageVulnsSummary) ResourceSummary(tx context.Context, clusterKey, names
 			}
 		}
 		sums[riskTypeKey] = Summary{
-			Count: count,
+			Count:    count,
 			Severity: maxRiskTypeSeverity,
 			RiskType: riskType,
-		}	
+		}
 	}
 
 	return sums, nil

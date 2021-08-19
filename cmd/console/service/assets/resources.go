@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 )
@@ -58,7 +59,26 @@ func newTensorResourcesService(rdb *rdbtools.GormWrapper, scannerURL string) *Te
 }
 
 func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit int) ([]*model.TensorCluster, int64, error) {
-	return dal.GetClusters(ctx, rl.rdb, offset, limit)
+	clusters, cnt, err := dal.GetClusters(ctx, rl.rdb, offset, limit)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, 0, err
+	} else if err == gorm.ErrRecordNotFound || len(clusters) == 0 {
+		clusters := rl.getClusters()
+		retClusters := make([]*model.TensorCluster, 0, len(clusters))
+		if offset < len(clusters) {
+			j := 0
+			for i := offset; i < offset + limit && i < len(clusters); i++ {
+				retClusters[j] = &model.TensorCluster{
+					Key: clusters[i], 
+					Name: clusters[i],
+				} 
+			}
+		}
+		return retClusters, int64(len(clusters)), nil
+	} else {
+		return clusters, cnt, nil
+	}
+
 }
 
 func (rl *TensorResourcesService) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
