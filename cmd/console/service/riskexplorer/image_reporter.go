@@ -21,31 +21,35 @@ func NewImageVulnsReporter(redisCli *redis.Client) *ImageVulnsReporter {
 		redisCli: redisCli,
 	}
 }
-func (i *ImageVulnsReporter) Name() string {
+func (ir *ImageVulnsReporter) Name() string {
 	return "image_reporter"
 }
 
-func (i *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []string) (map[string]map[string]resSumm, error) {
+type cmdInfo struct {
+	cmd      *redis.StringCmd
+	image    string
+	riskType RiskTypeDesc
+}
+
+func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []string) (map[string]map[string]resSumm, error) {
 	imageSums := make(map[string]map[string]resSumm, len(images))
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	cmds := make([]struct {
-		cmd      *redis.StringCmd
-		image    string
-		riskType RiskTypeDesc
-	}, len(images))
-	_, err := i.redisCli.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		for riskTypeKey, riskType := range riskTypes {
-			for i, image := range images {
-				cmds[i].cmd = pipe.Get(ctx, getRedisKey(riskTypeKey, image))
-				cmds[i].image = image
-				cmds[i].riskType = riskType
-			}
+	cmds := make([]cmdInfo, 0, len(riskTypes)*len(images))
+	pipe := ir.redisCli.Pipeline()
+	for riskTypeKey, riskType := range riskTypes {
+		for _, image := range images {
+			rkey := getRedisKey(riskTypeKey, image)
+			cmds = append(cmds, cmdInfo{
+				cmd:      pipe.Get(ctx, rkey),
+				image:    image,
+				riskType: riskType,
+			})
 		}
+	}
 
-		return nil
-	})
+	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get redis. ")
 		return nil, err
@@ -92,7 +96,7 @@ func getSeverityFrom(isum model.ImageVulnsSumData) resSumm {
 	return res
 }
 
-func (i *ImageVulnsReporter) LoadSummary(ctx context.Context, assetsSummary []*NamespaceSummary) (TotalSummary, error) {
+func (ir *ImageVulnsReporter) LoadSummary(ctx context.Context, assetsSummary []*NamespaceSummary) (TotalSummary, error) {
 	resImageMap := make(util.Multimap, 50)
 	imagesSet := make(map[string]struct{}, 50)
 	for _, nsSumm := range assetsSummary {
@@ -108,7 +112,7 @@ func (i *ImageVulnsReporter) LoadSummary(ctx context.Context, assetsSummary []*N
 		images = append(images, imageID)
 	}
 
-	imageSumm, lerr := i.LoadImageRiskLevels(ctx, images)
+	imageSumm, lerr := ir.LoadImageRiskLevels(ctx, images)
 	if lerr != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(lerr, "load image risk levels error")
 		return nil, lerr

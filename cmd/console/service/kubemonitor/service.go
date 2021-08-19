@@ -174,9 +174,6 @@ func (s *Service) isRegisterOK() bool {
 func uuid(ruleName string, evt pkg.KubeMonitorEvent, now time.Time) uint64 {
 	bs := getEvtID(evt, ruleName)
 
-	// TODO remove
-	logging.GetLogger().Info().Msgf("evt id: %s", string(bs))
-
 	h := fnv.New64a()
 	_, _ = h.Write(bs)
 	return h.Sum64()
