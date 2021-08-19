@@ -479,10 +479,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: Detect attempt to modify shell configuration files
   condition: >
     open_write and
@@ -509,10 +509,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Detect attempts to read shell configuration files by non-shell programs
   condition: >
     open_read and
@@ -543,10 +543,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: Detect cron jobs scheduled
   condition: >
     ((open_write and cron_dir_action) or
@@ -1005,10 +1005,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: Detect package repositories get updated
   condition: >
     ((open_write and access_repositories) or (modify and modify_repositories))
@@ -1033,10 +1033,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     bin_dir and evt.dir = < and open_write
@@ -1096,10 +1096,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     evt.dir = < and open_write and monitored_dir
@@ -1131,10 +1131,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Any attempt to read files below ssh directories by non-ssh programs
   condition: >
     ((open_read or open_directory) and
@@ -1426,10 +1426,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to write to any file below /etc
   condition: write_etc_common
   output: "File below /etc opened for writing (zh_msg=写入/etc路径下文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
@@ -1544,10 +1544,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information) by a trusted program after startup. Trusted programs might read these files
@@ -1590,10 +1590,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information). Exceptions are made for known trusted programs.
@@ -1641,10 +1641,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to write to the rpm database by any non-rpm related program
   condition: >
     fd.name startswith /var/lib/rpm and open_write
@@ -1686,10 +1686,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: >
     a database-server related program spawned a new process other than itself.
     This shouldn\'t occur and is a follow on from some SQL injection attacks.
@@ -1713,10 +1713,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to modify any file below a set of binary directories.
   condition: bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
   output: >
@@ -1733,10 +1733,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to create a directory below a set of binary directories.
   condition: >
     mkdir
@@ -1916,10 +1916,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: an attempt to spawn a shell below a non-shell application. Specific applications are monitored.
   condition: >
     spawned_process
@@ -2128,10 +2128,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect the initial process started in a privileged container. Exceptions are made for known trusted images.
   condition: >
     container_started and container
@@ -2177,10 +2177,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: >
     Detect the initial process started by a container that has a mount from a sensitive host directory
     (i.e. /proc). Exceptions are made for known trusted images.
@@ -2209,10 +2209,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: >
     Detect the initial process started by a container that is not in a list of allowed containers.
   condition: container_started and container and not allowed_containers
@@ -2251,10 +2251,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
   condition: >
     spawned_process and container
@@ -2333,10 +2333,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: any network activity performed by system binaries that are not expected to send or receive any network traffic
   condition: >
     (fd.sockfamily = ip and (system_procs or proc.name in (shell_binaries)))
@@ -2411,10 +2411,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Any inbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (inbound and consider_interpreted_inbound
@@ -2429,10 +2429,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Any outbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (outbound and consider_interpreted_outbound
@@ -2479,10 +2479,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: UDP traffic not on port 53 (DNS) or other commonly used ports
   condition: (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
   output: >
@@ -2534,10 +2534,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: >
     an attempt to change users by calling setuid. sudo/su are excluded. users "root" and "nobody"
     suing to itself are also excluded, as setuid calls typically involve dropping privileges.
@@ -2568,10 +2568,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: >
     activity by any programs that can manage users, passwords, or permissions. sudo and su are excluded.
     Activity in containers is also excluded--some containers create custom users on top
@@ -2612,10 +2612,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: creating any files below /dev other than known programs that manage devices. Some rootkits hide files in /dev.
   condition: >
     fd.directory = /dev and
@@ -2709,10 +2709,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Detect attempts to contact the K8S API Server from a container
   condition: >
     evt.type=connect and evt.dir=< and
@@ -2750,7 +2750,7 @@
   tags: [network, k8s, container, mitre_port_knocking]
 
 - list: network_tool_binaries
-  items: [nc, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap]
+  items: [nc, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap, hydra]
 
 - macro: network_tool_procs
   condition: (proc.name in (network_tool_binaries))
@@ -2769,10 +2769,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: Package management process ran inside container
   condition: >
     spawned_process
@@ -2791,10 +2791,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     spawned_process and container and not ignore_proc_args and
@@ -2810,10 +2810,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=recvfrom and proc.name = "telnet" and container and not ignore_proc_args and proc.name = "telnet"
@@ -2828,10 +2828,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket  and  proc.pname = "ruby"
@@ -2846,10 +2846,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket and container and not ignore_proc_args and proc.name = "awk"
@@ -2867,10 +2867,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect network tools launched inside container
   condition: >
     spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities
@@ -2890,10 +2890,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Detect network tools launched on the host
   condition: >
     spawned_process and
@@ -2932,10 +2932,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: >
     Detect grep private keys or passwords activity.
   condition: >
@@ -2974,10 +2974,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect clearing of critical log files
   condition: >
     open_write and
@@ -3004,10 +3004,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: Detect process running to clear bulk data from disk
   condition: spawned_process and clear_data_procs and not user_known_remove_data_activities
   output: >
@@ -3047,10 +3047,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect shell history deletion
   condition: >
     (modify_shell_history or truncate_shell_history) and
@@ -3068,10 +3068,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect bash history deletion
   condition: >
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
@@ -3098,10 +3098,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: >
     When the setuid or setgid bits are set for an application,
     this means that the application will run with the privileges of the owning user or group respectively.
@@ -3132,10 +3132,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: Detect hidden files or directories created
   condition: >
     ((modify and evt.arg.newpath contains "/.") or
@@ -3299,10 +3299,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Miners typically connect to miner pools on common ports.
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
 #  enabled: false
@@ -3314,10 +3314,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
   condition: spawned_process and proc.cmdline contains "stratum+tcp"
   output: Possible miner running (zh_msg=可能正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository)
@@ -3351,12 +3351,12 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: Detect a k8s client tool executed inside a container
-  condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not k8s.pod.name contains "canary" 
+  condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not k8s.pod.name contains "scarecrow" 
   output: "Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)"
   priority: WARNING
   tags: [container, mitre_execution]
@@ -3374,10 +3374,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and privilege escalation(CVE-2020-14386) by attacker.
   condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
@@ -3562,10 +3562,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
     (evt.type=chroot and container)
@@ -3579,10 +3579,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Kubernetes Namespaces bypass
   condition: >
     (open_read and container and
@@ -3605,10 +3605,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Gaining environment information
   condition: >
     open_read and container and ((proc.name in (show_information_binaries)) and
@@ -3623,10 +3623,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Linux sudo Privilege Escalation
   condition: (evt.type=execve and container and proc.name in (sensitive_cmd))
   output: Linux sudo Privilege Escalation (zh_msg=CVE-2021-3156(Linux sudo 权限提升),rule_type=Privilege Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
@@ -3642,10 +3642,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
     open_write and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container
@@ -3663,10 +3663,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Potential exploit of CVE-2019-3874 - see https://bugzilla.redhat.com/show_bug.cgi?id=1686373
   condition: >
     sctp_bind and container
@@ -3680,10 +3680,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: When sudo is configured to allow a user to run commands as an arbitrary user via the ALL keyword in a Runas specification, it is possible to run commands as root by specifying the user ID -1 or 4294967295. This can be used by a user with sufficient sudo privileges to run commands as root even if the Runas specification explicitly disallows root access as long as the ALL keyword is listed first in the Runas specification
   condition: >
     spawned_process and
@@ -3693,18 +3693,18 @@
   priority: CRITICAL
   tags: [filesystem, mitre_privilege_escalation]
 
-- rule: Reverse shell through socket and dup
+- rule: Run attacks through socket and dup
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
-  desc: Detect reverse shell established remote connection
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: Detected attacks through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6")
   output: >
-    Reverse shell connection (zh_msg=通过socket执行反向shell攻击,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+    Reverse shell connection (zh_msg=检测到通过socket和dup进行攻击，例如反弹shell、暴力破解等,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: WARNING
   tags: [container, shell, mitre_execution]
 
@@ -3712,10 +3712,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
@@ -3726,10 +3726,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
    open_write and container and proc.name=debugfs
@@ -3740,10 +3740,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
    evt.type=mount and proc.name=mount and proc.cmdline contains "cgroup" and container
@@ -3754,59 +3754,57 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Interpretative language detected scanning network
   condition: >
    interpreted_procs and evt.type=connect
   output: Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id image=%container.image.repository)
   priority: WARNING
 
-- rule: Gaining sensitive information in tensorCanary
+- rule: Gaining sensitive information in tensorScarecrow
   suggestion:
     en:
       key: "Suggestions"
-      value: "Collect the characteristics of the attacker, block and trace the source in advance."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "收集攻击者的特征，提前进行阻拦和溯源"
-  desc: Gaining sensitive information in tensorCanary
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Gaining sensitive information in tensorScarecrow
   condition: >
-   open_read and fd.directory contains "/var/www/html" and k8s.pod.name contains "canary"
-  output: Gaining sensitive information in tensorCanary (zh_msg=探真金丝雀：通过主动防御检测到敏感文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "scarecrow"
+  output: Gaining sensitive information in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到web目录文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: WARNING
 
-- rule: The k8s client is executed in tensorCanary
+- rule: The k8s client is executed in tensorScarecrow
   suggestion:
     en:
       key: "Suggestions"
-      value: "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."
+      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "删除Pod或者网络隔离Pod，使用免疫防御训练与应用"
-  desc: The k8s client is executed in tensorCanary
+      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+  desc: The k8s client is executed in tensorScarecrow
   condition: >
-   spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name contains "canary"
-  output: Docker or kubernetes client executed in container (zh_msg=探真金丝雀：通过主动防御检测到tensorCanary中运行k8s二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
+   spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name contains "scarecrow"
+  output: Docker or kubernetes client executed in container (zh_msg=探真稻草人：通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
   priority: WARNING
 
-- rule: Other containers establish new connections to the redis-server in tensorCanary
+- rule: Other containers establish new connections to the redis-server in tensorScarecrow
   suggestion:
     en:
       key: "Suggestions"
-      value: "Collect the characteristics of the attacker, block and trace the source in advance."
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "收集攻击者的特征，提前进行阻拦和溯源"
-  desc: Other containers establish new connections to the redis-server in tensorCanary
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the redis-server in tensorScarecrow
   condition: >
-   (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "canary"
-  output: Other containers establish new connections to the redis-server in tensorCanary (zh_msg=探真金丝雀：通过主动防御检测到其他容器与tensorCanary中的redis-server建立新的连接,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+   (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "scarecrow"
+  output: Other containers establish new connections to the redis-server in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到redis-server访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: WARNING
-
-
 
 # Application rules have moved to application_rules.yaml. Please look
 # there if you want to enable them by adding to

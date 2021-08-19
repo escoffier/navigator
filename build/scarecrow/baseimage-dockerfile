@@ -1,0 +1,34 @@
+FROM ubuntu:21.04
+
+ARG MIRROR=archive.ubuntu.com
+
+ENV JAVA_HOME="/usr/local/jdk1.8"
+ENV JRE_HOME="${JAVA_HOME}/jre"
+ENV CLASSPATH=".:${JAVA_HOME}/lib:${JRE_HOME}/lib"
+ENV PATH="${JAVA_HOME}/bin:$PATH"
+
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
+    && DEBIAN_FRONTEND=noninteractive apt update \
+    && DEBIAN_FRONTEND=noninteractive apt install -y --fix-missing \
+       curl \
+       wget \
+    && curl -o /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-18.09.9.tgz \
+    && tar -xf /tmp/docker-19.03.9.tgz \
+    && rm /tmp/docker-19.03.9.tgz \
+    && ln -s /docker/docker /usr/bin/docker \ 
+    && wget https://mirrors.ustc.edu.cn/kubernetes/apt/pool/kubectl_1.22.0-00_amd64_052395d9ddf0364665cf7533aa66f96b310ec8a2b796d21c42f386684ad1fc56.deb -O /tmp/kubectl.deb \
+    && apt install -y /tmp/kubectl.deb \
+    && rm /tmp/kubectl.deb \
+    && wget https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz \
+    && tar xvzf /jdk-8u151-linux-x64.tar.gz \
+    && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
+    && rm jdk-8u151-linux-x64.tar.gz \
+    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v8.5.70/bin/apache-tomcat-8.5.70.tar.gz -O /usr/local/tomcat.tar.gz \
+    && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
+    && chmod 755 -R /usr/local/apache-tomcat-8.5.70/ \
+    && rm /usr/local/tomcat.tar.gz \
+    && apt remove curl wget -y \
+    && apt upgrade -y \
+    && apt-get purge -y --auto-remove \
+    && rm -rf /var/lib/apt/lists/ \
+    && groupadd -r redis && useradd -r -g redis redis
