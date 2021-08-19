@@ -64,14 +64,17 @@ func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit
 		return nil, 0, err
 	} else if err == gorm.ErrRecordNotFound || len(clusters) == 0 {
 		clusters := rl.getClusters()
-		retClusters := make([]*model.TensorCluster, 0, len(clusters))
+		size := limit
+		if len(clusters) < size {
+			size = len(clusters)
+		}
+		retClusters := make([]*model.TensorCluster, 0, size)
 		if offset < len(clusters) {
-			j := 0
-			for i := offset; i < offset + limit && i < len(clusters); i++ {
-				retClusters[j] = &model.TensorCluster{
-					Key: clusters[i], 
+			for i := offset; i < offset+limit && i < len(clusters); i++ {
+				retClusters = append(retClusters, &model.TensorCluster{
+					Key:  clusters[i],
 					Name: clusters[i],
-				} 
+				})
 			}
 		}
 		return retClusters, int64(len(clusters)), nil
@@ -172,7 +175,7 @@ func (rl *TensorResourcesService) getClusters() []string {
 	defer rl.clMux.RUnlock()
 
 	clusters := make([]string, 0, len(rl.clusterListeners))
-	for clusterKey, _ := range rl.clusterListeners {
+	for clusterKey := range rl.clusterListeners {
 		clusters = append(clusters, clusterKey)
 	}
 	return clusters
