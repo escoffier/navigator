@@ -592,7 +592,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		if err != nil {
 			var cErr ClairUnprocessableLayerError
 			if errors.As(err, &cErr) {
-				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
+				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while Clair scanning layers", cErr)
 			} else {
 				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
 			}
@@ -1103,7 +1103,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 		}
 	}
 	if scanImage.Message != "" {
-		logging.GetLogger().Error().Msgf("logPostgres message:%v", message)
+		logging.GetLogger().Error().Msgf("logPostgres message:%v", scanImage.Message)
 	}
 	// rcSvc.logImageQuestion(ctx, scanTask)
 }
