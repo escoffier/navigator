@@ -40,6 +40,11 @@ func init() {
 	log = logging.GetLogger()
 }
 
+const (
+	OpenAPIURLPrefix   = "/openapi/v1"
+	NormalAPIURLPrefix = "/api/v2"
+)
+
 // SetupRoutes is to set up the chi router
 func SetupRoutes(
 	ctx context.Context,
@@ -82,8 +87,21 @@ func SetupRoutes(
 		})
 	})
 
+	// Open API v1
+	r.Route(OpenAPIURLPrefix, func(r chi.Router) {
+		r.Route("/auth", api.openapiAuth())
+		r.Group(func(r chi.Router) {
+			r.Use(openAPIAccessCheck(api.postgresDB))
+			r.Route("/platform", api.platform()) // platform
+			r.Route("/containerSec", api.containerSec())
+
+			// proxy to tensor-microseg
+			r.Handle("/microseg/*", api.microSegmentation())
+		})
+	})
+
 	// api v2
-	r.Route("/api/v2", func(r chi.Router) {
+	r.Route(NormalAPIURLPrefix, func(r chi.Router) {
 		r.Route("/usercenter", api.userCenter())
 		r.Group(func(r chi.Router) {
 			// normal check

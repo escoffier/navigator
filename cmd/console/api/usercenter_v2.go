@@ -22,6 +22,7 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
 			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
 			r.Get("/user", user)
+			r.Get("/openapi/token", api.getOpenAPIToken())
 			r.Get("/userList", api.userList())
 			r.Get("/userModule", api.userModule())
 			r.Post("/addUser", api.addUser())

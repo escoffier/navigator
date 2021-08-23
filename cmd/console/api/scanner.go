@@ -21,6 +21,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// the apis that need to be used as REST open API.
+func (api *api) scannerOpen() func(chi.Router) {
+	return func(r chi.Router) {
+		r.Get("/imagereject/whitelist", api.RedirectToScanner())
+		r.Post("/imagereject/whitelist", api.RedirectToScanner())
+		r.Delete("/imagereject/whitelist/{id}", api.RedirectToScanner())
+	}
+}
+
 // 转发scanner中的接口
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {

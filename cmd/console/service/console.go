@@ -15,9 +15,27 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -42,21 +60,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -211,8 +215,10 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.ExportTask{})
 	postgresDB.Get().AutoMigrate(&model.PodResourceRelation{})
 	postgresDB.Get().AutoMigrate(&model.TensorCluster{})
+	postgresDB.Get().AutoMigrate(&model.OpenAPIAuthToken{})
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
+
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
@@ -324,6 +330,12 @@ func NewConsole(
 	err = k8saudit.Init(postgresDB, es)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: k8s-audit service init error")
+		return nil, err
+	}
+
+	err = openapiauth.Init(postgresDB, redisClient)
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: openapi auth service init error")
 		return nil, err
 	}
 
@@ -460,21 +472,34 @@ func (c *Console) Run() func() {
 	}
 }
 
+const (
+	postgreCheckTimeout = time.Minute
+)
+
 func postgreCheck(db *rdbtools.GormWrapper) error {
+	ctx, cancel := context.WithTimeout(context.Background(), postgreCheckTimeout)
+	defer cancel()
 	queryUser := model.User{}
-	err := db.Get().Where("username = ?", model.UserSuperAdmin).First(&queryUser).Error
+	err := db.Get().WithContext(ctx).Where("username = ?", model.UserSuperAdmin).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		salt := dal.RandStringBytesMaskImprSrcUnsafe(8)
 		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.PasswordSuperAdmin+salt)))
 		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreateAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
-		err = db.Get().Create(&user).Error
+		authToken := util.GenerateUUIDHex()
+		err = db.Get().Transaction(func(tx *gorm.DB) error {
+			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
+				return _err
+			}
+
+			return dal.SaveAuthToken(ctx, tx, user.UserName, authToken)
+		})
 		if err != nil {
 			return err
 		}
 	}
 
-	db.Get().Migrator().DropTable(&model.ModuleGroup{}, &model.Url{})
-	db.Get().AutoMigrate(&model.ModuleGroup{}, &model.Url{})
+	db.Get().WithContext(ctx).Migrator().DropTable(&model.ModuleGroup{}, &model.Url{})
+	db.Get().WithContext(ctx).AutoMigrate(&model.ModuleGroup{}, &model.Url{})
 
 	mg1 := model.ModuleGroup{
 		ModuleNameZh: "用户中心",
@@ -496,20 +521,20 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 		ModuleNameEn: "Micro Segmentation",
 	}
 
-	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg1)
-	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg2)
-	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg3)
-	db.Get().Table(model.ModuleGroup{}.TableName()).Create(&mg4)
+	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg1)
+	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg2)
+	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg3)
+	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg4)
 
 	url1 := model.Url{UrlName: "/api/v2/usercenter", UrlId: mg1.Id}
 	url2 := model.Url{UrlName: "/api/v2/platform", UrlId: mg2.Id}
 	url3 := model.Url{UrlName: "/api/v2/containerSec", UrlId: mg3.Id}
 	url4 := model.Url{UrlName: "/api/v2/microseg", UrlId: mg4.Id}
 
-	db.Get().Table(model.Url{}.TableName()).Create(&url1)
-	db.Get().Table(model.Url{}.TableName()).Create(&url2)
-	db.Get().Table(model.Url{}.TableName()).Create(&url3)
-	db.Get().Table(model.Url{}.TableName()).Create(&url4)
+	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url1)
+	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url2)
+	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url3)
+	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url4)
 
 	return nil
 }

@@ -166,3 +166,6 @@ k8sAudit:
     facility: "1"
     severity: "5"
     tag: "k8s-audit"
+
+openapi:
+  guideURL: "https://tensorsecurity.feishu.cn/docs/doccn14Oeay2PwoXy0gq3RvRj2f"
