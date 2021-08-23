@@ -258,7 +258,6 @@ func (api *api) addNewCluster() http.HandlerFunc {
 			logging.GetLogger().Info().Msgf("add new cluster %v", cluster)
 			k8s.WatchKubeResource(ctx, map[string]*kubernetes.Clientset{cluster.Name: k8sClient},
 				api.postgresDB, api.scannerURL)
-			return
 		}
 
 		err = resSvc.AddCluster(ctx, &cluster)

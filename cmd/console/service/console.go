@@ -80,6 +80,8 @@ const (
 
 	eventGrpcCertServerNameEnv     = "EVENT_GRPC_CERT_SERVER_NAME"
 	defaultEventGrpcCertServerName = "tensorsec-eventcenter"
+
+	maxClusterNum = 1000
 )
 
 func init() {
@@ -708,7 +710,7 @@ func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 
 	clientMap[defaultK8sClusterName] = currentClient
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
-	clusters, _, err := resSvc.GetClusters(ctx, 0, -1)
+	clusters, _, err := resSvc.GetClusters(ctx, 0, maxClusterNum)
 	if err != nil {
 		return nil
 	}
