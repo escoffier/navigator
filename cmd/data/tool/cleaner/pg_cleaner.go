@@ -30,7 +30,8 @@ func (c *PostgresCleaner) Clean(ctx context.Context, daysOffset int) error {
 	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
 	for _, table := range c.tables {
 		if err := c.dumpTable(ctx, table, timeFilter); err != nil {
-			logging.GetLogger().Error().Msgf("dumpTable %s:%s, err:%s", table.Name, table.TimeField, err.Error())
+			logging.GetLogger().Error().Msgf("dumpTable %s:%s, condition:%s, err:%s",
+				table.Name, table.TimeField, table.Condition, err.Error())
 			return err
 		}
 	}
@@ -99,8 +100,8 @@ func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, t
 		"-h", util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
 		"-U", util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
 		"-d", util.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		"-c", fmt.Sprintf("\\copy (select * from %s where %s < '%s' order by %s asc, id asc limit %d) TO '%s'",
-			table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), table.TimeField, table.Batch, tmpPath),
+		"-c", fmt.Sprintf("\\copy (select * from %s where %s < '%s' %s order by %s asc, id asc limit %d) TO '%s'",
+			table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), getClearCondition(table), table.TimeField, table.Batch, tmpPath),
 	)
 
 	cmd.Env = os.Environ()
@@ -122,13 +123,21 @@ func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, t
 }
 
 func clearPGData(ctx context.Context, db *rdbtools.GormWrapper, table *conf.DumpItem, timeFilter time.Time) error {
-	sql := fmt.Sprintf("with temp as (select id from %s where %s < ? order by %s asc, id asc limit ?) "+
+	sql := fmt.Sprintf("with temp as (select id from %s where %s < ? %s order by %s asc, id asc limit ?) "+
 		"delete from %s where id in (select * from temp)",
-		table.Name, table.TimeField, table.TimeField, table.Name)
+		table.Name, table.TimeField, getClearCondition(table), table.TimeField, table.Name)
 
 	clearFunc := func() error {
 		return db.Get().WithContext(ctx).Exec(sql, util.GetMillisecondTime(timeFilter), table.Batch).Error
 	}
 
 	return util.WithRetry(clearFunc, util.DefaultRetryConf)
+}
+
+func getClearCondition(table *conf.DumpItem) string {
+	if table.Condition == "" {
+		return ""
+	}
+
+	return fmt.Sprintf(" and %s", table.Condition)
 }
