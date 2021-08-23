@@ -148,6 +148,8 @@ spec:
           value: {{ .Values.k8sAudit.syslog.severity | quote }}
         - name: K8S_AUDIT_SYSLOG_TAG
           value: {{ .Values.k8sAudit.syslog.tag }}
+        - name: OPEN_API_GUIDE_URL
+          value: {{ .Values.openapi.guideURL }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}

@@ -116,6 +116,7 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 		url    []model.Url
 		strURL []string
 	)
+
 	var moduleSLID []string
 	var err error
 	if moduleID != "" {
@@ -297,14 +298,24 @@ func ActiveUser(ctx context.Context, postgresDB *gorm.DB, userName, pwd string) 
 		return fmt.Errorf("user not exists")
 	}
 
+	//if u.Checked {
+	//	return fmt.Errorf("already actived")
+	//}
+
 	hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))
-	err = postgresDB.WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Checked: true, Pwd: hashPwd}).Error
+	authToken := util.GenerateUUIDHex()
 
-	if err != nil {
-		return err
-	}
+	return postgresDB.Transaction(func(tx *gorm.DB) error {
+		if _err := tx.WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Checked: true, Pwd: hashPwd}).Error; _err != nil {
+			return _err
+		}
 
-	return postgresDB.WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error
+		if _err := tx.WithContext(pgCtx).Where("username = ? ", userName).Delete(&model.Email{}).Error; _err != nil {
+			return _err
+		}
+
+		return SaveAuthToken(ctx, tx, userName, authToken)
+	})
 }
 
 func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.MongoUser, err error) {

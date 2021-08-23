@@ -23,6 +23,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
+// for open API
+func (api *api) scapOpen() func(chi.Router) {
+	return func(r chi.Router) {
+
+	}
+}
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/{checkType}/{clusterID}", api.scapCheck())
