@@ -526,7 +526,7 @@ func doUpsertResourceContainers(ctx context.Context, rdb *gorm.DB, resource *ass
 	return contModels, nil
 }
 
-func CleanUpUnUpdatedResources(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time) error {
+func CleanUpUnUpdatedResources(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time, clusterKey string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -534,14 +534,14 @@ func CleanUpUnUpdatedResources(ctx context.Context, rdb *rdbtools.GormWrapper, t
 		oneCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 		defer cancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorResource{}).Where("updated_at < ? AND status = ?", ts, 0).Updates(map[string]interface{}{
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorResource{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Updates(map[string]interface{}{
 			"status":     1,
 			"updated_at": ts,
 		}).Error
 	})
 }
 
-func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time) error {
+func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time, clusterKey string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -549,7 +549,7 @@ func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *rdbtools.GormW
 		oneCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 		defer cancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorContainer{}).Where("updated_at < ? AND status = ?", ts, 0).Updates(map[string]interface{}{
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorContainer{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Updates(map[string]interface{}{
 			"status":     1,
 			"updated_at": ts,
 		}).Error
@@ -633,7 +633,7 @@ func SoftDeleteNamespace(ctx context.Context, rdb *rdbtools.GormWrapper, ns *cor
 	}).Error
 }
 
-func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time) error {
+func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time, clusterKey string) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -642,7 +642,7 @@ func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *rdbtools.GormWrapper, 
 		defer cancel()
 
 		now := time.Now()
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("updated_at < ? AND status = ?", ts, 0).Updates(map[string]interface{}{
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Updates(map[string]interface{}{
 			"status":     1,
 			"updated_at": now,
 		}).Error
@@ -768,13 +768,13 @@ func DeletePodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapp
 	})
 }
 
-func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time) error {
+func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, ts time.Time, clusterKey string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(rCtx, 5000*time.Millisecond)
 		defer oneCancel()
-		return rdb.Get().WithContext(oneCtx).Where("updated_at < ?", ts).Delete(&model.PodResourceRelation{}).Error
+		return rdb.Get().WithContext(oneCtx).Where("updated_at < ? AND cluster_key = ?", ts, clusterKey).Delete(&model.PodResourceRelation{}).Error
 	})
 }
 

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"k8s.io/client-go/kubernetes"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,10 +14,12 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"k8s.io/client-go/kubernetes"
 )
 
 func (api *api) assets() func(chi.Router) {
@@ -256,7 +256,7 @@ func (api *api) addNewCluster() http.HandlerFunc {
 				return
 			}
 			logging.GetLogger().Info().Msgf("add new cluster %v", cluster)
-			k8s.WatchKubeResource(ctx, map[string]*kubernetes.Clientset{cluster.Name: k8sClient},
+			k8s.WatchKubeResource(ctx, map[string]*kubernetes.Clientset{cluster.Key: k8sClient},
 				api.postgresDB, api.scannerURL)
 		}
 

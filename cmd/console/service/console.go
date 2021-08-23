@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	certutil "k8s.io/client-go/util/cert"
 	"math"
 	"net/http"
 	"os"
@@ -16,10 +15,10 @@ import (
 	"sync"
 	"time"
 
+	certutil "k8s.io/client-go/util/cert"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
@@ -36,7 +35,6 @@ import (
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -730,7 +728,7 @@ func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 		if err != nil {
 			continue
 		}
-		clientMap[c.Name] = clientSet
+		clientMap[c.Key] = clientSet
 	}
 	return clientMap
 }
