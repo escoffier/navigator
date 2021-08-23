@@ -84,6 +84,10 @@ func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit
 
 }
 
+func (rl *TensorResourcesService) GetClusterByKey(ctx context.Context, key string) *int64 {
+	return dal.GetClustersByKey(ctx, rl.rdb, key)
+}
+
 func (rl *TensorResourcesService) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
 	// TODO create the k8s client and so on
 	return dal.AddCluster(ctx, rl.rdb, cluster)

@@ -279,8 +279,15 @@ webhook: generate
 		-o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
 	docker build -t $(REPOPREFIX)/tensorsec-webhook:latest -f ./build/webhook/Dockerfile .
 
+.PHONY: cluster-manager
+cluster-manager: generate
+	@echo "build webhook"
+	go build -v \
+		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/cluster-manager
+	docker build -t $(REPOPREFIX)/tensorsec-cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
+
 .PHONY: all
-all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data drift-prevention holmes image-validate daemon webshell-server webhook
+all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data drift-prevention holmes image-validate daemon webshell-server webhook cluster-manager
 	@echo "USEMIRROR is true by default. REVERT ME."
 
 .PHONY: pushimages
@@ -306,6 +313,7 @@ ifeq ($(USERELEASE),true)
 	#docker push $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -327,6 +335,7 @@ else
 	#docker push $(REPOPREFIX)/scarecrow:latest
 	docker push $(REPOPREFIX)/webshell-server:latest
 	docker push $(REPOPREFIX)/tensorsec-webhook:latest
+	docker push $(REPOPREFIX)/cluster-manager:latest
 endif
 
 .PHONY: retag
@@ -352,6 +361,7 @@ ifeq ($(USERELEASE),true)
 	#docker tag $(REPOPREFIX)/scarecrow:latest $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
@@ -373,6 +383,7 @@ else
 	#docker tag $(REPOPREFIXOLD)/scarecrow:latest $(REPOPREFIX)/scarecrow:latest
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:latest
+	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 endif
 
 .PHONY: redeploy

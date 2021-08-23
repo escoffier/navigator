@@ -78,6 +78,7 @@ func SetupRoutes(
 			r.Use(apikey.ScannerValid())
 			r.Route("/ATTCK", api.ATTCK())
 			r.Route("/scanner", api.scanner())
+			r.Route("/assets", api.assets())
 		})
 	})
 
@@ -97,7 +98,9 @@ func SetupRoutes(
 		})
 
 	})
-
+	r.Route("/internal", func(r chi.Router) {
+		r.Route("/platform/assets", api.assets())
+	})
 }
 
 func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {

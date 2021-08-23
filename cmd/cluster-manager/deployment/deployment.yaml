@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorsec-cluster-manager
+  namespace: tensorsec-test-cn
+spec:
+  selector:
+    matchLabels:
+      app: tensorsec-cluster-manager
+  template:
+    metadata:
+      labels:
+        app: tensorsec-cluster-manager
+    spec:
+      serviceAccount: cluster-manager
+      containers:
+        - name: tensorsec-cluster-manager
+          image: localhost:32000/tensorsec-webhook:latest
+          args:
+            - --master-addr=1222
+            - --cluster-name=
+            - --api-server-address=
+          imagePullPolicy: IfNotPresent
+      imagePullSecrets:
+        - name: harbor-admin-secret

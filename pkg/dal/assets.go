@@ -874,6 +874,19 @@ func GetClusters(ctx context.Context, rdb *rdbtools.GormWrapper, offset, limit i
 	})
 	return
 }
+func GetClustersByKey(ctx context.Context, rdb *rdbtools.GormWrapper, key string) *int64 {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+	var count int64 = 0
+	util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND key = ?", 0, key).Count(&count).Error
+
+	})
+	return &count
+}
 func UpdateCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey string, name string, description string) error {
 	if clusterKey == "" {
 		return errors.New("illegal argument")

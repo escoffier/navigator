@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	certutil "k8s.io/client-go/util/cert"
 	"math"
 	"net/http"
 	"os"
@@ -22,9 +23,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -426,29 +427,8 @@ func (c *Console) Run() func() {
 		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
 	}
 
-	kubeClient, _, err := getCurrentKubeClientWithServiceAccount()
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When validating kube client")
-	}
-	if kubeClient != nil {
-		inResSvc, _ := assetsSvc.GetPodResourcesService(ctx)
-		kbmSvc, _ := kubemonitor.Get(ctx)
-		resSvc, _ := assetsSvc.GetResourcesService(ctx)
-
-		watcher, werr := assetsSvc.Watcher(c.postgresDB, inResSvc, kbmSvc, resSvc, c.scannerURL)
-		if werr != nil {
-			log.Error().Err(err).Msgf("get assetsWatcher error: %v", werr)
-		} else {
-			err := watcher.StartsToWatch(ctx, map[string]*kubernetes.Clientset{
-				defaultK8sClusterName: kubeClient,
-			})
-			if err != nil {
-				log.Error().Err(err).Msg("Watch kube clients error")
-			}
-		}
-	}
+	clients := getAllKubeClient(ctx)
+	k8s.WatchKubeResource(ctx, clients, c.postgresDB, c.scannerURL)
 
 	cronService, _ := cron.Get(ctx)
 	err = cronService.StartCrons(ctx)
@@ -690,4 +670,41 @@ func addDefaultCluster(ctx context.Context, mongodb *mongotools.DatabaseWrapper)
 		return err
 	}
 	return nil
+}
+func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
+	clientMap := make(map[string]*kubernetes.Clientset)
+
+	currentClient, _, err := getCurrentKubeClientWithServiceAccount()
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("When validating kube client")
+	}
+
+	clientMap[defaultK8sClusterName] = currentClient
+	resSvc, _ := assetsSvc.GetResourcesService(ctx)
+	clusters, _, err := resSvc.GetClusters(ctx, 0, -1)
+	if err != nil {
+		return nil
+	}
+
+	for _, c := range clusters {
+		tlsClientConfig := rest.TLSClientConfig{}
+		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
+			log.Error().Err(err).Msg("load root CA config err")
+			continue
+		} else {
+			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
+		}
+		clientSet, err := kubernetes.NewForConfig(&rest.Config{
+			Host:            c.APIServerAddr,
+			TLSClientConfig: tlsClientConfig,
+			BearerToken:     c.SecretToken,
+		})
+		if err != nil {
+			continue
+		}
+		clientMap[c.Name] = clientSet
+	}
+	return clientMap
 }
