@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"k8s.io/client-go/kubernetes"
 	"net/http"
 	"strconv"
 	"time"
@@ -243,6 +245,22 @@ func (api *api) addNewCluster() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
+
+		// if this cluster is new, start informer to watch resources
+		count := resSvc.GetClusterByKey(ctx, cluster.Key)
+		if *count == 0 {
+			k8sClient, err := k8s.CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("failed to create k8s client for member cluster: %s", cluster.Name)
+				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("cluster info error")))
+				return
+			}
+			logging.GetLogger().Info().Msgf("add new cluster %v", cluster)
+			k8s.WatchKubeResource(ctx, map[string]*kubernetes.Clientset{cluster.Name: k8sClient},
+				api.postgresDB, api.scannerURL)
+			return
+		}
+
 		err = resSvc.AddCluster(ctx, &cluster)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("add cluster error. clusterKey: %s", cluster.Key)
