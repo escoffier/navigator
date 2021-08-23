@@ -313,7 +313,7 @@ ifeq ($(USERELEASE),true)
 	#docker push $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-cluster-manager:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -335,7 +335,7 @@ else
 	#docker push $(REPOPREFIX)/scarecrow:latest
 	docker push $(REPOPREFIX)/webshell-server:latest
 	docker push $(REPOPREFIX)/tensorsec-webhook:latest
-	docker push $(REPOPREFIX)/cluster-manager:latest
+	docker push $(REPOPREFIX)/tensorsec-cluster-manager:latest
 endif
 
 .PHONY: retag
@@ -361,7 +361,7 @@ ifeq ($(USERELEASE),true)
 	#docker tag $(REPOPREFIX)/scarecrow:latest $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
@@ -383,7 +383,7 @@ else
 	#docker tag $(REPOPREFIXOLD)/scarecrow:latest $(REPOPREFIX)/scarecrow:latest
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:latest
-	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
+	docker tag $(REPOPREFIX)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 endif
 
 .PHONY: redeploy
