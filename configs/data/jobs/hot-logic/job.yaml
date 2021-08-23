@@ -25,7 +25,7 @@ spec:
                   name: tensorsec-mongodb
                   key: mongodb-password
             - name: MONGO_ENDPOINT
-              value: tensorsec-mongodb:27017
+              value: tensorsec-mongodb-0.tensorsec-mongodb-headless:27017
             - name: MONGO_DATABASE
               value: vegeta
             - name: MONGO_READ_PREFERENCE
