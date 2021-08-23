@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tensorsec-test1
+  name: tensorsec-test1
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: tensorsec-test1
+  template:
+    metadata:
+      labels:
+        app: tensorsec-test1
+        tensorsec.driftprevent: detect
+    spec:
+      containers:
+      - image: {{ include "tensorsec.test.image" . }}
+        imagePullPolicy: Always
+        name: tensorsec-test1
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tensorsec-test2
+  name: tensorsec-test2
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: tensorsec-test2
+  template:
+    metadata:
+      labels:
+        app: tensorsec-test2
+        tensorsec.driftprevent: detect
+    spec:
+      containers:
+      - image: {{ include "tensorsec.test.image" . }}
+        imagePullPolicy: Always
+        name: tensorsec-test2
