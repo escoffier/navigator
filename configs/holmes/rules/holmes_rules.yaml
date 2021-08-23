@@ -3806,6 +3806,20 @@
   output: Other containers establish new connections to the redis-server in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到redis-server访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: WARNING
 
+- rule: Detected connection to container through ssh
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: Detect any new ssh connection to a container
+  condition: >
+   (inbound_outbound) and allowed_ssh_hosts and container
+  output: Detected connection to container through ssh (zh_msg=检测到尝试通过ssh连接到容器,rule_type=Exfiltration,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: WARNING
+
 # Application rules have moved to application_rules.yaml. Please look
 # there if you want to enable them by adding to
 # falco_rules.local.yaml.
