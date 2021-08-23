@@ -1,0 +1,18 @@
+glable:
+  image:
+    regsitry: localhost:32000
+    repository: tensorsecurity
+
+faulty:
+  image:
+    regsitry: localhost:32000
+    repository: tensorsecurity
+    name: faulty
+    tag: latest
+
+test:
+  image:
+    regsitry: localhost:32000
+    repository: tensorsecurity
+    name: nginx
+    tag: alpine-curl
