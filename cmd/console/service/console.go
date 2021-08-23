@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	certutil "k8s.io/client-go/util/cert"
 	"math"
 	"net/http"
@@ -436,7 +437,13 @@ func (c *Console) Run() func() {
 			Msg("When creating mongo indices")
 	}
 
+	//writing cluster info into mongodb would be deleted later
 	err = addDefaultCluster(ctx, c.mongoDB)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
+	}
+
+	err = addDefaultClusterToPG(ctx)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
 	}
@@ -701,14 +708,6 @@ func addDefaultCluster(ctx context.Context, mongodb *mongotools.DatabaseWrapper)
 func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 	clientMap := make(map[string]*kubernetes.Clientset)
 
-	currentClient, _, err := getCurrentKubeClientWithServiceAccount()
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When validating kube client")
-	}
-
-	clientMap[defaultK8sClusterName] = currentClient
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 	clusters, _, err := resSvc.GetClusters(ctx, 0, maxClusterNum)
 	if err != nil {
@@ -734,4 +733,36 @@ func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 		clientMap[c.Name] = clientSet
 	}
 	return clientMap
+}
+
+func addDefaultClusterToPG(ctx context.Context) error {
+	clusterConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return err
+	}
+
+	token := clusterConfig.BearerToken
+
+	ca, err := ioutil.ReadFile(clusterConfig.TLSClientConfig.CAFile)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
+		return err
+	}
+
+	key := fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
+	newCluster := &model.TensorCluster{
+		Key:                 key,
+		Name:                defaultK8sClusterName,
+		APIServerAddr:       clusterConfig.Host,
+		SecretToken:         token,
+		CertificateAuthData: string(ca),
+	}
+
+	resSvc, _ := assetsSvc.GetResourcesService(ctx)
+	err = resSvc.AddCluster(ctx, newCluster)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("add default cluster error: %s", key)
+		return err
+	}
+	return nil
 }
