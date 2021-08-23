@@ -71,6 +71,13 @@ func TestPostgresCleaner(t *testing.T) {
 			DataDir:   path.Join(pwd, "dump_test", "postgresql", "tests"),
 			Batch:     50,
 		},
+		{
+			Name:      "test2",
+			TimeField: "timestamp",
+			Condition: "status = 1",
+			DataDir:   path.Join(pwd, "dump_test", "postgresql", "test2"),
+			Batch:     50,
+		},
 	})
 
 	err = c.Clean(context.TODO(), 6)
@@ -89,7 +96,16 @@ func TestMockInsert(t *testing.T) {
 		Timestamp  time.Time      `gorm:"index:test_timestamp_key; column:timestamp"`
 	}
 
-	err := postgresDB.Get().AutoMigrate(&Test{})
+	type Test2 struct {
+		ID         int32          `gorm:"primaryKey; autoIncrement; column:id"`
+		Status     uint8          `gorm:"column:status"`
+		TestField1 string         `gorm:"column:test_field_1"`
+		TestField2 int32          `gorm:"column:test_field_2"`
+		TestField3 datatypes.JSON `gorm:"column:test_field_3"`
+		Timestamp  time.Time      `gorm:"index:test2_timestamp_key; column:timestamp"`
+	}
+
+	err := postgresDB.Get().AutoMigrate(&Test{}, &Test2{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +114,16 @@ func TestMockInsert(t *testing.T) {
 	for i := 0; i < 5000; i++ {
 		err = postgresDB.Get().Create(&Test{
 			TestField1: strconv.Itoa(rand.Int()),
+			TestField2: rand.Int31(),
+			TestField3: datatypes.JSON("{\"x\":\"y\"}"),
+			Timestamp:  now.Add(-time.Duration(rand.Uint64()) % (15 * time.Hour * 24)),
+		}).Error
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = postgresDB.Get().Create(&Test2{
+			TestField1: strconv.Itoa(rand.Int()),
+			Status:     uint8(rand.Uint64() % 2),
 			TestField2: rand.Int31(),
 			TestField3: datatypes.JSON("{\"x\":\"y\"}"),
 			Timestamp:  now.Add(-time.Duration(rand.Uint64()) % (15 * time.Hour * 24)),
