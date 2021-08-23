@@ -30,8 +30,9 @@ func NewResourcesListener(rdb *rdbtools.GormWrapper) *ResourcesListener {
 }
 func (rl *ResourcesListener) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	return &ResourcesClusterListener{
-		parent: rl,
-		stTime: time.Now(),
+		clusterKey: clusterName,
+		parent:     rl,
+		stTime:     time.Now(),
 	}
 }
 func (rl *ResourcesListener) WatchedTypes() map[assets.WatchedType]struct{} {
@@ -44,8 +45,9 @@ func (rl *ResourcesListener) Name() string {
 }
 
 type ResourcesClusterListener struct {
-	parent *ResourcesListener
-	stTime time.Time
+	clusterKey string
+	parent     *ResourcesListener
+	stTime     time.Time
 }
 
 func (cl *ResourcesClusterListener) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
@@ -181,7 +183,7 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 		oneCtx, oneCancel := context.WithTimeout(context.Background(), 3000*time.Millisecond)
 		defer oneCancel()
 
-		return db.WithContext(oneCtx).Model(&model.TensorMicrosegResource{}).Where("updated_at < ? AND status = 0", cl.stTime).Updates(map[string]interface{}{
+		return db.WithContext(oneCtx).Model(&model.TensorMicrosegResource{}).Where("updated_at < ? AND status = 0 AND cluster = ?", cl.stTime, cl.clusterKey).Updates(map[string]interface{}{
 			"status":     1,
 			"updated_at": time.Now(),
 		}).Error

@@ -397,16 +397,16 @@ func (cl *TensorResourcesClusterListener) AfterDataSynced(ctx context.Context, d
 		return
 	}
 
-	err := dal.CleanUpUnUpdatedResourceContainers(ctx, cl.parent.rdb, cl.refreshTime)
+	err := dal.CleanUpUnUpdatedResourceContainers(ctx, cl.parent.rdb, cl.refreshTime, cl.clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResourceContainers error. refreshTime: %v", cl.refreshTime)
 	}
-	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb, cl.refreshTime)
+	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb, cl.refreshTime, cl.clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResources error. refreshTime: %v", cl.refreshTime)
 	}
 
-	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb, cl.refreshTime)
+	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb, cl.refreshTime, cl.clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNamespaces error. refreshTime: %v", cl.refreshTime)
 	}

@@ -250,7 +250,7 @@ func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, data
 }
 
 func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context) error {
-	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.postgresDB, cb.refreshTime())
+	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.postgresDB, cb.refreshTime(), cb.cluster)
 }
 
 func (cb *PodResourcesClusterCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
