@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "cluster-manager.fullname" . }}
+  labels:
+{{ include "cluster-manager.labels" . | indent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cluster-manager.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "cluster-manager.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccount: {{ template "cluster-manager.fullname" . }}
+      containers:
+      - name: {{ template "cluster-manager.fullname" . }}
+        image: "{{ template "tensorsec.image" . }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --master-addr={{ .Values.args.masterAddr }}
+        - --cluster-name={{ .Values.args.clusterName }}
+        - --api-server-address={{ .Values.args.apiServerAddr }}
+        resources:
+{{ toYaml .Values.resources | trim | indent 10 }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      restartPolicy: Always
+
