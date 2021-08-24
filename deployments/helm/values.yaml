@@ -138,24 +138,17 @@ console:
     softName: tensor
     softVersion: v1.9
 
-daemon:
-  enabled: false 
+cluster-manager:
+  enabled: false
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
+    tag: latest
     pullSecret: harbor-admin-secret
-  extraInitContainers:
-    esListerner:
-      image:
-        registry: "{{ .Values.global.image.registry }}"
-        repository: "{{ .Values.global.image.repository }}"
-    pgListerner:
-      image:
-        registry: "{{ .Values.global.image.registry }}"
-        repository: "{{ .Values.global.image.repository }}"
-  eventcenter:
-    eventGrpcUrl: tensorsec-eventcenter:9090
-    eventGrpcCertServerName: tensorsec-eventcenter
+#  args:
+#    masterAddr: 
+#    clusterName: 
+#    apiServerAddr:
 
 eventcenterAuth:
   enabled: true
@@ -233,7 +226,6 @@ elasticsearch:
 
 
 kibana:
-  enabled: true
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"

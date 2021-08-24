@@ -1,0 +1,17 @@
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: ClusterRole
+metadata:
+  name: {{ include "cluster-manager.fullname" . }}
+  labels:
+{{ include "cluster-manager.labels" . | indent 4 }}
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - '*'

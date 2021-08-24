@@ -11,15 +11,25 @@ global:
     username: &harborUsername admin
     password: &harborPassword Harbor12345
     type: &harborType harbor-v2.0
+  multiCluster:
+    ## Both 'isMasterCluster' and 'isMemberCluster' all need be modified 
+    ## and the values of them must be opposite
+    isMasterCluster: &isMasterCluster true
+    isMemberCluster: &isMemberCluster false
+    masterAddr: &masterAddr http://172.21.0.3:30088
+    clusterName: &clusterName tensorsec-member-01
+    apiServerAddr: &apiServerAddr 172.21.0.9:6443
 
 
 
 
 clair:
+  enabled: *isMasterCluster
   image:
     tag: *tensorsecVerison
 
 console:
+  enabled: *isMasterCluster
   image:
     tag: *tensorsecVerison
   scap:
@@ -45,6 +55,7 @@ console:
     softVersion: v1.9
 
 scanner:
+  enabled: *isMasterCluster
   image:
     tag: *tensorsecVerison
   harbor:
@@ -122,10 +133,12 @@ scanner:
               usetype: 1
 
 drift-prevention:
+  enabled: false
   image:
     tag: *tensorsecVerison
 
 holmes:
+  enabled: *isMasterCluster
   image:
     tag: *tensorsecVerison
   tensorsecDaemon:
@@ -133,24 +146,44 @@ holmes:
       tag: *tensorsecVerison
 
 image-validator:
+  enabled: false
   image:
     #tag: 1.6.8
     tag: *tensorsecVerison
 
 webhook:
+  enabled: *isMasterCluster
   image:
     tag: *tensorsecVerison
 
+cluster-manager:
+  enabled: *isMemberCluster
+  image:
+    tag: *tensorsecVerison
+  args:
+    masterAddr: *masterAddr
+    clusterName: *clusterName
+    apiServerAddr: *apiServerAddr
+
+eventcenterAuth:
+  enabled: *isMasterCluster
+
 redis-ha:
+  enabled: *isMasterCluster
   persistentVolume:
     enabled: *persistenceStorage
 postgresql-ha:
+  enabled: *isMasterCluster
   persistence:
     enabled: *persistenceStorage
 mongodb:
+  enabled: *isMasterCluster
   persistence:
     enabled: *persistenceStorage
 elasticsearch:
+  enabled: *isMasterCluster
   persistence:
     enabled: *persistenceStorage
+kibana:
+  enabled: *isMasterCluster
 

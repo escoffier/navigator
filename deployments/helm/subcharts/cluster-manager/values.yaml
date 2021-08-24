@@ -1,0 +1,23 @@
+image:
+  registry: localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-cluster-manager
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+nameOverride: "cluster-manager"
+fullnameOverride: "tensorsec-cluster-manager"
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# args:
+#   masterAddr: 
+#   clusterName: 
+#   apiServerAddr:

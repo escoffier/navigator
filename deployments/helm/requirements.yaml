@@ -19,11 +19,6 @@ dependencies:
     repository: "file://./subcharts/clair"
     condition: clair.enabled
 
-#  - name: daemon
-#    version: 0.1.0
-#    repository: "file://./subcharts/daemon"
-#    condition: daemon.enabled
-
   - name: postgresql-ha
     version: 7.8.3
     repository: "file://./subcharts/postgresql-ha"
@@ -73,3 +68,8 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/webhook"
     condition: webhook.enabled
+
+  - name: cluster-manager
+    version: 0.1.0
+    repository: "file://./subcharts/cluster-manager"
+    condition: cluster-manager.enabled
