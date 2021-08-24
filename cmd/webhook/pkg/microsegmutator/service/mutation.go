@@ -126,7 +126,13 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 		resName = owner.Name
 	}
 
-	resID = util.GenID(cluster, namespace, resKind, resName)
+	tensorCluster, err := m.backend.GetClusterByName(ctx, cluster)
+	if err != nil {
+		logrus.Errorf("failed to get cluster by name: %s", cluster)
+		return patches
+	}
+	logrus.Infof("cluster key: %s", tensorCluster.Key)
+	resID = util.GenID(tensorCluster.Key, namespace, resKind, resName)
 	logrus.Infof("resource info is %s:%s:%s:%s", cluster, namespace, resKind, resName)
 
 	newResLabelValue = fmt.Sprintf("%d", resID)
