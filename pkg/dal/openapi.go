@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -45,5 +46,10 @@ func SaveAuthToken(ctx context.Context, db *gorm.DB, username, token string) err
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	return db.WithContext(ctx).Create(authToken).Error
+	return db.WithContext(ctx).Clauses(
+		clause.OnConflict{
+			Columns:   []clause.Column{{Name: "username"}},
+			DoNothing: true,
+		},
+	).Create(authToken).Error
 }
