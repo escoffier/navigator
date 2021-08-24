@@ -111,13 +111,16 @@ func WatchKubeResource(ctx context.Context, clientMap map[string]*kubernetes.Cli
 	kbmSvc, _ := kubemonitor.Get(ctx)
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 
-	watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
-	if err != nil {
-		log.Error().Err(err).Msgf("get assetsWatcher error: %v", err)
-	} else {
-		err := watcher.StartsToWatch(ctx, clientMap)
+	for clusterKey, client := range clientMap {
+		watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
 		if err != nil {
-			log.Error().Err(err).Msg("Watch kube clients error")
+			log.Error().Err(err).Msgf("get assetsWatcher error: %s", clusterKey)
+		} else {
+			err := watcher.StartsToWatch(ctx, map[string]*kubernetes.Clientset{clusterKey: client})
+			if err != nil {
+				log.Error().Err(err).Msg("Watch kube clients error")
+			}
 		}
 	}
+
 }
