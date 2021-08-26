@@ -238,6 +238,7 @@ func (api *api) addNewCluster() http.HandlerFunc {
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+		cluster.ClusterType = model.MemberCluster
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {

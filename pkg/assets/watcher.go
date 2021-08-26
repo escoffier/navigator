@@ -220,10 +220,10 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 	}
 
 	syncChan := make(chan informerSyncMsg, len(k8sClients))
-	for clusterName, newClient := range k8sClients {
-		stopChan, exist := w.getClusterStopChan(clusterName)
+	for clusterKey, newClient := range k8sClients {
+		stopChan, exist := w.getClusterStopChan(clusterKey)
 		if exist {
-			logging.GetLogger().Warn().Msg(fmt.Sprintf("The cluster %s is already watched", clusterName))
+			logging.GetLogger().Warn().Msg(fmt.Sprintf("The cluster %s is already watched", clusterKey))
 			continue
 		}
 
@@ -233,7 +233,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			for t := range cb.WatchedTypes() {
 				toWatchedTypes[t] = struct{}{}
 			}
-			callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterName, resyncInterval)
+			callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterKey, resyncInterval)
 		}
 
 		// whether to watch tensor resources; need pod informer.
@@ -273,7 +273,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 					// send no owner pods to tensor resources
 					if toWatchResources {
 						if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-							res := newResourceFromPodNoOwnerOrStaticPod(clusterName, pod)
+							res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
 							e := resourceEvent{
 								oldResource: nil,
 								newResource: res,
@@ -304,7 +304,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 					if toWatchResources {
 						if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-							res := newResourceFromPodNoOwnerOrStaticPod(clusterName, pod)
+							res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
 							e := resourceEvent{
 								oldResource: res,
 								newResource: nil,
@@ -338,8 +338,8 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 					if toWatchResources {
 						if len(newPod.OwnerReferences) == 0 || newPod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-							newRes := newResourceFromPodNoOwnerOrStaticPod(clusterName, newPod)
-							oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterName, oldPod)
+							newRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, newPod)
+							oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, oldPod)
 							e := resourceEvent{
 								oldResource: oldRes,
 								newResource: newRes,
@@ -444,18 +444,18 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				}
 			}()
 
-			informerWatchTargets := func(informer cache.SharedIndexInformer, targetType reflect.Type, resFactory ResourceFactoryFunc) {
+			informerWatchTargets := func(clusterKey string, informer cache.SharedIndexInformer, targetType reflect.Type, resFactory ResourceFactoryFunc) {
 				informerStatuses = append(informerStatuses, &informerStatus{
 					synced:     false,
 					informer:   &informer,
 					targetType: targetType,
 				})
-				informer.AddEventHandler(getInformerFuncForResources(tsResEventsChan, clusterName, resFactory))
+				informer.AddEventHandler(getInformerFuncForResources(tsResEventsChan, clusterKey, resFactory))
 			}
 			// replicasets
 			rsInformer := informerFactory.Apps().V1().ReplicaSets().Informer()
 			var rs *appsv1.ReplicaSet
-			informerWatchTargets(rsInformer, reflect.TypeOf(rs), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, rsInformer, reflect.TypeOf(rs), func(clusterKey string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -463,13 +463,13 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				if !ok {
 					return nil, errors.New("cast error")
 				}
-				return newResourceFromReplicaSet(cluster, rs), nil
+				return newResourceFromReplicaSet(clusterKey, rs), nil
 			})
 
 			// statefulsets
 			ssInformer := informerFactory.Apps().V1().StatefulSets().Informer()
 			var ss *appsv1.StatefulSet
-			informerWatchTargets(ssInformer, reflect.TypeOf(ss), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, ssInformer, reflect.TypeOf(ss), func(cluster string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -483,7 +483,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			// daemonsets
 			dsInformer := informerFactory.Apps().V1().DaemonSets().Informer()
 			var ds *appsv1.DaemonSet
-			informerWatchTargets(dsInformer, reflect.TypeOf(ds), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, dsInformer, reflect.TypeOf(ds), func(cluster string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -497,7 +497,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			// deployments
 			dmInformer := informerFactory.Apps().V1().Deployments().Informer()
 			var dm *appsv1.Deployment
-			informerWatchTargets(dmInformer, reflect.TypeOf(dm), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, dmInformer, reflect.TypeOf(dm), func(cluster string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -511,7 +511,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			// ReplicationControllers
 			rcInformer := informerFactory.Core().V1().ReplicationControllers().Informer()
 			var rc *corev1.ReplicationController
-			informerWatchTargets(rcInformer, reflect.TypeOf(rc), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, rcInformer, reflect.TypeOf(rc), func(cluster string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -525,7 +525,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			// jobs
 			jobsInformer := informerFactory.Batch().V1().Jobs().Informer()
 			var jb *batchv1.Job
-			informerWatchTargets(jobsInformer, reflect.TypeOf(jb), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, jobsInformer, reflect.TypeOf(jb), func(cluster string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -539,7 +539,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			// cronjobs
 			cjInformer := informerFactory.Batch().V1beta1().CronJobs().Informer()
 			var cj *batchv1beta.CronJob
-			informerWatchTargets(cjInformer, reflect.TypeOf(cj), func(cluster string, obj interface{}) (*TensorResource, error) {
+			informerWatchTargets(clusterKey, cjInformer, reflect.TypeOf(cj), func(cluster string, obj interface{}) (*TensorResource, error) {
 				if obj == nil {
 					return nil, errors.New("nil obj")
 				}
@@ -916,7 +916,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		stopChan = make(chan struct{})
-		w.putClusterStopChan(clusterName, stopChan)
+		w.putClusterStopChan(clusterKey, stopChan)
 
 		informerFactory.Start(stopChan)
 
@@ -962,16 +962,16 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				time.Sleep(2 * time.Second)
 			}
 
-			logging.GetLogger().Info().Msgf("cluster %s synced status: %v", clusterName, syncSucc)
+			logging.GetLogger().Info().Msgf("cluster %s synced status: %v", clusterKey, syncSucc)
 
 			// callbacks after sync
 			for _, cb := range callbacks {
 				cb.AfterDataSynced(ctx, syncSucc)
 			}
 
-		}(clusterName, informerFactory, stopChan, informerStatuses)
+		}(clusterKey, informerFactory, stopChan, informerStatuses)
 
-		logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterName))
+		logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterKey))
 
 	}
 

@@ -193,19 +193,27 @@ func (PodResourceRelation) TableName() string {
 	return "tensor_pod_res_relations"
 }
 
+type ClusterType string
+
+const (
+	HostCluster   ClusterType = "host_cluster"
+	MemberCluster ClusterType = "member_cluster"
+)
+
 type TensorCluster struct {
-	Key                 string    `gorm:"column:key;primaryKey" json:"key"`
-	Name                string    `gorm:"column:name" json:"name"`
-	Description         string    `gorm:"column:description" json:"description"`
-	APIServerAddr       string    `gorm:"column:api_server_addr" json:"apiServerAddr"`
-	CertificateAuthData string    `gorm:"column:certificate_auth_data" json:"certificateAuthData"`
-	SecretToken         string    `gorm:"column:secret_token" json:"secretToken"`
-	SecretNamespace     string    `gorm:"column:secret_namespace" json:"secretNamespace"`
-	Creator             string    `gorm:"column:creator" json:"creator"`
-	CreatedAt           time.Time `gorm:"column:created_at" json:"createdAt"`
-	Updater             string    `gorm:"column:updater" json:"updater"`
-	UpdatedAt           time.Time `gorm:"column:updated_at" json:"updatedAt"`
-	Status              int32     `gorm:"column:status"`
+	Key                 string      `gorm:"column:key;primaryKey" json:"key"`
+	Name                string      `gorm:"column:name" json:"name"`
+	Description         string      `gorm:"column:description" json:"description"`
+	ClusterType         ClusterType `gorm:"column:cluster_type" json:"cluster_type"`
+	APIServerAddr       string      `gorm:"column:api_server_addr" json:"apiServerAddr"`
+	CertificateAuthData string      `gorm:"column:certificate_auth_data" json:"certificateAuthData"`
+	SecretToken         string      `gorm:"column:secret_token" json:"secretToken"`
+	SecretNamespace     string      `gorm:"column:secret_namespace" json:"secretNamespace"`
+	Creator             string      `gorm:"column:creator" json:"creator"`
+	CreatedAt           time.Time   `gorm:"column:created_at" json:"createdAt"`
+	Updater             string      `gorm:"column:updater" json:"updater"`
+	UpdatedAt           time.Time   `gorm:"column:updated_at" json:"updatedAt"`
+	Status              int32       `gorm:"column:status"`
 }
 
 func (TensorCluster) TableName() string {
