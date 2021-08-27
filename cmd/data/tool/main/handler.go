@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"golang.org/x/sync/errgroup"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/taskmanager"
@@ -13,16 +14,16 @@ import (
 )
 
 func handleStorage(cleaners []def.Cleaner, taskType def.GCTaskType) (err error) {
-	mongoClient, err := NewMongoClientFromEnv()
+	db, err := NewPostgresClientFromEnv()
 	if err != nil {
-		logging.GetLogger().Error().Msgf("new mongo client fail:%s", err.Error())
+		logging.GetLogger().Error().Msgf("new db client fail:%s", err.Error())
 		return err
 	}
 
-	taskManager := taskmanager.NewManager(mongoClient, model.GCTaskCollection.String(),
+	taskManager := taskmanager.NewManager(db,
 		// 在最大清理时间的基础上加1个小时 预留足够间隙
 		def.TaskMaxTime+time.Hour)
-	ttlManager := ttlmanager.NewManager(mongoClient, model.DataTTLSettingCollection.String())
+	ttlManager := ttlmanager.NewManager(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), def.TaskMaxTime)
 	defer cancel()
@@ -58,7 +59,7 @@ func handleStorage(cleaners []def.Cleaner, taskType def.GCTaskType) (err error) 
 	}()
 
 	logging.GetLogger().Info().Msgf("start cleaners, taskType:%s, taskID:%s, dayOffset:%d",
-		taskType.String(), taskID.Hex(), dayOffset)
+		taskType.String(), taskID, dayOffset)
 	var group errgroup.Group
 	for _, cleaner := range cleaners {
 		cleaner := cleaner

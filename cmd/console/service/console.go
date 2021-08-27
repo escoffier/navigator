@@ -18,6 +18,21 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -46,20 +61,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
 )
 
 var (
@@ -217,6 +218,7 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.PodResourceRelation{})
 	postgresDB.Get().AutoMigrate(&model.TensorCluster{})
 	postgresDB.Get().AutoMigrate(&model.OpenAPIAuthToken{})
+	postgresDB.Get().AutoMigrate(&model.GCTask{})
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 
@@ -244,7 +246,6 @@ func NewConsole(
 	}
 
 	err = data.Init(&data.Conf{
-		Mongodb:    mongoDBWrapper,
 		PostgresDB: postgresDB,
 		EmailConf: &notifyhandler.EmailConf{
 			Username: emailOpts.Username,

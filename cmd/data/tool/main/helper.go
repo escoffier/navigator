@@ -12,8 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func NewMongoClientFromEnv() (*mongotools.DatabaseWrapper, error) {
@@ -36,18 +34,18 @@ func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
 	return util.NewPostgresClient(postgresqlDSN)
 }
 
-func getTaskID(ctx context.Context, manager def.TaskManager, taskType def.GCTaskType) (taskID primitive.ObjectID, err error) {
+func getTaskID(ctx context.Context, manager def.TaskManager, taskType def.GCTaskType) (string, error) {
 	if taskIDStr := os.Getenv(env.TaskID); taskIDStr != "" {
 		// 手动触发任务时 已经提前生成了任务并通过环境变量传入任务id
-		return primitive.ObjectIDFromHex(taskIDStr)
+		return taskIDStr, nil
 	}
 	// 定时任务需要通过任务管理器创建新任务
 	task, err := manager.CreateGCTask(ctx, taskType)
 	if err != nil {
-		return primitive.NilObjectID, err
+		return "", err
 	}
 
-	return task.ID, nil
+	return task.Hash, nil
 }
 
 func getDayOffset(ctx context.Context, manager def.TTLManager, taskType def.GCTaskType) (dayOffset int, err error) {

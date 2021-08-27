@@ -2,10 +2,9 @@ package ttlmanager
 
 import (
 	"context"
-	"math/rand"
+	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -13,7 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
@@ -21,11 +19,12 @@ var (
 )
 
 func initTTLManagerRequirement(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	var envVars = map[string]string{
-		env.MongoEndpoint:       "127.0.0.1:27017",
-		env.MongoDatabase:       "vegeta",
-		env.MongoReadPreference: "primary",
+		env.PostgresHost:     "localhost",
+		env.PostgresUser:     "pguser",
+		env.PostgresDBName:   "tensorsecurity",
+		env.PostgresSSLMode:  "disable",
+		env.PostgresPassword: "pgpassword",
 	}
 
 	for key, val := range envVars {
@@ -33,18 +32,16 @@ func initTTLManagerRequirement(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
+		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
 
-	var err error
-	mongodb, err := util.NewMongoClient(
-		util2.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
-		util2.GetEnvWithDefault(env.MongoPassword, ""),
-		util2.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
-		util2.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
+	db, err := util.NewPostgresClient(postgresqlDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	manager = NewManager(mongodb, model.DataTTLSettingCollection.String())
+	assert.Equal(t, nil, db.Get().AutoMigrate(&model.TensorConfig{}))
+	manager = NewManager(db)
 }
 func TestManager_GetTTLDayOffset(t *testing.T) {
 	initTTLManagerRequirement(t)

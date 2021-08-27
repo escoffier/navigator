@@ -18,17 +18,16 @@ spec:
                 - /app/tensor-cleaner
                 - clear-cold-storage-tool
               env:
-                - name: MONGO_USERNAME
-                  value: {{ .Values.mongo.mongoUsername }}
-                - name: MONGO_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Values.mongo.mongoSecretName }}
-                      key: mongodb-password
-                - name: MONGO_ENDPOINT
-                  value: tensorsec-mongodb-0.tensorsec-mongodb-headless:27017
-                - name: MONGO_DATABASE
-                  value: {{ .Values.mongo.mongoDatabase }}
+                - name: PGSQL_HOST
+                  value: tensorsec-postgresql
+                - name: PGSQL_USER
+                  value: postgres
+                - name: PGSQL_DBNAME
+                  value: postgres
+                - name: PGSQL_SSL_MODE
+                  value: disable
+                - name: PGSQL_PASSWORD
+                  value: password
                 - name: AUDIT_PATH
                   value: /audit
               image: {{ include "console.cleaner.image" . }}

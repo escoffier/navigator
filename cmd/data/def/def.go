@@ -3,9 +3,9 @@ package def
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 var (
@@ -82,8 +82,8 @@ type Cleaner interface {
 
 type TaskManager interface {
 	CreateGCTask(ctx context.Context, taskType GCTaskType) (*model.GCTask, error)
-	GetGCTask(ctx context.Context, taskID primitive.ObjectID) (*model.GCTask, error)
-	UpdateTaskStatus(ctx context.Context, taskID primitive.ObjectID, status string) error
+	GetGCTask(ctx context.Context, taskID string) (*model.GCTask, error)
+	UpdateTaskStatus(ctx context.Context, taskID string, status string) error
 	DealExpireTasks(ctx context.Context, nowTime time.Time) error
 }
 

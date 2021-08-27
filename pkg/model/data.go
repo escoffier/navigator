@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
 
@@ -30,22 +29,22 @@ func (s *StorageView) String() string {
 
 //GCTask ...
 type GCTask struct {
-	MetadataEntry `json:"-" bson:",inline"`
-	Category      string             `json:"category" bson:"category"`
-	StartTime     time.Time          `json:"startTime" bson:"startTime"`
-	ID            primitive.ObjectID `json:"id" bson:"_id"`
-	Status        string             `json:"status" bson:"status"`
+	ID         int32     `gorm:"primaryKey; autoIncrement; column:id" json:"-"`
+	Hash       string    `gorm:"column:hash; unique" json:"id"`
+	Category   string    `gorm:"column:category; index" json:"category"`
+	Status     string    `gorm:"column:status" json:"status"`
+	CreatedAt  time.Time `gorm:"column:created_at" json:"startTime"`
+	FinishedAt time.Time `gorm:"column:finished_at" json:"-"`
 }
 
-type DataTTLRecord struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id"`
-	TTL       int                `bson:"ttl"`
-	Category  string             `bson:"category"`
-	UpdatedAt time.Time          `bson:"updated_at"`
+func (GCTask) TableName() string {
+	return "gc_tasks"
 }
 
-type WaterlineRecord struct {
-	ID         primitive.ObjectID `json:"id" bson:"_id"`
-	Percentage int                `bson:"percentage"`
-	UpdatedAt  time.Time          `bson:"updated_at"`
+type DataTTLConf struct {
+	TTL int `json:"ttl"`
+}
+
+type WaterlineConf struct {
+	Percentage int `json:"percentage"`
 }

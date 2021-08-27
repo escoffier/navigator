@@ -9,13 +9,13 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
@@ -305,12 +305,12 @@ func (api *api) getDataType(r *http.Request) (string, error) {
 	return dataType, nil
 }
 
-func getGCTaskIDFromURL(r *http.Request) (primitive.ObjectID, error) {
+func getGCTaskIDFromURL(r *http.Request) (string, error) {
 	gcID := chi.URLParam(r, "gcID")
 	if gcID == "" {
-		return primitive.NilObjectID, errors.New("gcID is not provided")
+		return "", errors.New("gcID is not provided")
 	}
-	return primitive.ObjectIDFromHex(gcID)
+	return gcID, nil
 }
 
 func checkDataType(dataType string) bool {
