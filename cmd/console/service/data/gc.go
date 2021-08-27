@@ -4,25 +4,25 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+
+	"go.uber.org/zap"
+	batchV1 "k8s.io/api/batch/v1"
+	coreV1 "k8s.io/api/core/v1"
+	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/zap"
-	"io/ioutil"
-	batchV1 "k8s.io/api/batch/v1"
-	coreV1 "k8s.io/api/core/v1"
-	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/kubernetes"
 )
 
-func (s *Service) GetGCTask(ctx context.Context, gcTaskID primitive.ObjectID) (*model.GCTask, error) {
+func (s *Service) GetGCTask(ctx context.Context, gcTaskID string) (*model.GCTask, error) {
 	return s.taskManager.GetGCTask(ctx, gcTaskID)
 }
 
@@ -43,9 +43,9 @@ func (s *Service) RunGC(ctx context.Context, dataType string, ttl int) (task *mo
 		return nil, err
 	}
 
-	err = s.launchK8sJob(kubeClient, t, task.ID, ttl)
+	err = s.launchK8sJob(kubeClient, t, task.Hash, ttl)
 	if err != nil {
-		if _err := s.taskManager.UpdateTaskStatus(ctx, task.ID, model.GCFailed); _err != nil {
+		if _err := s.taskManager.UpdateTaskStatus(ctx, task.Hash, model.GCFailed); _err != nil {
 			logging.GetLogger().Error().Msgf("UpdateTaskStatus fail", zap.Error(err))
 		}
 		return nil, err
@@ -54,7 +54,7 @@ func (s *Service) RunGC(ctx context.Context, dataType string, ttl int) (task *mo
 	return task, nil
 }
 
-func (s *Service) launchK8sJob(client *kubernetes.Clientset, taskType def.GCTaskType, taskID primitive.ObjectID, ttl int) error {
+func (s *Service) launchK8sJob(client *kubernetes.Clientset, taskType def.GCTaskType, taskID string, ttl int) error {
 	jobObj, err := s.loadJobTemplate(taskType)
 	if err != nil {
 		return fmt.Errorf("loadJobTemplate fail, err:%w", err)
@@ -100,7 +100,7 @@ func (s *Service) loadJobTemplate(taskType def.GCTaskType) (*batchV1.Job, error)
 	return jobObj, nil
 }
 
-func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl int, taskID primitive.ObjectID) error {
+func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl int, taskID string) error {
 	if len(job.Spec.Template.Spec.Containers) != 1 {
 		return fmt.Errorf("unexpected job template")
 	}
@@ -110,7 +110,7 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 
 	taskIDEnv := coreV1.EnvVar{
 		Name:  env.TaskID,
-		Value: taskID.Hex(),
+		Value: taskID,
 	}
 
 	ttlEnv := coreV1.EnvVar{
@@ -130,6 +130,6 @@ func getNamespace() string {
 	return namespace
 }
 
-func generateJobName(taskType def.GCTaskType, taskID primitive.ObjectID) string {
-	return fmt.Sprintf("tensorsec-gc-%s-%s", strings.ToLower(taskType.String()), taskID.Hex())
+func generateJobName(taskType def.GCTaskType, taskID string) string {
+	return fmt.Sprintf("tensorsec-gc-%s-%s", strings.ToLower(taskType.String()), taskID)
 }

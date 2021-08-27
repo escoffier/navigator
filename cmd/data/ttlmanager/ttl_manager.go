@@ -2,69 +2,68 @@ package ttlmanager
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"time"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Manager struct {
-	mongodb    *mongotools.DatabaseWrapper
-	collection string
+	db *rdbtools.GormWrapper
 }
 
-func NewManager(mongodb *mongotools.DatabaseWrapper, collection string) *Manager {
+func NewManager(db *rdbtools.GormWrapper) *Manager {
 	return &Manager{
-		mongodb:    mongodb,
-		collection: collection,
+		db: db,
 	}
 }
+
+const (
+	ConfigKeyPrefix = "data-management-ttl-"
+)
 
 func (m *Manager) GetTTLDayOffset(ctx context.Context, taskType def.GCTaskType) (int, error) {
 	if !taskType.Check() {
 		return 0, def.ErrInvalidDataType
 	}
-
-	filter := bson.M{
-		"category": taskType.String(),
+	conf, err := dal.GetConfig(ctx, m.db, generateConfigKey(taskType))
+	if err != nil {
+		return 0, fmt.Errorf("GetConfig fail, err:%w", err)
 	}
 
-	result := m.mongodb.Get().Collection(m.collection).FindOne(ctx, filter)
-	if result.Err() != nil {
-		if result.Err() != mongo.ErrNoDocuments {
-			return 0, result.Err()
-		}
+	if conf == nil {
 		return def.DefaultTTLDays[taskType], nil
 	}
 
-	var record model.DataTTLRecord
-	err := result.Decode(&record)
+	var record model.DataTTLConf
+	err = json.Unmarshal(conf.Config, &record)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("parse confi fail, err:%w", err)
 	}
 
 	return record.TTL, nil
 }
 
 func (m *Manager) SetTTLDayOffset(ctx context.Context, taskType def.GCTaskType, dayOffsetTTL int) error {
-	opts := options.Update().SetUpsert(true)
-	filter := bson.M{"category": taskType.String()}
-	update := bson.D{{Key: "$set",
-		Value: bson.D{{Key: "ttl", Value: dayOffsetTTL},
-			{Key: "updated_at", Value: time.Now()}},
-	}}
+	if !taskType.Check() {
+		return def.ErrInvalidDataType
+	}
 
-	result, err := m.mongodb.Get().Collection(m.collection).UpdateOne(ctx, filter, update, opts)
+	conf := model.DataTTLConf{
+		TTL: dayOffsetTTL,
+	}
+	jsonBytes, err := json.Marshal(conf)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("SetTTLDayOffset fail, err:%s", err.Error())
 		return err
 	}
 
-	logging.GetLogger().Info().Msgf("SetTTLDayOffset successfully, result:%+v", result)
-	return nil
+	return dal.SetConfig(ctx, m.db, generateConfigKey(taskType), jsonBytes)
+}
+
+func generateConfigKey(taskType def.GCTaskType) string {
+	return fmt.Sprintf("%s%s", ConfigKeyPrefix, taskType.String())
 }

@@ -2,60 +2,56 @@ package waterlinemanager
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"time"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Manager struct {
-	mongodb    *mongotools.DatabaseWrapper
-	collection string
+	db *rdbtools.GormWrapper
 }
 
-func NewManager(mongodb *mongotools.DatabaseWrapper, collection string) *Manager {
+func NewManager(db *rdbtools.GormWrapper) *Manager {
 	return &Manager{
-		mongodb:    mongodb,
-		collection: collection,
+		db: db,
 	}
 }
 
+const (
+	ConfigKey = "data-management-waterline"
+)
+
 func (m *Manager) GetWaterline(ctx context.Context) (int, error) {
-	result := m.mongodb.Get().Collection(m.collection).FindOne(ctx, bson.M{})
-	if result.Err() != nil {
-		if result.Err() != mongo.ErrNoDocuments {
-			return 0, result.Err()
-		}
+	conf, err := dal.GetConfig(ctx, m.db, ConfigKey)
+	if err != nil {
+		return 0, err
+	}
+
+	if conf == nil {
 		return def.DefaultWaterlinePercentage, nil
 	}
 
-	var record model.WaterlineRecord
-	err := result.Decode(&record)
+	var record model.WaterlineConf
+	err = json.Unmarshal(conf.Config, &record)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("parse waterline conf fail:%w", err)
 	}
 
 	return record.Percentage, nil
 }
 
 func (m *Manager) SetWaterline(ctx context.Context, percentage int) error {
-	opts := options.Update().SetUpsert(true)
-	update := bson.D{{Key: "$set",
-		Value: bson.D{{Key: "percentage", Value: percentage},
-			{Key: "updated_at", Value: time.Now()}},
-	}}
-
-	result, err := m.mongodb.Get().Collection(m.collection).UpdateOne(ctx, bson.M{}, update, opts)
+	conf := model.WaterlineConf{
+		Percentage: percentage,
+	}
+	jsonBytes, err := json.Marshal(conf)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("SetWaterline fail, err:%s", err.Error())
 		return err
 	}
-
-	logging.GetLogger().Info().Msgf("SetWaterline successfully, result:%+v", result)
-	return nil
+	return dal.SetConfig(ctx, m.db, ConfigKey, jsonBytes)
 }

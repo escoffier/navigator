@@ -17,17 +17,16 @@ spec:
           env:
             - name: CONF_PATH
               value: /app/hot-offline-conf.json
-            - name: MONGO_USERNAME
-              value: redstone
-            - name: MONGO_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: tensorsec-mongodb
-                  key: mongodb-password
-            - name: MONGO_ENDPOINT
-              value: tensorsec-mongodb-0.tensorsec-mongodb-headless:27017
-            - name: MONGO_DATABASE
-              value: vegeta
+            - name: PGSQL_HOST
+              value: tensorsec-postgresql
+            - name: PGSQL_USER
+              value: postgres
+            - name: PGSQL_DBNAME
+              value: postgres
+            - name: PGSQL_SSL_MODE
+              value: disable
+            - name: PGSQL_PASSWORD
+              value: password
             - name: ELASTIC_URL
               value: "http://tensorsec-elasticsearch-master:9200"
           volumeMounts:

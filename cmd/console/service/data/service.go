@@ -11,8 +11,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/taskmanager"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/ttlmanager"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/waterlinemanager"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
@@ -21,7 +19,7 @@ var (
 	once     sync.Once
 )
 
-func Get(ctx context.Context) (*Service, bool) {
+func Get(_ context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 
@@ -54,7 +52,6 @@ type PodInfo struct {
 }
 
 type Conf struct {
-	Mongodb    *mongotools.DatabaseWrapper
 	PostgresDB *rdbtools.GormWrapper
 	EmailConf  *notifyhandler.EmailConf
 	MongoPod   *PodInfo
@@ -69,9 +66,9 @@ func newService(conf *Conf) *Service {
 		esPod:            conf.ESPod,
 		postgrePod:       conf.PostgrePod,
 		auditPod:         conf.AuditPod,
-		taskManager:      taskmanager.NewManager(conf.Mongodb, model.GCTaskCollection.String(), def.TaskMaxTime+time.Hour),
-		ttlManager:       ttlmanager.NewManager(conf.Mongodb, model.DataTTLSettingCollection.String()),
-		waterlineManager: waterlinemanager.NewManager(conf.Mongodb, model.DataWaterlineSettingCollection.String()),
+		taskManager:      taskmanager.NewManager(conf.PostgresDB, def.TaskMaxTime+time.Hour),
+		ttlManager:       ttlmanager.NewManager(conf.PostgresDB),
+		waterlineManager: waterlinemanager.NewManager(conf.PostgresDB),
 		notifyHandler:    notifyhandler.NewHandler(conf.PostgresDB, conf.EmailConf),
 	}
 

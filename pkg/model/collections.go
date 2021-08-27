@@ -10,10 +10,6 @@ const (
 	HarborProjectConfigCollection
 
 	VirusScanTaskCollection
-
-	GCTaskCollection
-	DataTTLSettingCollection
-	DataWaterlineSettingCollection
 )
 
 func GetCollectionNames() []string {
@@ -25,10 +21,6 @@ func GetCollectionNames() []string {
 		"harborProjectConfig",
 
 		"virusScanTasks",
-
-		"gcTasks",
-		"dataTTLSetting",
-		"dataWaterlineSetting",
 	}
 }
 

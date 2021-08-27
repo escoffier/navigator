@@ -5,6 +5,13 @@
       "timeField":"updated_at",
       "dataDir":"/audit/postgresql/association_events",
       "batch":1000
+    },
+    {
+      "name":"gc_tasks",
+      "timeField":"finished_at",
+      "condition": "status != 'inprogress'",
+      "dataDir":"/audit/postgresql/gc_tasks",
+      "batch":1000
     }
   ],
   "mongoUnifiedConf": {
