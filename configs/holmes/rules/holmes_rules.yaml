@@ -3,6 +3,8 @@
 #attck_rules
 ##attck_rule_type=Execution
 - rule: DB program spawned process
+  hid: 1
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -27,6 +29,8 @@
   tags: [process, database, mitre_execution]
 
 - rule: Run shell untrusted
+  hid: 2
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -74,6 +78,8 @@
   tags: [shell, mitre_execution]
 
 - rule: Terminal shell in container
+  hid: 3
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -95,6 +101,8 @@
   tags: [container, shell, mitre_execution]
 
 - rule: Running netcat in a container
+  hid: 4
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -114,6 +122,8 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through telnet
+  hid: 5
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -132,6 +142,8 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through ruby
+  hid: 6
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -150,6 +162,8 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through awk
+  hid: 7
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -168,6 +182,8 @@
   tags: [network, process, mitre_execution]
 
 - rule: Run attacks through socket and dup
+  hid: 8
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -186,6 +202,8 @@
 
 ##attck_rule_type=Persistence
 - rule: Schedule Cron Jobs
+  hid: 9
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -208,6 +226,8 @@
   tags: [file, mitre_persistence]
 
 - rule: User mgmt binaries
+  hid: 10
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -241,6 +261,8 @@
   tags: [host, users, mitre_persistence]
 
 - rule: Launch Package Management Process in Container
+  hid: 11
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -263,6 +285,8 @@
   tags: [process, mitre_persistence]
 
 - rule: Update Package Repository
+  hid: 12
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -285,6 +309,8 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Write below rpm database
+  hid: 13
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -308,6 +334,8 @@
   tags: [filesystem, software_mgmt, mitre_persistence]
 
 - rule: Remove Bulk Data from Disk
+  hid: 14
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -324,6 +352,8 @@
   tags: [process, mitre_persistence]
 
 - rule: Modify Shell Configuration File
+  hid: 15
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -347,6 +377,8 @@
   tags: [file, mitre_persistence]  
 
 - rule: Create files below dev
+  hid: 16
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -369,6 +401,8 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Write below etc
+  hid: 17
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -385,6 +419,8 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Create Hidden Files or Directories
+  hid: 18
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -408,6 +444,8 @@
   tags: [file, mitre_persistence]
 
 - rule: Write below monitored dir
+  hid: 19
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -434,6 +472,8 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Write below binary dir
+  hid: 20
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -457,6 +497,8 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Modify binary dirs
+  hid: 21
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -474,6 +516,8 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Mkdir binary dirs
+  hid: 22
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -499,6 +543,8 @@
 
 ##attck_rule_type=Privilege Escalation
 - rule: Launch Privileged Container
+  hid: 23
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -518,6 +564,8 @@
   tags: [container, cis, mitre_privilege_escalation, mitre_lateral_movement]
 
 - rule: Non sudo setuid
+  hid: 24
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -546,6 +594,8 @@
   tags: [users, mitre_privilege_escalation]
 
 - rule: System user interactive
+  hid: 25
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -561,6 +611,8 @@
   tags: [users, mitre_remote_access_tools]
 
 - rule: Set Setuid or Setgid bit
+  hid: 26
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -585,6 +637,8 @@
   tags: [process, mitre_persistence]
 
 - rule: Delete or rename shell history
+  hid: 27
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -604,6 +658,8 @@
   tags: [process, mitre_defense_evasion]
 
 - rule: Escape to access by chroot
+  hid: 28
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -619,6 +675,8 @@
   priority: ALERT
 
 - rule: Escape to access rule by procfs
+  hid: 29
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -634,6 +692,8 @@
   priority: ALERT
 
 - rule: Escape to access rule by debugfs
+  hid: 30
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -649,6 +709,8 @@
   priority: ALERT
 
 - rule: Escape to access rule by cgroup
+  hid: 31
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -664,6 +726,8 @@
   priority: ALERT
 
 - rule: CVE-2021-3156(Linux sudo Privilege Escalation)
+  hid: 32
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -678,6 +742,8 @@
   priority: ALERT
 
 - rule: CVE-2019-5736(Modify Container Entrypoint)
+  hid: 33
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -693,6 +759,8 @@
   priority: ALERT
 
 - rule: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
+  hid: 34
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -711,6 +779,8 @@
   tags: [filesystem, mitre_privilege_escalation]
 
 - rule: Gaining sensitive information in tensorScarecrow
+  hid: 35
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -726,6 +796,8 @@
   priority: WARNING
 
 - rule: Other containers establish new connections to the redis-server in tensorScarecrow
+  hid: 36
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -744,6 +816,8 @@
 
 ##attck_rule_type=Defense Evasion
 - rule: Clear Log Activities
+  hid: 37
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -765,6 +839,8 @@
   tags: [file, mitre_defense_evasion]
 
 - rule: Delete Bash History
+  hid: 38
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -783,6 +859,8 @@
   tags: [process, mitre_defense_evasion]
 
 - rule: Create Symlink Over Sensitive Files
+  hid: 39
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -802,6 +880,8 @@
 
 ##attck_rule_type=Credential Access
 - rule: Gaining environment information
+  hid: 40
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -817,6 +897,8 @@
   priority: WARNING
 
 - rule: Read sensitive file trusted after startup
+  hid: 41
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -836,6 +918,8 @@
   tags: [filesystem, mitre_credential_access]
 
 - rule: Read sensitive file untrusted
+  hid: 42
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -877,6 +961,8 @@
   tags: [filesystem, mitre_credential_access, mitre_discovery]
 
 - rule: Search Private Keys or Passwords
+  hid: 43
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -903,6 +989,8 @@
 
 ##attck_rule_type=Discovery
 - rule: Namespaces bypass
+  hid: 44
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -918,6 +1006,8 @@
   priority: CRITICAL
 
 - rule: Read Shell Configuration File
+  hid: 45
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -940,6 +1030,8 @@
   tags: [file, mitre_discovery]
 
 - rule: Read ssh information
+  hid: 46
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -961,6 +1053,8 @@
   tags: [filesystem, mitre_discovery]
 
 - rule: Contact K8S API Server From Container
+  hid: 47
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -983,6 +1077,8 @@
   tags: [network, k8s, container, mitre_discovery]
 
 - rule: Launch Suspicious Network Tool on Host
+  hid: 48
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1006,6 +1102,8 @@
 
 ##attck_rule_type=Lateral Movement
 - rule: Launch Sensitive Mount Container
+  hid: 49
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1027,6 +1125,8 @@
   tags: [container, cis, mitre_lateral_movement]
 
 - rule: Change thread namespace
+  hid: 50
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1063,6 +1163,8 @@
   tags: [process, mitre_privilege_escalation, mitre_lateral_movement]
 
 - rule: The k8s client is executed in tensorScarecrow
+  hid: 51
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1078,6 +1180,8 @@
   priority: WARNING
 
 - rule: The k8s client is executed in a container
+  hid: 52
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1093,6 +1197,8 @@
   tags: [container, mitre_execution]
 
 - rule: Launch Disallowed Container
+  hid: 53
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1112,6 +1218,8 @@
 
 ##attck_rule_type=Exfiltration
 - rule: System procs network activity
+  hid: 54
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1133,6 +1241,8 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Interpreted procs inbound network activity
+  hid: 55
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1151,6 +1261,8 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Interpreted procs outbound network activity
+  hid: 56
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1169,6 +1281,8 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Unexpected outbound connection destination
+  hid: 57
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1190,6 +1304,8 @@
 # metadata about the instance. It may be desirable to prevent access
 # to this IP from containers.
 - rule: Contact EC2 Instance Metadata Service From Container
+  hid: 58
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1207,6 +1323,8 @@
 # On GCP, AWS and Azure, 169.254.169.254 is a special IP used to fetch
 # metadata about the instance. The metadata could be used to get credentials by attackers.
 - rule: Contact cloud metadata service from container
+  hid: 59
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1222,6 +1340,8 @@
   tags: [network, container, mitre_discovery]
 
 - rule: Program run with disallowed http proxy env
+  hid: 60
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1242,6 +1362,8 @@
   tags: [host, users]
 
 - rule: Unexpected K8s NodePort Connection
+  hid: 61
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1256,6 +1378,8 @@
   tags: [network, k8s, container, mitre_port_knocking]
 
 - rule: Launch Remote File Copy Tools in Container
+  hid: 62
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1276,6 +1400,8 @@
   tags: [network, process, mitre_lateral_movement, mitre_exfiltration]
 
 - rule: Unexpected UDP Traffic
+  hid: 63
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1292,6 +1418,8 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Launch Suspicious Network Tool in Container
+  hid: 64
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
@@ -1309,6 +1437,8 @@
   tags: [network, process, mitre_discovery, mitre_exfiltration]
 
 - rule: Detect outbound connections to common miner pool ports
+  hid: 65
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1325,6 +1455,8 @@
   tags: [network, mitre_execution]
 
 - rule: Detect crypto miners using the Stratum protocol
+  hid: 66
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1340,6 +1472,8 @@
   tags: [process, mitre_execution]
 
 - rule: CVE-2020-14386(Packet socket created in container)
+  hid: 67
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1355,6 +1489,8 @@
   tags: [network, mitre_discovery]
 
 - rule: CVE-2019-3874(Memory cgroups escape via sctp)
+  hid: 68
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1370,6 +1506,8 @@
   priority: ALERT
 
 - rule: Network scanning through interpreted language
+  hid: 69
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1385,6 +1523,8 @@
   priority: WARNING
 
 - rule: Detected connection to container through ssh
+  hid: 70
+  hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
@@ -1400,6 +1540,8 @@
   priority: WARNING
 
 - rule: Disallowed SSH Connection
+  hid: 71
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
