@@ -178,9 +178,9 @@ func (TensorNamespace) TableName() string {
 
 type PodResourceRelation struct {
 	TableBase              // id: cluster_key/namespace/resKind/resName/podUID
-	ClusterKey      string `json:"ClusterKey" gorm:"column:cluster_key;index:idx_res,priority:1;index:idx_pod,priority:1"`
+	ClusterKey      string `json:"ClusterKey" gorm:"column:cluster_key;index:idx_res,priority:1"`
 	PodIP           string `json:"PodIP,omitempty"`
-	PodUID          string `json:"PodUID" gorm:"column:pod_uid;index:idx_pod,priority:2"`
+	PodUID          string `json:"PodUID" gorm:"column:pod_uid"`
 	HostIP          string `json:"HostIP,omitempty"`
 	Namespace       string `json:"Namespace" gorm:"column:namespace;index:idx_res,priority:2"`
 	PodName         string `json:"PodName"`
