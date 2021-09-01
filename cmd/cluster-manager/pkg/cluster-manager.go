@@ -134,6 +134,13 @@ func (c *ClusterManager) register() {
 	}
 }
 
+type TensorCluster struct {
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Status      int32  `json:"status"`
+}
+
 func (c *ClusterManager) registerClusterInfo() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)

@@ -5,4 +5,8 @@ type Config struct {
 	Name          string
 	ApiServerAddr string
 	TlsClient     bool
+	CertFile      string
+	KeyFile       string
+	Port          int
+	TlsServer     bool
 }

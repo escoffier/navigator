@@ -219,6 +219,7 @@ func NewConsole(
 	postgresDB.Get().AutoMigrate(&model.TensorCluster{})
 	postgresDB.Get().AutoMigrate(&model.OpenAPIAuthToken{})
 	postgresDB.Get().AutoMigrate(&model.GCTask{})
+	postgresDB.Get().AutoMigrate(&model.TensorNetworkFlow{})
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 
