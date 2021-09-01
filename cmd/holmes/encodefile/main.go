@@ -79,13 +79,13 @@ func main() {
 	data, md5, blockNum := cryption.EncryptionRules(fileBytes)
 	versionList := strings.Split(*version, ".")
 	versionNum := [2]uint16{0, 0}
-	tmpInt, err := strconv.ParseUint(versionList[0], 16, 16)
+	tmpInt, err := strconv.ParseUint(versionList[0], 10, 16)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	versionNum[0] = uint16(tmpInt)
-	tmpInt, err = strconv.ParseUint(versionList[1], 16, 16)
+	tmpInt, err = strconv.ParseUint(versionList[1], 10, 16)
 	if err != nil {
 		fmt.Println(err)
 		return
