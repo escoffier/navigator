@@ -8,7 +8,6 @@ import (
 
 func NewClusterManagerCommand() *cobra.Command {
 
-	server := NewServer()
 	cmd := &cobra.Command{
 		Use:  "cluster-manager",
 		Long: "cluster manager",
@@ -17,11 +16,11 @@ func NewClusterManagerCommand() *cobra.Command {
 			if verbose {
 				logging.SetVerbose()
 			}
-			err := server.Init()
+			server, err := NewServer()
 			if err != nil {
-				logrus.Errorf("failed to init server: %v", err)
-				return
+				logrus.Errorf("failed to create server %v", err)
 			}
+
 			err = server.Run()
 			if err != nil {
 				logrus.Errorf("error occoured when server running %v", err)
@@ -30,6 +29,6 @@ func NewClusterManagerCommand() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(versionCmd)
-	server.AddFlags(cmd.Flags())
+	AddFlags(cmd.Flags())
 	return cmd
 }

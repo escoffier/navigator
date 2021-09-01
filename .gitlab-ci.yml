@@ -1,13 +1,23 @@
 image: registry.t-appagile.com/library/reviewdog:v5
-stages:
-  - reviewdog
-  - test
 
 variables:
-  GOPROXY: "https://goproxy.cn,direct"
+  GOPROXY: "https://goproxy.cn"
   GO111MODULE: "on"
   GOPRIVATE: "gitlab.com,scm.tensorsecurity.cn"
+  CGO_LDFLAGS: "-no-pie"
+  HARBORPASSWD: "Hrbr12@Tensor.*#)"
 
+workflow:
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^master/'
+      when: always
+
+stages:
+  - reviewdog
+  - build
+  - test
+
+## reviewdog
 reviewdog:
   stage: reviewdog
   tags:
@@ -21,27 +31,290 @@ reviewdog:
     - export REVIEWDOG_INSECURE_SKIP_VERIFY=true
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
   script:
-    - golangci-lint version
-    - reviewdog -version
     - reviewdog -reporter=gitlab-mr-discussion -debug -tee
-  only:
-    - merge_requests
-unit-test-job:   # This job runs in the test stage.
-  stage: test    # It only starts when the job in the build stage completes successfully.
+  rules:
+    - changes:
+        - cmd/**/*
+
+### build & deploy
+all:
+  stage: build
+  retry: 2
+  resource_group: all
   tags:
     - k8s
   before_script:
+    ## Configuration of Git
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
+    - go get -u github.com/swaggo/swag/cmd/swag
+    - go get -u golang.org/x/lint/golint
+    ## Configuration of Make
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#GO111MODULE=on#GO111MODULE=on GOPROXY=https://goproxy.cn#g" configs/scap/jobs/kube-bench/Dockerfile
+    ## Copy tools
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+    - cp ~/.docker/helm3 /bin/
+  script:
+    - USEMIRROR=true make all
+    - make pushimages
+    - kubectl delete pod --all -n tensorsec-ci
+  rules:
+    - changes:
+        - pkg/**/*
+        - Makefile
+        - go.mod
+
+helm-upgrade:
+  stage: build
+  resource_group: helm-upgrade
+  tags:
+    - k8s
+  before_script:
+    ## Configuration of Helm
+    - 'sed -i "s#registry: harbor.local.tensorsecurity.cn#registry: registry.t-appagile.com#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#tensorsecVerison 1.6.8#tensorsecVerison ci#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#harborURL https://harbor.local.tensorsecurity.cn#harborURL https://registry.t-appagile.com#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s|harborPassword Harbor12345|harborPassword $HARBORPASSWD|g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
+    ## Copy tools
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/helm3 /bin/
+  script:
+    - cd deployments/helm
+    - helm3 dep up
+    - helm3 upgrade --install tensorsec -f example-values.yaml ./ --namespace tensorsec-ci
+  rules:
+    - changes:
+        - deployments/helm/**/*
+cluster-manager:
+  stage: build
+  retry: 2
+  resource_group: cluster-manager
+  tags:
+    - k8s
+  before_script:
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make cluster-manager
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-cluster-manager:ci
+  rules:
+    - changes:
+        - cmd/cluster-manager/**/*
+        - build/cluster-manager/**/*
+        - configs/cluster-manager/**/*
+
+console:
+  stage: build
+  resource_group: console
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make console
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-console:ci
+    - kubectl scale --replicas=0 deploy tensorsec-console -n tensorsec-ci
+    - kubectl scale --replicas=1 deploy tensorsec-console -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/cluster-manager/**/*
+        - build/cluster-manager/**/*
+        - configs/cluster-manager/**/*
+
+holmes:
+  stage: build
+  resource_group: holmes
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make daemon holmes
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-daemon:ci
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-holmes:ci
+    - kubectl delete pod -n tensorsec-ci -l app=tensorsec-holmes
+  rules:
+    - changes:
+        - cmd/daemon/**/*
+        - build/daemon/**/*
+        - configs/daemon/**/*
+        - cmd/holmes/**/*
+        - build/holmes/**/*
+        - configs/holmes/**/*
+
+scanner:
+  stage: build
+  resource_group: scanner
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
   script:
     - go test -v -cover ./cmd/scanner/...
-    - echo "uint test successful"
-  only:
-    - merge_requests
+    - USEMIRROR=true make scanner
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-scanner:ci
+    - kubectl scale --replicas=0 deploy tensorsec-scanner -n tensorsec-ci
+    - kubectl scale --replicas=1 deploy tensorsec-scanner -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/scanner/**/*
+        - build/scanner/**/*
+        - configs/scanner/**/*
+
+webhook:
+  stage: build
+  resource_group: webhook
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make webhook
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-webhook:ci
+    - kubectl scale --replicas=0 deploy tensorsec-webhook -n tensorsec-ci
+    - kubectl scale --replicas=1 deploy tensorsec-webhook -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/webhook/**/*
+        - build/webhook/**/*
+        - configs/webhook/**/*
+
+webshell-server:
+  stage: build
+  resource_group: webshell-server
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make webshell-server
+    - docker push registry.t-appagile.com/tensorsecurity/webshell-server:ci
+    - kubectl scale --replicas=0 deploy tensorsec-scanner-webshell-server -n tensorsec-ci
+    - kubectl scale --replicas=2 deploy tensorsec-scanner-webshell-server -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/webshell-server/**/*
+        - build/webshell-server/**/*
+        - configs/webshell-server/**/*
+
+## api test
+api-test:
+  stage: test
+  resource_group: api-test
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - apt-get update
+    - apt-get install python3 python3-pip -y
+    - git clone ssh://git@10.77.218.241/tensorsecurity-rd/tensor-api-test.git
+    - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r tensor-api-test/requirements.txt
+  script:
+    - python3 tensor-api-test/run_suite.py
+  artifacts:
+    paths:
+      - report/*.html
+    when: always
+    expire_in: 1 day
+  when: delayed
+  start_in: 2 minutes

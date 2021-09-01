@@ -4,37 +4,55 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	clusterManager "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg"
-	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/clusterserver"
+	conf "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
 )
 
 type server struct {
-	config config.Config
-	clsm   *clusterManager.ClusterManager
+	config     *conf.Config
+	manager    *clusterManager.ClusterManager
+	httpserver *clusterserver.ClusterServer
 }
 
-func NewServer() *server {
-	return &server{}
+var ServerConfig = &conf.Config{}
+
+func NewServer() (*server, error) {
+	s := &server{
+		config: ServerConfig,
+	}
+
+	clsm := clusterManager.NewClusterManager(s.config)
+	err := clsm.Init()
+	if err != nil {
+		logrus.Error("faild to init cluster manager")
+		return nil, err
+	}
+
+	s.manager = clsm
+
+	httpserver, err := clusterserver.NewHttpServer(s.config)
+	if err != nil {
+		logrus.Errorf("cluster server err %v", err)
+		return nil, err
+	}
+	s.httpserver = httpserver
+	return s, nil
 }
 
 func (s *server) Run() error {
 	errChn := make(chan error)
-	go s.clsm.Run()
+	go s.manager.Run()
+	go s.httpserver.Run()
 	return <-errChn
 }
 
-func (s *server) Init() error {
-	s.clsm = clusterManager.NewClusterManager(&s.config)
-	err := s.clsm.Init()
-	if err != nil {
-		logrus.Error("faild to init cluster manager")
-		return err
-	}
-	return nil
-}
-
-func (s *server) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&s.config.MasterAddr, "master-addr", "nil", "address of master cluster")
-	fs.StringVar(&s.config.Name, "cluster-name", "kubernetes-cluster", "set cluster name")
-	fs.StringVar(&s.config.ApiServerAddr, "api-server-address", "127.0.0.1:6443", "api server address of current cluster")
-	fs.BoolVar(&s.config.TlsClient, "tls-client", false, "use https client")
+func AddFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&ServerConfig.MasterAddr, "master-addr", "nil", "address of master cluster")
+	fs.StringVar(&ServerConfig.Name, "cluster-name", "kubernetes-cluster", "set cluster name")
+	fs.StringVar(&ServerConfig.ApiServerAddr, "api-server-address", "127.0.0.1:6443", "api server address of current cluster")
+	fs.BoolVar(&ServerConfig.TlsClient, "tls-client", false, "use https client")
+	fs.IntVar(&ServerConfig.Port, "port", 9443, "The port of inject server to listen.")
+	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/tensorsec/certs/tls.crt", "The path of tls cert")
+	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/tensorsec/certs/tls.key", "The path of tls key")
+	fs.BoolVar(&ServerConfig.TlsServer, "tlsServer", false, "use tls server")
 }

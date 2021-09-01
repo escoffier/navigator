@@ -3,6 +3,8 @@ package networktopo
 import (
 	"context"
 	"errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm/clause"
 	"sync"
 	"time"
 
@@ -108,4 +110,80 @@ func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, d
 		res = append(res, r)
 	}
 	return res, int64(len(res)), nil
+}
+
+func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.TensorNetworkFlow) error {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	flow.CreatedAt = time.Now()
+	flow.UpdatedAt = flow.CreatedAt
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "uuid"}},
+			DoNothing: true,
+		}).Create(flow).Error
+	})
+}
+
+func (n *NetworkTopoService) ListNetTopologies(ctx context.Context, t time.Time) (nts []*model.TensorNetworkFlow, totalCnt int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		oneErr := n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Find(&nts).Error
+		if oneErr != nil {
+			return oneErr
+		}
+		return n.postgresDB.Get().WithContext(ctx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Count(&totalCnt).Error
+	})
+	return
+}
+
+func (n NetworkTopoService) CountNetTopology(ctx context.Context, uuid uint32) (totalCnt int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Count(&totalCnt).Error
+	})
+	return
+}
+
+func (n *NetworkTopoService) UpdateStatus(ctx context.Context, t time.Time, status int) (err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Update("status", status).Error
+	})
+	return
+}
+
+func (n *NetworkTopoService) UpdateActiveTime(ctx context.Context, uuid uint32) error {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": time.Now(),
+		}).Error
+	})
+	return err
 }
