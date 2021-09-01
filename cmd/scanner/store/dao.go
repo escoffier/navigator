@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -31,19 +33,20 @@ const (
 type ScannerDalInterface interface {
 	SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
 	DeleteImage(ctx context.Context, param DeleteImageParam) error
+	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
 	SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
-	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
 	DeleteScanImage(ctx context.Context, param DeleteScanImageParam) error
 
 	InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
 	GetImageOverView(ctx context.Context, param GetImageOverViewParm) ([]ImageGroup, error)
-	SearchRejectPolicy(ctx context.Context, param SearchRejectPolicyParam) ([]model.RejectPolicy, error)
+
 	SearchRejectVuln(ctx context.Context, param SearchRejectRejectVulnParam) ([]model.RejectVuln, error)
 	CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error)
+	CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error)
 
 	GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList)
 
@@ -71,10 +74,11 @@ type ScannerDalInterface interface {
 	UpdateImageWhitelist(ctx context.Context, where string, update map[string]interface{}) error
 	DeleteImageWhitelist(ctx context.Context, param DeleteImageWhitelistParam) error
 
+	SearchRejectPolicy(ctx context.Context, param SearchRejectPolicyParam) ([]model.RejectPolicy, error)
 	GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.RejectPolicy, error)
 	AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error)
-	UpdatePolicy(ctx context.Context, policy model.RejectPolicy)
-	DeletePolicy(ctx context.Context, policyId int64)
+	UpdatePolicy(ctx context.Context, param SearchRejectPolicyParam, updater map[string]interface{}) error
+	DeletePolicy(ctx context.Context, policyId int64) error
 	IsInRegistry(ctx context.Context, library string) bool
 	GetK8sRejectImageList(ctx context.Context, image model.ImageList) *model.ImageList
 	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
@@ -83,6 +87,112 @@ type ScannerDalInterface interface {
 
 type ScannerOrm struct {
 	psql *rdbtools.GormWrapper
+}
+
+func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
+	if len(data.Library) > 0 && len(data.LibraryJSON) == 0 {
+		bytes, err := json.Marshal(data.Library)
+		if err != nil {
+			return 0, err
+		}
+		data.LibraryJSON = bytes
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	if err := s.psql.Get().WithContext(ctx).Model(new(model.RejectPolicy)).Create(&data).Error; err != nil {
+		return 0, err
+	}
+	// 自定义漏洞
+	if len(data.RejectVulns) > 0 && !data.IsGlobal {
+		tmpVuln := data.RejectVulns
+		for k := range tmpVuln {
+			tmpVuln[k].RejectPolicyID = data.ID
+		}
+		if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
+			return 0, err
+		}
+	}
+	return data.ID, nil
+}
+
+func NewScannerOrm(psql *rdbtools.GormWrapper) *ScannerOrm {
+	return &ScannerOrm{
+		psql: psql,
+	}
+}
+
+func (s *ScannerOrm) GetImage(ctx context.Context, param GetImageParam) (*model.ImageList, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx)
+	// 默认查询没有删除的,如果不传就是0
+	db = db.Where("status = ? ", param.Status)
+	if param.Digest != "" {
+		db = db.Where("digest = ? ", param.Digest)
+	}
+	if param.Id > 0 {
+		db = db.Where("id = ?", param.Id)
+	}
+	if param.Library != "" {
+		db = db.Where("library = ? ", param.Library)
+	}
+	if param.FullRepoName != "" {
+		db = db.Where("full_repo_name = ? ", param.FullRepoName)
+	}
+	if param.Tag != "" {
+		db = db.Where("tags = ?", param.Tag)
+	}
+	if param.FromType > 0 {
+		db = db.Where("from_type = ? ", param.FromType)
+	}
+	if param.NotFromType > 0 {
+		db = db.Where("from_type != ?", param.NotFromType)
+	}
+
+	res := new(model.ImageList)
+	if err := db.First(&res).Error; err != nil {
+		return nil, err
+	}
+	// serialize
+	// 序列化v2
+	if len(res.ManifestV2JSON) > 0 {
+		maniFestv2 := new(model.ManifestV2)
+		if err := json.Unmarshal(res.ManifestV2JSON, maniFestv2); err == nil {
+			res.ManifestV2 = *maniFestv2
+		} else {
+			logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize Manifest error:%s", err.Error()))
+		}
+	}
+
+	// 再序列化v1
+	if len(res.ManifestV1JSON) > 0 {
+		maniFestV1 := new(model.ManifestV1)
+		if err := json.Unmarshal(res.ManifestV1JSON, maniFestV1); err == nil {
+			res.ManifestV1 = *maniFestV1
+			for _, his := range maniFestV1.History {
+				for _, v := range his {
+					hv1 := new(model.HistoryV1)
+					if err := json.Unmarshal([]byte(v), hv1); err == nil {
+						res.ManifestV1.HistoryV1 = append(res.ManifestV1.HistoryV1, *hv1)
+					} else {
+						logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.HistoryV1 error:%s", err.Error()))
+					}
+				}
+			}
+		} else {
+			logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.ManifestJson error :%s", err.Error()))
+		}
+	}
+
+	if len(res.ConfigJson) > 0 {
+		configFile := new(model.ConfigFile)
+		if err := json.Unmarshal(res.ConfigJson, configFile); err == nil {
+			res.ConfigFile = *configFile
+		} else {
+			logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize ConfigFile error:%s", err.Error()))
+		}
+	}
+	return res, nil
 }
 
 func (s *ScannerOrm) UpdateImageWhitelist(ctx context.Context, where string, updater map[string]interface{}) error {
@@ -174,6 +284,13 @@ func (s *ScannerOrm) SearchRejectPolicy(ctx context.Context, param SearchRejectP
 	defer cancelFunc()
 	db := s.psql.Get().Model(new(model.RejectPolicy)).WithContext(ctx)
 	res := make([]model.RejectPolicy, 0)
+	if param.Global == consts.TrueString {
+		db = db.Where("is_global = ? ", true)
+	}
+	if param.Global == consts.FalseString {
+		db = db.Where("is_global = ?", false)
+	}
+
 	if err := db.Find(&res).Error; err != nil {
 		return nil, err
 	}
@@ -254,36 +371,74 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.Image
 	return nil
 }
 
-func (s ScannerOrm) DeletePolicy(ctx context.Context, policyId int64) {
+func (s ScannerOrm) DeletePolicy(ctx context.Context, policyId int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ? ", policyId).Delete(model.RejectPolicy{})
-	s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyId).Delete(model.RejectVuln{})
+	if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyId).Delete(model.RejectVuln{}).Error; err != nil {
+		return err
+	}
+	if err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ? ", policyId).Delete(model.RejectPolicy{}).Error; err != nil {
+		return err
+	}
+	return nil
+
 }
 
-func (s ScannerOrm) UpdatePolicy(ctx context.Context, policy model.RejectPolicy) {
+func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyParam, updater map[string]interface{}) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ?", policy.ID).Updates(&policy)
-	s.psql.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("id = ?", policy.ID).Omit("is_global").Select("cicd_enable", "k8s_enable", "mode", "online_monitor", "vuln_score", "enable").Updates(&policy)
-	s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ?", policy.ID).Delete(model.RejectVuln{})
-	tmpVuln := policy.RejectVulns
-	for k := range tmpVuln {
-		tmpVuln[k].RejectPolicyID = policy.ID
+	// if param.ID <= 0 && param.Global != consts.TrueString {
+	// 	return errors.New("no condition for UpdatePolicy")
+	// }
+
+	db := s.psql.Get().Model(new(model.RejectPolicy)).Omit("is_global")
+	if param.ID > 0 {
+		db = db.Where("id = ?", param.ID)
 	}
-	s.psql.Get().Model(model.RejectVuln{}).Create(&tmpVuln)
+	if param.Global == consts.TrueString {
+		db = db.Where("is_global = ?", true)
+		// .Select("cicd_enable", "k8s_enable", "mode", "online_monitor")
+	}
+	if param.Global == consts.FalseString {
+		db = db.Where("is_global = ?", false)
+	}
+
+	if err := db.Updates(updater).Error; err != nil {
+		return err
+	}
+
+	// 更新自定义漏洞
+	if param.UpdateRejectVulns && param.ID > 0 {
+		if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ?", param.ID).Delete(model.RejectVuln{}).Error; err != nil {
+			return err
+		}
+		tmpVuln := param.RejectVulns
+		for k := range tmpVuln {
+			tmpVuln[k].RejectPolicyID = param.ID
+		}
+		if len(tmpVuln) > 0 { // 不判断会报错： empty slice found
+			if err := s.psql.Get().Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s ScannerOrm) AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
-	s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Create(&policy)
+	if err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Create(&policy).Error; err != nil {
+		return 0, err
+	}
 	tmpVuln := policy.RejectVulns
 	for k := range tmpVuln {
 		tmpVuln[k].RejectPolicyID = policy.ID
 	}
-	s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln)
+	if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
+		return 0, err
+	}
 	return policy.ID, nil
 }
 
@@ -796,6 +951,9 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			if k == strconv.Itoa(model.QUESTION_VIRUS) {
 				db = db.Where("malicious_info_json is not null ")
 			}
+			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
+				db = db.Where("webshell_info_json is not null ")
+			}
 		}
 	}
 
@@ -854,7 +1012,6 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			if len(res[i].PerLayerReportJSON) > 0 {
 				if err := json.Unmarshal(res[i].PerLayerReportJSON, &perLayerReport); err == nil {
 					res[i].PerLayerReport = perLayerReport
-					res[i].PerLayerReportJSON = nil
 				}
 			}
 
@@ -862,7 +1019,6 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			if len(res[i].SeverityHistogramJSON) > 0 {
 				if err := json.Unmarshal(res[i].SeverityHistogramJSON, severityHistogram); err == nil {
 					res[i].SeverityHistogram = *severityHistogram
-					res[i].SeverityHistogramJSON = nil
 				}
 			}
 
@@ -870,7 +1026,6 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			if len(res[i].SensitiveFileJSON) > 0 {
 				if err := json.Unmarshal(res[i].SensitiveFileJSON, &sensitiveFile); err == nil {
 					res[i].SensitiveFile = sensitiveFile
-					res[i].SensitiveFileJSON = nil
 				}
 			}
 
@@ -878,12 +1033,14 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			if len(res[i].MaliciousInfoJSON) > 0 {
 				if err := json.Unmarshal(res[i].MaliciousInfoJSON, &maliciousInfo); err == nil {
 					res[i].MaliciousInfo = maliciousInfo
-					res[i].MaliciousInfoJSON = nil
 				}
 			}
 
-			if err := json.Unmarshal(res[i].WebshellInfoJSON, &(res[i].WebshellInfo)); err == nil {
-				res[i].WebshellInfoJSON = nil
+			webShellInfo := make([]model.Webshell, 0)
+			if len(res[i].WebshellInfoJSON) > 0 {
+				if err := json.Unmarshal(res[i].WebshellInfoJSON, &webShellInfo); err == nil {
+					res[i].WebshellInfo = webShellInfo
+				}
 			}
 		}
 	}
@@ -953,7 +1110,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 	if len(param.Ids) > 0 {
 		if len(param.Ids) == 1 {
-			db = db.Where("id = ?", param.Ids[0])
+			db = db.Where("id = ? ", param.Ids[0])
 		} else {
 			db = db.Where("id IN ? ", param.Ids)
 		}
@@ -970,8 +1127,11 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.TagSearch != "" {
 		db = db.Where("tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagSearch))
 	}
-	if param.BiggerID > 0 {
-		db = db.Where("id > ?", param.BiggerID)
+	if param.StartId > 0 {
+		db = db.Where("id > ?", param.StartId)
+	}
+	if param.LastId > 0 {
+		db = db.Where("id < ?", param.LastId)
 	}
 	if param.Where != "" {
 		db = db.Where(param.Where)
@@ -984,6 +1144,18 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 	if param.NotFromType > 0 {
 		db = db.Where("from_type != ?", param.NotFromType)
+	}
+	if param.ImageType == consts.AppImage {
+		db = db.Where("image_type = ? ", consts.AppImageType)
+	} else if param.ImageType == consts.BaseImage {
+		db = db.Where("image_type = ? ", consts.BaseImageType)
+	}
+	if param.LayersPrefix != "" {
+		db = db.Where("layers LIKE ?", fmt.Sprintf("%s%%", param.LayersPrefix))
+	}
+
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
 	}
 	// 先查总数
 	var cnt int64
@@ -1060,8 +1232,255 @@ func (s *ScannerOrm) InsertAdapterImageList(ctx context.Context, im model.ImageL
 	return tmp.ID, err
 }
 
-func NewScannerOrm(psql *rdbtools.GormWrapper) *ScannerOrm {
-	return &ScannerOrm{
-		psql: psql,
+// CreateRejectRecord 创建记录，
+func (s *ScannerOrm) CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+	// if data.Library == "" {
+	// 	return nil, errors.New("no library")
+	// }
+	if data.FullRepoName == "" {
+		return nil, errors.New("no full repo name")
 	}
+	// if data.Tag == "" {
+	// 	return nil, errors.New("no tag")
+	// }
+	if len(data.RejectReason) <= 0 && len(data.RejectReasonJson) <= 0 {
+		return nil, errors.New("no reject reason")
+	}
+	if data.RejectDetail == "" {
+		return nil, errors.New("no reject detail")
+	}
+	if len(data.RejectReasonJson) == 0 && len(data.RejectReason) > 0 {
+		reasonMap := make(map[int64]int64)
+		reasons := make([]int64, 0)
+
+		for i := range data.RejectReason {
+			if reasonMap[data.RejectReason[i]] < 1 {
+				reasons = append(reasons, data.RejectReason[i])
+				reasonMap[data.RejectReason[i]]++
+			}
+		}
+		reasonsDuplication := make(map[string]string)
+		for _, r := range reasons {
+			reasonsDuplication[strconv.Itoa(int(r))] = strconv.Itoa(int(r))
+		}
+		if bys, err := json.Marshal(reasonsDuplication); err == nil {
+			data.RejectReasonJson = bys
+		}
+	}
+
+	err := s.psql.Get().WithContext(ctx).Create(&data).Debug().Error
+	return &data, err
+}
+
+func (s *ScannerOrm) OverviewForInterval(ctx context.Context, interval int, intervalType string) ([]IntervalDateGroup, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+
+	if interval < 1 {
+		return nil, errors.New("interval must more than 1")
+	}
+
+	var (
+		startAt   time.Time
+		sql       string
+		timeParse string
+	)
+	now := time.Now().UTC()
+	switch intervalType {
+	case consts.IntervalHour:
+		startAt = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC).Add(-time.Duration(interval-1) * time.Hour).UTC()
+		sql = fmt.Sprintf("select to_char(reject_at, 'YYYY-MM-DD HH24') as interval_date,count(id)  as  cnt from  %s  where reject_at <= ?  AND reject_at >= ?  group by interval_date  order by interval_date ;", new(model.RejectRecord).TableName())
+		timeParse = consts.TimeFormatWithHour
+
+	case consts.IntervalDay:
+		startAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -(interval - 1)).UTC()
+		sql = fmt.Sprintf("select to_char(reject_at, 'YYYY-MM-DD') as interval_date,count(id)  as  cnt from  %s  where reject_at <= ?  AND reject_at >= ?  group by interval_date  order by interval_date ;", new(model.RejectRecord).TableName())
+		timeParse = consts.TimeFormatWithDay
+	}
+
+	logging.GetLogger().WithContext(ctx).Infof("OverviewForInterval sql:%s", sql)
+	res := make([]IntervalDateGroup, 0)
+	err := s.psql.Get().Debug().Raw(sql, now, startAt).Scan(&res).Error
+	if err != nil {
+		return res, err
+	}
+	for i := range res {
+		if tm, err := time.Parse(timeParse, res[i].IntervalDate); err == nil {
+			res[i].IntervalDateTime = tm
+		}
+	}
+	sort.Sort(IntervalDateGroups(res))
+	return res, err
+}
+
+func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReasonParam, filter *model.Filter) ([]model.RejectReasonStatistic, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	res := make([]model.RejectReasonStatistic, 0)
+	// 取全表数据
+	records, _, err := s.SearchRejectRecord(ctx, SearchRejectRecordParam{
+		Fields: []string{"reject_reason_json"},
+	}, &model.Filter{PageSize: math.MaxInt64})
+	if err != nil {
+		return res, err
+	}
+	// 统计
+	statistics := make(map[int64]int64)
+	for _, rec := range records {
+		for _, re := range rec.RejectReason {
+			statistics[re]++
+		}
+	}
+	// 生成结果
+	for ke, va := range statistics {
+		res = append(res, model.RejectReasonStatistic{
+			RejectReason: ke,
+			Count:        va,
+		})
+	}
+	// 排序
+	sort.Sort(model.RejectReasonStatistics(res))
+	// 生成中英文
+	for i := range res {
+		res[i].RejectReasonStringCN = model.GetRejectReason(model.LangZh)[res[i].RejectReason]
+		res[i].RejectReasonStringEN = model.GetRejectReason(model.LangEn)[res[i].RejectReason]
+	}
+	// 取结果
+	if len(res) > param.TopN {
+		return res[:param.TopN], nil
+	}
+	return res, err
+}
+
+func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	db := s.psql.Get().Model(new(model.RejectRecord)).WithContext(ctx).Debug()
+	if !param.StartAt.IsZero() {
+		db = db.Where("reject_at >= ?", param.StartAt) // fixme
+	}
+	if !param.EndAt.IsZero() {
+		db = db.Where("reject_at <= ?", param.EndAt) // fixme
+	}
+	if param.Search != "" {
+		db = db.Where("full_repo_name LIKE ? OR tag LIKE ?  ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))
+	}
+	if len(param.RejectReasons) > 0 {
+		sqls := make([]string, 0)
+		for _, rej := range param.RejectReasons {
+			sqls = append(sqls, fmt.Sprintf("reject_reason_json ->>'%s' ::text = '%s'", strconv.Itoa(int(rej)), strconv.Itoa(int(rej))))
+		}
+		db = db.Where(strings.Join(sqls, " OR "))
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
+
+	if len(param.Libraries) > 0 {
+		if len(param.Libraries) == 1 {
+			db = db.Where("library = ? ", param.Libraries[0])
+		} else {
+			db = db.Where("library IN ? ", param.Libraries)
+		}
+	}
+	if param.Library != "" {
+		db = db.Where("library = ? ", param.Library)
+	}
+	if param.FullRepoName != "" {
+		db = db.Where("full_repo_name = ? ", param.FullRepoName)
+	}
+	if param.Tag != "" {
+		db = db.Where("tag = ? ", param.Tag)
+	}
+
+	// 计算count
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, filter)
+	res := make([]model.RejectRecord, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, cnt, err
+	}
+	// 序列化数据
+	// 因为要对这个字段做查询，所以数据库只能存{"1":"1"}的方式
+	for i := range res {
+		re := make([]int64, 0)
+		reasonMap := make(map[string]string)
+		if len(res[i].RejectReasonJson) > 0 {
+			if err := json.Unmarshal(res[i].RejectReasonJson, &reasonMap); err != nil {
+				logging.GetLogger().WithContext(ctx).Errorf(err, "SearchRejectRecord json Unmarshal error")
+			}
+		}
+		for k := range reasonMap {
+			if i, err := strconv.ParseInt(k, 10, 64); err == nil {
+				re = append(re, i)
+			}
+		}
+		res[i].RejectReason = re
+	}
+	return res, cnt, nil
+}
+
+func (s *ScannerOrm) CreateImageWhitelist(ctx context.Context, data model.ImageWhitelist) (*model.ImageWhitelist, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	if data.FullRepoName == "" {
+		return nil, errors.New("no full repo name")
+	}
+	if data.Tag == "" {
+		return nil, errors.New("no tag")
+	}
+	if data.Library == "" {
+		return nil, errors.New("no library")
+	}
+	err := s.psql.Get().WithContext(ctx).Create(&data).Error
+	return &data, err
+}
+
+func (s *ScannerOrm) SearchImageWhitelist(ctx context.Context, param SearchImageWhitelistParam, filter *model.Filter) ([]model.ImageWhitelist, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageWhitelist))
+	if param.SearchWord != "" {
+		db = db.Where("full_repo_name LIKE ? OR tag LIKE ?  ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
+	}
+	if param.FullRepoName != "" {
+		db = db.Where("full_repo_name = ?", param.FullRepoName)
+	}
+	if param.Tag != "" {
+		db = db.Where("tag = ?", param.Tag)
+	}
+	if param.Library != "" {
+		db = db.Where("library = ?", param.Library)
+	}
+	if param.Digest != "" {
+		db = db.Where("digest = ?", param.Digest)
+	}
+
+	// 计算count
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, filter)
+	res := make([]model.ImageWhitelist, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, cnt, err
+	}
+	return res, cnt, nil
+}
+
+func (s *ScannerOrm) DeleteImageWhitelist(ctx context.Context, param DeleteImageWhitelistParam) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	err := s.psql.Get().WithContext(ctx).Where("id = ?", param.WhiteId).Delete(&model.ImageWhitelist{}).Error
+	return err
 }

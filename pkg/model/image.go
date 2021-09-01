@@ -5,10 +5,10 @@ import (
 )
 
 const (
-	QUESTION_VULN         = 0
-	QUESTION_VIRUS        = 1
-	QUESTION_SENSITIVE    = 2
-	QUESTION_NETWORK_VULN = 3
+	QUESTION_VULN      = 0
+	QUESTION_VIRUS     = 1
+	QUESTION_SENSITIVE = 2
+	QUESTION_WEB_SHELL = 3
 
 	JobNotScan string = "not_scan"
 	// JobPending ...
@@ -162,9 +162,9 @@ type OverView struct {
 }
 
 type SafeOver struct {
-	VULN         int `json:"vuln"`
-	VIRUS        int `json:"virus"`
-	SENSITIVE    int `json:"sensitive"`
-	NETWORK_VULN int `json:"network_vuln"`
-	Pkg          int `json:"pkg"`
+	VULN      int `json:"vuln"`
+	VIRUS     int `json:"virus"`
+	SENSITIVE int `json:"sensitive"`
+	Webshell  int `json:"webshell"`
+	Pkg       int `json:"pkg"`
 }

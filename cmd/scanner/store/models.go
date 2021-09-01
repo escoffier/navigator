@@ -2,6 +2,8 @@ package store
 
 import (
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type SearchImageParam struct {
@@ -16,7 +18,24 @@ type SearchImageParam struct {
 	Status         int64  // 是否删除等状态
 	FullRepoName   string // 这里是精确匹配
 	Where          string // 外面传一个附加的字符串的where条件
-	BiggerID       int64  // 取大于该ID的数据
+	StartId        int64  // 取大于该ID的数据
+	LastId         int64  // 取大于该ID的数据
+	FromType       int
+	NotFromType    int
+	ImageType      string
+	Fields         []string // 只想要的字端
+	LayersPrefix   string
+}
+
+type GetImageParam struct {
+	Library        string
+	Id             int64
+	FullRepoSearch string // full_repo_name字段的模糊匹配
+	TagSearch      string // tag字段的模糊匹配
+	Tag            string // tag字段的精确匹配
+	Digest         string
+	Status         int64  // 是否删除等状态
+	FullRepoName   string // 这里是精确匹配
 	FromType       int
 	NotFromType    int
 }
@@ -62,8 +81,11 @@ type GetImageOverViewParm struct {
 	SQL string
 }
 type SearchRejectPolicyParam struct {
-	Library  string
-	IsGlobal bool
+	ID                int64
+	Library           string
+	Global            string
+	UpdateRejectVulns bool
+	RejectVulns       []model.RejectVuln
 }
 type SearchRejectRejectVulnParam struct {
 	RejectID int64
@@ -140,4 +162,7 @@ type IntervalDateGroup struct {
 	IntervalDate     string    `gorm:"column:interval_date" json:"interval_date"`
 	Count            int64     `gorm:"column:cnt" json:"-"`
 	IntervalDateTime time.Time `gorm:"-" json:"interval_date_time"`
+}
+
+type SearchBaseImageParam struct {
 }

@@ -2,10 +2,19 @@
 
 package consts
 
+import (
+	"time"
+)
+
 const (
 	ScanTaskComeFrom = iota
 	ScanTaskComeFromWeb
 	ScanTaskComeFromCICD
+)
+const (
+	TrueString  = "true"
+	FalseString = "false"
+	AllString   = "all"
 )
 
 const (
@@ -47,4 +56,21 @@ const (
 	TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP = ":8080"
 
 	EventIntervalUUID = 2 // 表示每2分钟生成一个uuid
+)
+
+const (
+	VulnType          = "vuln_info_json"
+	PkgType           = "pkg_info_json"
+	SensitiveFileType = "sensitive_file_json"
+	MaliciousInfoType = "malicious_info_json"
+	WebsellInfoType   = "webshell_info_json"
+	DaoTimeOut        = 30 * time.Second
+	BaseImage         = "base"
+	AppImage          = "app"
+
+	BaseImageType = 1
+	AppImageType  = 0
+
+	// AllImage   = "all"
+	ImageBatch = 100
 )

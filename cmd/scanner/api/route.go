@@ -25,6 +25,7 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 	apiHaborSrv := NewHaborApiSrv(harborSvc, harborSvc.GetRedisClient())
 
 	router.Use(gin.Logger(), gin.Recovery())
+
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	v1 := router.Group("/api/v1/scan")
 	{
@@ -44,6 +45,11 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 	v2 := router.Group("/api/v1/images")
 	{
 		v2.GET("/:imgDigest/layers", apiScannerSrv.ListImgLayers)
+		v2.POST("/bases", apiScannerSrv.CreateBaseImage)
+		v2.DELETE("/bases/:imageID", apiScannerSrv.DeleteBaseImage)
+		v2.GET("/bases", apiScannerSrv.ListBaseImage)
+		v2.GET("/base/:imageID/apps", apiScannerSrv.ListBaseToAppImage)
+		v2.GET("/app/:imageID/bases", apiScannerSrv.ListAppToBaseImage)
 	}
 
 	v3 := router.Group("/api/v1/layers")
@@ -66,13 +72,19 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 		v5.POST("/whitelist", apiRejectSrv.CreateWhitelist)
 		v5.GET("/whitelist", apiRejectSrv.ListWhitelist)
 		v5.DELETE("/whitelist/:id", apiRejectSrv.DeleteWhitelist)
-		v5.GET("/policy", apiScannerSrv.GetPolicy)
-		v5.POST("/policy", apiScannerSrv.AddPolicy)
-		v5.PUT("/policy", apiScannerSrv.AddPolicyConfig)
-		v5.DELETE("/policy/:id", apiRejectSrv.DeletePolicy)
+
+		v5.GET("/policy/single", apiRejectSrv.ListPolicy)
+		v5.POST("/policy/single", apiRejectSrv.CreatePolicy)
+		v5.PUT("/policy/global", apiRejectSrv.UpdateGlobalPolicy)
+		v5.GET("/policy/global", apiRejectSrv.GetGlobalPolicy)
+		v5.PUT("/policy/single/:id", apiRejectSrv.UpdatePolicy)
+		v5.DELETE("/policy/single/:id", apiRejectSrv.DeletePolicy)
+
 		v5.POST("/online_moniter", apiScannerSrv.TickOnlineScan)
 		v5.POST("/scanone/cicd", apiScannerSrv.ScanOneForDetectImage)
 		v5.POST("/result/cicd", apiScannerSrv.ScanOneForCICDRequest)
+
+		v5.GET("/reasons", apiRejectSrv.RejectReasons)
 	}
 	// 和仓库相关
 	v6 := router.Group("/api/v1/register")
@@ -88,5 +100,6 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 		v7.POST("/scan", apiHaborSrv.postHarborPluginScan)
 		v7.GET("/scan/:id/report", apiHaborSrv.getHarborPluginReport)
 	}
+
 	return router
 }

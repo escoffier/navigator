@@ -74,6 +74,17 @@ definitions:
       success:
         type: integer
     type: object
+  model.GlobalRejectPolicy:
+    properties:
+      cicd:
+        type: boolean
+      k8s_deployment:
+        type: boolean
+      mode:
+        type: string
+      online_monitor:
+        type: boolean
+    type: object
   model.ImageList:
     properties:
       complete_time:
@@ -101,9 +112,17 @@ definitions:
       image_scan_vuln:
         $ref: '#/definitions/model.ImageScanSummaryResult'
         type: object
+      image_scan_webshell:
+        items:
+          type: WebshellFileInfo
+        type: array
+      image_type:
+        type: integer
       lastPullTime:
         type: string
       lastPushTime:
+        type: string
+      layers:
         type: string
       library:
         type: string
@@ -123,6 +142,8 @@ definitions:
         type: array
       registryId:
         type: integer
+      scan_image:
+        type: ScanImage
       scan_status:
         type: string
       size:
@@ -161,12 +182,16 @@ definitions:
         type: string
       id:
         type: integer
+      image_type:
+        type: integer
       library:
         type: string
       questions:
         items:
           $ref: '#/definitions/model.QuestionInfo'
         type: array
+      risk_score:
+        type: number
       scan_status:
         type: string
       tags:
@@ -197,6 +222,10 @@ definitions:
         type: string
       repository:
         type: string
+      risk_score:
+        type: number
+      sensitive_score:
+        type: number
       sensitiveFiles:
         items:
           $ref: '#/definitions/model.Sensitive'
@@ -213,6 +242,27 @@ definitions:
         items:
           $ref: '#/definitions/model.VulnerabilityInfo'
         type: array
+      virus_score:
+        type: number
+      vuln_score:
+        type: number
+      webshell_score:
+        type: number
+    type: object
+  model.ImageWhitelist:
+    properties:
+      created_at:
+        type: string
+      digest:
+        type: string
+      full_repo_name:
+        type: string
+      id:
+        type: integer
+      library:
+        type: string
+      tag:
+        type: string
     type: object
   model.KVHash:
     properties:
@@ -282,6 +332,8 @@ definitions:
     type: object
   model.RejectPolicy:
     properties:
+      base_image_policy:
+        type: string
       cicd_enable:
         type: boolean
       comment:
@@ -294,6 +346,8 @@ definitions:
         type: boolean
       id:
         type: integer
+      is_global:
+        type: boolean
       k8s_enable:
         type: boolean
       library:
@@ -312,7 +366,7 @@ definitions:
         type: string
       reject_vulns:
         items:
-          $ref: '#/definitions/model.RejectVuln'
+          type: RejectVuln
         type: array
       sensitive_file_policy:
         type: string
@@ -322,21 +376,21 @@ definitions:
         type: string
       vuln_score:
         type: integer
-    type: object
-  model.RejectPolicyConfigResponse:
-    properties:
-      cicd:
-        type: boolean
-      k8s_deployment:
-        type: boolean
-      mode:
+      web_shell_policy:
         type: string
-      online_monitor:
-        type: boolean
-      policies:
-        items:
-          $ref: '#/definitions/model.RejectPolicy'
-        type: array
+      web_shell_score:
+        type: integer
+    type: object
+  model.RejectReasonMap:
+    properties:
+      en:
+        additionalProperties:
+          type: string
+        type: object
+      zh:
+        additionalProperties:
+          type: string
+        type: object
     type: object
   model.RejectRecord:
     properties:
@@ -367,20 +421,30 @@ definitions:
       vuln_score:
         type: integer
     type: object
-  model.RejectVuln:
+  model.ReportImgBackInfo:
     properties:
-      created_at:
+      created:
         type: string
-      id:
-        type: integer
-      library:
+      created_by:
         type: string
-      name:
+      image_digest:
         type: string
-      reject_policy:
-        type: string
-      reject_policy_id:
-        type: integer
+      malicious:
+        items:
+          type: string
+        type: array
+      pkgs:
+        items:
+          type: string
+        type: array
+      sensitive_files:
+        items:
+          type: string
+        type: array
+      vulus:
+        items:
+          type: string
+        type: array
     type: object
   model.SafeOver:
     properties:
@@ -394,6 +458,41 @@ definitions:
         type: integer
       vuln:
         type: integer
+    type: object
+  model.ScanLayer:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: integer
+      id:
+        type: integer
+      image_id:
+        type: integer
+      is_basic:
+        type: integer
+      layer_digest:
+        type: string
+      malicious_info:
+        items:
+          type: Malicious
+        type: array
+      pkg_info:
+        type: object
+      sensitive_file:
+        items:
+          $ref: '#/definitions/model.Sensitive'
+        type: array
+      updated_at:
+        type: string
+      vuln_info:
+        items:
+          $ref: '#/definitions/model.VulnerabilityInfo'
+        type: array
+      webshell_info:
+        items:
+          type: Webshell
+        type: array
     type: object
   model.ScanOneCICDResultRequest:
     properties:
@@ -436,6 +535,12 @@ definitions:
           type: array
         type: array
       vulu:
+        items:
+          items:
+            type: string
+          type: array
+        type: array
+      webshell:
         items:
           items:
             type: string
@@ -624,22 +729,22 @@ paths:
               type: object
       summary: TickOnlineScan
       tags:
-      - reject
+      - image reject
   /api/v1/imagereject/overview:
     get:
       description: 展示阻断信息列表
       parameters:
-      - description: 'image like '
+      - description: 镜像名模糊搜索
         in: query
         name: search
         required: true
         type: string
-      - description: '仓库筛选 '
+      - description: 仓库筛选
         in: query
         name: library
         required: true
         type: string
-      - description: '阻断理由筛选 '
+      - description: 阻断理由筛选
         in: query
         name: reject_reason
         required: true
@@ -661,12 +766,12 @@ paths:
                         type: array
                     type: object
               type: object
-      summary: images
+      summary: ListRejectRecord
       tags:
-      - reject
-  /api/v1/imagereject/policy:
+      - image reject
+  /api/v1/imagereject/policy/global:
     get:
-      description: 获取策略及全局配置列表
+      description: 获取全局策略
       responses:
         "200":
           description: OK
@@ -679,21 +784,66 @@ paths:
                   - $ref: '#/definitions/api.ApiItem'
                   - properties:
                       item:
-                        $ref: '#/definitions/model.RejectPolicyConfigResponse'
+                        $ref: '#/definitions/model.GlobalRejectPolicy'
                     type: object
               type: object
-      summary: GetPolicy
+      summary: GetGlobalPolicy
       tags:
-      - reject
+      - image reject
+    put:
+      description: 更新全局策略
+      parameters:
+      - description: 全局策略JSON数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.GlobalRejectPolicy'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ApiItem'
+              type: object
+      summary: UpdateGlobalPolicy
+      tags:
+      - image reject
+  /api/v1/imagereject/policy/single:
+    get:
+      description: 获取策略列表
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItems'
+                  - properties:
+                      items:
+                        items:
+                          $ref: '#/definitions/model.RejectPolicy'
+                        type: array
+                    type: object
+              type: object
+      summary: ListPolicy
+      tags:
+      - image reject
     post:
       description: 新增策略接口
       parameters:
-      - description: JSON数据
+      - description: 策略JSON数据
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/model.RejectPolicyConfigResponse'
+          $ref: '#/definitions/model.RejectPolicy'
       responses:
         "200":
           description: OK
@@ -702,48 +852,12 @@ paths:
             - $ref: '#/definitions/api.ApiWithItem'
             - properties:
                 data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/api.OnlyIdRes'
-                    type: object
+                  $ref: '#/definitions/api.ApiItem'
               type: object
-      summary: AddPolicy
+      summary: CreatePolicy
       tags:
-      - reject
-    put:
-      description: 修改全局config/更新单条策略
-      parameters:
-      - description: JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          allOf:
-          - $ref: '#/definitions/model.RejectPolicyConfigResponse'
-          - properties:
-              policies:
-                items:
-                  allOf:
-                  - $ref: '#/definitions/model.RejectPolicy'
-                  - properties:
-                      reject_vulns:
-                        items:
-                          $ref: '#/definitions/model.RejectVuln'
-                        type: array
-                    type: object
-                type: array
-            type: object
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.ApiWithItem'
-      summary: AddPolicyConfig
-      tags:
-      - reject
-  /api/v1/imagereject/policy/:id:
+      - image reject
+  /api/v1/imagereject/policy/single/:id:
     delete:
       description: 删除单条策略
       parameters:
@@ -751,15 +865,68 @@ paths:
         in: path
         name: id
         required: true
-        type: string
+        type: integer
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.ApiWithItem'
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ApiItem'
+              type: object
       summary: DeletePolicy
       tags:
-      - reject
+      - image reject
+    put:
+      description: 更新策略接口
+      parameters:
+      - description: JSON数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.RejectPolicy'
+      - description: 策略ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ApiItem'
+              type: object
+      summary: UpdatePolicy
+      tags:
+      - image reject
+  /api/v1/imagereject/reasons:
+    get:
+      description: 获取阻断原因的map
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      item:
+                        $ref: '#/definitions/model.RejectReasonMap'
+                    type: object
+              type: object
+      summary: RejectReasons
+      tags:
+      - image reject
   /api/v1/imagereject/result/cicd:
     post:
       description: CICD的第二个API，获取CICD扫描结果
@@ -785,9 +952,9 @@ paths:
                         $ref: '#/definitions/model.ScanOneForCICDResponse'
                     type: object
               type: object
-      summary: /result/cicd
+      summary: 获取CICD扫描结果
       tags:
-      - reject
+      - image reject
   /api/v1/imagereject/scanone/cicd:
     post:
       description: CICD的第一个API，用于触发CICD扫描
@@ -813,9 +980,248 @@ paths:
                         $ref: '#/definitions/model.ScanOneStatusResponse'
                     type: object
               type: object
-      summary: /scanone/cicd
+      summary: 用于触发CICD扫描
       tags:
-      - reject
+      - image reject
+  /api/v1/imagereject/whitelist:
+    post:
+      description: 创建白名单
+      parameters:
+      - description: JSON数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.ImageWhitelist'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      item:
+                        $ref: '#/definitions/model.ImageWhitelist'
+                    type: object
+              type: object
+      summary: CreateWhitelist
+      tags:
+      - image reject
+  /api/v1/imagereject/whitelist/:id:
+    delete:
+      description: 删除白名单
+      parameters:
+      - description: 白名单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ApiItem'
+              type: object
+      summary: DeleteWhitelist
+      tags:
+      - image reject
+  /api/v1/images/:imgDigest/layers:
+    get:
+      description: 获取镜像各层级的信息
+      parameters:
+      - description: imgDigest
+        in: query
+        name: imgDigest
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      items:
+                        items:
+                          $ref: '#/definitions/model.ReportImgBackInfo'
+                        type: array
+                    type: object
+              type: object
+      summary: ListImgLayers
+      tags:
+      - scan image
+  /api/v1/images/app/:imageID/bases:
+    get:
+      description: 获取应用镜像的基础镜像列表
+      parameters:
+      - description: 镜像ID
+        in: path
+        name: imageID
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      items:
+                        items:
+                          $ref: '#/definitions/model.ImageResponse'
+                        type: array
+                    type: object
+              type: object
+      summary: ListAppToBaseImage
+      tags:
+      - image reject
+  /api/v1/images/base:
+    get:
+      description: 基础镜像列表
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: search
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      items:
+                        items:
+                          $ref: '#/definitions/model.ImageResponse'
+                        type: array
+                    type: object
+              type: object
+      summary: ListBaseImage
+      tags:
+      - image reject
+  /api/v1/images/base/:imageID:
+    delete:
+      description: 删除基础镜像
+      parameters:
+      - description: 镜像ID
+        in: path
+        name: imageID
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ApiItem'
+              type: object
+      summary: DeleteBaseImage
+      tags:
+      - image reject
+  /api/v1/images/base/:imageID/apps:
+    get:
+      description: 获取基础镜像的应用镜像列表
+      parameters:
+      - description: 镜像ID
+        in: path
+        name: imageID
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      items:
+                        items:
+                          $ref: '#/definitions/model.ImageResponse'
+                        type: array
+                    type: object
+              type: object
+      summary: ListBaseToAppImage
+      tags:
+      - image reject
+  /api/v1/images/bases:
+    post:
+      description: 创建基础镜像
+      parameters:
+      - description: 镜像ID列表
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            type: integer
+          type: array
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ApiItem'
+              type: object
+      summary: CreateBaseImage
+      tags:
+      - image reject
+  /api/v1/layers/:imgDigest/layers:
+    get:
+      description: 获取镜像各层级的信息
+      parameters:
+      - description: layerDigest
+        in: query
+        name: layerDigest
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.ApiWithItem'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/api.ApiItem'
+                  - properties:
+                      items:
+                        $ref: '#/definitions/model.ScanLayer'
+                    type: object
+              type: object
+      summary: ImgLayerInfo
+      tags:
+      - scan image
   /api/v1/register/registries:
     get:
       description: 获取registry列表信息
@@ -840,7 +1246,7 @@ paths:
                         $ref: '#/definitions/api.OnlyAccountRes'
                     type: object
               type: object
-      summary: registries
+      summary: 获取仓库列表
       tags:
       - registry
   /api/v1/register/registry:
@@ -867,7 +1273,7 @@ paths:
                         $ref: '#/definitions/api.OnlyAccountRes'
                     type: object
               type: object
-      summary: registry
+      summary: 获取指定仓库的具体信息
       tags:
       - registry
   /api/v1/scan/harbor/GetScanStatus:
@@ -900,7 +1306,7 @@ paths:
               type: object
       summary: scanStatus
       tags:
-      - Scan
+      - scan image
   /api/v1/scan/harbor/scanAllNow:
     post:
       description: 扫描全部列表中的镜像
@@ -911,7 +1317,7 @@ paths:
             $ref: '#/definitions/api.ApiWithItem'
       summary: ScanAllNow
       tags:
-      - Scan
+      - scan image
   /api/v1/scan/harbor/scanOneStatus:
     get:
       description: 获取单个镜像的扫描状态
@@ -936,9 +1342,9 @@ paths:
                         $ref: '#/definitions/model.ScanOneStatusResponse'
                     type: object
               type: object
-      summary: ScanOneStatus
+      summary: GetScanOneStatus
       tags:
-      - Scan
+      - scan image
   /api/v1/scan/reportsByImageDetails:
     get:
       description: 获取单个镜像的扫描状态
@@ -977,7 +1383,7 @@ paths:
               type: object
       summary: reportsByImageDetails
       tags:
-      - Scan
+      - scan image
   /api/v1/scan/reportsByImageList:
     get:
       description: 获取单个镜像的扫描状态
@@ -1022,9 +1428,9 @@ paths:
                         type: array
                     type: object
               type: object
-      summary: ScanOneStatus
+      summary: ListScannedByImageList
       tags:
-      - Scan
+      - scan image
   /api/v1/scan/reportsByImageOverview:
     get:
       description: 获取单个镜像的扫描状态
@@ -1055,7 +1461,7 @@ paths:
               type: object
       summary: reportsByImageOverview
       tags:
-      - Scan
+      - scan image
   /api/v1/scan/reportsBySimpleImageDetails:
     get:
       description: 获取简略的镜像扫描详情（目前只有风险探索页面在使用，没有前端访问）
@@ -1136,7 +1542,7 @@ paths:
               type: object
       summary: ScanOne
       tags:
-      - Scan
+      - scan image
   /api/v1/vulns/all:
     get:
       description: 获取漏洞列表

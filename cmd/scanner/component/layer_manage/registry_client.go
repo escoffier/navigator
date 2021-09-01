@@ -20,7 +20,7 @@ type RegistryClient struct {
 	username              string
 	password              string
 	repository            string
-	url                   string //registry url
+	url                   string // registry url
 	skipRegistryTLSVerify bool
 	registryClient        *registry.Registry
 }
@@ -37,8 +37,8 @@ func NewRegistryClient(username, password, repository, url string, skipRegistryT
 	if err != nil && skipRegistryTLSVerify {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:
 		// https://github.com/golang/go/issues/30322
-		//var hostnameErr *x509.HostnameError
-		//if errors.As(err, &hostnameErr) { ... }
+		// var hostnameErr *x509.HostnameError
+		// if errors.As(err, &hostnameErr) { ... }
 		// Therefore we must unwrap the error from HTTP package manually and try to cast
 
 		// Check for any type of error defined in x509 package.

@@ -21,19 +21,106 @@ type ImageRejectSrv interface {
 	CreateImageWhitelist(ctx context.Context, name, library, tag, digest string) (*model.ImageWhitelist, error)
 	ListImageWhitelist(ctx context.Context, search string, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
 	DeleteImageWhitelist(ctx context.Context, imageWhiteId int64) error
-	DeletePolicy(ctx context.Context, id int64)
+
+	DeletePolicy(ctx context.Context, id int64) error
+	SearchRejectPolicy(ctx context.Context, library, globle string) ([]model.RejectPolicy, error)
+	CreateSinglePolicy(ctx context.Context, policy model.RejectPolicy) error
+	UpdateSinglePolicy(ctx context.Context, id int64, policy model.RejectPolicy) error
+	CreateGlobalPolicy(ctx context.Context, policy model.GlobalRejectPolicy) error
 }
 
 type ImageReject struct {
 	dbdal store.ScannerDalInterface
+	// rejectDbDal store.BaseImageDalInterface
+}
+
+func (s *ImageReject) UpdateSinglePolicy(ctx context.Context, id int64, policy model.RejectPolicy) error {
+	if err := checkRejectPolicy(policy); err != nil {
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	// 一个仓库只能有一个生效策略，这里做一个限制
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString})
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	for i := range policies {
+		if !policies[i].Enable {
+			continue
+		}
+		for j := range policy.Library {
+			for k := range policies[i].Library {
+				if policy.Library[j] == policies[i].Library[k] && policies[i].ID != id {
+					return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("library:%s 已设置策略", policy.Library[j]))
+				}
+			}
+		}
+	}
+	if len(policy.Library) == 0 {
+		return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("请指定策略的仓库"))
+	}
+	updater := rejectPolicyToUpdater(policy)
+	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{ID: id, Global: consts.FalseString, UpdateRejectVulns: true, RejectVulns: policy.RejectVulns}, updater); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("UpdateSinglePolicy")
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	return nil
+}
+
+func (s *ImageReject) CreateGlobalPolicy(ctx context.Context, global model.GlobalRejectPolicy) error {
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
+	if err != nil {
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	if len(policies) == 0 {
+		policy := model.RejectPolicy{
+			CicdEnable:    global.Cicd,
+			K8sEnable:     global.K8sDeployment,
+			Mode:          global.Mode,
+			OnlineMonitor: global.OnlineMonitor,
+			IsGlobal:      true,
+		}
+
+		policy.IsGlobal = true
+		if _, err := s.dbdal.CreateRejectPolicy(ctx, policy); err != nil {
+			return response.NewHttpError(http.StatusExpectationFailed, err)
+		}
+	}
+
+	// 全局策略对所有的策略都生效(但是gorm不允许更新整张表，所以这里分两次更新)
+	updater := GlobalRejectPolicyToUpdater(global)
+	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString}, updater); err != nil {
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString}, updater); err != nil {
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+
+	return nil
+}
+
+func (s *ImageReject) SearchRejectPolicy(ctx context.Context, library, global string) ([]model.RejectPolicy, error) {
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{
+		Library: library,
+		Global:  global,
+	})
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+		return nil, response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	return policies, nil
 }
 
 func NewImageRejectSrc(dbdal store.ScannerDalInterface) *ImageReject {
 	return &ImageReject{dbdal: dbdal}
 }
 
-func (s *ImageReject) DeletePolicy(ctx context.Context, id int64) {
-	s.dbdal.DeletePolicy(ctx, id)
+func (s *ImageReject) DeletePolicy(ctx context.Context, id int64) error {
+	if err := s.dbdal.DeletePolicy(ctx, id); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("DeletePolicy")
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	return nil
 }
 
 func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.ImageRejectOverview, error) {
@@ -183,6 +270,42 @@ func (s *ImageReject) DeleteImageWhitelist(ctx context.Context, imageWhiteId int
 		return response.NewHttpError(http.StatusBadRequest, fmt.Errorf(fmt.Sprintf("删除镜像白名单出错：镜像ID：%d,error: %s", imageWhiteId, err.Error())))
 	}
 	return nil
+}
+
+func (s *ImageReject) CreateSinglePolicy(ctx context.Context, policy model.RejectPolicy) error {
+	if err := checkRejectPolicy(policy); err != nil {
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+
+	for k := range policy.Library {
+		if !strings.Contains(policy.Library[k], "http://") && !strings.Contains(policy.Library[k], "https://") {
+			policy.Library[k] = "https://" + policy.Library[k]
+		}
+	}
+	policy.IsGlobal = false
+	// 一个仓库只能有一个生效策略，这里做一个限制
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString})
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	for i := range policies {
+		if !policies[i].Enable {
+			continue
+		}
+		for j := range policy.Library {
+			for k := range policies[i].Library {
+				if policy.Library[j] == policies[i].Library[k] {
+					return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("library:%s 已设置策略", policy.Library[j]))
+				}
+			}
+		}
+	}
+
+	if _, err := s.dbdal.CreateRejectPolicy(ctx, policy); err != nil {
+		return response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+	return err
 }
 
 func GenerationInterval(interval int, intervalType string) []time.Time {

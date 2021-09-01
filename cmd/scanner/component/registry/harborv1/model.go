@@ -4,8 +4,8 @@ import (
 	"time"
 )
 
-//Project harbor v1 api return project info
-//detail: https://github.com/goharbor/harbor/blob/v1.10.1/api/harbor/swagger.yaml
+// Project harbor v1 api return project info
+// detail: https://github.com/goharbor/harbor/blob/v1.10.1/api/harbor/swagger.yaml
 type Project struct {
 	Name         string    `json:"name"`
 	ProjectID    int       `json:"project_id"`

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"math"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -90,6 +91,26 @@ type ImageResponse struct {
 	Questions    []QuestionInfo `json:"questions"`
 	FullRepoName string         `json:"full_repo_name"`
 	Tags         string         `json:"tags"`
+	ImageType    int64          `json:"image_type"`
+	RiskScore    float64        `json:"risk_score"`
+}
+
+func ImageToImageResponse(img ImageList) ImageResponse {
+	im := ImageResponse{
+		ID:           img.ID,
+		Digest:       img.Digest,
+		Library:      img.Library,
+		ScanStatus:   img.ScanStatus,
+		CompleteTime: img.CompleteTime,
+		Questions:    img.Questions,
+		FullRepoName: img.FullRepoName,
+		Tags:         img.Tags,
+		ImageType:    img.ImageType,
+	}
+	if img.ScanImage != nil {
+		im.RiskScore = img.ScanImage.VulnScore + img.ScanImage.SensitiveScore + math.Min(img.ScanImage.WebshellScore+img.ScanImage.VirusScore, 40)
+	}
+	return im
 }
 
 type ScanOneStatusResponse struct {
@@ -153,7 +174,14 @@ type RejectPolicyConfigResponse struct {
 	Mode          string         `json:"mode"`
 	OnlineMonitor bool           `json:"online_monitor"`
 	Polices       []RejectPolicy `json:"policies"`
-} //@name RejectPolicyConfigResponse
+} // @name RejectPolicyConfigResponse
+
+type GlobalRejectPolicy struct {
+	Cicd          bool   `json:"cicd"`
+	K8sDeployment bool   `json:"k8s_deployment"`
+	Mode          string `json:"mode"`
+	OnlineMonitor bool   `json:"online_monitor"`
+} // @name GlobalRejectPolicy
 
 type RejectOnlineMoniterImage struct {
 	Image    string `json:"image"`
@@ -265,31 +293,6 @@ func NewKeyValue(key, value string) KeyValue {
 	}
 }
 
-func GetVuluRuleKey(vuleLeve string, lag string) string {
-	reasonCNMap := map[string]string{
-		VulnLevelNegligible: "存在可忽略漏洞",
-		VulnLevelUnknown:    "存在末知漏洞",
-		VulnLevelLow:        "存在低危漏洞",
-		VulnLevelMedium:     "存在中危漏洞",
-		VulnLevelHigh:       "存在危险漏洞",
-		VulnLevelCritical:   "存在高危漏洞",
-	}
-	reasonENMap := map[string]string{
-		VulnLevelNegligible: RejectReasonHasNegligibleVulnEN,
-		VulnLevelUnknown:    RejectReasonHasUnknownVulnEN,
-		VulnLevelLow:        RejectReasonHasLowVulnEN,
-		VulnLevelMedium:     RejectReasonHasMediumVulnEN,
-		VulnLevelHigh:       RejectReasonHasHighVulnEN,
-		VulnLevelCritical:   RejectReasonHasCriticalVulnEN,
-	}
-	switch lag {
-	case LangEn:
-		return reasonENMap[vuleLeve]
-	default:
-		return reasonCNMap[vuleLeve]
-	}
-}
-
 type ScanOneForCICDRequest struct {
 	Image     string `json:"image"`
 	MaxSecond string `json:"max_second"`
@@ -307,9 +310,22 @@ type ScanOneForCICDResponse struct {
 	Vulu      [][]string `json:"vulu"`
 	Sensitive [][]string `json:"sensitive"`
 	Virus     [][]string `json:"virus"`
+	Webshell  [][]string `json:"webshell"`
 }
 
 type ScanOneCICDResultRequest struct {
 	ImageID int64  `json:"id"`
 	Library string `json:"library"`
+}
+
+type ListBaseImageResponse struct {
+	FullRepoName string         `json:"full_repo_name"`
+	Library      string         `json:"library"`
+	Questions    []QuestionInfo `json:"questions"`
+	Score        int            `json:"score"`
+}
+
+type RejectReasonMap struct {
+	En map[int64]string `json:"en"`
+	Zh map[int64]string `json:"zh"`
 }

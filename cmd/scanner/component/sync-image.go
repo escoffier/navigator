@@ -92,7 +92,7 @@ func NewSyncRepoImage(ctx context.Context, configPath string, syncInterval uint,
 func (s *SyncRepoImage) Run(extender registry.ImageListExtender, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	// Open registry
-	logging.GetLogger().Debug().Msgf("sync registry type:%v",s.config.Registry.Type)
+	logging.GetLogger().Debug().Msgf("sync registry type:%v", s.config.Registry.Type)
 	r, err := registry.Open(s.config.Registry)
 	if err != nil {
 		logging.GetLogger().Fatal().Str("err", err.Error()).Msg("open config err")
@@ -110,7 +110,7 @@ func (s *SyncRepoImage) Run(extender registry.ImageListExtender, wg *sync.WaitGr
 		time.Sleep(time.Duration(s.syncInterval) * time.Second)
 	}
 
-	//return nil
+	// return nil
 }
 
 func TransImageToImagelist(r SyncRepoImage, image registry.Image) model.ImageList {
@@ -129,5 +129,6 @@ func TransImageToImagelist(r SyncRepoImage, image registry.Image) model.ImageLis
 	TransImagelist.ManifestV2JSON = []byte(image.ManifestV2)
 	TransImagelist.ConfigJson = []byte(image.ConfigJson)
 	TransImagelist.FromType = r.fromType
+	TransImagelist.Layers = getLayerString(TransImagelist)
 	return TransImagelist
 }

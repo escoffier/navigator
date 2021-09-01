@@ -77,7 +77,7 @@ func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 		}
 
 		if filter.SortFiled != "" && filter.SortBy != "" {
-			db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: filter.SortFiled}, Desc: filter.SortBy == "desc"})
+			db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: filter.SortFiled}, Desc: strings.ToLower(filter.SortBy) == "desc"})
 		}
 	}
 	// 这里如果是查全部，也给一个默认值，但是我们项目业务中有很多查全表数据的情况，所这里加这一项不合适
