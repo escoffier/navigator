@@ -29,7 +29,7 @@ type FileServer struct {
 	serverIp       string
 	externalIp     string
 	server         *http.Server
-	serverRootPath string //actual server root path: /tmp/xxx
+	serverRootPath string // actual server root path: /tmp/xxx
 }
 
 func init() {
@@ -142,7 +142,7 @@ func (fs *FileServer) SaveFile(digest string, r io.ReadCloser) (string, error) {
 func (fs *FileServer) DeleteFile(digest string) error {
 	fullFilePath := filepath.Join(fs.serverRootPath, digest, LayerFileName)
 
-	//only delete file,not directory
+	// only delete file,not directory
 	err := os.RemoveAll(fullFilePath)
 	log.Info().Msgf("remove file %s,err %v", fullFilePath, err)
 	if err != nil {

@@ -29,7 +29,7 @@ var doc = `{
             "post": {
                 "description": "k8s\u0026在线监控生成接口",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
                 "summary": "TickOnlineScan",
                 "parameters": [
@@ -123,27 +123,27 @@ var doc = `{
             "get": {
                 "description": "展示阻断信息列表",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
-                "summary": "images",
+                "summary": "ListRejectRecord",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "image like ",
+                        "description": "镜像名模糊搜索",
                         "name": "search",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "仓库筛选 ",
+                        "description": "仓库筛选",
                         "name": "library",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "阻断理由筛选 ",
+                        "description": "阻断理由筛选",
                         "name": "reject_reason",
                         "in": "query",
                         "required": true
@@ -186,13 +186,13 @@ var doc = `{
                 }
             }
         },
-        "/api/v1/imagereject/policy": {
+        "/api/v1/imagereject/policy/global": {
             "get": {
-                "description": "获取策略及全局配置列表",
+                "description": "获取全局策略",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
-                "summary": "GetPolicy",
+                "summary": "GetGlobalPolicy",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -213,7 +213,7 @@ var doc = `{
                                                     "type": "object",
                                                     "properties": {
                                                         "item": {
-                                                            "$ref": "#/definitions/model.RejectPolicyConfigResponse"
+                                                            "$ref": "#/definitions/model.GlobalRejectPolicy"
                                                         }
                                                     }
                                                 }
@@ -227,49 +227,19 @@ var doc = `{
                 }
             },
             "put": {
-                "description": "修改全局config/更新单条策略",
+                "description": "更新全局策略",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
-                "summary": "AddPolicyConfig",
+                "summary": "UpdateGlobalPolicy",
                 "parameters": [
                     {
-                        "description": "JSON数据",
+                        "description": "全局策略JSON数据",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/model.RejectPolicyConfigResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "policies": {
-                                            "type": "array",
-                                            "items": {
-                                                "allOf": [
-                                                    {
-                                                        "$ref": "#/definitions/model.RejectPolicy"
-                                                    },
-                                                    {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "reject_vulns": {
-                                                                "type": "array",
-                                                                "items": {
-                                                                    "$ref": "#/definitions/model.RejectVuln"
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/model.GlobalRejectPolicy"
                         }
                     }
                 ],
@@ -277,7 +247,63 @@ var doc = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.ApiWithItem"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/imagereject/policy/single": {
+            "get": {
+                "description": "获取策略列表",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "ListPolicy",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItems"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "#/definitions/model.RejectPolicy"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -285,9 +311,49 @@ var doc = `{
             "post": {
                 "description": "新增策略接口",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
-                "summary": "AddPolicy",
+                "summary": "CreatePolicy",
+                "parameters": [
+                    {
+                        "description": "策略JSON数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.RejectPolicy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/imagereject/policy/single/:id": {
+            "put": {
+                "description": "更新策略接口",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "UpdatePolicy",
                 "parameters": [
                     {
                         "description": "JSON数据",
@@ -295,10 +361,82 @@ var doc = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.RejectPolicyConfigResponse"
+                            "$ref": "#/definitions/model.RejectPolicy"
                         }
+                    },
+                    {
+                        "type": "integer",
+                        "description": "策略ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
                     }
                 ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除单条策略",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "DeletePolicy",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/imagereject/reasons": {
+            "get": {
+                "description": "获取阻断原因的map",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "RejectReasons",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -319,7 +457,7 @@ var doc = `{
                                                     "type": "object",
                                                     "properties": {
                                                         "item": {
-                                                            "$ref": "#/definitions/api.OnlyIdRes"
+                                                            "$ref": "#/definitions/model.RejectReasonMap"
                                                         }
                                                     }
                                                 }
@@ -333,39 +471,13 @@ var doc = `{
                 }
             }
         },
-        "/api/v1/imagereject/policy/:id": {
-            "delete": {
-                "description": "删除单条策略",
-                "tags": [
-                    "reject"
-                ],
-                "summary": "DeletePolicy",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "policy ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/api.ApiWithItem"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/imagereject/result/cicd": {
             "post": {
                 "description": "CICD的第二个API，获取CICD扫描结果",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
-                "summary": "/result/cicd",
+                "summary": "获取CICD扫描结果",
                 "parameters": [
                     {
                         "description": "JSON数据",
@@ -415,9 +527,9 @@ var doc = `{
             "post": {
                 "description": "CICD的第一个API，用于触发CICD扫描",
                 "tags": [
-                    "reject"
+                    "image reject"
                 ],
-                "summary": "/scanone/cicd",
+                "summary": "用于触发CICD扫描",
                 "parameters": [
                     {
                         "description": "JSON数据",
@@ -463,13 +575,445 @@ var doc = `{
                 }
             }
         },
+        "/api/v1/imagereject/whitelist": {
+            "post": {
+                "description": "创建白名单",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "CreateWhitelist",
+                "parameters": [
+                    {
+                        "description": "JSON数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ImageWhitelist"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "item": {
+                                                            "$ref": "#/definitions/model.ImageWhitelist"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/imagereject/whitelist/:id": {
+            "delete": {
+                "description": "删除白名单",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "DeleteWhitelist",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "白名单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/images/:imgDigest/layers": {
+            "get": {
+                "description": "获取镜像各层级的信息",
+                "tags": [
+                    "scan image"
+                ],
+                "summary": "ListImgLayers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "imgDigest",
+                        "name": "imgDigest",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "#/definitions/model.ReportImgBackInfo"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/images/app/:imageID/bases": {
+            "get": {
+                "description": "获取应用镜像的基础镜像列表",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "ListAppToBaseImage",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "镜像ID",
+                        "name": "imageID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "#/definitions/model.ImageResponse"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/images/base": {
+            "get": {
+                "description": "基础镜像列表",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "ListBaseImage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "搜索关键词",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "#/definitions/model.ImageResponse"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/images/base/:imageID": {
+            "delete": {
+                "description": "删除基础镜像",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "DeleteBaseImage",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "镜像ID",
+                        "name": "imageID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/images/base/:imageID/apps": {
+            "get": {
+                "description": "获取基础镜像的应用镜像列表",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "ListBaseToAppImage",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "镜像ID",
+                        "name": "imageID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "$ref": "#/definitions/model.ImageResponse"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/images/bases": {
+            "post": {
+                "description": "创建基础镜像",
+                "tags": [
+                    "image reject"
+                ],
+                "summary": "CreateBaseImage",
+                "parameters": [
+                    {
+                        "description": "镜像ID列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ApiItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/layers/:imgDigest/layers": {
+            "get": {
+                "description": "获取镜像各层级的信息",
+                "tags": [
+                    "scan image"
+                ],
+                "summary": "ImgLayerInfo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "layerDigest",
+                        "name": "layerDigest",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.ApiWithItem"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/definitions/api.ApiItem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "items": {
+                                                            "$ref": "#/definitions/model.ScanLayer"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/register/registries": {
             "get": {
                 "description": "获取registry列表信息",
                 "tags": [
                     "registry"
                 ],
-                "summary": "registries",
+                "summary": "获取仓库列表",
                 "parameters": [
                     {
                         "type": "boolean",
@@ -519,7 +1063,7 @@ var doc = `{
                 "tags": [
                     "registry"
                 ],
-                "summary": "registry",
+                "summary": "获取指定仓库的具体信息",
                 "parameters": [
                     {
                         "type": "string",
@@ -567,7 +1111,7 @@ var doc = `{
             "get": {
                 "description": "获取镜像列表的扫描状态",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
                 "summary": "scanStatus",
                 "responses": {
@@ -632,7 +1176,7 @@ var doc = `{
             "post": {
                 "description": "扫描全部列表中的镜像",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
                 "summary": "ScanAllNow",
                 "responses": {
@@ -649,9 +1193,9 @@ var doc = `{
             "get": {
                 "description": "获取单个镜像的扫描状态",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
-                "summary": "ScanOneStatus",
+                "summary": "GetScanOneStatus",
                 "parameters": [
                     {
                         "type": "integer",
@@ -699,7 +1243,7 @@ var doc = `{
             "get": {
                 "description": "获取单个镜像的扫描状态",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
                 "summary": "reportsByImageDetails",
                 "parameters": [
@@ -772,9 +1316,9 @@ var doc = `{
             "get": {
                 "description": "获取单个镜像的扫描状态",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
-                "summary": "ScanOneStatus",
+                "summary": "ListScannedByImageList",
                 "parameters": [
                     {
                         "type": "string",
@@ -851,7 +1395,7 @@ var doc = `{
             "get": {
                 "description": "获取单个镜像的扫描状态",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
                 "summary": "reportsByImageOverview",
                 "parameters": [
@@ -1004,7 +1548,7 @@ var doc = `{
             "post": {
                 "description": "扫描列表中某一个镜像，参数为单个id",
                 "tags": [
-                    "Scan"
+                    "scan image"
                 ],
                 "summary": "ScanOne",
                 "parameters": [
@@ -1392,6 +1936,23 @@ var doc = `{
                 }
             }
         },
+        "model.GlobalRejectPolicy": {
+            "type": "object",
+            "properties": {
+                "cicd": {
+                    "type": "boolean"
+                },
+                "k8s_deployment": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "online_monitor": {
+                    "type": "boolean"
+                }
+            }
+        },
         "model.ImageList": {
             "type": "object",
             "properties": {
@@ -1432,10 +1993,22 @@ var doc = `{
                     "type": "object",
                     "$ref": "#/definitions/model.ImageScanSummaryResult"
                 },
+                "image_scan_webshell": {
+                    "type": "array",
+                    "items": {
+                        "type": "WebshellFileInfo"
+                    }
+                },
+                "image_type": {
+                    "type": "integer"
+                },
                 "lastPullTime": {
                     "type": "string"
                 },
                 "lastPushTime": {
+                    "type": "string"
+                },
+                "layers": {
                     "type": "string"
                 },
                 "library": {
@@ -1464,6 +2037,9 @@ var doc = `{
                 },
                 "registryId": {
                     "type": "integer"
+                },
+                "scan_image": {
+                    "type": "ScanImage"
                 },
                 "scan_status": {
                     "type": "string"
@@ -1523,6 +2099,9 @@ var doc = `{
                 "id": {
                     "type": "integer"
                 },
+                "image_type": {
+                    "type": "integer"
+                },
                 "library": {
                     "type": "string"
                 },
@@ -1531,6 +2110,9 @@ var doc = `{
                     "items": {
                         "$ref": "#/definitions/model.QuestionInfo"
                     }
+                },
+                "risk_score": {
+                    "type": "number"
                 },
                 "scan_status": {
                     "type": "string"
@@ -1578,11 +2160,17 @@ var doc = `{
                 "repository": {
                     "type": "string"
                 },
+                "risk_score": {
+                    "type": "number"
+                },
                 "sensitiveFiles": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.Sensitive"
                     }
+                },
+                "sensitive_score": {
+                    "type": "number"
                 },
                 "severityHistogram": {
                     "type": "SeverityHistogramInfo"
@@ -1601,6 +2189,38 @@ var doc = `{
                     "items": {
                         "$ref": "#/definitions/model.VulnerabilityInfo"
                     }
+                },
+                "virus_score": {
+                    "type": "number"
+                },
+                "vuln_score": {
+                    "type": "number"
+                },
+                "webshell_score": {
+                    "type": "number"
+                }
+            }
+        },
+        "model.ImageWhitelist": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "digest": {
+                    "type": "string"
+                },
+                "full_repo_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "library": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
                 }
             }
         },
@@ -1707,6 +2327,9 @@ var doc = `{
         "model.RejectPolicy": {
             "type": "object",
             "properties": {
+                "base_image_policy": {
+                    "type": "string"
+                },
                 "cicd_enable": {
                     "type": "boolean"
                 },
@@ -1724,6 +2347,9 @@ var doc = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_global": {
+                    "type": "boolean"
                 },
                 "k8s_enable": {
                     "type": "boolean"
@@ -1752,7 +2378,7 @@ var doc = `{
                 "reject_vulns": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.RejectVuln"
+                        "type": "RejectVuln"
                     }
                 },
                 "sensitive_file_policy": {
@@ -1766,28 +2392,28 @@ var doc = `{
                 },
                 "vuln_score": {
                     "type": "integer"
+                },
+                "web_shell_policy": {
+                    "type": "string"
+                },
+                "web_shell_score": {
+                    "type": "integer"
                 }
             }
         },
-        "model.RejectPolicyConfigResponse": {
+        "model.RejectReasonMap": {
             "type": "object",
             "properties": {
-                "cicd": {
-                    "type": "boolean"
+                "en": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
-                "k8s_deployment": {
-                    "type": "boolean"
-                },
-                "mode": {
-                    "type": "string"
-                },
-                "online_monitor": {
-                    "type": "boolean"
-                },
-                "policies": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.RejectPolicy"
+                "zh": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
                     }
                 }
             }
@@ -1836,26 +2462,41 @@ var doc = `{
                 }
             }
         },
-        "model.RejectVuln": {
+        "model.ReportImgBackInfo": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "created": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
-                },
-                "library": {
+                "created_by": {
                     "type": "string"
                 },
-                "name": {
+                "image_digest": {
                     "type": "string"
                 },
-                "reject_policy": {
-                    "type": "string"
+                "malicious": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "reject_policy_id": {
-                    "type": "integer"
+                "pkgs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sensitive_files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "vulus": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1876,6 +2517,59 @@ var doc = `{
                 },
                 "vuln": {
                     "type": "integer"
+                }
+            }
+        },
+        "model.ScanLayer": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_id": {
+                    "type": "integer"
+                },
+                "is_basic": {
+                    "type": "integer"
+                },
+                "layer_digest": {
+                    "type": "string"
+                },
+                "malicious_info": {
+                    "type": "array",
+                    "items": {
+                        "type": "Malicious"
+                    }
+                },
+                "pkg_info": {
+                    "type": "object"
+                },
+                "sensitive_file": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.Sensitive"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "vuln_info": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.VulnerabilityInfo"
+                    }
+                },
+                "webshell_info": {
+                    "type": "array",
+                    "items": {
+                        "type": "Webshell"
+                    }
                 }
             }
         },
@@ -1941,6 +2635,15 @@ var doc = `{
                     }
                 },
                 "vulu": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "webshell": {
                     "type": "array",
                     "items": {
                         "type": "array",

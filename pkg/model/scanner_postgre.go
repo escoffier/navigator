@@ -76,32 +76,30 @@ type ScanLayer struct { // 层级扫描结果
 }
 
 type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scantasks表
-	ID                int64 `gorm:"primaryKey"`
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         int
-	ImageId           int64               `gorm:"uniqueIndex:idx_scan_image"`
-	RiskScore         float64             `gorm:"column:risk_score" json:"risk_score" bson:"risk_score"`
-	VulnScore         float64             `gorm:"column:vuln_score" json:"vuln_score"`
-	SensitiveScore    float64             `gorm:"column:sensitive_score" json:"sensitive_score"`
-	VirusScore        float64             `gorm:"column:virus_score" json:"virus_score"`
-	WebshellScore     float64             `gorm:"column:webshell_score" json:"webshell_score"`
-	VulnInfo          []VulnerabilityInfo `gorm:"-"`
-	VulnInfoJSON      datatypes.JSON      `gorm:"type:jsonb"` // 漏洞结果汇总
-	PkgInfoJSON       datatypes.JSON      `gorm:"type:jsonb"` // 软件包信息
-	MaliciousInfoJSON datatypes.JSON      `gorm:"type:jsonb"` // 恶意文件
-	MaliciousInfo     []Malicious         `gorm:"-"`          // 恶意文件
-	WebshellInfo      []Webshell          `gorm:"-"`          // webshell
-	WebshellInfoJSON  datatypes.JSON      `gorm:"type:jsonb"` // webshell
-	//	WebshellInfo          []Webshell                 `gorm:"-"`          // webshell
-	//WebshellInfoJSON      datatypes.JSON             `gorm:"type:jsonb"` // webshell
-	SensitiveFile         []Sensitive                `gorm:"-"`
-	SensitiveFileJSON     datatypes.JSON             `gorm:"type:jsonb"` // 敏感文件
-	PerLayerReport        []VulnerabilityLayerReport `gorm:"-"`
-	PerLayerReportJSON    datatypes.JSON             `gorm:"type:jsonb"`                                          // 层结果汇总
-	OverallSeverity       string                     `json:"overallSeverity" bson:"overallSeverity"`              // 评级
-	OverallSeverityInt    int                        `json:"overallSeverityInt" bson:"overallSeverityInt"`        // 评级int
-	SeverityHistogram     SeverityHistogramInfo      `gorm:"-" json:"severityHistogram" bson:"severityHistogram"` // 评级集合
+	ID                    int64 `gorm:"primaryKey"`
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	DeletedAt             int
+	ImageId               int64                      `gorm:"uniqueIndex:idx_scan_image"`
+	RiskScore             float64                    `gorm:"column:risk_score" json:"risk_score"`
+	VulnScore             float64                    `gorm:"column:vuln_score" json:"vuln_score"`
+	SensitiveScore        float64                    `gorm:"column:sensitive_score" json:"sensitive_score"`
+	VirusScore            float64                    `gorm:"column:virus_score" json:"virus_score"`
+	WebshellScore         float64                    `gorm:"column:webshell_score" json:"webshell_score"`
+	VulnInfo              []VulnerabilityInfo        `gorm:"-" json:"vuln_info"`
+	VulnInfoJSON          datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 漏洞结果汇总
+	PkgInfoJSON           datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 软件包信息
+	MaliciousInfoJSON     datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 恶意文件
+	MaliciousInfo         []Malicious                `gorm:"-" json:"malicious_info"` // 恶意文件
+	WebshellInfo          []Webshell                 `gorm:"-" json:"webshell_info"`  // webshell
+	WebshellInfoJSON      datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // webshell
+	SensitiveFile         []Sensitive                `gorm:"-" json:"sensitive_file"`
+	SensitiveFileJSON     datatypes.JSON             `gorm:"type:jsonb" json:"-"` // 敏感文件
+	PerLayerReport        []VulnerabilityLayerReport `gorm:"-" json:"per_layer_report"`
+	PerLayerReportJSON    datatypes.JSON             `gorm:"type:jsonb" json:"-"`        // 层结果汇总
+	OverallSeverity       string                     `json:"overallSeverity"`            // 评级
+	OverallSeverityInt    int                        `json:"overallSeverityInt"`         // 评级int
+	SeverityHistogram     SeverityHistogramInfo      `gorm:"-" json:"severityHistogram"` // 评级集合
 	SeverityHistogramJSON datatypes.JSON             `gorm:"type:jsonb"`
 	ScanTaskId            string
 	Status                string // 扫描状态
@@ -147,6 +145,11 @@ type ImageList struct {
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
 	ConfigJson     datatypes.JSON `gorm:"type:jsonb"` // config内容,包括layer diffid
 	FromType       int            `gorm:"uniqueIndex:uniq_inx_image,priority:4,default:0" json:"from_type"`
+	Layers         string         `gorm:"index:idx_image_layers" json:"layers"` // 把layer拼成字符串，为了找出基础镜像,用|分隔
+
+	ImageType int64 `gorm:"column:image_type;default:0" json:"image_type"`
+
+	ScanImage *ScanImage `gorm:"-" json:"scan_image"`
 }
 
 func (i ImageList) TableName() string {
@@ -287,7 +290,7 @@ type HealthConfig struct {
 	Retries int `json:",omitempty"`
 }
 
-// Manifest represents the OCI image manifest in a structured way.
+// ManifestV2 represents the OCI image manifest in a structured way.
 type ManifestV2 struct {
 	SchemaVersion int64             `json:"schemaVersion"`
 	MediaType     string            `json:"mediaType,omitempty"`
@@ -429,11 +432,15 @@ type RejectPolicy struct {
 	Comment     string         `json:"comment"`  // 备注
 	Operator    string         `json:"operator"` // 操作员名字
 
-	VulnScore int64  `json:"vuln_score"` // 漏洞按分数阻断(低于多少分后阻断)
-	VulnLevel string `json:"vuln_level"` // 漏洞按严重级别阻断
+	VulnScore     int64  `json:"vuln_score"`  // 漏洞按分数阻断(低于多少分后阻断)
+	VulnLevel     string `json:"vuln_level"`  // 漏洞按严重级别阻断
+	VulnPolicy    string `json:"vuln_policy"` //
+	WebShellScore int64  `json:"web_shell_score"`
 
+	WebShellPolicy      string `json:"web_shell_policy"`
 	SensitiveFilePolicy string `json:"sensitive_file_policy"` // 敏感文件规则
 	MaliciousPolicy     string `json:"malicious_policy"`      // 恶意文件规则
+	BaseImagePolicy     string `json:"base_image_policy"`     // 基础镜像规则
 
 	CicdEnable    bool         `gorm:"cicd_enable" json:"cicd_enable"`
 	K8sEnable     bool         `gorm:"k8s_enable" json:"k8s_enable"`
@@ -443,9 +450,9 @@ type RejectPolicy struct {
 	CreatedAt     time.Time    `json:"created_at"`                           //
 	UpdatedAt     time.Time    `json:"updated_at"`
 	Enable        bool         `json:"enable"` // 是否启用该策略
-	IsGlobal      bool         `json:"-"`
+	IsGlobal      bool         `json:"is_global"`
 	DeletedAt     int          `json:"deleted_at,omitempty"`
-} //@name RejectPolicy
+} // @name RejectPolicy
 
 func (RejectPolicy) TableName() string {
 	return "reject_policy"
@@ -454,10 +461,10 @@ func (RejectPolicy) TableName() string {
 // RejectVuln 自定义的镜像阻断
 type RejectVuln struct {
 	ID             int64     `json:"id"`
-	RejectPolicyID int64     `gorm:"uniqueIndex:uniq_idx_vuln,priority:1" json:"reject_policy_id"`
-	Library        string    `gorm:"uniqueIndex:uniq_idx_vuln,priority:2" json:"library"` // 生效仓库名
-	Name           string    `gorm:"uniqueIndex:uniq_idx_vuln,priority:3" json:"name"`    // 形如CVE-2021-28831
-	RejectPolicy   string    `json:"reject_policy"`                                       // 阻断动作
+	RejectPolicyID int64     `gorm:"uniqueIndex:uniq_idx_reject_vuln,priority:1" json:"reject_policy_id"`
+	Library        string    `gorm:"uniqueIndex:uniq_idx_reject_vuln,priority:2" json:"library"` // 生效仓库名
+	Name           string    `gorm:"uniqueIndex:uniq_idx_reject_vuln,priority:3" json:"name"`    // 形如CVE-2021-28831
+	RejectPolicy   string    `json:"reject_policy"`                                              // 阻断动作
 	CreatedAt      time.Time `json:"created_at"`
 }
 

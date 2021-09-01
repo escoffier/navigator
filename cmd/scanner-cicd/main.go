@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
-	//"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	// "gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -47,6 +47,7 @@ type ScanOneForCICDResponse struct {
 	Vulu      [][]string `json:"vulu"`
 	Sensitive [][]string `json:"sensitive"`
 	Virus     [][]string `json:"virus"`
+	Webshell  [][]string `json:"webshell"`
 }
 
 type resdata struct {
@@ -99,12 +100,12 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	bufRegistryUrl = strings.TrimRight(bufRegistryUrl, "/")
 	accountInfo := accountInfo{}
 	log.Info().Msgf("image=%s maxSecond=%d consoleUrl=%s bufRegistryUrl=%s aki_key=%s \n", image, maxSecond, consoleUrl, bufRegistryUrl, apikey)
-	//获取自己仓库的用户名密码
+	// 获取自己仓库的用户名密码
 	client := &http.Client{Timeout: time.Duration(maxSecond) * time.Second}
 	err := util.RetryWithBackoff(ctx, func() error {
 		getLibraryUrl := consoleUrl + "api/openapi/scanner/register/registry?usetype=2"
 		log.Info().Msgf("get cache certificate url  : %s\n", getLibraryUrl)
-		request, err := http.NewRequest("GET", getLibraryUrl, nil) //2
+		request, err := http.NewRequest("GET", getLibraryUrl, nil) // 2
 		if err != nil {
 			log.Error().Err(err).Msgf("new http request err")
 			return err
@@ -130,8 +131,8 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 		os.Exit(2)
 	}
 
-	//push到自己的仓库中
-	//TODO 多种仓库类型支持
+	// push到自己的仓库中
+	// TODO 多种仓库类型支持
 
 	osCmd := exec.Command("docker", "login", "-u", accountInfo.Data.Item.UserName, "-p", accountInfo.Data.Item.PassWord, bufRegistryUrl)
 	var out bytes.Buffer
@@ -173,12 +174,12 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 		if strings.Contains(stderr.String(), "Error") {
 			os.Exit(2)
 		}
-		//return
+		// return
 	}
 
 	log.Info().Msg("start scanning, please wait...")
 
-	//调用cicd接口
+	// 调用cicd接口
 	data := jsonData{}
 	data.Insecure = insecure
 	data.Image = image
@@ -272,11 +273,12 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 
 	log.Debug().Msgf("scan result:%v,is scan:%v", resultInfo.Data.Item.Safe, resultInfo.Data.Item.IsScan)
 
-	//输出结果
+	// 输出结果
 	outputTable(resultInfo.Data.Item.RejectMsg)
 	outputTable(resultInfo.Data.Item.Vulu)
 	outputTable(resultInfo.Data.Item.Sensitive)
 	outputTable(resultInfo.Data.Item.Virus)
+	outputTable(resultInfo.Data.Item.Webshell)
 	if !resultInfo.Data.Item.Safe {
 		log.Info().Msgf("scan found vulnerabilities.")
 		os.Exit(2)
@@ -330,7 +332,7 @@ func main() {
 		},
 	}
 	log.Logger = log.With().Caller().Logger()
-	rootCmd.Flags().StringVarP(&image, "image-name", "i", "", "[REGISTRY_HOST[:REGISTRY_PORT]/]REPOSITORY[:TAG]") //1
+	rootCmd.Flags().StringVarP(&image, "image-name", "i", "", "[REGISTRY_HOST[:REGISTRY_PORT]/]REPOSITORY[:TAG]") // 1
 	rootCmd.Flags().IntVarP(&max_second, "timeout", "t", 300, "timeout(unit:second)")
 	rootCmd.Flags().StringVarP(&console_url, "tensorsec-cloud-url", "c", "", "tensorsec-cloud-url")
 	rootCmd.Flags().StringVarP(&bufRegistry_url, "tensorsec-remote-cache", "r", "", "tensorsec scanner cache address")
@@ -338,7 +340,7 @@ func main() {
 	rootCmd.Flags().BoolVarP(&debug, "debug", "", false, "")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "s", false, "allow insecurity connections when use http")
 	if err := rootCmd.Execute(); err != nil {
-		//logging.GetLogger().Error().Err(err).Msg("Failed to startup")
+		// logging.GetLogger().Error().Err(err).Msg("Failed to startup")
 		log.Error().Err(err).Msg("Failed to startup")
 		os.Exit(1)
 	}

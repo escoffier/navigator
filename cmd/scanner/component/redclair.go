@@ -50,12 +50,12 @@ const (
 
 // 没找到Map的Const写法
 var constMapScore = map[string]model.ConstMapScore{
-	"Critical":   {MaxScore: 50, SingleScore: 25},
-	"High":       {MaxScore: 50, SingleScore: 20},
-	"Medium":     {MaxScore: 50, SingleScore: 15},
-	"Low":        {MaxScore: 50, SingleScore: 10},
-	"Negligible": {MaxScore: 50, SingleScore: 5},
-	"Unknown":    {MaxScore: 50, SingleScore: 5},
+	"Critical":   {MaxScore: 25, SingleScore: 25},
+	"High":       {MaxScore: 20, SingleScore: 20},
+	"Medium":     {MaxScore: 15, SingleScore: 15},
+	"Low":        {MaxScore: 10, SingleScore: 10},
+	"Negligible": {MaxScore: 5, SingleScore: 5},
+	"Unknown":    {MaxScore: 5, SingleScore: 5},
 	"Sensitive":  {MaxScore: 10, SingleScore: 5},
 }
 

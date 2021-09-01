@@ -46,6 +46,12 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 
 		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())
+		r.Get("/images/bases", api.RedirectToScanner())
+		r.Post("/images/bases", api.RedirectToScanner())
+		r.Delete("/images/bases/{imageID}", api.RedirectToScanner())
+		r.Get("/images/app/{imageID}/bases", api.RedirectToScanner())
+		r.Get("/images/base/{imageID}/apps", api.RedirectToScanner())
+
 		r.Get("/layers/{layerDigest}/info", api.RedirectToScanner())
 
 		r.Get("/vulns/detail/{name}", api.RedirectToScanner())
@@ -58,14 +64,19 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/register/registry", api.RedirectToScanner())
 
 		r.Get("/imagereject/overview", api.RedirectToScanner())
+		r.Get("/imagereject/reasons", api.RedirectToScanner())
 		r.Get("/imagereject/images", api.RedirectToScanner())
 		r.Get("/imagereject/whitelist", api.RedirectToScanner())
 		r.Post("/imagereject/whitelist", api.RedirectToScanner())
 		r.Delete("/imagereject/whitelist/{id}", api.RedirectToScanner())
-		r.Get("/imagereject/policy", api.RedirectToScanner())
-		r.Post("/imagereject/policy", api.RedirectToScanner())
-		r.Put("/imagereject/policy", api.RedirectToScanner())
-		r.Delete("/imagereject/policy/{id}", api.RedirectToScanner())
+
+		r.Get("/imagereject/policy/global", api.RedirectToScanner())
+		r.Put("/imagereject/policy/global", api.RedirectToScanner())
+		r.Post("/imagereject/policy/single", api.RedirectToScanner())
+		r.Get("/imagereject/policy/single", api.RedirectToScanner())
+		r.Put("/imagereject/policy/single/{id}", api.RedirectToScanner())
+		r.Delete("/imagereject/policy/single/{id}", api.RedirectToScanner())
+
 		r.Post("/imagereject/scanone/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/result/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
@@ -254,8 +265,8 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
 				strings.Replace(pre, "/api/openapi/scanner", "/api/v1", 1))
 		}
-		log.WithContext(api.ctx).Infof("newUrl", newUrl)
-		log.WithContext(api.ctx).Infof("scannerURL", api.scannerURL)
+		log.WithContext(api.ctx).Infof("newUrl:%s", newUrl)
+		log.WithContext(api.ctx).Infof("scannerURL:%s", api.scannerURL)
 
 		u, err := url.Parse(newUrl)
 		if nil != err {

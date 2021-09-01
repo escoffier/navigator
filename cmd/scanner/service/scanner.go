@@ -151,7 +151,7 @@ func NewScanner(
 
 	// Redis DB client
 	sa := strings.Split(redisOpts.Endpoint, ",")
-	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ //share data use db 0
+	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ // share data use db 0
 		MasterName:    "mymaster",
 		SentinelAddrs: sa,
 		Password:      redisOpts.Password,
@@ -162,7 +162,7 @@ func NewScanner(
 	}
 
 	// Redis DB1 clinet
-	redisClientOne, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ //image secure use db 1
+	redisClientOne, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ // image secure use db 1
 		MasterName:    "mymaster",
 		SentinelAddrs: sa,
 		Password:      redisOpts.Password,

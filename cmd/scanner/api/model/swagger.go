@@ -35,3 +35,5 @@ type ApiWithItem struct {
 	ApiVersion string      `json:"apiVersion"`
 	Data       interface{} `json:"data"`
 }
+type IDList struct {
+}

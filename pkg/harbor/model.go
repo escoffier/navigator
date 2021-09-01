@@ -132,12 +132,12 @@ func RedclairReportToHarborReport(redclairReport model.VulnerabilityReport) Harb
 		description := fmt.Sprintf("[%s] %s", redVuln.ID, redVuln.Description)
 		if redVuln.CVSS.CVSSv2Score != "" {
 			// keeping English version for posterity
-			// description = fmt.Sprintf("[CVSSv2] Score: %s (Base: %s) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, description)
+			// description = fmt.Sprintf("[CVSSv2] RiskScore: %s (Base: %s) | %s", redVuln.CVSSv2Score, redVuln.CVSSv2Vector, description)
 			description = fmt.Sprintf("[CVSSv2] 得分了: %s (基礎: %s) | %s", redVuln.CVSS.CVSSv2Score, redVuln.CVSS.CVSSv2Vector, description)
 		}
 		if redVuln.CVSS.CVSSv3Score != "" {
 			// keeping English version for posterity
-			// description = fmt.Sprintf("[CVSSv3] Score: %s, Exploitability Score: %s, Impact Score: %s (Base: %s) | %s",
+			// description = fmt.Sprintf("[CVSSv3] RiskScore: %s, Exploitability RiskScore: %s, Impact RiskScore: %s (Base: %s) | %s",
 			// 	redVuln.CVSSv3Score, redVuln.CVSSv3ExploitabilityScore, redVuln.CVSSv3ImpactScore, redVuln.CVSSv3Vector, description)
 			description = fmt.Sprintf("[CVSSv3] 得分了: %s, 可利用性得分: %s, 影響得分: %s (基礎: %s) | %s",
 				redVuln.CVSS.CVSSv3Score, redVuln.CVSS.CVSSv3ExploitabilityScore, redVuln.CVSS.CVSSv3ImpactScore, redVuln.CVSS.CVSSv3Vector, description)
