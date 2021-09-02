@@ -7,21 +7,18 @@ import (
 
 	"github.com/gofrs/uuid"
 	log "github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
 type RuleMetricsClient struct {
 	iptablesCmd iptablesType
-	db          *gorm.DB
 
 	lastNumBytesMap   map[uuid.UUID]int
 	lastNumPacketsMap map[uuid.UUID]int
 	hostName          string
 }
 
-func NewRuleMetricsClient(db *gorm.DB, hostName string) (*RuleMetricsClient, error) {
+func NewRuleMetricsClient(hostName string) (*RuleMetricsClient, error) {
 	rmc := RuleMetricsClient{
-		db:                db,
 		hostName:          hostName,
 		lastNumBytesMap:   make(map[uuid.UUID]int),
 		lastNumPacketsMap: make(map[uuid.UUID]int),

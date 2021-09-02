@@ -139,7 +139,7 @@ console:
     softVersion: v1.9
 
 cluster-manager:
-  enabled: false
+  enabled: true
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
@@ -339,6 +339,8 @@ holmes:
       user: postgres
       password: password
       name: postgres
+    multicluster:
+      consoleaddr: http://tensorsec-console:8889
   ebpf:
     enabled: false
   falco:

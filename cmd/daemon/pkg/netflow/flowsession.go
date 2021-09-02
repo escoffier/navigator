@@ -1,8 +1,8 @@
 package netflow
 
 import (
-	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"net"
 	"os"
 	"syscall"
@@ -11,7 +11,7 @@ import (
 	ct "github.com/florianl/go-conntrack"
 	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"golang.org/x/sys/unix"
 )
 
@@ -43,42 +43,46 @@ const (
 type FlowSession struct {
 	netlinkFd int
 	hostIP    string
-	pg        *PgDb
 	krs       *K8sResClient
+	url       string
+	ClusterId string
 }
 
-func NewFlowSession(k *K8sResClient, pg *PgDb) (*FlowSession, error) {
-	// err := conntrackAcctInit()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("Failed to enable conntrack accounting")
-	// }
+func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, error) {
 
 	fd, err := newConntrackHandle(NF_NETLINK_CONNTRACK_NEW)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get conntrack handle")
+		return nil, errors.Errorf("Failed to get conntrack handle")
 	}
 
 	myPodIP := os.Getenv("MY_POD_IP")
 	if myPodIP == "" {
-		return nil, fmt.Errorf("Pod IP (found=%s) is missing, set MY_POD_IP env using k8s Downward API", myPodIP)
+		return nil, errors.Errorf("Pod IP (found=%s) is missing, set MY_POD_IP env using k8s Downward API", myPodIP)
 	}
 
 	myHostIP := os.Getenv("MY_HOST_IP")
 	if myPodIP == "" {
-		return nil, fmt.Errorf("Host IP (found=%s) is missing, set MY_HOST_IP env using k8s Downward API", myPodIP)
+		return nil, errors.Errorf("Host IP (found=%s) is missing, set MY_HOST_IP env using k8s Downward API", myPodIP)
 	}
 
 	if myPodIP != myHostIP {
-		return nil, fmt.Errorf("Pod IP (found=%s) must equal Host IP (found=%s), check if hostNetwork is true", myPodIP, myHostIP)
+		return nil, errors.Errorf("Pod IP (found=%s) must equal Host IP (found=%s), check if hostNetwork is true", myPodIP, myHostIP)
 	}
 
-	log.Infof("host ip : %v", myHostIP)
+	consoleUrl := os.Getenv("CONSOLE_ADDR")
+	if consoleUrl == "" {
+		return nil, errors.Errorf("cluster's url is nil")
+	}
+
+	url := fmt.Sprintf("%s/internal/platform/networkTopo/topology", consoleUrl)
+	log.Infof("host ip : %v, clusterId : %s, url : %s.", myHostIP, clusterId, url)
 
 	fs := FlowSession{
 		netlinkFd: fd,
 		hostIP:    myHostIP,
-		pg:        pg,
-		krs:       k,
+		krs:       k8sClient,
+		ClusterId: clusterId,
+		url:       url,
 	}
 
 	return &fs, nil
@@ -150,10 +154,6 @@ func (fs *FlowSession) conntrackInitList() error {
 			continue
 		}
 
-		// if !fs.filterUnusedSession(*session.Origin.Src) || !fs.filterUnusedSession(*session.Origin.Dst) {
-		// 	continue
-		// }
-
 		// log.Infof("proto=[%2d] src=%v dst=%v sport=%v dport=%v   src=%v dst=%v sport=%v dport=%v",
 		// 	*session.Origin.Proto.Number, session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.SrcPort, *session.Origin.Proto.DstPort,
 		// 	session.Reply.Src, session.Reply.Dst, *session.Reply.Proto.SrcPort, *session.Reply.Proto.DstPort)
@@ -176,7 +176,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	}
 	//flag := 0
 	infos := fs.krs.K8sPods
-	netData := model.K8sNetToplgy{
+	netData := daemon.K8sNetResMap{
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -185,61 +185,49 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	src, err := infos.GetK8sResData(srcIp)
 	if err != nil {
 		return nil
-		//flag = 1
-		//netData.SrcRes.Name = srcIp
-		//netData.SrcRes.Kind = "External"
-		//netData.SrcRes.Namespace = "_external"
-	} else {
-		netData.SrcRes.Name = src.Name
-		netData.SrcRes.Kind = src.Kind
-		netData.SrcRes.Namespace = src.Namespace
 	}
-	//
+	//source resource
+	netData.SrcName = src.Name
+	netData.SrcKind = src.Kind
+	netData.SrcNamespace = src.Namespace
+	//destination resource
 	netData.DstPort = int(dport)
 	netData.Proto = fs.NetProtoConvert(proto)
 	netData.Status = 1
-	netData.SrcRes.Cluster = "default"
-	netData.DstRes.Cluster = "default"
+	netData.SrcCluster = fs.ClusterId
+	netData.DstCluster = fs.ClusterId
 
 	dstIp := DstIP.String()
 	dst, err := infos.GetK8sResData(dstIp)
 	if err != nil {
 		return nil
-		//if flag == 1 {
-		//	return nil
-		//}
-		//
-		//netData.DstRes.Name = dstIp
-		//netData.DstRes.Kind = "External"
-		//netData.DstRes.Namespace = "_external"
-		//netData.CreateUuid()
-		//return fs.pg.SaveNetTopology(context.Background(), &netData)
 	}
 
 	if dst.Kind != "Service" {
-		netData.DstRes.Name = dst.Name
-		netData.DstRes.Kind = dst.Kind
-		netData.DstRes.Namespace = dst.Namespace
+		netData.DstName = dst.Name
+		netData.DstKind = dst.Kind
+		netData.DstNamespace = dst.Namespace
 		netData.CreateUuid()
 		//log.Infof("kind != service, net : %v", netData)
-		return fs.pg.SaveNetTopology(context.Background(), &netData)
+		return PostK8sResData(fs.url, &netData)
 	}
 
 	owners, tport := fs.krs.GetPodControllerFromSvc(dst.Namespace, dst.Name, int32(dport))
 	for _, owner := range owners {
 		netData.DstPort = int(tport)
-		netData.DstRes.Name = owner.Name
-		netData.DstRes.Kind = owner.Kind
-		netData.DstRes.Namespace = dst.Namespace
+		netData.DstName = owner.Name
+		netData.DstKind = owner.Kind
+		netData.DstNamespace = dst.Namespace
 		netData.CreateUuid()
 		//log.Infof("kind == service, net : %v", netData)
-		return fs.pg.SaveNetTopology(context.Background(), &netData)
+		return PostK8sResData(fs.url, &netData)
 	}
 
 	return nil
 }
 
 func (fs *FlowSession) CronCheckSession(sig chan struct{}) {
+
 	for {
 		select {
 		case <-sig:
@@ -256,17 +244,10 @@ func (fs *FlowSession) CronCheckSession(sig chan struct{}) {
 			//time
 			now := time.Now()
 			m, _ := time.ParseDuration("-30m")
-			//print need delete data
-			// rets, err := fs.pg.GetTimeoutK8sNetData(context.Background(), now.Add(m))
-			// if err == nil {
-			// 	for _, ret := range rets {
-			// 		log.Infof("need delet data : %v", ret)
-			// 	}
-			// }
-			//delete k8s net timeout data
-			err := fs.pg.UpdateStatus(context.Background(), now.Add(m), 0)
+			//update k8s resource data status
+			err := UpdateK8sResData(fs.url, now.Add(m).Unix(), 0)
 			if err != nil {
-				log.Errorf("delete timeout k8s net data failed. %v.", err)
+				log.Errorf("update k8s net data failed. %v.", err)
 			}
 		}
 		time.Sleep(30 * time.Minute)
@@ -286,7 +267,10 @@ func (fs *FlowSession) onFlowCallback(header syscall.NlMsghdr, flow *netlink.Con
 	/*message type*/
 	switch nlType {
 	case IPCTNL_MSG_CT_NEW:
-		return fs.ProcSessionData(&iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort, iptuple.Protocol)
+		err := fs.ProcSessionData(&iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort, iptuple.Protocol)
+		if err != nil {
+			log.Errorf("process new session error, %v.", err)
+		}
 
 	case IPCTNL_MSG_CT_DELETE:
 
