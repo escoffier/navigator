@@ -7,7 +7,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -23,7 +23,7 @@ type K8sResClient struct {
 
 func NewK8sResourceSyncer() (*K8sResClient, error) {
 	var k8sPods K8sResInfos
-	k8sPods.ResInfos = make(map[string]*model.K8sResData)
+	k8sPods.ResInfos = make(map[string]*daemon.K8sResData)
 
 	config, err := rest.InClusterConfig()
 	if err != nil {

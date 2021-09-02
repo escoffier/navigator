@@ -28,6 +28,9 @@ tensorsecDaemon:
     user: postgres
     password: password
     name: postgres
+  multicluster:
+    clusterinfo: http://tensorsec-cluster-manager:9443
+    consoleaddr: http://tensorsec-console:8889
   resources:
     requests:
       memory: "128Mi"

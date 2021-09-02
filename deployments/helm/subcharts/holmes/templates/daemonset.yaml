@@ -61,16 +61,14 @@ spec:
           securityContext:
             privileged: true
             runAsUser: 0
-          args: [
-            "--dbHost={{ .Values.tensorsecDaemon.db.host }}",
-            "--dbUser={{ .Values.tensorsecDaemon.db.user }}",
-            "--dbPassword={{ .Values.tensorsecDaemon.db.password }}",
-            "--dbName={{ .Values.tensorsecDaemon.db.name }}",
-            "--dbPort={{ .Values.tensorsecDaemon.db.port }}",
-          ]
+          args: []
           resources:
 {{ toYaml .Values.tensorsecDaemon.resources | trim | indent 12 }}
           env:
+            - name: CONSOLE_ADDR
+              value: {{ .Values.tensorsecDaemon.multicluster.consoleaddr }}
+            - name: CLUSTER_ADDR
+              value: {{ .Values.tensorsecDaemon.multicluster.clusterinfo }}
             - name: MY_POD_IP
               valueFrom:
                 fieldRef:

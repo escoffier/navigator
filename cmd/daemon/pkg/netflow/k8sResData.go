@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 )
 
 type OwnerRef struct {
@@ -15,7 +15,7 @@ type OwnerRef struct {
 
 type K8sResInfos struct {
 	mutex    sync.RWMutex
-	ResInfos map[string]*model.K8sResData
+	ResInfos map[string]*daemon.K8sResData
 }
 
 func (kri *K8sResInfos) SaveK8sResData(ip, name, kind, namespace, service string) {
@@ -31,7 +31,7 @@ func (kri *K8sResInfos) SaveK8sResData(ip, name, kind, namespace, service string
 		return
 	}
 
-	var resData model.K8sResData
+	var resData daemon.K8sResData
 	resData.Cluster = service
 	resData.Name = name
 	resData.Kind = kind
@@ -50,7 +50,7 @@ func (kri *K8sResInfos) DeleteK8sResData(ip string) {
 	delete(kri.ResInfos, ip)
 }
 
-func (kri *K8sResInfos) GetK8sResData(ip string) (*model.K8sResData, error) {
+func (kri *K8sResInfos) GetK8sResData(ip string) (*daemon.K8sResData, error) {
 	if len(ip) == 0 {
 		return nil, nil
 	}
@@ -79,7 +79,7 @@ func (kri *K8sResInfos) UpdateK8sResDataWithEndpoints(ip, name, kind, namespace,
 		value.Name = name
 		value.Kind = "Service"
 	} else {
-		var resData model.K8sResData
+		var resData daemon.K8sResData
 		resData.Name = name
 		if kind == "endpoint" {
 			kind = "Service"
@@ -99,7 +99,7 @@ func (kri *K8sResInfos) UpdateK8sResData(ip, name, kind, namespace, service stri
 		return
 	}
 
-	var resData model.K8sResData
+	var resData daemon.K8sResData
 	resData.Name = name
 	resData.Kind = kind
 	resData.Namespace = namespace

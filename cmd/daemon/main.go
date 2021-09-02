@@ -3,32 +3,50 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/pkg/errors"
 	"os"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/ruleMetrics"
 )
 
-func NetInit(dbHost, dbUser, dbPwd, dbName, dbPort string) error {
-	db, err := netflow.NewConnPgDB(dbHost, dbUser, dbPwd, dbName, dbPort)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize db connection, %v", err)
+func GetClusterId() (string, error) {
+	clusterAddr := os.Getenv("CLUSTER_ADDR")
+	if clusterAddr == "" {
+		return "", errors.Errorf("get cluster address failed.")
 	}
 
+	clusterUrl := fmt.Sprintf("%s/internal/cluster", clusterAddr)
+
+	for i := 0; i < 20; i++ {
+		clusterId, err := netflow.GetK8sClusterInfo(clusterUrl)
+		if err == nil && len(clusterId) > 0 {
+			return clusterId, nil
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	return "", errors.Errorf("get k8s cluster id failed with timeout")
+}
+
+func NetInit() error {
+	//get node name
 	hostName := os.Getenv("MY_NODE_NAME")
 	if hostName == "" {
 		hostName = "Unknown"
 	}
-
-	err = db.InitMigration()
+	//get cluster id
+	clusterId, err := GetClusterId()
 	if err != nil {
-		return fmt.Errorf("Failed to make initial migrations, %v", err)
+		return err
 	}
 
-	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(db.Db, hostName)
+	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(hostName)
 	if err != nil {
-		log.Errorf("Failed to initialize rule metrics client: %w", err)
+		log.Warnf("Failed to initialize rule metrics client: %w", err)
 	} else {
 		ruleMetricsClient.Start()
 	}
@@ -43,7 +61,7 @@ func NetInit(dbHost, dbUser, dbPwd, dbName, dbPort string) error {
 		return fmt.Errorf("listen k8s event failed, %v.", err)
 	}
 
-	flow, err := netflow.NewFlowSession(k8sResSync, db)
+	flow, err := netflow.NewFlowSession(k8sResSync, clusterId)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
@@ -59,14 +77,7 @@ func NetInit(dbHost, dbUser, dbPwd, dbName, dbPort string) error {
 
 func main() {
 
-	debug := flag.Bool("debug",
-		false,
-		"Run in debug mode with extended logging")
-	dbHost := flag.String("dbHost", "tensorsec-postgresql", "PostgreSQL host")
-	dbUser := flag.String("dbUser", "postgres", "PostgreSQL username")
-	dbPwd := flag.String("dbPassword", "password", "PostgreSQL password")
-	dbName := flag.String("dbName", "postgres", "PostgreSQL database name")
-	dbPort := flag.String("dbPort", "5432", "PostgreSQL port")
+	debug := flag.Bool("debug", false, "Run in debug mode with extended logging")
 
 	flag.Parse()
 
@@ -76,10 +87,7 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
-	//print log
-	// log.Infof("host = %s, user = %s, pwd = %s, name = %s, port = %s, my-ip = %v.", *dbHost, *dbUser, *dbPwd, *dbName, *dbPort, os.Getenv("MY_POD_IP"))
-
-	err := NetInit(*dbHost, *dbUser, *dbPwd, *dbName, *dbPort)
+	err := NetInit()
 	if err != nil {
 		log.Errorf("net init failed, %v.", err)
 	}

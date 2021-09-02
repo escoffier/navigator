@@ -16,9 +16,15 @@ global:
     ## and the values of them must be opposite
     isMasterCluster: &isMasterCluster true
     isMemberCluster: &isMemberCluster false
-    masterAddr: &masterAddr http://172.21.0.3:30088
-    clusterName: &clusterName tensorsec-member-01
-    apiServerAddr: &apiServerAddr 172.21.0.9:6443
+    configs:
+      ## console address, use short servicename for MainCluster and exposed address for MemberCluster
+      masterAddr: &masterAddr http://tensorsec-console:8889
+      ## Unique cluster name, use "default" for MainCluster and other name for MemberCluster
+      clusterName: &clusterName default
+      ## ApiServer address 
+      apiServerAddr: &apiServerAddr 172.21.0.3:6443
+      
+      
 
 
 
@@ -138,12 +144,14 @@ drift-prevention:
     tag: *tensorsecVerison
 
 holmes:
-  enabled: *isMasterCluster
+  enabled: true
   image:
     tag: *tensorsecVerison
   tensorsecDaemon:
     image:
       tag: *tensorsecVerison
+    multicluster:
+      consoleaddr: *masterAddr   
 
 image-validator:
   enabled: false
@@ -157,7 +165,7 @@ webhook:
     tag: *tensorsecVerison
 
 cluster-manager:
-  enabled: *isMemberCluster
+  enabled: true
   image:
     tag: *tensorsecVerison
   args:

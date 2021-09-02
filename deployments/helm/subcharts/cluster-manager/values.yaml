@@ -17,7 +17,11 @@ resources:
     cpu: 100m
     memory: 128Mi
 
+service:
+  port: 9443
+  targetPort: 9443
+
 # args:
 #   masterAddr: 
 #   clusterName: 
-#   apiServerAddr:
+#   apiServerAddr: 
