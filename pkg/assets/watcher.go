@@ -22,7 +22,7 @@ import (
 
 const (
 	defaultStartWatchTimeout = 10 * time.Second
-	resyncInterval           = 12 * time.Hour
+	resyncInterval           = 6 * time.Hour
 )
 
 type AssetsAction uint8
@@ -240,7 +240,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		var tsResEventsChan chan resourceEvent
 		_, toWatchResources := toWatchedTypes[TensorResources2Watch]
 		if toWatchResources {
-			tsResEventsChan = make(chan resourceEvent, 50)
+			tsResEventsChan = make(chan resourceEvent, 500)
 		}
 
 		informerFactory := informers.NewSharedInformerFactory(newClient, resyncInterval)
