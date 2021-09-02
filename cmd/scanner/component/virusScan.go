@@ -959,7 +959,7 @@ func (virusScan *VirusScan) webShellCall(ctx context.Context, reader io.Reader) 
 
 // webshell文件后缀列表
 var extSlice = []string{
-	".php", ".php5", ".php4", ".asp", ".aspx", ".asmx", ".ashx", ".jsp ",
+	".php", ".php5", ".php4", ".asp", ".aspx", ".asmx", ".ashx", ".jsp",
 	".jspa", ".jspx", ".jspf", ".cer", ".htaccess",
 }
 
