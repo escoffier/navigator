@@ -9,7 +9,7 @@ variables:
 
 workflow:
   rules:
-    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^master/'
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^master/ && $CI_MERGE_REQUEST_SOURCES_BRANCH_NAME != /^root-master-patch.*/'
       when: always
 
 stages:
