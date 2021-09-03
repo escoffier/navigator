@@ -157,6 +157,13 @@ func sendRulesToEventCenter(rulesData []byte) error {
 			}
 		}
 
+		rule.CustomKV = append(rule.CustomKV, &pb.MultiLanguageKV{
+			KVHash: map[string]*pb.KV{
+				string(lang.LanguageEN): {Key: EnHthreatsKey, Value: getHthreatsValue(item.Hthreats, lang.LanguageEN)},
+				string(lang.LanguageZH): {Key: ZhHthreatsKey, Value: getHthreatsValue(item.Hthreats, lang.LanguageZH)},
+			},
+		})
+
 		rules = append(rules, rule)
 	}
 
@@ -168,6 +175,26 @@ func sendRulesToEventCenter(rulesData []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return cli.ResetCategoryRules(ctx, module, category, rules)
+}
+
+const (
+	EnHthreatsKey = "High-risk threat"
+	ZhHthreatsKey = "是否需要紧急处理"
+)
+
+func getHthreatsValue(hthreats uint8, l lang.LanguageType) string {
+	switch l {
+	case lang.LanguageZH:
+		if hthreats == 0 {
+			return "否"
+		}
+		return "是"
+	default:
+		if hthreats == 0 {
+			return "No"
+		}
+		return "Yes"
+	}
 }
 
 func updateLoop(token, url string, dataVersion, settingVersion int) {

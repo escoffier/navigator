@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -137,7 +139,25 @@ func (api *api) getATTCKRuleList() http.HandlerFunc {
 			query = ""
 		}
 
-		total, ruleList, err := service.GetRuleList(ctx, int(offset), int(limit), query, string(lang.Language(ctx)))
+		var severityFilter, hthreatsFilter map[uint8]struct{}
+		severityFilterStr, err := param.QueryString(r, "severityFilter")
+		if err == nil && len(severityFilterStr) > 0 {
+			severityFilter = parseFilter(severityFilterStr)
+		}
+
+		hthreatsFilterStr, err := param.QueryString(r, "hthreatsFilter")
+		if err == nil && len(hthreatsFilterStr) > 0 {
+			hthreatsFilter = parseFilter(hthreatsFilterStr)
+		}
+
+		total, ruleList, err := service.GetRuleList(ctx, &config.GetRuleListArg{
+			Offset:         int(offset),
+			Limit:          int(limit),
+			SeverityFilter: severityFilter,
+			HthreatsFilter: hthreatsFilter,
+			Query:          query,
+			Lang:           string(lang.Language(ctx)),
+		})
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -148,6 +168,18 @@ func (api *api) getATTCKRuleList() http.HandlerFunc {
 			response.WithTotalItems(total),
 			response.WithApiVersion(versionAPIVersion))
 	}
+}
+
+func parseFilter(filterStr string) map[uint8]struct{} {
+	filter := make(map[uint8]struct{})
+	items := strings.Split(filterStr, ",")
+	for _, str := range items {
+		value, _err := strconv.Atoi(str)
+		if _err == nil {
+			filter[uint8(value)] = struct{}{}
+		}
+	}
+	return filter
 }
 
 func (api *api) updateRuleSwitch() http.HandlerFunc {

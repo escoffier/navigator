@@ -48,6 +48,8 @@ type ATTCKRuleDisplay struct {
 	Type        string            `json:"type"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
+	Severity    uint8             `json:"severity"`
+	Hthreats    uint8             `json:"hthreats"`
 	Enabled     bool              `json:"enabled"`
 	Adapter     map[string]string `json:"adapter"`
 }
@@ -63,6 +65,7 @@ type LatestATTCKRuleInfo struct {
 
 type RuleFromYaml struct {
 	Rule       string         `yaml:"rule"`
+	Hthreats   uint8          `yaml:"hthreats"`
 	Priority   string         `yaml:"priority"`
 	Desc       string         `yaml:"desc"`
 	Output     string         `yaml:"output"`

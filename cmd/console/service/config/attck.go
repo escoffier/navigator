@@ -38,6 +38,7 @@ type ruleItem struct {
 	ruleType    string
 	description string
 	severity    uint8
+	hthreats    uint8
 	adapter     map[string]map[string]string
 	disabled    bool
 }
@@ -110,6 +111,7 @@ func parseItems(data []byte) (version string, rules map[string]*ruleItem, err er
 			name:        item.Rule,
 			description: item.Desc,
 			severity:    model.Str2SeverityNum(item.Priority),
+			hthreats:    item.Hthreats,
 			ruleType:    ruleType,
 			adapter:     tsAdapter,
 		}
@@ -251,16 +253,28 @@ func (h *ATTCKHandler) updateRules(rules map[string]*ruleItem) {
 	})
 }
 
-func (h *ATTCKHandler) GetRuleList(_ context.Context, offset, limit int, query, lang string) (int64, []*model.ATTCKRuleDisplay, error) {
+type GetRuleListArg struct {
+	Offset         int
+	Limit          int
+	SeverityFilter map[uint8]struct{}
+	HthreatsFilter map[uint8]struct{}
+	Query          string
+	Lang           string
+}
+
+func (h *ATTCKHandler) GetRuleList(_ context.Context, arg *GetRuleListArg) (int64, []*model.ATTCKRuleDisplay, error) {
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
 	var items []*ruleItem
 	var total int64
+	var offset = arg.Offset
 	for _, rule := range h.sortedItems {
-		if query == "" || checkRuleMatchQuery(rule, query, lang) {
+		if (arg.Query == "" || checkRuleMatchQuery(rule, arg.Query, arg.Lang)) &&
+			(len(arg.SeverityFilter) == 0 || checkSeverityFilter(rule, arg.SeverityFilter)) &&
+			(len(arg.HthreatsFilter) == 0 || checkHthreatsFilter(rule, arg.HthreatsFilter)) {
 			offset--
 			total++
-			if offset < 0 && len(items) < limit {
+			if offset < 0 && len(items) < arg.Limit {
 				items = append(items, rule)
 			}
 		}
@@ -268,7 +282,7 @@ func (h *ATTCKHandler) GetRuleList(_ context.Context, offset, limit int, query, 
 
 	var result = make([]*model.ATTCKRuleDisplay, len(items))
 	for i := range items {
-		result[i] = convertRuleItem(items[i], lang)
+		result[i] = convertRuleItem(items[i], arg.Lang)
 	}
 
 	return total, result, nil
@@ -279,6 +293,8 @@ func convertRuleItem(item *ruleItem, lang string) *model.ATTCKRuleDisplay {
 		Name:        item.name,
 		Type:        item.ruleType,
 		Description: item.description,
+		Severity:    item.severity,
+		Hthreats:    item.hthreats,
 		Enabled:     !item.disabled,
 		Adapter:     item.adapter[lang],
 	}
@@ -354,6 +370,16 @@ func checkRuleMatchQuery(rule *ruleItem, query, lang string) bool {
 	}
 
 	return strings.Contains(name, query) || strings.Contains(ruleType, query) || strings.Contains(description, query)
+}
+
+func checkSeverityFilter(rule *ruleItem, filter map[uint8]struct{}) bool {
+	_, ok := filter[rule.severity]
+	return ok
+}
+
+func checkHthreatsFilter(rule *ruleItem, filter map[uint8]struct{}) bool {
+	_, ok := filter[rule.hthreats]
+	return ok
 }
 
 func (h *ATTCKHandler) GetATTCKVersion(_ context.Context) (*model.ATTCKConfVersion, error) {

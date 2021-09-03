@@ -21,7 +21,9 @@ func TestParseItems(t *testing.T) {
 
 	t.Log(version)
 	for _, rule := range rules {
-		t.Log("name:", rule.name, "description:", rule.description, "ruleType:", rule.ruleType, "adapter:", rule.adapter)
+		t.Log("name:", rule.name, "description:", rule.description,
+			"ruleType:", rule.ruleType, "adapter:", rule.adapter,
+			"severity:", rule.severity, "hthreats:", rule.hthreats)
 	}
 
 	for i := 0; i < len(data); i++ {
