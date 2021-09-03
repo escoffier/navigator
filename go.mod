@@ -96,7 +96,7 @@ require (
 	k8s.io/apiserver v0.17.4
 	k8s.io/client-go v0.17.17
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
-	//scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4
+	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4
 	sigs.k8s.io/controller-runtime v0.3.0
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
