@@ -9,7 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-func TestParse(t *testing.T)  {
+func TestParse(t *testing.T) {
 	data, err := ioutil.ReadFile("../../../configs/holmes/rules/holmes_rules.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -44,10 +44,10 @@ func TestParse(t *testing.T)  {
 		}
 
 		if (rule.Suggestion["zh"].Value != "删除Pod或者网络隔离Pod，使用免疫防御训练与应用" && rule.Suggestion["zh"].Value != "删除Pod或者网络隔离Pod") ||
-			(rule.Suggestion["en"].Value != "Delete the pod or isolate the pod for the network." && rule.Suggestion["en"].Value != "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply."){
+			(rule.Suggestion["en"].Value != "Delete the pod or isolate the pod for the network." && rule.Suggestion["en"].Value != "Delete the pod or isolate the pod for the network. Use Immune Defense to train and apply.") {
 			t.Fatal("unexpected value")
 		}
 	}
 
-	t.Log("total rules:",counter)
+	t.Log("total rules:", counter)
 }
