@@ -173,25 +173,6 @@ spec:
             {{- if .Values.extraVolumeMounts }}
 {{ toYaml .Values.extraVolumeMounts | indent 12 }}
             {{- end }}
-      {{- if (or .Values.extraInitContainers .Values.tensorsecDaemon.pgListerner.enabled) }}
-      initContainers:
-      {{- if .Values.tensorsecDaemon.pgListerner.enabled }}
-      - name: "postgre-listener"
-        image: {{ include "daemon.pgListerner.image" . }}
-        imagePullPolicy: IfNotPresent
-        command: ["sh", "-c", "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"]
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "128Mi"
-          limits:
-            cpu: "50m"
-            memory: "128Mi"
-      {{- end }}
-      {{- if .Values.extraInitContainers }}
-{{ toYaml .Values.extraInitContainers | indent 12 }}
-      {{- end }}
-      {{- end }}
       volumes:
         {{- if .Values.docker.enabled }}
         - name: docker-socket
