@@ -1,3 +1,4 @@
+{{- if .Values.global.multiCluster.isMasterCluster -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -36,3 +37,4 @@ data:
           secret:
             defaultmode: 420
             secretname: "{{ .Values.presets.volumes.caSecretName }}"
+{{- end -}}

@@ -97,6 +97,23 @@ func Test_clusterManager_postClusterInfo1(t *testing.T) {
 				resyncPeriod: 0,
 			},
 		},
+		{
+			name: "test-key-1",
+			fields: fields{
+				masterAddr:    "https://console-test-cn.tensorsecurity.cn",
+				CusterID:      "123456",
+				Name:          "fake cluster",
+				Token:         "123456",
+				CaData:        "333333333",
+				apiServerAddr: "192.168.254.123",
+				description:   "fake cluster",
+				httpClient:    http.DefaultClient,
+				tlsClient:     false,
+				client:        nil,
+				nodeInformer:  nil,
+				resyncPeriod:  0,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

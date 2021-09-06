@@ -443,11 +443,6 @@ func (c *Console) Run() func() {
 		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
 	}
 
-	err = addDefaultClusterToPG(ctx)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
-	}
-
 	clients := getAllKubeClient(ctx)
 	k8s.WatchKubeResource(ctx, clients, c.postgresDB, c.scannerURL)
 
