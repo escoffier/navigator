@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	batchV1 "k8s.io/api/batch/v1"
 	coreV1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 
@@ -43,7 +44,7 @@ func (s *Service) RunGC(ctx context.Context, dataType string, ttl int) (task *mo
 		return nil, err
 	}
 
-	err = s.launchK8sJob(kubeClient, t, task.Hash, ttl)
+	err = s.launchK8sJob(ctx, kubeClient, t, task.Hash, ttl)
 	if err != nil {
 		if _err := s.taskManager.UpdateTaskStatus(ctx, task.Hash, model.GCFailed); _err != nil {
 			logging.GetLogger().Error().Msgf("UpdateTaskStatus fail", zap.Error(err))
@@ -54,7 +55,7 @@ func (s *Service) RunGC(ctx context.Context, dataType string, ttl int) (task *mo
 	return task, nil
 }
 
-func (s *Service) launchK8sJob(client *kubernetes.Clientset, taskType def.GCTaskType, taskID string, ttl int) error {
+func (s *Service) launchK8sJob(ctx context.Context, client *kubernetes.Clientset, taskType def.GCTaskType, taskID string, ttl int) error {
 	jobObj, err := s.loadJobTemplate(taskType)
 	if err != nil {
 		return fmt.Errorf("loadJobTemplate fail, err:%w", err)
@@ -64,7 +65,7 @@ func (s *Service) launchK8sJob(client *kubernetes.Clientset, taskType def.GCTask
 		return fmt.Errorf("completeJobInfo fail, err:%w", err)
 	}
 
-	_, err = client.BatchV1().Jobs(getNamespace()).Create(jobObj)
+	_, err = client.BatchV1().Jobs(getNamespace()).Create(ctx, jobObj, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("create job fail, err:%w", err)
 	}

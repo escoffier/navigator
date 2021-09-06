@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "secProfilesManager.fullname" . }}-daemon
+  labels:
+    app: {{ include "secProfilesManager.fullname" . }}-daemon
+    chart: {{ include "secProfilesManager.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "secProfilesManager.fullname" . }}-daemon
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      name: {{ template "secProfilesManager.fullname" . }}-daemon
+      labels:
+        app: {{ include "secProfilesManager.fullname" . }}-daemon
+        chart: {{ include "secProfilesManager.chart" . }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+    spec:
+      serviceAccountName: {{ template "secProfilesManager.serviceAccount" . }}-daemon
+      restartPolicy: Always
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: {{ template "secProfilesManager.fullname" . }}-audit
+        image: {{ include "secProfilesAudit.image" . }}
+        imagePullPolicy: {{ .Values.audit.image.pullPolicy }}
+        env:
+          - name: EVENT_GRPC_URL
+            value: {{ .Values.eventcenter.eventGrpcUrl }}
+          - name: EVENT_GRPC_CERT_PATH
+            value: /auth/server/tls.crt
+          - name: EVENT_GRPC_CERT_SERVER_NAME
+            value: {{ .Values.eventcenter.eventGrpcCertServerName }}
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+        - name: sys
+          mountPath: /sys
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - mountPath: /auth/server
+          name: server-cert
+          readOnly: true
+        resources:
+{{ toYaml .Values.audit.resources | indent 10 }}
+      - name: {{ template "secProfilesManager.fullname" . }}-loader
+        image: {{ include "secProfilesLoader.image" . }}
+        imagePullPolicy: {{ .Values.loader.image.pullPolicy }}
+        env:
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: SEC_PROFILES_CONTAINER_CONFIGMAP
+            value: {{ template "secProfilesManager.fullname" . }}-container
+        securityContext:
+          privileged: true
+        volumeMounts: 
+        - name: sys
+          mountPath: /sys
+          readOnly: true
+        - name: apparmor-includes
+          mountPath: /etc/apparmor.d
+        - name: var
+          mountPath: /var
+        resources:
+{{ toYaml .Values.loader.resources | indent 10 }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      hostPID: true
+      volumes:
+      - name: var
+        hostPath:
+          path: "/var"
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: apparmor-includes
+        hostPath:
+          path: /etc/apparmor.d
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: server-cert
+        secret:
+          defaultMode: 400
+          secretName: eventcenter-tls-server-cert-secret

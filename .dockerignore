@@ -1,7 +1,7 @@
 build/
 # cmd/
 # configs/
-deployments/
+# deployments/
 # pkg/
 # dist/
 .git/

@@ -71,6 +71,8 @@ spec:
           "--harbor-username={{ .Values.harbor.harborUsername }}",
           "--harbor-url={{ .Values.harbor.harborURL }}",
           "--harbor-skiptlsverify", # Insecure
+          "--security-profiles-host=tensorsec-sec-prof-man",
+          "--security-profiles-port=8887",
           "-v"]
 
         volumeMounts:

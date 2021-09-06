@@ -3,7 +3,7 @@
 sudo ./webhook-create-signed-cert.sh \
 --service tensorsec-image-validator \
 --secret tensorsec-webhook-certs \
---namespace tensorsec-test-cn
+--namespace tensorsec
 
 sudo cat validatingwebhook-manual.yaml | \
 ./webhook-patch-ca-bundle.sh > \

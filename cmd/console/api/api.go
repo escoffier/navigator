@@ -29,17 +29,18 @@ import (
 )
 
 type api struct {
-	ctx          context.Context
-	userCache    *cache.Cache
-	tokenAuth    *jwtauth.JWTAuth
-	mongodb      *mongotools.DatabaseWrapper
-	postgresDB   *rdbtools.GormWrapper
-	microsegURL  string
-	scannerURL   string
-	redisClient  *redis.Client
-	harborClient *harbor.HarborRESTClient
-	emailOpts    *flag.EmailOpts
-	ecCli        pb.EventsCenterBizServiceClient
+	ctx               context.Context
+	userCache         *cache.Cache
+	tokenAuth         *jwtauth.JWTAuth
+	mongodb           *mongotools.DatabaseWrapper
+	postgresDB        *rdbtools.GormWrapper
+	microsegURL       string
+	scannerURL        string
+	secProfileCoreURL string
+	redisClient       *redis.Client
+	harborClient      *harbor.HarborRESTClient
+	emailOpts         *flag.EmailOpts
+	ecCli             pb.EventsCenterBizServiceClient
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool           int32
@@ -55,6 +56,7 @@ func newAPI(
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
 	scannerURL string,
+	secProfileCoreURL string,
 	microsegURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
@@ -68,6 +70,7 @@ func newAPI(
 		mongodb:                     mongodb,
 		postgresDB:                  postgresDB,
 		scannerURL:                  scannerURL,
+		secProfileCoreURL:           secProfileCoreURL,
 		microsegURL:                 microsegURL,
 		redisClient:                 redisClient,
 		harborClient:                harborClient,

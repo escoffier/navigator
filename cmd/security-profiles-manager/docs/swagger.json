@@ -1,0 +1,1292 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "This is the Security Profiles Manager",
+        "title": "Security Profiles Manager API·",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/v1/config/mode": {
+            "get": {
+                "description": "List security modes",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List security modes",
+                "operationId": "v1-security-mode-list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/config/resourceUpdateActions": {
+            "get": {
+                "description": "List resource update actions",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List resource update actions",
+                "operationId": "v1-resource-update-actions-list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/config/trainingStartWhitelistOption": {
+            "get": {
+                "description": "List training start whitelist options",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List training start whitelist options",
+                "operationId": "v1-training-start-whitelist-options-list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/": {
+            "get": {
+                "description": "List security policies",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List security policies",
+                "operationId": "v1-policy-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "search",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "sortOrder",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "sortBy",
+                        "name": "sortBy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.SecurityPolicy"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create security policy",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Create security policy",
+                "operationId": "v1-policy-create",
+                "parameters": [
+                    {
+                        "description": "name",
+                        "name": "name",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "description",
+                        "name": "description",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy//{policyID}/{resourceID}/attach": {
+            "post": {
+                "description": "Attach resource to policy",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Attach resource to policy",
+                "operationId": "v1-policy-resource-attach",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "resourceID",
+                        "name": "resourceID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}": {
+            "get": {
+                "description": "Get security policy",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get security policy",
+                "operationId": "v1-policy-get",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update security policy",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update security policy",
+                "operationId": "v1-policy-update",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "enabled",
+                        "name": "name",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "description",
+                        "name": "description",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "resourceImageChangeAction",
+                        "name": "resourceImageChangeAction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete security policy",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Delete security policy",
+                "operationId": "v1-policy-delete",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        "/api/v1/policy/{policyID}/mode": {
+            "post": {
+                "description": "Change policy mode",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Change policy mode",
+                "operationId": "v1-policy-set-mode",
+                "parameters": [
+                    {
+                        "description": "mode",
+                        "name": "mode",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/status": {
+            "post": {
+                "description": "Change policy status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Change policy status",
+                "operationId": "v1-policy-set-status",
+                "parameters": [
+                    {
+                        "description": "enabled",
+                        "name": "enabled",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}": {
+            "put": {
+                "description": "Update security policy",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update security policy",
+                "operationId": "v1-policy-update",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "enabled",
+                        "name": "enabled",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "timeout",
+                        "name": "timeout",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "trainingStartWhitelistOption",
+                        "name": "trainingStartWhitelistOption",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}/data": {
+            "get": {
+                "description": "List security policy profile data",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "List security policy profile data",
+                "operationId": "v1-policy-profile-data-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update policy resource profile",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update policy resource profile",
+                "operationId": "v1-policy-profile-update",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "addSeccompProfileData",
+                        "name": "addSeccompProfileData",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.SeccompProfileData"
+                            }
+                        }
+                    },
+                    {
+                        "description": "addApparmorProfileData",
+                        "name": "addApparmorProfileData",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.ApparmorProfileData"
+                            }
+                        }
+                    },
+                    {
+                        "description": "addCommandWhitelistProfileData",
+                        "name": "addCommandWhitelistProfileData",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.CommandWhitelistProfileData"
+                            }
+                        }
+                    },
+                    {
+                        "description": "removeSeccompProfileData",
+                        "name": "removeSeccompProfileData",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.SeccompProfileData"
+                            }
+                        }
+                    },
+                    {
+                        "description": "removeApparmorProfileData",
+                        "name": "removeApparmorProfileData",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.ApparmorProfileData"
+                            }
+                        }
+                    },
+                    {
+                        "description": "removeCommandWhitelistProfileData",
+                        "name": "removeCommandWhitelistProfileData",
+                        "in": "body",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.CommandWhitelistProfileData"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}/train/abort": {
+            "post": {
+                "description": "Abort profile training",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Abort profile training",
+                "operationId": "v1-policy-profile-train-abort",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}/train/resume": {
+            "post": {
+                "description": "Resume profile training",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Resume profile training",
+                "operationId": "v1-policy-profile-train-resume",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}/train/start": {
+            "post": {
+                "description": "Start profile training",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Start profile training",
+                "operationId": "v1-policy-profile-train-start",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}/train/stop": {
+            "post": {
+                "description": "Stop profile training",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Stop profile training",
+                "operationId": "v1-policy-profile-train-stop",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{profileKind}/train/suspend": {
+            "post": {
+                "description": "Suspend profile training",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Suspend profile training",
+                "operationId": "v1-policy-profile-train-suspend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "profileKind",
+                        "name": "profileKind",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/policy/{policyID}/{resourceID}/detach": {
+            "post": {
+                "description": "Detach resource from policy",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Detach resource from policy",
+                "operationId": "v1-policy-resource-detach",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policyID",
+                        "name": "policyID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "resourceID",
+                        "name": "resourceID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.SecurityPolicy"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/resource/cluster/": {
+            "get": {
+                "description": "Get clusters",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get clusters",
+                "operationId": "v1-cluster-list",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "unattached",
+                        "name": "unattached",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/resource/container": {
+            "get": {
+                "description": "Get resources",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get resources",
+                "operationId": "v1-resource-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "search",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "sortOrder",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "sortBy",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "cluster",
+                        "name": "cluster",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "kind",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "containerName",
+                        "name": "containerName",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "unattached",
+                        "name": "unattached",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.SecurityPolicyResource"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/resource/kind/": {
+            "get": {
+                "description": "Get resource kinds",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get resource kinds",
+                "operationId": "v1-kind-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name",
+                        "name": "cluster",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "unattached",
+                        "name": "unattached",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/resource/name/": {
+            "get": {
+                "description": "Get resource names",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get resource names",
+                "operationId": "v1-name-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name",
+                        "name": "cluster",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "kind",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "unattached",
+                        "name": "unattached",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/resource/namespace/": {
+            "get": {
+                "description": "Get namespaces",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get namespaces",
+                "operationId": "v1-namespace-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name",
+                        "name": "cluster",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "unattached",
+                        "name": "unattached",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "model.ApparmorProfile": {
+            "type": "object",
+            "properties": {
+                "abortTrainingTime": {
+                    "type": "string"
+                },
+                "apparmorProfileData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ApparmorProfileData"
+                    }
+                },
+                "elapsedTime": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "resumeTrainingTime": {
+                    "type": "string"
+                },
+                "startTrainingTime": {
+                    "type": "string"
+                },
+                "stopTrainingTime": {
+                    "type": "string"
+                },
+                "suspendTrainingTime": {
+                    "type": "string"
+                },
+                "trainingStartWhitelistOption": {
+                    "type": "string"
+                },
+                "trainingStatus": {
+                    "type": "string"
+                },
+                "trainingTimeout": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.ApparmorProfileData": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CommandWhitelistProfile": {
+            "type": "object",
+            "properties": {
+                "abortTrainingTime": {
+                    "type": "string"
+                },
+                "commandWhitelistProfileData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CommandWhitelistProfileData"
+                    }
+                },
+                "elapsedTime": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "resumeTrainingTime": {
+                    "type": "string"
+                },
+                "startTrainingTime": {
+                    "type": "string"
+                },
+                "stopTrainingTime": {
+                    "type": "string"
+                },
+                "suspendTrainingTime": {
+                    "type": "string"
+                },
+                "trainingStartWhitelistOption": {
+                    "type": "string"
+                },
+                "trainingStatus": {
+                    "type": "string"
+                },
+                "trainingTimeout": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.CommandWhitelistProfileData": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "workingDirectory": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.DriftProfile": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.SeccompProfile": {
+            "type": "object",
+            "properties": {
+                "abortTrainingTime": {
+                    "type": "string"
+                },
+                "elapsedTime": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "resumeTrainingTime": {
+                    "type": "string"
+                },
+                "seccompProfileData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.SeccompProfileData"
+                    }
+                },
+                "startTrainingTime": {
+                    "type": "string"
+                },
+                "stopTrainingTime": {
+                    "type": "string"
+                },
+                "suspendTrainingTime": {
+                    "type": "string"
+                },
+                "trainingStartWhitelistOption": {
+                    "type": "string"
+                },
+                "trainingStatus": {
+                    "type": "string"
+                },
+                "trainingTimeout": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.SeccompProfileData": {
+            "type": "object",
+            "properties": {
+                "syscall": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.SecurityPolicy": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "apparmorProfile": {
+                    "$ref": "#/definitions/model.ApparmorProfile"
+                },
+                "author": {
+                    "type": "string"
+                },
+                "commandWhitelistProfile": {
+                    "$ref": "#/definitions/model.CommandWhitelistProfile"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "driftProfile": {
+                    "$ref": "#/definitions/model.DriftProfile"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "resourceImageChangeAction": {
+                    "type": "string"
+                },
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.SecurityPolicyResource"
+                    }
+                },
+                "seccompProfile": {
+                    "$ref": "#/definitions/model.SeccompProfile"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "updatedBy": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.SecurityPolicyResource": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                },
+                "containerName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "imageName": {
+                    "type": "string"
+                },
+                "imageRegistry": {
+                    "type": "string"
+                },
+                "imageTag": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

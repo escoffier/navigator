@@ -101,7 +101,7 @@ fullnameOverride: "tensorsec-daemon"
 
 # Not flexible enough, temporarily closed.
 # console:
-#   addr: tensorsec-console.tensorsec-test.svc.cluster.local
+#   addr: tensorsec-console.tensorsec.svc.cluster.local
 #   port: "8889"
 
 eventcenter:

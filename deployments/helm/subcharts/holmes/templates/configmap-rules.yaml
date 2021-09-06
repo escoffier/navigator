@@ -1,4 +1,3 @@
-{{- if .Values.customRules }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,5 +12,4 @@ data:
 {{- range $file, $content :=  .Values.customRules }}
   {{ $file }}: |-
 {{ $content | indent 4}}
-{{- end }}
 {{- end }}

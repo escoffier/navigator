@@ -8,7 +8,6 @@ const (
 	Cve2cnnvdCollection
 	CheckHistoryEntryCollection
 	HarborProjectConfigCollection
-
 	VirusScanTaskCollection
 )
 
@@ -19,7 +18,6 @@ func GetCollectionNames() []string {
 		"CVE2CNNVD",
 		"checkHistoryEntry",
 		"harborProjectConfig",
-
 		"virusScanTasks",
 	}
 }

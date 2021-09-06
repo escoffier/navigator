@@ -1,4 +1,6 @@
-FROM registry.t-appagile.com/tensorsecurity/baseimage-data:latest
+ARG TAG=latest
+ARG REPO=registry.t-appagile.com/tensorsecurity
+FROM ${REPO}/baseimage-data:${TAG}
 
 COPY dist/tensor-cleaner /app/tensor-cleaner
 COPY configs/data/jobs/hot-logic/hot-logic-conf.json /app/hot-logic-conf.json

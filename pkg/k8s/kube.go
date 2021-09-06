@@ -56,16 +56,16 @@ func KubeClientFromB64KubeConfig(kubeConfig string) (*kubernetes.Clientset, erro
 	return kubeClient, nil
 }
 
-func CheckKubeClientConnection(kubeClient *kubernetes.Clientset) error {
+func CheckKubeClientConnection(ctx context.Context, kubeClient *kubernetes.Clientset) error {
 	namespace := os.Getenv("MY_POD_NAMESPACE")
 	if namespace == "" {
 		namespace = "default"
 	}
-	_, err := kubeClient.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	_, err := kubeClient.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("Maybe namespace doesn't exist or no authorization?: %s", err)
 	}
-	_, err = kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+	_, err = kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("Maybe no pod view authorization?: %s", err)
 	}

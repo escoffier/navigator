@@ -21,17 +21,20 @@ main=`uname -r | awk -F . '{print $1}'`
 minor=`uname -r | awk -F . '{print $2}'`
 echo "kernel version is :$main.$minor"
 
-# if [ "$main" -ge 4 -a "$minor" -ge 14 ] || [ "$main" -ge 5 ]
-#     then
-#         export FALCO_BPF_PROBE=''
-#         # TODO: check ebpf reference: https://github.com/iovisor/bcc/blob/master/INSTALL.md#kernel-configuration
-#         echo "ebpf module!"
-#     else
-#         if [ -z $FALCO_BPF_PROBE ]; then
-#             unset FALCO_BPF_PROBE
-#         fi
-#         echo "kernel module!"
-# fi
+if [ "$main" -ge 4 -a "$minor" -ge 14 ] || [ "$main" -ge 5 ]
+    then
+        # export FALCO_BPF_PROBE=''
+        # TODO: check ebpf reference: https://github.com/iovisor/bcc/blob/master/INSTALL.md#kernel-configuration
+        if [ -v FALCO_BPF_PROBE ]; then
+            echo "ebpf module!"
+        fi
+
+    else
+        if [ -v FALCO_BPF_PROBE ]; then
+            unset FALCO_BPF_PROBE
+        fi
+        echo "kernel module!"
+fi
 
 
 if [[ ! -z "${SKIP_MODULE_LOAD}" ]]; then
@@ -51,7 +54,6 @@ if [[ -z "${SKIP_DRIVER_LOADER}" ]] && [[ -z "${SKIP_MODULE_LOAD}" ]]; then
 
     /usr/bin/holmes-driver-loader
 fi
-
 
 #/holmes-rules-update --output /tmp/test.yaml
 #/usr/bin/holmes --cri /run/containerd/containerd.sock -K /var/run/secrets/kubernetes.io/serviceaccount/token -k \"https://$(KUBERNETES_SERVICE_HOST)\" -pk

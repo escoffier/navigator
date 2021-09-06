@@ -1,11 +1,12 @@
 package util
 
 import (
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"time"
 )
 
 func NewPostgresClient(postgresDSN string) (*rdbtools.GormWrapper, error) {
@@ -20,7 +21,6 @@ func NewPostgresClient(postgresDSN string) (*rdbtools.GormWrapper, error) {
 		if err == nil {
 			sqlDB.SetMaxOpenConns(10)
 			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 			sqlDB.SetConnMaxLifetime(time.Hour)
 		}
 		return db, nil

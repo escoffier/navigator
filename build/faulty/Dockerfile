@@ -1,6 +1,7 @@
 ARG TAG=latest
-FROM registry.t-appagile.com/tensorsecurity/tensorsec-drift-prevention-client:${TAG} AS drift-prevention
-FROM registry.t-appagile.com/tensorsecurity/baseimage-faulty:latest
+ARG REPO=registry.t-appagile.com/tensorsecurity
+FROM ${REPO}/tensorsec-drift-prevention-client:${TAG} AS drift-prevention
+FROM ${REPO}/baseimage-faulty:${TAG}
 
 ADD configs/faulty /app
 ADD test/ /test

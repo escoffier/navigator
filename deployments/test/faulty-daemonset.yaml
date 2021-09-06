@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: faulty-daemonset
+  labels:
+    app: faulty-daemonset
+spec:
+  selector:
+    matchLabels:
+      app: faulty-daemonset
+  template:
+    metadata:
+      labels:
+        app: faulty-daemonset
+        # tensorsec.apparmor.faulty: "test"
+        # tensorsec.seccomp: "test"
+        # tensorsec.drift.faulty: "prevention"
+        # tensorsec.commandwhitelist.faulty: "test"
+    spec:
+      containers:
+      - name: faulty
+        image: localhost:32000/faulty
+        command: ["/bin/bash", "-c", "sleep 99999"]
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+          - name: tmp
+            mountPath: /host/tmp
+      imagePullSecrets:
+      - name: harbor-admin-secret
+      volumes:
+      - name: tmp
+        hostPath:
+          path: /tmp

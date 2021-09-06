@@ -1,6 +1,6 @@
 global:
   # Not sure if it's good practice to pas our docker repo address to our subcharts like this.
-  
+
   #TODO: config storageclass name.
   #storageClass: myStorageClass
   #TODO: config all use storgae
@@ -17,13 +17,13 @@ global:
       tag: v1.5.1
 
 clair:
-  enabled: true
+  enabled: false
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
-  init: 
+  init:
     loadSql:
       image:
         registry: "{{ .Values.global.image.registry }}"
@@ -40,7 +40,7 @@ clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
 
 scanner:
-  enabled: true
+  enabled: false
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
@@ -74,21 +74,10 @@ scanner:
     resources:
       limits:
         cpu: "300m"
-        memory: "500Mi" 
+        memory: "500Mi"
       requests:
         cpu: "100m"
         memory: "200Mi"
-    
-drift-prevention:
-  enabled: false
-  image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
-    tag: latest
-    pullSecret: harbor-admin-secret
-  eventcenter:
-    addr: tensorsec-eventcenter.tensorsec.svc.cluster.local
-    port: "8080"
 
 console:
   enabled: true
@@ -146,8 +135,8 @@ cluster-manager:
     tag: latest
     pullSecret: harbor-admin-secret
 #  args:
-#    masterAddr: 
-#    clusterName: 
+#    masterAddr:
+#    clusterName:
 #    apiServerAddr:
 
 eventcenterAuth:
@@ -316,11 +305,6 @@ mongodb:
   persistence:
     enabled: true
 
-
-seccompGenerator:
-  auditdLogging: false
-  enabled: false
-
 holmes:
   enabled: true
   image:
@@ -328,6 +312,8 @@ holmes:
     repository: "{{ .Values.global.image.repository }}"
     tag: latest
     pullSecret: harbor-admin-secret
+  extraArgs:
+    - "-A"
   tensorsecDaemon:
     image:
       registry: "{{ .Values.global.image.registry }}"
@@ -338,22 +324,32 @@ holmes:
   ebpf:
     enabled: false
   falco:
+    resources:
+      requests:
+        cpu: 2
+        memory: 2048Mi
+      limits:
+        cpu: 2
+        memory: 2048Mi
     rulesFile:
+      - /etc/holmes/rules.d
       - /etc/holmes/holmes_rules.yaml
     jsonOutput: true
     jsonIncludeOutputProperty: true
     httpOutput:
-      enabled: false
+      enabled: true
+      url: http://tensorsec-holmessidekick:2801
     webserver:
       enabled: false
     programOutput:
-      enabled: true
+      enabled: false
       keepAlive: false
       program: /bin/bash /holmes_export.sh
     syslogOutput:
       enabled: false
     stdoutOutput:
       enabled: true
+
   # Add extra volumes to Falco daemonset
   extraVolumes:
     - name: client-cert
@@ -393,3 +389,77 @@ webhook:
   args:
     consoleUrl: "http://tensorsec-console:8889"
     clusterManagerUrl: "http://tensorsec-cluster-manager:9443"
+
+stan:
+  enabled: true
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: nats-streaming
+    tag: 0.21.2
+    pullSecret: harbor-admin-secret
+  stan:
+    clusterID: tensorsec
+    authToken: ""
+  store:
+    volume:
+      enabled: true
+
+security-profiles-manager:
+  enabled: true
+  image:
+    registry: "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    tag: latest
+    pullSecret: harbor-admin-secret
+  initContainers:
+    image:
+      registry: "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      tag: latest
+  webhook:
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      tag: latest
+      pullSecret: harbor-admin-secret
+  loader:
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      tag: latest
+      pullSecret: harbor-admin-secret
+  audit:
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      tag: latest
+      pullSecret: harbor-admin-secret
+  eventProcessor:
+    image:
+      registry:  "{{ .Values.global.image.registry }}"
+      repository: "{{ .Values.global.image.repository }}"
+      tag: latest
+      pullSecret: harbor-admin-secret
+  holmes:
+    rulesConfigMap: tensorsec-holmes-rules
+    podLabel: tensorsec-holmes
+  stan:
+    clientID: sec-profile-manager
+    clusterID: tensorsec
+
+holmessidekick:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry:  "{{ .Values.global.image.registry }}"
+    repository: "{{ .Values.global.image.repository }}"
+    name: falcosidekick
+    tag: 2.22.0
+    pullSecret: harbor-admin-secret
+  config:
+    stan:
+      hostport:  "nats://tensorsec:4222"
+      clusterid: tensorsec
+      clientid:  falco
+

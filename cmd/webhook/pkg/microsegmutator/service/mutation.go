@@ -116,7 +116,7 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 	if owner != nil && owner.Kind != "Node" {
 		if owner.Kind == "ReplicaSet" {
 			rs, _ := m.k8sCli.AppsV1().ReplicaSets(namespace).
-				Get(owner.Name, metav1.GetOptions{})
+				Get(ctx, owner.Name, metav1.GetOptions{})
 			rsowner := metav1.GetControllerOf(rs)
 			if rsowner != nil {
 				owner = rsowner

@@ -1,0 +1,860 @@
+basePath: /
+definitions:
+  model.ApparmorProfile:
+    properties:
+      abortTrainingTime:
+        type: string
+      apparmorProfileData:
+        items:
+          $ref: '#/definitions/model.ApparmorProfileData'
+        type: array
+      elapsedTime:
+        type: integer
+      enabled:
+        type: boolean
+      resumeTrainingTime:
+        type: string
+      startTrainingTime:
+        type: string
+      stopTrainingTime:
+        type: string
+      suspendTrainingTime:
+        type: string
+      trainingStartWhitelistOption:
+        type: string
+      trainingStatus:
+        type: string
+      trainingTimeout:
+        type: integer
+    type: object
+  model.ApparmorProfileData:
+    properties:
+      access:
+        type: string
+      file:
+        type: string
+    type: object
+  model.CommandWhitelistProfile:
+    properties:
+      abortTrainingTime:
+        type: string
+      commandWhitelistProfileData:
+        items:
+          $ref: '#/definitions/model.CommandWhitelistProfileData'
+        type: array
+      elapsedTime:
+        type: integer
+      enabled:
+        type: boolean
+      resumeTrainingTime:
+        type: string
+      startTrainingTime:
+        type: string
+      stopTrainingTime:
+        type: string
+      suspendTrainingTime:
+        type: string
+      trainingStartWhitelistOption:
+        type: string
+      trainingStatus:
+        type: string
+      trainingTimeout:
+        type: integer
+    type: object
+  model.CommandWhitelistProfileData:
+    properties:
+      command:
+        type: string
+      workingDirectory:
+        type: string
+    type: object
+  model.DriftProfile:
+    properties:
+      enabled:
+        type: boolean
+      id:
+        type: integer
+    type: object
+  model.SeccompProfile:
+    properties:
+      abortTrainingTime:
+        type: string
+      elapsedTime:
+        type: integer
+      enabled:
+        type: boolean
+      resumeTrainingTime:
+        type: string
+      seccompProfileData:
+        items:
+          $ref: '#/definitions/model.SeccompProfileData'
+        type: array
+      startTrainingTime:
+        type: string
+      stopTrainingTime:
+        type: string
+      suspendTrainingTime:
+        type: string
+      trainingStartWhitelistOption:
+        type: string
+      trainingStatus:
+        type: string
+      trainingTimeout:
+        type: integer
+    type: object
+  model.SeccompProfileData:
+    properties:
+      syscall:
+        type: string
+    type: object
+  model.SecurityPolicy:
+    properties:
+      active:
+        type: boolean
+      apparmorProfile:
+        $ref: '#/definitions/model.ApparmorProfile'
+      author:
+        type: string
+      commandWhitelistProfile:
+        $ref: '#/definitions/model.CommandWhitelistProfile'
+      createdAt:
+        type: string
+      description:
+        type: string
+      driftProfile:
+        $ref: '#/definitions/model.DriftProfile'
+      id:
+        type: integer
+      mode:
+        type: string
+      name:
+        type: string
+      resourceImageChangeAction:
+        type: string
+      resources:
+        items:
+          $ref: '#/definitions/model.SecurityPolicyResource'
+        type: array
+      seccompProfile:
+        $ref: '#/definitions/model.SeccompProfile'
+      updatedAt:
+        type: string
+      updatedBy:
+        type: string
+    type: object
+  model.SecurityPolicyResource:
+    properties:
+      cluster:
+        type: string
+      containerName:
+        type: string
+      id:
+        type: integer
+      imageName:
+        type: string
+      imageRegistry:
+        type: string
+      imageTag:
+        type: string
+      kind:
+        type: string
+      name:
+        type: string
+      namespace:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: This is the Security Profiles Manager
+  title: Security Profiles Manager API·
+  version: "1.0"
+paths:
+  /api/v1/config/mode:
+    get:
+      description: List security modes
+      operationId: v1-security-mode-list
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List security modes
+  /api/v1/config/resourceUpdateActions:
+    get:
+      description: List resource update actions
+      operationId: v1-resource-update-actions-list
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List resource update actions
+  /api/v1/config/trainingStartWhitelistOption:
+    get:
+      description: List training start whitelist options
+      operationId: v1-training-start-whitelist-options-list
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List training start whitelist options
+  /api/v1/policy/:
+    get:
+      description: List security policies
+      operationId: v1-policy-list
+      parameters:
+      - description: search
+        in: query
+        name: search
+        type: string
+      - description: limit
+        in: query
+        name: limit
+        type: integer
+      - description: offset
+        in: query
+        name: offset
+        type: integer
+      - description: sortOrder
+        in: query
+        name: sortOrder
+        type: string
+      - description: sortBy
+        in: query
+        name: sortBy
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.SecurityPolicy'
+            type: array
+      summary: List security policies
+    post:
+      consumes:
+      - application/json
+      description: Create security policy
+      operationId: v1-policy-create
+      parameters:
+      - description: name
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: description
+        in: body
+        name: description
+        required: true
+        schema:
+          type: string
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Create security policy
+  /api/v1/policy//{policyID}/{resourceID}/attach:
+    post:
+      consumes:
+      - application/json
+      description: Attach resource to policy
+      operationId: v1-policy-resource-attach
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: resourceID
+        in: path
+        name: resourceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Attach resource to policy
+  /api/v1/policy/{policyID}:
+    delete:
+      description: Delete security policy
+      operationId: v1-policy-delete
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: Delete security policy
+    get:
+      description: Get security policy
+      operationId: v1-policy-get
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Get security policy
+    put:
+      consumes:
+      - application/json
+      description: Update security policy
+      operationId: v1-policy-update
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: enabled
+        in: body
+        name: name
+        required: true
+        schema:
+          type: boolean
+      - description: description
+        in: body
+        name: description
+        required: true
+        schema:
+          type: string
+      - description: resourceImageChangeAction
+        in: body
+        name: resourceImageChangeAction
+        required: true
+        schema:
+          type: string
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Update security policy
+  /api/v1/policy/{policyID}/{profileKind}:
+    put:
+      consumes:
+      - application/json
+      description: Update security policy
+      operationId: v1-policy-update
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      - description: enabled
+        in: body
+        name: enabled
+        required: true
+        schema:
+          type: boolean
+      - description: timeout
+        in: body
+        name: timeout
+        required: true
+        schema:
+          type: integer
+      - description: trainingStartWhitelistOption
+        in: body
+        name: trainingStartWhitelistOption
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Update security policy
+  /api/v1/policy/{policyID}/{profileKind}/data:
+    get:
+      description: List security policy profile data
+      operationId: v1-policy-profile-data-list
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      produces:
+      - application/json
+      summary: List security policy profile data
+    put:
+      consumes:
+      - application/json
+      description: Update policy resource profile
+      operationId: v1-policy-profile-update
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      - description: addSeccompProfileData
+        in: body
+        name: addSeccompProfileData
+        schema:
+          items:
+            $ref: '#/definitions/model.SeccompProfileData'
+          type: array
+      - description: addApparmorProfileData
+        in: body
+        name: addApparmorProfileData
+        schema:
+          items:
+            $ref: '#/definitions/model.ApparmorProfileData'
+          type: array
+      - description: addCommandWhitelistProfileData
+        in: body
+        name: addCommandWhitelistProfileData
+        schema:
+          items:
+            $ref: '#/definitions/model.CommandWhitelistProfileData'
+          type: array
+      - description: removeSeccompProfileData
+        in: body
+        name: removeSeccompProfileData
+        schema:
+          items:
+            $ref: '#/definitions/model.SeccompProfileData'
+          type: array
+      - description: removeApparmorProfileData
+        in: body
+        name: removeApparmorProfileData
+        schema:
+          items:
+            $ref: '#/definitions/model.ApparmorProfileData'
+          type: array
+      - description: removeCommandWhitelistProfileData
+        in: body
+        name: removeCommandWhitelistProfileData
+        schema:
+          items:
+            $ref: '#/definitions/model.CommandWhitelistProfileData'
+          type: array
+      produces:
+      - application/json
+      summary: Update policy resource profile
+  /api/v1/policy/{policyID}/{profileKind}/train/abort:
+    post:
+      consumes:
+      - application/json
+      description: Abort profile training
+      operationId: v1-policy-profile-train-abort
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Abort profile training
+  /api/v1/policy/{policyID}/{profileKind}/train/resume:
+    post:
+      consumes:
+      - application/json
+      description: Resume profile training
+      operationId: v1-policy-profile-train-resume
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Resume profile training
+  /api/v1/policy/{policyID}/{profileKind}/train/start:
+    post:
+      consumes:
+      - application/json
+      description: Start profile training
+      operationId: v1-policy-profile-train-start
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Start profile training
+  /api/v1/policy/{policyID}/{profileKind}/train/stop:
+    post:
+      consumes:
+      - application/json
+      description: Stop profile training
+      operationId: v1-policy-profile-train-stop
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Stop profile training
+  /api/v1/policy/{policyID}/{profileKind}/train/suspend:
+    post:
+      consumes:
+      - application/json
+      description: Suspend profile training
+      operationId: v1-policy-profile-train-suspend
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: profileKind
+        in: path
+        name: profileKind
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Suspend profile training
+  /api/v1/policy/{policyID}/{resourceID}/detach:
+    post:
+      consumes:
+      - application/json
+      description: Detach resource from policy
+      operationId: v1-policy-resource-detach
+      parameters:
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      - description: resourceID
+        in: path
+        name: resourceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Detach resource from policy
+  /api/v1/policy/{policyID}/mode:
+    post:
+      consumes:
+      - application/json
+      description: Change policy mode
+      operationId: v1-policy-set-mode
+      parameters:
+      - description: mode
+        in: body
+        name: mode
+        required: true
+        schema:
+          type: string
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Change policy mode
+  /api/v1/policy/{policyID}/status:
+    post:
+      consumes:
+      - application/json
+      description: Change policy status
+      operationId: v1-policy-set-status
+      parameters:
+      - description: enabled
+        in: body
+        name: enabled
+        required: true
+        schema:
+          type: boolean
+      - description: policyID
+        in: path
+        name: policyID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SecurityPolicy'
+      summary: Change policy status
+  /api/v1/resource/cluster/:
+    get:
+      description: Get clusters
+      operationId: v1-cluster-list
+      parameters:
+      - description: unattached
+        in: query
+        name: unattached
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Get clusters
+  /api/v1/resource/container:
+    get:
+      description: Get resources
+      operationId: v1-resource-list
+      parameters:
+      - description: search
+        in: query
+        name: search
+        type: string
+      - description: limit
+        in: query
+        name: limit
+        type: integer
+      - description: offset
+        in: query
+        name: offset
+        type: integer
+      - description: sortOrder
+        in: query
+        name: sortOrder
+        type: string
+      - description: sortBy
+        in: query
+        name: sortBy
+        type: string
+      - description: cluster
+        in: query
+        name: cluster
+        type: string
+      - description: namespace
+        in: query
+        name: namespace
+        type: string
+      - description: kind
+        in: query
+        name: kind
+        type: string
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: containerName
+        in: query
+        name: containerName
+        type: string
+      - description: unattached
+        in: query
+        name: unattached
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.SecurityPolicyResource'
+            type: array
+      summary: Get resources
+  /api/v1/resource/kind/:
+    get:
+      description: Get resource kinds
+      operationId: v1-kind-list
+      parameters:
+      - description: name
+        in: query
+        name: cluster
+        type: string
+      - description: namespace
+        in: query
+        name: namespace
+        type: string
+      - description: unattached
+        in: query
+        name: unattached
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Get resource kinds
+  /api/v1/resource/name/:
+    get:
+      description: Get resource names
+      operationId: v1-name-list
+      parameters:
+      - description: name
+        in: query
+        name: cluster
+        type: string
+      - description: namespace
+        in: query
+        name: namespace
+        type: string
+      - description: kind
+        in: query
+        name: kind
+        type: string
+      - description: unattached
+        in: query
+        name: unattached
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Get resource names
+  /api/v1/resource/namespace/:
+    get:
+      description: Get namespaces
+      operationId: v1-namespace-list
+      parameters:
+      - description: name
+        in: query
+        name: cluster
+        type: string
+      - description: unattached
+        in: query
+        name: unattached
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Get namespaces
+swagger: "2.0"

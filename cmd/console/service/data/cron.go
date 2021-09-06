@@ -2,11 +2,12 @@ package data
 
 import (
 	"context"
+	"runtime/debug"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"runtime/debug"
-	"time"
 )
 
 func (s *Service) expireGCTaskLoop() {
@@ -64,7 +65,7 @@ const (
 	checkStorageTimeout = time.Minute
 )
 
-type getStorageFunc func() (*model.StorageView, error)
+type getStorageFunc func(ctx context.Context) (*model.StorageView, error)
 
 func (s *Service) checkStorage() {
 	logging.GetLogger().Info().Msgf("checkStorage")
@@ -84,7 +85,7 @@ func (s *Service) checkStorage() {
 	}
 
 	for dataType, fn := range pods {
-		storageView, err := s.getStorageViewWithRetry(fn)
+		storageView, err := s.getStorageViewWithRetry(ctx, fn)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("getStorageView fail, dataType:%s, err:%s", dataType, err.Error())
 			continue
@@ -111,11 +112,11 @@ func (s *Service) getWaterlineWithRetry(ctx context.Context) (int, error) {
 	return percentage, err
 }
 
-func (s *Service) getStorageViewWithRetry(fn getStorageFunc) (*model.StorageView, error) {
+func (s *Service) getStorageViewWithRetry(ctx context.Context, fn getStorageFunc) (*model.StorageView, error) {
 	var storageView *model.StorageView
 	getStorageViewFunc := func() error {
 		var _err error
-		storageView, _err = fn()
+		storageView, _err = fn(ctx)
 		return _err
 	}
 

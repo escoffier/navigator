@@ -30,13 +30,16 @@ func setup(t *testing.T,
 
 	console, err := NewConsole(
 		httpOpts,
+
 		flag.NewDefaultMongoOpts(),
+		flag.NewDefaultPostgresOpts(),
 		flag.NewDefaultVegetaScannerOpts(),
 		flag.NewDefaultScapOpts(),
 		flag.NewDefaultRedisOpts(),
 		flag.NewDefaultElasticOpts(),
-		flag.NewDefaultRulesOpts(),
 		flag.NewDefaultHarborOpts(),
+		flag.NewDefaultEmailOpts(),
+		flag.NewDefaultSecProfilesOpts(),
 		flag.NewDefaultMicrosegOpts())
 	require.NoError(t, err)
 

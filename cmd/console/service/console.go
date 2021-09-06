@@ -114,6 +114,7 @@ func NewConsole(
 	elasticOpts *flag.ElasticOpts,
 	harborOpts *flag.HarborOpts,
 	emailOpts *flag.EmailOpts,
+	secProfilesOpts *flag.SecProfilesOpts,
 	microsegOpts *flag.MicrosegOpts,
 ) (*Console, error) {
 	// mongo client
@@ -191,7 +192,6 @@ func NewConsole(
 		if err == nil {
 			sqlDB.SetMaxOpenConns(30)
 			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 			sqlDB.SetConnMaxLifetime(time.Hour)
 		}
 		return db, nil
@@ -351,6 +351,7 @@ func NewConsole(
 				postgresDB,
 				es,
 				scannerURL,
+				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
 				fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
@@ -650,7 +651,7 @@ func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterServic
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to get k8s rest config: %w", err)
 	}
-	err = k8s.CheckKubeClientConnection(kubeClient)
+	err = k8s.CheckKubeClientConnection(ctx, kubeClient)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Kube client connection check failed: %w", err)
 	}

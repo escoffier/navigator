@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: faulty-statefulset
+  labels:
+    app: faulty-statefulset
+spec:
+  serviceName: ""
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faulty-statefulset
+  template:
+    metadata:
+      labels:
+        app: faulty-statefulset
+        # tensorsec.apparmor.faulty: "test"
+        # tensorsec.seccomp: "test"
+        # tensorsec.drift.faulty: "prevention"
+        # tensorsec.commandwhitelist.faulty: "test"
+    spec:
+      containers:
+      - name: faulty
+        image: localhost:32000/faulty
+        command: ["/bin/bash", "-c", "sleep 99999"]
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+          - name: tmp
+            mountPath: /host/tmp
+      imagePullSecrets:
+      - name: harbor-admin-secret
+      volumes:
+      - name: tmp
+        hostPath:
+          path: /tmp

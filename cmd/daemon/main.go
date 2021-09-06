@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/pkg/errors"
@@ -32,7 +33,7 @@ func GetClusterId() (string, error) {
 	return "", errors.Errorf("get k8s cluster id failed with timeout")
 }
 
-func NetInit() error {
+func NetInit(ctx context.Context) error {
 	//get node name
 	hostName := os.Getenv("MY_NODE_NAME")
 	if hostName == "" {
@@ -55,8 +56,7 @@ func NetInit() error {
 	if err != nil {
 		return fmt.Errorf("Failed to initialize k8s resource sycner, : %w", err)
 	}
-
-	err = k8sResSync.StartK8sServiceSyncer()
+	err = k8sResSync.StartK8sServiceSyncer(ctx)
 	if err != nil {
 		return fmt.Errorf("listen k8s event failed, %v.", err)
 	}
@@ -68,7 +68,7 @@ func NetInit() error {
 
 	stopCron := make(chan struct{})
 
-	flow.Start(stopCron)
+	flow.Start(ctx, stopCron)
 
 	close(stopCron)
 
@@ -87,7 +87,10 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
-	err := NetInit()
+	mainCtx, mainCancel := context.WithCancel(context.Background())
+	defer mainCancel()
+
+	err := NetInit(mainCtx)
 	if err != nil {
 		log.Errorf("net init failed, %v.", err)
 	}

@@ -1,0 +1,6 @@
+FROM ubuntu:18.04
+
+ARG MIRROR=archive.ubuntu.com
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
+
+RUN apt-get update && apt-get -y install apparmor-utils

@@ -8,6 +8,9 @@ image:
   pullPolicy: Always
   pullSecret: harbor-admin-secret
 
+postgres:
+  host: tensorsec-postgresql
+  port: "5432"
 
 tensorsecDaemon:
   enabled: true

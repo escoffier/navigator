@@ -7,13 +7,10 @@ import (
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
-	seccompExtensionV1 "gitlab.com/piccolo_su/vegeta/pkg/api/types/v1alpha"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
 	"k8s.io/client-go/tools/cache"
@@ -37,20 +34,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to get in-cluster config")
-	}
-
-	seccompExtensionV1.AddToScheme(scheme.Scheme)
-
-	crdConfig := *config
-	crdConfig.ContentConfig.GroupVersion = &seccompExtensionV1.GroupVersion
-	crdConfig.APIPath = "/apis"
-	crdConfig.NegotiatedSerializer = serializer.NewCodecFactory(scheme.Scheme)
-	crdConfig.UserAgent = rest.DefaultKubernetesUserAgent()
-
-	restClient, err := rest.UnversionedRESTClientFor(&crdConfig)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to initialize rest client")
-		return nil, err
 	}
 
 	logging.GetLogger().Info().Msg("Using incluster config")
@@ -88,72 +71,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 						hostVolumes = append(hostVolumes, volume)
 					}
 				}
-				seccompProfileName := ""
-				seccompProfileMode := ""
-				for k, v := range pod.Labels {
-					if podSyscallMapPrevent != nil && podSyscallMapDetect != nil {
-						if k == "tensorsec.seccompgenerate.prevent" {
-							seccompProfileName = v
-							if _, ok := podSyscallMapPrevent.Load(seccompProfileName); !ok {
-								newSyscallList := make([]string, 0)
-								podSyscallMapPrevent.Store(seccompProfileName, newSyscallList)
-							}
-						} else if k == "tensorsec.seccompgenerate.detect" {
-							seccompProfileName = v
-							if _, ok := podSyscallMapDetect.Load(seccompProfileName); !ok {
-								newSyscallList := make([]string, 0)
-								podSyscallMapDetect.Store(seccompProfileName, newSyscallList)
-							}
-						} else if k == "tensorsec.seccompprotect" {
-							seccompProfileName = v
-							oldSeccompProfile := seccompExtensionV1.SeccompProfile{}
-							if _, ok := podSyscallMapPrevent.Load(seccompProfileName); !ok {
-								err = restClient.
-									Get().
-									Resource("seccompprofiles").
-									Name(seccompProfileName).
-									Namespace(namespace).
-									Do().
-									Into(&oldSeccompProfile)
-								if err != nil {
-									logging.GetLogger().Error().Err(err).Msg("Failed to get seccomp profile")
-								} else {
-									oldSeccompProfileSyscalls := oldSeccompProfile.Spec.Syscalls
-									if oldSeccompProfile.Spec.DefaultAction == "SCMP_ACT_ERRNO" {
-										seccompProfileMode = "PREVENT"
-										syscallList := make([]string, len(oldSeccompProfileSyscalls[0].Names))
-										for _, syscall := range oldSeccompProfileSyscalls[0].Names {
-											syscallList = AppendIfMissing(syscallList, syscall)
-										}
-										podSyscallMapPrevent.Store(seccompProfileName, syscallList)
-									}
-								}
-							}
-							if _, ok := podSyscallMapDetect.Load(seccompProfileName); !ok {
-								err = restClient.
-									Get().
-									Resource("seccompprofiles").
-									Name(seccompProfileName).
-									Namespace(namespace).
-									Do().
-									Into(&oldSeccompProfile)
-								if err != nil {
-									logging.GetLogger().Error().Err(err).Msg("Failed to get seccomp profile")
-								} else {
-									oldSeccompProfileSyscalls := oldSeccompProfile.Spec.Syscalls
-									if oldSeccompProfile.Spec.DefaultAction == "SCMP_ACT_LOG" {
-										seccompProfileMode = "DETECT"
-										syscallList := make([]string, len(oldSeccompProfileSyscalls[0].Names))
-										for _, syscall := range oldSeccompProfileSyscalls[0].Names {
-											syscallList = AppendIfMissing(syscallList, syscall)
-										}
-										podSyscallMapDetect.Store(seccompProfileName, syscallList)
-									}
-								}
-							}
-						}
-					}
-				}
 				for _, status := range pod.Status.ContainerStatuses {
 					containerIDSplit := strings.Split(status.ContainerID, "://")
 					if len(containerIDSplit) == 1 {
@@ -182,8 +99,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 						ContainerID:          containerID,
 						ImageID:              strings.Split(status.ImageID, ":")[len(strings.Split(status.ImageID, ":"))-1],
 						ContainerName:        status.Name,
-						SeccompProfileName:   seccompProfileName,
-						SeccompProfileMode:   seccompProfileMode,
 						HostVolumeMountPaths: hostVolumeMountedPaths,
 					}
 					clusterCache.Set(containerID, newKubeSelectedInfo, gocache.NoExpiration)
@@ -225,8 +140,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 						ContainerID:          containerID,
 						ImageID:              strings.Split(status.ImageID, ":")[len(strings.Split(status.ImageID, ":"))-1],
 						ContainerName:        status.Name,
-						SeccompProfileName:   seccompProfileName,
-						SeccompProfileMode:   seccompProfileMode,
 						HostVolumeMountPaths: hostVolumeMountedPaths,
 					}
 					clusterCache.Set(containerID, newKubeSelectedInfo, gocache.NoExpiration)
@@ -308,73 +221,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 						hostVolumes = append(hostVolumes, &volume)
 					}
 				}
-				seccompProfileName := ""
-				seccompProfileMode := ""
-				for k, v := range newPod.Labels {
-					if podSyscallMapPrevent != nil && podSyscallMapDetect != nil {
-						if k == "tensorsec.seccompgenerate.prevent" {
-							seccompProfileName = v
-							if _, ok := podSyscallMapPrevent.Load(seccompProfileName); !ok {
-								newSyscallList := make([]string, 0)
-								podSyscallMapPrevent.Store(seccompProfileName, newSyscallList)
-							}
-						} else if k == "tensorsec.seccompgenerate.detect" {
-							seccompProfileName = v
-							if _, ok := podSyscallMapDetect.Load(seccompProfileName); !ok {
-								newSyscallList := make([]string, 0)
-								podSyscallMapDetect.Store(seccompProfileName, newSyscallList)
-							}
-						} else if k == "tensorsec.seccompprotect" {
-							seccompProfileName = v
-							oldSeccompProfile := seccompExtensionV1.SeccompProfile{}
-							if _, ok := podSyscallMapPrevent.Load(seccompProfileName); !ok {
-								err = restClient.
-									Get().
-									Resource("seccompprofiles").
-									Name(seccompProfileName).
-									Namespace(namespace).
-									Do().
-									Into(&oldSeccompProfile)
-								if err != nil {
-									logging.GetLogger().Error().Err(err).Msg("Failed to get seccomp profile")
-								} else {
-									oldSeccompProfileSyscalls := oldSeccompProfile.Spec.Syscalls
-									if oldSeccompProfile.Spec.DefaultAction == "SCMP_ACT_ERRNO" {
-										seccompProfileMode = "PREVENT"
-										syscallList := make([]string, len(oldSeccompProfileSyscalls[0].Names))
-										for _, syscall := range oldSeccompProfileSyscalls[0].Names {
-											syscallList = AppendIfMissing(syscallList, syscall)
-										}
-										podSyscallMapPrevent.Store(seccompProfileName, syscallList)
-									}
-								}
-							}
-							if _, ok := podSyscallMapDetect.Load(seccompProfileName); !ok {
-								err = restClient.
-									Get().
-									Resource("seccompprofiles").
-									Name(seccompProfileName).
-									Namespace(newPod.Namespace).
-									Do().
-									Into(&oldSeccompProfile)
-								if err != nil {
-									// TODO: parse *errors.StatusError
-									// seccompprofiles.security-profiles-operator.x-k8s.io "85da72c140fb88180bcbb91a7dd8318fba3630c0c62169202887390b1ba36f8c" not found
-								} else {
-									oldSeccompProfileSyscalls := oldSeccompProfile.Spec.Syscalls
-									if oldSeccompProfile.Spec.DefaultAction == "SCMP_ACT_LOG" {
-										seccompProfileMode = "DETECT"
-										syscallList := make([]string, len(oldSeccompProfileSyscalls[0].Names))
-										for _, syscall := range oldSeccompProfileSyscalls[0].Names {
-											syscallList = AppendIfMissing(syscallList, syscall)
-										}
-										podSyscallMapDetect.Store(seccompProfileName, syscallList)
-									}
-								}
-							}
-						}
-					}
-				}
 				for _, status := range newPod.Status.ContainerStatuses {
 					containerIDSplit := strings.Split(status.ContainerID, "://")
 					if len(containerIDSplit) == 1 {
@@ -406,8 +252,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 						ContainerID:          containerID,
 						ImageID:              strings.Split(status.ImageID, ":")[len(strings.Split(status.ImageID, ":"))-1],
 						ContainerName:        status.Name,
-						SeccompProfileName:   seccompProfileName,
-						SeccompProfileMode:   seccompProfileMode,
 						HostVolumeMountPaths: hostVolumeMountedPaths,
 					}
 					clusterCache.Set(containerID, newKubeSelectedInfo, gocache.NoExpiration)
@@ -451,8 +295,6 @@ func InitKubernetesWatcher(clusterCache *gocache.Cache, podSyscallMapPrevent *sy
 						ContainerID:          containerID,
 						ImageID:              strings.Split(status.ImageID, ":")[len(strings.Split(status.ImageID, ":"))-1],
 						ContainerName:        status.Name,
-						SeccompProfileName:   seccompProfileName,
-						SeccompProfileMode:   seccompProfileMode,
 						HostVolumeMountPaths: hostVolumeMountedPaths,
 					}
 					clusterCache.Set(containerID, newKubeSelectedInfo, gocache.NoExpiration)
