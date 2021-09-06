@@ -1,6 +1,7 @@
 package netflow
 
 import (
+	"context"
 	"fmt"
 	"github.com/pkg/errors"
 	"net"
@@ -88,12 +89,12 @@ func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, er
 	return &fs, nil
 }
 
-func (fs *FlowSession) Start(sig chan struct{}) {
+func (fs *FlowSession) Start(ctx context.Context, sig chan struct{}) {
 	//crontab check session
-	go fs.CronCheckSession(sig)
+	go fs.CronCheckSession(ctx, sig)
 
 	//listen conntrack event
-	fs.startConntrackListener(fs.onFlowCallback)
+	fs.startConntrackListener(ctx, fs.onFlowCallback)
 }
 
 func (fs *FlowSession) filterUnusedSession(ip interface{}) bool {
@@ -129,7 +130,7 @@ func (fs FlowSession) NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func (fs *FlowSession) conntrackInitList() error {
+func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
 	nfct, err := ct.Open(&ct.Config{})
 	if err != nil {
 		return fmt.Errorf("conntrack open faied, %v", err)
@@ -158,7 +159,7 @@ func (fs *FlowSession) conntrackInitList() error {
 		// 	*session.Origin.Proto.Number, session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.SrcPort, *session.Origin.Proto.DstPort,
 		// 	session.Reply.Src, session.Reply.Dst, *session.Reply.Proto.SrcPort, *session.Reply.Proto.DstPort)
 
-		err = fs.ProcSessionData(session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.DstPort, *session.Origin.Proto.Number)
+		err = fs.ProcSessionData(ctx, session.Origin.Src, session.Origin.Dst, *session.Origin.Proto.DstPort, *session.Origin.Proto.Number)
 		if err != nil {
 			log.Errorf("proc session failed, %v.", err)
 		}
@@ -167,7 +168,7 @@ func (fs *FlowSession) conntrackInitList() error {
 	return nil
 }
 
-func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto uint8) error {
+func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP, dport uint16, proto uint8) error {
 
 	ret := fs.filterUnusedSession(SrcIP)
 	ok := fs.filterUnusedSession(DstIP)
@@ -212,7 +213,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 		return PostK8sResData(fs.url, &netData)
 	}
 
-	owners, tport := fs.krs.GetPodControllerFromSvc(dst.Namespace, dst.Name, int32(dport))
+	owners, tport := fs.krs.GetPodControllerFromSvc(ctx, dst.Namespace, dst.Name, int32(dport))
 	for _, owner := range owners {
 		netData.DstPort = int(tport)
 		netData.DstName = owner.Name
@@ -226,8 +227,7 @@ func (fs *FlowSession) ProcSessionData(SrcIP, DstIP *net.IP, dport uint16, proto
 	return nil
 }
 
-func (fs *FlowSession) CronCheckSession(sig chan struct{}) {
-
+func (fs *FlowSession) CronCheckSession(ctx context.Context, sig chan struct{}) {
 	for {
 		select {
 		case <-sig:
@@ -239,7 +239,7 @@ func (fs *FlowSession) CronCheckSession(sig chan struct{}) {
 			// infos.PrintAllK8sResData()
 
 			//list session
-			fs.conntrackInitList()
+			fs.conntrackInitList(ctx)
 
 			//time
 			now := time.Now()
@@ -254,7 +254,7 @@ func (fs *FlowSession) CronCheckSession(sig chan struct{}) {
 	}
 }
 
-func (fs *FlowSession) onFlowCallback(header syscall.NlMsghdr, flow *netlink.ConntrackFlow) error {
+func (fs *FlowSession) onFlowCallback(ctx context.Context, header syscall.NlMsghdr, flow *netlink.ConntrackFlow) error {
 	nlType := header.Type & 0xff
 	nlType = nlType & IPCTNL_MSG_CT_DELETE
 	iptuple := &flow.Forward
@@ -267,7 +267,7 @@ func (fs *FlowSession) onFlowCallback(header syscall.NlMsghdr, flow *netlink.Con
 	/*message type*/
 	switch nlType {
 	case IPCTNL_MSG_CT_NEW:
-		err := fs.ProcSessionData(&iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort, iptuple.Protocol)
+		err := fs.ProcSessionData(ctx, &iptuple.SrcIP, &iptuple.DstIP, iptuple.DstPort, iptuple.Protocol)
 		if err != nil {
 			log.Errorf("process new session error, %v.", err)
 		}
@@ -282,7 +282,7 @@ func (fs *FlowSession) onFlowCallback(header syscall.NlMsghdr, flow *netlink.Con
 	return nil
 }
 
-func (fs *FlowSession) startConntrackListener(parseSession func(syscall.NlMsghdr, *netlink.ConntrackFlow) error) {
+func (fs *FlowSession) startConntrackListener(ctx context.Context, parseSession func(context.Context, syscall.NlMsghdr, *netlink.ConntrackFlow) error) {
 
 	buf := make([]byte, RECEIVE_BUFFER_SIZE)
 	for {
@@ -304,7 +304,7 @@ func (fs *FlowSession) startConntrackListener(parseSession func(syscall.NlMsghdr
 
 		for _, msg := range msgs {
 			flow := netlink.ParseRawData(msg.Data, true)
-			err = parseSession(msg.Header, flow)
+			err = parseSession(ctx, msg.Header, flow)
 			// if err != nil {
 			// 	log.Errorf("OnFlowFunc callback failed, %v.", err)
 			// }

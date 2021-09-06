@@ -138,11 +138,6 @@ scanner:
               paginationkey:
               usetype: 1
 
-drift-prevention:
-  enabled: false
-  image:
-    tag: *tensorsecVerison
-
 holmes:
   enabled: true
   image:
@@ -177,6 +172,30 @@ cluster-manager:
     apiServerAddr: *apiServerAddr
 
 eventcenterAuth:
+  enabled: *isMasterCluster
+
+security-profiles-manager:
+  enabled: *isMasterCluster
+  image:
+    tag: *tensorsecVerison
+  webhook:
+    image:
+      tag: *tensorsecVerison
+  loader:
+    image:
+      tag: *tensorsecVerison
+  audit:
+    image:
+      tag: *tensorsecVerison
+  eventProcessor:
+    image:
+      tag: *tensorsecVerison
+stan:
+  enabled: *isMasterCluster
+  store:
+    volume:
+      enabled: *persistenceStorage
+holmessidekick:
   enabled: *isMasterCluster
 
 redis-ha:

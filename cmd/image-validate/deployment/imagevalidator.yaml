@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tensorsec-image-validator
-  namespace: tensorsec-test-cn
+  namespace: tensorsec
   labels:
     app: tensorsec-image-validator
 spec:
@@ -25,7 +25,7 @@ spec:
             - containerPort: 9443
               protocol: TCP
           args:
-            - --validateserver=tensorsec-scanner.tensorsec-test-cn.svc:8888
+            - --validateserver=tensorsec-scanner.tensorsec.svc:8888
           volumeMounts:
             - name: webhook-certs
               mountPath: /etc/tensorsec/certs
@@ -46,7 +46,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: tensorsec-image-validator
-  namespace: tensorsec-test-cn
+  namespace: tensorsec
   labels:
     app: tensor-webhook
 spec:

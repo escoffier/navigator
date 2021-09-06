@@ -10,7 +10,7 @@ webhooks:
       url: "https://192.168.254.1:9443/validating"
 #      service:
 #        name: tensorsec-image-validator
-#        namespace: tensorsec-test-cn
+#        namespace: tensorsec
 #        path: "/validating"
       caBundle: ${CA_BUNDLE}
     rules:

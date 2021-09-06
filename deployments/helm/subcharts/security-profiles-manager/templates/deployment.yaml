@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "secProfilesManager.fullname" . }}
+  labels:
+{{ include "secProfilesManager.labels" . | indent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "secProfilesManager.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "secProfilesManager.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ template "secProfilesManager.serviceAccount" . }}
+      initContainers:
+      - name: "stan-listener"
+        image: {{ include "initContainers.image" . }}
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 {{ .Values.stan.host }} {{ .Values.stan.port }} && exit 0 || sleep 3; done; exit 1"
+        ]
+        resources:
+{{ toYaml .Values.initContainers.resources | indent 10 }}
+      - name: "postgres-listener"
+        image: {{ include "initContainers.image" . }}
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 {{ .Values.postgres.host }} {{ .Values.postgres.port }} && exit 0 || sleep 3; done; exit 1"
+        ]
+        resources:
+{{ toYaml .Values.initContainers.resources | indent 10 }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ include "secProfilesManager.image" . }}
+        command: ["/tensor-security-profiles-manager"]
+        args: [
+          "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
+          "--stan-client-id={{ .Values.stan.clientID }}",
+          "--stan-cluster-id={{ .Values.stan.clusterID }}",
+          "--stan-url={{ .Values.stan.host }}:{{ .Values.stan.port }}",
+          "--console-postgres=postgres://postgres:password@{{ .Values.postgres.host }}:{{ .Values.postgres.port }}/postgres?sslmode=disable"
+        ]
+        env:
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: SEC_PROFILES_CONTAINER_CONFIGMAP
+          value: {{ template "secProfilesManager.fullname" . }}-container
+        - name: HOLMES_LABEL
+          value: {{ .Values.holmes.podLabel }}
+        - name: HOLMES_CONFIGMAP
+          value: {{ .Values.holmes.rulesConfigMap }}
+        - name: TENSORSEC_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mongo.mongoSecretName }}
+              key: mongodb-password
+        - name: TENSORSEC_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.redis.redisSecretName }}
+              key: auth
+
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        ports:
+          - containerPort: {{ .Values.service.containerPort }}
+            name: {{ include "secProfilesManager.name" . }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}

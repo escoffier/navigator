@@ -15,6 +15,7 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
+	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/elazarl/goproxy v0.0.0-20201021153353-00ad82a08272 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
@@ -31,20 +32,21 @@ require (
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-containerregistry v0.1.2 //ct
-	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/googleapis/gnostic v0.4.0 //indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/securecookie v1.1.1
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/jackc/pgx/v4 v4.13.0 // indirect
 	github.com/json-iterator/go v1.1.11
-	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-colorable v0.1.6
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mozilla/tls-observatory v0.0.0-20200317151703-4fa42e1c2dee
+	github.com/nats-io/nats-streaming-server v0.22.0 // indirect
+	github.com/nats-io/nats.go v1.11.0
+	github.com/nats-io/stan.go v0.9.0
+	github.com/novln/docker-parser v1.0.0
 	github.com/oceanicdev/chi-param v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5 //ct
 	github.com/olivere/elastic/v7 v7.0.26
@@ -76,8 +78,7 @@ require (
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.mongodb.org/mongo-driver v1.7.1
 	go.uber.org/atomic v1.9.0
-	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.18.1
+	go.uber.org/zap v1.13.0
 	golang.org/x/net v0.0.0-20210716203947-853a461950ff // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
@@ -88,20 +89,19 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.1.0
 	gorm.io/gorm v1.21.13
-	k8s.io/api v0.17.17
-	k8s.io/apimachinery v0.17.18-rc.0
-	k8s.io/apiserver v0.17.4
-	k8s.io/client-go v0.17.17
-	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
+	k8s.io/api v0.19.12
+	k8s.io/apimachinery v0.19.12
+	k8s.io/apiserver v0.19.12
+	k8s.io/client-go v0.19.12
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4
-	sigs.k8s.io/controller-runtime v0.3.0
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (
 	github.com/vishvananda/netlink => ./configs/daemon/netlink
+	gitlab.com/tensorsecurity-rd/go-pkg => ./tensorpkg
 	gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf
 )

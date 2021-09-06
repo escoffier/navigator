@@ -24,6 +24,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 )
 
+const (
+	securityProfilesRulesFolder = "/etc/holmes/rules.d"
+)
+
 type lateversionResp struct {
 	Data struct {
 		Item struct {
@@ -209,6 +213,20 @@ func updateLoop(token, url string, dataVersion, settingVersion int) {
 	os.Exit(0)
 }
 
+func readinessProbeLog() {
+	fp, err := os.Create("/var/log/holmes.log")
+	if err != nil {
+		log.Error(err)
+	}
+	defer fp.Close()
+	_, err = fp.Write([]byte("internal:"))
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	return
+}
+
 func startHolmesWithDefaultRules(cmdLine string) (err error) {
 	log.Debug("Start with default rules")
 
@@ -225,7 +243,7 @@ func startHolmesWithDefaultRules(cmdLine string) (err error) {
 		log.Error(err)
 		os.Exit(0)
 	}
-	log.Info("Rules Version: ", header.Version[0], header.Version[1])
+	log.Info("(default)Rules Version: ", header.Version[0], header.Version[1])
 
 	err = sendRulesToEventCenter(rulesContext)
 	if err != nil {
@@ -251,6 +269,7 @@ func startHolmesWithDefaultRules(cmdLine string) (err error) {
 	name := strings.Split(cmdLine, " ")[0]
 	argsList := strings.Split(cmdLine, " ")[1:]
 	argsList = append(argsList, "-r", defaultRulesFile)
+	argsList = append(argsList, "-r", securityProfilesRulesFolder)
 	log.Debug(name, argsList)
 
 	var stderr bytes.Buffer
@@ -265,6 +284,7 @@ func startHolmesWithDefaultRules(cmdLine string) (err error) {
 		<-timer.C
 		if strings.Contains(stderr.String(), loadingStr) {
 			fmt.Print(stderr.String())
+			readinessProbeLog()
 			break
 		}
 
@@ -280,6 +300,7 @@ func startHolmesProcess(cmdLine, rulesFile string) error {
 	name := strings.Split(cmdLine, " ")[0]
 	argsList := strings.Split(cmdLine, " ")[1:]
 	argsList = append(argsList, "-r", rulesFile)
+	argsList = append(argsList, "-r", securityProfilesRulesFolder)
 	osCmd := exec.Command(name, argsList...)
 
 	log.Debug(name, argsList)
@@ -298,7 +319,7 @@ func startHolmesProcess(cmdLine, rulesFile string) error {
 		<-timer.C
 
 		if strings.Contains(stderr.String(), loadingStr) {
-
+			readinessProbeLog()
 			fmt.Print(stderr.String())
 			break
 		}
@@ -352,6 +373,7 @@ func main() {
 	tmpBytes, err := base64.StdEncoding.DecodeString(httpStreamData.Data.Item.Data)
 	if err != nil {
 		log.Error(err)
+		go updateLoop(token, url+"/api/openapi/ATTCK/latestData", -1, -1)
 		startHolmesWithDefaultRules(*cmdLineArgs)
 		os.Exit(0)
 	}

@@ -1,6 +1,8 @@
 package apperror
 
-import "runtime"
+import (
+	"runtime"
+)
 
 type AnError struct{ detailedError }
 type MongoError struct{ detailedError }
@@ -41,9 +43,51 @@ type GarbageCollectionError struct{ detailedError }
 type GarbageCollectionInProgressError struct{ detailedError }
 type AssetDoesntExistError struct{ detailedError }
 type RedisCacheError struct{ detailedError }
+type NotFoundError struct{ detailedError }
 type GCTaskError struct{ detailedError }
 type ArgError struct{ detailedError }
+type PolicyError struct{ detailedError }
+type PolicyTrainingError struct{ detailedError }
+type CannotAddResourceToActivePolicyError struct{ detailedError }
+type CannotAddResourceToPolicyInTrainingError struct{ detailedError }
+type PolicyNotFoundError struct{ detailedError }
+type ResourceNotFoundError struct{ detailedError }
+type ResourceAlreadyAttachedToPolicyError struct{ detailedError }
+type ResourceAttachedToDifferentPolicyError struct{ detailedError }
+type CannotRemoveResourceFromActivePolicyError struct{ detailedError }
+type CannotRemoveResourceFromPolicyInTrainingError struct{ detailedError }
+type ResourceNotAttachedToPolicyError struct{ detailedError }
+type UnknownSecurityModeError struct{ detailedError }
+type ProfileUpdateError struct{ detailedError }
+type CannotDeactivatePolicyProfilesAreInTrainingError struct{ detailedError }
+type CannotDeleteActivePolicyError struct{ detailedError }
+type CannotUpdateConfigOfCurrentlyTrainedProfileError struct{ detailedError }
+type CannotChangeProfileStatusWhenPolicyIsActiveError struct{ detailedError }
+type UnknownSecurityProfileKindError struct{ detailedError }
+type CannotStartTrainingThatIsInProgressError struct{ detailedError }
+type CannotStartAPausedTrainingError struct{ detailedError }
+type CannotAbortNonStartedTrainingError struct{ detailedError }
+type CannotSuspendAPausedTrainingError struct{ detailedError }
+type CannotSuspendANonStartedTrainingError struct{ detailedError }
+type CannotResumeAnInProgressTrainingError struct{ detailedError }
+type CannotResumeANonStartedTrainingError struct{ detailedError }
+type CannotStopANonStartedTrainingError struct{ detailedError }
+type MissingStartTrainingTimeInTrainedProfileError struct{ detailedError }
+type PolicyAlreadySetToRequestedStatus struct{ detailedError }
+type PolicyAlreadySetToRequestedMode struct{ detailedError }
+type ProfileAlreadySetToRequestedStatus struct{ detailedError }
+type CannotChangePolicyStatusAreInTrainingError struct{ detailedError }
 type CommonError struct{ detailedError }
+type MissingCommandSentError struct{ detailedError }
+type MissingFileSentError struct{ detailedError }
+type MissingSyscallSentError struct{ detailedError }
+type MissingWorkingDirSentError struct{ detailedError }
+type FileSentNotAbsoluteError struct{ detailedError }
+type WorkingDirSentNotAbsoluteError struct{ detailedError }
+type InvalidAccessSentError struct{ detailedError }
+type InvalidSyscallSentError struct{ detailedError }
+type CannotUpdateProfileThatIsTrained struct{ detailedError }
+type DuplicateEntrySentError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -927,6 +971,454 @@ func AccountUnActive(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
+func NewProfileDoestExistError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MongoError{
+		detailedError{
+			err:       err,
+			English:   "Security profile doesn't exist",
+			Chinese:   "安全配置文件不存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return NotFoundError{
+		detailedError{
+			err:       err,
+			English:   "Not found",
+			Chinese:   "未找到",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewPolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return PolicyError{
+		detailedError{
+			err:       err,
+			English:   "Security Policy failure",
+			Chinese:   "安全策略失敗",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewPolicyTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return PolicyTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Security Policy Training failure",
+			Chinese:   "安全策略訓練失敗",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotAddResourceToActivePolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotAddResourceToActivePolicyError{
+		detailedError{
+			err:       err,
+			English:   "Cannot add resource to active policy",
+			Chinese:   "無法將資源添加到活動策略",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotAddResourceToPolicyInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotAddResourceToPolicyInTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot add resource to policy in training",
+			Chinese:   "無法將資源添加到活動策略",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewPolicyNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return PolicyNotFoundError{
+		detailedError{
+			err:       err,
+			English:   "Policy not found",
+			Chinese:   "未找到政策",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewResourceNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ResourceNotFoundError{
+		detailedError{
+			err:       err,
+			English:   "Resource not found",
+			Chinese:   "找不到資源",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewResourceAlreadyAttachedToPolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ResourceAlreadyAttachedToPolicyError{
+		detailedError{
+			err:       err,
+			English:   "Resource already attached to policy",
+			Chinese:   "資源已附加到策略",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewResourceAttachedToDifferentPolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ResourceAttachedToDifferentPolicyError{
+		detailedError{
+			err:       err,
+			English:   "Resource attached to different policy",
+			Chinese:   "附加到不同策略的資源",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotRemoveResourceFromActivePolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotRemoveResourceFromActivePolicyError{
+		detailedError{
+			err:       err,
+			English:   "Cannot remove resource from active policy",
+			Chinese:   "無法從活動策略中刪除資源",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotRemoveResourceFromPolicyInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotRemoveResourceFromPolicyInTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot remove resource from policy in training",
+			Chinese:   "無法從活動策略中刪除資源",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewResourceNotAttachedToPolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ResourceNotAttachedToPolicyError{
+		detailedError{
+			err:       err,
+			English:   "Resource not attached to policy",
+			Chinese:   "資源未附加到策略",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewUnknownSecurityModeError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return UnknownSecurityModeError{
+		detailedError{
+			err:       err,
+			English:   "Unknown security mode",
+			Chinese:   "未知的安全模式",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewProfileUpdateError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ProfileUpdateError{
+		detailedError{
+			err:       err,
+			English:   "Profile update error",
+			Chinese:   "配置文件更新錯誤",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotDeactivatePolicyProfilesAreInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotDeactivatePolicyProfilesAreInTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot deactivate policy, because some profiles are in training",
+			Chinese:   "無法停用策略，因為某些配置文件正在訓練中",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotDeleteActivePolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotDeleteActivePolicyError{
+		detailedError{
+			err:       err,
+			English:   "Cannot delete active policy",
+			Chinese:   "無法刪除活動策略",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotUpdateConfigOfCurrentlyTrainedProfileError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotUpdateConfigOfCurrentlyTrainedProfileError{
+		detailedError{
+			err:       err,
+			English:   "Cannot update configuration of currently trained profile",
+			Chinese:   "無法更新當前訓練的配置文件的配置",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotChangeProfileStatusWhenPolicyIsActiveError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotChangeProfileStatusWhenPolicyIsActiveError{
+		detailedError{
+			err:       err,
+			English:   "Cannot change profile status when policy is active",
+			Chinese:   "策略處於活動狀態時無法啟用配置文件",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewUnknownSecurityProfileKindError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return UnknownSecurityProfileKindError{
+		detailedError{
+			err:       err,
+			English:   "Unknown security profile kind",
+			Chinese:   "未知的安全配置文件類型",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotStartTrainingThatIsInProgressError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotStartTrainingThatIsInProgressError{
+		detailedError{
+			err:       err,
+			English:   "Cannot start training that is in progress",
+			Chinese:   "無法開始正在進行的訓練",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotStartAPausedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotStartAPausedTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot start training that is paused",
+			Chinese:   "無法開始暫停的訓練",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotAbortNonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotAbortNonStartedTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot abort a non started training",
+			Chinese:   "無法中止未開始的培訓",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotSuspendAPausedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotSuspendAPausedTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot suspend a paused training",
+			Chinese:   "無法暫停暫停的訓練",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotSuspendANonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotSuspendANonStartedTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot suspend a non started training",
+			Chinese:   "無法暫停未開始的培訓",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotResumeAnInProgressTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotResumeAnInProgressTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot resume an in progress training",
+			Chinese:   "無法恢復正在進行的培訓",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotResumeANonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotResumeANonStartedTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot resume an non started training",
+			Chinese:   "無法恢復未開始的培訓",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotStopANonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotStopANonStartedTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot stop a non started training",
+			Chinese:   "無法停止未開始的培訓",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewCommonError(httpCode int, err error, zhMsg, enMsg string) error {
 	_, file, line, _ := runtime.Caller(1)
 	return CommonError{
@@ -937,6 +1429,246 @@ func NewCommonError(httpCode int, err error, zhMsg, enMsg string) error {
 			HTTPCode: httpCode,
 			File:     file,
 			Line:     line,
+		},
+	}
+}
+
+func NewMissingStartTrainingTimeInTrainedProfileError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MissingStartTrainingTimeInTrainedProfileError{
+		detailedError{
+			err:       err,
+			English:   "Missing 'startTrainingTime' in trained profile",
+			Chinese:   "訓練資料中缺少'startTrainingTime'",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewPolicyAlreadySetToRequestedStatus(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return PolicyAlreadySetToRequestedStatus{
+		detailedError{
+			err:       err,
+			English:   "Policy already set to requested status",
+			Chinese:   "政策已設置為請求狀態",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewPolicyAlreadySetToRequestedMode(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return PolicyAlreadySetToRequestedMode{
+		detailedError{
+			err:       err,
+			English:   "Policy already set to requested mode",
+			Chinese:   "策略已設置為請求模式",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewProfileAlreadySetToRequestedStatus(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ProfileAlreadySetToRequestedStatus{
+		detailedError{
+			err:       err,
+			English:   "Profile already set to requested status",
+			Chinese:   "政策已設置為請求狀態",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotChangePolicyStatusAreInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotChangePolicyStatusAreInTrainingError{
+		detailedError{
+			err:       err,
+			English:   "Cannot change policy status, there are profiles in training",
+			Chinese:   "無法更改策略狀態，有正在訓練中的配置文件",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotUpdateProfileThatIsTrained(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotUpdateProfileThatIsTrained{
+		detailedError{
+			err:       err,
+			English:   "Cannot update policy that is in training",
+			Chinese:   "無法更新正在訓練的策略",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewInvalidAccessSentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return InvalidAccessSentError{
+		detailedError{
+			err:       err,
+			English:   "Invalid file access sent",
+			Chinese:   "發送的文件訪問無效",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewInvalidSyscallSentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return InvalidSyscallSentError{
+		detailedError{
+			err:       err,
+			English:   "Invalid syscall sent",
+			Chinese:   "發送的系統調用無效",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewFileSentNotAbsoluteError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return FileSentNotAbsoluteError{
+		detailedError{
+			err:       err,
+			English:   "Sent file is not absolute path",
+			Chinese:   "發送的文件不是絕對路徑",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewMissingFileSentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MissingFileSentError{
+		detailedError{
+			err:       err,
+			English:   "Empty filepath sent",
+			Chinese:   "發送空文件路徑",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewMissingWorkingDirSentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MissingWorkingDirSentError{
+		detailedError{
+			err:       err,
+			English:   "Empty working directory sent",
+			Chinese:   "已發送空工作目錄",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewMissingSyscallSentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MissingSyscallSentError{
+		detailedError{
+			err:       err,
+			English:   "Empty syscall sent",
+			Chinese:   "發送空系統調用",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewWorkingDirSentNotAbsoluteError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return WorkingDirSentNotAbsoluteError{
+		detailedError{
+			err:       err,
+			English:   "Sent working directory is not absolute path",
+			Chinese:   "發送的工作目錄不是絕對路徑",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewMissingCommandSentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return MissingCommandSentError{
+		detailedError{
+			err:       err,
+			English:   "Empty command sent",
+			Chinese:   "發送空命令",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewDuplicateEntrySentError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return DuplicateEntrySentError{
+		detailedError{
+			err:       err,
+			English:   "Duplicate entry sent",
+			Chinese:   "已發送重複條目",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
 		},
 	}
 }

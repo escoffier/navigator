@@ -1,4 +1,6 @@
-FROM registry.t-appagile.com/tensorsecurity/baseimage-holmes:latest
+ARG TAG=latest
+ARG REPO=registry.t-appagile.com/tensorsecurity
+FROM ${REPO}/baseimage-holmes:${TAG}
 
 COPY ./configs/holmes/docker-entrypoint.sh /
 COPY ./configs/holmes/holmes_export.sh /

@@ -102,6 +102,15 @@ spec:
         {{- if .Values.extraArgs }}
 {{ toYaml .Values.extraArgs | indent 12 }}
         {{- end }}
+          readinessProbe:
+            exec:
+              command:
+              - grep
+              - -q
+              - "internal:"
+              - /var/log/holmes.log
+            initialDelaySeconds: 60
+            periodSeconds: 5
           env:
             - name: CONSOLE_HTTP_ADDR
               value: {{ .Values.consoleInfo.httpAddr }}
@@ -157,10 +166,8 @@ spec:
               readOnly: true
             - mountPath: /etc/falco
               name: config-volume
-            {{- if .Values.customRules }}
-            - mountPath: /etc/falco/rules.d
+            - mountPath: /etc/holmes/rules.d
               name: rules-volume
-            {{- end }}
             {{- if and .Values.falco.grpc.enabled .Values.falco.grpc.unixSocketPath }}
             - mountPath: {{ include "falco.unixSocketDir" . }}
               name: grpc-socket-dir
@@ -218,11 +225,9 @@ spec:
               # - key: k8s_audit_rules.yaml
               #   path: k8s_audit_rules.yaml
               # {{- end }}
-        {{- if .Values.customRules }}
         - name: rules-volume
           configMap:
             name: {{ template "falco.fullname" . }}-rules
-        {{- end }}
         {{- if and .Values.falco.grpc.enabled .Values.falco.grpc.unixSocketPath }}
         - name: grpc-socket-dir
           hostPath:

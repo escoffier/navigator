@@ -1,0 +1,50 @@
+{{- if .Values.managedServiceAccount }}
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: ClusterRole
+metadata:
+  name: {{ template "secProfilesManager.serviceAccount" . }}-cluster-role
+  labels:
+    app: "{{ template "secProfilesManager.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+rules:
+- apiGroups:
+  - ""
+  - "apps"
+  - "batch"
+  - "extensions"
+  resources:
+  - daemonsets
+  - statefulsets
+  - replicasets
+  - deployments
+  - jobs
+  - cronjobs
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - {{ .Values.holmes.rulesConfigMap }}
+  - {{ template "secProfilesManager.fullname" . }}-container
+  verbs:
+  - list
+  - watch
+  - get
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - watch
+  - get
+  - delete
+{{- end -}}

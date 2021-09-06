@@ -1,0 +1,20 @@
+{{- if .Values.managedServiceAccount }}
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: ClusterRole
+metadata:
+  name: {{ template "secProfilesManager.serviceAccount" . }}-daemon-cluster-role
+  labels:
+    app: "{{ template "secProfilesManager.fullname" . }}-daemon"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - list
+  - watch
+  - get
+{{- end -}}

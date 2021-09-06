@@ -1,0 +1,142 @@
+- rule: Disallowed SSH Connection
+  priority: NOTICE
+- rule: Unexpected outbound connection destination
+  priority: NOTICE
+- rule: Unexpected inbound connection source
+  priority: NOTICE
+- rule: Modify Shell Configuration File
+  priority: WARNING
+- rule: Read Shell Configuration File
+  priority: WARNING
+- rule: Schedule Cron Jobs
+  priority: NOTICE
+- rule: Update Package Repository
+  priority: NOTICE
+- rule: Write below binary dir
+  priority: ERROR
+- rule: Write below monitored dir
+  priority: ERROR
+- rule: Read ssh information
+  priority: ERROR
+- rule: Write below etc
+  priority: ERROR
+- rule: Read sensitive file trusted after startup
+  priority: WARNING
+- rule: Read sensitive file untrusted
+  priority: WARNING
+- rule: Write below rpm database
+  priority: ERROR
+- rule: DB program spawned process
+  priority: NOTICE
+- rule: Modify binary dirs
+  priority: ERROR
+- rule: Mkdir binary dirs
+  priority: ERROR
+- rule: Change thread namespace
+  priority: NOTICE
+- rule: Run shell untrusted
+  priority: DEBUG
+- rule: Launch Privileged Container
+  priority: INFO
+- rule: Launch Sensitive Mount Container
+  priority: INFO
+- rule: Launch Disallowed Container
+  priority: WARNING
+- rule: System user interactive
+  priority: INFO
+- rule: Terminal shell in container
+  priority: NOTICE
+- rule: System procs network activity
+  priority: NOTICE
+- rule: Program run with disallowed http proxy env
+  priority: NOTICE
+- rule: Interpreted procs inbound network activity
+  priority: NOTICE
+- rule: Interpreted procs outbound network activity
+  priority: NOTICE
+- rule: Unexpected UDP Traffic
+  priority: NOTICE
+- rule: Non sudo setuid
+  priority: NOTICE
+- rule: User mgmt binaries
+  priority: NOTICE
+- rule: Create files below dev
+  priority: ERROR
+- rule: Contact EC2 Instance Metadata Service From Container
+  priority: NOTICE
+- rule: Contact cloud metadata service from container
+  priority: NOTICE
+- rule: Contact K8S API Server From Container
+  priority: NOTICE
+- rule: Unexpected K8s NodePort Connection
+  priority: NOTICE
+- rule: Launch Package Management Process in Container
+  priority: ERROR
+- rule: RS-NC(Netcat Remote Code Execution in Container)
+  priority: WARNING
+- rule: Reverse shell through telnet
+  priority: WARNING
+- rule: Reverse shell through ruby
+  priority: WARNING
+- rule: Reverse shell through awk
+  priority: WARNING
+- rule: Launch Suspicious Network Tool in Container
+  priority: NOTICE
+- rule: Launch Suspicious Network Tool on Host
+  priority: NOTICE
+- rule: Search Private Keys or Passwords
+  priority: WARNING
+- rule: Clear Log Activities
+  priority: WARNING
+- rule: Remove Bulk Data from Disk
+  priority: WARNING
+- rule: Delete or rename shell history
+  priority: WARNING
+- rule: Delete Bash History
+  priority: WARNING
+- rule: Set Setuid or Setgid bit
+  priority: NOTICE
+- rule: Create Hidden Files or Directories
+  priority: NOTICE
+- rule: Launch Remote File Copy Tools in Container
+  priority: NOTICE
+- rule: Create Symlink Over Sensitive Files
+  priority: NOTICE
+- rule: Detect outbound connections to common miner pool ports
+  priority: CRITICAL
+- rule: Detect crypto miners using the Stratum protocol
+  priority: CRITICAL
+- rule: The k8s client is executed in a container
+  priority: WARNING
+- rule: CVE-2020-14386(Packet socket created in container)
+  priority: NOTICE
+- rule: Escape to access by chroot
+  priority: ALERT
+- rule: Namespaces bypass
+  priority: CRITICAL
+- rule: Gaining environment information
+  priority: WARNING
+- rule: CVE-2021-3156(Linux sudo Privilege Escalation)
+  priority: ALERT
+- rule: CVE-2019-5736(Modify Container Entrypoint)
+  priority: ALERT
+- rule: CVE-2019-3874(Memory cgroups escape via sctp)
+  priority: ALERT
+- rule: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
+  priority: CRITICAL
+- rule: Reverse shell through socket and dup
+  priority: WARNING
+- rule: Escape to access rule by procfs
+  priority: ALERT
+- rule: Escape to access rule by lxcfs
+  priority: ALERT
+- rule: Escape to access rule by cgroup
+  priority: ALERT
+- rule: Network scanning through interpreted language
+  priority: WARNING
+- rule: Gaining sensitive information in tensorCanary
+  priority: WARNING
+- rule: The k8s client is executed in tensorCanary
+  priority: WARNING
+- rule: Other containers establish new connections to the redis-server in tensorCanary
+  priority: WARNING

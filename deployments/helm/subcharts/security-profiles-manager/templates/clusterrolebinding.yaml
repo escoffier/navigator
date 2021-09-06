@@ -1,0 +1,19 @@
+{{- if .Values.managedServiceAccount }}
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "secProfilesManager.serviceAccount" . }}-cluster-role-binding
+  labels:
+    app: "{{ template "secProfilesManager.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+roleRef:
+  kind: ClusterRole
+  name: {{ template "secProfilesManager.serviceAccount" . }}-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: {{ template "secProfilesManager.serviceAccount" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end -}}

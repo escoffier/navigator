@@ -263,7 +263,7 @@ func (s *Scapper) RunComplianceCheck(
 	}
 
 	// find nodes to schedule check jobs on
-	nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %w", err))
 	}
@@ -338,7 +338,7 @@ func (s *Scapper) RunExportFileTask(
 	tbname := task.TableName()
 	query := "task_id = ? and username = ?"
 	txdb := s.PostgresDB.Get().WithContext(pgCtx).Table(tbname).Select("status", "finishedAt")
-	errdb := txdb.Where(query,task.CheckId, task.UserName).Updates(&task).Error
+	errdb := txdb.Where(query, task.CheckId, task.UserName).Updates(&task).Error
 	if errdb != nil {
 		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", errdb)
 		return errors.Errorf("update status failed, %v", errdb)
@@ -356,7 +356,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 	listOpts := metav1.ListOptions{}
 	listOpts.LabelSelector = labels.Set(labelSelector.MatchLabels).String()
 
-	jobs, err := kubeClient.BatchV1().Jobs(namespace).List(listOpts)
+	jobs, err := kubeClient.BatchV1().Jobs(namespace).List(ctx, listOpts)
 	if err != nil {
 		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list jobs in this cluster: %w", err))
 	}
@@ -420,7 +420,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 		for _, toDelete := range checksByStartTime {
 			if checkID == toDelete.CheckID {
 
-				err := s.deleteJobAndPods(kubeClient, namespace, &job)
+				err := s.deleteJobAndPods(ctx, kubeClient, namespace, &job)
 				if err != nil {
 					return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to cleanup historical job: %w", err))
 				}
@@ -462,7 +462,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 			// I know kubeClient has some built in rate limiting so maybe it's ok?
 			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
-			err := s.scheduleOneJob(kubeClient, check, jobObj.DeepCopy(), clusterName, targetNode.Name)
+			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("Failed to schedule job")
 
@@ -524,7 +524,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scap.Check, jobObj *batchv1.Job, clusterName, targetNodeName string) error {
+func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Clientset, check *scap.Check, jobObj *batchv1.Job, clusterName, targetNodeName string) error {
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
@@ -589,16 +589,16 @@ func (s *Scapper) scheduleOneJob(kubeClient *kubernetes.Clientset, check *scap.C
 	jobObj.Name = fmt.Sprintf("%s-%s", jobObj.Name, targetNodeName)
 
 	jobsClient := kubeClient.BatchV1().Jobs(check.Namespace)
-	res, err := jobsClient.Create(jobObj)
+	res, err := jobsClient.Create(ctx, jobObj, metav1.CreateOptions{})
 	// HACK
 	if k8serrors.IsAlreadyExists(err) {
-		err = jobsClient.Delete(jobObj.Name, &metav1.DeleteOptions{})
+		err = jobsClient.Delete(ctx, jobObj.Name, metav1.DeleteOptions{})
 		if err != nil {
 			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Job already exists, so tried deleting, but: %w", err))
 		}
 
 		time.Sleep(time.Second * 10)
-		res, err = jobsClient.Create(jobObj)
+		res, err = jobsClient.Create(ctx, jobObj, metav1.CreateOptions{})
 	}
 	if err != nil {
 		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %w", err))
@@ -834,8 +834,8 @@ func (s Scapper) isJobFailed(job *batchv1.Job) (bool, *batchv1.JobCondition) {
 	return false, nil
 }
 
-func (s *Scapper) deleteJobAndPods(kubeClient *kubernetes.Clientset, namespace string, job *batchv1.Job) error {
-	err := kubeClient.BatchV1().Jobs(namespace).Delete(job.Name, &metav1.DeleteOptions{})
+func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *kubernetes.Clientset, namespace string, job *batchv1.Job) error {
+	err := kubeClient.BatchV1().Jobs(namespace).Delete(ctx, job.Name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("Failed to delete job: %w", err)
 	}
@@ -843,7 +843,7 @@ func (s *Scapper) deleteJobAndPods(kubeClient *kubernetes.Clientset, namespace s
 	listOpts := metav1.ListOptions{
 		LabelSelector: labels.Set(job.Spec.Selector.MatchLabels).String(),
 	}
-	err = kubeClient.CoreV1().Pods(namespace).DeleteCollection(&metav1.DeleteOptions{}, listOpts)
+	err = kubeClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, listOpts)
 	if err != nil {
 		return fmt.Errorf("Failed to delete job's pods: %w", err)
 	}

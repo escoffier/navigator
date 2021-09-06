@@ -17,26 +17,26 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-func (s *Service) GetStorageView(_ context.Context, dataType string) (*model.StorageView, error) {
+func (s *Service) GetStorageView(ctx context.Context, dataType string) (*model.StorageView, error) {
 	switch dataType {
 	case model.DataTypeCold:
-		return s.GetColdStorageView()
+		return s.GetColdStorageView(ctx)
 	case model.DataTypeHotLogic:
-		return s.GetLogicHotStorageView()
+		return s.GetLogicHotStorageView(ctx)
 	case model.DataTypeHotOffline:
-		return s.GetOfflineHotStorageView()
+		return s.GetOfflineHotStorageView(ctx)
 	default:
 		return nil, def.ErrInvalidDataType
 	}
 }
 
-func (s *Service) GetLogicHotStorageView() (*model.StorageView, error) {
-	mongoHotStorageView, err := s.getStorageView(s.mongoPod)
+func (s *Service) GetLogicHotStorageView(ctx context.Context) (*model.StorageView, error) {
+	mongoHotStorageView, err := s.getStorageView(ctx, s.mongoPod)
 	if err != nil {
 		return nil, err
 	}
 
-	postgreHotStorageView, err := s.getStorageView(s.postgrePod)
+	postgreHotStorageView, err := s.getStorageView(ctx, s.postgrePod)
 	if err != nil {
 		return nil, err
 	}
@@ -46,15 +46,15 @@ func (s *Service) GetLogicHotStorageView() (*model.StorageView, error) {
 		Used:  mongoHotStorageView.Used + postgreHotStorageView.Used}, nil
 }
 
-func (s *Service) GetOfflineHotStorageView() (*model.StorageView, error) {
-	return s.getStorageView(s.esPod)
+func (s *Service) GetOfflineHotStorageView(ctx context.Context) (*model.StorageView, error) {
+	return s.getStorageView(ctx, s.esPod)
 }
 
-func (s *Service) GetColdStorageView() (*model.StorageView, error) {
-	return s.getStorageView(s.auditPod)
+func (s *Service) GetColdStorageView(ctx context.Context) (*model.StorageView, error) {
+	return s.getStorageView(ctx, s.auditPod)
 }
 
-func (s *Service) getStorageView(pod *PodInfo) (*model.StorageView, error) {
+func (s *Service) getStorageView(ctx context.Context, pod *PodInfo) (*model.StorageView, error) {
 	if pod == nil {
 		return nil, fmt.Errorf("not support storage view")
 	}
@@ -67,7 +67,7 @@ func (s *Service) getStorageView(pod *PodInfo) (*model.StorageView, error) {
 
 	namespace := getNamespace()
 	api := kubeClient.CoreV1()
-	pvc, err := api.PersistentVolumeClaims(namespace).Get(pod.PVC, metaV1.GetOptions{})
+	pvc, err := api.PersistentVolumeClaims(namespace).Get(ctx, pod.PVC, metaV1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get pvc: %w", err)
 	}

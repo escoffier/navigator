@@ -1,0 +1,157 @@
+# imagePullSecrets:
+#   - name: vegeta-gitlab
+
+image:
+  registry:  localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-security-profiles-manager
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+nameOverride: "sec-prof-man"
+fullnameOverride: "tensorsec-sec-prof-man"
+
+restartPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8887
+  containerPort: 8080
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "100Mi"
+  limits:
+    cpu: "200m"
+    memory: "200Mi"
+
+initContainers:
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: alpine
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+apiInstallLabel: "console.tensorsec/install"
+
+
+console:
+  httpAddr: tensorsec-console:8889
+
+webhook:
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: tensorsec-security-profiles-webhook
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "200m"
+      memory: "200Mi"
+
+eventProcessor:
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: tensorsec-event-processor
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "200m"
+      memory: "200Mi"
+
+loader:
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: tensorsec-security-profiles-loader
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "200m"
+      memory: "200Mi"
+
+audit:
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: tensorsec-go-audit
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "200m"
+      memory: "200Mi"
+
+redis:
+  redisSecretName: tensorsec-redis-ha
+
+holmes:
+  rulesConfigMap: tensorsec-holmes-rules
+  podLabel: tensorsec-holmes
+
+postgres:
+  host: tensorsec-postgresql
+  port: "5432"
+
+stan:
+  clientID: sec-profile-manager
+  clusterID: tensorsec
+  host: tensorsec-stan-headless
+  port: "4222"
+
+mongo:
+  mongoUsername: redstone
+  mongoDatabase: vegeta
+  mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
+
+volumes:
+  clientName: "client-cert"
+  clientSecretName: "eventcenter-tls-client-cert-secret"
+  clientMountPath: "/auth/client"
+  caName: "ca-cert"
+  caSecretName: "eventcenter-tls-ca-secret"
+  caMountPath: "/auth/ca"
+
+eventcenter:
+  addr: tensorsec-eventcenter
+  port: "8080"
+  eventGrpcUrl: tensorsec-eventcenter:9090
+  eventGrpcCertServerName: tensorsec-eventcenter
+
+redis:
+  redisSecretName: tensorsec-redis-ha
+
+managedServiceAccount: true

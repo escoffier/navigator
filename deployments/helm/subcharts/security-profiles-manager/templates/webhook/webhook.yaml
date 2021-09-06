@@ -1,0 +1,36 @@
+apiVersion: {{ template "admissionregistration.apiVersion" . }}
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ template "secProfilesManager.fullname" . }}-webhook
+  labels:
+    app: "{{ template "secProfilesManager.fullname" . }}-webhook"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+webhooks:
+  - name: {{ template "secProfilesManager.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc
+    clientConfig:
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURNVENDQWhtZ0F3SUJBZ0lKQU1yUUlaWGNOQTNOTUEwR0NTcUdTSWIzRFFFQkN3VUFNQzh4TFRBckJnTlYKQkFNTUpFRmtiV2x6YzJsdmJpQkRiMjUwY205c2JHVnlJRmRsWW1odmIyc2dSR1Z0YnlCRFFUQWVGdzB5TVRBMgpNak14TURFMk1qQmFGdzB6TVRBMk1qRXhNREUyTWpCYU1DOHhMVEFyQmdOVkJBTU1KRUZrYldsemMybHZiaUJECmIyNTBjbTlzYkdWeUlGZGxZbWh2YjJzZ1JHVnRieUJEUVRDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVAKQURDQ0FRb0NnZ0VCQU15bXh6b2Y0TW5UTm95TWtqa3JMbUp1ZVYrMURSQzhkc2VnRmZiNnROYmdZNzExaVJyYgpzczhFbFVyNmQ1VlB1QXdSRmV3eGdiVWpJMHRPSk5leHZHSHBndlZ2djl1T1ZsaE1PMVRlZWZVeEQvRVlQdDNhClBtdFJrU3YveXRuYUUzVC96NHpMK0NZUjR6d1JTdFhxeHNkZ040dE95cFlxVlI1N2hIaG9vdEtOZWxnY25FYTgKRG9XamlsM1AzTVV3ak05U2duK1BNaU14L203cDJMN2s5VzhsckpTSnJpaStJc1pYZzhvZDBwTFpZd0kwUmo2egowWmhhVGtTOHIvVTRPTW8rMU0vQ3BKdzZjSlp1QmhVUTJaRkNRc3MyWnBXdmRpcG5NL2tySDc3ckFLbXBRMW9pCmxCRGNLUkNQQjdqYm1JNDQ3Tmd1OVFtbUlxVWxjT3VEekdNQ0F3RUFBYU5RTUU0d0hRWURWUjBPQkJZRUZQTEwKb1RqNHZubnJ0NE5KWXNIYjNobXl1Zkp4TUI4R0ExVWRJd1FZTUJhQUZQTExvVGo0dm5ucnQ0TkpZc0hiM2hteQp1Zkp4TUF3R0ExVWRFd1FGTUFNQkFmOHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQy9EYTdTeDZvT01jNFROCnc1Z2U3cWVPdDZqVFBKd1pUMUlmTXlqQnErZG95K2RaSHA3Z1VrV21lSnJiOVIwOUtzSDhUQ1Z6dVhNSDcvZ0IKZ0hib3dwSFdWcGxOT1VnYjRNcXFGeXA4ZUVZVGt5ZnhDVzd2TlhTVWJZRDRCTlVnYU9aL29RejYrSVlva0NVZApXVG1vb2t2cHZqT1YwTzFFemdhcWc2UFI0NDBSak9FNldwSEdNYm03VGZhVGR6ZEZhZnhMZXV6VFZSLzZHbGRrCmw4SnlpbHUxcVp5OWxWSGxXeGQ3Y2lMbStmdGRVM283dHR0YVkrbDZSN056U1NpRVhjVEtrdU8xWjU4VVV0RksKekRaejRGbldWUlhZR0Y3bWhJTlBDNmVSaEZXQzR6NGhtRDVDdiszY1ZVY1lObzNLUkNLVlNleExuamx4SlFiZgpEYVN4Skd3PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+      service:
+        name: "{{ template "secProfilesManager.fullname" . }}-webhook-service"
+        namespace: "{{ .Release.Namespace }}"
+        path: "/mutate"
+    rules:
+      - operations: [ "CREATE" ]
+        apiGroups: [ "" ]
+        apiVersions: [ "v1" ]
+        resources: [ "pods" ]
+    failurePolicy: Ignore
+    namespaceSelector:
+      matchExpressions:
+        - key: "name"
+          operator: "NotIn"
+          values:
+            - "kube-system"
+            - "{{ .Release.Namespace }}"
+    sideEffects: None
+    {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    {{- end }}

@@ -1,0 +1,94 @@
+package mutation
+
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook/config"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+
+	"github.com/sirupsen/logrus"
+
+	"k8s.io/api/admission/v1beta1"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+)
+
+var (
+	errNoBody      = fmt.Errorf("empty body")
+	errInvalidBody = fmt.Errorf("invalid json payload")
+
+	runtimeScheme = runtime.NewScheme()
+	codecs        = serializer.NewCodecFactory(runtimeScheme)
+	deserializer  = codecs.UniversalDeserializer()
+
+	// (https://github.com/kubernetes/kubernetes/issues/57982)
+	defaulter = runtime.ObjectDefaulter(runtimeScheme)
+)
+
+func init() {
+	_ = corev1.AddToScheme(runtimeScheme)
+	_ = admissionregistrationv1beta1.AddToScheme(runtimeScheme)
+	// defaulting with webhooks:
+	// https://github.com/kubernetes/kubernetes/issues/57982
+	_ = v1.AddToScheme(runtimeScheme)
+}
+
+// RegisterMutateWebhook manages binding endpoint invocations to underlying business logic.
+func RegisterMutateWebhook(server *gin.Engine, holder *config.Holder, clientset *kubernetes.Clientset, db *rdbtools.GormWrapper, secProfManagerEndpoint string) {
+	webhook := &mutateWebhook{holder, clientset, db, &http.Client{Timeout: 10 * time.Second}, secProfManagerEndpoint}
+
+	server.POST("/mutate", func(ctx *gin.Context) {
+		webhook.mutationHandler(ctx)
+	})
+}
+
+type mutateWebhook struct {
+	Holder                 *config.Holder
+	clientset              *kubernetes.Clientset
+	db                     *rdbtools.GormWrapper
+	HTTPClient             *http.Client
+	secProfManagerEndpoint string
+}
+
+func (w *mutateWebhook) mutationHandler(ctx *gin.Context) {
+	var body []byte
+	if ctx.Request.Body != nil {
+		if data, err := ioutil.ReadAll(ctx.Request.Body); err == nil {
+			body = data
+		}
+	}
+
+	if len(body) == 0 {
+		if err := ctx.AbortWithError(http.StatusBadRequest, errNoBody); err != nil {
+			logrus.Errorf("failed to abort request: %s", err.Error())
+		}
+		return
+	}
+
+	review := &v1beta1.AdmissionReview{}
+	if _, _, err := deserializer.Decode(body, nil, review); err != nil {
+		if err := ctx.AbortWithError(http.StatusBadRequest, errInvalidBody); err != nil {
+			logrus.Errorf("failed to abort request: %s", err.Error())
+		}
+		return
+	}
+
+	admissionResponse := mutate(ctx, w.Holder.Get(), w.clientset, w.db, review)
+
+	if admissionResponse != nil && review.Request != nil {
+		admissionResponse.UID = review.Request.UID
+	}
+
+	ctx.JSON(http.StatusOK, &v1beta1.AdmissionReview{
+		Response: admissionResponse,
+	})
+}

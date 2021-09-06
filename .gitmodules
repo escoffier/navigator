@@ -17,11 +17,7 @@
 	path = configs/tensordig/gobpf
 	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/gobpf.git
 	branch = tensordig
-[submodule "cmd/go-audit"]
-	path = cmd/go-audit
-	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/go-audit.git
-	branch = tensorsec
 [submodule "configs/daemon/netlink"]
 	path = configs/daemon/netlink
 	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/netlink.git
-    branch = tensorsec
+        branch = tensorsec

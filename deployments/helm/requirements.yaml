@@ -44,20 +44,25 @@ dependencies:
     repository: "file://./subcharts/kibana"
     condition: kibana.enabled
 
-  - name: drift-prevention
-    version: 0.1.0
-    repository: "file://./subcharts/drift-prevention"
-    condition: drift-prevention.enabled
-
-  - name: seccomp-generator
-    version: 0.1.0
-    repository: "file://./subcharts/seccomp-generator"
-    condition: seccompGenerator.enabled
-
   - name: holmes
     version: 1.7.4
     repository: "file://./subcharts/holmes"
     condition: holmes.enabled
+
+  - name: stan
+    version: 0.8.0
+    repository: "file://./subcharts/stan"
+    condition: stan.enabled
+
+  - name: security-profiles-manager
+    version: 0.1.0
+    repository: "file://./subcharts/security-profiles-manager"
+    condition: security-profiles-manager.enabled
+
+  - name: holmessidekick
+    version: 0.3.3
+    repository: "file://./subcharts/holmessidekick"
+    condition: holmessidekick.enabled
 
   - name: image-validator
     version: 0.1.0
@@ -73,3 +78,19 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/cluster-manager"
     condition: cluster-manager.enabled
+
+  - name: stan
+    version: 0.8.0
+    repository: "file://./subcharts/stan"
+    condition: stan.enabled
+
+  - name: security-profiles-manager
+    version: 0.1.0
+    repository: "file://./subcharts/security-profiles-manager"
+    condition: security-profiles-manager.enabled
+
+  - name: holmessidekick
+    version: 0.3.3
+    repository: "file://./subcharts/holmessidekick"
+    condition: holmessidekick.enabled
+

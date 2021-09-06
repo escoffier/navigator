@@ -1,6 +1,7 @@
 package netflow
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -43,14 +44,14 @@ func NewK8sResourceSyncer() (*K8sResClient, error) {
 	return &rs, nil
 }
 
-func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*OwnerRef, int32) {
+func (rs K8sResClient) GetPodControllerFromSvc(ctx context.Context, ns, svc string, dport int32) ([]*OwnerRef, int32) {
 	var targetPort int32
 	var tPortName string
 	owners := []*OwnerRef{}
 	tmp := map[string]*OwnerRef{}
 	existflag := false
 
-	services, err := rs.k8sClient.CoreV1().Services(ns).Get(svc, metav1.GetOptions{})
+	services, err := rs.k8sClient.CoreV1().Services(ns).Get(ctx, svc, metav1.GetOptions{})
 	if err != nil {
 		return owners, targetPort
 	}
@@ -84,13 +85,13 @@ func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*
 		return strings.Join(s, ",")
 	}
 
-	list, err := rs.k8sClient.CoreV1().Pods(ns).List(metav1.ListOptions{LabelSelector: map2string(services.Spec.Selector)})
+	list, err := rs.k8sClient.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{LabelSelector: map2string(services.Spec.Selector)})
 	if err != nil {
 		return owners, targetPort
 	}
 
 	for _, pod := range list.Items {
-		ownername, ownerkind := rs.GetOwnerReferences(&pod)
+		ownername, ownerkind := rs.GetOwnerReferences(ctx, &pod)
 		if _, ok := tmp[strings.Join([]string{ownername, ownerkind}, "_")]; !ok {
 			var ref OwnerRef
 			ref.Name = ownername
@@ -119,7 +120,7 @@ func (rs K8sResClient) GetPodControllerFromSvc(ns, svc string, dport int32) ([]*
 	return owners, targetPort
 }
 
-func (rs K8sResClient) GetOwnerReferences(pod *corev1.Pod) (string, string) {
+func (rs K8sResClient) GetOwnerReferences(ctx context.Context, pod *corev1.Pod) (string, string) {
 	owner := metav1.GetControllerOf(pod)
 	if owner == nil {
 		kind := pod.Kind
@@ -133,7 +134,7 @@ func (rs K8sResClient) GetOwnerReferences(pod *corev1.Pod) (string, string) {
 	ownerkind := owner.Kind
 	if ownerkind == "ReplicaSet" {
 		namespace := pod.GetNamespace()
-		rps, err := rs.k8sClient.AppsV1().ReplicaSets(namespace).Get(ownername, metav1.GetOptions{})
+		rps, err := rs.k8sClient.AppsV1().ReplicaSets(namespace).Get(ctx, ownername, metav1.GetOptions{})
 		if err != nil {
 			//log.Errorf("pod name : %s, ns : %s, err : %v.", pod.GetName(), namespace, err)
 			return ownername, ownerkind
@@ -257,7 +258,7 @@ func (rs K8sResClient) ListenEndpointEvent(factory *informers.SharedInformerFact
 	})
 }
 
-func (rs K8sResClient) ListenPodsEvent(factory *informers.SharedInformerFactory) {
+func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.SharedInformerFactory) {
 	informer := (*factory).Core().V1().Pods().Informer()
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -273,7 +274,7 @@ func (rs K8sResClient) ListenPodsEvent(factory *informers.SharedInformerFactory)
 				return
 			}
 
-			name, kind := rs.GetOwnerReferences(pod)
+			name, kind := rs.GetOwnerReferences(ctx, pod)
 			namespace := pod.GetNamespace()
 			//log.Infof("[pods add] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
 			rs.K8sPods.SaveK8sResData(podIp, name, kind, namespace, "")
@@ -312,7 +313,7 @@ func (rs K8sResClient) ListenPodsEvent(factory *informers.SharedInformerFactory)
 				return
 			}
 
-			name, kind := rs.GetOwnerReferences(pod)
+			name, kind := rs.GetOwnerReferences(ctx, pod)
 			namespace := pod.GetNamespace()
 			//log.Infof("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
 			rs.K8sPods.UpdateK8sResData(podIp, name, kind, namespace, "")
@@ -351,11 +352,11 @@ func (rs *K8sResClient) ListenNodesEvent(factory *informers.SharedInformerFactor
 	})
 }
 
-func (rs *K8sResClient) StartK8sServiceSyncer() error {
+func (rs *K8sResClient) StartK8sServiceSyncer(ctx context.Context) error {
 	factory := informers.NewSharedInformerFactory(rs.k8sClient, 0)
 
 	//list k8s pods event
-	rs.ListenPodsEvent(&factory)
+	rs.ListenPodsEvent(ctx, &factory)
 
 	//list k8s service event
 	rs.ListenServiceEvent(&factory)

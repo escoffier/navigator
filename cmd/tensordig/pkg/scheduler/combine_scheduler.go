@@ -34,10 +34,6 @@ func (cs *CombineSchedule) newConsumers(consumersInfo []string) error {
 		switch v {
 		case "Json":
 			c = consumer.NewJsonConsumer()
-		case "SeccompGenerate":
-			c = consumer.NewSeccompGeneration()
-		case "SeccompPrevent":
-			c = consumer.NewSeccompPrevent()
 		}
 
 		// consumer init at "Schedule" method using "consumer.Init(cs.combinedChan[i])"

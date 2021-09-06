@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "secProfilesManager.fullname" . }}
+  labels:
+    helm.sh/chart: {{ include "secProfilesManager.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.containerPort }}
+      protocol: TCP
+      name: {{ include "secProfilesManager.name" . }}
+  selector:
+    app.kubernetes.io/name: {{ include "secProfilesManager.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

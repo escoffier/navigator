@@ -3,7 +3,7 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: tensorsec-image-validating
   annotations:
-    cert-manager.io/inject-ca-from: tensorsec-test-cn/tensorsec-webhook-certs
+    cert-manager.io/inject-ca-from: tensorsec/tensorsec-webhook-certs
   labels:
     app: tensor-webhook
 webhooks:
@@ -12,7 +12,7 @@ webhooks:
       #      url: "https://192.168.254.1:9443/mutating"
       service:
         name: tensorsec-image-validator
-        namespace: tensorsec-test-cn
+        namespace: tensorsec
         path: "/validating"
     rules:
       - operations: [ "CREATE", "UPDATE" ]

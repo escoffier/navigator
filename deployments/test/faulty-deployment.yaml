@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faulty-deployment
+  labels:
+    app: faulty-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faulty-deployment
+  template:
+    metadata:
+      labels:
+        app: faulty-deployment
+        # tensorsec.apparmor.faulty: "test"
+        # tensorsec.seccomp: "test"
+        # tensorsec.drift.faulty: "prevention"
+        # tensorsec.commandwhitelist.faulty: "test"
+    spec:
+      containers:
+      - name: faulty
+        image: localhost:32000/tensorsecurity/faulty
+        command: ["/bin/bash", "-c", "sleep 99999"]
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+          - name: tmp
+            mountPath: /host/tmp
+      imagePullSecrets:
+      - name: harbor-admin-secret
+      volumes:
+      - name: tmp
+        hostPath:
+          path: /tmp
