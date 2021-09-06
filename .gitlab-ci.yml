@@ -50,6 +50,7 @@ all:
     - k8s
   before_script:
     ## Configuration of Git
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - git submodule init
@@ -86,6 +87,8 @@ helm-upgrade:
   tags:
     - k8s
   before_script:
+    ## Configuration of Git
+    - git merge origin/master
     ## Configuration of Helm
     - 'sed -i "s#registry: harbor.local.tensorsecurity.cn#registry: registry.t-appagile.com#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#tensorsecVerison 1.6.8#tensorsecVerison ci#g" deployments/helm/example-values.yaml'
@@ -104,6 +107,7 @@ helm-upgrade:
   rules:
     - changes:
         - deployments/helm/**/*
+
 cluster-manager:
   stage: build
   retry: 2
@@ -111,6 +115,7 @@ cluster-manager:
   tags:
     - k8s
   before_script:
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
@@ -141,6 +146,7 @@ console:
   tags:
     - k8s
   before_script:
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
@@ -173,6 +179,7 @@ holmes:
   tags:
     - k8s
   before_script:
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
@@ -208,6 +215,7 @@ scanner:
   tags:
     - k8s
   before_script:
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
@@ -241,6 +249,7 @@ webhook:
   tags:
     - k8s
   before_script:
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
@@ -273,6 +282,7 @@ webshell-server:
   tags:
     - k8s
   before_script:
+    - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
     - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
