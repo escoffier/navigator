@@ -81,6 +81,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+        {{- if .Values.global.multiCluster.isMasterCluster }}
         - name: {{ .Chart.Name }}
           image: {{ template "falco.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -180,6 +181,8 @@ spec:
             {{- if .Values.extraVolumeMounts }}
 {{ toYaml .Values.extraVolumeMounts | indent 12 }}
             {{- end }}
+        {{- end }}
+      {{- if .Values.global.multiCluster.isMasterCluster }}
       volumes:
         {{- if .Values.docker.enabled }}
         - name: docker-socket
@@ -249,6 +252,7 @@ spec:
         {{- end }}
         {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 8 }}
+        {{- end }}
         {{- end }}
   updateStrategy:
 {{ toYaml .Values.daemonset.updateStrategy | indent 4 }}
