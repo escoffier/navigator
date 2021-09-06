@@ -9,6 +9,10 @@ image:
 nameOverride: "webhook"
 fullnameOverride: "tensorsec-webhook"
 
+args:
+  consoleUrl: "http://tensorsec-console:8889"
+  clusterManagerUrl: "http://tensorsec-cluster-manager:9443"
+
 service:
   type: ClusterIP
   port: 443

@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 	"net/http"
 	"strings"
@@ -24,6 +25,10 @@ import (
 )
 
 const ApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
+
+const (
+	defaultK8sClusterName = "default"
+)
 
 type ClusterManager struct {
 	masterAddr    string
@@ -41,9 +46,10 @@ type ClusterManager struct {
 }
 
 const (
-	tokenFile      = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	rootCAFile     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	masterAssetUrl = "/api/openapi/assets/cluster"
+	tokenFile  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	rootCAFile = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	//masterAssetUrl = "/api/openapi/assets/cluster"
+	masterAssetUrl = "/internal/platform/assets/cluster"
 	tlsCAFile      = "/etc/tensorsec/cluster-manager/tls.crt"
 	tlsKeyFile     = "/etc/tensorsec/cluster-manager/tls.key"
 )
@@ -142,18 +148,24 @@ type TensorCluster struct {
 }
 
 func (c *ClusterManager) registerClusterInfo() error {
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	cluster := &model.TensorCluster{
-		Key:                 c.CusterID,
-		Name:                c.Name,
-		Description:         c.description,
-		APIServerAddr:       c.apiServerAddr,
-		CertificateAuthData: c.CaData,
-		SecretToken:         c.Token,
-		Status:              0,
+	var cluster *model.TensorCluster
+
+	if c.Name == defaultK8sClusterName {
+		cluster = buildInClusterInfo()
+	} else {
+		cluster = &model.TensorCluster{
+			Key:                 c.CusterID,
+			Name:                c.Name,
+			ClusterType:         model.MemberCluster,
+			Description:         c.description,
+			APIServerAddr:       c.apiServerAddr,
+			CertificateAuthData: c.CaData,
+			SecretToken:         c.Token,
+			Status:              0,
+		}
 	}
 
 	data, err := json.Marshal(cluster)
@@ -206,4 +218,30 @@ func buildUrl(host, path string) string {
 		return host + path
 	}
 	return "http://" + host + path
+}
+
+func buildInClusterInfo() *model.TensorCluster {
+	clusterConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+
+	token := clusterConfig.BearerToken
+
+	ca, err := ioutil.ReadFile(clusterConfig.TLSClientConfig.CAFile)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
+		return nil
+	}
+
+	key := fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
+	newCluster := &model.TensorCluster{
+		Key:                 key,
+		Name:                defaultK8sClusterName,
+		ClusterType:         model.HostCluster,
+		APIServerAddr:       clusterConfig.Host,
+		SecretToken:         token,
+		CertificateAuthData: string(ca),
+	}
+	return newCluster
 }

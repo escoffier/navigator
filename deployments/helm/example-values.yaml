@@ -160,9 +160,12 @@ image-validator:
     tag: *tensorsecVerison
 
 webhook:
-  enabled: *isMasterCluster
+  enabled: true
   image:
     tag: *tensorsecVerison
+  args:
+    consoleUrl: *masterAddr
+    
 
 cluster-manager:
   enabled: true

@@ -25,16 +25,24 @@ spec:
         - containerPort: 9443
           protocol: TCP
         args:
+        {{- if .Values.global.multiCluster.isMasterCluster }}
         - --validators={{ .Values.validators }}
         - --mutators={{ .Values.mutators }}
+        {{- else if .Values.global.multiCluster.isMemberCluster }}
+        - proxy
+        - --target-host={{ .Values.args.consoleUrl }}
+        - --clusterMgrAddress={{ .Values.args.clusterManagerUrl }}
+        {{- end }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
         volumeMounts:
         - mountPath: /etc/tensorsec/certs
           name: webhook-certs
           readOnly: true
+        {{- if .Values.global.multiCluster.isMasterCluster }}
         - mountPath: /etc/tensorsec/config
           name: webhook-config
+        {{- end }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       restartPolicy: Always
@@ -42,7 +50,9 @@ spec:
       - name: webhook-certs
         secret:
           secretName: {{ template "webhook.fullname" . }}-certs
+      {{- if .Values.global.multiCluster.isMasterCluster }}
       - name: webhook-config
         configMap:
-          name: {{ template "webhook.fullname" . }}    
+          name: {{ template "webhook.fullname" . }}
+      {{- end }}   
 

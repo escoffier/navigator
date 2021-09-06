@@ -32,5 +32,7 @@ func NewWebhookCommand() *cobra.Command {
 	cmd.Flags().StringSliceVar(&webHookConfig.IgnoredNameSpaces, "IgnoredNameSpaces", []string{"kube-system", "tensorsec"}, "The ignored namespaces for image checking")
 	cmd.Flags().StringSliceVar(&webHookConfig.Validators, "validators", nil, "The enabled validators")
 	cmd.Flags().StringSliceVar(&webHookConfig.Mutators, "mutators", nil, "The enabled mutators")
+
+	cmd.AddCommand(NewProxyCmd())
 	return cmd
 }

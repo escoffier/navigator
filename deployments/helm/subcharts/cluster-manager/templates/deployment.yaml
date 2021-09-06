@@ -22,9 +22,13 @@ spec:
         image: "{{ template "tensorsec.image" . }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
+        {{- if .Values.global.multiCluster.isMasterCluster }}
+        - --cluster-name=default
+        {{- else if .Values.global.multiCluster.isMemberCluster }}
         - --master-addr={{ .Values.args.masterAddr }}
         - --cluster-name={{ .Values.args.clusterName }}
         - --api-server-address={{ .Values.args.apiServerAddr }}
+        {{- end }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
       imagePullSecrets:

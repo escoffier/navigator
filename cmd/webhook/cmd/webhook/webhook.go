@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	param2 "github.com/oceanicdev/chi-param"
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagevalidator"
@@ -123,11 +124,22 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read request body err", http.StatusInternalServerError)
 		return
 	}
+	cluster, err := param2.QueryString(r, "cluster")
+	if err != nil {
+		http.Error(w, "parse request param err", http.StatusInternalServerError)
+		return
+	}
+
+	//cluster param is empty mean thant  mutating request comes from api-server of host cluster
+	if cluster == "" {
+		cluster = "default"
+	}
+
 	kind := ar.Request.Kind.Kind
 	param := &processors.MutatorParameters{
 		Namespace: ar.Request.Namespace,
 		Kind:      kind,
-		Cluster:   "default",
+		Cluster:   cluster,
 	}
 
 	var admissionResponse *v1.AdmissionResponse
