@@ -73,6 +73,8 @@ spec:
           "--harbor-skiptlsverify", # Insecure
           "--security-profiles-host=tensorsec-sec-prof-man",
           "--security-profiles-port=8887",
+          "--webhook-host=tensorsec-webhook",
+          "--webhook-port=443",
           "-v"]
 
         volumeMounts:
