@@ -303,7 +303,7 @@ func (s *QueueService) profileController(ctx context.Context, updatedBy string, 
 }
 
 func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) error {
-	falcoTicker := time.NewTicker(10 * time.Minute)
+	falcoTicker := time.NewTicker(1 * time.Hour)
 	falcoQuit := make(chan struct{})
 	go func() {
 		for {
@@ -311,10 +311,10 @@ func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) erro
 			case <-falcoTicker.C:
 				s.mutex.Lock()
 				logging.GetLogger().Info().Msg("Start periodic rules update")
-				err := updateFalcoRules(ctx, redisClient)
-				if err != nil {
-					logging.GetLogger().Error().Err(err).Msg("Failed to update falco rules with intermediate profiles")
-				}
+				// err := updateFalcoRules(ctx, redisClient)
+				// if err != nil {
+				// 	logging.GetLogger().Error().Err(err).Msg("Failed to update falco rules with intermediate profiles")
+				// }
 				s.mutex.Unlock()
 			case <-falcoQuit:
 				falcoTicker.Stop()
