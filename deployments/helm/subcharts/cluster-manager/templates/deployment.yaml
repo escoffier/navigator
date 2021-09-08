@@ -24,6 +24,7 @@ spec:
         args:
         {{- if .Values.global.multiCluster.isMasterCluster }}
         - --cluster-name=default
+        - --master-addr=tensorsec-console:8889
         {{- else if .Values.global.multiCluster.isMemberCluster }}
         - --master-addr={{ .Values.args.masterAddr }}
         - --cluster-name={{ .Values.args.clusterName }}
