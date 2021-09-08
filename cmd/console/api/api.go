@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -29,12 +30,14 @@ import (
 )
 
 type api struct {
-	ctx               context.Context
-	userCache         *cache.Cache
-	tokenAuth         *jwtauth.JWTAuth
-	mongodb           *mongotools.DatabaseWrapper
-	postgresDB        *rdbtools.GormWrapper
-	microsegURL       string
+	ctx         context.Context
+	userCache   *cache.Cache
+	tokenAuth   *jwtauth.JWTAuth
+	mongodb     *mongotools.DatabaseWrapper
+	postgresDB  *rdbtools.GormWrapper
+	microsegURL string
+	webhookURL  *url.URL
+
 	scannerURL        string
 	secProfileCoreURL string
 	redisClient       *redis.Client
@@ -58,11 +61,18 @@ func newAPI(
 	scannerURL string,
 	secProfileCoreURL string,
 	microsegURL string,
+	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	emailOpts *flag.EmailOpts,
 	ecCli pb.EventsCenterBizServiceClient,
 ) *api {
+	whUrl, err := url.Parse(webhookURL)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("invalid webhook url: %v", whUrl)
+		whUrl = nil
+	}
+
 	return &api{
 		ctx:                         ctx,
 		userCache:                   cache.New(sessionExpiration, time.Minute),
@@ -72,6 +82,7 @@ func newAPI(
 		scannerURL:                  scannerURL,
 		secProfileCoreURL:           secProfileCoreURL,
 		microsegURL:                 microsegURL,
+		webhookURL:                  whUrl,
 		redisClient:                 redisClient,
 		harborClient:                harborClient,
 		scanResultLocalBackoffCache: make(map[string]int),

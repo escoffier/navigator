@@ -106,7 +106,13 @@ var rootCmd = &cobra.Command{
 			Int("port", microsegOpts.Port).
 			Msg("microsegmentation options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts, secProfilesOpts, microsegOpts)
+		webhookOpts := flag.GetWebHookOpts(cmd)
+		logging.GetLogger().Info().
+			Str("host", webhookOpts.Host).
+			Int("port", webhookOpts.Port).
+			Msg("webhook options")
+
+		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts, secProfilesOpts, microsegOpts, webhookOpts)
 
 		if err != nil {
 			return err
@@ -143,6 +149,7 @@ func init() {
 	flag.AddEmailOpts(rootCmd)
 	flag.AddSecProfilesOpts(rootCmd)
 	flag.AddMicrosegmentationFlags(rootCmd)
+	flag.AddWebHookFlags(rootCmd)
 
 	flag.ConfigViper()
 }

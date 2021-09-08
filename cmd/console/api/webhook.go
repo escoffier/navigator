@@ -8,21 +8,20 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"strings"
 )
 
 func (api *api) webhook() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logging.GetLogger().Info().Msgf("webhook api: %s", r.Host)
-		targetUrl := &url.URL{
-			Scheme: "https",
-			Host:   "tensorsec-webhook.tensorsec-test-cn.svc",
-		}
 
 		logging.GetLogger().Debug().Msgf("origin url %+v", r.URL)
+		if api.webhookURL == nil {
+			logging.GetLogger().Warn().Msg("no webhook url!")
+			return
+		}
 
-		reverseProxy := httputil.NewSingleHostReverseProxy(targetUrl)
+		reverseProxy := httputil.NewSingleHostReverseProxy(api.webhookURL)
 		reverseProxy.Transport = &http.Transport{
 			DialTLSContext: dialTLSContext,
 		}

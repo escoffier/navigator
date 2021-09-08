@@ -116,6 +116,7 @@ func NewConsole(
 	emailOpts *flag.EmailOpts,
 	secProfilesOpts *flag.SecProfilesOpts,
 	microsegOpts *flag.MicrosegOpts,
+	webhookOpts *flag.WebHookOpts,
 ) (*Console, error) {
 	// mongo client
 	// TODO: authSource database should be a separate argument.
@@ -353,6 +354,7 @@ func NewConsole(
 				scannerURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
 				fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port),
+				fmt.Sprintf("https://%s:%d", webhookOpts.Host, webhookOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
 				harborClient,
@@ -439,10 +441,10 @@ func (c *Console) Run() func() {
 	}
 
 	//writing cluster info into mongodb would be deleted later
-	err = addDefaultCluster(ctx, c.mongoDB)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
-	}
+	//err = addDefaultCluster(ctx, c.mongoDB)
+	//if err != nil {
+	//	logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
+	//}
 
 	clients := getAllKubeClient(ctx)
 	k8s.WatchKubeResource(ctx, clients, c.postgresDB, c.scannerURL)
@@ -707,6 +709,7 @@ func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 	clusters, _, err := resSvc.GetClusters(ctx, 0, maxClusterNum)
 	if err != nil {
+		log.Error().Err(err).Msg("get cluster failed")
 		return nil
 	}
 
@@ -724,10 +727,12 @@ func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 			BearerToken:     c.SecretToken,
 		})
 		if err != nil {
+			log.Error().Err(err).Msg("create clientset err")
 			continue
 		}
 		clientMap[c.Key] = clientSet
 	}
+	log.Info().Msgf("get %d k8s client", len(clientMap))
 	return clientMap
 }
 
