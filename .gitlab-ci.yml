@@ -80,6 +80,7 @@ all:
         - pkg/**/*
         - Makefile
         - go.mod
+        - configs/**/*
 
 helm-upgrade:
   stage: build
