@@ -409,7 +409,7 @@ postgresql:
   sharedPreloadLibraries: "pgaudit, repmgr"
   ## @param postgresql.maxConnections Maximum total connections
   ##
-  maxConnections: ""
+  maxConnections: "1024"
   ## @param postgresql.postgresConnectionLimit Maximum connections for the postgres user
   ##
   postgresConnectionLimit: ""
