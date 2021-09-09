@@ -88,6 +88,7 @@ require (
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.mongodb.org/mongo-driver v1.7.2
 	go.uber.org/atomic v1.9.0
+	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.13.0
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/net v0.0.0-20210907225631-ff17edfbf26d // indirect
@@ -101,7 +102,6 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	gorm.io/datatypes v1.0.1
 	gorm.io/driver/postgres v1.1.0
 	gorm.io/gorm v1.21.14

@@ -5,6 +5,7 @@ package main
 import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/cmd"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	_ "go.uber.org/automaxprocs"
 )
 
 // @title Vegeta API·
