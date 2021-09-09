@@ -4,17 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi"
+	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func (api *api) networkTopo() func(chi.Router) {
@@ -22,8 +21,8 @@ func (api *api) networkTopo() func(chi.Router) {
 		r.Get("/upstream/cluster/{cluster}/namespace/{namespace}/kind/{kind}/resource/{resource}", api.listUpstreamInfo())
 		r.Get("/downstream/cluster/{cluster}/namespace/{namespace}/kind/{kind}/resource/{resource}", api.listDownstreamInfo())
 		r.Put("/topology", api.addNetTopology())
+		r.Put("/topologies", api.addNetTopologiges())
 		r.Get("/topology", api.getNetTopology())
-		r.Post("/topology", api.updateNetTopology())
 	}
 }
 
@@ -98,6 +97,38 @@ func (api *api) listDownstreamInfo() http.HandlerFunc {
 }
 
 // @Summary
+// @Description add multiple net topologies https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
+// @Produce json
+// @Method PUT
+// @Router /internal/platform/networkTopo/topologies
+func (api *api) addNetTopologiges() http.HandlerFunc {
+	type resp struct{}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		var topologies []*model.TensorNetworkFlow
+		err := util.DecodeJSONBody(w, r, &topologies)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		networkTopoService, _ := networktopo.Get(ctx)
+
+		err = networkTopoService.AddNetTopologies(ctx, topologies)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("failed to add net topology: %w", err)))
+			return
+		}
+		response.Ok(w, response.WithItem(resp{}))
+	}
+}
+
+// @Summary
 // @Description add a net topology https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
 // @Produce json
 // @Method PUT
@@ -119,26 +150,6 @@ func (api *api) addNetTopology() http.HandlerFunc {
 		}
 		networkTopoService, _ := networktopo.Get(ctx)
 
-		count, err := networkTopoService.CountNetTopology(ctx, topology.UUID)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("failed to add net topology: %w", err)))
-			return
-		}
-		if count > 0 {
-			err := networkTopoService.UpdateActiveTime(ctx, topology.UUID)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewAnError(http.StatusInternalServerError,
-						fmt.Errorf("failed to update net topology: %w", err)))
-				return
-			}
-			response.Ok(w, response.WithItem(resp{
-				ID: topology.UUID,
-			}))
-			return
-		}
 		err = networkTopoService.AddNetTopology(ctx, &topology)
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -172,33 +183,5 @@ func (api *api) getNetTopology() http.HandlerFunc {
 		response.Ok(w,
 			response.WithItems(nts),
 			response.WithTotalItems(count))
-	}
-}
-
-func (api *api) updateNetTopology() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		req := request{}
-		err := util.DecodeJSONBody(w, r, &req)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-		networkTopoService, _ := networktopo.Get(ctx)
-		if req.UUID != 0 {
-			err = networkTopoService.UpdateActiveTime(ctx, req.UUID)
-		} else {
-			t := time.Unix(req.Time, 0)
-			err = networkTopoService.UpdateStatus(ctx, t, req.Status)
-		}
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("update net topology error. data: %v", req)
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update net topology error")))
-			return
-		}
-		response.Ok(w)
 	}
 }
