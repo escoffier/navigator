@@ -23,8 +23,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
@@ -131,7 +129,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	var policyNum int64
 	var policy model.PolicyDetailInfo
 	tbname := policy.TableName()
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	err := s.postgresDB.Get().WithContext(ctx).Table(tbname).Count(&policyNum).Error
@@ -144,7 +142,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 		return nil
 	}
 
-	files := []string {
+	files := []string{
 		"/policy/kube-policy.txt",
 		"/policy/docker-policy.txt",
 		"/policy/host-policy.txt",
@@ -188,6 +186,59 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	return nil
 }
 
+func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterId string, timeout int64) error {
+	var task model.ScanHistory
+	query := "check_type = ? and cluster_key = ? and state = 1"
+	err := s.postgresDB.Get().WithContext(ctx).First(&task, query, checkType, clusterId).Error
+	if err == nil || task.TaskID == "" {
+		return nil
+	}
+
+	var nodeTask []model.ScanNodeRecord
+	err = s.postgresDB.Get().WithContext(ctx).Where(&model.ScanNodeRecord{TaskID: task.TaskID}).Find(&nodeTask).Error
+	if err != nil {
+		return errors.Errorf("get node's scan job task failed, %w", err)
+	}
+
+	if len(nodeTask) == 0 {
+		err = s.postgresDB.Get().WithContext(ctx).Where(&model.ScanHistory{TaskID: task.TaskID}).Delete(&task).Error
+		if err != nil {
+			return errors.Errorf("delete invalid history task failed, %w", err)
+		}
+		return nil
+	}
+
+	sucNum := 0
+	nowTime := time.Now().Unix()
+	var finishTime, createTime int64
+	for i := 0; i < len(nodeTask); i++ {
+		createTime = nodeTask[i].CreatedAt
+		state := nodeTask[i].State
+		if state == 1 {
+			continue
+		}
+
+		if state == 0 {
+			sucNum++
+		}
+
+		finishTime = nodeTask[i].FinishedAt
+	}
+
+	if sucNum > 0 || (nowTime-createTime) > timeout {
+		task.State = 0
+		task.FinishedAt = finishTime
+		task.SucNode = int32(sucNum)
+		err = s.postgresDB.Get().WithContext(ctx).Where(&model.ScanHistory{TaskID: task.TaskID}).Select("*").Updates(task).Error
+		if err != nil {
+			return errors.Errorf("update history task failed, %w", err)
+		}
+		return nil
+	}
+
+	return errors.Errorf("have been scanning task")
+}
+
 func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int, error) {
 	//print debug log
 	//logging.GetLogger().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
@@ -196,15 +247,13 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 	defer mpgCancel()
 
 	var scanHistory []model.ScanHistory
-	items := make([]model.CheckHistoryEntry, 0)
-	tb := model.ScanHistory{}
-	tbname := tb.TableName()
 	query := fmt.Sprintf("check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
-	err := s.postgresDB.Get().WithContext(pgCtx).Table(tbname).Where(query, checkType).Find(&scanHistory).Error
+	err := s.postgresDB.Get().WithContext(pgCtx).Where(query, checkType).Find(&scanHistory).Error
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
 	}
 
+	items := make([]model.CheckHistoryEntry, 0)
 	docNum := len(scanHistory)
 	for _, value := range scanHistory {
 		var data model.CheckHistoryEntry
@@ -226,9 +275,8 @@ func (s *ScapService) GetLatestHistory(ctx context.Context, checkType, sortBy, s
 	defer cancel()
 
 	var scanHistory []model.ScanHistory
-	tbname := model.ScanHistory{}
 	condition := fmt.Sprintf("check_type = ? order by %s %s", sortBy, sortOrder)
-	err := s.postgresDB.Get().WithContext(pgCtx).Table(tbname.TableName()).Where(condition, checkType).Find(&scanHistory).Error
+	err := s.postgresDB.Get().WithContext(pgCtx).Where(condition, checkType).Find(&scanHistory).Error
 	if err != nil {
 		return "", errors.Errorf("get scan history failed, %v", err)
 	}
@@ -312,9 +360,8 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 	}
 
 	var scanRet []model.ScanResult
-	tbname := model.ScanResult{}
-
-	err = s.postgresDB.Get().WithContext(ctx).Table(tbname.TableName()).Where("node_name = ? and task_id = ?", nodeName, checkID).Find(&scanRet).Error
+	query := "node_name = ? and task_id = ?"
+	err = s.postgresDB.Get().Find(&scanRet, query, nodeName, checkID).Error
 	if err != nil {
 		return errors.Errorf("get node scan result failed, %v", err)
 	}
@@ -358,8 +405,8 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 
 func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *scap.NodeCheckDetails) error {
 	var scanRet []model.ScanResult
-	tbname := model.ScanResult{}
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname.TableName()).Where("node_name = ? and task_id = ?", nodeName, checkID).Find(&scanRet).Error
+	query := "node_name = ? and task_id = ?"
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
 	if err != nil {
 		return errors.Errorf("get node scan result failed, %v", err)
 	}
@@ -402,9 +449,8 @@ func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, c
 
 func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *scap.NodeCheckDetails) error {
 	var scanRet []model.ScanResult
-	tbname := model.ScanResult{}
-
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname.TableName()).Where("node_name = ? and task_id = ?", nodeName, checkID).Find(&scanRet).Error
+	query := "node_name = ? and task_id = ?"
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
 	if err != nil {
 		return errors.Errorf("get node scan result failed, %v", err)
 	}
@@ -444,8 +490,7 @@ func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, che
 
 func (s *ScapService) GetNodeState(ctx context.Context, waitingOn, errorOn, successOn *[]string, checkId string) error {
 	var scanNode []model.ScanNodeRecord
-	tb := model.ScanNodeRecord{}
-	err := s.postgresDB.Get().WithContext(ctx).Table(tb.TableName()).Where("task_id = ?", checkId).Find(&scanNode).Error
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanNode, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("can not find scan node record, %v", err)
 	}
@@ -468,9 +513,8 @@ func (s *ScapService) GetNodeState(ctx context.Context, waitingOn, errorOn, succ
 
 func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId, checkType string) (*model.PolicyDetailInfo, error) {
 	var policy model.PolicyDetailInfo
-	tbname := policy.TableName()
 	condition := "policy_id = ? and check_type = ? and status = 0"
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&policy, condition, policyId, checkType).Error
+	err := s.postgresDB.Get().WithContext(ctx).Take(&policy, condition, policyId, checkType).Error
 	if err != nil || policy.PolicyId == "" {
 		return nil, errors.Errorf("get policy information failed, policy id : %s, checkType : %s", policyId, checkType)
 	}
@@ -486,9 +530,7 @@ func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, che
 	}
 
 	var nodeRecord []model.ScanNodeRecord
-	tb := model.ScanNodeRecord{}
-	tbname := tb.TableName()
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname).Where("task_id = ?", checkId).Find(&nodeRecord).Error
+	err := s.postgresDB.Get().WithContext(ctx).Find(&nodeRecord, "task_id = ?", checkId).Error
 	if err != nil {
 		return nodeAutoVar, errors.Errorf("can not find node scan information, checkId : %s", checkId)
 	}
@@ -527,8 +569,7 @@ func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) 
 
 func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
-	tbname := model.ScanResult{}
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname.TableName()).Where("task_id = ?", checkId).Find(&scanRet).Error
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
@@ -575,46 +616,6 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 	return nil
 }
 
-func (s *ScapService) getDockerNodeDetails(ctx context.Context, checkType, nodeName, policyNumber, checkID string, nodeData *scap.PolicyNodeRet) error {
-	mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*10)
-	defer mongoCtxCancel()
-	//filter
-	filter := bson.M{}
-	filter["checkId"] = checkID
-	filter["nodeName"] = nodeName
-	findOptions := options.FindOne().SetMaxTime(time.Second * 1)
-	//find node details
-	var complianceTest model.DockerJobEntry
-	col := s.mongodb.Get().Collection(checkType)
-	err := col.FindOne(mongoCtx, filter, findOptions).Decode(&complianceTest)
-	if err != nil {
-		return fmt.Errorf("decode node details failed, %w", err)
-	}
-	//status
-	status := complianceTest.Status
-	if status != model.ComplianceCheckStatusCompleted {
-		return nil
-	}
-
-	//get node description
-	for _, test := range complianceTest.Report.Tests {
-		for _, result := range test.Results {
-			if result.ID != policyNumber {
-				continue
-			}
-			remediation := util.RemoveScoredNotScoredFrom(result.DetailsEn)
-			if lang.Language(ctx) == lang.LanguageZH {
-				remediation = util.RemoveScoredNotScoredFrom(result.DetailsZh)
-			}
-			nodeData.Remediation = remediation
-			nodeData.TestStatus = result.Result
-			return nil
-		}
-	}
-
-	return nil
-}
-
 func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyId, checkType, checkId string) error {
 	autoVars, err := s.GetNodeRecordAutoVariate(ctx, checkId, checkType)
 	if err != nil {
@@ -627,8 +628,8 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *s
 	}
 
 	var scanRet []model.ScanResult
-	tb := model.ScanResult{}
-	err = s.postgresDB.Get().WithContext(ctx).Table(tb.TableName()).Where("task_id = ? and policy_id = ?", checkId, policyId).Find(&scanRet).Error
+	query := "task_id = ? and policy_id = ?"
+	err = s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
 	}
@@ -668,8 +669,7 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *s
 
 func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
-	tbname := model.ScanResult{}
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname.TableName()).Where("task_id = ?", checkId).Find(&scanRet).Error
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
@@ -692,7 +692,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 				Description:  title,
 			}
 
-			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID,checkType)
+			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
 		}
 
 		testStatus := value.State
@@ -718,8 +718,8 @@ func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *s
 	}
 
 	var scanRet []model.ScanResult
-	tb := model.ScanResult{}
-	err = s.postgresDB.Get().WithContext(ctx).Table(tb.TableName()).Where("task_id = ? and policy_id = ?", checkId, policyId).Find(&scanRet).Error
+	query := "task_id = ? and policy_id = ?"
+	err = s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
 	}
@@ -755,10 +755,8 @@ func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *s
 
 func (s *ScapService) GetScanResultToFile(ctx context.Context, file *xlsx.File, task *model.ExportTask, language lang.LanguageType) error {
 	var scanRet []model.ScanResult
-	tb := model.ScanResult{}
-	tbname := tb.TableName()
 	query := "task_id = ?"
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, task.CheckId).Find(&scanRet).Error
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, task.CheckId).Error
 	if err != nil {
 		return errors.Errorf("get scan result to file failed, %v", err)
 	}
@@ -806,8 +804,7 @@ func (s *ScapService) GetScanResultToFile(ctx context.Context, file *xlsx.File, 
 
 func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
-	tbname := model.ScanResult{}
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname.TableName()).Where("task_id = ?", checkId).Find(&scanRet).Error
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
@@ -857,8 +854,8 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 
 func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyId, checkType, checkId string) error {
 	var scanRet []model.ScanResult
-	tb := model.ScanResult{}
-	err := s.postgresDB.Get().WithContext(ctx).Table(tb.TableName()).Where("task_id = ? and policy_id = ?", checkId, policyId).Find(&scanRet).Error
+	query := "task_id = ? and policy_id = ?"
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
 	}

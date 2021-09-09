@@ -337,8 +337,7 @@ func (s *Scapper) RunExportFileTask(
 	//update mongo data
 	tbname := task.TableName()
 	query := "task_id = ? and username = ?"
-	txdb := s.PostgresDB.Get().WithContext(pgCtx).Table(tbname).Select("status", "finishedAt")
-	errdb := txdb.Where(query, task.CheckId, task.UserName).Updates(&task).Error
+	errdb := s.PostgresDB.Get().WithContext(pgCtx).Table(tbname).Select("status", "finishedAt").Where(query, task.CheckId, task.UserName).Updates(&task).Error
 	if errdb != nil {
 		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", errdb)
 		return errors.Errorf("update status failed, %v", errdb)

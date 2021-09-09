@@ -47,7 +47,7 @@ func NetInit(ctx context.Context) error {
 
 	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(hostName)
 	if err != nil {
-		log.Warnf("Failed to initialize rule metrics client: %w", err)
+		//log.Warnf("Failed to initialize rule metrics client: %w", err)
 	} else {
 		ruleMetricsClient.Start()
 	}
@@ -66,11 +66,7 @@ func NetInit(ctx context.Context) error {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
 
-	stopCron := make(chan struct{})
-
-	flow.Start(ctx, stopCron)
-
-	close(stopCron)
+	flow.Start(ctx)
 
 	return nil
 }

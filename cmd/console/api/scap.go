@@ -103,7 +103,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 				return
 			}
 
-		case model.ComplianceCheckTargetTypeHost :
+		case model.ComplianceCheckTargetTypeHost:
 			err := scapService.GetNodeCheckHostDetails(ctx, nodeName, checkID, string(checkType), nodeCheckDetails)
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
@@ -230,7 +230,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
 				return
 			}
-		case model.ComplianceCheckTargetTypeHost :
+		case model.ComplianceCheckTargetTypeHost:
 			err := scapService.GetHostBreakdownEntries(ctx, checkMap, checkID, string(checkType))
 			if err != nil {
 				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
@@ -467,6 +467,14 @@ func (api *api) scapCheck() http.HandlerFunc {
 		if err == nil && claims != nil {
 			//get username from token
 			username = claims[JWT_KEY_USERNAME].(string)
+		}
+
+		//check scanning task
+		scapService, _ := scapper.GetService(ctx)
+		err = scapService.CheckScanningTask(ctx, string(checkType), cluster.ID.Hex(), 1800)
+		if err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
+			return
 		}
 
 		scapper, _ := scapper.GetScapper(ctx)

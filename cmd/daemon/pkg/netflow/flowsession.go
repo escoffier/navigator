@@ -1,12 +1,9 @@
 package netflow
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"syscall"
 	"time"
@@ -50,7 +47,6 @@ type FlowSession struct {
 	krs       *K8sResClient
 	url       string
 	ClusterId string
-
 	submitter *Submitter
 }
 
@@ -88,47 +84,15 @@ func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, er
 		krs:       k8sClient,
 		ClusterId: clusterId,
 		url:       url,
-		submitter: NewSubmitter(1*time.Minute, getSubmitFunc(url)),
+		submitter: NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
 	}
 
 	return &fs, nil
 }
 
-func getSubmitFunc(url string) SubmitFunc {
-	return func(ctx context.Context, flows []*model.TensorNetworkFlow) error {
-		tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		data, err := json.Marshal(flows)
-		if err != nil {
-			return errors.Errorf("json marshal failed, %v", err)
-		}
-
-		req, err := http.NewRequestWithContext(tctx, "PUT", url, bytes.NewBuffer(data))
-		if err != nil {
-			return errors.Errorf("Error reading request, %v", err)
-		}
-
-		// Set headers
-		req.Header.Set("Content-Type", "application/json")
-
-		// Send request
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return errors.Errorf("Error reading response, %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return errors.Errorf("PUT method's response code error, code = %v", resp.StatusCode)
-		}
-
-		return nil
-	}
-}
-
-func (fs *FlowSession) Start(ctx context.Context, sig chan struct{}) {
+func (fs *FlowSession) Start(ctx context.Context) {
 	//crontab check session
-	go fs.CronCheckSession(ctx, sig)
+	go fs.InitSession(ctx)
 
 	//listen conntrack event
 	fs.startConntrackListener(ctx, fs.onFlowCallback)
@@ -162,7 +126,7 @@ func (fs FlowSession) NetProtoConvert(proto uint8) uint8 {
 	case unix.IPPROTO_UDP:
 		return 2
 	default:
-		return 0
+
 	}
 	return 0
 }
@@ -231,7 +195,6 @@ func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP
 	//destination resource
 	netData.DstPort = int(dport)
 	netData.Proto = fs.NetProtoConvert(proto)
-	netData.Status = 1
 	netData.SrcCluster = fs.ClusterId
 	netData.DstCluster = fs.ClusterId
 
@@ -262,31 +225,15 @@ func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP
 	return nil
 }
 
-func (fs *FlowSession) CronCheckSession(ctx context.Context, sig chan struct{}) {
-	for {
-		select {
-		case <-sig:
-			return
-		default:
-			log.Infof("crontab print session and k8s resource data.")
-			//print log
-			// infos := fs.krs.K8sPods
-			// infos.PrintAllK8sResData()
+func (fs *FlowSession) InitSession(ctx context.Context) error {
 
-			//list session
-			fs.conntrackInitList(ctx)
+	log.Infof("conntrack session init list.")
+	//print log
+	// infos := fs.krs.K8sPods
+	// infos.PrintAllK8sResData()
 
-			//time
-			now := time.Now()
-			m, _ := time.ParseDuration("-30m")
-			//update k8s resource data status
-			err := UpdateK8sResData(fs.url, now.Add(m).Unix(), 0)
-			if err != nil {
-				log.Errorf("update k8s net data failed. %v.", err)
-			}
-		}
-		time.Sleep(30 * time.Minute)
-	}
+	//list session
+	return fs.conntrackInitList(ctx)
 }
 
 func (fs *FlowSession) onFlowCallback(ctx context.Context, header syscall.NlMsghdr, flow *netlink.ConntrackFlow) error {
