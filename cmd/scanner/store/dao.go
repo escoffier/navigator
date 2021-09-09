@@ -771,8 +771,8 @@ func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStat
 	var tmpScanImage []model.ScanImage
 	var total int
 	var doingNum, errorNum, successNum, pendingNum int
-	s.psql.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("scan_images.image_id,scan_images.status").Joins("right join tensor_image_list on tensor_image_list.id=scan_images.image_id").
-		Where("tensor_image_list.from_type = 1").Find(&tmpScanImage).Debug() // 可能分段查询更好,todo
+	s.psql.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("scan_images.image_id,scan_images.status").Joins("join tensor_image_list on tensor_image_list.id=scan_images.image_id").
+		Where("tensor_image_list.from_type = 1 and scan_images.id >0").Find(&tmpScanImage).Debug() // 可能分段查询更好,todo
 	total = len(tmpScanImage)
 	for _, v := range tmpScanImage {
 		if v.Status == "inprogress" {
@@ -832,24 +832,35 @@ func (s *ScannerOrm) GetImageID(ctx context.Context, digest string, fullRepoName
 	return tmp.ID, nil
 }
 
-func (s *ScannerOrm) InsertToScanImage(ctx context.Context, ScanImage *model.ScanImage) {
+func (s *ScannerOrm) InsertToScanImage(ctx context.Context, ScanImage *model.ScanImage) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ScanImage{}
 	res := s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageId: ScanImage.ImageId}).First(&tmp)
 	if res.Error != nil {
-		s.psql.Get().Create(ScanImage)
+		err := s.psql.Get().Create(ScanImage).Error
+		if err != nil {
+			return err
+		}
 	} else {
-		s.UpdateToScanImage(ctx, ScanImage, tmp.ID)
+		err := s.UpdateToScanImage(ctx, ScanImage, tmp.ID)
 		ScanImage.ID = tmp.ID
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (s *ScannerOrm) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) {
+func (s *ScannerOrm) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	tmpImage := model.ScanImage{ID: tableID}
-	s.psql.Get().WithContext(ctx).Model(tmpImage).Updates(ScanImage)
+	err := s.psql.Get().WithContext(ctx).Model(tmpImage).Updates(ScanImage).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string, auth string) (model.ScanTask, model.VirusScanTask, error) {
@@ -883,7 +894,10 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, from
 		ttmp.StartedAt = time.Now().Unix()
 		ttmp.ImageId = imageID
 		ttmp.Status = model.ScanStatusInProgress
-		s.InsertToScanImage(ctx, ttmp)
+		err := s.InsertToScanImage(ctx, ttmp)
+		if err != nil {
+			return model.ScanTask{}, model.VirusScanTask{}, err
+		}
 		task.ImageID = imageID
 	}
 	task.ID = primitive.NewObjectIDFromTimestamp(time.Now())

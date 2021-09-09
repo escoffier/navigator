@@ -1,6 +1,7 @@
 package service
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	logg "log"
@@ -174,9 +175,10 @@ func NewScanner(
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background()) // nolint govet
-
+	scannerList := component.ScannerList{}
+	scannerList.List = list.New()
 	// redclair
-	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, scannerDB, redisClientOne, redisClient, updateOpts)
+	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, scannerDB, redisClientOne, redisClient, updateOpts, &scannerList)
 	if err != nil {
 		return nil, err // nolint govet
 	}
@@ -196,7 +198,7 @@ func NewScanner(
 	return &Scanner{
 		ginServer: &http.Server{
 			Addr: httpOpts.HTTPListen, Handler: api.SetupGinRouter(
-				newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache),
+				newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache, &scannerList),
 				component.NewImageRejectSrc(store.NewScannerOrm(postgresDB)),
 				component.NewHarborSrc(store.NewScannerOrm(postgresDB), redisClient, redclairSvc),
 			),
@@ -255,22 +257,21 @@ func (s *Scanner) Run() func() {
 		}
 	}()
 	// image.NewImageService(s.postgresDB, s.harborClient)
-
 	// start reject cache
 	wg.Add(1)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("start Layer Manage scanner error : %v. stack: %s", r, debug.Stack())
+				logging.GetLogger().Error().Msgf("start checkGlobalDBTask scanner error : %v. stack: %s", r, debug.Stack())
 				panic(r)
 			}
 		}()
 
 		defer wg.Done()
-		ticker := time.NewTicker(time.Minute * 1)
+		ticker := time.NewTicker(time.Minute * 5)
 		for {
 			<-ticker.C
-			s.checkGlobalCache(s.globalCache)
+			s.checkGlobalDBTask(s.redclair.ScannerList)
 		}
 	}()
 
@@ -372,6 +373,7 @@ func newConScannerSrv(
 	redclair *component.RedClairService,
 	virusScan *component.VirusScan,
 	globalCache *cache.Cache,
+	scannerList *component.ScannerList,
 ) component.ScannerSrv {
 
 	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
@@ -414,10 +416,20 @@ func newConScannerSrv(
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	dal := store.NewScannerOrm(db)
 
-	srv := component.NewConScannerSrv(dal, redclair, virusScan, store.NewScannerDB(db), globalCache)
+	srv := component.NewConScannerSrv(dal, redclair, virusScan, store.NewScannerDB(db), globalCache, scannerList)
 	go srv.DeleteCICDImage(context.Background()) // 起协程删除cache仓库的image
 	return srv
 }
 
-func (s *Scanner) checkGlobalCache(cache *cache.Cache) {
+func (s *Scanner) checkGlobalDBTask(list *component.ScannerList) {
+	listLen := list.List.Len()
+	logging.GetLogger().Info().Msgf("In checkGlobalDBTask Have %d To ReUse", listLen)
+	for i := 0; i < listLen; i++ {
+		f := list.ReUpdataDBPop()
+		err := f.Value()
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("ReUpdata Db FAILED")
+			list.ReUpdataDBPush(f)
+		}
+	}
 }

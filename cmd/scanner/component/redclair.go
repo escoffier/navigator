@@ -79,10 +79,11 @@ type RedClairService struct {
 	cond          *sync.Cond
 	numRunning    int
 	wantsToUpdate bool
+	ScannerList   *ScannerList
 }
 
 // NewRedClair creates the instance of RedClair
-func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, rcs *redis.Client, updateOpts *flag.UpdateOpts) (*RedClairService, error) {
+func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mongo.Database, postgresSvc *store.ScannerDB, rc *redis.Client, rcs *redis.Client, updateOpts *flag.UpdateOpts, list *ScannerList) (*RedClairService, error) {
 	redclairEng, err := redclair.NewRedclair(clairOpts, updateOpts, db)
 	if err != nil {
 		return nil, err
@@ -102,6 +103,7 @@ func NewRedClairService(ctx context.Context, clairOpts *flag.ClairOpts, db *mong
 		skipRegistryTLSVerify:   clairOpts.SkipRegistryTLSVerify,
 		clairDBConnectionString: clairOpts.PostgresConnectionString,
 		cond:                    c,
+		ScannerList:             list,
 	}, nil
 }
 
@@ -1095,7 +1097,24 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 	if originalErr != nil {
 		scanImage.Message = fmt.Sprintf("%s: %s", message, originalErr)
 	}
-	rcSvc.postgresSvc.UpdateToScanImage(ctx, scanImage, tableID)
+	err := rcSvc.postgresSvc.UpdateToScanImage(ctx, scanImage, tableID)
+	if err != nil {
+		dbfunc := ScannerDbFunc{}
+		f := func() error {
+			err := rcSvc.postgresSvc.UpdateToScanImage(context.Background(), scanImage, tableID)
+			if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
+				err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
+				if err != nil {
+					logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
+					return err
+				}
+			}
+			return err
+		}
+		dbfunc.Value = f
+		dbfunc.RetryNum = 0
+		rcSvc.ScannerList.ReUpdataDBPush(dbfunc)
+	}
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 		err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
 		if err != nil {

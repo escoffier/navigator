@@ -69,9 +69,10 @@ type ConScannerSrv struct {
 	virusScan   *VirusScan
 	scannerDB   *store.ScannerDB
 	globalCache *cache.Cache
+	scannerList *ScannerList
 }
 
-func NewConScannerSrv(dbdal store.ScannerDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache) *ConScannerSrv {
+func NewConScannerSrv(dbdal store.ScannerDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache, scannerList *ScannerList) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:       dbdal,
 		log:         logging.GetLogger(),
@@ -79,6 +80,7 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface, redclair *RedClairService
 		virusScan:   virusScan,
 		scannerDB:   scdb,
 		globalCache: globalCache,
+		scannerList: scannerList,
 	}
 }
 
@@ -708,6 +710,16 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("ScanAllNow.SearchScanImage error:%s", err.Error())
 			if err := s.dbdal.SetImageStatus(ctx, nil, model.ScanStatusFailed); err != nil {
+				if err != nil {
+					dbfunc := ScannerDbFunc{}
+					f := func() error {
+						err := s.dbdal.SetImageStatus(context.Background(), nil, model.ScanStatusFailed)
+						return err
+					}
+					dbfunc.RetryNum = 0
+					dbfunc.Value = f
+					s.scannerList.ReUpdataDBPush(dbfunc)
+				}
 				logging.GetLogger().Error().Err(err).Msg("ScanAllNow.SetImageStatus")
 				return err
 			}
@@ -723,6 +735,17 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 			}
 			if err := s.TickScanOne(ctx, imgs[i].ID, fromUrl, consts.ScanTaskComeFromWeb); err != nil {
 				logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ScanAllNow.TickScanOne error:%s", err.Error()))
+				err := s.dbdal.SetImageStatus(context.Background(), []int64{imgs[i].ID}, model.ScanStatusFailed)
+				if err != nil {
+					dbfunc := ScannerDbFunc{}
+					f := func() error {
+						err := s.dbdal.SetImageStatus(context.Background(), []int64{imgs[i].ID}, model.ScanStatusFailed)
+						return err
+					}
+					dbfunc.RetryNum = 0
+					dbfunc.Value = f
+					s.scannerList.ReUpdataDBPush(dbfunc)
+				}
 				continue
 			}
 		}
