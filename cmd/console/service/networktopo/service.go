@@ -3,18 +3,26 @@ package networktopo
 import (
 	"context"
 	"errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm/clause"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ReneKroon/ttlcache/v2"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 var (
 	instance *NetworkTopoService
 	once     sync.Once
+)
+
+const (
+	cacheSize = 5 * 1024
+	cacheTTL  = 10 * time.Minute
 )
 
 type NetProtocol = uint8
@@ -40,11 +48,19 @@ func Get(ctx context.Context) (*NetworkTopoService, bool) {
 
 type NetworkTopoService struct {
 	postgresDB *rdbtools.GormWrapper
+	topoCache  *ttlcache.Cache
 }
 
+func newTopoCache() *ttlcache.Cache {
+	cache := ttlcache.NewCache()
+	cache.SetCacheSizeLimit(cacheSize)
+	cache.SetTTL(cacheTTL)
+	return cache
+}
 func newNetworkTopoService(postgresDB *rdbtools.GormWrapper) *NetworkTopoService {
 	return &NetworkTopoService{
 		postgresDB: postgresDB,
+		topoCache:  newTopoCache(),
 	}
 }
 
@@ -112,22 +128,64 @@ func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, d
 	return res, int64(len(res)), nil
 }
 
+func (n *NetworkTopoService) checkCache(flow *model.TensorNetworkFlow) bool {
+	if n.topoCache == nil {
+		return false
+	}
+	if flow.UUID == 0 {
+		return false
+	}
+	_, err := n.topoCache.Get(strconv.FormatUint(uint64(flow.UUID), 10))
+	return err == nil
+}
+
+func (n *NetworkTopoService) putToCache(flow *model.TensorNetworkFlow) error {
+	if n.topoCache == nil {
+		return nil
+	}
+	return n.topoCache.Set(strconv.FormatUint(uint64(flow.UUID), 10), struct{}{})
+}
+
+func (n *NetworkTopoService) addNetworkTopo(ctx context.Context, flow *model.TensorNetworkFlow, db *gorm.DB, t time.Time) error {
+	if n.checkCache(flow) {
+		return nil
+	}
+	flow.CreatedAt = t
+	flow.UpdatedAt = t
+
+	err := dal.UpsertNetworkFlow(ctx, db, flow)
+
+	return err
+}
 func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.TensorNetworkFlow) error {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
 	defer cancel()
-
-	flow.CreatedAt = time.Now()
-	flow.UpdatedAt = flow.CreatedAt
-
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "uuid"}},
-			DoNothing: true,
-		}).Create(flow).Error
+	err := util.RetryWithBackoff(ctx, func() error {
+		return n.addNetworkTopo(ctx, flow, n.postgresDB.Get(), time.Now())
 	})
+	if err == nil {
+		n.putToCache(flow)
+	}
+	return err
+}
+
+func (n *NetworkTopoService) AddNetTopologies(ctx context.Context, flows []*model.TensorNetworkFlow) error {
+	now := time.Now()
+	okFlows := make([]*model.TensorNetworkFlow, 0, len(flows))
+	txErr := n.postgresDB.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, flow := range flows {
+			if err := n.addNetworkTopo(ctx, flow, tx, now); err == nil {
+				okFlows = append(okFlows, flow)
+			}
+		}
+		return nil
+	})
+	if txErr == nil {
+		for _, flow := range okFlows {
+			n.putToCache(flow)
+		}
+	}
+	return txErr
 }
 
 func (n *NetworkTopoService) ListNetTopologies(ctx context.Context, t time.Time) (nts []*model.TensorNetworkFlow, totalCnt int64, err error) {
@@ -171,19 +229,4 @@ func (n *NetworkTopoService) UpdateStatus(ctx context.Context, t time.Time, stat
 		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Update("status", status).Error
 	})
 	return
-}
-
-func (n *NetworkTopoService) UpdateActiveTime(ctx context.Context, uuid uint32) error {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-	err := util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Updates(map[string]interface{}{
-			"status":     1,
-			"updated_at": time.Now(),
-		}).Error
-	})
-	return err
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 )
 
@@ -104,10 +103,4 @@ func (kri *K8sResInfos) UpdateK8sResData(ip, name, kind, namespace, service stri
 	resData.Kind = kind
 	resData.Namespace = namespace
 	kri.ResInfos[ip] = &resData
-}
-
-func (kri *K8sResInfos) PrintAllK8sResData() {
-	for ip, info := range kri.ResInfos {
-		log.Infof("ip : %s, %s.", ip, info.ToString())
-	}
 }

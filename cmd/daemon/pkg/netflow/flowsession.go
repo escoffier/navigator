@@ -1,18 +1,21 @@
 package netflow
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"net"
+	"net/http"
 	"os"
 	"syscall"
 	"time"
 
 	ct "github.com/florianl/go-conntrack"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"golang.org/x/sys/unix"
 )
 
@@ -47,6 +50,8 @@ type FlowSession struct {
 	krs       *K8sResClient
 	url       string
 	ClusterId string
+
+	submitter *Submitter
 }
 
 func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, error) {
@@ -75,8 +80,7 @@ func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, er
 		return nil, errors.Errorf("cluster's url is nil")
 	}
 
-	url := fmt.Sprintf("%s/internal/platform/networkTopo/topology", consoleUrl)
-	log.Infof("host ip : %v, clusterId : %s, url : %s.", myHostIP, clusterId, url)
+	url := fmt.Sprintf("%s/internal/platform/networkTopo/topologies", consoleUrl)
 
 	fs := FlowSession{
 		netlinkFd: fd,
@@ -84,9 +88,42 @@ func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, er
 		krs:       k8sClient,
 		ClusterId: clusterId,
 		url:       url,
+		submitter: NewSubmitter(1*time.Minute, getSubmitFunc(url)),
 	}
 
 	return &fs, nil
+}
+
+func getSubmitFunc(url string) SubmitFunc {
+	return func(ctx context.Context, flows []*model.TensorNetworkFlow) error {
+		tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		data, err := json.Marshal(flows)
+		if err != nil {
+			return errors.Errorf("json marshal failed, %v", err)
+		}
+
+		req, err := http.NewRequestWithContext(tctx, "PUT", url, bytes.NewBuffer(data))
+		if err != nil {
+			return errors.Errorf("Error reading request, %v", err)
+		}
+
+		// Set headers
+		req.Header.Set("Content-Type", "application/json")
+
+		// Send request
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return errors.Errorf("Error reading response, %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return errors.Errorf("PUT method's response code error, code = %v", resp.StatusCode)
+		}
+
+		return nil
+	}
 }
 
 func (fs *FlowSession) Start(ctx context.Context, sig chan struct{}) {
@@ -177,7 +214,7 @@ func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP
 	}
 	//flag := 0
 	infos := fs.krs.K8sPods
-	netData := daemon.K8sNetResMap{
+	netData := model.TensorNetworkFlow{
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -209,8 +246,7 @@ func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP
 		netData.DstKind = dst.Kind
 		netData.DstNamespace = dst.Namespace
 		netData.CreateUuid()
-		//log.Infof("kind != service, net : %v", netData)
-		return PostK8sResData(fs.url, &netData)
+		return fs.submitter.Submit(ctx, &netData)
 	}
 
 	owners, tport := fs.krs.GetPodControllerFromSvc(ctx, dst.Namespace, dst.Name, int32(dport))
@@ -220,8 +256,7 @@ func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP
 		netData.DstKind = owner.Kind
 		netData.DstNamespace = dst.Namespace
 		netData.CreateUuid()
-		//log.Infof("kind == service, net : %v", netData)
-		return PostK8sResData(fs.url, &netData)
+		return fs.submitter.Submit(ctx, &netData)
 	}
 
 	return nil

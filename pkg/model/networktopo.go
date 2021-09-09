@@ -1,6 +1,11 @@
 package model
 
-import "time"
+import (
+	"bytes"
+	"hash/fnv"
+	"strconv"
+	"time"
+)
 
 type TensorNetworkFlow struct {
 	UUID         uint32    `json:"uuid" gorm:"type:bigint;primarykey"`
@@ -21,4 +26,27 @@ type TensorNetworkFlow struct {
 
 func (t *TensorNetworkFlow) TableName() string {
 	return "tensor_network_flows"
+}
+func (t *TensorNetworkFlow) CreateUuid() {
+	bui := bytes.NewBufferString(t.SrcCluster)
+	bui.WriteByte(',')
+	bui.WriteString(t.SrcKind)
+	bui.WriteByte(',')
+	bui.WriteString(t.SrcName)
+	bui.WriteByte(',')
+	bui.WriteString(t.SrcNamespace)
+	bui.WriteByte(',')
+	bui.WriteString(t.DstCluster)
+	bui.WriteByte(',')
+	bui.WriteString(t.DstKind)
+	bui.WriteByte(',')
+	bui.WriteString(t.DstName)
+	bui.WriteByte(',')
+	bui.WriteString(t.DstNamespace)
+	bui.WriteByte(',')
+	bui.WriteString(strconv.Itoa(t.DstPort))
+
+	h := fnv.New32a()
+	h.Write(bui.Bytes())
+	t.UUID = h.Sum32()
 }

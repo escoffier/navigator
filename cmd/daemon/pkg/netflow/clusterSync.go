@@ -3,10 +3,11 @@ package netflow
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type TensorCluster struct {
@@ -16,7 +17,7 @@ type TensorCluster struct {
 	Status      int32  `json:"status"`
 }
 
-func PostK8sResData(url string, res *daemon.K8sNetResMap) error {
+func PostK8sResData(url string, res *model.TensorNetworkFlow) error {
 	data, err := json.Marshal(res)
 	if err != nil {
 		return errors.Errorf("json marshal failed, %v", err)
