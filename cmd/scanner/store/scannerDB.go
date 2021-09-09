@@ -31,19 +31,18 @@ func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, ScanImage *model.S
 	if res.Error != nil {
 		scdb.PostgresDB.Get().WithContext(ctx).Create(ScanImage)
 	} else {
-		scdb.UpdateToScanImage(ctx, ScanImage, tmp.ID)
+		_ = scdb.UpdateToScanImage(ctx, ScanImage, tmp.ID)
 	}
 }
 
-func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-
 	tmpImage := model.ScanImage{ID: tableID}
 	err := scdb.PostgresDB.Get().WithContext(ctx).Model(tmpImage).Select("vuln_score", "sensitive_score", "webshell_score", "virus_score").First(&tmpImage).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateToScanImage Get Scan_image Error:")
-		return
+		return err
 	}
 	ScanImage.RiskScore = ScanImage.SensitiveScore + ScanImage.VulnScore + math.Min(tmpImage.WebshellScore+tmpImage.VirusScore, 40)
 	tmpImage = model.ScanImage{ID: tableID} // 避免一些并发问题（比如病毒扫描此时更新了分数，与数据库中不一样了，model会成为where条件，导致无法更新数据）
@@ -52,8 +51,9 @@ func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.S
 		Updates(ScanImage).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateToScanImage Updata Error:")
-		return
+		return err
 	}
+	return nil
 }
 
 func (scdb *ScannerDB) GetImageID(ctx context.Context, digest string, fullRepoName string) (int64, error) {

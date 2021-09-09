@@ -2,6 +2,7 @@ package component
 
 import (
 	"bytes"
+	"container/list"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -386,4 +388,33 @@ func GlobalRejectPolicyToUpdater(po model.GlobalRejectPolicy) map[string]interfa
 		"mode":           po.Mode,
 	}
 	return updater
+}
+
+type ScannerList struct {
+	List *list.List
+	Lock sync.Mutex
+}
+
+type ScannerDbFunc struct {
+	Value    func() error
+	RetryNum int
+}
+
+func (l *ScannerList) ReUpdataDBPop() ScannerDbFunc {
+	l.Lock.Lock()
+	defer l.Lock.Unlock()
+	f := l.List.Front()
+	l.List.Remove(f)
+	return f.Value.(ScannerDbFunc)
+}
+
+func (l *ScannerList) ReUpdataDBPush(s ScannerDbFunc) {
+	l.Lock.Lock()
+	defer l.Lock.Unlock()
+	s.RetryNum += 1
+	if s.RetryNum > 5 {
+		logging.GetLogger().Error().Msg("ReUpdataDBPush has Retry 5 times")
+	} else {
+		l.List.PushBack(s)
+	}
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func TestCheckDetectImageForCICD(t *testing.T) {
-	s := component.NewConScannerSrv(newMockDAl(), nil, nil, nil, nil)
+	s := component.NewConScannerSrv(newMockDAl(), nil, nil, nil, nil, nil)
 	ctx := context.Background()
 	expectDetails := []component.ReasonAndDetail{
 		{RejectReason: model.RejectReasonHasMalicious, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious]},
