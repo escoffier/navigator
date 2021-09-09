@@ -150,8 +150,12 @@ func (n *NetworkTopoService) addNetworkTopo(ctx context.Context, flow *model.Ten
 	if n.checkCache(flow) {
 		return nil
 	}
-	flow.CreatedAt = t
-	flow.UpdatedAt = t
+	if flow.CreatedAt.IsZero() {
+		flow.CreatedAt = t
+	}
+	if flow.UpdatedAt.IsZero() {
+		flow.UpdatedAt = t
+	}
 
 	err := dal.UpsertNetworkFlow(ctx, db, flow)
 
