@@ -3,6 +3,7 @@ package main
 import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	_ "go.uber.org/automaxprocs"
 )
 
 // @title Vegeta API·
