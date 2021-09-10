@@ -1680,7 +1680,6 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 		}
 		// 如果配置了漏洞评级
 		if po.VulnLevel != "" && compareSeverity(vu.Severity, po.VulnLevel) {
-			safe = false
 			if vumMap[vu.Severity] == nil {
 				vumMap[vu.Severity] = make([]string, 0)
 			}
@@ -1700,6 +1699,7 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+"，未阻断，只告警"),
 						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+",unblocked,just alert")}})
 			case model.RejectPolicyReject:
+				safe = false
 				msgs = append(msgs, model.KVHashs{
 					KVHash: model.KVHash{
 						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+"，被阻断"),
@@ -1728,7 +1728,6 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 	//  如果配置了漏洞分数,
 	ans := CalculateVulnScore(scanImage, customizeVuluMap)
 	if po.VulnScore > 0 && int64(ans) < po.VulnScore {
-		safe = false
 		msgZh := fmt.Sprintf("漏洞综合评分：%d，低于阻断分数：%d", ans, po.VulnScore)
 		msgEN := fmt.Sprintf("vulnerability rate %d,Lower than:%d", ans, po.VulnScore)
 		msgLog := fmt.Sprintf("Image:%s/%s:%s rate %d Lower than:%d", img.Library, img.FullRepoName, img.Tags, ans, po.VulnScore)
@@ -1741,6 +1740,7 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+"，未阻断，只告警"),
 					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+",unblocked,just alert")}})
 		case model.RejectPolicyReject:
+			safe = false
 			records = append(records, ReasonAndDetail{
 				RejectReason: model.RejectReasonVuluScore,
 				RejectDetail: msgZh,
