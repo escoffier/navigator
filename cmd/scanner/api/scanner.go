@@ -512,7 +512,8 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		Offset:   offset,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
+		response.JSONError(ctx, fmt.Errorf("SearchImages error"))
 		return
 	}
 	// 数据规整
