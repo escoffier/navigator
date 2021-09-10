@@ -459,7 +459,7 @@ holmessidekick:
     pullSecret: harbor-admin-secret
   config:
     stan:
-      hostport:  "nats://tensorsec:4222"
+      hostport:  "nats://tensorsec-stan-headless:4222"
       clusterid: tensorsec
       clientid:  falco
 
