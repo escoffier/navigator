@@ -116,6 +116,12 @@ func GenerateEvent(uuidGenerator *uuid.Generator, arg *EventArg, category model.
 						"zh": {Key: "父进程", Value: procPname},
 					},
 				},
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {Key: "command", Value: command},
+						"zh": {Key: "命令", Value: command},
+					},
+				},
 			},
 		},
 		Timestamp: time.Now().Unix(),
