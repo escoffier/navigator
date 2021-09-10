@@ -290,39 +290,60 @@ func getLayerString(img model.ImageList) string {
 }
 
 func checkRejectPolicy(po model.RejectPolicy) error {
-	if po.BaseImagePolicy != model.RejectPolicyAlarm && po.BaseImagePolicy != model.RejectPolicyReject {
-		return errors.New("no base image policy")
+	if len([]rune(po.Name)) > 15 || po.Name == "" {
+		return errors.New("策略的名不能为空且不超过15个字符")
+	}
+
+	if len(po.Library) == 0 {
+		return errors.New("未设置策略生效仓库")
+	}
+
+	if len([]rune(po.Comment)) > 100 {
+		return errors.New("策略备注信息不超过100个字符")
+	}
+
+	if po.VulnPolicy != model.RejectPolicyAlarm && po.VulnPolicy != model.RejectPolicyReject {
+		return errors.New("no vuln policy")
+	}
+
+	if po.VulnScore > 50 || po.VulnScore < 0 {
+		return errors.New("漏洞分数不得为负数，也不能超过50分")
+	}
+
+	if l := model.GetSeverityRejectReason(po.VulnLevel); l <= 0 {
+		return errors.New("漏洞阻断的级别设置不正确")
+	}
+
+	if len(po.RejectVulns) > 0 {
+		for i := range po.RejectVulns {
+			vu := po.RejectVulns[i]
+			if vu.RejectPolicy != model.RejectPolicyIgnore && vu.RejectPolicy != model.RejectPolicyReject {
+				return errors.New("no customize vuln policy")
+			}
+			if vu.Name == "" {
+				return errors.New("no customize vuln name")
+			}
+		}
+	}
+
+	if po.SensitiveFilePolicy != model.RejectPolicyAlarm && po.SensitiveFilePolicy != model.RejectPolicyReject && po.SensitiveFilePolicy != model.RejectPolicyIgnore {
+		return errors.New("no SensitiveFile policy")
+	}
+
+	if po.MaliciousPolicy != model.RejectPolicyAlarm && po.MaliciousPolicy != model.RejectPolicyReject && po.MaliciousPolicy != model.RejectPolicyIgnore {
+		return errors.New("no Malicious policy")
 	}
 
 	if po.WebShellPolicy != model.RejectPolicyAlarm && po.WebShellPolicy != model.RejectPolicyReject {
 		return errors.New("no webshell policy")
 	}
 
-	if po.SensitiveFilePolicy != model.RejectPolicyAlarm && po.SensitiveFilePolicy != model.RejectPolicyReject && po.SensitiveFilePolicy != model.RejectPolicyIgnore {
-		return errors.New("no SensitiveFile policy")
-	}
-	if po.MaliciousPolicy != model.RejectPolicyAlarm && po.MaliciousPolicy != model.RejectPolicyReject && po.MaliciousPolicy != model.RejectPolicyIgnore {
-		return errors.New("no Malicious policy")
-	}
 	if po.WebShellScore > 10 || po.WebShellScore < 4 {
 		return errors.New("webshell阻断分数设置不正确，可选选项包括4、5、6、7、8、9、10共7项")
 	}
-	if po.VulnScore > 50 || po.VulnScore < 0 {
-		return errors.New("漏洞分数不得为负数，也不能超过50分")
-	}
-	if len(po.Library) == 0 {
-		return errors.New("未设置策略生效仓库")
-	}
-	if po.VulnLevel != "" {
-		if l := model.GetSeverityRejectReason(po.VulnLevel); l <= 0 {
-			return errors.New("漏洞阻断的级别设置不正确")
-		}
-	}
-	if len([]rune(po.Name)) > 15 {
-		return errors.New("策略的名不超过15个字符")
-	}
-	if len([]rune(po.Comment)) > 100 {
-		return errors.New("策略备注信息不超过100个字符")
+
+	if po.BaseImagePolicy != model.RejectPolicyAlarm && po.BaseImagePolicy != model.RejectPolicyReject {
+		return errors.New("no base image policy")
 	}
 
 	return nil

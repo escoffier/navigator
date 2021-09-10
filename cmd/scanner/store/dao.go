@@ -669,11 +669,12 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 
 	type tmpRes struct {
 		ImageID               int     `json:"image_id"`
+		ImageType             int64   `json:"image_type"`
 		VulnScore             float64 `json:"vuln_score"`
 		SeverityHistogramJSON datatypes.JSON
 	}
 	tmp := []tmpRes{}
-	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("scan_images.image_id,scan_images.vuln_score,scan_images.severity_histogram_json").
+	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("scan_images.image_id,scan_images.vuln_score,scan_images.severity_histogram_json,tensor_image_list.image_type").
 		Joins("right join tensor_image_list on tensor_image_list.id=scan_images.image_id").
 		Where("scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("scan_images.vuln_score desc").Find(&tmp).Error
 	if err != nil {
@@ -695,6 +696,7 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 		tmpRiskScore.Score = v.VulnScore
 		tmpRiskScore.Tag = tmpInfo.Tags
 		tmpRiskScore.ImageId = v.ImageID
+		tmpRiskScore.ImageType = v.ImageType
 		if len(v.SeverityHistogramJSON) > 0 {
 			if err := json.Unmarshal(v.SeverityHistogramJSON, &tmpRiskScore.SeverityHistogramInfo); err != nil {
 				logging.GetLogger().Err(err).Msg("json.Unmarshal SeverityHistogramInfo")
