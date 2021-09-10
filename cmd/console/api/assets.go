@@ -27,6 +27,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/clusters", api.getClusters())
 		r.Put("/cluster", api.addNewCluster())
 		r.Post("/cluster", api.updateClusterInfo())
+		r.Delete("/cluster/{clusterKey}", api.deleteCluster())
 		r.Get("/namespaces", api.getNamespaces())
 		r.Get("/namespace/{namespace}/kind/{kind}/resources", api.getResourcesInNamespace())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
@@ -224,7 +225,7 @@ func (api *api) getClusters() http.HandlerFunc {
 // @Description add a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
 // @Produce json
 // @Method PUT
-// @Router /api/v2/platform/assets/cluter
+// @Router /api/v2/platform/assets/cluster
 func (api *api) addNewCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -241,29 +242,41 @@ func (api *api) addNewCluster() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 
-		// if this cluster is new, start informer to watch resources
 		count := resSvc.GetClusterByKey(ctx, cluster.Key)
-		if *count == 0 {
+		watcher := resSvc.GetWatcher()
+		if watcher != nil {
+			if *count > 0 {
+				// stop old informer
+				watcher.StopWatch(ctx, []string{cluster.Key})
+			}
+
+			//starting new informer
 			k8sClient, err := k8s.CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("failed to create k8s client for member cluster: %s", cluster.Name)
-				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("cluster info error")))
+				RespAndLog(w, ctx,
+					NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to create k8s client for member cluster: %s", cluster.Name)))
 				return
 			}
 			logging.GetLogger().Info().Msgf("add new cluster %v", cluster)
-			k8s.WatchKubeResource(ctx, map[string]*kubernetes.Clientset{cluster.Key: k8sClient},
-				api.postgresDB, api.scannerURL)
+			err = watcher.StartsToWatch(ctx, map[string]*kubernetes.Clientset{cluster.Key: k8sClient})
+			if err != nil {
+				RespAndLog(w, ctx,
+					NewAnError(http.StatusInternalServerError, fmt.Errorf("watch cluster %s error", cluster.Name)))
+				return
+			}
+		} else {
+			logging.GetLogger().Warn().Msg("no watcher created")
 		}
 
 		err = resSvc.AddCluster(ctx, &cluster)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("add cluster error. clusterKey: %s", cluster.Key)
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("add cluster error")))
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, fmt.Errorf("add cluster error. clusterKey: %s", cluster.Key)))
 			return
 		}
 		response.Ok(w)
@@ -274,7 +287,7 @@ func (api *api) addNewCluster() http.HandlerFunc {
 // @Description update the info of a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
 // @Produce json
 // @Method POST
-// @Router /api/v2/platform/assets/cluter
+// @Router /api/v2/platform/assets/cluster
 func (api *api) updateClusterInfo() http.HandlerFunc {
 	type req struct {
 		ClusterKey  string `json:"cluster_key"`
@@ -305,6 +318,37 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("update cluster error. data: %v", request)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update cluster error")))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+// @Summary
+// @Description delete the info of a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
+// @Produce json
+// @Method DELETE
+// @Router /api/v2/platform/assets/cluster
+func (api *api) deleteCluster() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		clusterKey := chi.URLParam(r, "clusterKey")
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		watcher := resSvc.GetWatcher()
+		if watcher != nil {
+			watcher.StopWatch(ctx, []string{clusterKey})
+		}
+
+		err := resSvc.DeleteCluster(ctx, clusterKey)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("delete cluster error: %v", err)))
 			return
 		}
 		response.Ok(w)

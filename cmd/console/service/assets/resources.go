@@ -45,8 +45,10 @@ type TensorResourcesService struct {
 	rdb              *rdbtools.GormWrapper
 	clusterListeners map[string]*TensorResourcesClusterListener
 	scannerURL       string
+	resourceWatcher  *assets.Watcher
 
-	clMux sync.RWMutex
+	clMux      sync.RWMutex
+	watcherMut sync.RWMutex
 }
 
 func newTensorResourcesService(rdb *rdbtools.GormWrapper, scannerURL string) *TensorResourcesService {
@@ -72,6 +74,10 @@ func (rl *TensorResourcesService) AddCluster(ctx context.Context, cluster *model
 
 func (rl *TensorResourcesService) UpdateCluster(ctx context.Context, clusterKey, newClusterName, newDescription string) error {
 	return dal.UpdateCluster(ctx, rl.rdb, clusterKey, newClusterName, newDescription)
+}
+
+func (rl *TensorResourcesService) DeleteCluster(ctx context.Context, clusterKey string) error {
+	return dal.DeleteCluster(ctx, rl.rdb, clusterKey)
 }
 
 func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
@@ -184,6 +190,18 @@ func (rl *TensorResourcesService) WatchedTypes() map[assets.WatchedType]struct{}
 }
 func (rl *TensorResourcesService) Name() string {
 	return watcherName
+}
+
+func (rl *TensorResourcesService) SetWatcher(watcher *assets.Watcher) {
+	rl.watcherMut.Lock()
+	defer rl.watcherMut.Unlock()
+	rl.resourceWatcher = watcher
+}
+
+func (rl *TensorResourcesService) GetWatcher() *assets.Watcher {
+	rl.watcherMut.RLock()
+	defer rl.watcherMut.RUnlock()
+	return rl.resourceWatcher
 }
 
 type resourceEvent struct {

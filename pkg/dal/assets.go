@@ -931,8 +931,26 @@ func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.T
 		defer oneCancel()
 
 		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "key"}},
-			DoNothing: true,
+			Columns: []clause.Column{{Name: "key"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"certificate_auth_data",
+				"secret_token",
+				"status",
+				"cluster_type",
+			}),
 		}).Create(cluster).Error
+	})
+}
+
+func DeleteCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey string) error {
+	if clusterKey == "" {
+		return errors.New("illegal argument")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+		return rdb.Get().WithContext(oneCtx).Delete(&model.TensorCluster{}, clusterKey).Error
 	})
 }

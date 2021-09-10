@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 )
@@ -22,7 +22,7 @@ func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 	if config.TlsServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 		if err != nil {
-			logrus.Errorf("failed to load tls key from file: %v", err)
+			logging.GetLogger().Err(err).Msg("failed to load tls key from file")
 			return nil, err
 		}
 		tlsConfig.Certificates = []tls.Certificate{tlsKeyPair}
@@ -72,7 +72,7 @@ func (s *ClusterServer) Run() {
 	}
 
 	if err != nil {
-		logrus.Errorf("listen tcp address failed: %v", err)
+		logging.GetLogger().Err(err).Msg("listen tcp address failed")
 		return
 	}
 }

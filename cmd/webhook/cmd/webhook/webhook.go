@@ -103,18 +103,13 @@ func getAdmissionReview(r *http.Request) *v1.AdmissionReview {
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		log.Errorf("Content-Type=%s, expect application/json", contentType)
-		//http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return nil
 	}
-	//var admissionResponse *v1beta1.AdmissionResponse
 	ar := &v1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, ar); err != nil {
 		log.Errorf("failed to decode AdmissionReview %v", err)
 		return nil
 	}
-	//review, _ := json.MarshalIndent(&ar, "", "  ")
-	//fmt.Println(string(review))
-
 	return ar
 }
 
@@ -125,9 +120,9 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cluster, err := param2.QueryString(r, "cluster")
+	//host cluster request has no cluster param
 	if err != nil {
-		http.Error(w, "parse request param err", http.StatusInternalServerError)
-		return
+		log.Infof("parse request param err: %v", err)
 	}
 
 	//cluster param is empty mean thant  mutating request comes from api-server of host cluster

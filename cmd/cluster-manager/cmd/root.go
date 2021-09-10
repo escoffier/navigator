@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -18,12 +17,12 @@ func NewClusterManagerCommand() *cobra.Command {
 			}
 			server, err := NewServer()
 			if err != nil {
-				logrus.Errorf("failed to create server %v", err)
+				logging.GetLogger().Err(err).Msg("failed to create server")
 			}
 
 			err = server.Run()
 			if err != nil {
-				logrus.Errorf("error occoured when server running %v", err)
+				logging.GetLogger().Err(err).Msg("error occurred when server running")
 				return
 			}
 		},
