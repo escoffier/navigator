@@ -256,6 +256,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				informer:   &podInformer,
 				targetType: reflect.TypeOf(p),
 			})
+			clusterKey := clusterKey
 			podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
 					pod, ok := obj.(*corev1.Pod)

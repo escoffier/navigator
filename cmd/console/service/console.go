@@ -5,7 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"math"
 	"net/http"
 	"os"
@@ -91,16 +91,17 @@ func init() {
 // Console represents the Vegeta Console server.
 type Console struct {
 	lifecycle.Service
-	server        *http.Server
-	webHookServer *http.Server
-	monCliWrapper *mongotools.ClientWrapper
-	mongoDB       *mongotools.DatabaseWrapper
-	postgresDB    *rdbtools.GormWrapper
-	es            *elastic.Client
-	harborClient  *harbor.HarborRESTClient
-	ctx           context.Context
-	cancel        context.CancelFunc
-	scannerURL    string
+	server          *http.Server
+	webHookServer   *http.Server
+	monCliWrapper   *mongotools.ClientWrapper
+	mongoDB         *mongotools.DatabaseWrapper
+	postgresDB      *rdbtools.GormWrapper
+	es              *elastic.Client
+	harborClient    *harbor.HarborRESTClient
+	ctx             context.Context
+	cancel          context.CancelFunc
+	scannerURL      string
+	resourceWatcher *assets.Watcher
 }
 
 // NewConsole is to create a new Console struct.
@@ -440,14 +441,11 @@ func (c *Console) Run() func() {
 			Msg("When creating mongo indices")
 	}
 
-	//writing cluster info into mongodb would be deleted later
-	//err = addDefaultCluster(ctx, c.mongoDB)
-	//if err != nil {
-	//	logging.GetLogger().Error().Msgf("add cluster error：%+v", err)
-	//}
-
 	clients := getAllKubeClient(ctx)
-	k8s.WatchKubeResource(ctx, clients, c.postgresDB, c.scannerURL)
+	c.resourceWatcher = k8s.WatchKubeResource(ctx, clients, c.postgresDB, c.scannerURL)
+
+	resSvc, _ := assetsSvc.GetResourcesService(ctx)
+	resSvc.SetWatcher(c.resourceWatcher)
 
 	cronService, _ := cron.Get(ctx)
 	err = cronService.StartCrons(ctx)
@@ -734,37 +732,4 @@ func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
 	}
 	log.Info().Msgf("get %d k8s client", len(clientMap))
 	return clientMap
-}
-
-func addDefaultClusterToPG(ctx context.Context) error {
-	clusterConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return err
-	}
-
-	token := clusterConfig.BearerToken
-
-	ca, err := ioutil.ReadFile(clusterConfig.TLSClientConfig.CAFile)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
-		return err
-	}
-
-	key := fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
-	newCluster := &model.TensorCluster{
-		Key:                 key,
-		Name:                defaultK8sClusterName,
-		ClusterType:         model.HostCluster,
-		APIServerAddr:       clusterConfig.Host,
-		SecretToken:         token,
-		CertificateAuthData: string(ca),
-	}
-
-	resSvc, _ := assetsSvc.GetResourcesService(ctx)
-	err = resSvc.AddCluster(ctx, newCluster)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("add default cluster error: %s", key)
-		return err
-	}
-	return nil
 }

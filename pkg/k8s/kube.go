@@ -7,6 +7,7 @@ import (
 	"fmt"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	certutil "k8s.io/client-go/util/cert"
 	"os"
@@ -106,21 +107,21 @@ func CreateK8sClient(token, ca, addr string) (*kubernetes.Clientset, error) {
 }
 
 func WatchKubeResource(ctx context.Context, clientMap map[string]*kubernetes.Clientset,
-	postgresDB *rdbtools.GormWrapper, scannerURL string) {
+	postgresDB *rdbtools.GormWrapper, scannerURL string) *assets.Watcher {
 	inResSvc, _ := assetsSvc.GetPodResourcesService(ctx)
 	kbmSvc, _ := kubemonitor.Get(ctx)
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 
-	for clusterKey, client := range clientMap {
-		watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
+	watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
+	if err != nil {
+		log.Error().Err(err).Msg("get assetsWatcher error")
+		return nil
+	} else {
+		err := watcher.StartsToWatch(ctx, clientMap)
 		if err != nil {
-			log.Error().Err(err).Msgf("get assetsWatcher error: %s", clusterKey)
-		} else {
-			err := watcher.StartsToWatch(ctx, map[string]*kubernetes.Clientset{clusterKey: client})
-			if err != nil {
-				log.Error().Err(err).Msg("Watch kube clients error")
-			}
+			log.Error().Err(err).Msg("Watch kube clients error")
+			return nil
 		}
 	}
-
+	return watcher
 }

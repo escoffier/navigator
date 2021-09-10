@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	clusterManager "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type server struct {
@@ -24,7 +24,7 @@ func NewServer() (*server, error) {
 	clsm := clusterManager.NewClusterManager(s.config)
 	err := clsm.Init()
 	if err != nil {
-		logrus.Error("faild to init cluster manager")
+		logging.GetLogger().Error().Msg("faild to init cluster manager")
 		return nil, err
 	}
 
@@ -32,7 +32,7 @@ func NewServer() (*server, error) {
 
 	httpserver, err := clusterserver.NewHttpServer(s.config)
 	if err != nil {
-		logrus.Errorf("cluster server err %v", err)
+		logging.GetLogger().Err(err).Msg("cluster server err")
 		return nil, err
 	}
 	s.httpserver = httpserver
