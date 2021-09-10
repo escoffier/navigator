@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
 	"github.com/mattn/go-colorable"
 	"github.com/patrickmn/go-cache"
@@ -26,6 +27,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -57,6 +59,26 @@ type Scanner struct {
 	postgresDB      *store.ScannerDB
 	harborOpts      *flag.HarborOpts
 	globalCache     *cache.Cache
+}
+
+func retryAutoMigrate(ctx context.Context, postgresDB *rdbtools.GormWrapper, dst ...interface{}) error {
+	retryOptions := []retry.Option{
+		retry.MaxDelay(time.Duration(5) * time.Second),
+		retry.DelayType(retry.FixedDelay),
+		retry.Attempts(uint(3)),
+		retry.Delay(time.Duration(5) * time.Second),
+	}
+	err := util.RetryWithBackoff(ctx, func() error {
+		perr := postgresDB.Get().AutoMigrate(dst...)
+		if perr != nil {
+			return perr
+		}
+		return nil
+	}, retryOptions...)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -103,51 +125,12 @@ func NewScanner(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 		return nil, err
 	}
-
-	if err := postgresDB.Get().AutoMigrate(&model.User{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate user")
+	err = retryAutoMigrate(ctx, postgresDB, &model.ImageList{}, &model.QuestionInfo{}, &model.ScanImage{}, &model.ScanLayer{}, &model.VulnImage{},
+		&model.Vuln{}, &model.Registry{}, &model.ImageRelate{}, &model.RejectRecord{}, &model.ImageWhitelist{}, &model.RejectPolicy{}, &model.RejectVuln{})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("AutoMigrate Faild will Panic")
+		panic(err)
 	}
-	if err := postgresDB.Get().AutoMigrate(&model.Email{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate email")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.ImageList{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate tensor_image_list")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.QuestionInfo{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate tensor_question ")
-	}
-
-	if err := postgresDB.Get().AutoMigrate(&model.ScanImage{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate scan_image")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.ScanLayer{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate scan_layer")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.VulnImage{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate vuln_image")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.Vuln{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate vuln")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.Registry{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate registry")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.ImageRelate{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate image_relate")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.RejectRecord{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate reject_record")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.ImageWhitelist{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate image_white_list")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.RejectPolicy{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate reject_policy")
-	}
-	if err := postgresDB.Get().AutoMigrate(&model.RejectVuln{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate reject_vuln")
-	}
-
 	scannerDB := store.NewScannerDB(postgresDB)
 
 	// Redis DB client
