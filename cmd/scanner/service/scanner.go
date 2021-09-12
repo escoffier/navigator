@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
 	"github.com/mattn/go-colorable"
 	"github.com/patrickmn/go-cache"
@@ -27,7 +26,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -39,6 +37,23 @@ import (
 
 var (
 	log *logging.Logger
+
+	declaredModels = []rdbtools.GormTable{
+		model.User{},
+		model.Email{},
+		model.ImageList{},
+		model.QuestionInfo{},
+		model.ScanImage{},
+		model.ScanLayer{},
+		model.VulnImage{},
+		model.Vuln{},
+		model.Registry{},
+		model.ImageRelate{},
+		model.RejectRecord{},
+		model.ImageWhitelist{},
+		model.RejectPolicy{},
+		model.RejectVuln{},
+	}
 )
 
 func init() {
@@ -59,26 +74,6 @@ type Scanner struct {
 	postgresDB      *store.ScannerDB
 	harborOpts      *flag.HarborOpts
 	globalCache     *cache.Cache
-}
-
-func retryAutoMigrate(ctx context.Context, postgresDB *rdbtools.GormWrapper, dst ...interface{}) error {
-	retryOptions := []retry.Option{
-		retry.MaxDelay(time.Duration(5) * time.Second),
-		retry.DelayType(retry.FixedDelay),
-		retry.Attempts(uint(3)),
-		retry.Delay(time.Duration(5) * time.Second),
-	}
-	err := util.RetryWithBackoff(ctx, func() error {
-		perr := postgresDB.Get().AutoMigrate(dst...)
-		if perr != nil {
-			return perr
-		}
-		return nil
-	}, retryOptions...)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -125,11 +120,13 @@ func NewScanner(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 		return nil, err
 	}
-	err = retryAutoMigrate(ctx, postgresDB, &model.ImageList{}, &model.QuestionInfo{}, &model.ScanImage{}, &model.ScanLayer{}, &model.VulnImage{},
-		&model.Vuln{}, &model.Registry{}, &model.ImageRelate{}, &model.RejectRecord{}, &model.ImageWhitelist{}, &model.RejectPolicy{}, &model.RejectVuln{})
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate Faild will Panic")
-		panic(err)
+
+	for _, model := range declaredModels {
+		err := rdbtools.MigrateTable(ctx, postgresDB, model)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
+			return nil, err
+		}
 	}
 	scannerDB := store.NewScannerDB(postgresDB)
 

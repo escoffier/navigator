@@ -11,7 +11,7 @@ type ExportTask struct {
 	FinishedAt int64  `gorm:"column:finished_at"`
 }
 
-func (et *ExportTask) TableName() string {
+func (ExportTask) TableName() string {
 	return "scan_export_task"
 }
 

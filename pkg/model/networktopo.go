@@ -24,7 +24,7 @@ type TensorNetworkFlow struct {
 	UpdatedAt    time.Time `json:"updated_at" gorm:"updated_at"`
 }
 
-func (t *TensorNetworkFlow) TableName() string {
+func (TensorNetworkFlow) TableName() string {
 	return "tensor_network_flows"
 }
 func (t *TensorNetworkFlow) CreateUuid() {

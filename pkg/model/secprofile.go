@@ -236,10 +236,18 @@ type SecurityPolicy struct {
 	ResourceImageChangeAction ResourceImageChangeAction `gorm:"column:resource_image_change_action" json:"resourceImageChangeAction"`
 }
 
+func (SecurityPolicy) TableName() string {
+	return "security_policies"
+}
+
 type DriftProfile struct {
 	SecurityPolicyID *int `json:"-"`
 	ID               int  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
 	Enabled          bool `gorm:"enabled" json:"enabled"`
+}
+
+func (DriftProfile) TableName() string {
+	return "drift_profiles"
 }
 
 type ApparmorProfile struct {
@@ -259,6 +267,10 @@ type ApparmorProfile struct {
 	TrainingStartWhitelistOption TrainingStartWhitelistOption `gorm:"trainingStartWhitelistOption" json:"trainingStartWhitelistOption,omitempty"`
 }
 
+func (ApparmorProfile) TableName() string {
+	return "apparmor_profiles"
+}
+
 type CommandWhitelistProfile struct {
 	SecurityPolicyID             int                           `json:"-"`
 	ID                           int                           `gorm:"primary_key;AUTO_INCREMENT" json:"-"`
@@ -274,6 +286,10 @@ type CommandWhitelistProfile struct {
 	ElapsedTime                  int                           `gorm:"column:elapsed_time" json:"elapsedTime,omitempty"`
 	TrainingTimeout              int                           `gorm:"trainingTimeout" json:"trainingTimeout,omitempty"`
 	TrainingStartWhitelistOption TrainingStartWhitelistOption  `gorm:"trainingStartWhitelistOption" json:"trainingStartWhitelistOption,omitempty"`
+}
+
+func (CommandWhitelistProfile) TableName() string {
+	return "command_whitelist_profiles"
 }
 
 type SeccompProfile struct {
@@ -293,9 +309,17 @@ type SeccompProfile struct {
 	TrainingStartWhitelistOption TrainingStartWhitelistOption `gorm:"trainingStartWhitelistOption" json:"trainingStartWhitelistOption,omitempty"`
 }
 
+func (SeccompProfile) TableName() string {
+	return "seccomp_profiles"
+}
+
 type SeccompProfileData struct {
 	SeccompProfileID int    `json:"-"`
 	Syscall          string `gorm:"column:syscall" json:"syscall"`
+}
+
+func (SeccompProfileData) TableName() string {
+	return "seccomp_profile_data"
 }
 
 type ApparmorProfileData struct {
@@ -304,10 +328,18 @@ type ApparmorProfileData struct {
 	Access            string `gorm:"column:access" json:"access"`
 }
 
+func (ApparmorProfileData) TableName() string {
+	return "apparmor_profile_data"
+}
+
 type CommandWhitelistProfileData struct {
 	CommandWhitelistProfileID int    `json:"-"`
 	Command                   string `gorm:"column:command" json:"command"`
 	WorkingDirectory          string `gorm:"column:working_directory" json:"workingDirectory"`
+}
+
+func (CommandWhitelistProfileData) TableName() string {
+	return "command_whitelist_profile_data"
 }
 
 type SecurityPolicyAddRequest struct {
@@ -338,6 +370,10 @@ type SecurityPolicyResource struct {
 	ImageRegistry    string             `gorm:"image_registry" json:"imageRegistry"`
 	ImageName        string             `gorm:"image_name" json:"imageName"`
 	ImageTag         string             `gorm:"image_tag" json:"imageTag"`
+}
+
+func (SecurityPolicyResource) TableName() string {
+	return "security_policy_resources"
 }
 
 type SecProfileIntermediate struct {

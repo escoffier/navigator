@@ -18,21 +18,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
-
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -61,10 +46,53 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
 )
 
 var (
 	log *logging.Logger
+
+	declaredModels = []rdbtools.GormTable{
+		// accounts & auth
+		model.User{},
+		model.Email{},
+		model.OpenAPIAuthToken{},
+		// data management
+		model.GCTask{},
+		// image security
+		model.ImageList{},
+		model.QuestionInfo{},
+		// microseg
+		model.TensorMicrosegResource{},
+		model.TensorNetworkFlow{},
+		// assets
+		model.TensorResource{},
+		model.TensorContainer{},
+		model.TensorNamespace{},
+		model.TensorCluster{},
+		model.PodResourceRelation{},
+		// configs
+		model.TensorConfig{},
+		// compliance
+		model.ScanResult{},
+		model.ScanHistory{},
+		model.ScanNodeRecord{},
+		model.PolicyDetailInfo{},
+		model.ExportTask{},
+	}
 )
 
 const (
@@ -203,25 +231,14 @@ func NewConsole(
 		return nil, err
 	}
 
-	postgresDB.Get().AutoMigrate(&model.User{})
-	postgresDB.Get().AutoMigrate(&model.Email{})
-	postgresDB.Get().AutoMigrate(&model.ImageList{})
-	postgresDB.Get().AutoMigrate(&model.QuestionInfo{})
-	postgresDB.Get().AutoMigrate(&model.TensorMicrosegResource{})
-	postgresDB.Get().AutoMigrate(&model.TensorResource{})
-	postgresDB.Get().AutoMigrate(&model.TensorContainer{})
-	postgresDB.Get().AutoMigrate(&model.TensorNamespace{})
-	postgresDB.Get().AutoMigrate(&model.TensorConfig{})
-	postgresDB.Get().AutoMigrate(&model.ScanResult{})
-	postgresDB.Get().AutoMigrate(&model.ScanHistory{})
-	postgresDB.Get().AutoMigrate(&model.ScanNodeRecord{})
-	postgresDB.Get().AutoMigrate(&model.PolicyDetailInfo{})
-	postgresDB.Get().AutoMigrate(&model.ExportTask{})
-	postgresDB.Get().AutoMigrate(&model.PodResourceRelation{})
-	postgresDB.Get().AutoMigrate(&model.TensorCluster{})
-	postgresDB.Get().AutoMigrate(&model.OpenAPIAuthToken{})
-	postgresDB.Get().AutoMigrate(&model.GCTask{})
-	postgresDB.Get().AutoMigrate(&model.TensorNetworkFlow{})
+	ctx := context.Background()
+	for _, model := range declaredModels {
+		err := rdbtools.MigrateTable(ctx, postgresDB, model)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("Migrate table %s error. Exit", model.TableName())
+			return nil, err
+		}
+	}
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 
