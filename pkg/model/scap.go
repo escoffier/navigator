@@ -96,7 +96,7 @@ type ScanResult struct {
 	Status        int32  `gorm:"column:status"`
 }
 
-func (sr *ScanResult) TableName() string {
+func (ScanResult) TableName() string {
 	return "scan_bench_result"
 }
 
@@ -113,7 +113,7 @@ type ScanHistory struct {
 	FinishedAt  int64  `gorm:"column:finished_at"`
 }
 
-func (sh *ScanHistory) TableName() string {
+func (ScanHistory) TableName() string {
 	return "scan_bench_history"
 }
 
@@ -130,7 +130,7 @@ type ScanNodeRecord struct {
 	AutoVariate string `gorm:"column:auto_variate"`
 }
 
-func (st *ScanNodeRecord) TableName() string {
+func (ScanNodeRecord) TableName() string {
 	return "scan_node_record"
 }
 
@@ -145,7 +145,7 @@ type FileExport struct {
 	FinishedAt int64  `gorm:"column:finished_at"`
 }
 
-func (fe *FileExport) TableName() string {
+func (FileExport) TableName() string {
 	return "file_export_task"
 }
 
@@ -168,6 +168,6 @@ type PolicyDetailInfo struct {
 	AuditConfig    string `json:"audit_config" gorm:"column:audit_config"`
 }
 
-func (pd *PolicyDetailInfo) TableName() string {
+func (PolicyDetailInfo) TableName() string {
 	return "scan_policy_detail"
 }

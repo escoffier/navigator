@@ -92,10 +92,10 @@ func (l *PodTemplate) Value() (driver.Value, error) {
 type TensorResource struct {
 	TableBase                      // id: cluster_key/namespace/kind/resource_name
 	Name            string         `gorm:"column:name"`
-	Namespace       string         `gorm:"column:namespace;index:idx_list_q,priority:2"`
-	ClusterKey      string         `gorm:"column:cluster_key;index:idx_list_q,priority:1"`
+	Namespace       string         `gorm:"column:namespace;index:idx_tr_list_q,priority:2"`
+	ClusterKey      string         `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1"`
 	UID             string         `gorm:"column:uid"`
-	Kind            string         `gorm:"column:kind;index:idx_list_q,priority:3"`
+	Kind            string         `gorm:"column:kind;index:idx_tr_list_q,priority:3"`
 	LabelSelector   *LabelSelector `gorm:"column:label_selector;type:jsonb"`
 	OwnerReferences OwnerRefs      `gorm:"column:owner_references;type:jsonb"`
 	Labels          Labels         `gorm:"column:labels;type:jsonb"`
@@ -148,10 +148,10 @@ func (sc *ContainerSpec) Value() (driver.Value, error) {
 type TensorContainer struct {
 	TableBase                         // id: cluster_key/namespace/kind/resource_name/container_name
 	Name            string            `gorm:"column:name"`
-	ResourceName    string            `gorm:"column:resource_name;index:idx_list_q,priority:4"`
-	Namespace       string            `gorm:"column:namespace;index:idx_list_q,priority:2"`
-	ClusterKey      string            `gorm:"column:cluster_key;index:idx_list_q,priority:1"`
-	ResourceKind    string            `gorm:"column:resource_kind;index:idx_list_q,priority:3"`
+	ResourceName    string            `gorm:"column:resource_name;index:idx_tc_list_q,priority:4"`
+	Namespace       string            `gorm:"column:namespace;index:idx_tc_list_q,priority:2"`
+	ClusterKey      string            `gorm:"column:cluster_key;index:idx_tc_list_q,priority:1"`
+	ResourceKind    string            `gorm:"column:resource_kind;index:idx_tc_list_q,priority:3"`
 	Image           string            `gorm:"column:image"`
 	Spec            *ContainerSpec    `gorm:"column:spec;type:jsonb"`
 	Ports           ContainerPorts    `gorm:"column:ports;type:jsonb"`
@@ -166,7 +166,7 @@ func (TensorContainer) TableName() string {
 type TensorNamespace struct {
 	TableBase                 // id: cluster_key/namespace
 	Name            string    `gorm:"column:name"`
-	ClusterKey      string    `gorm:"column:cluster_key;index:idx_list_q"`
+	ClusterKey      string    `gorm:"column:cluster_key;index:idx_tn_list_q"`
 	UID             string    `gorm:"column:uid"`
 	OwnerReferences OwnerRefs `gorm:"column:owner_references;type:jsonb"`
 	Labels          Labels    `gorm:"column:labels;type:jsonb"`
@@ -178,14 +178,14 @@ func (TensorNamespace) TableName() string {
 
 type PodResourceRelation struct {
 	TableBase              // id: cluster_key/namespace/resKind/resName/podUID
-	ClusterKey      string `json:"ClusterKey" gorm:"column:cluster_key;index:idx_res,priority:1"`
+	ClusterKey      string `json:"ClusterKey" gorm:"column:cluster_key;index:idx_prr_res,priority:1"`
 	PodIP           string `json:"PodIP,omitempty"`
 	PodUID          string `json:"PodUID" gorm:"column:pod_uid"`
 	HostIP          string `json:"HostIP,omitempty"`
-	Namespace       string `json:"Namespace" gorm:"column:namespace;index:idx_res,priority:2"`
+	Namespace       string `json:"Namespace" gorm:"column:namespace;index:idx_prr_res,priority:2"`
 	PodName         string `json:"PodName"`
-	ResourceName    string `json:"ResourceName" gorm:"column:resource_name;index:idx_res,priority:4"`
-	ResourceKind    string `json:"ResourceKind" gorm:"column:resource_kind;index:idx_res,priority:3"`
+	ResourceName    string `json:"ResourceName" gorm:"column:resource_name;index:idx_prr_res,priority:4"`
+	ResourceKind    string `json:"ResourceKind" gorm:"column:resource_kind;index:idx_prr_res,priority:3"`
 	CreateTimestamp int64  `json:"CreateTimestamp" gorm:"-"`
 }
 

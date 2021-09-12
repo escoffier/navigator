@@ -40,6 +40,10 @@ type Vuln struct {
 	ExtraInfo    datatypes.JSON `gorm:"type:jsonb"`             //  预留，漏洞属性。如我们自己的漏洞评级
 }
 
+func (Vuln) TableName() string {
+	return "vulns"
+}
+
 // 漏洞关联镜像表
 type VulnImage struct {
 	ID        uint `gorm:"primaryKey"`
@@ -48,6 +52,10 @@ type VulnImage struct {
 	DeletedAt int
 	VulnName  string `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:1"`
 	ImageId   int64  `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2"` // 镜像id
+}
+
+func (VulnImage) TableName() string {
+	return "vuln_images"
 }
 
 type ScanLayer struct { // 层级扫描结果
@@ -73,6 +81,10 @@ type ScanLayer struct { // 层级扫描结果
 	SensitiveFile     []Sensitive    `gorm:"-" json:"sensitive_file"`
 
 	IsBasic int `json:"is_basic"`
+}
+
+func (ScanLayer) TableName() string {
+	return "scan_layers"
 }
 
 type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scantasks表

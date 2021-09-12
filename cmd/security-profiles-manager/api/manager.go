@@ -3,20 +3,10 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
-
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-
 	"net/http"
+	"strings"
 	"sync"
 	"time"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/nats-io/nats.go"
@@ -30,10 +20,29 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var (
 	log *logging.Logger
+
+	declaredModels = []rdbtools.GormTable{
+		model.SecurityPolicy{},
+		model.SecurityPolicyResource{},
+		model.ApparmorProfile{},
+		model.SeccompProfile{},
+		model.CommandWhitelistProfile{},
+		model.DriftProfile{},
+		model.ApparmorProfileData{},
+		model.SeccompProfileData{},
+		model.CommandWhitelistProfileData{},
+	}
 )
 
 const (
@@ -79,15 +88,14 @@ func NewSecProfileManager(
 		return nil, err
 	}
 
-	db.Get().AutoMigrate(&model.SecurityPolicy{})
-	db.Get().AutoMigrate(&model.SecurityPolicyResource{})
-	db.Get().AutoMigrate(&model.ApparmorProfile{})
-	db.Get().AutoMigrate(&model.SeccompProfile{})
-	db.Get().AutoMigrate(&model.CommandWhitelistProfile{})
-	db.Get().AutoMigrate(&model.DriftProfile{})
-	db.Get().AutoMigrate(&model.ApparmorProfileData{})
-	db.Get().AutoMigrate(&model.SeccompProfileData{})
-	db.Get().AutoMigrate(&model.CommandWhitelistProfileData{})
+	ctx := context.Background()
+	for _, model := range declaredModels {
+		err := rdbtools.MigrateTable(ctx, db, model)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
+			return nil, err
+		}
+	}
 
 	// Redis DB client
 	sa := strings.Split(redisOpts.Endpoint, ",")

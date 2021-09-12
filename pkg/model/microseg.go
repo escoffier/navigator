@@ -29,7 +29,7 @@ type TensorMicrosegResource struct {
 	UpdatedAt   time.Time
 }
 
-func (t *TensorMicrosegResource) TableName() string {
+func (TensorMicrosegResource) TableName() string {
 	return "tensor_microseg_resources"
 }
 
