@@ -23,7 +23,7 @@ type GormTable interface {
 
 func MigrateTable(ctx context.Context, rdb *GormWrapper, model GormTable) error {
 	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 3*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 		return rdb.Get().WithContext(oneCtx).AutoMigrate(model)
 	}, migrateRetryOptions...)

@@ -12,6 +12,48 @@
       "condition": "status != 'inprogress'",
       "dataDir":"/audit/postgresql/gc_tasks",
       "batch":1000
+    },
+    {
+      "name": "tensor_namespaces",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "dataDir": "/audit/posggresql/tensor_namespaces",
+      "batch": 1000
+    },
+    {
+      "name": "tensor_containers",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "dataDir": "/audit/posggresql/tensor_containers",
+      "batch": 1000
+    },
+    {
+      "name": "tensor_resources",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "dataDir": "/audit/posggresql/tensor_resources",
+      "batch": 1000
+    },
+    {
+      "name": "tensor_network_flows",
+      "timeField": "updated_at",
+      "condition": "status in (0, 1)",
+      "dataDir": "/audit/posggresql/tensor_network_flows",
+      "batch": 1000
+    },
+    {
+      "name": "tensor_microseg_resources",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "dataDir": "/audit/posggresql/tensor_microseg_resources",
+      "batch": 1000
+    },
+    {
+      "name": "reject_record",
+      "timeField": "reject_at",
+      "condition": "",
+      "dataDir": "/audit/posggresql/reject_record",
+      "batch": 1000
     }
   ],
   "mongoUnifiedConf": {
