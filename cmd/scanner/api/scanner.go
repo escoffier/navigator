@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -231,67 +230,6 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(resp{Status: "OK"}))
 }
 
-// ListRegistry
-// @Summary 获取仓库列表
-// @Title 获取仓库列表
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取registry列表信息
-// @Tags registry
-// @Param no_policy query bool true "是否需要配置策略的仓库"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyAccountRes{}}}
-// @Router	/api/v1/register/registries [get]
-func (s *Scanner) ListRegistry(ctx *gin.Context) {
-	noRejectPolicy, _ := strconv.ParseBool(ctx.Query("no_policy"))
-
-	registries, _, err := s.Srv.ListRegistry(ctx, noRejectPolicy)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	urls := make([]string, 0)
-	for _, reg := range registries {
-		if reg.UseType != model.RegistryUseTypeBuff {
-			urls = append(urls, reg.Url)
-		}
-	}
-	response.JSONOK(ctx, response.WithItems(urls))
-}
-
-// GetRegistry
-// @Summary 获取指定仓库的具体信息
-// @Title 获取指定仓库的具体信息
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取registry具体信息
-// @Tags registry
-// @Param usetype query string true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyAccountRes{}}}
-// @Router	/api/v1/register/registry [get]
-func (s *Scanner) GetRegistry(ctx *gin.Context) {
-	usetype := ctx.Query("usetype")
-
-	registries, _, err := s.Srv.ListRegistry(ctx, false)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	type res struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-
-	for _, reg := range registries {
-		ans := res{
-			Username: reg.Username,
-			Password: reg.PasswordString,
-		}
-		if strconv.Itoa(reg.UseType) == usetype {
-			response.JSONOK(ctx, response.WithItem(ans))
-			return
-		}
-	}
-	response.JSONError(ctx, errors.New("no library"))
-}
-
 // ScanOneForCICDRequest
 // @Summary 获取CICD扫描结果
 // @Title 获取CICD扫描结果
@@ -490,12 +428,10 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		return
 	}
 	kind := ctx.Query("kind")
-	sortBy := ctx.Query("sortOrder")
 	imageType := ctx.Query("imageType")
 	library := ctx.Query("library")
 
-	offset, _ := strconv.ParseInt(ctx.Query("offset"), 10, 64)
-	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
+	filter := model.GetFilter(ctx)
 	online, _ := strconv.ParseBool(ctx.Query("online"))
 
 	logging.GetLogger().Info().Msg(fmt.Sprintf("get kind:%s", kind))
@@ -506,11 +442,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		HasQuestionInfo: true,
 		Library:         library,
 		ImageType:       imageType,
-	}, &model.Filter{
-		PageSize: limit,
-		SortBy:   sortBy,
-		Offset:   offset,
-	})
+	}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
 		response.JSONError(ctx, fmt.Errorf("SearchImages error"))
@@ -523,26 +455,8 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	}
 	response.JSONOK(ctx, response.WithItems(res),
 		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(limit),
-		response.WithStartIndex(offset))
-}
-
-func (s *Scanner) CheckProjectAndCreateIfNotExist(ctx *gin.Context) {
-	projectName := ctx.Param("projectName")
-	library := ctx.Query("library")
-	if !strings.Contains(library, "http") {
-		library = "https://" + library
-	}
-
-	err := s.Srv.CheckProjectAndCreateIfNotExist(ctx, library, projectName)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	type Resp struct {
-		Existed bool `json:"existed"`
-	}
-	ctx.JSON(http.StatusOK, Resp{Existed: true})
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
 }
 
 // ListImgLayers 镜像的回溯信息
@@ -614,7 +528,11 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	for i := range images {
 		res = append(res, model.ImageToImageResponse(images[i]))
 	}
-	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(cnt))
+	response.JSONOK(ctx, response.WithItems(res),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset),
+	)
 }
 
 // ListAppToBaseImage 获取应用镜像的基础镜像列表

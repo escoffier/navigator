@@ -38,20 +38,22 @@ func (s *ImageReject) UpdateSinglePolicy(ctx context.Context, id int64, policy m
 	if err := checkRejectPolicy(policy); err != nil {
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
-	// 一个仓库只能有一个生效策略，这里做一个限制
-	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString})
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
-		return response.NewHttpError(http.StatusExpectationFailed, err)
-	}
-	for i := range policies {
-		if !policies[i].Enable {
-			continue
+	if policy.Enable {
+		// 一个仓库只能有一个生效策略，这里做一个限制
+		policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString})
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
-		for j := range policy.Library {
-			for k := range policies[i].Library {
-				if policy.Library[j] == policies[i].Library[k] && policies[i].ID != id {
-					return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("library:%s 已设置策略", policy.Library[j]))
+		for i := range policies {
+			if !policies[i].Enable {
+				continue
+			}
+			for j := range policy.Library {
+				for k := range policies[i].Library {
+					if policy.Library[j] == policies[i].Library[k] && policies[i].ID != id {
+						return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("library:%s 已设置生效策略", policy.Library[j]))
+					}
 				}
 			}
 		}
@@ -62,7 +64,7 @@ func (s *ImageReject) UpdateSinglePolicy(ctx context.Context, id int64, policy m
 	updater := rejectPolicyToUpdater(policy)
 	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{ID: id, Global: consts.FalseString, UpdateRejectVulns: true, RejectVulns: policy.RejectVulns}, updater); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("UpdateSinglePolicy")
-		return response.NewHttpError(http.StatusExpectationFailed, err)
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("更新策略失败"))
 	}
 	return nil
 }
@@ -83,17 +85,20 @@ func (s *ImageReject) CreateGlobalPolicy(ctx context.Context, global model.Globa
 
 		policy.IsGlobal = true
 		if _, err := s.dbdal.CreateRejectPolicy(ctx, policy); err != nil {
-			return response.NewHttpError(http.StatusExpectationFailed, err)
+			logging.GetLogger().Error().Err(err).Msg("CreateGlobalPolicy")
+			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建策略失败"))
 		}
 	}
 
 	// 全局策略对所有的策略都生效(但是gorm不允许更新整张表，所以这里分两次更新)
 	updater := GlobalRejectPolicyToUpdater(global)
 	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString}, updater); err != nil {
-		return response.NewHttpError(http.StatusExpectationFailed, err)
+		logging.GetLogger().Error().Err(err).Msg("CreateGlobalPolicy")
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建策略失败"))
 	}
 	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString}, updater); err != nil {
-		return response.NewHttpError(http.StatusExpectationFailed, err)
+		logging.GetLogger().Error().Err(err).Msg("CreateGlobalPolicy")
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建策略失败"))
 	}
 
 	return nil
@@ -106,7 +111,7 @@ func (s *ImageReject) SearchRejectPolicy(ctx context.Context, library, global st
 	})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
-		return nil, response.NewHttpError(http.StatusExpectationFailed, err)
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("查询策略失败"))
 	}
 	return policies, nil
 }
@@ -118,7 +123,7 @@ func NewImageRejectSrc(dbdal store.ScannerDalInterface) *ImageReject {
 func (s *ImageReject) DeletePolicy(ctx context.Context, id int64) error {
 	if err := s.dbdal.DeletePolicy(ctx, id); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("DeletePolicy")
-		return response.NewHttpError(http.StatusExpectationFailed, err)
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除策略失败"))
 	}
 	return nil
 }
@@ -130,7 +135,8 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 		EndAt:   time.Now().UTC(),
 	}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
-		return nil, err
+		logging.GetLogger().Error().Err(err).Msg("ImageReject.GetOverview.SearchRejectRecord")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
 	startAt = time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -6)
@@ -139,7 +145,8 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 		EndAt:   time.Now().UTC(),
 	}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
-		return nil, err
+		logging.GetLogger().Error().Err(err).Msg("ImageReject.GetOverview.SearchRejectRecord")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
 	tops, err := s.dbdal.OverviewReasonTopN(ctx, store.OverviewReasonParam{TopN: 5}, nil)
@@ -169,8 +176,8 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 	}
 
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "GetOverview statistics:%s error", graph)
-		return res, nil
+		logging.GetLogger().Error().Err(err).Msg("ImageReject.GetOverview.OverviewForInterval")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
 	j := 0
@@ -199,7 +206,8 @@ func (s *ImageReject) ListRejectRecord(ctx context.Context, search string, libra
 	filter *model.Filter) ([]model.RejectRecord, int64, error) {
 	records, cnt, err := s.dbdal.SearchRejectRecord(ctx, store.SearchRejectRecordParam{Libraries: libraries, RejectReasons: rejectReasons, Search: search}, filter)
 	if err != nil {
-		return nil, 0, response.NewHttpError(http.StatusBadRequest, err)
+		logging.GetLogger().Error().Err(err).Msg("ListRejectRecord")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	return records, cnt, nil
 }
@@ -208,8 +216,8 @@ func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, t
 	// library必须在我们的注册仓库，镜像可以不在我们的数据库中(7-19确定方案),K8s的阻断记录是没有digest的，
 	rys, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryUrl: library}, nil)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "CreateImageWhitelist search  library error")
-		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf(fmt.Sprintf("查询仓库：%s 出错：%s", library, err.Error())))
+		logging.GetLogger().Error().Err(err).Msg("CreateImageWhitelist")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建白名单出错"))
 	}
 	if len(rys) == 0 {
 		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf(fmt.Sprintf("该仓库：%s 不是注册仓库，不能加白", library)))
@@ -244,14 +252,14 @@ func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, t
 							library, name, tag), map[string]interface{}{"digest": digest}); err == nil {
 						return iw, nil
 					} else {
-						logging.GetLogger().WithContext(ctx).Errorf(err, "Error updating the digest of the whitelist")
-						return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("更新白名单的Digest出错"))
+						logging.GetLogger().Error().Err(err).Msg("Error updating the digest of the whitelist")
+						return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("更新白名单的Digest出错"))
 					}
 				}
 			}
 			return nil, response.NewHttpError(http.StatusBadRequest, errors.New("已存在，请不要重复添加"))
 		}
-		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf(fmt.Sprintf("创建出错：%s", err.Error())))
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建白名单出错"))
 	}
 	return iw, nil
 }
@@ -259,7 +267,8 @@ func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, t
 func (s *ImageReject) ListImageWhitelist(ctx context.Context, search string, filter *model.Filter) ([]model.ImageWhitelist, int64, error) {
 	lists, cnt, err := s.dbdal.SearchImageWhitelist(ctx, store.SearchImageWhitelistParam{SearchWord: search}, filter)
 	if err != nil {
-		return nil, 0, response.NewHttpError(http.StatusBadRequest, fmt.Errorf(fmt.Sprintf("查询镜像白名单出错：%s", err.Error())))
+		logging.GetLogger().Error().Err(err).Msg("ListImageWhitelist")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("查询镜像白名单出错"))
 	}
 	return lists, cnt, nil
 }
@@ -267,7 +276,8 @@ func (s *ImageReject) ListImageWhitelist(ctx context.Context, search string, fil
 func (s *ImageReject) DeleteImageWhitelist(ctx context.Context, imageWhiteId int64) error {
 	err := s.dbdal.DeleteImageWhitelist(ctx, store.DeleteImageWhitelistParam{WhiteId: imageWhiteId})
 	if err != nil {
-		return response.NewHttpError(http.StatusBadRequest, fmt.Errorf(fmt.Sprintf("删除镜像白名单出错：镜像ID：%d,error: %s", imageWhiteId, err.Error())))
+		logging.GetLogger().Error().Err(err).Msg("DeleteImageWhitelist")
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除镜像白名单出错"))
 	}
 	return nil
 }
@@ -283,29 +293,32 @@ func (s *ImageReject) CreateSinglePolicy(ctx context.Context, policy model.Rejec
 		}
 	}
 	policy.IsGlobal = false
-	// 一个仓库只能有一个生效策略，这里做一个限制
-	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString})
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
-		return response.NewHttpError(http.StatusExpectationFailed, err)
-	}
-	for i := range policies {
-		if !policies[i].Enable {
-			continue
+	// 一个仓库,可以建多个策略，但是只能有一个生效策略，这里做一个限制
+	if policy.Enable {
+		policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString})
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
-		for j := range policy.Library {
-			for k := range policies[i].Library {
-				if policy.Library[j] == policies[i].Library[k] {
-					return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("library:%s 已设置策略", policy.Library[j]))
+		for i := range policies {
+			if !policies[i].Enable {
+				continue
+			}
+			for j := range policy.Library {
+				for k := range policies[i].Library {
+					if policy.Library[j] == policies[i].Library[k] {
+						return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("library:%s 已设置生效策略", policy.Library[j]))
+					}
 				}
 			}
 		}
 	}
 
 	if _, err := s.dbdal.CreateRejectPolicy(ctx, policy); err != nil {
-		return response.NewHttpError(http.StatusExpectationFailed, err)
+		logging.GetLogger().Error().Err(err).Msg("CreateSinglePolicy")
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-	return err
+	return nil
 }
 
 func GenerationInterval(interval int, intervalType string) []time.Time {

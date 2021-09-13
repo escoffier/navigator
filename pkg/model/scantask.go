@@ -83,16 +83,18 @@ type VulnerabilityLayerReport struct {
 }
 
 type ImageResponse struct {
-	ID           int64          `json:"id"`
-	Digest       string         `json:"digest"`
-	Library      string         `json:"library"`
-	ScanStatus   string         `json:"scan_status"`
-	CompleteTime string         `json:"complete_time"`
-	Questions    []QuestionInfo `json:"questions"`
-	FullRepoName string         `json:"full_repo_name"`
-	Tags         string         `json:"tags"`
-	ImageType    int64          `json:"image_type"`
-	RiskScore    float64        `json:"risk_score"`
+	ID                int64          `json:"id"`
+	Digest            string         `json:"digest"`
+	Library           string         `json:"library"`
+	ScanStatus        string         `json:"scan_status"`
+	CompleteTime      string         `json:"complete_time"`
+	Questions         []QuestionInfo `json:"questions"`
+	FullRepoName      string         `json:"full_repo_name"`
+	Tags              string         `json:"tags"`
+	ImageType         int64          `json:"image_type"`
+	RiskScore         float64        `json:"risk_score"`
+	RegistryName      string         `json:"registry_name"`
+	RegistryDeletedAt int64          `json:"registry_deleted_at"`
 }
 
 func ImageToImageResponse(img ImageList) ImageResponse {
@@ -109,6 +111,12 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 	}
 	if img.ScanImage != nil {
 		im.RiskScore = img.ScanImage.VulnScore + img.ScanImage.SensitiveScore + math.Min(img.ScanImage.WebshellScore+img.ScanImage.VirusScore, 40)
+	}
+
+	if img.Registry != nil {
+		im.RegistryName = img.Registry.Name
+		im.Library = img.Registry.Url
+		im.RegistryDeletedAt = img.Registry.DeletedAt
 	}
 	return im
 }

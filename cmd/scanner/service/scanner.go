@@ -18,7 +18,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -74,6 +73,7 @@ type Scanner struct {
 	postgresDB      *store.ScannerDB
 	harborOpts      *flag.HarborOpts
 	globalCache     *cache.Cache
+	syncImage       component.SyncImageInterface
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -106,7 +106,7 @@ func NewScanner(
 		log.Error().
 			Err(err).
 			Msg("error in connecting to the Mongo database")
-		panic(err)
+		// panic(err)
 	}
 
 	mongodb := mongoClient.Database(mongoOpts.Database)
@@ -181,6 +181,7 @@ func NewScanner(
 				newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache, &scannerList),
 				component.NewImageRejectSrc(store.NewScannerOrm(postgresDB)),
 				component.NewHarborSrc(store.NewScannerOrm(postgresDB), redisClient, redclairSvc),
+				component.NewRegistrySrv(store.NewRegistryDao(postgresDB)),
 			),
 		},
 		globalCache:     globalCache,
@@ -192,6 +193,7 @@ func NewScanner(
 		cancel:          mainCancel,
 		localLayerMange: llms,
 		harborOpts:      harborOpts,
+		syncImage:       component.NewSyncRepoImage(store.NewRegistryDao(postgresDB), scannerDB),
 	}, nil
 }
 
@@ -216,25 +218,9 @@ func (s *Scanner) Run() func() {
 		}()
 
 		defer wg.Done()
-		r, err := component.NewSyncRepoImage(s.ctx, s.harborOpts.ConfigPath, uint(s.harborOpts.SyncInterval), s.postgresDB)
-		var wg sync.WaitGroup
-		for i := range r {
-			wg.Add(1)
-			tmp := r[i]
-			go tmp.Run(func(image registry.Image) error { // nolint: errcheck
-				transImagelist := component.TransImageToImagelist(tmp, image)
-				if _, err := s.postgresDB.InsertImageList(context.Background(), transImagelist); err != nil {
-					return err
-				}
-				return nil
-			}, &wg)
-		}
+		go s.syncImage.SyncImage(&wg) // nolint errcheck
 		wg.Wait()
-		if err != nil {
-			log.Panic().
-				Err(err).
-				Msg("Panic failed to start local layer manage server")
-		}
+
 	}()
 	// image.NewImageService(s.postgresDB, s.harborClient)
 	// start reject cache
@@ -395,8 +381,9 @@ func newConScannerSrv(
 	sqlDB.SetMaxOpenConns(30)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	dal := store.NewScannerOrm(db)
+	registryDal := store.NewRegistryDao(db)
 
-	srv := component.NewConScannerSrv(dal, redclair, virusScan, store.NewScannerDB(db), globalCache, scannerList)
+	srv := component.NewConScannerSrv(dal, registryDal, redclair, virusScan, store.NewScannerDB(db), globalCache, scannerList)
 	go srv.DeleteCICDImage(context.Background()) // 起协程删除cache仓库的image
 	return srv
 }

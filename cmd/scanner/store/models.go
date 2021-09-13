@@ -74,7 +74,12 @@ type SearchRegistryParam struct {
 	RegistryIds []uint
 	Fields      []string // 只想要的字端
 	LibraryUrl  string
-	UseType     int
+	UseType     int64
+	RegType     []string
+	Id          int64
+	Search      string
+
+	NoDelete bool
 }
 
 type GetImageOverViewParm struct {

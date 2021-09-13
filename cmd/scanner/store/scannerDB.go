@@ -213,7 +213,7 @@ func (scdb *ScannerDB) InsertImageList(ctx context.Context, im model.ImageList) 
 	defer cancelFunc()
 
 	tmp := model.ImageList{}
-	res := scdb.PostgresDB.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND library = ? AND from_type = ?", im.FullRepoName, im.Tags, im.Library, im.FromType).First(&tmp)
+	res := scdb.PostgresDB.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND library = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.Library, im.FromType, im.RegistryId).First(&tmp)
 	if res.Error != nil {
 		err := scdb.PostgresDB.Get().WithContext(ctx).Create(&im).Error
 		return im.ID, err

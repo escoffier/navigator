@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/docker/distribution/manifest/schema1"
@@ -15,32 +18,95 @@ import (
 	"github.com/opencontainers/go-digest"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gopkg.in/yaml.v2"
 )
 
 const (
 	Version = "registry-v2"
 )
 
+type repositoriesResponse struct {
+	Repositories []string `json:"repositories"`
+}
+
+var (
+	ErrNoMorePages = errors.New("no more pages")
+)
+
 type RegistryV2 struct {
 	Ctx            context.Context
-	Config         Opts
+	Config         registry.RegisterConfig
 	RegistryClient *registry2.Registry // client for pull manifest
 }
 
-type Opts struct {
-	URL           string
-	Username      string
-	Password      string
-	SkipTLSVerify bool
-}
-
 func (r *RegistryV2) ListRepos() ([]string, error) {
-	repos, err := r.RegistryClient.Repositories()
+	repos, err := r.Repositories()
 	if err != nil {
 		return nil, err
 	}
 	return repos, nil
+}
+
+func (r *RegistryV2) getPaginatedJSON(url string, response interface{}) (string, error) {
+	resp, err := r.RegistryClient.Client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(response)
+	if err != nil {
+		return "", err
+	}
+	return getNextLink(resp)
+}
+
+var nextLinkRE = regexp.MustCompile(`^ *<?([^;>]+)>? *(?:;[^;]*)*; *rel="?next"?(?:;.*)?`)
+
+func getNextLink(resp *http.Response) (string, error) {
+	for _, link := range resp.Header[http.CanonicalHeaderKey("Link")] {
+		parts := nextLinkRE.FindStringSubmatch(link)
+		if parts != nil {
+			return parts[1], nil
+		}
+	}
+	return "", ErrNoMorePages
+}
+
+func (r *RegistryV2) completeNextUrl(nextUrl string) (string, error) {
+	if strings.HasPrefix(nextUrl, r.RegistryClient.URL) {
+		return nextUrl, nil
+	}
+	return r.RegistryClient.URL + nextUrl, nil
+}
+
+func (r *RegistryV2) Repositories() ([]string, error) {
+	url := r.url("/v2/_catalog")
+	repos := make([]string, 0, 10)
+	var response repositoriesResponse
+	for {
+		nextUrl, err := r.getPaginatedJSON(url, &response)
+		logging.GetLogger().Debug().Msgf("docker registry repositories next url %v,err %v", nextUrl, err)
+		switch err {
+		case ErrNoMorePages:
+			repos = append(repos, response.Repositories...)
+			return repos, nil
+		case nil:
+			url, err = r.completeNextUrl(nextUrl)
+			logging.GetLogger().Debug().Msgf("docker registry repositories complete url %v,err:%v", url, err)
+			repos = append(repos, response.Repositories...)
+			continue
+		default:
+			logging.GetLogger().Error().Msgf("docker registry repositories unexpected err:%v", err)
+			return nil, err
+		}
+	}
+}
+
+func (r *RegistryV2) url(pathTemplate string, args ...interface{}) string {
+	pathSuffix := fmt.Sprintf(pathTemplate, args...)
+	url := fmt.Sprintf("%s%s", r.RegistryClient.URL, pathSuffix)
+	return url
 }
 
 func (r *RegistryV2) ListRepoTags(repo string) ([]string, error) {
@@ -128,7 +194,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 			i.ConfigJson = configBlob
 			images = append(images, *i)
 
-			err = extender(*i)
+			err = extender(r.GetRegistryConfig(), *i)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
 				continue
@@ -243,6 +309,10 @@ func (r *RegistryV2) CheckProject(projectName string) error {
 	return errors.New("not implement")
 }
 
+func (r *RegistryV2) GetRegistryConfig() registry.RegisterConfig {
+	return r.Config
+}
+
 func (r *RegistryV2) CreateProject(projectName string, public bool) error {
 	return errors.New("not implement")
 }
@@ -265,9 +335,11 @@ func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	digest, _, err := registry.SHA256(bytes.NewReader(data))
-
-	return digest.String(), err
+	dig, _, err := registry.SHA256(bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	return dig.String(), err
 }
 
 func (r *RegistryV2) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
@@ -287,6 +359,7 @@ func (r *RegistryV2) PullImageManifestV1(repo, digest string) (*schema1.SignedMa
 
 	return manifest, nil
 }
+
 func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
 	reader, err := r.RegistryClient.DownloadBlob(repo, configDigest)
 	if err != nil {
@@ -301,30 +374,14 @@ func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (st
 	return configBlob.String(), nil
 }
 
-func init() {
-	err := registry.Register(Version, openRegistry)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("init docker registry driver error:%v", err)
-	}
-}
-
-func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {
+func OpenRegistry(config registry.RegisterConfig) (*RegistryV2, error) {
 	var r RegistryV2
 
 	r.Ctx = context.Background()
 
-	// parse config
-	bytes, err := yaml.Marshal(registrableComponentConfig.Options)
-	if err != nil {
-		return nil, fmt.Errorf("registryV2: could not load configuration: %v", err)
-	}
-	err = yaml.Unmarshal(bytes, &r.Config)
-	if err != nil {
-		return nil, fmt.Errorf("registryV2: could not load configuration: %v", err)
-	}
-
 	// create client to pull image manifest and config
-	rc, err := newRegistryClient(&r.Config)
+	r.Config = config
+	rc, err := NewRegistryClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("registryV2:new registry client err:%v", err)
 	}
@@ -333,7 +390,7 @@ func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig
 	return &r, nil
 }
 
-func newRegistryClient(config *Opts) (*registry2.Registry, error) {
+func NewRegistryClient(config registry.RegisterConfig) (*registry2.Registry, error) {
 	hub, err := registry2.New(config.URL, config.Username, config.Password)
 	if err != nil && config.SkipTLSVerify {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:

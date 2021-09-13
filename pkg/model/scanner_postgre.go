@@ -144,8 +144,8 @@ type ImageList struct {
 	ImageScanVirus    []VirusFileInfo    `gorm:"-" json:"image_scan_virus"`
 	ImageScanWebshell []WebshellFileInfo `gorm:"-" json:"image_scan_webshell"`
 	OnLineCount       int                `gorm:"column:on_line_count;default:0" json:"-"`
-	Status            int                `gorm:"column:status;default:0" json:"status"` //  status: -1 not ready images 0 normal status
-	RegistryId        uint               // 来源registry，id为registry表的id
+	Status            int                `gorm:"column:status;default:0" json:"status"`                              //  status: -1 not ready images 0 normal status
+	RegistryId        int64              `gorm:"uniqueIndex:uniq_inx_image,priority:5,default:0" json:"registry_id"` // 来源registry，id为registry表的id
 	FirstPushTime     time.Time
 	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
 	LastPullTime      time.Time  // 上次pull时间
@@ -162,6 +162,7 @@ type ImageList struct {
 	ImageType int64 `gorm:"column:image_type;default:0" json:"image_type"`
 
 	ScanImage *ScanImage `gorm:"-" json:"scan_image"`
+	Registry  *Registry  `gorm:"-" json:"registry"`
 }
 
 func (i ImageList) TableName() string {
@@ -191,20 +192,23 @@ type Package struct {
 
 // Registry Registry表
 type Registry struct {
-	ID             uint `gorm:"primaryKey" json:"id"`
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      int
-	Url            string `gorm:"index:idx_url" json:"url"`        // 如:docker.io/v2, quay.io/v2
-	Username       string `gorm:"column:username" json:"username"` // user for login registry
-	Password       []byte `gorm:"column:password" json:"-"`        // DES加密
+	ID             int64  `gorm:"primaryKey" json:"id"`
+	Name           string `gorm:"uniqueIndex:uniq_idx_registry_name" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
+	RegType        string `gorm:"column:reg_type" json:"reg_type"`                // 仓库类型
+	Url            string `gorm:"column:url" json:"url"`                          // 如:docker.io/v2, quay.io/v2
+	Username       string `gorm:"column:username" json:"username"`                // user for login registry
+	Password       []byte ` json:"-"`                                             // DES加密
 	PasswordString string `gorm:"-" json:"password"`
-	TLS            int    // 1-use tls,0-not use
-	Token          string `gorm:"column:token" json:"token"`
+	Token          string `gorm:"-" json:"token"`
 	Description    string `gorm:"column:description"  json:"description"`
-	ApiVersion     string `gorm:"column:api_version" json:"api_version"`
-	AuthStr        string `gorm:"-" json:"auth_str"` // 用户名和密码加密后的数据，不存入数据库中
-	UseType        int    `gorm:"column:use_type"`   // 1-用户仓库,2-buf仓库
+	AuthStr        string `gorm:"-" json:"auth_str"`                         // 用户名和密码加密后的数据，不存入数据库中
+	UseType        int    `gorm:"column:use_type" json:"-"`                  // 1-用户仓库,2-buf仓库
+	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"` // 单位：分钟
+	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"-"`   // 最后一次同步时间
+
+	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	DeletedAt int64     `gorm:"column:deleted_at; default:0" json:"deleted_at"`
 }
 
 func (Registry) TableName() string {

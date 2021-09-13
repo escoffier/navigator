@@ -31,7 +31,7 @@ func GetFilter(ctx *gin.Context) *Filter {
 	return filter
 }
 
-// 查总数所用的Filter
+// EmptyFilterForTheTotalQuery 查总数所用的Filter
 func EmptyFilterForTheTotalQuery() *Filter {
 	return &Filter{
 		PageSize:  1,

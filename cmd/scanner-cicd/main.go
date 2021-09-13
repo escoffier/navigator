@@ -32,7 +32,7 @@ type accountRes struct {
 	PassWord string `json:"password"`
 }
 type accountdata struct {
-	Item accountRes `json:"item"`
+	Item []accountRes `json:"item"`
 }
 type accountInfo struct {
 	ApiVersion string      `json:"apiVersion"`
@@ -103,7 +103,7 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	// 获取自己仓库的用户名密码
 	client := &http.Client{Timeout: time.Duration(maxSecond) * time.Second}
 	err := util.RetryWithBackoff(ctx, func() error {
-		getLibraryUrl := consoleUrl + "api/openapi/scanner/register/registry?usetype=2"
+		getLibraryUrl := consoleUrl + "api/openapi/scanner/register/registries?usetype=2"
 		log.Info().Msgf("get cache certificate url  : %s\n", getLibraryUrl)
 		request, err := http.NewRequest("GET", getLibraryUrl, nil) // 2
 		if err != nil {
@@ -132,9 +132,12 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	}
 
 	// push到自己的仓库中
-	// TODO 多种仓库类型支持
+	if len(accountInfo.Data.Item) == 0 {
+		log.Error().Msg("未查询到中转仓库")
+		os.Exit(2)
+	}
 
-	osCmd := exec.Command("docker", "login", "-u", accountInfo.Data.Item.UserName, "-p", accountInfo.Data.Item.PassWord, bufRegistryUrl)
+	osCmd := exec.Command("docker", "login", "-u", accountInfo.Data.Item[0].UserName, "-p", accountInfo.Data.Item[0].PassWord, bufRegistryUrl)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	osCmd.Stdout = &out

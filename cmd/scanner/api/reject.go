@@ -154,7 +154,7 @@ func (s *RejectApi) CreateWhitelist(ctx *gin.Context) {
 func (s *RejectApi) RejectReasons(ctx *gin.Context) {
 	res := model.RejectReasonMap{
 		En: model.GetRejectReason(model.LangEn),
-		Zh: model.GetRejectReason(model.LangEn),
+		Zh: model.GetRejectReason(model.LangZh),
 	}
 	response.JSONOK(ctx, response.WithItem(res))
 }
