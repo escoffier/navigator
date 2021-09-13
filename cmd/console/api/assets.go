@@ -269,7 +269,12 @@ func (api *api) addNewCluster() http.HandlerFunc {
 				return
 			}
 		} else {
-			logging.GetLogger().Warn().Msg("no watcher created")
+			// watcher is created in console.Run, it may be not ready right now!!
+			//return err, cluster manager will try to register repeatedly until watcher is ready
+			logging.GetLogger().Error().Msg("watcher not ready")
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, fmt.Errorf("watcher not ready when adding cluster %s ", cluster.Name)))
+			return
 		}
 
 		err = resSvc.AddCluster(ctx, &cluster)
