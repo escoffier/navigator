@@ -2,10 +2,6 @@
 
 package consts
 
-import (
-	"time"
-)
-
 const (
 	ScanTaskComeFrom = iota
 	ScanTaskComeFromWeb
@@ -15,15 +11,6 @@ const (
 	TrueString  = "true"
 	FalseString = "false"
 	AllString   = "all"
-)
-
-const (
-	OverallSeverity = iota
-	OverallSeverityNegligible
-	OverallSeverityLow
-	OverallSeverityMedium
-	OverallSeverityHigh
-	OverallSeverityCritical
 )
 
 const EncryptPasswordKey = "talkerss"
@@ -64,13 +51,17 @@ const (
 	SensitiveFileType = "sensitive_file_json"
 	MaliciousInfoType = "malicious_info_json"
 	WebsellInfoType   = "webshell_info_json"
-	DaoTimeOut        = 30 * time.Second
 	BaseImage         = "base"
 	AppImage          = "app"
+	BaseImageType     = 1
+	AppImageType      = 0
+)
 
-	BaseImageType = 1
-	AppImageType  = 0
+const (
+	ValidateCreate = "create"
+	ValidateUpdate = "update"
+)
 
-	// AllImage   = "all"
-	ImageBatch = 100
+const (
+	StatusInternalServerErrorMsg = "服务器开小差了，请稍后再试"
 )

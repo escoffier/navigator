@@ -21,6 +21,7 @@ type Repository struct {
 	Description  string    `json:"description"`
 	CreationTime time.Time `json:"creation_time"`
 	UpdateTime   time.Time `json:"update_time"`
+	Labels       []Label   `json:"labels"`
 }
 
 type Tag struct {
@@ -31,4 +32,7 @@ type Tag struct {
 	Created  time.Time `json:"created"`
 	PushTime time.Time `json:"push_time"`
 	PullTime time.Time `json:"pull_time"`
+}
+type Label struct {
+	Deleted bool `json:"deleted"`
 }

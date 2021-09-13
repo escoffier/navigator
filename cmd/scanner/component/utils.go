@@ -17,6 +17,13 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/alauda"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv1"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv2"
+	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -350,37 +357,6 @@ func checkRejectPolicy(po model.RejectPolicy) error {
 }
 
 func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
-	/*
-		// RejectPolicy 阻断策略表
-		type RejectPolicy struct {
-			ID          int64          `json:"id"`
-			Name        string         `json:"name"`             // 策略名
-			Library     []string       `gorm:"-" json:"library"` // 生效仓库名
-			LibraryJSON datatypes.JSON `gorm:"type:jsonb,column:library_json" json:"-"`
-			Comment     string         `json:"comment"`  // 备注
-			Operator    string         `json:"operator"` // 操作员名字
-
-			VulnScore     int64  `json:"vuln_score"` // 漏洞按分数阻断(低于多少分后阻断)
-			VulnLevel     string `json:"vuln_level"` // 漏洞按严重级别阻断
-			WebShellScore int64  `json:"web_shell_score"`
-
-			WebShellPolicy      string `json:"web_shell_policy"`
-			SensitiveFilePolicy string `json:"sensitive_file_policy"` // 敏感文件规则
-			MaliciousPolicy     string `json:"malicious_policy"`      // 恶意文件规则
-			BaseImagePolicy     string `json:"base_image_policy"`     // 基础镜像规则
-
-			CicdEnable    bool         `gorm:"cicd_enable" json:"cicd_enable"`
-			K8sEnable     bool         `gorm:"k8s_enable" json:"k8s_enable"`
-			RejectVulns   []RejectVuln `gorm:"-" json:"reject_vulns"`
-			Mode          string       `gorm:"mode" json:"mode"`                     // 阻断模式(基本模式,安全模式)
-			OnlineMonitor bool         `gorm:"online_monitor" json:"online_monitor"` // 是否开启在线监控
-			CreatedAt     time.Time    `json:"created_at"`                           //
-			UpdatedAt     time.Time    `json:"updated_at"`
-			Enable        bool         `json:"enable"` // 是否启用该策略
-			IsGlobal      bool         `json:"is_global"`
-			DeletedAt     int          `json:"deleted_at,omitempty"`
-		} // @name RejectPolic
-	*/
 	bys, _ := json.Marshal(po.Library)
 
 	updater := map[string]interface{}{
@@ -409,6 +385,126 @@ func GlobalRejectPolicyToUpdater(po model.GlobalRejectPolicy) map[string]interfa
 		"mode":           po.Mode,
 	}
 	return updater
+}
+
+func validateRegistry(reg model.Registry, valTY string) error {
+	if reg.Name == "" {
+		return errors.New("no name")
+	}
+	if reg.Username == "" {
+		return errors.New("no username")
+	}
+	if reg.PasswordString == "" {
+		return errors.New("no password")
+	}
+	if reg.SyncInterval < 0 {
+		return errors.New("SyncInterval must than 0")
+	}
+	if valTY == consts.ValidateCreate {
+		if reg.Url == "" && len([]rune(reg.Url)) > 255 {
+			return errors.New("registry address is illegal")
+		}
+		if err := validateRegistryType(reg.RegType); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRegistryType(regType string) error {
+	if regType == "" || (regType != alauda.Version && regType != docker.Version && regType != harborv1.HarborVersion &&
+		regType != harborv2.HarborVersion && regType != hwswr.Version && regType != jfrog.Version) {
+		return errors.New("registry type is illegal")
+	}
+	return nil
+}
+
+func registryToUpdater(reg model.Registry) map[string]interface{} {
+	updater := map[string]interface{}{
+		"name": reg.Name,
+		// "reg_type":    reg.RegType, // 仓库类型 + 地址不可编辑
+		// "url":    reg.Url,
+		"username":      reg.Username,
+		"password":      reg.Password,
+		"description":   reg.Description,
+		"sync_interval": reg.SyncInterval,
+	}
+	return updater
+}
+
+func PingRegistry(reg model.Registry) error {
+	conf := registry.RegisterConfig{
+		RegistryId:    reg.ID,
+		URL:           reg.Url,
+		Username:      reg.Username,
+		Password:      reg.PasswordString,
+		SkipTLSVerify: true,
+	}
+	switch reg.RegType {
+	case alauda.Version, docker.Version:
+		if _, err := docker.NewRegistryClient(conf); err != nil {
+			return err
+		}
+		return nil
+	case harborv1.HarborVersion:
+		if _, err := harborv1.NewRegistryClient(conf); err != nil {
+			return err
+		}
+		return nil
+	case harborv2.HarborVersion:
+		if _, err := harborv2.NewRegistryClient(conf); err != nil {
+			return err
+		}
+		return nil
+	case hwswr.Version:
+		conf.AccessKey = conf.Username
+		conf.SecretKey = conf.Password
+		conf.Username = ""
+		conf.Password = ""
+
+		if _, err := hwswr.NewRegistryClient(conf); err != nil {
+			return err
+		}
+	case jfrog.Version:
+		if _, err := jfrog.NewRegistryClient(conf); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return fmt.Errorf("no support registry type")
+}
+
+func GetRegistryFromConfig(reg model.Registry) (registry.Registry, error) {
+	conf := registry.RegisterConfig{
+		RegistryId:    reg.ID,
+		URL:           reg.Url,
+		Username:      reg.Username,
+		Password:      reg.PasswordString,
+		SkipTLSVerify: true,
+		Insecure:      true,
+	}
+	switch reg.RegType {
+
+	case docker.Version:
+		return docker.OpenRegistry(conf)
+
+	case harborv1.HarborVersion:
+		return harborv1.OpenRegistry(conf)
+
+	case harborv2.HarborVersion:
+		return harborv2.OpenRegistry(conf)
+
+	case hwswr.Version:
+		conf.AccessKey = conf.Username
+		conf.SecretKey = conf.Password
+		conf.Username = ""
+		conf.Password = ""
+		return hwswr.OpenRegistry(conf)
+	case jfrog.Version:
+		return jfrog.OpenRegistry(conf)
+	}
+	return nil, fmt.Errorf("未识别的仓库类型：%s", reg.RegType)
 }
 
 type ScannerList struct {

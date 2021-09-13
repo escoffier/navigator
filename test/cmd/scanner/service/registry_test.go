@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"sync"
 	"testing"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
@@ -28,7 +30,10 @@ func (te *TestExtender) OutPut() {
 
 func TestSyncRepo(t *testing.T) {
 	t.Log("start sync repo")
-	postgresDB, err := gorm.Open(postgres.Open("postgres://postgres:xxxxxx@192.168.134.26:5432/postgres?sslmode=disable"), &gorm.Config{})
+	//postgresDB, err := gorm.Open(postgres.Open("postgres://postgres:xxxxxx@192.168.134.26:5432/postgres?sslmode=disable"), &gorm.Config{})
+	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
+		return gorm.Open(postgres.Open("postgres://postgres:xxxxxx@192.168.134.26:5432/postgres?sslmode=disable"), &gorm.Config{})
+	})
 	scannerDB := store.NewScannerDB(postgresDB)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,7 +51,7 @@ func TestSyncRepo(t *testing.T) {
 		tmp := r[i]
 		go tmp.Run(func(image registry.Image) error {
 			TransImagelist := component.TransImageToImagelist(tmp, image)
-			scannerDB.InsertImageList(TransImagelist)
+			scannerDB.InsertImageList(ctx, TransImagelist)
 			return nil
 		}, &wg)
 	}

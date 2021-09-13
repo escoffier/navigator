@@ -17,12 +17,13 @@ func init() {
 	log = logging.GetLogger()
 }
 
-func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRejectSrv, harborSvc component.HarborSvc) *gin.Engine {
+func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRejectSrv, harborSvc component.HarborSvc, rejistrySrv component.RegistrySrvInterface) *gin.Engine {
 	router := gin.Default()
 
 	apiScannerSrv := NewScannerApiSrv(scannerSvc)
 	apiRejectSrv := NewRejectApiSrv(rejectSvc)
 	apiHaborSrv := NewHaborApiSrv(harborSvc, harborSvc.GetRedisClient())
+	apiRegistrySrv := NewRegistrySrv(rejistrySrv, rejectSvc)
 
 	router.Use(gin.Logger(), gin.Recovery())
 
@@ -89,9 +90,14 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 	// 和仓库相关
 	v6 := router.Group("/api/v1/register")
 	{
-		v6.GET("/projects/:projectName", apiScannerSrv.CheckProjectAndCreateIfNotExist)
-		v6.GET("/registries", apiScannerSrv.ListRegistry)
-		v6.GET("/registry", apiScannerSrv.GetRegistry)
+		// v6.GET("/projects/:projectName", apiScannerSrv.CheckProjectAndCreateIfNotExist)
+		v6.GET("/registries", apiRegistrySrv.SearchRegistry)
+		// v6.GET("/registry", apiRegistrySrv.GetRegistry)
+		v6.GET("/registry/:id", apiRegistrySrv.GetRegistry)
+		v6.PUT("/registry/:id", apiRegistrySrv.UpdateRegistry)
+		v6.POST("/registry", apiRegistrySrv.CreateRegistry)
+		v6.DELETE("/registry/:id", apiRegistrySrv.DeleteRegistry)
+		v6.GET("/reg-type", apiRegistrySrv.GetRegistryType)
 	}
 	// 对接harbor扫描器
 	v7 := router.Group("/harbor/api/v1")

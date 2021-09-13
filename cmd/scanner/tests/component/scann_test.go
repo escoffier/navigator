@@ -12,9 +12,10 @@ import (
 )
 
 func TestCheckDetectImageForCICD(t *testing.T) {
-	s := component.NewConScannerSrv(newMockDAl(), nil, nil, nil, nil, nil)
+	s := component.NewConScannerSrv(newMockDAl(), Newmockregdal(), nil, nil, nil, nil, nil)
 	ctx := context.Background()
 	expectDetails := []component.ReasonAndDetail{
+		{RejectReason: model.RejectNoLibrary, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectNoLibrary]},
 		{RejectReason: model.RejectReasonHasMalicious, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious]},
 		{RejectReason: model.RejectReasonHasSensitiveFile, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile]},
 		{RejectReason: model.RejectReasonVuluScore, RejectDetail: "漏洞综合评分：5，低于阻断分数：50"},
@@ -24,6 +25,10 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 		{RejectReason: model.RejectReasonUntrustedBaseImage, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage]},
 	}
 	expectHashs := []model.KVHashs{
+		{KVHash: model.KVHash{
+			EN: model.KeyValue{Key: model.GetRejectReason(model.LangEn)[model.RejectNoLibrary], Value: "image not in config registry,but image has add to the whitelist,unblocked"},
+			ZH: model.KeyValue{Key: model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], Value: "来源镜像不在本地仓库，但镜像已加入白名单中，未被阻断"},
+		}},
 		{KVHash: model.KVHash{
 			EN: model.KeyValue{Key: model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious], Value: "contains malicious file,but image has add to the whitelist,unblocked"},
 			ZH: model.KeyValue{Key: model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious], Value: "存在恶意文件，但镜像已加入白名单中，未被阻断"},
@@ -58,6 +63,7 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 		cicd, details, hashs, err := s.DetectImageForCICD(ctx, 1, "https://registry.t-appagile.com")
 		convey.ShouldEqual(cicd, true)
 		convey.ShouldBeNil(err)
+		// fmt.Println(details)
 
 		convey.So(len(details), convey.ShouldEqual, len(expectDetails))
 		convey.So(len(hashs), convey.ShouldEqual, len(expectHashs))
@@ -77,6 +83,29 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 }
 
 type mockdal struct {
+}
+
+type mockregdal struct {
+}
+
+func (m *mockregdal) SearchRegistry(ctx context.Context, param store.SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
+	return nil, 0, nil
+}
+
+func (m *mockregdal) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+	panic("implement me")
+}
+
+func (m *mockregdal) UpdateRegistry(ctx context.Context, param store.SearchRegistryParam, updater map[string]interface{}) error {
+	panic("implement me")
+}
+
+func (m *mockregdal) DeleteRegistry(ctx context.Context, param store.SearchRegistryParam) error {
+	panic("implement me")
+}
+
+func Newmockregdal() *mockregdal {
+	return &mockregdal{}
 }
 
 func (m *mockdal) UpdatePolicy(ctx context.Context, param store.SearchRejectPolicyParam, updater map[string]interface{}) error {
@@ -247,12 +276,12 @@ func (m *mockdal) SearchRejectPolicy(ctx context.Context, param store.SearchReje
 		Library:             []string{"https://registry.t-appagile.com"},
 		VulnScore:           50,
 		VulnLevel:           model.NegligibleVuln,
-		VulnPolicy:          model.RejectPolicyReject,
 		WebShellScore:       2,
 		WebShellPolicy:      model.RejectPolicyReject,
 		SensitiveFilePolicy: model.RejectPolicyReject,
 		MaliciousPolicy:     model.RejectPolicyReject,
 		BaseImagePolicy:     model.RejectPolicyReject,
+		VulnPolicy:          model.RejectPolicyReject,
 		CicdEnable:          true,
 		K8sEnable:           true,
 		RejectVulns: []model.RejectVuln{model.RejectVuln{
@@ -266,7 +295,6 @@ func (m *mockdal) SearchRejectPolicy(ctx context.Context, param store.SearchReje
 		OnlineMonitor: true,
 		Enable:        true,
 		IsGlobal:      false,
-		DeletedAt:     0,
 	}
 	return []model.RejectPolicy{po}, nil
 }

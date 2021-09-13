@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
 	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
@@ -15,7 +16,6 @@ import (
 	"github.com/opencontainers/go-digest"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -26,25 +26,23 @@ var (
 	ErrNoMorePages = errors.New("no more pages")
 )
 
-type RegistryV2 struct {
-	docker.RegistryV2
-}
+var singletonRegistry *dockerRegistryV2
 
-type Opts struct {
-	docker.Opts
+type dockerRegistryV2 struct {
+	docker.RegistryV2
 }
 
 type repositoriesResponse struct {
 	Repositories []string `json:"repositories"`
 }
 
-func (r *RegistryV2) url(pathTemplate string, args ...interface{}) string {
+func (r *dockerRegistryV2) url(pathTemplate string, args ...interface{}) string {
 	pathSuffix := fmt.Sprintf(pathTemplate, args...)
 	url := fmt.Sprintf("%s%s", r.RegistryClient.URL, pathSuffix)
 	return url
 }
 
-func (r *RegistryV2) getPaginatedJSON(url string, response interface{}) (string, error) {
+func (r *dockerRegistryV2) getPaginatedJSON(url string, response interface{}) (string, error) {
 	resp, err := r.RegistryClient.Client.Get(url)
 	if err != nil {
 		return "", err
@@ -59,37 +57,37 @@ func (r *RegistryV2) getPaginatedJSON(url string, response interface{}) (string,
 	return getNextLink(resp)
 }
 
-func (r *RegistryV2) completeNextUrl(nextUrl string) (string, error) {
+func (r *dockerRegistryV2) completeNextUrl(nextUrl string) (string, error) {
 	if strings.HasPrefix(nextUrl, r.RegistryClient.URL) {
 		return nextUrl, nil
 	}
-	return r.RegistryClient.URL + nextUrl,nil
+	return r.RegistryClient.URL + nextUrl, nil
 }
 
-func (r *RegistryV2) Repositories() ([]string, error) {
+func (r *dockerRegistryV2) Repositories() ([]string, error) {
 	url := r.url("/v2/_catalog")
 	repos := make([]string, 0, 10)
 	var response repositoriesResponse
 	for {
 		nextUrl, err := r.getPaginatedJSON(url, &response)
-		logging.GetLogger().Debug().Msgf("alauda registry repositories next url %v,err %v", nextUrl,err)
+		logging.GetLogger().Debug().Msgf("alauda registry repositories next url %v,err %v", nextUrl, err)
 		switch err {
 		case ErrNoMorePages:
 			repos = append(repos, response.Repositories...)
 			return repos, nil
 		case nil:
 			url, err = r.completeNextUrl(nextUrl)
-			logging.GetLogger().Debug().Msgf("alauda registry repositories complete url %v,err:%v", url,err)
+			logging.GetLogger().Debug().Msgf("alauda registry repositories complete url %v,err:%v", url, err)
 			repos = append(repos, response.Repositories...)
 			continue
 		default:
-			logging.GetLogger().Error().Msgf("alauda registry repositories unexpected err:%v",err)
+			logging.GetLogger().Error().Msgf("alauda registry repositories unexpected err:%v", err)
 			return nil, err
 		}
 	}
 }
 
-func (r *RegistryV2) ListRepos() ([]string, error) {
+func (r *dockerRegistryV2) ListRepos() ([]string, error) {
 	repos, err := r.Repositories()
 	if err != nil {
 		return nil, err
@@ -97,11 +95,11 @@ func (r *RegistryV2) ListRepos() ([]string, error) {
 	return repos, nil
 }
 
-func (r *RegistryV2) ListRepoTags(repo string) ([]string, error) {
+func (r *dockerRegistryV2) ListRepoTags(repo string) ([]string, error) {
 	return r.RegistryV2.ListRepoTags(repo)
 }
 
-func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
+func (r *dockerRegistryV2) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
 	images := make([]registry.Image, 0)
 
 	// get all repos
@@ -178,9 +176,9 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 			i.ConfigJson = configBlob
 			images = append(images, *i)
 
-			err = extender(*i)
+			err = extender(r.Config, *i)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("extender function for image %s, err %v",i.ImageDigest,err)
+				logging.GetLogger().Error().Msgf("extender function for image %s, err %v", i.ImageDigest, err)
 			}
 		}
 	}
@@ -188,51 +186,59 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 	return images, nil
 }
 
-func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
+func (r *dockerRegistryV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
 	return r.RegistryV2.GetImage(projectName, repoName, tag)
 }
 
-func (r *RegistryV2) CheckProject(projectName string) error {
+func (r *dockerRegistryV2) CheckProject(projectName string) error {
+	return errors.New("not implement")
+}
+func (r *dockerRegistryV2) GetRegistryConfig() registry.RegisterConfig {
+	return r.Config
+}
+
+func (r *dockerRegistryV2) CreateProject(projectName string, public bool) error {
 	return errors.New("not implement")
 }
 
-func (r *RegistryV2) CreateProject(projectName string, public bool) error {
-	return errors.New("not implement")
-}
+// func init() {
+// 	err := registry.Register(Version, OpenRegistry)
+// 	if err != nil {
+// 		logging.GetLogger().Error().Msgf("init alauda docker registry driver error:%v", err)
+// 	}
+// }
 
-func init() {
-	err := registry.Register(Version, openRegistry)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("init alauda docker registry driver error:%v", err)
+func OpenRegistry(config registry.RegisterConfig) (registry.Registry, error) {
+	if singletonRegistry != nil {
+		return singletonRegistry, nil
 	}
-}
-
-func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {
-	var r RegistryV2
+	var r dockerRegistryV2
 
 	r.Ctx = context.Background()
 
-	// parse config
-	bytes, err := yaml.Marshal(registrableComponentConfig.Options)
-	if err != nil {
-		return nil, fmt.Errorf("alauda registryV2: could not load configuration: %v", err)
-	}
-	err = yaml.Unmarshal(bytes, &r.Config)
-	if err != nil {
-		return nil, fmt.Errorf("alauda registryV2: could not load configuration: %v", err)
-	}
+	// // parse config
+	// bytes, err := yaml.Marshal(registrableComponentConfig.Options)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("alauda registryV2: could not load configuration: %v", err)
+	// }
+	// err = yaml.Unmarshal(bytes, &r.Config)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("alauda registryV2: could not load configuration: %v", err)
+	// }
 
 	// create client to pull image manifest and config
-	rc, err := newRegistryClient(&r.Config)
+	rc, err := NewRegistryClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("alauda registryV2:new registry client err:%v", err)
 	}
 	r.RegistryClient = rc
+	r.Config = config
+	singletonRegistry = &r
 
-	return &r, nil
+	return singletonRegistry, nil
 }
 
-func newRegistryClient(config *docker.Opts) (*registry2.Registry, error) {
+func NewRegistryClient(config registry.RegisterConfig) (*registry2.Registry, error) {
 	hub, err := registry2.New(config.URL, config.Username, config.Password)
 	if err != nil && config.SkipTLSVerify {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:

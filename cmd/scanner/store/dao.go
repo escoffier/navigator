@@ -388,10 +388,6 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	// if param.ID <= 0 && param.Global != consts.TrueString {
-	// 	return errors.New("no condition for UpdatePolicy")
-	// }
-
 	db := s.psql.Get().Model(new(model.RejectPolicy)).Omit("is_global")
 	if param.ID > 0 {
 		db = db.Where("id = ?", param.ID)
@@ -801,12 +797,12 @@ func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStat
 	return status
 }
 
-func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, url string) string {
+func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, registryID int64) string {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
 	tmp := model.Registry{}
-	res := s.psql.Get().WithContext(ctx).Where("url = ?", url).First(&tmp)
+	res := s.psql.Get().WithContext(ctx).Where("id = ?", registryID).First(&tmp)
 	if res.Error != nil {
 		return ""
 	}
@@ -872,7 +868,7 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, from
 	if err := s.psql.Get().WithContext(ctx).Where(&model.ImageList{ID: imgId}).First(&tmp).Error; err != nil {
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应镜像记录: %v", err)
 	}
-	authStr := s.GetAuthFromRegistry(ctx, tmp.Library)
+	authStr := s.GetAuthFromRegistry(ctx, tmp.RegistryId)
 	if authStr == "" && auth == "" {
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应仓库记录")
 	} else if authStr == "" {

@@ -50,7 +50,10 @@ const (
 	UsePatternForK8s    = "for_k8s"
 	UsePatternForOnline = "for_online"
 )
-const RegistryUseTypeBuff = 2 // 表示CICD的中转仓库
+const (
+	RegistryUseTypeBuff   = 2 // 表示CICD的中转仓库
+	RegistryUseTypeNormal = 1 // 表示同步仓库
+)
 
 const (
 	ImageFromTypeCICD   = 2
@@ -86,12 +89,12 @@ var reasonENMap = map[int64]string{
 	RejectReasonHasMedium:          "Exist Medium vulnerability file",
 	RejectReasonHasHigh:            "Exist High vulnerability file",
 	RejectReasonHasCritical:        "Exist Critical vulnerability file",
-	RejectNoLibrary:                "image not in config registry",
-	RejectScanFailure:              "image scan failure",
-	RejectScanNotScanned:           "image not scanned",
-	RejectReasonUntrustedImage:     "untrusted image",
+	RejectNoLibrary:                "Image not in config registry",
+	RejectScanFailure:              "Image scan failure",
+	RejectScanNotScanned:           "Image not scanned",
+	RejectReasonUntrustedImage:     "Untrusted image",
 	RejectReasonUntrustedBaseImage: "The application image is not built with a verified base image",
-	RejectReasonWebshellScore:      "webshell score more than set value",
+	RejectReasonWebshellScore:      "Webshell score more than set value",
 }
 var reasonChMap = map[string]string{
 	NegligibleVuln: GetRejectReason(LangZh)[RejectReasonHasNegligible],

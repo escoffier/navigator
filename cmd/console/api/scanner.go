@@ -59,9 +59,13 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/vulns/all", api.RedirectToScanner())
 		r.Get("/vulns/relation", api.RedirectToScanner())
 
-		r.Get("/register/projects/{projectName}", api.RedirectToScanner())
+		// r.Get("/register/projects/{projectName}", api.RedirectToScanner())
 		r.Get("/register/registries", api.RedirectToScanner())
-		r.Get("/register/registry", api.RedirectToScanner())
+		r.Get("/register/registry/{id}", api.RedirectToScanner())
+		r.Put("/register/registry/{id}", api.RedirectToScanner())
+		r.Post("/register/registry", api.RedirectToScanner())
+		r.Delete("/register/registry/{id}", api.RedirectToScanner())
+		r.Get("/register/reg-type", api.RedirectToScanner())
 
 		r.Get("/imagereject/overview", api.RedirectToScanner())
 		r.Get("/imagereject/reasons", api.RedirectToScanner())

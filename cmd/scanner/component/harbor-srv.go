@@ -63,16 +63,17 @@ func (Harbor *Harbor) decodeUsernamePassword(authorization string) (string, stri
 
 func (Harbor *Harbor) GetRegistryDriver(url string, authorization string) registry.Registry {
 	username, password, _ := Harbor.decodeUsernamePassword(authorization)
-	regi, _ := registry.Open(registry.RegistrableComponentConfig{
-		Type: harborv2.HarborVersion,
-		Options: map[string]interface{}{
-			"url":           url,
-			"password":      password,
-			"username":      username,
-			"skiptlsverify": true,
-		},
+	reg, err := harborv2.OpenRegistry(registry.RegisterConfig{
+		URL:           url,
+		Username:      username,
+		Password:      password,
+		SkipTLSVerify: true,
 	})
-	return regi
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("GetRegistryDriver")
+		return nil
+	}
+	return reg
 }
 func (h *Harbor) reqHarbor(ctx context.Context, url string, username string, password string, auth string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", url, nil)
@@ -80,7 +81,7 @@ func (h *Harbor) reqHarbor(ctx context.Context, url string, username string, pas
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 	req.SetBasicAuth("admin", "Harbor12345")
-	//req.Header.Set("Authorization", auth)
+	// req.Header.Set("Authorization", auth)
 	var resp *http.Response
 
 	err = util.RetryWithBackoff(ctx, func() error {
@@ -113,15 +114,15 @@ func (Harbor *Harbor) GetTags(ctx context.Context, url string, authorization str
 	}
 	fullRepoName = strings.Replace(fullRepoName, "/", "%252F", -1)
 	tagUrl := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s/tags", url, "api/v2.0", projectName, fullRepoName, digest)
-	//fmt.Printf("username %s password %s :\n", username, password)
+	// fmt.Printf("username %s password %s :\n", username, password)
 	body, err := Harbor.reqHarbor(ctx, tagUrl, username, password, authorization)
 	if err != nil {
 		return []registry.Tag{}, err
 	}
 	defer util.CloseBodyWithLog(body)
-	//test, _ := ioutil.ReadAll(body)
-	//fmt.Printf("Body Is :%s", string(test))
-	//return []registry.Tag{}, err
+	// test, _ := ioutil.ReadAll(body)
+	// fmt.Printf("Body Is :%s", string(test))
+	// return []registry.Tag{}, err
 	var tags []registry.Tag
 	err = json.NewDecoder(body).Decode(&tags)
 	if err != nil {
@@ -141,10 +142,10 @@ func (Harbor *Harbor) AddHarborScanTask(ctx context.Context, scanReq model.Scann
 	img := model.ImageList{
 		FullRepoName: scanReq.Repository,
 		Digest:       scanReq.Digest,
-		//Size:           int(image.Size),
+		// Size:           int(image.Size),
 		Library:    scanReq.URL,
 		RegistryId: 0,
-		//FirstPushTime:  image.Created,
+		// FirstPushTime:  image.Created,
 	}
 	imgId, err := Harbor.dbdal.InsertAdapterImageList(ctx, img)
 	if err != nil {

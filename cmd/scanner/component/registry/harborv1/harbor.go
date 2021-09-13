@@ -19,7 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -29,21 +28,14 @@ const (
 	DefaultPageSize int  = 100
 )
 
-type harborV1 struct {
+type HarborV1 struct {
 	ctx            context.Context
 	client         *http.Client // client for pull harbor repos and tags
-	config         HarborOpts
+	config         registry.RegisterConfig
 	registryClient *registry2.Registry // client for pull manifest
 }
 
-type HarborOpts struct {
-	URL           string
-	Username      string
-	Password      string
-	SkipTLSVerify bool
-}
-
-func (h *harborV1) reqHarbor(url string) (io.ReadCloser, error) {
+func (h *HarborV1) reqHarbor(url string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
@@ -71,7 +63,7 @@ func (h *harborV1) reqHarbor(url string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (h *harborV1) ListProjects() ([]Project, error) {
+func (h *HarborV1) ListProjects() ([]Project, error) {
 	var projects []Project
 	page := 1
 	for {
@@ -91,7 +83,7 @@ func (h *harborV1) ListProjects() ([]Project, error) {
 	return projects, nil
 }
 
-func (h *harborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
+func (h *HarborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	url := fmt.Sprintf("%s/%s/projects?page=%d&page_size=%d", h.config.URL, ApiVersion, page, pageSize)
 	logging.GetLogger().Info().Msgf("req harbor projects url %s", url)
 
@@ -109,10 +101,20 @@ func (h *harborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	}
 
 	// logging.GetLogger().Info().Msgf("projects %+v",projects)
-	return projects, nil
+	// 过滤了被删除的镜像
+	ans := make([]Project, 0)
+	for i := range projects {
+		if projects[i].Deleted {
+			continue
+		}
+		ans = append(ans, projects[i])
+	}
+
+	// logging.GetLogger().Info().Msgf("repos %+v",repos)
+	return ans, nil
 }
 
-func (h *harborV1) ListProjectRepos(project int) ([]Repository, error) {
+func (h *HarborV1) ListProjectRepos(project int) ([]Repository, error) {
 	var repos []Repository
 	page := 1
 	for {
@@ -132,7 +134,7 @@ func (h *harborV1) ListProjectRepos(project int) ([]Repository, error) {
 	return repos, nil
 }
 
-func (h *harborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repository, error) {
+func (h *HarborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repository, error) {
 	url := fmt.Sprintf("%s/%s/repositories?project_id=%d&page=%d&page_size=%d", h.config.URL, ApiVersion, project, page, pageSize)
 	logging.GetLogger().Info().Msgf("req harbor repo url %s", url)
 
@@ -149,11 +151,20 @@ func (h *harborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repo
 		return nil, fmt.Errorf(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
 	}
 
+	// 过滤了被删除的镜像
+	ans := make([]Repository, 0)
+	for i := range repos {
+		if len(repos[i].Labels) > 0 && repos[i].Labels[0].Deleted {
+			continue
+		}
+		ans = append(ans, repos[i])
+	}
+
 	// logging.GetLogger().Info().Msgf("repos %+v",repos)
-	return repos, nil
+	return ans, nil
 }
 
-func (h *harborV1) ListRepoTags(repo string) ([]Tag, error) {
+func (h *HarborV1) ListRepoTags(repo string) ([]Tag, error) {
 	url := fmt.Sprintf("%s/%s/repositories/%s/tags?detail=true", h.config.URL, ApiVersion, repo)
 	logging.GetLogger().Info().Msgf("req harbor repo artifacts url %s", url)
 
@@ -174,7 +185,7 @@ func (h *harborV1) ListRepoTags(repo string) ([]Tag, error) {
 	return tags, nil
 }
 
-func (h *harborV1) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
+func (h *HarborV1) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
 	images := make([]registry.Image, 0)
 
 	// get all projects
@@ -235,7 +246,7 @@ func (h *harborV1) ListImages(extender registry.ImageListExtender) ([]registry.I
 				i.ConfigJson = configBlob
 				images = append(images, *i)
 
-				err = extender(*i)
+				err = extender(h.config, *i)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("HarborV1 Insert imagelist error %v", err)
 					continue
@@ -247,7 +258,7 @@ func (h *harborV1) ListImages(extender registry.ImageListExtender) ([]registry.I
 	return images, nil
 }
 
-func (h *harborV1) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
+func (h *HarborV1) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
 	// fullRopoName name like 'library/xxx'
 	fullRopoName := projectName + "/" + repoName
 
@@ -302,12 +313,12 @@ func (h *harborV1) GetImage(projectName, repoName, tag string) (*registry.Image,
 	return img, nil
 }
 
-func (h *harborV1) DeleteImages(projectName, repoName, digest string) error {
+func (h *HarborV1) DeleteImages(projectName, repoName, digest string) error {
 	panic("not implement")
 }
 
 // CreateProject 创建project
-func (h *harborV1) CreateProject(projectName string, public bool) error {
+func (h *HarborV1) CreateProject(projectName string, public bool) error {
 	url := fmt.Sprintf("%s/%s/projects", h.config.URL, ApiVersion)
 	type MetaData struct {
 		Public string `json:"public"`
@@ -345,7 +356,7 @@ func (h *harborV1) CreateProject(projectName string, public bool) error {
 }
 
 // CheckProject 检查project是否存在
-func (h *harborV1) CheckProject(projectName string) error {
+func (h *HarborV1) CheckProject(projectName string) error {
 	url := fmt.Sprintf("%s/%s/projects?project_name=%s", h.config.URL, ApiVersion, projectName)
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -363,7 +374,11 @@ func (h *harborV1) CheckProject(projectName string) error {
 	return nil
 }
 
-func (h *harborV1) makeImage(r *Repository, t *Tag) *registry.Image {
+func (h *HarborV1) GetRegistryConfig() registry.RegisterConfig {
+	return h.config
+}
+
+func (h *HarborV1) makeImage(r *Repository, t *Tag) *registry.Image {
 
 	i := &registry.Image{
 		ImageDigest:  t.Digest,
@@ -376,7 +391,7 @@ func (h *harborV1) makeImage(r *Repository, t *Tag) *registry.Image {
 	return i
 }
 
-func (h *harborV1) pullImageManifestV2(repo, digest string) (string, digest.Digest, error) {
+func (h *HarborV1) pullImageManifestV2(repo, digest string) (string, digest.Digest, error) {
 	manifest, err := h.registryClient.ManifestV2(repo, digest)
 	if err != nil {
 		return "", "", err
@@ -389,7 +404,7 @@ func (h *harborV1) pullImageManifestV2(repo, digest string) (string, digest.Dige
 	return string(manifestJson), manifest.Config.Digest, nil
 }
 
-func (h *harborV1) pullImageManifestV1(repo, digest string) (string, error) {
+func (h *HarborV1) pullImageManifestV1(repo, digest string) (string, error) {
 	manifest, err := h.registryClient.Manifest(repo, digest)
 	if err != nil {
 		return "", err
@@ -401,7 +416,8 @@ func (h *harborV1) pullImageManifestV1(repo, digest string) (string, error) {
 
 	return string(manifestJson), nil
 }
-func (h *harborV1) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
+
+func (h *HarborV1) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
 	reader, err := h.registryClient.DownloadBlob(repo, configDigest)
 	if err != nil {
 		return "", err
@@ -415,29 +431,13 @@ func (h *harborV1) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 	return configBlob.String(), nil
 }
 
-func init() {
-	err := registry.Register(HarborVersion, openRegistry)
-	if err != nil {
-		logging.GetLogger().Error().Msgf("init harborV1 error:%v", err)
-	}
-}
-
-func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig) (registry.Registry, error) {
-	var h harborV1
+func OpenRegistry(config registry.RegisterConfig) (*HarborV1, error) {
+	var h HarborV1
 
 	h.ctx = context.Background()
 
-	// parse config
-	bys, err := yaml.Marshal(registrableComponentConfig.Options)
-	if err != nil {
-		return nil, fmt.Errorf("harbor-v2: could not load configuration: %v", err)
-	}
-	err = yaml.Unmarshal(bys, &h.config)
-	if err != nil {
-		return nil, fmt.Errorf("harbor-v2: could not load configuration: %v", err)
-	}
-
 	// create client to pull harbor repos and tags
+	h.config = config
 	httpClient := http.Client{}
 	if h.config.SkipTLSVerify {
 		tr := &http.Transport{
@@ -448,7 +448,7 @@ func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig
 	h.client = &httpClient
 
 	// create client to pull image manifest and config
-	r, err := newRegistryClient(&h.config)
+	r, err := NewRegistryClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("harbor-v2:new registry client err:%v", err)
 	}
@@ -457,7 +457,7 @@ func openRegistry(registrableComponentConfig registry.RegistrableComponentConfig
 	return &h, nil
 }
 
-func newRegistryClient(config *HarborOpts) (*registry2.Registry, error) {
+func NewRegistryClient(config registry.RegisterConfig) (*registry2.Registry, error) {
 	hub, err := registry2.New(config.URL, config.Username, config.Password)
 	if err != nil && config.SkipTLSVerify {
 		// seems like error Golang's x509 package doesn't support error wrapping API yet:
