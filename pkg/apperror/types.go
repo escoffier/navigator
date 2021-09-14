@@ -64,6 +64,7 @@ type CannotDeleteActivePolicyError struct{ detailedError }
 type CannotUpdateConfigOfCurrentlyTrainedProfileError struct{ detailedError }
 type CannotChangeProfileStatusWhenPolicyIsActiveError struct{ detailedError }
 type UnknownSecurityProfileKindError struct{ detailedError }
+type CannotStartTrainingThatIsEmptyResourcesError struct{ detailedError }
 type CannotStartTrainingThatIsInProgressError struct{ detailedError }
 type CannotStartAPausedTrainingError struct{ detailedError }
 type CannotAbortNonStartedTrainingError struct{ detailedError }
@@ -1283,6 +1284,22 @@ func NewUnknownSecurityProfileKindError(httpCode int, err error, suberrors ...Su
 			err:       err,
 			English:   "Unknown security profile kind",
 			Chinese:   "未知的安全配置文件類型",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewCannotStartTrainingThatIsEmptyResourcesError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return CannotStartTrainingThatIsEmptyResourcesError{
+		detailedError{
+			err:       err,
+			English:   "Cannot start training that policy's empty  resources",
+			Chinese:   "无法开始训练资源为空的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

@@ -690,6 +690,11 @@ func main() {
 		redisCtx, redisCtxCancel := context.WithTimeout(mainCtx, 10*time.Second)
 		defer redisCtxCancel()
 		invalidState := false
+		if len(c.Resources) <= 0 {
+			logging.GetLogger().Error().Msg("Resources is nil")
+			invalidState = true
+			goto sendMessageInvalidState
+		}
 		if c.Command == model.SecProfileCommandTrainStart {
 			profileIntermediate := model.SecProfileIntermediate{
 				SecProfileEnvelope: &model.SecProfileEnvelope{

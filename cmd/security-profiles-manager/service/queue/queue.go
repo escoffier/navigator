@@ -355,7 +355,7 @@ func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) erro
 		}
 
 		// TODO - get profile.TimeFrame when this feature is enabled again. Ensure it is set in redis
-		ticker := time.NewTicker(time.Duration(profile.Timeout * 2))
+		ticker := time.NewTicker(time.Duration(profile.TimeFrame*2) * time.Second)
 		suspend := make(chan struct{}, 1)
 
 		tickerMap[profileKey] = ticker

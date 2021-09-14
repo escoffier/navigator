@@ -159,6 +159,10 @@ func (s *SecProfileBuilderService) StartTraining(ctx context.Context, policyID i
 	if p.Active {
 		return NewPolicyError(http.StatusBadRequest, fmt.Errorf("Cannot start training for active profile"))
 	}
+
+	if len(p.Resources) <= 0 {
+		return NewCannotStartTrainingThatIsEmptyResourcesError(http.StatusBadRequest, fmt.Errorf("Cannot start training for policy's empty resources"))
+	}
 	var timeout int
 	whitelist := make([]string, 0)
 	if profileKind == model.SecurityKindApparmor {
