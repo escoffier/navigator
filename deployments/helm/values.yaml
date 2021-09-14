@@ -247,7 +247,7 @@ postgresql-ha:
     pullSecrets: ["harbor-admin-secret"]
     pullPolicy: Always
   pgpool:
-    maxPool: "4"
+    maxPool: "15"
     resources:
       limits:
         memory: 512Mi
