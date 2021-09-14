@@ -138,11 +138,10 @@ postgresql:
   postgresqlPassword: password
   postgresqlDatabase: postgres
 
-harbor:
-  harborURL: https://192.168.1.152:30003
-  harborUsername: tensorsec
-  harborPassword: Tensorsec123!
-  harborSecretName: harbor-api-tensorsec
+imagePullSecret:
+  imageRegistryURL: https://192.168.1.152:30003
+  imageRegistryUsername: tensorsec
+  imageRegistryPassword: Tensorsec123!
   
 mongo:
   mongoUsername: redstone

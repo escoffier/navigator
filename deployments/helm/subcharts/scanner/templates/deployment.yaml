@@ -56,7 +56,6 @@ spec:
           "--clair-secretpattern=/config/patterns.json",
           "--redclair-skipregistrytlsverify", # Insecure
           "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
-          "--harbor-configPath=/config/registry.yaml",
           "--harbor-skiptlsverify", # Insecure
           "-v"]
         env:
@@ -70,11 +69,12 @@ spec:
               secretKeyRef:
                 name: {{ .Values.redis.redisSecretName }}
                 key: auth
-          - name: TENSORSEC_HARBOR_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.harbor.harborSecretName }}
-                key: password
+          - name: CICD-BUF-REGISTRY-URL
+            value: http://{{ template "scanner.fullname" . }}-dockerregistry:5000
+          - name: CICD-BUF-REGISTRY-USER
+            value: "tensorsec"
+          - name: CICD-BUF-REGISTRY-PASSWORD
+            value: "TensorSec@Passw0rd"
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
             name: {{ include "scanner.name" . }}-api
@@ -84,9 +84,6 @@ spec:
           - name: scannerfiles
             mountPath: "/config/patterns.json"
             subPath: patterns.json
-          - name: registryfiles
-            mountPath: "/config/registry.yaml"
-            subPath: registry.yaml
           - name: dockersock
             mountPath: "/var/run/docker.sock"
           - name: tmp
@@ -113,12 +110,6 @@ spec:
           items:
             - key: patterns.json
               path: patterns.json
-      - name: registryfiles
-        configMap:
-          name: {{ template "scanner.fullname" . }}-configmap
-          items:
-            - key: registry.yaml
-              path: registry.yaml
       - name: scanner-eventcenter-config
         secret:
           defaultMode: 420

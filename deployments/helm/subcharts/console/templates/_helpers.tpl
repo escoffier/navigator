@@ -35,8 +35,8 @@ Return the job tensorsec cleaner image name
 
 
 {{- define "console.genImagePullSecret" }}
-{{- with .Values.harbor }}
-{{- printf "{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}" .harborURL .harborUsername .harborPassword (printf "%s:%s" .harborUsername .harborPassword | b64enc) | b64enc }}
+{{- with .Values.imagePullSecret }}
+{{- printf "{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}" .imageRegistryURL .imageRegistryUsername .imageRegistryPassword (printf "%s:%s" .imageRegistryUsername .imageRegistryPassword | b64enc) | b64enc }}
 {{- end }}
 {{- end }}
 
