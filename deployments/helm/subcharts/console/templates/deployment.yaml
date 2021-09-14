@@ -68,9 +68,6 @@ spec:
           "--elastic-pvc=tensorsec-elasticsearch-master-tensorsec-elasticsearch-master-0",
           "--elastic-pod=tensorsec-elasticsearch-master-0",
           "--elastic-data-path={{ .Values.elastic.elasticDataPath }}",
-          "--harbor-username={{ .Values.harbor.harborUsername }}",
-          "--harbor-url={{ .Values.harbor.harborURL }}",
-          "--harbor-skiptlsverify", # Insecure
           "--security-profiles-host=tensorsec-sec-prof-man",
           "--security-profiles-port=8887",
           "--webhook-host=tensorsec-webhook",
@@ -105,11 +102,6 @@ spec:
         - name: TENSORSEC_EMAIL_PASSWORD
           value: {{ .Values.emailCheck.smtpPassword }}
         {{- end }}
-        - name: TENSORSEC_HARBOR_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.harbor.harborSecretName }}
-              key: password
         - name: TENSORSEC_MONGO_PASSWORD
           valueFrom:
             secretKeyRef:

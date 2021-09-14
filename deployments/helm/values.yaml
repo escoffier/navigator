@@ -40,7 +40,7 @@ clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
 
 scanner:
-  enabled: false
+  enabled: true
   image:
     registry: "{{ .Values.global.image.registry }}"
     repository: "{{ .Values.global.image.repository }}"
@@ -51,10 +51,6 @@ scanner:
     redisSecretName: tensorsec-redis-ha
   clair:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
-  harbor:
-    harborURL: https://harbor.example
-    harborUsername: admin
-    harborSecretName: harbor-api-tensorsec
   dockerregistry:
     persistence:
       enabled: true
@@ -112,11 +108,10 @@ console:
     postgresqlUsername: postgres
     postgresqlPassword: password
     postgresqlDatabase: postgres
-  harbor:
-    harborURL: https://harbor.example
-    harborUsername: admin
-    harborPassword: Harbor12345
-    harborSecretName: harbor-api-tensorsec
+  imagePullSecret:
+    imageRegistryURL: https://harbor.example
+    imageRegistryUsername: admin
+    imageRegistryPassword: Harbor12345
   emailCheck:
     smtpEnabled: false
     smtpHost: smtp.feishu.cn

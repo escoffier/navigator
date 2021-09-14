@@ -6,11 +6,10 @@ global:
   verison: &tensorsecVerison 1.6.8
   persistence:
     enabled: &persistenceStorage true
-  harbor:
-    url: &harborURL https://harbor.local.tensorsecurity.cn
-    username: &harborUsername admin
-    password: &harborPassword Harbor12345
-    type: &harborType harbor-v2.0
+  imagePullSecret:
+    url: &imageRegistryURL harbor.local.tensorsecurity.cn
+    username: &imageRegistryUsername admin
+    password: &imageRegistryPassword Harbor12345
   multiCluster:
     ## Both 'isMasterCluster' and 'isMemberCluster' all need be modified 
     ## and the values of them must be opposite
@@ -46,10 +45,10 @@ console:
     tensorsecCleaner:
       image:
         tag: *tensorsecVerison
-  harbor:
-    harborURL: *harborURL
-    harborUsername: *harborUsername
-    harborPassword: *harborPassword
+  imagePullSecret:
+    imageRegistryURL: *imageRegistryURL
+    imageRegistryUsername: *imageRegistryUsername
+    imageRegistryPassword: *imageRegistryPassword
   emailCheck:
     smtpEnabled: false
     smtpHost: smtp.feishu.cn
@@ -64,10 +63,6 @@ scanner:
   enabled: *isMasterCluster
   image:
     tag: *tensorsecVerison
-  harbor:
-    harborURL: *harborURL
-    harborUsername: *harborUsername
-    harborPassword: *harborPassword
   dockerregistry:
     persistence:
       enabled: *persistenceStorage
@@ -88,55 +83,6 @@ scanner:
 #  - ip: "192.168.3.2"
 #    hostnames:
 #    - "harbor.local.tensorsecurity.cn"
-  # scanner registry config
-  # 
-  config:
-    registry:
-      scanner:
-      # -
-      #   registry:
-      #      type: harbor-v2.0
-      #      options:
-      #        url: https://my.harbor.com
-      #        username: myusername
-      #        password: mypassword
-      #        skiptlsverify: true
-      #        paginationkey:
-      #        usetype: 1
-      # -
-      #   registry:
-      #      type: registry-v2
-      #      options:
-      #        url: https://my.registry.com
-      #        username: myusername
-      #        password: mypassword
-      #        skiptlsverify: true
-      #        paginationkey:
-      #        usetype: 1
-      # This part used "usetype: 2" is the default configs for internel docker-registry
-        -
-          registry:
-            type: registry-v2
-            options:
-              # Service FQDN of docker-registry service.
-              url: http://tensorsec-scanner-dockerregistry:5000
-              # Username & password must be consistent with ".Values.scanner.dockerregistry.secrets.htpasswd".
-              username: tensorsec
-              password: TensorSec@Passw0rd
-              skiptlsverify: true
-              paginationkey:
-              # Value "1" is for internel docker-registry, and "2" is for customer's external harbor or registry.
-              usetype: 2
-        -
-          registry:
-            type: *harborType
-            options:
-              url: *harborURL
-              username: *harborUsername
-              password: *harborPassword
-              skiptlsverify: true
-              paginationkey:
-              usetype: 1
 
 holmes:
   enabled: true

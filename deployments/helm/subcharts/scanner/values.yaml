@@ -118,12 +118,6 @@ mongo:
   mongoDatabase: vegeta
   mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
 
-
-harbor:
-  harborURL: https://192.168.1.152:30003
-  harborUsername: tensorsec
-  harborSecretName: harbor-api-tensorsec
-
 init: 
   resources:
     limits:
