@@ -130,12 +130,12 @@ type ImageList struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	Url           string
-	FullRepoName  string                 `gorm:"uniqueIndex:uniq_inx_image,priority:1"  json:"full_repo_name"`
-	Tags          string                 `gorm:"uniqueIndex:uniq_inx_image,priority:2" json:"tags"`
+	FullRepoName  string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:1"  json:"full_repo_name"`
+	Tags          string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:2" json:"tags"`
 	Digest        string                 `gorm:"index:idx_image_digest" json:"digest"`
 	OS            string                 `gorm:"column:os" json:"os"`
 	Size          int                    `gorm:"column:size" json:"size"`
-	Library       string                 `gorm:"uniqueIndex:uniq_inx_image,priority:3" json:"library"`
+	Library       string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:3" json:"library"`
 	Questions     []QuestionInfo         `gorm:"-" json:"questions"`
 	CompleteTime  string                 `gorm:"column:complete_time" json:"complete_time"`
 	ImageScanVuln ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
@@ -144,8 +144,8 @@ type ImageList struct {
 	ImageScanVirus    []VirusFileInfo    `gorm:"-" json:"image_scan_virus"`
 	ImageScanWebshell []WebshellFileInfo `gorm:"-" json:"image_scan_webshell"`
 	OnLineCount       int                `gorm:"column:on_line_count;default:0" json:"-"`
-	Status            int                `gorm:"column:status;default:0" json:"status"`                              //  status: -1 not ready images 0 normal status
-	RegistryId        int64              `gorm:"uniqueIndex:uniq_inx_image,priority:5,default:0" json:"registry_id"` // 来源registry，id为registry表的id
+	Status            int                `gorm:"column:status;default:0" json:"status"`                                   //  status: -1 not ready images 0 normal status
+	RegistryId        int64              `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"registry_id"` // 来源registry，id为registry表的id
 	FirstPushTime     time.Time
 	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
 	LastPullTime      time.Time  // 上次pull时间
@@ -156,7 +156,7 @@ type ImageList struct {
 	ManifestV1JSON datatypes.JSON `gorm:"type:jsonb"` // manifest内容
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
 	ConfigJson     datatypes.JSON `gorm:"type:jsonb"` // config内容,包括layer diffid
-	FromType       int            `gorm:"uniqueIndex:uniq_inx_image,priority:4,default:0" json:"from_type"`
+	FromType       int            `gorm:"uniqueIndex:uniq_idx_image_list,priority:5,default:0" json:"from_type"`
 	Layers         string         `gorm:"index:idx_image_layers" json:"layers"` // 把layer拼成字符串，为了找出基础镜像,用|分隔
 
 	ImageType int64 `gorm:"column:image_type;default:0" json:"image_type"`
@@ -193,11 +193,11 @@ type Package struct {
 // Registry Registry表
 type Registry struct {
 	ID             int64  `gorm:"primaryKey" json:"id"`
-	Name           string `gorm:"uniqueIndex:uniq_idx_registry_name" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
-	RegType        string `gorm:"column:reg_type" json:"reg_type"`                // 仓库类型
-	Url            string `gorm:"column:url" json:"url"`                          // 如:docker.io/v2, quay.io/v2
-	Username       string `gorm:"column:username" json:"username"`                // user for login registry
-	Password       []byte ` json:"-"`                                             // DES加密
+	Name           string `gorm:"uniqueIndex:uniq_idx_registry_name;priority:1" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
+	RegType        string `gorm:"column:reg_type" json:"reg_type"`                           // 仓库类型
+	Url            string `gorm:"column:url" json:"url"`                                     // 如:docker.io/v2, quay.io/v2
+	Username       string `gorm:"column:username" json:"username"`                           // user for login registry
+	Password       []byte ` json:"-"`                                                        // DES加密
 	PasswordString string `gorm:"-" json:"password"`
 	Token          string `gorm:"-" json:"token"`
 	Description    string `gorm:"column:description"  json:"description"`
@@ -208,7 +208,7 @@ type Registry struct {
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
-	DeletedAt int64     `gorm:"column:deleted_at; default:0" json:"deleted_at"`
+	DeletedAt int64     `gorm:"column:deleted_at; default:0;uniqueIndex:uniq_idx_registry_name;priority:2" json:"deleted_at"`
 }
 
 func (Registry) TableName() string {
