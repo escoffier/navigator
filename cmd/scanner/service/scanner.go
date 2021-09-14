@@ -153,6 +153,13 @@ func NewScanner(
 		return nil, err
 	}
 
+	// scanner启动之前的初始化动作
+	registryDal := store.NewRegistryDao(postgresDB)
+	preInit := component.NewInitScanner(registryDal)
+	if err := preInit.CreateCicdBufRegistry(ctx); err != nil {
+		return nil, err
+	}
+
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background()) // nolint govet
 	scannerList := component.ScannerList{}
