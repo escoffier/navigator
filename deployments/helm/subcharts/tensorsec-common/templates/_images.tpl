@@ -21,3 +21,21 @@ Return the proper image name
 {{- printf "%s:%s" $imageName $tag -}}
 {{- end -}}
 {{- end -}}
+
+
+{{/*
+Return the image path
+*/}}
+{{- define "tensorsec.common.images.registryPath" -}}
+{{- $registryName := .imageRoot.registry -}}
+{{- $repositoryName := .imageRoot.repository -}}
+{{- if .global }}
+    {{- if .global.image.registry }}
+     {{- $registryName = .global.image.registry -}}
+    {{- end -}}
+    {{- if .global.image.repository }}
+     {{- $repositoryName = .global.image.repository -}}
+    {{- end -}}
+{{- end -}}
+{{- printf "%s/%s" $registryName $repositoryName -}}
+{{- end -}}

@@ -3,20 +3,9 @@
 Return the console image path
 */}}
 {{- define "console.registryPath" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-
-{{- if .global }}
-    {{- if .global.image.registry }}
-     {{- $registryName = .global.image.registry -}}
-    {{- end -}}
-    {{- if .global.image.repository }}
-     {{- $repositoryName = .global.image.repository -}}
-    {{- end -}}
+{{ include "tensorsec.common.images.registryPath" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
-{{- printf "%s/%s" $registryName $repositoryName -}}
-{{- end -}}
 
 {{/*
 Return the console image name

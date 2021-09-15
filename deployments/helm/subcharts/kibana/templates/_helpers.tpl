@@ -2,10 +2,7 @@
 Return the clair image name
 */}}
 {{- define "kibana.registryPath" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-
-{{- printf "%s/%s" $registryName $repositoryName -}}
+{{ include "tensorsec.common.images.registryPath" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 
