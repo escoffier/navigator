@@ -21,7 +21,7 @@ persistence:
   claimName: audit-pvc
   accessModes:
     - ReadWriteOnce
-  size: 8Gi
+  size: 50Gi
   tensorsecCleaner:
     image:
       registry: localhost:32000
