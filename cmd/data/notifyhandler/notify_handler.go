@@ -113,7 +113,7 @@ func translateDataType(dataType string) string {
 }
 
 func makeEmailBody(dataType string, storageView *model.StorageView) string {
-	return fmt.Sprintf("数据类型:%s. 磁盘状态:(总空间:%dMB, 已使用:%dMB). 请即时扩展磁盘或者清理数据!",
+	return fmt.Sprintf("数据类型:%s. 磁盘状态:(预计总空间:%dMB, 实际已使用:%dMB). 请即时扩展磁盘或者清理数据!",
 		translateDataType(dataType), storageView.Total/1024/1024, storageView.Used/1024/1024)
 }
 
