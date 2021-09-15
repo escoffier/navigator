@@ -92,8 +92,7 @@ helm-upgrade:
     - git merge origin/master
     ## Configuration of Helm
     - 'sed -i "s#harbor.local.tensorsecurity.cn#registry.t-appagile.com#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#tensorsecVerison 1.6.8#tensorsecVerison ci#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#harborURL https://harbor.local.tensorsecurity.cn#harborURL https://registry.t-appagile.com#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#1.0.0#ci#g" deployments/helm/example-values.yaml'
     - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'

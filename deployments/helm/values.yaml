@@ -40,7 +40,7 @@ scanner:
   dockerregistry:
     persistence:
       enabled: true
-      size: 10Gi
+      size: 50Gi
     secrets:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
       # e.g. "htpasswd -nbBC10 $username $password"
@@ -247,7 +247,7 @@ postgresql-ha:
         memory: 128Mi
   persistence:
     enabled: true
-    size: 10Gi
+    size: 20Gi
 
 
 mongodb:
