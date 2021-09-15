@@ -4,7 +4,7 @@ dist/
 node_modules/
 *egg-info/
 *docs.go
-charts/
+deployments/helm/charts/
 target/
 ld-preload/
 .DS_Store

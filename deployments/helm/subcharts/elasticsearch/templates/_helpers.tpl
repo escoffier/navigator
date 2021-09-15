@@ -1,14 +1,11 @@
 {{/* vim: set filetype=mustache: */}}
+
+
 {{/*
 Return the elasticsearch image name
 */}}
 {{- define "elasticsearch.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*

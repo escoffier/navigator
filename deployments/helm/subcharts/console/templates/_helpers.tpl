@@ -6,6 +6,15 @@ Return the console image path
 {{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
 {{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
 
+{{- if .global }}
+    {{- if .global.image.registry }}
+     {{- $registryName = .global.image.registry -}}
+    {{- end -}}
+    {{- if .global.image.repository }}
+     {{- $repositoryName = .global.image.repository -}}
+    {{- end -}}
+{{- end -}}
+
 {{- printf "%s/%s" $registryName $repositoryName -}}
 {{- end -}}
 
@@ -13,25 +22,21 @@ Return the console image path
 Return the console image name
 */}}
 {{- define "console.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
-
+{{/*
+Return the console image name
+*/}}
+{{- define "console.init.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.init.image "global" .Values.global) }}
+{{- end -}}
 {{/*
 Return the job tensorsec cleaner image name
 */}}
 {{- define "console.cleaner.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.persistence.tensorsecCleaner.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.persistence.tensorsecCleaner.image.repository "context" $)) -}}
-{{- $imageName := .Values.persistence.tensorsecCleaner.image.name -}}
-{{- $tag := .Values.persistence.tensorsecCleaner.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.persistence.tensorsecCleaner.image "global" .Values.global) }}
 {{- end -}}
+
 
 
 {{- define "console.genImagePullSecret" }}

@@ -1,48 +1,28 @@
 {{/* vim: set filetype=mustache: */}}
+
 {{/*
 Return the scanner image name
 */}}
 {{- define "scanner.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
-
 {/*
 Return the scanner docker registry image name
 */}}
 {{- define "scanner.docker.registry.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.dockerregistry.image.name -}}
-{{- $tag := .Values.dockerregistry.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.dockerregistry.image "global" .Values.global) }}
 {{- end -}}
-
 {/*
 Return the scanner webshell server image name
 */}}
 {{- define "scanner.webshell.server.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.webshell.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.webshell.image "global" .Values.global) }}
 {{- end -}}
-
 {{/*
-Return the clair image name
+Return the init container image name
 */}}
-{{- define "scanner.registryPath" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-
-{{- printf "%s/%s" $registryName $repositoryName -}}
+{{- define "scanner.init.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.init.image "global" .Values.global) }}
 {{- end -}}
 
 

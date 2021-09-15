@@ -14,7 +14,7 @@ spec:
     spec:
       initContainers:
         - name: create
-          image: "{{ template "tensorsec.certgen.image" . }}"
+          image: {{ include "tensorsec.imageValidator.certgen.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - create
@@ -32,7 +32,7 @@ spec:
               memory: 64Mi
       containers:
         - name: patch
-          image: "{{ template "tensorsec.certgen.image" . }}"
+          image: {{ include "tensorsec.imageValidator.certgen.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - patch

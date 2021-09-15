@@ -1,3 +1,10 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
+
+
 # Default values for falcosidekick.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -5,8 +12,10 @@
 replicaCount: 2
 
 image:
-  repository: falcosecurity/falcosidekick
-  tag: 2.22.0
+  registry:  localhost:32000
+  repository: falcosecurity
+  name: falcosidekick
+  tag: "2.22.0"
   pullPolicy: IfNotPresent
 
 podSecurityContext:
@@ -265,7 +274,9 @@ webui:
   enabled: false
 
   image:
-    repository: falcosecurity/falcosidekick-ui
+    registry:  localhost:32000
+    repository: falcosecurity
+    name: falcosidekick-ui
     tag: "v1.0.0"
     pullPolicy: IfNotPresent
 

@@ -29,20 +29,25 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 Return redis image
 */}}
 {{- define "redis.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
-
 {{/*
 Return sysctl image
 */}}
 {{- define "redis.sysctl.image" -}}
-{{- $registryName :=  default "docker.io" .Values.sysctlImage.registry -}}
-{{- $tag := default "latest" .Values.sysctlImage.tag | toString -}}
-{{- printf "%s/%s:%s" $registryName .Values.sysctlImage.repository $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.sysctlImage "global" .Values.global) }}
+{{- end -}}
+{{/*
+Return exporter image
+*/}}
+{{- define "redis.exporter.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.exporter.image "global" .Values.global) }}
+{{- end -}}
+{{/*
+Return haproxy image
+*/}}
+{{- define "redis.haproxy.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.haproxy.image "global" .Values.global) }}
 {{- end -}}
 
 {{- /*

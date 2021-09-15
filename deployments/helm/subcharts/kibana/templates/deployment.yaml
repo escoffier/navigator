@@ -23,7 +23,7 @@ spec:
     spec:
       initContainers:
       - name: "elasticsearch-listener"
-        image: {{ include "kibana.registryPath" . }}/alpine:latest
+        image: {{ include "kibana.init.image" . }}
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",

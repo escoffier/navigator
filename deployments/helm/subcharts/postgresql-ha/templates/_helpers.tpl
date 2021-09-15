@@ -52,56 +52,25 @@ Fully qualified app name for LDAP
 Return the proper PostgreSQL image name
 */}}
 {{- define "postgresql-ha.postgresqlImage" -}}
-
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.postgresqlImage.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.postgresqlImage.repository "context" $)) -}}
-{{- $imageName := .Values.postgresqlImage.name -}}
-{{- $tag := .Values.postgresqlImage.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.postgresqlImage "global" .Values.global) }}
 {{- end -}}
-
-
-
 {{/*
 Return the proper Pgpool image name
 */}}
 {{- define "postgresql-ha.pgpoolImage" -}}
-
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.pgpoolImage.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.pgpoolImage.repository "context" $)) -}}
-{{- $imageName := .Values.pgpoolImage.name -}}
-{{- $tag := .Values.pgpoolImage.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.pgpoolImage "global" .Values.global) }}
 {{- end -}}
-
-
 {{/*
 Return the proper PostgreSQL Prometheus exporter image name
 */}}
 {{- define "postgresql-ha.volumePermissionsImage" -}}
-
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.volumePermissionsImage.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.volumePermissionsImage.repository "context" $)) -}}
-{{- $imageName := .Values.volumePermissionsImage.name -}}
-{{- $tag := .Values.volumePermissionsImage.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.volumePermissionsImage "global" .Values.global) }}
 {{- end -}}
-
-
 {{/*
 Return the proper PostgreSQL Prometheus exporter image name
 */}}
 {{- define "postgresql-ha.metricsImage" -}}
-
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.metricsImage.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.metricsImage.repository "context" $)) -}}
-{{- $imageName := .Values.metricsImage.name -}}
-{{- $tag := .Values.metricsImage.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.metricsImage "global" .Values.global) }}
 {{- end -}}
 
 

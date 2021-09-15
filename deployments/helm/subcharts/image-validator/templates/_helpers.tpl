@@ -1,25 +1,15 @@
 {{/*
 Return the proper tensorsec image-validator image name
 */}}
-{{- define "tensorsec.image" -}}
-{{- $registryName := (include "tensorsec.tplVaule" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplVaule" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- define "tensorsec.imageValidator.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
 Return the proper tensorsec certgen image name
 */}}
-{{- define "tensorsec.certgen.image" -}}
-{{- $registryName := (include "tensorsec.tplVaule" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplVaule" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.global.certgen.image.name -}}
-{{- $tag := .Values.global.certgen.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{- define "tensorsec.imageValidator.certgen.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.certgen.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*

@@ -1,15 +1,3 @@
-{{/*
-Return the proper tensorsec certgen image name
-*/}}
-{{- define "tensorsec.certgen.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.global.certgen.image.name -}}
-{{- $tag := .Values.global.certgen.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
-{{- end -}}
-
 {{/* vim: set filetype=mustache: */}}
 {{/*
 Expand the name of the chart.
@@ -62,59 +50,51 @@ heritage: {{ .Release.Service }}
 {{- end -}}
 {{- end -}}
 
+
+{{/*
+Return the proper tensorsec certgen image name
+*/}}
+{{- define "tensorsec.secProfilesManager.certgen.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.certgen.image "global" .Values.global) }}
+{{- end -}}
+{{/*
+Return the security-profiles-manager webhook image name
+*/}}
 {{- define "secProfilesWebhook.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.webhook.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.webhook.image.repository "context" $)) -}}
-{{- $imageName := .Values.webhook.image.name -}}
-{{- $tag := .Values.webhook.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.webhook.image "global" .Values.global) }}
 {{- end -}}
-
+{{/*
+Return the security-profiles-manager manager image name
+*/}}
 {{- define "secProfilesManager.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
-
+{{/*
+Return the eventProcessor image name
+*/}}
 {{- define "eventProcessor.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.eventProcessor.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.eventProcessor.image.repository "context" $)) -}}
-{{- $imageName := .Values.eventProcessor.image.name -}}
-{{- $tag := .Values.eventProcessor.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.eventProcessor.image "global" .Values.global) }}
 {{- end -}}
-
+{{/*
+Return the loader image name
+*/}}
 {{- define "secProfilesLoader.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.loader.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.loader.image.repository "context" $)) -}}
-{{- $imageName := .Values.loader.image.name -}}
-{{- $tag := .Values.loader.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.loader.image "global" .Values.global) }}
 {{- end -}}
-
+{{/*
+Return the scanner image name
+*/}}
 {{- define "secProfilesAudit.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.audit.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.audit.image.repository "context" $)) -}}
-{{- $imageName := .Values.audit.image.name -}}
-{{- $tag := .Values.audit.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.audit.image "global" .Values.global) }}
 {{- end -}}
-
+{{/*
+Return the scanner image name
+*/}}
 {{- define "initContainers.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.initContainers.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.initContainers.image.repository "context" $)) -}}
-{{- $imageName := .Values.initContainers.image.name -}}
-{{- $tag := .Values.initContainers.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.initContainers.image "global" .Values.global) }}
 {{- end -}}
+
+
 
 {{/*
 Return the appropriate apiVersion for admission.

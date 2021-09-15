@@ -1,4 +1,8 @@
 # Default values for Falco.
+global:
+  image: 
+    registry: ""
+    repository: ""
 
 image:
   registry: registry.t-appagile.com

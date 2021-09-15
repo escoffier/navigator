@@ -31,14 +31,19 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/*
+Return the falcosidekick.image image name
+*/}}
 {{- define "falcosidekick.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
+{{/*
+Return the falcosidekick.image image name
+*/}}
+{{- define "falcosidekick.webui.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.webui.image "global" .Values.global) }}
+{{- end -}}
+
 
 {{/*
 Return the appropriate apiVersion for rbac.

@@ -19,7 +19,7 @@ spec:
       serviceAccount: {{ template "cluster-manager.fullname" . }}
       containers:
       - name: {{ template "cluster-manager.fullname" . }}
-        image: "{{ template "tensorsec.image" . }}"
+        image: {{ include "clusterManager.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
         {{- if .Values.global.multiCluster.isMasterCluster }}
