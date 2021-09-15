@@ -74,8 +74,8 @@ console:
     enabled: true
     tensorsecCleaner:
       image:
-        registry: "{{ .Values.global.image.registry }}"
-        repository: "{{ .Values.global.image.repository }}"
+        registry: localhost:32000
+        repository: tensorsecurity
         name: tensorsec-cleaner
         tag: latest
   elasticsearch:
