@@ -9,6 +9,7 @@ import (
 
 	"github.com/ReneKroon/ttlcache/v2"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -174,22 +175,15 @@ func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.Ten
 }
 
 func (n *NetworkTopoService) AddNetTopologies(ctx context.Context, flows []*model.TensorNetworkFlow) error {
-	now := time.Now()
-	okFlows := make([]*model.TensorNetworkFlow, 0, len(flows))
-	txErr := n.postgresDB.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, flow := range flows {
-			if err := n.addNetworkTopo(ctx, flow, tx, now); err == nil {
-				okFlows = append(okFlows, flow)
-			}
-		}
-		return nil
-	})
-	if txErr == nil {
-		for _, flow := range okFlows {
-			n.putToCache(flow)
+	var eErr error
+	for _, flow := range flows {
+		err := n.AddNetTopology(ctx, flow)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("insert flow error. flow: %+v", flow)
+			eErr = err
 		}
 	}
-	return txErr
+	return eErr
 }
 
 func (n *NetworkTopoService) ListNetTopologies(ctx context.Context, t time.Time) (nts []*model.TensorNetworkFlow, totalCnt int64, err error) {
