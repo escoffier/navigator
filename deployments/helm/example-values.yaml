@@ -77,6 +77,8 @@ scanner:
       port: 5000
       # nodePort:
   webshell:
+    image:
+      tag: *tensorsecVerison
     replicas: 2
 #  hostAliases:
 #  - ip: "192.168.3.2"
@@ -96,7 +98,6 @@ holmes:
 image-validator:
   enabled: false
   image:
-    #tag: 1.6.8
     tag: *tensorsecVerison
 
 webhook:
