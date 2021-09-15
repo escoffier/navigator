@@ -66,9 +66,11 @@ func CloseBodyWithLog(body io.ReadCloser) {
 			logging.GetLogger().Error().Msgf("Panic when closing ReadCloser: %v", r)
 		}
 	}()
-	err := body.Close()
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to close body, but ignoring")
+	if body != nil {
+		err := body.Close()
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to close body, but ignoring")
+		}
 	}
 }
 
