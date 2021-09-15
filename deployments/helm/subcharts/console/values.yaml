@@ -1,10 +1,17 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
+
 image:
-  registry:  localhost:32000
+  registry: localhost:32000
   repository: tensorsecurity
   name: tensorsec-console
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
+
 
 scap:
   tag: latest
@@ -59,10 +66,10 @@ persistence:
 
 
 ## Deployment pod host aliases
-#  hostAliases:
-#  - ip: "192.168.x.x"
-#    hostnames:
-#    - "xxx.xxx.com"
+####  hostAliases:
+####  - ip: "192.168.x.x"
+####    hostnames:
+####    - "xxx.xxx.com"
 hostAliases: []
 
 ## config user email check
@@ -113,6 +120,14 @@ initResources:
   limits:
     cpu: "50m"
     memory: "128Mi"
+
+init:
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: alpine
+    tag: latest
+  
 
 apiInstallLabel: "console.tensorsec/install"
 

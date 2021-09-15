@@ -29,7 +29,7 @@ spec:
       {{- end }}
       initContainers:
       - name: "postgres-listener"
-        image: {{ include "scanner.registryPath" . }}/alpine:latest
+        image: {{ include "scanner.init.image" . }}
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",

@@ -9,6 +9,10 @@
 #   storageClass: myStorageClass
 ## Override the namespace for resource deployed by the chart, but can itself be overridden by the local namespaceOverride
 #   namespaceOverride: my-global-namespace
+global:
+  image: 
+    registry: ""
+    repository: ""
 
 image:
   ## Bitnami MongoDB(R) registry

@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: {{ template "image-validator.fullname" . }}
-        image: "{{ template "tensorsec.image" . }}"
+        image: {{ include "tensorsec.imageValidator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: 9443

@@ -1,3 +1,8 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
 image:
   registry: localhost:32000
   repository: tensorsecurity
@@ -5,6 +10,13 @@ image:
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
+
+certgen:
+  image:
+    registry: localhost:32000
+    repository: tensorsecurity
+    name: tensorsec-certgen
+    tag: v1.5.1
 
 nameOverride: "image-validator"
 fullnameOverride: "tensorsec-image-validator"

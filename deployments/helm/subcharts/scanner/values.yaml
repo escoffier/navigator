@@ -1,3 +1,9 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
+
 ## tensorsec scannner image name
 image:
   registry:  localhost:32000
@@ -9,6 +15,8 @@ image:
 
 dockerregistry:
   image:
+    registry:  localhost:32000
+    repository: tensorsecurity
     name: tensorsec-scanner-registry
     tag: 2.7.1
   resources:
@@ -61,7 +69,10 @@ dockerregistry:
 
 webshell:
   image:
+    registry:  localhost:32000
+    repository: tensorsecurity
     name: webshell-server
+    tag: latest
   replicas: 2
   resources:
     limits:
@@ -119,6 +130,11 @@ mongo:
   mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
 
 init: 
+  image:
+    registry:  localhost:32000
+    repository: tensorsecurity
+    name: alpine
+    tag: latest
   resources:
     limits:
       cpu: 50m

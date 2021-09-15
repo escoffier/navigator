@@ -49,60 +49,31 @@ Create a default mongo arbiter service name which can be overridden.
 Return the proper MongoDB(R) image name
 */}}
 {{- define "mongodb.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
-
 {{/*
 Return the proper image name (for the metrics image)
 */}}
 {{- define "mongodb.metrics.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.metrics.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.metrics.image.repository "context" $)) -}}
-{{- $imageName := .Values.metrics.image.name -}}
-{{- $tag := .Values.metrics.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.metrics.image "global" .Values.global) }}
 {{- end -}}
-
 {{/*
 Return the proper image name (for the init container volume-permissions image)
 */}}
 {{- define "mongodb.volumePermissions.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.volumePermissions.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.volumePermissions.image.repository "context" $)) -}}
-{{- $imageName := .Values.volumePermissions.image.name -}}
-{{- $tag := .Values.volumePermissions.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.volumePermissions.image "global" .Values.global) }}
 {{- end -}}
-
 {{/*
 Return the proper image name (for the init container auto-discovery image)
 */}}
 {{- define "mongodb.externalAccess.autoDiscovery.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.externalAccess.autoDiscovery.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.externalAccess.autoDiscovery.image.repository "context" $)) -}}
-{{- $imageName := .Values.externalAccess.autoDiscovery.image.name -}}
-{{- $tag := .Values.externalAccess.autoDiscovery.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.externalAccess.autoDiscovery.image "global" .Values.global) }}
 {{- end -}}
-
 {{/*
 Return the proper image name (for the TLS Certs image)
 */}}
 {{- define "mongodb.tls.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.tls.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.tls.image.repository "context" $)) -}}
-{{- $imageName := .Values.tls.image.name -}}
-{{- $tag := .Values.tls.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.tls.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*

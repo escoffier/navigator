@@ -1,9 +1,8 @@
 global:
   image:
     registry: harbor.local.tensorsecurity.cn
-    #persistence enabled config
-    #storageClass: 
-  verison: &tensorsecVerison 1.6.8
+    repository: tensorsecurity
+  verison: &tensorsecVerison 1.0.0
   persistence:
     enabled: &persistenceStorage true
   imagePullSecret:
@@ -21,7 +20,7 @@ global:
       ## Unique cluster name, use "default" for MainCluster and other name for MemberCluster
       clusterName: &clusterName default
       ## ApiServer address 
-      apiServerAddr: &apiServerAddr 172.21.0.3:6443
+      apiServerAddr: &apiServerAddr 192.168.0.1:6443
       
       
 

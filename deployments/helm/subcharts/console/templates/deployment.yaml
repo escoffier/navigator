@@ -23,7 +23,7 @@ spec:
     # {{- end }}
       initContainers:
       - name: "elasticsearch-listener"
-        image: {{ include "console.registryPath" . }}/alpine:latest
+        image: {{ include "console.init.image" . }}
         imagePullPolicy: "IfNotPresent"
         resources:
 {{ toYaml .Values.initResources | trim | indent 10 }}

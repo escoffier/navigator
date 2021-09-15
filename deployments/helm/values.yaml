@@ -1,12 +1,4 @@
 global:
-  # Not sure if it's good practice to pas our docker repo address to our subcharts like this.
-
-  #TODO: config storageclass name.
-  #storageClass: myStorageClass
-  #TODO: config all use storgae
-  #persistence:
-  #  enabled: true
-
   image:
     registry: localhost:32000
     repository: tensorsecurity
@@ -19,21 +11,16 @@ global:
 clair:
   enabled: false
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-clair
     tag: latest
     pullSecret: harbor-admin-secret
   init:
     loadSql:
       image:
-        registry: "{{ .Values.global.image.registry }}"
-        repository: "{{ .Values.global.image.repository }}"
         name: tensorsec-postgres
         tag: latest
     waitpg:
       image:
-        registry: "{{ .Values.global.image.registry }}"
-        repository: "{{ .Values.global.image.repository }}"
         name:  postgres
         tag: 11.3
   config:
@@ -42,8 +29,7 @@ clair:
 scanner:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-scanner
     tag: latest
     pullSecret: harbor-admin-secret
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
@@ -78,8 +64,7 @@ scanner:
 console:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-console
     tag: latest
     pullSecret: harbor-admin-secret
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
@@ -125,8 +110,7 @@ console:
 cluster-manager:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-cluster-manager
     tag: latest
     pullSecret: harbor-admin-secret
 #  args:
@@ -140,8 +124,6 @@ eventcenterAuth:
 redis-ha:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
     name: redis
     tag: 6.2.5-alpine
     pullSecret: harbor-admin-secret
@@ -154,8 +136,6 @@ redis-ha:
 elasticsearch:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
     name: elasticsearch
     tag: 7.9.1
     pullSecret: harbor-admin-secret
@@ -211,8 +191,8 @@ elasticsearch:
 
 kibana:
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: kibana-oss
+    tag: 7.4.2
     pullSecret: harbor-admin-secret
 
 postgresql-ha:
@@ -221,8 +201,6 @@ postgresql-ha:
   # but we use helm chart designed for bitnami/postgresql.
   enabled: true
   postgresqlImage:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
     name: postgresql-repmgr
     tag: 11.6.0
     pullSecrets: ["harbor-admin-secret"]
@@ -240,8 +218,6 @@ postgresql-ha:
         memory: 256Mi
         cpu: 250m
   pgpoolImage:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
     name: pgpool
     tag: 4.2.3-debian-10-r38
     pullSecrets: ["harbor-admin-secret"]
@@ -256,8 +232,6 @@ postgresql-ha:
         memory: 256Mi
         cpu: 250m
   volumePermissionsImage:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
     name: bitnami-shell
     tag: 10-debian-10-r125
     pullSecrets: ["harbor-admin-secret"]
@@ -279,15 +253,14 @@ postgresql-ha:
 mongodb:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: mongodb
     tag: 4.4.6-debian-10-r8
     pullSecret: harbor-admin-secret
   volumePermissions:
     enabled: true
     image:
-      registry: "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: bitnami-shell
+      tag: 10-debian-10-r91
   auth:
     username: redstone
     password: redstoneMongo123
@@ -303,16 +276,14 @@ mongodb:
 holmes:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-holmes
     tag: latest
     pullSecret: harbor-admin-secret
   extraArgs:
     - "-A"
   tensorsecDaemon:
     image:
-      registry: "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: tensorsec-daemon
       tag: latest
     multicluster:
       consoleaddr: http://tensorsec-console:8889
@@ -371,16 +342,22 @@ holmes:
 image-validator:
   enabled: false
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-image-validator
     tag: latest
+  certgen:
+    image:
+      name: tensorsec-certgen
+      tag: v1.5.1
 
 webhook:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-webhook
     tag: latest
+  certgen:
+    image:
+      name: tensorsec-certgen
+      tag: v1.5.1
   args:
     consoleUrl: "http://tensorsec-console:8889"
     clusterManagerUrl: "http://tensorsec-cluster-manager:9443"
@@ -388,8 +365,6 @@ webhook:
 stan:
   enabled: true
   image:
-    registry:  "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
     name: nats-streaming
     tag: 0.21.2
     pullSecret: harbor-admin-secret
@@ -403,37 +378,31 @@ stan:
 security-profiles-manager:
   enabled: true
   image:
-    registry: "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    name: tensorsec-security-profiles-manager
     tag: latest
     pullSecret: harbor-admin-secret
   initContainers:
     image:
-      registry: "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: alpine
       tag: latest
   webhook:
     image:
-      registry:  "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: tensorsec-security-profiles-webhook
       tag: latest
       pullSecret: harbor-admin-secret
   loader:
     image:
-      registry:  "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: tensorsec-security-profiles-loader
       tag: latest
       pullSecret: harbor-admin-secret
   audit:
     image:
-      registry:  "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: tensorsec-go-audit
       tag: latest
       pullSecret: harbor-admin-secret
   eventProcessor:
     image:
-      registry:  "{{ .Values.global.image.registry }}"
-      repository: "{{ .Values.global.image.repository }}"
+      name: tensorsec-event-processor
       tag: latest
       pullSecret: harbor-admin-secret
   holmes:
@@ -447,10 +416,9 @@ holmessidekick:
   enabled: true
   replicaCount: 1
   image:
-    registry:  "{{ .Values.global.image.registry }}"
-    repository: "{{ .Values.global.image.repository }}"
+    repository: falcosecurity
     name: falcosidekick
-    tag: 2.22.0
+    tag: "2.22.0"
     pullSecret: harbor-admin-secret
   config:
     stan:

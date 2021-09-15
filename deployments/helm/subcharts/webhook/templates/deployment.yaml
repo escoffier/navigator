@@ -19,7 +19,7 @@ spec:
       serviceAccount: {{ template "webhook.fullname" . }}
       containers:
       - name: {{ template "webhook.fullname" . }}
-        image: "{{ template "tensorsec.image" . }}"
+        image: {{ include "tensorsec.webhook.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: 9443

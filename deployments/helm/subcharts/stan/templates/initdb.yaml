@@ -20,7 +20,7 @@ spec:
       {{- if eq .Values.store.sql.driver "postgres" }}
       containers:
         - name: init-database
-          image: {{ .Values.store.sql.initdb.image }}
+          image: {{ include "stan.initdb.image" . }}
           env:
           - name: PGPASSWORD
             value: {{ .Values.store.sql.dbPassword }}

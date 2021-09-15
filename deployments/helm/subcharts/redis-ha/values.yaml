@@ -1,3 +1,9 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
+
 ## Configure resource requests and limits
 ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
 ##
@@ -49,7 +55,9 @@ haproxy:
     port: 6380
   replicas: 3
   image:
-    repository: haproxy
+    registry: ""
+    repository: ""
+    name: haproxy
     tag: 2.0.4
     pullPolicy: IfNotPresent
 
@@ -269,8 +277,11 @@ affinity: |
 # Prometheus exporter specific configuration options
 exporter:
   enabled: false
-  image: oliver006/redis_exporter
-  tag: v1.3.2
+  image: 
+    registry: ""
+    repository: oliver006
+    name: redis_exporter
+    tag: v1.3.2
   pullPolicy: IfNotPresent
 
   # prometheus port & scrape path

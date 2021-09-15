@@ -3,12 +3,7 @@
 Return the daemon image name
 */}}
 {{- define "daemon.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.tensorsecDaemon.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.tensorsecDaemon.image.repository "context" $)) -}}
-{{- $imageName := .Values.tensorsecDaemon.image.name -}}
-{{- $tag := .Values.tensorsecDaemon.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.tensorsecDaemon.image "global" .Values.global) }}
 {{- end -}}
 
 
@@ -60,12 +55,7 @@ Use the fullname if the serviceAccount value is not set
 Return the proper Falco image name
 */}}
 {{- define "falco.image" -}}
-{{- $registryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.registry "context" $)) -}}
-{{- $repositoryName := (include "tensorsec.tplvalues" ( dict "value" .Values.image.repository "context" $)) -}}
-{{- $imageName := .Values.image.name -}}
-{{- $tag := .Values.image.tag | toString -}}
-
-{{- printf "%s/%s/%s:%s" $registryName $repositoryName $imageName $tag -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
