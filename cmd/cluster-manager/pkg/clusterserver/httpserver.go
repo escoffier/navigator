@@ -7,8 +7,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"k8s.io/client-go/rest"
 	"net/http"
 )
+
+const defaultK8sClusterName = "default"
 
 type ClusterServer struct {
 	server    *http.Server
@@ -33,7 +36,7 @@ func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 		TLSConfig: tlsConfig,
 	}
 
-	clusterID := fmt.Sprintf("%d", util.GenerateUUID(config.Name, config.ApiServerAddr))
+	clusterID := getClusterID(config.Name, config.ApiServerAddr)
 	mutex := http.NewServeMux()
 	mutex.HandleFunc("/internal/cluster", func(w http.ResponseWriter, r *http.Request) {
 		clusterInfo := &TensorCluster{
@@ -74,5 +77,18 @@ func (s *ClusterServer) Run() {
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("listen tcp address failed")
 		return
+	}
+}
+
+func getClusterID(clusterName, apiServerAddr string) string {
+	if clusterName == defaultK8sClusterName {
+		clusterConfig, err := rest.InClusterConfig()
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get in ClusterConfig failed")
+			return ""
+		}
+		return fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
+	} else {
+		return fmt.Sprintf("%d", util.GenerateUUID(clusterName, apiServerAddr))
 	}
 }
