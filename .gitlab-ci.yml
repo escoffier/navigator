@@ -91,10 +91,10 @@ helm-upgrade:
     ## Configuration of Git
     - git merge origin/master
     ## Configuration of Helm
-    - 'sed -i "s#registry: harbor.local.tensorsecurity.cn#registry: registry.t-appagile.com#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#harbor.local.tensorsecurity.cn#registry.t-appagile.com#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#tensorsecVerison 1.6.8#tensorsecVerison ci#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#harborURL https://harbor.local.tensorsecurity.cn#harborURL https://registry.t-appagile.com#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s|harborPassword Harbor12345|harborPassword $HARBORPASSWD|g" deployments/helm/example-values.yaml'
+    - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
     ## Copy tools
