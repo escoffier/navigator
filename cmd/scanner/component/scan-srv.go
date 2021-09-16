@@ -1185,7 +1185,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 	img.Library = policeReg
 
 	// 检查全局策略是否开启
-	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg, Global: consts.TrueString})
+	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD library:%s get global reject policy error", policeReg)
 		return false, records, msgs, err
@@ -1300,7 +1300,7 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 		return safe, records, msgs, nil
 	}
 	// 检查全局策略是否开启
-	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: checkImageRes.Image.Library, Global: consts.TrueString})
+	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor library:%s get global reject policy error", checkImageRes.Image.Library)
 		return false, records, msgs, err
@@ -1938,7 +1938,7 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, po
 	img.Library = policeReg
 
 	// 检查全局策略是否开启
-	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg, Global: consts.TrueString})
+	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("K8sDeployDetect library:%s get global reject policy error", policeReg)
 		return false, records, msgs, err
