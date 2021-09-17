@@ -1,11 +1,12 @@
 package conf
 
 type DumpItem struct {
-	Name      string `json:"name"`
-	TimeField string `json:"timeField"`
-	Condition string `json:"condition"`
-	DataDir   string `json:"dataDir"`
-	Batch     int64  `json:"batch"`
+	Name       string   `json:"name"`
+	PrimaryKey []string `json:"primaryKey"`
+	TimeField  string   `json:"timeField"`
+	Condition  string   `json:"condition"`
+	DataDir    string   `json:"dataDir"`
+	Batch      int64    `json:"batch"`
 }
 
 type DumpLogicConf struct {
