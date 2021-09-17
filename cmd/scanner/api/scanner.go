@@ -491,12 +491,36 @@ func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 	layerDigest := ctx.Param("layerDigest")
 
-	image, err := s.Srv.ImgLayerInfo(ctx, layerDigest, nil)
+	info, err := s.Srv.ImgLayerInfo(ctx, layerDigest, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(*image))
+	res := model.ScanLayerResponse{
+		ID:            info.ID,
+		CreatedAt:     info.CreatedAt,
+		UpdatedAt:     info.UpdatedAt,
+		DeletedAt:     info.DeletedAt,
+		ImageId:       info.ImageId,
+		LayerDigest:   info.LayerDigest,
+		VulnInfo:      info.VulnInfo,
+		PkgInfo:       info.PkgInfo,
+		SensitiveFile: info.SensitiveFile,
+		IsBasic:       info.IsBasic,
+	}
+	malic := make([]model.VirusInfo, 0)
+	for i := range info.MaliciousInfo {
+		malic = append(malic, info.MaliciousInfo[i].VirusInfo)
+	}
+	res.MaliciousInfo = malic
+
+	webshell := make([]model.WebShellInfo, 0)
+	for i := range info.WebshellInfo {
+		webshell = append(webshell, info.WebshellInfo[i].WebShellInfo)
+	}
+	res.WebshellInfo = webshell
+
+	response.JSONOK(ctx, response.WithItem(res))
 }
 
 func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {

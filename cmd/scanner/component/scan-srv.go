@@ -589,11 +589,11 @@ func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (model.VulnOverview
 func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayer, error) {
 	layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: []string{layerDigest}}, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ReportImgBackInfo.SearchScanLayer error:%s", err.Error()))
+		logging.GetLogger().Error().Err(err).Msg("ReportImgBackInfo.SearchScanLayer")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	if len(layers) == 0 {
-		logging.GetLogger().Err(err).Msgf("ImgLayerInfo.SearchScanLayer not fond the image layer")
+		logging.GetLogger().Error().Err(err).Msg("ImgLayerInfo.SearchScanLayer not fond the image layer")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	return &layers[0], nil
@@ -669,6 +669,9 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imgDigest string, fil
 					for k := range layers[j].MaliciousInfo {
 						res[i].Malicious = append(res[i].Malicious, layers[j].MaliciousInfo[k].VirusInfo.VirusName)
 					}
+					for k := range layers[j].WebshellInfo {
+						res[i].WebshellInfo = append(res[i].WebshellInfo, layers[j].WebshellInfo[k].WebShellInfo.FileName)
+					}
 				}
 			}
 		}
@@ -683,6 +686,16 @@ func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context) harbor.ScanAllStat
 
 func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 	logging.GetLogger().Info().Msgf(fmt.Sprintf("start of full scan:%s", time.Now().Format("2006-01-02 15:04:05")))
+	// 先查询当前时刻已存在的仓库列表
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("ScanAllNow.SearchRegistry ")
+		return err
+	}
+	registryIds := make([]int64, len(registries))
+	for i := range registries {
+		registryIds[i] = registries[i].ID
+	}
 
 	start := time.Now().Unix()
 	var lastID int64 = 0
@@ -693,7 +706,7 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 	}
 	for {
 		// step1: search image_list
-		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{StartId: lastID, FromType: model.ImageFromTypeNormal}, &model.Filter{
+		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{StartId: lastID, FromType: model.ImageFromTypeNormal, RegistryIds: registryIds}, &model.Filter{
 			PageSize:  bathSize, // 批量取
 			PageIndex: 1,
 			SortBy:    "asc",
@@ -1395,13 +1408,19 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 
 // checkBaseImage 是否是基础镜像构建的应用
 func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("start  checkBaseImage imag Id:" + strconv.Itoa(int(img.ID)))
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 	images, err := s.ListBaseImageOfApp(ctx, img.ID)
+	if len(images) > 0 {
+		logging.GetLogger().Info().Msgf("checkBaseImage find base image:%s/%s:%s,imagID:%d", images[0].Library, images[0].FullRepoName, images[0].Tags, images[0].ID)
+		return true, records, msgs
+	}
+
 	if len(images) == 0 || err != nil {
 		if err != nil {
-			logging.GetLogger().Info().Msgf("checkBaseImage find base image error, imag Id:" + strconv.Itoa(int(img.ID)))
+			logging.GetLogger().Error().Err(err).Msgf("checkBaseImage find base image error, imag Id:" + strconv.Itoa(int(img.ID)))
 		}
 
 		logging.GetLogger().Info().Msgf("checkBaseImage can not find base image imag Id:" + strconv.Itoa(int(img.ID)))

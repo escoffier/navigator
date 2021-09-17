@@ -627,7 +627,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 			if err := json.Unmarshal(res[i].VulnInfoJSON, &vulns); err == nil {
 				res[i].VulnInfo = vulns
 			} else {
-				logging.GetLogger().Err(err).Msgf(fmt.Sprintf("serialize VulnInfoJSON error:%s", err.Error()))
+				logging.GetLogger().Error().Err(err).Msg("serialize VulnInfoJSON")
 			}
 		}
 		if len(res[i].SensitiveFileJSON) > 0 {
@@ -635,7 +635,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 			if err := json.Unmarshal(res[i].SensitiveFileJSON, &sensitives); err == nil {
 				res[i].SensitiveFile = sensitives
 			} else {
-				logging.GetLogger().Err(err).Msgf(fmt.Sprintf("serialize SensitiveFile error:%s", err.Error()))
+				logging.GetLogger().Error().Err(err).Msg("serialize SensitiveFile")
 			}
 		}
 		if len(res[i].MaliciousInfoJSON) > 0 {
@@ -643,7 +643,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 			if err := json.Unmarshal(res[i].MaliciousInfoJSON, &malicious); err == nil {
 				res[i].MaliciousInfo = malicious
 			} else {
-				logging.GetLogger().Err(err).Msgf(fmt.Sprintf("serialize MaliciousInfo error:%s", err.Error()))
+				logging.GetLogger().Error().Err(err).Msg("serialize MaliciousInfo")
 			}
 		}
 		if len(res[i].WebshellInfoJSON) > 0 {
@@ -651,7 +651,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 			if err := json.Unmarshal(res[i].WebshellInfoJSON, &webshell); err == nil {
 				res[i].WebshellInfo = webshell
 			} else {
-				logging.GetLogger().Err(err).Msgf(fmt.Sprintf("serialize MaliciousInfo error:%s", err.Error()))
+				logging.GetLogger().Error().Err(err).Msg("serialize WebshellInfoJSON")
 			}
 		}
 	}
@@ -1125,6 +1125,14 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 			db = db.Where("id = ? ", param.Ids[0])
 		} else {
 			db = db.Where("id IN ? ", param.Ids)
+		}
+	}
+
+	if len(param.RegistryIds) > 0 {
+		if len(param.RegistryIds) == 1 {
+			db = db.Where("registry_id = ? ", param.RegistryIds[0])
+		} else {
+			db = db.Where("registry_id IN ? ", param.RegistryIds)
 		}
 	}
 	if param.Library != "" {

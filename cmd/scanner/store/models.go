@@ -25,6 +25,7 @@ type SearchImageParam struct {
 	ImageType      string
 	Fields         []string // 只想要的字端
 	LayersPrefix   string
+	RegistryIds    []int64 // 仓库Id列表
 }
 
 type GetImageParam struct {
