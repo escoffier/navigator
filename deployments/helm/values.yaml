@@ -207,7 +207,7 @@ postgresql-ha:
   enabled: true
   postgresqlImage:
     name: postgresql-repmgr
-    tag: 11.6.0
+    tag: 12.8.0
     pullSecrets: ["harbor-admin-secret"]
     pullPolicy: Always
   postgresql:
@@ -228,6 +228,7 @@ postgresql-ha:
     pullSecrets: ["harbor-admin-secret"]
     pullPolicy: Always
   pgpool:
+    numInitChildren: "64"
     maxPool: "15"
     resources:
       limits:
