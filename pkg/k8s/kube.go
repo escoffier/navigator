@@ -19,10 +19,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var (
-	log *logging.Logger
-)
-
 // CreateK8sClientFromKubeConfig creates kubernetes.Clientset from kubeconfig byte array
 func CreateK8sClientFromKubeConfig(kubeconfig []byte) (*kubernetes.Clientset, error) {
 	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
@@ -114,12 +110,12 @@ func WatchKubeResource(ctx context.Context, clientMap map[string]*kubernetes.Cli
 
 	watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
 	if err != nil {
-		log.Error().Err(err).Msg("get assetsWatcher error")
+		logging.GetLogger().Error().Err(err).Msg("get assetsWatcher error")
 		return nil
 	} else {
 		err := watcher.StartsToWatch(ctx, clientMap)
 		if err != nil {
-			log.Error().Err(err).Msg("Watch kube clients error")
+			logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
 			return nil
 		}
 	}

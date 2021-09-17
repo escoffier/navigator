@@ -322,12 +322,6 @@ func NewConsole(
 	// cluster service
 	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient, fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port))
 
-	// scap service
-	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper, PgDsn, postgresDB)
-	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
-	}
-
 	// cron service
 	c := cr.New()
 	c.Start()
@@ -359,6 +353,32 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: openapi auth service init error")
 		return nil, err
+	}
+
+	// init cluster manager
+	err = k8s.InitClusterManager(postgresDB, func(ctx context.Context) (*assets.Watcher, error) {
+		inResSvc, ok := assetsSvc.GetPodResourcesService(ctx)
+		kbmSvc, ok := kubemonitor.Get(ctx)
+		resSvc, ok := assetsSvc.GetResourcesService(ctx)
+		if !ok {
+			return nil, errors.New("get service err")
+		}
+		watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("ERROR: create watcher error")
+			return nil, err
+		}
+		return watcher, nil
+	})
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msg("cluster manager init error")
+		return nil, err
+	}
+
+	// scap service
+	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper, PgDsn, postgresDB)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}
 
 	return &Console{
@@ -458,11 +478,19 @@ func (c *Console) Run() func() {
 			Msg("When creating mongo indices")
 	}
 
-	clients := getAllKubeClient(ctx)
-	c.resourceWatcher = k8s.WatchKubeResource(ctx, clients, c.postgresDB, c.scannerURL)
-
-	resSvc, _ := assetsSvc.GetResourcesService(ctx)
-	resSvc.SetWatcher(c.resourceWatcher)
+	clusterManager, ok := k8s.GetClusterManager()
+	if ok {
+		err = clusterManager.Start(ctx, nil)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Msg("When starting cluster manager")
+		}
+	} else {
+		log.Error().
+			Err(errors.New("cluster manager not exist")).
+			Msg("get a nil cluster manager")
+	}
 
 	cronService, _ := cron.Get(ctx)
 	err = cronService.StartCrons(ctx)

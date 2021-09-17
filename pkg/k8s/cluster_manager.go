@@ -1,0 +1,191 @@
+package k8s
+
+import (
+	"context"
+	"errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
+	"sync"
+	"time"
+)
+
+const maxClusterNum = 1000
+
+var (
+	instance *ClusterManager
+	rlOnce   sync.Once
+)
+
+type ClusterManager struct {
+	clientMap map[string]*kubernetes.Clientset
+	watcher   *assets.Watcher
+	rdb       *rdbtools.GormWrapper
+	sync.RWMutex
+}
+
+type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
+
+// InitClusterManager 通过 CreateWatcherFunc 解耦cluster manager与service
+func InitClusterManager(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc) error {
+	rlOnce.Do(func() {
+		instance = newClusterManger(postgre, creator)
+	})
+	return nil
+}
+
+func GetClusterManager() (*ClusterManager, bool) {
+	return instance, instance != nil
+}
+
+func newClusterManger(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc) *ClusterManager {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	clsm := &ClusterManager{
+		clientMap: make(map[string]*kubernetes.Clientset),
+		watcher:   nil,
+		rdb:       postgre,
+		RWMutex:   sync.RWMutex{},
+	}
+
+	err := clsm.loadClientFromDB(ctx)
+	if err != nil {
+		return nil
+	}
+
+	// create k8s resource watcher
+	if creator != nil {
+		watcher, err := creator(ctx)
+		if err != nil {
+			return nil
+		}
+		clsm.watcher = watcher
+	}
+	return clsm
+}
+
+func (m *ClusterManager) Start(ctx context.Context, creator CreateWatcherFunc) error {
+	if m.watcher == nil {
+		if creator != nil {
+			watcher, err := creator(ctx)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("create cluster Watcher error")
+				return err
+			}
+			m.watcher = watcher
+		}
+	}
+
+	err := m.watcher.StartsToWatch(ctx, m.clientMap)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
+		return err
+	}
+
+	return nil
+}
+
+func (m *ClusterManager) WatchCluster(ctx context.Context, cluster *model.TensorCluster) error {
+	// watcher is created in console.Run, it may be not ready right now!!
+	//return err, cluster manager will try to register repeatedly until watcher is ready
+	if m.watcher == nil {
+		return errors.New("watcher is not ready")
+	}
+
+	// stop watching the existed cluster
+	if _, ok := m.GetClient(cluster.Key); ok {
+		err := m.UnWatchCluster(ctx, cluster.Key)
+		if err != nil {
+			return err
+		}
+	}
+
+	k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	if err != nil {
+		return err
+	}
+
+	clientMap := map[string]*kubernetes.Clientset{cluster.Key: k8sClient}
+	m.AddClient(clientMap)
+	err = m.watcher.StartsToWatch(ctx, clientMap)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
+		// if the watcher start failed, need to delete client from cluster manager
+		m.DeleteClient(cluster.Key)
+		return err
+	}
+
+	return nil
+}
+
+func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
+	clientMap := make(map[string]*kubernetes.Clientset)
+	clusters, num, err := dal.GetClusters(ctx, m.rdb, 0, maxClusterNum)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("get cluster failed")
+		return err
+	}
+	logging.GetLogger().Info().Msgf("cluster number: %d", num)
+
+	for _, c := range clusters {
+		tlsClientConfig := rest.TLSClientConfig{}
+		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("load root CA config for cluster %s err", c.Key)
+			continue
+		} else {
+			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
+		}
+		clientSet, err := kubernetes.NewForConfig(&rest.Config{
+			Host:            c.APIServerAddr,
+			TLSClientConfig: tlsClientConfig,
+			BearerToken:     c.SecretToken,
+		})
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("create client for cluster %s err", c.Key)
+			continue
+		}
+		clientMap[c.Key] = clientSet
+	}
+	logging.GetLogger().Info().Msgf("get %d k8s client", len(clientMap))
+	m.AddClient(clientMap)
+	return nil
+}
+
+func (m *ClusterManager) UnWatchCluster(ctx context.Context, clusterKey string) error {
+	if m.watcher == nil {
+		return errors.New("watcher does not exist")
+	}
+
+	err := m.watcher.StopWatch(ctx, []string{clusterKey})
+	if err != nil {
+		return err
+	}
+	m.DeleteClient(clusterKey)
+	return nil
+}
+
+func (m *ClusterManager) GetClient(clusterKey string) (*kubernetes.Clientset, bool) {
+	m.RLock()
+	defer m.RUnlock()
+	client, ok := m.clientMap[clusterKey]
+	return client, ok
+}
+
+func (m *ClusterManager) AddClient(clientMap map[string]*kubernetes.Clientset) {
+	m.Lock()
+	defer m.Unlock()
+	for key, c := range clientMap {
+		m.clientMap[key] = c
+	}
+}
+
+func (m *ClusterManager) DeleteClient(clusterKey string) {
+	m.Lock()
+	defer m.Unlock()
+	delete(m.clientMap, clusterKey)
+}

@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"io"
 	"math"
 	"net/http"
@@ -44,6 +46,13 @@ func (api *api) scap() func(chi.Router) {
 		r.Put("/{checkType}/{clusterID}/cron", api.putCron())
 		r.Get("/{checkType}/{checkID}/exportfile", api.exportFile())
 		r.Get("/{checkID}/getfile", api.getFile())
+	}
+}
+
+func (api *api) scapInternal() func(chi.Router) {
+	return func(r chi.Router) {
+		r.Put("/scanResults", api.addScanResults())
+		r.Post("/nodeRecordVariate", api.updateRecordVariate())
 	}
 }
 
@@ -685,5 +694,72 @@ func (api *api) getFile() http.HandlerFunc {
 		io.Copy(w, file)
 		//remove file
 		os.Remove(task.FileName)
+	}
+}
+
+func (api *api) addScanResults() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		var scanResults []*model.ScanResult
+
+		err := util.DecodeJSONBody(w, r, &scanResults)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		svc, ok := scapper.GetService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		err = svc.AddScapScanResults(ctx, scanResults)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("add scanning result error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("add scanning results error")))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+func (api *api) updateRecordVariate() http.HandlerFunc {
+	type scanNodeRecord struct {
+		TaskID      string `json:"task_id"`
+		NodeName    string `json:"node_name"`
+		CheckType   string `json:"check_type"`
+		AutoVariate string `json:"auto_variate"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		record := &scanNodeRecord{}
+
+		err := util.DecodeJSONBody(w, r, record)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		svc, ok := scapper.GetService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		err = svc.UpdateSnrVariate(ctx, record.TaskID, record.NodeName, record.CheckType, record.AutoVariate)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update ScanNodeRecord err")))
+			return
+		}
 	}
 }
