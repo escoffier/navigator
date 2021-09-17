@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
@@ -28,15 +29,21 @@ func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.DumpItem) *Post
 
 func (c *PostgresCleaner) Clean(ctx context.Context, daysOffset int) error {
 	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
+	var errMap = make(map[string]error)
 	for _, table := range c.tables {
 		if err := c.dumpTable(ctx, table, timeFilter); err != nil {
 			logging.GetLogger().Error().Msgf("dumpTable %s:%s, condition:%s, err:%s",
 				table.Name, table.TimeField, table.Condition, err.Error())
-			return err
+			errMap[table.Name] = err
+			continue
 		}
 	}
 
-	return nil
+	if len(errMap) == 0 {
+		return nil
+	}
+
+	return makeError("pg cleaner error", errMap)
 }
 
 const (
@@ -86,11 +93,6 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, t
 			return err
 		}
 
-		err = clearPGData(ctx, c.db, table, timeFilter)
-		if err != nil {
-			return err
-		}
-
 		time.Sleep(pgInterval)
 	}
 }
@@ -100,8 +102,8 @@ func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, t
 		"-h", util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
 		"-U", util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
 		"-d", util.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		"-c", fmt.Sprintf("\\copy (select * from %s where %s < '%s' %s order by %s asc, id asc limit %d) TO '%s'",
-			table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), getClearCondition(table), table.TimeField, table.Batch, tmpPath),
+		"-c", fmt.Sprintf("\\copy (delete from %s where %s in (select %s from %s where %s < '%s' %s order by %s asc limit %d) returning *) TO '%s'",
+			table.Name, getPrimaryKeyGroup(table), getPrimaryKeyColumns(table), table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), getClearCondition(table), table.TimeField, table.Batch, tmpPath),
 	)
 
 	cmd.Env = os.Environ()
@@ -122,22 +124,32 @@ func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, t
 	return stdout != "COPY 0\n", nil
 }
 
-func clearPGData(ctx context.Context, db *rdbtools.GormWrapper, table *conf.DumpItem, timeFilter time.Time) error {
-	sql := fmt.Sprintf("with temp as (select id from %s where %s < ? %s order by %s asc, id asc limit ?) "+
-		"delete from %s where id in (select * from temp)",
-		table.Name, table.TimeField, getClearCondition(table), table.TimeField, table.Name)
-
-	clearFunc := func() error {
-		return db.Get().WithContext(ctx).Exec(sql, util.GetMillisecondTime(timeFilter), table.Batch).Error
-	}
-
-	return util.WithRetry(clearFunc, util.DefaultRetryConf)
-}
-
 func getClearCondition(table *conf.DumpItem) string {
 	if table.Condition == "" {
 		return ""
 	}
 
-	return fmt.Sprintf(" and %s", table.Condition)
+	return fmt.Sprintf(" and (%s)", table.Condition)
+}
+
+func getPrimaryKeyGroup(table *conf.DumpItem) string {
+	if len(table.PrimaryKey) == 0 {
+		return "id"
+	}
+	if len(table.PrimaryKey) == 1 {
+		return table.PrimaryKey[0]
+	}
+
+	return fmt.Sprintf("(%s)", strings.Join(table.PrimaryKey, ","))
+}
+
+func getPrimaryKeyColumns(table *conf.DumpItem) string {
+	if len(table.PrimaryKey) == 0 {
+		return "id"
+	}
+	if len(table.PrimaryKey) == 1 {
+		return table.PrimaryKey[0]
+	}
+
+	return strings.Join(table.PrimaryKey, ",")
 }

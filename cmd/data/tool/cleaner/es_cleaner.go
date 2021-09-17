@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -37,12 +38,15 @@ func (e *ElasticsearchCleaner) Clean(ctx context.Context, daysOffset int) error 
 
 	dateFilter := generateDateFilter(daysOffset)
 
+	var errMap = make(map[string]error)
 	for _, index := range indexes {
 		logging.GetLogger().Info().Msgf("index:%s", index.Index)
 		if e.checkNeedDeleteIndex(index.Index, dateFilter) {
 			err = e.deleteIndex(ctx, index.Index)
 			if err != nil {
-				return err
+				logging.GetLogger().Err(err).Msgf("delete index:%s fail", index.Index)
+				errMap[index.Index] = err
+				continue
 			}
 
 			logging.GetLogger().Info().Msgf("delete index:%s successfully", index.Index)
@@ -50,7 +54,10 @@ func (e *ElasticsearchCleaner) Clean(ctx context.Context, daysOffset int) error 
 		}
 	}
 
-	return nil
+	if len(errMap) == 0 {
+		return nil
+	}
+	return makeError("es cleaner error", errMap)
 }
 
 func (e *ElasticsearchCleaner) checkNeedDeleteIndex(index string, dateFilter time.Time) bool {

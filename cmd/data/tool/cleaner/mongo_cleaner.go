@@ -40,14 +40,21 @@ func (c *MongoCleaner) Clean(ctx context.Context, daysOffset int) error {
 	}
 
 	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
+	var errMap = make(map[string]error)
+
 	for _, collection := range collections {
 		if err := c.dumpCollection(ctx, collection, timeFilter); err != nil {
 			logging.GetLogger().Error().Msgf("dumpCollection %s, err:%s", collection, err.Error())
-			return err
+			errMap[collection] = err
+			continue
 		}
 	}
 
-	return nil
+	if len(errMap) == 0 {
+		return nil
+	}
+
+	return makeError("mongo cleaner error", errMap)
 }
 
 func (c *MongoCleaner) getAllCollections(ctx context.Context) ([]string, error) {

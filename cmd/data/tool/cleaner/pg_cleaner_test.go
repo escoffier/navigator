@@ -73,6 +73,7 @@ func TestPostgresCleaner(t *testing.T) {
 		},
 		{
 			Name:      "test2",
+			PrimaryKey: []string{"p_key_1", "p_key_2"},
 			TimeField: "timestamp",
 			Condition: "status = 1",
 			DataDir:   path.Join(pwd, "dump_test", "postgresql", "test2"),
@@ -97,7 +98,9 @@ func TestMockInsert(t *testing.T) {
 	}
 
 	type Test2 struct {
-		ID         int32          `gorm:"primaryKey; autoIncrement; column:id"`
+		PKey1 int32 `gorm:"primaryKey; column:p_key_1"`
+		PKey2 int32 `gorm:"primaryKey; column:p_key_2"`
+
 		Status     uint8          `gorm:"column:status"`
 		TestField1 string         `gorm:"column:test_field_1"`
 		TestField2 int32          `gorm:"column:test_field_2"`
@@ -111,6 +114,7 @@ func TestMockInsert(t *testing.T) {
 	}
 
 	now := time.Now()
+	base := now.Unix()
 	for i := 0; i < 5000; i++ {
 		err = postgresDB.Get().Create(&Test{
 			TestField1: strconv.Itoa(rand.Int()),
@@ -122,6 +126,8 @@ func TestMockInsert(t *testing.T) {
 			t.Fatal(err)
 		}
 		err = postgresDB.Get().Create(&Test2{
+			PKey1:      int32(i) + int32(base),
+			PKey2:      int32(i) + int32(base),
 			TestField1: strconv.Itoa(rand.Int()),
 			Status:     uint8(rand.Uint64() % 2),
 			TestField2: rand.Int31(),
@@ -172,4 +178,18 @@ func TestTimeFormat(t *testing.T) {
 	t.Log(time.Now().Format("2006-01-02T15:04:05.000"))
 	t.Log(time.Now().Format("2006-01-02T15:04:05.000Z"))
 	t.Log(time.Now().Format("2006-01-02 15:04:05.000"))
+}
+
+func TestGetPrimaryKeyGroup(t *testing.T) {
+	item := &conf.DumpItem{}
+	t.Log(getPrimaryKeyGroup(item))
+	t.Log(getPrimaryKeyColumns(item))
+
+	item.PrimaryKey = []string{"uuid"}
+	t.Log(getPrimaryKeyGroup(item))
+	t.Log(getPrimaryKeyColumns(item))
+
+	item.PrimaryKey = []string{"id1", "id2"}
+	t.Log(getPrimaryKeyGroup(item))
+	t.Log(getPrimaryKeyColumns(item))
 }

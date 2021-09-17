@@ -1,13 +1,16 @@
 package cleaner
 
 import (
+	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"io"
 	"os"
 	"path"
+	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
@@ -65,4 +68,20 @@ func checkFileExists(file string) (bool, error) {
 	}
 
 	return false, err
+}
+
+func makeError(title string, errMap map[string]error) error {
+	var buf strings.Builder
+	buf.WriteString(title)
+	buf.WriteString(":\n")
+	for name, err := range errMap {
+		if err == nil {
+			continue
+		}
+		buf.WriteString(name)
+		buf.WriteString(":")
+		buf.WriteString(err.Error())
+		buf.WriteString("\n")
+	}
+	return errors.New(buf.String())
 }
