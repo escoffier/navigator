@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,10 +81,9 @@ func closeRules(streamBytes []byte, closeRules []string) []byte {
 	return retBytes
 }
 
-type kv struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
+const (
+	internalAttributePrefix = "__internal__"
+)
 
 func sendRulesToEventCenter(rulesData []byte) error {
 	const (
@@ -131,6 +131,11 @@ func sendRulesToEventCenter(rulesData []byte) error {
 					KVHash: map[string]*pb.KV{
 						string(lang.LanguageEN): {Key: "ruleType", Value: ruleType},
 						string(lang.LanguageZH): {Key: "规则类型", Value: ruleTypeZh},
+					},
+				},
+				{
+					KVHash: map[string]*pb.KV{
+						string(lang.LanguageEN): {Key: internalAttributePrefix + "hid", Value: strconv.Itoa(int(item.HID))},
 					},
 				},
 			},

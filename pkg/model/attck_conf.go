@@ -66,6 +66,7 @@ type LatestATTCKRuleInfo struct {
 type RuleFromYaml struct {
 	Rule       string         `yaml:"rule"`
 	Hthreats   uint8          `yaml:"hthreats"`
+	HID        uint16         `yaml:"hid"`
 	Priority   string         `yaml:"priority"`
 	Desc       string         `yaml:"desc"`
 	Output     string         `yaml:"output"`
