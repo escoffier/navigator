@@ -19,7 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"k8s.io/client-go/kubernetes"
 )
 
 func (api *api) assets() func(chi.Router) {
@@ -246,34 +245,16 @@ func (api *api) addNewCluster() http.HandlerFunc {
 			return
 		}
 
-		count := resSvc.GetClusterByKey(ctx, cluster.Key)
-		watcher := resSvc.GetWatcher()
-		if watcher != nil {
-			if *count > 0 {
-				// stop old informer
-				watcher.StopWatch(ctx, []string{cluster.Key})
-			}
-
-			//starting new informer
-			k8sClient, err := k8s.CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to create k8s client for member cluster: %s", cluster.Name)))
-				return
-			}
-			logging.GetLogger().Info().Msgf("add new cluster %v", cluster)
-			err = watcher.StartsToWatch(ctx, map[string]*kubernetes.Clientset{cluster.Key: k8sClient})
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewAnError(http.StatusInternalServerError, fmt.Errorf("watch cluster %s error", cluster.Name)))
-				return
-			}
-		} else {
-			// watcher is created in console.Run, it may be not ready right now!!
-			//return err, cluster manager will try to register repeatedly until watcher is ready
-			logging.GetLogger().Error().Msg("watcher not ready")
+		clusterManager, ok := k8s.GetClusterManager()
+		if !ok {
 			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, fmt.Errorf("watcher not ready when adding cluster %s ", cluster.Name)))
+				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
+			return
+		}
+		err = clusterManager.WatchCluster(ctx, &cluster)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 
@@ -346,12 +327,20 @@ func (api *api) deleteCluster() http.HandlerFunc {
 			return
 		}
 
-		watcher := resSvc.GetWatcher()
-		if watcher != nil {
-			watcher.StopWatch(ctx, []string{clusterKey})
+		clusterManager, ok := k8s.GetClusterManager()
+		if !ok {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
+			return
+		}
+		err := clusterManager.UnWatchCluster(ctx, clusterKey)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("stop watcher err")))
+			return
 		}
 
-		err := resSvc.DeleteCluster(ctx, clusterKey)
+		err = resSvc.DeleteCluster(ctx, clusterKey)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("delete cluster error: %v", err)))
 			return

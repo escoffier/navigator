@@ -124,6 +124,7 @@ func SetupRoutes(
 		r.Route("/platform/assets", api.assets())
 		r.Route("/platform/networkTopo", api.networkTopo())
 		r.Handle("/webhook/*", api.webhook())
+		r.Route("/scap", api.scapInternal())
 	})
 }
 
