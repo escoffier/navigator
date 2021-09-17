@@ -92,7 +92,6 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 	{
 		// v6.GET("/projects/:projectName", apiScannerSrv.CheckProjectAndCreateIfNotExist)
 		v6.GET("/registries", apiRegistrySrv.SearchRegistry)
-		// v6.GET("/registry", apiRegistrySrv.GetRegistry)
 		v6.GET("/registry/:id", apiRegistrySrv.GetRegistry)
 		v6.PUT("/registry/:id", apiRegistrySrv.UpdateRegistry)
 		v6.POST("/registry", apiRegistrySrv.CreateRegistry)

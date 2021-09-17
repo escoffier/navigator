@@ -993,13 +993,13 @@ func (virusScan *VirusScan) updateRiskVirusCacheEntry(ctx context.Context, scant
 }
 
 func calculateWebshellScore(webshell model.WebShellInfo, flag *int) float64 {
-	if (webshell.Score >= 4 && webshell.Score <= 5) && !((*flag & 2) == 1) {
+	if (webshell.Score >= 4 && webshell.Score <= 5) && !((*flag & 2) == 2) {
 		*flag += 2
 		return webshellFourToFive
-	} else if (webshell.Score >= 6 && webshell.Score <= 8) && !((*flag & 4) == 1) {
+	} else if (webshell.Score >= 6 && webshell.Score <= 8) && !((*flag & 4) == 4) {
 		*flag += 4
 		return webshellSixToEight
-	} else if (webshell.Score >= 9 && webshell.Score <= 10) && !((*flag & 8) == 1) {
+	} else if (webshell.Score >= 9 && webshell.Score <= 10) && !((*flag & 8) == 8) {
 		*flag += 8
 		return webshellNineToTen
 	} else {

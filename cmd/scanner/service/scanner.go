@@ -106,7 +106,7 @@ func NewScanner(
 		log.Error().
 			Err(err).
 			Msg("error in connecting to the Mongo database")
-		// panic(err)
+		return nil, err
 	}
 
 	mongodb := mongoClient.Database(mongoOpts.Database)

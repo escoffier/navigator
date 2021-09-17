@@ -131,7 +131,7 @@ type SeverityCount struct {
 }
 
 type ImageRiskScore struct {
-	Name                  string //servicename
+	Name                  string // servicename
 	Score                 float64
 	SeverityHistogramInfo SeverityHistogramInfo
 	Tag                   string `json:"tag"`
@@ -140,7 +140,7 @@ type ImageRiskScore struct {
 }
 
 type ConstMapScore struct {
-	//Severity    string
+	// Severity    string
 	MaxScore    float64
 	SingleScore float64
 }
@@ -203,6 +203,7 @@ type ReportImgBackInfo struct {
 	Pkgs           []string  `json:"pkgs"`
 	Malicious      []string  `json:"malicious"`
 	SensitiveFiles []string  `json:"sensitive_files"`
+	WebshellInfo   []string  `json:"webshell_info"`
 }
 
 type SimpleImageDetail struct {
