@@ -17,7 +17,6 @@ import (
 	"github.com/tealeg/xlsx"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	rcache "gitlab.com/piccolo_su/vegeta/pkg/cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -44,7 +43,7 @@ func Init(mainCtx context.Context,
 	}
 	var err error
 	once.Do(func() {
-		svcInstance, err = newScapService(mainCtx, scapOpts, redisClient, mongodb, postgresDB)
+		svcInstance, err = newScapService(mainCtx, scapOpts, postgresDB)
 		if err != nil {
 			return
 		}
@@ -63,66 +62,26 @@ func GetService(ctx context.Context) (*ScapService, bool) {
 }
 
 type ScapService struct {
-	mongodb         *mongotools.DatabaseWrapper
-	kubeScapCache   *rcache.ScapCache
-	dockerScapCache *rcache.ScapCache
-	hostScapCache   *rcache.ScapCache
-	postgresDB      *rdbtools.GormWrapper
+	postgresDB *rdbtools.GormWrapper
 }
 
 func newScapService(
 	ctx context.Context,
 	scapOpts *flag.ScapOpts,
-	redisClient *redis.Client,
-	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
 ) (*ScapService, error) {
-	kubeScapCache, err := rcache.NewScapCache(ctx, mongodb, redisClient, model.ComplianceCheckTargetTypeKube)
-	if err != nil {
-		return nil, err
-	}
-	dockerScapCache, err := rcache.NewScapCache(ctx, mongodb, redisClient, model.ComplianceCheckTargetTypeDocker)
-	if err != nil {
-		return nil, err
-	}
-	hostScapCache, err := rcache.NewScapCache(ctx, mongodb, redisClient, model.ComplianceCheckTargetTypeHost)
-	if err != nil {
-		return nil, err
-	}
-
 	scapSvc := &ScapService{
-		mongodb:         mongodb,
-		kubeScapCache:   kubeScapCache,
-		dockerScapCache: dockerScapCache,
-		hostScapCache:   hostScapCache,
-		postgresDB:      postgresDB,
+		postgresDB: postgresDB,
 	}
 
 	go func() {
-		err = scapSvc.PolicyInit(scapOpts.PolicyCounts)
+		err := scapSvc.PolicyInit(scapOpts.PolicyCounts)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("policy init failed, %v", err))
 		}
 	}()
 
 	return scapSvc, nil
-}
-
-func (s *ScapService) RefreshCache(checkType model.ComplianceCheckType) error {
-	var err error
-	switch checkType {
-	case model.ComplianceCheckTargetTypeKube:
-		err = s.kubeScapCache.RefreshCache()
-	case model.ComplianceCheckTargetTypeDocker:
-		err = s.dockerScapCache.RefreshCache()
-	case model.ComplianceCheckTargetTypeHost:
-		err = s.hostScapCache.RefreshCache()
-	}
-	if err != nil {
-		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Couldn't refresh cache: %w", err))
-	}
-
-	return nil
 }
 
 func (s *ScapService) PolicyInit(policyCounts int32) error {
