@@ -6,7 +6,6 @@ const (
 	ClusterCollection Collection = iota
 
 	Cve2cnnvdCollection
-	CheckHistoryEntryCollection
 	HarborProjectConfigCollection
 	VirusScanTaskCollection
 )
@@ -16,7 +15,6 @@ func GetCollectionNames() []string {
 		"cluster",
 
 		"CVE2CNNVD",
-		"checkHistoryEntry",
 		"harborProjectConfig",
 		"virusScanTasks",
 	}

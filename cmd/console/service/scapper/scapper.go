@@ -307,8 +307,6 @@ func (s *Scapper) RunComplianceCheck(
 	asyncCtx, _ := context.WithTimeout(rootCtx, checkTimeout)
 	go s.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes, cluster.ClusterName)
 
-	s.ScapService.RefreshCache(model.ComplianceCheckType(check.CheckType))
-
 	return checkUUID, nil
 }
 

@@ -480,7 +480,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		//check scanning task
 		scapService, _ := scapper.GetService(ctx)
-		err = scapService.CheckScanningTask(ctx, string(checkType), cluster.ID.Hex(), 1800)
+		err = scapService.CheckScanningTask(ctx, string(checkType), cluster.ID.Hex(), 3600)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
 			return

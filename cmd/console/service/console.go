@@ -592,48 +592,6 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
 	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
 
-	neededIndexesPerCollection[model.CheckHistoryEntryCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"createdAt": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"finishedAt": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"checkID": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"numSuccessful": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"numFailed": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"numError": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"numWaiting": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"numInconclusive": 1,
-			}, Options: nil,
-		},
-	}
 	neededIndexesPerCollection[model.HarborProjectConfigCollection.String()] = []mongo.IndexModel{
 		{
 			Keys: bson.M{
