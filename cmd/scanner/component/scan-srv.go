@@ -221,6 +221,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 
 		if tmpImage.Library == "" {
 			flag = false
+			logging.GetLogger().Info().Msg("K8sDeployDetect Library is empty")
 			// 存储阻断记录
 			s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
 			continue
@@ -239,6 +240,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 
 		if len(imgs) == 0 {
 			if resConfig[0].Mode == model.RejectPolicySafeModel {
+				logging.GetLogger().Info().Msg("K8sDeployDetect not find the image and the mode is safe mode")
 				s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
 				flag = false
 			}
@@ -286,15 +288,6 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 }
 
 func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
-	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
-	if len(containerInfo) == 0 || len(resConfig) == 0 {
-		return true
-	}
-	if strings.Contains(containerInfo[0].FromType, "k8s") && !resConfig[0].K8sEnable {
-		return true
-	} else if strings.Contains(containerInfo[0].FromType, model.UsePatternForOnline) && !resConfig[0].OnlineMonitor {
-		return true
-	}
 
 	if strings.Contains(containerInfo[0].FromType, "k8s") {
 		return s.K8sDeployDetect(ctx, containerInfo)
@@ -308,8 +301,8 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 
 // K8sOnlineMonitor  k8s在线监控时的镜像检测
 func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) {
-	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
-	if len(containerInfo) == 0 || len(resConfig) == 0 || !resConfig[0].OnlineMonitor {
+	if len(containerInfo) == 0 {
+		logging.GetLogger().Info().Msg("K8sOnlineMonitor containerInfo is empty")
 		return
 	}
 
@@ -322,6 +315,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 		tmpImageList.Digest = containerInfo[k].Digest
 
 		if tmpImageList.Library == "" {
+			logging.GetLogger().Info().Msg("K8sOnlineMonitor Library is empty: image")
 			// 存储阻断记录
 			s.CreateSafeReject(ctx, *tmpImageList, consts.AlertKindOnline, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
 			continue

@@ -48,6 +48,7 @@ func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 	}
 	res := tmpRes{}
 	res.Flag = flag
+	s.log.WithContext(ctx).Infof("查询完成TickOnlineScan,from_type:%s,image:%s", containerInfo[0].FromType, containerInfo[0].Image)
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
