@@ -98,7 +98,9 @@ func SelectUserAll(ctx context.Context, postgresDB *rdbtools.GormWrapper, limit,
 }
 
 func GetModuleGroup(ctx context.Context, db *rdbtools.GormWrapper, moduleID string) ([]model.ModuleGroup, error) {
-
+	if moduleID == "" {
+		return nil, nil
+	}
 	var moduleSLID []string
 	var err = json.Unmarshal([]byte(moduleID), &moduleSLID)
 	if err != nil {
