@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -17,21 +18,25 @@ import (
 
 type PostgresCleaner struct {
 	db     *rdbtools.GormWrapper
-	tables []*conf.DumpItem
+	tables []*conf.PGDumpItem
 }
 
-func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.DumpItem) *PostgresCleaner {
+func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.PGDumpItem) *PostgresCleaner {
 	return &PostgresCleaner{
 		db:     db,
 		tables: tables,
 	}
 }
 
-func (c *PostgresCleaner) Clean(ctx context.Context, daysOffset int) error {
-	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
+func (c *PostgresCleaner) Clean(ctx context.Context, arg *def.CleanArg) error {
+	defaultTimeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(arg.DaysOffset))
 	var errMap = make(map[string]error)
 	for _, table := range c.tables {
-		if err := c.dumpTable(ctx, table, timeFilter); err != nil {
+		filter := defaultTimeFilter
+		if arg.Cron && table.TTL > 0 {
+			filter = time.Now().Add(-time.Hour * 24 * time.Duration(table.TTL))
+		}
+		if err := c.dumpTable(ctx, table, filter); err != nil {
 			logging.GetLogger().Error().Msgf("dumpTable %s:%s, condition:%s, err:%s",
 				table.Name, table.TimeField, table.Condition, err.Error())
 			errMap[table.Name] = err
@@ -50,8 +55,8 @@ const (
 	pgInterval = time.Millisecond * 200
 )
 
-func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, timeFilter time.Time) error {
-	targetPath, tmpPath, err := initDumpInfo(table, timeFilter)
+func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.PGDumpItem, timeFilter time.Time) error {
+	targetPath, tmpPath, err := initDumpInfo(&table.DumpItem, timeFilter)
 	if err != nil {
 		return err
 	}
@@ -97,7 +102,7 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.DumpItem, t
 	}
 }
 
-func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
+func psqlCopy(ctx context.Context, table *conf.PGDumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
 		"-U", util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
@@ -124,7 +129,7 @@ func psqlCopy(ctx context.Context, table *conf.DumpItem, timeFilter time.Time, t
 	return stdout != "COPY 0\n", nil
 }
 
-func getClearCondition(table *conf.DumpItem) string {
+func getClearCondition(table *conf.PGDumpItem) string {
 	if table.Condition == "" {
 		return ""
 	}
@@ -132,7 +137,7 @@ func getClearCondition(table *conf.DumpItem) string {
 	return fmt.Sprintf(" and (%s)", table.Condition)
 }
 
-func getPrimaryKeyGroup(table *conf.DumpItem) string {
+func getPrimaryKeyGroup(table *conf.PGDumpItem) string {
 	if len(table.PrimaryKey) == 0 {
 		return "id"
 	}
@@ -143,7 +148,7 @@ func getPrimaryKeyGroup(table *conf.DumpItem) string {
 	return fmt.Sprintf("(%s)", strings.Join(table.PrimaryKey, ","))
 }
 
-func getPrimaryKeyColumns(table *conf.DumpItem) string {
+func getPrimaryKeyColumns(table *conf.PGDumpItem) string {
 	if len(table.PrimaryKey) == 0 {
 		return "id"
 	}

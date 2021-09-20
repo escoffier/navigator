@@ -8,40 +8,42 @@ import (
 
 	"github.com/olivere/elastic/v7"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
+	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ElasticsearchCleaner struct {
-	indexPrefixes []string
-	esCli         *elastic.Client
+	items []*conf.ESDumpItem
+	esCli *elastic.Client
 }
 
-func NewESCleaner(esURL string, indexPrefixes []string) (*ElasticsearchCleaner, error) {
+func NewESCleaner(esURL string, items []*conf.ESDumpItem) (*ElasticsearchCleaner, error) {
 	esCli, err := elastic.NewClient(elastic.SetURL(esURL))
 	if err != nil {
 		return nil, err
 	}
 
-	return &ElasticsearchCleaner{esCli: esCli, indexPrefixes: indexPrefixes}, nil
+	return &ElasticsearchCleaner{esCli: esCli, items: items}, nil
 }
 
 const (
 	esInterval = time.Second
 )
 
-func (e *ElasticsearchCleaner) Clean(ctx context.Context, daysOffset int) error {
+func (e *ElasticsearchCleaner) Clean(ctx context.Context, arg *def.CleanArg) error {
 	indexes, err := e.getAllIndexes(ctx)
 	if err != nil {
 		return err
 	}
 
-	dateFilter := generateDateFilter(daysOffset)
+	dateFilter := generateDateFilter(arg.DaysOffset)
 
 	var errMap = make(map[string]error)
 	for _, index := range indexes {
 		logging.GetLogger().Info().Msgf("index:%s", index.Index)
-		if e.checkNeedDeleteIndex(index.Index, dateFilter) {
+		if e.checkNeedDeleteIndex(index.Index, dateFilter, arg.Cron) {
 			err = e.deleteIndex(ctx, index.Index)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("delete index:%s fail", index.Index)
@@ -60,19 +62,24 @@ func (e *ElasticsearchCleaner) Clean(ctx context.Context, daysOffset int) error 
 	return makeError("es cleaner error", errMap)
 }
 
-func (e *ElasticsearchCleaner) checkNeedDeleteIndex(index string, dateFilter time.Time) bool {
-	for _, indexPrefix := range e.indexPrefixes {
-		if !strings.HasPrefix(index, indexPrefix) {
+func (e *ElasticsearchCleaner) checkNeedDeleteIndex(index string, defaultDateFilter time.Time, cron bool) bool {
+	for _, item := range e.items {
+		if !strings.HasPrefix(index, item.IndexPrefix) {
 			continue
 		}
 
-		logging.GetLogger().Info().Msgf("index:%s, match:%s", index, indexPrefix)
-		date := strings.TrimPrefix(index, indexPrefix)
+		logging.GetLogger().Info().Msgf("index:%s, match:%s", index, item.IndexPrefix)
+		date := strings.TrimPrefix(index, item.IndexPrefix)
 
 		t, err := time.ParseInLocation("2006-01-02", date, time.Local)
 		if err != nil {
 			logging.GetLogger().Warn().Msgf("unexpected indexName:%s", index)
 			continue
+		}
+
+		dateFilter := defaultDateFilter
+		if cron && item.TTL > 0 {
+			dateFilter = generateDateFilter(int(item.TTL))
 		}
 
 		if t.Before(dateFilter) {

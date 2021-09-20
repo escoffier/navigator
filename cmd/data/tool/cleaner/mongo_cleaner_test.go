@@ -12,6 +12,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
@@ -61,7 +62,7 @@ func TestMongoCleaner(t *testing.T) {
 		TimeField: "historicised_timestamp",
 	})
 
-	err = cleaner.Clean(context.TODO(), 7)
+	err = cleaner.Clean(context.TODO(), &def.CleanArg{DaysOffset: 7})
 	if err != nil {
 		t.Fatal(err)
 	}
