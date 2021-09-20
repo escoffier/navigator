@@ -39,6 +39,7 @@
       "timeField": "updated_at",
       "primaryKey": ["uuid"],
       "condition": "status in (0, 1)",
+      "ttl": 30,
       "dataDir": "/audit/posggresql/tensor_network_flows",
       "batch": 1000
     },
