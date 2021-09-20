@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -17,8 +18,8 @@ func NewColdCleaner(rootPath string) *ColdCleaner {
 	return &ColdCleaner{rootPath: rootPath}
 }
 
-func (c ColdCleaner) Clean(_ context.Context, daysOffset int) error {
-	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
+func (c ColdCleaner) Clean(_ context.Context, arg *def.CleanArg) error {
+	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(arg.DaysOffset))
 	return filepath.Walk(c.rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			logging.GetLogger().Warn().Msgf("walkDir error:%s, path:%s", err.Error(), path)

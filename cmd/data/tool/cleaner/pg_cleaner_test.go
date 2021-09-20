@@ -13,6 +13,7 @@ import (
 
 	"gorm.io/datatypes"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
@@ -64,24 +65,32 @@ func TestPostgresCleaner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := NewPostgresCleaner(postgresDB, []*conf.DumpItem{
+	c := NewPostgresCleaner(postgresDB, []*conf.PGDumpItem{
 		{
-			Name:      "tests",
-			TimeField: "timestamp",
-			DataDir:   path.Join(pwd, "dump_test", "postgresql", "tests"),
-			Batch:     50,
+			DumpItem: conf.DumpItem{
+				Name:      "tests",
+				TimeField: "timestamp",
+				DataDir:   path.Join(pwd, "dump_test", "postgresql", "tests"),
+				Batch:     50,
+			},
 		},
 		{
-			Name:      "test2",
+			DumpItem: conf.DumpItem{
+				Name:      "test2",
+				TimeField: "timestamp",
+				DataDir:   path.Join(pwd, "dump_test", "postgresql", "test2"),
+				Batch:     50,
+			},
 			PrimaryKey: []string{"p_key_1", "p_key_2"},
-			TimeField: "timestamp",
-			Condition: "status = 1",
-			DataDir:   path.Join(pwd, "dump_test", "postgresql", "test2"),
-			Batch:     50,
+			Condition:  "status = 1",
+			TTL:        100,
 		},
 	})
 
-	err = c.Clean(context.TODO(), 6)
+	err = c.Clean(context.TODO(), &def.CleanArg{
+		DaysOffset: 1,
+		Cron:       false,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +190,7 @@ func TestTimeFormat(t *testing.T) {
 }
 
 func TestGetPrimaryKeyGroup(t *testing.T) {
-	item := &conf.DumpItem{}
+	item := &conf.PGDumpItem{}
 	t.Log(getPrimaryKeyGroup(item))
 	t.Log(getPrimaryKeyColumns(item))
 

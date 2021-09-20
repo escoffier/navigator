@@ -1,3 +1,14 @@
 {
-  "esIndexPrefixes": ["access_", "signal_", "audit_"]
+  "esDumpItems": [
+    {
+      "indexPrefix": "access_"
+    },
+    {
+      "indexPrefix": "signal_"
+    },
+    {
+      "indexPrefix": "audit_",
+      "ttl": 7
+    }
+  ]
 }

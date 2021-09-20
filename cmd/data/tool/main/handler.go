@@ -28,9 +28,9 @@ func handleStorage(cleaners []def.Cleaner, taskType def.GCTaskType) (err error) 
 	ctx, cancel := context.WithTimeout(context.Background(), def.TaskMaxTime)
 	defer cancel()
 
-	dayOffset, err := getDayOffset(ctx, ttlManager, taskType)
+	cleanArg, err := getCleanArg(ctx, ttlManager, taskType)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("getDayOffset fail, err:%s", err.Error())
+		logging.GetLogger().Error().Msgf("getCleanArg fail, err:%s", err.Error())
 		return err
 	}
 
@@ -58,13 +58,13 @@ func handleStorage(cleaners []def.Cleaner, taskType def.GCTaskType) (err error) 
 		}
 	}()
 
-	logging.GetLogger().Info().Msgf("start cleaners, taskType:%s, taskID:%s, dayOffset:%d",
-		taskType.String(), taskID, dayOffset)
+	logging.GetLogger().Info().Msgf("start cleaners, taskType:%s, taskID:%s, cleanArg:%s",
+		taskType.String(), taskID, cleanArg)
 	var group errgroup.Group
 	for _, cleaner := range cleaners {
 		cleaner := cleaner
 		group.Go(func() error {
-			return cleaner.Clean(ctx, dayOffset)
+			return cleaner.Clean(ctx, cleanArg)
 		})
 	}
 	return group.Wait()

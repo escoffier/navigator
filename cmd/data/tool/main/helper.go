@@ -48,13 +48,27 @@ func getTaskID(ctx context.Context, manager def.TaskManager, taskType def.GCTask
 	return task.Hash, nil
 }
 
-func getDayOffset(ctx context.Context, manager def.TTLManager, taskType def.GCTaskType) (dayOffset int, err error) {
+func getCleanArg(ctx context.Context, manager def.TTLManager, taskType def.GCTaskType) (*def.CleanArg, error) {
 	if ttlDayOffsetStr := os.Getenv(env.TTLDayOffset); ttlDayOffsetStr != "" {
 		// 手动触发任务时 用户指定dayOffset并通过环境变量传入
-		dayOffset, err = strconv.Atoi(ttlDayOffsetStr)
-	} else {
-		// 定时任务需要通过任务管理器从系统中获取dayOffset
-		dayOffset, err = manager.GetTTLDayOffset(ctx, taskType)
+		dayOffset, err := strconv.Atoi(ttlDayOffsetStr)
+		if err != nil {
+			return nil, err
+		}
+		return &def.CleanArg{
+			DaysOffset: dayOffset,
+			Cron:       false,
+		}, nil
 	}
-	return
+
+	// 定时任务需要通过任务管理器从系统中获取dayOffset
+	dayOffset, err := manager.GetTTLDayOffset(ctx, taskType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &def.CleanArg{
+		DaysOffset: dayOffset,
+		Cron:       true,
+	}, nil
 }

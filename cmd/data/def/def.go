@@ -76,8 +76,17 @@ const (
 	DefaultWaterlinePercentage = 80
 )
 
+type CleanArg struct {
+	Cron       bool
+	DaysOffset int
+}
+
+func (c *CleanArg) String() string {
+	return fmt.Sprintf("cron:%t, dayOffset:%d", c.Cron, c.DaysOffset)
+}
+
 type Cleaner interface {
-	Clean(ctx context.Context, daysOffset int) error
+	Clean(ctx context.Context, arg *CleanArg) error
 }
 
 type TaskManager interface {

@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -33,13 +34,13 @@ func NewMongoCleaner(db *mongotools.DatabaseWrapper, cnf *conf.MongoDumpConf) *M
 	}
 }
 
-func (c *MongoCleaner) Clean(ctx context.Context, daysOffset int) error {
+func (c *MongoCleaner) Clean(ctx context.Context, arg *def.CleanArg) error {
 	collections, err := c.getAllCollections(ctx)
 	if err != nil {
 		return err
 	}
 
-	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(daysOffset))
+	timeFilter := time.Now().Add(-time.Hour * 24 * time.Duration(arg.DaysOffset))
 	var errMap = make(map[string]error)
 
 	for _, collection := range collections {
