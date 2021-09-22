@@ -17,6 +17,21 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -26,6 +41,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/processingcenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -46,20 +62,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
 )
 
 var (
@@ -92,6 +94,8 @@ var (
 		model.ScanNodeRecord{},
 		model.PolicyDetailInfo{},
 		model.ExportTask{},
+		// processing center
+		model.ProcessingAction{},
 	}
 )
 
@@ -380,6 +384,14 @@ func NewConsole(
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}
+	
+	microSegURL := fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port)
+	err = processingcenter.Init(&processingcenter.ServiceComponent{
+		DB:              postgresDB,
+		EsCli:           es,
+		RedisCli:        redisClient,
+		MicroSegBaseURL: microSegURL,
+	})
 
 	return &Console{
 		server: &http.Server{
@@ -391,7 +403,7 @@ func NewConsole(
 				es,
 				scannerURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
-				fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port),
+				microSegURL,
 				fmt.Sprintf("https://%s:%d", webhookOpts.Host, webhookOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,

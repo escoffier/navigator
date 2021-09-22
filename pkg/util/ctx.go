@@ -18,3 +18,11 @@ func GetUserFromContext(ctx context.Context) (*model.User, bool) {
 	uinfo, ok := val.(*model.User)
 	return uinfo, ok
 }
+
+func GetUsernameFromContext(ctx context.Context) string {
+	user, ok := GetUserFromContext(ctx)
+	if ok && user != nil {
+		return user.UserName
+	}
+	return ""
+}

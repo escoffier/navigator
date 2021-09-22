@@ -77,7 +77,11 @@ func (api *api) runGCTask() http.HandlerFunc {
 			return
 		}
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		gcTask, err := dataService.RunGC(ctx, cliReq.DataType, cliReq.DaysOffset)
 		if err != nil {
 			if err == def.ErrTaskConflict {
@@ -110,7 +114,11 @@ func (api *api) getGCTask() http.HandlerFunc {
 			return
 		}
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		gcTask, err := dataService.GetGCTask(ctx, gcTaskID)
 		if err != nil {
 			if err == def.ErrTaskNotFound {
@@ -174,7 +182,11 @@ func (api *api) setDataTTL() http.HandlerFunc {
 			return
 		}
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		err = dataService.SetDataTTL(ctx, cliReq.DataType, cliReq.TTLDays)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set data tll: %w", err))
@@ -202,7 +214,11 @@ func (api *api) getDataTTL() http.HandlerFunc {
 			return
 		}
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		dataTTL, err := dataService.GetDataTTL(ctx, dataType)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get data tll: %w", err))
@@ -227,7 +243,11 @@ func (api *api) getStorageView() http.HandlerFunc {
 			return
 		}
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		storageView, err := dataService.GetStorageView(ctx, dataType)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get storage view: %w", err))
@@ -264,7 +284,11 @@ func (api *api) setWaterline() http.HandlerFunc {
 			return
 		}
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		err = dataService.SetDataWaterline(ctx, cliReq.Percentage)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set waterline: %w", err))
@@ -282,7 +306,11 @@ func (api *api) getWaterline() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
 		defer cancel()
 
-		dataService, _ := data.Get(ctx)
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
 		percentage, err := dataService.GetDataWaterline(ctx)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get waterline: %w", err))
@@ -324,7 +352,10 @@ func (api *api) checkTTL(ctx context.Context, dataType string, ttl int) (bool, e
 		return false, nil
 	}
 
-	dataService, _ := data.Get(ctx)
+	dataService, ok := data.GetService(ctx)
+	if !ok {
+		return false, ErrServiceNotReady
+	}
 	if dataType == model.DataTypeCold {
 		hotLogicTTL, err := dataService.GetDataTTL(ctx, model.DataTypeHotLogic)
 		if err != nil {

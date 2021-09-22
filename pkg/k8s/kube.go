@@ -5,14 +5,16 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"fmt"
+	"os"
+
+	certutil "k8s.io/client-go/util/cert"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	certutil "k8s.io/client-go/util/cert"
-	"os"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

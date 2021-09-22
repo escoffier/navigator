@@ -9,6 +9,9 @@
     {
       "indexPrefix": "audit_",
       "ttl": 7
+    },
+    {
+      "indexPrefix": "processing_"
     }
   ]
 }

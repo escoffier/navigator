@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	corev1 "k8s.io/api/core/v1"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -693,7 +694,7 @@ func (q *PodResRelationQuery) WithPodName(name, namespace string) *PodResRelatio
 	return q
 }
 
-func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, clusterKey string, query *PodResRelationQuery) (*model.PodResourceRelation, error) {
+func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, clusterKey string, query *PodResRelationQuery) (*model.PodResourceRelation, bool, error) {
 	var rkey string
 	switch query.kind {
 	case podIP:
@@ -703,7 +704,7 @@ func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, cluster
 	case podName:
 		rkey = getRedisKeyForPodResRelByName(clusterKey, query.value2, query.value)
 	default:
-		return nil, errors.New("illegal queryKind")
+		return nil, false, errors.New("illegal queryKind")
 	}
 
 	rctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
@@ -715,20 +716,27 @@ func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, cluster
 
 		res, err := redisCli.Get(oneCtx, rkey).Result()
 		if err != nil {
+			if err == redis.Nil {
+				return nil
+			}
 			return err
 		}
 		val = res
 		return nil
 	})
 	if rerr != nil {
-		return nil, rerr
+		return nil, false, rerr
+	}
+
+	if val == "" {
+		return nil, false, nil
 	}
 	var r model.PodResourceRelation
 	jerr := json.Unmarshal([]byte(val), &r)
 	if jerr != nil {
-		return nil, jerr
+		return nil, false, jerr
 	}
-	return &r, nil
+	return &r, true, nil
 }
 
 func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
