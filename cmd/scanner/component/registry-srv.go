@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv1"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv2"
-	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	docker2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
+	harborv12 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
+	harborv22 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
+	hwswr2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -40,7 +42,7 @@ type SearchRegistryParam struct {
 
 func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
 	res := make([]string, 0)
-	res = append(res, docker.Version, harborv2.HarborVersion, harborv1.HarborVersion, hwswr.Version)
+	res = append(res, docker2.Version, harborv22.HarborVersion, harborv12.HarborVersion, hwswr2.Version, jfrog.Version)
 	return res, nil
 }
 
@@ -83,7 +85,11 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 	if err := validateRegistry(reg, consts.ValidateCreate); err != nil {
 		return 0, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
-	if err := PingRegistry(reg); err != nil {
+	drive, err := registry.Open(RegToRegistryConf(reg))
+	if err != nil {
+		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
+	}
+	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
 		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交"))
 	}
@@ -119,10 +125,16 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
-	if err := PingRegistry(reg); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
-		return response.NewHttpError(http.StatusBadGateway, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交"))
+	drive, err := registry.Open(RegToRegistryConf(reg))
+
+	if err != nil {
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
 	}
+	if err := drive.Ping(); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交"))
+	}
+
 	updater := registryToUpdater(reg)
 	if reg.PasswordString != "" {
 		encryPass, err := util.DesEncrypt([]byte(reg.PasswordString), []byte(consts.EncryptPasswordKey))

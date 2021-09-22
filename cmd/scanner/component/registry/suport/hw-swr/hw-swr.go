@@ -2,8 +2,7 @@ package hwswr
 
 import (
 	"context"
-	"crypto/x509"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
@@ -33,13 +32,9 @@ var (
 
 type HwSwr struct {
 	Ctx            context.Context
-	Config         registry.RegisterConfig
+	Config         HwSwrConfig
 	RegistryClient *registry2.Registry // client for pull config json
 	SwrClient      *swr.SwrClient      // client for swr
-}
-
-func (h *HwSwr) GetRegistryConfig() registry.RegisterConfig {
-	return h.Config
 }
 
 func (h *HwSwr) ListNameSpaces() (*model.ListNamespacesResponse, error) {
@@ -87,9 +82,10 @@ func (h *HwSwr) PullConfigBlob(repo string, configDigest digest.Digest) (string,
 	return configBlob.String(), nil
 }
 
-func (h *HwSwr) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
+func (h *HwSwr) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
 	images := make([]registry.Image, 0)
 
+	cnt := 0
 	// get namespaces
 	ns, err := h.ListNameSpaces()
 	if err != nil {
@@ -149,15 +145,18 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender) ([]registry.Imag
 				} else {
 					i.LastPushTime = tm2
 				}
-				images = append(images, *i)
-
-				if err = extender(h.Config, *i); err != nil {
+				if needToReturnRes {
+					images = append(images, *i)
+				}
+				cnt++
+				if err = extender(*i); err != nil {
 					logging.GetLogger().Error().Err(err).Msg("ListImages.extender")
 				}
 			}
 		}
 	}
 
+	logging.GetLogger().Info().Msgf("hw-swr List images count:%d", cnt)
 	return images, nil
 }
 
@@ -173,18 +172,45 @@ func (h *HwSwr) GetImage(projectName, fullRepoName, tag string) (*registry.Image
 	return nil, fmt.Errorf("not implement")
 }
 
+func (h *HwSwr) Ping() error {
+	return h.RegistryClient.Ping()
+}
+
 func (h *HwSwr) DeleteImages(projectName, repoName, digest string) error {
 	return fmt.Errorf("not implement")
 }
 
-func OpenRegistry(conf registry.RegisterConfig) (*HwSwr, error) {
+func init() {
+	err := registry.Register(Version, openRegistry)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("init huawei-swr error:%v", err)
+		return
+	}
+	logging.GetLogger().Info().Msg("huawei-swr dirver register success")
+}
+
+func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry, error) {
 	var h HwSwr
 
 	h.Ctx = context.Background()
 
-	h.Config = conf
+	byt, err := json.Marshal(config.Options)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("hw-swr marshal config")
+		return nil, err
+	}
+	conf := new(HwSwrConfig)
+
+	if err := json.Unmarshal(byt, conf); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("hw-swr Unmarshal config")
+		return nil, err
+	}
+
+	h.Config = *conf
 
 	logging.GetLogger().Info().Msgf("swr config:%+v", h.Config)
+	// create swr client to get namespaces,images,tags
+
 	// generate region and credential
 	if len(h.Config.Region) == 0 || len(h.Config.Username) == 0 || len(h.Config.Password) == 0 {
 		logging.GetLogger().Info().Msg("get region and credential")
@@ -192,18 +218,18 @@ func OpenRegistry(conf registry.RegisterConfig) (*HwSwr, error) {
 		if err != nil {
 			return nil, fmt.Errorf("huawei swr: parse region from url err.%v", err)
 		}
-		user, password, err := generateSwrRegistryCredentialByAkSk(h.Config.AccessKey, h.Config.SecretKey, region1)
+		user, passwd, err := generateSwrRegistryCredentialByAkSk(h.Config.AccessKey, h.Config.SecretKey, region1)
 		if err != nil {
 			return nil, fmt.Errorf("huawei swr: generate swr credential err.%v", err)
 		}
-		h.Config.Region = region1
 		h.Config.Username = user
-		h.Config.Password = password
+		h.Config.Password = passwd
+		h.Config.Region = region1
 	}
-	logging.GetLogger().Info().Msgf("after generate region,%+v", h.Config)
+	logging.GetLogger().Info().Msgf("after generate region:%s,username:%s,", h.Config.Region, h.Config.Username)
 
 	// create client to pull image manifest and config
-	rc, err := NewRegistryClient(h.Config)
+	rc, err := registry.NewDockerRegistryClient(h.Config.URL, h.Config.Username, h.Config.Password, h.Config.SkipTLSVerify)
 	if err != nil {
 		return nil, fmt.Errorf("huawei swr: new registry client err:%v", err)
 	}
@@ -240,33 +266,8 @@ func generateSwrRegistryCredentialByAkSk(ak, sk, region string) (string, string,
 	return fmt.Sprintf("%s@%s", region, ak), password, nil
 }
 
-func NewRegistryClient(conf registry.RegisterConfig) (*registry2.Registry, error) {
-	hub, err := registry2.New(conf.URL, conf.Username, conf.Password)
-	if err != nil && conf.SkipTLSVerify {
-		// seems like error Golang's x509 package doesn't support error wrapping API yet:
-		// https://github.com/golang/go/issues/30322
-		// var hostnameErr *x509.HostnameError
-		// if errors.As(err, &hostnameErr) { ... }
-		// Therefore we must unwrap the error from HTTP package manually and try to cast
-
-		// Check for any type of error defined in x509 package.
-		_, ok1 := errors.Unwrap(err).(x509.SystemRootsError)
-		_, ok2 := errors.Unwrap(err).(x509.CertificateInvalidError)
-		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
-		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
-		if ok1 || ok2 || ok3 || ok4 {
-			logging.GetLogger().Warn().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
-			hub, err = registry2.NewInsecure(conf.URL, conf.Username, conf.Password)
-		}
-	}
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("new registry client failed.")
-		return nil, err
-	}
-	hub.Logf = registry.RegistryClientLog
-	return hub, nil
-}
-
+// newSwrClient
+// 使用的是ak和sk获取客户端，而不是username和password
 func newSwrClient(ak, sk, swrRegion string) (*swr.SwrClient, error) {
 	auth := basic.NewCredentialsBuilder().
 		WithAk(ak).

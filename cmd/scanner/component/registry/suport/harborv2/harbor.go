@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,7 +29,7 @@ const (
 type HarborV2 struct {
 	ctx            context.Context
 	client         *http.Client // client for pull harbor repos and tags
-	config         registry.RegisterConfig
+	config         HarborV2Config
 	registryClient *registry2.Registry // client for pull manifest
 }
 
@@ -194,9 +193,10 @@ func (h *HarborV2) ListRepoArtifactsWithPage(project, repo string, page, pageSiz
 	return artifacts, nil
 }
 
-func (h *HarborV2) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
+func (h *HarborV2) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
 	images := make([]registry.Image, 0)
 
+	cnt := 0
 	// get all projects
 	projects, err := h.ListProjects()
 	if err != nil {
@@ -263,18 +263,26 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender) ([]registry.I
 					i.ConfigJson = configBlob
 
 					// do some extend stuff
-					err := extender(h.config, *i)
+					err := extender(*i)
 					if err != nil {
 						logging.GetLogger().Error().Msgf("ListImages HarborV2 Insert imagelist error %v", err)
 						continue
 					}
-					images = append(images, *i)
+					cnt++
+					if needToReturnRes {
+						images = append(images, *i)
+					}
 				}
 			} // end of for artifacts
 		} // end of for repos
 	}
+	logging.GetLogger().Info().Msgf("harborv2 List images count:%d", cnt)
 
 	return images, nil
+}
+
+func (h *HarborV2) Ping() error {
+	return h.registryClient.Ping()
 }
 
 func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
@@ -391,10 +399,6 @@ func (h *HarborV2) CheckProject(projectName string) error {
 	return nil
 }
 
-func (h *HarborV2) GetRegistryConfig() registry.RegisterConfig {
-	return h.config
-}
-
 func (h *HarborV2) makeImage(r *Repository, a *Artifact, t *Tag) *registry.Image {
 	i := &registry.Image{
 		ImageDigest:  a.Digest,
@@ -448,14 +452,33 @@ func (h *HarborV2) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 	return configBlob.String(), nil
 }
 
-func OpenRegistry(config registry.RegisterConfig) (*HarborV2, error) {
+func init() {
+	err := registry.Register(HarborVersion, openRegistry)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+	}
+	logging.GetLogger().Info().Msg("harborv2 dirver register success")
+}
+
+func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry, error) {
 	var h HarborV2
 
 	h.ctx = context.Background()
+	byt, err := json.Marshal(config.Options)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("harborv2 marshal config")
+		return nil, err
+	}
+	conf := new(HarborV2Config)
+
+	if err := json.Unmarshal(byt, conf); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("harborv1 Unmarshal config")
+		return nil, err
+	}
 
 	// create client to pull harbor repos and tags
 	httpClient := http.Client{}
-	h.config = config
+	h.config = *conf
 	if h.config.SkipTLSVerify {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -465,37 +488,10 @@ func OpenRegistry(config registry.RegisterConfig) (*HarborV2, error) {
 	h.client = &httpClient
 
 	// create client to pull image manifest and config
-	r, err := NewRegistryClient(config)
+	r, err := registry.NewDockerRegistryClient(h.config.URL, h.config.Username, h.config.Password, h.config.SkipTLSVerify)
 	if err != nil {
 		return nil, fmt.Errorf("harbor-v2:new registry client err:%v", err)
 	}
 	h.registryClient = r
 	return &h, nil
-}
-
-func NewRegistryClient(config registry.RegisterConfig) (*registry2.Registry, error) {
-	hub, err := registry2.New(config.URL, config.Username, config.Password)
-	if err != nil && config.SkipTLSVerify {
-		// seems like error Golang's x509 package doesn't support error wrapping API yet:
-		// https://github.com/golang/go/issues/30322
-		// var hostnameErr *x509.HostnameError
-		// if errors.As(err, &hostnameErr) { ... }
-		// Therefore we must unwrap the error from HTTP package manually and try to cast
-
-		// Check for any type of error defined in x509 package.
-		_, ok1 := errors.Unwrap(err).(x509.SystemRootsError)
-		_, ok2 := errors.Unwrap(err).(x509.CertificateInvalidError)
-		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
-		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
-		if ok1 || ok2 || ok3 || ok4 {
-			logging.GetLogger().Warn().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
-			hub, err = registry2.NewInsecure(config.URL, config.Username, config.Password)
-		}
-	}
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("new registry client failed.")
-		return nil, err
-	}
-	hub.Logf = registry.RegistryClientLog
-	return hub, nil
 }

@@ -36,3 +36,14 @@ type Tag struct {
 type Label struct {
 	Deleted bool `json:"deleted"`
 }
+
+type HarborV1Config struct {
+	Type          string `json:"type"`
+	RegistryId    int64  `json:"registry_id"`
+	URL           string `json:"url"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	SkipTLSVerify bool   `json:"skip_tls_verify"`
+	Region        string `json:"region"`
+	Insecure      bool   `json:"insecure"`
+}

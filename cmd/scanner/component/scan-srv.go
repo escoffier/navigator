@@ -13,7 +13,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/patrickmn/go-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -1134,14 +1133,16 @@ func (s *ConScannerSrv) getRegistry(ctx context.Context, library string, useType
 	if len(regs) == 0 {
 		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("can not find the library:%s", library)))
 	}
-	regs[0].RegType = docker.Version // 暂时只支持docker-registry，所以这里赋值一下
-
-	regi, err := GetRegistryFromConfig(regs[0])
+	drive, err := registry.Open(RegToRegistryConf(regs[0]))
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("can not connect harborV2")
-		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf(fmt.Sprintf("can not connect harborV2 error is %s", err.Error())))
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
 	}
-	return regi, nil
+	if err := drive.Ping(); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交"))
+	}
+
+	return drive, nil
 }
 
 // DetectImageForCICD CICD 检查镜像是否正确
@@ -1849,21 +1850,21 @@ func (s *ConScannerSrv) deleteCICDImage(ctx context.Context) {
 		return
 	}
 	logging.GetLogger().Info().Msgf("CICD find BuffRegistry registry: %s", regs[0].Url)
-	regi, err := s.getRegistry(ctx, "", model.RegistryUseTypeBuff)
+	drive, err := s.getRegistry(ctx, "", model.RegistryUseTypeBuff)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD connect BuffRegistry :%s", regs[0].Url)
 		return
 	}
 	// 先查询镜像，然后一个一个的删除
-	images, err := regi.ListImages(func(conf registry.RegisterConfig, image registry.Image) error {
+	images, err := drive.ListImages(func(image registry.Image) error {
 		logging.GetLogger().Info().Msgf("CICD  deleteCICDImage search image in %s", image.Repository)
 		return nil
-	})
+	}, true)
 	if err != nil {
 		logging.GetLogger().Info().Msgf("CICD asynchronously delete BuffRegistry image error: %s", err.Error())
 	}
 	for i := range images {
-		if err := regi.DeleteImages("", images[i].Repository, images[i].ImageDigest); err != nil {
+		if err := drive.DeleteImages("", images[i].Repository, images[i].ImageDigest); err != nil {
 			logging.GetLogger().Info().Msgf("CICD asynchronous delete  BuffRegistry image error: %s", err.Error())
 		} else {
 			logging.GetLogger().Info().Msgf("CICD asynchronous delete BuffRegistry image :%s", images[i].Repository)

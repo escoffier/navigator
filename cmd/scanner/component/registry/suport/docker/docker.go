@@ -3,7 +3,6 @@ package docker
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +17,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
@@ -34,7 +34,7 @@ var (
 
 type RegistryV2 struct {
 	Ctx            context.Context
-	Config         registry.RegisterConfig
+	Config         RegisterConfig
 	RegistryClient *registry2.Registry // client for pull manifest
 }
 
@@ -51,7 +51,7 @@ func (r *RegistryV2) getPaginatedJSON(url string, response interface{}) (string,
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer util.CloseBodyWithLog(resp.Body)
 
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(response)
@@ -117,8 +117,9 @@ func (r *RegistryV2) ListRepoTags(repo string) ([]string, error) {
 	return tags, nil
 }
 
-func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry.Image, error) {
+func (r *RegistryV2) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
 	images := make([]registry.Image, 0)
+	cnt := 0
 
 	// get all repos
 	repos, err := r.ListRepos()
@@ -192,9 +193,12 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 			i.ManifestV2 = string(manifestV2Str)
 			i.ManifestV1 = string(manifestV1Str)
 			i.ConfigJson = configBlob
-			images = append(images, *i)
 
-			err = extender(r.GetRegistryConfig(), *i)
+			cnt++
+			if needToReturnRes {
+				images = append(images, *i)
+			}
+			err = extender(*i)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
 				continue
@@ -202,6 +206,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender) ([]registry
 		}
 	}
 
+	logging.GetLogger().Info().Msgf("docker-registry List images  count:%d", cnt)
 	return images, nil
 }
 
@@ -305,12 +310,12 @@ func (r *RegistryV2) DeleteImages(projectName, repoName, dig string) error {
 	return err
 }
 
-func (r *RegistryV2) CheckProject(projectName string) error {
-	return errors.New("not implement")
+func (r *RegistryV2) Ping() error {
+	return r.RegistryClient.Ping()
 }
 
-func (r *RegistryV2) GetRegistryConfig() registry.RegisterConfig {
-	return r.Config
+func (r *RegistryV2) CheckProject(projectName string) error {
+	return errors.New("not implement")
 }
 
 func (r *RegistryV2) CreateProject(projectName string, public bool) error {
@@ -322,9 +327,6 @@ func (r *RegistryV2) MakeImage(repo, tag string) *registry.Image {
 		ImageDigest: "",
 		Repository:  repo,
 		Tag:         tag,
-		// Size: 0,
-		// LastPullTime: t.PullTime,
-		// LastPushTime: t.PushTime,
 	}
 	return &i
 }
@@ -374,44 +376,38 @@ func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (st
 	return configBlob.String(), nil
 }
 
-func OpenRegistry(config registry.RegisterConfig) (*RegistryV2, error) {
+func init() {
+	err := registry.Register(Version, openRegistry)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+	}
+	logging.GetLogger().Info().Msg("docker dirver register success")
+}
+
+func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry, error) {
 	var r RegistryV2
 
 	r.Ctx = context.Background()
 
+	byt, err := json.Marshal(config.Options)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("docker marshal config")
+		return nil, err
+	}
+	conf := new(RegisterConfig)
+
+	if err := json.Unmarshal(byt, conf); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("docker Unmarshal config")
+		return nil, err
+	}
+
 	// create client to pull image manifest and config
-	r.Config = config
-	rc, err := NewRegistryClient(config)
+	r.Config = *conf
+	rc, err := registry.NewDockerRegistryClient(r.Config.URL, r.Config.Username, r.Config.Password, r.Config.SkipTLSVerify)
 	if err != nil {
 		return nil, fmt.Errorf("registryV2:new registry client err:%v", err)
 	}
 	r.RegistryClient = rc
 
 	return &r, nil
-}
-
-func NewRegistryClient(config registry.RegisterConfig) (*registry2.Registry, error) {
-	hub, err := registry2.New(config.URL, config.Username, config.Password)
-	if err != nil && config.SkipTLSVerify {
-		// seems like error Golang's x509 package doesn't support error wrapping API yet:
-		// https://github.com/golang/go/issues/30322
-		// var hostnameErr *x509.HostnameError
-		// if errors.As(err, &hostnameErr) { ... }
-		// Therefore we must unwrap the error from HTTP package manually and try to cast
-
-		// Check for any type of error defined in x509 package.
-		_, ok1 := errors.Unwrap(err).(x509.SystemRootsError)
-		_, ok2 := errors.Unwrap(err).(x509.CertificateInvalidError)
-		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
-		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
-		if ok1 || ok2 || ok3 || ok4 {
-			logging.GetLogger().Warn().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
-			hub, err = registry2.NewInsecure(config.URL, config.Username, config.Password)
-		}
-	}
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("new registry client failed.")
-		return nil, err
-	}
-	return hub, nil
 }

@@ -2,15 +2,19 @@ package component
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/alauda"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv1"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv2"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/hw-swr"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -27,12 +31,17 @@ type SyncRepoImage struct {
 	scannerDB   *store.ScannerDB
 }
 
-func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]registry.Registry, error) {
+type RegistryWithConf struct {
+	Registry registry.Registry
+	Config   model.Registry
+}
+
+func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf, error) {
 	registries, _, err := s.registryDao.SearchRegistry(context.Background(), store.SearchRegistryParam{UseType: model.ImageFromTypeNormal, NoDelete: true}, nil)
 	if err != nil {
 		return nil, err
 	}
-	res := make([]registry.Registry, 0)
+	res := make([]RegistryWithConf, 0)
 	for i := range registries {
 		// 检查是否达到同步时间
 		if time.Now().Unix()-registries[i].LastSyncAt < registries[i].SyncInterval*60 {
@@ -42,12 +51,20 @@ func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]registry.Registr
 			logging.GetLogger().Error().Err(err).Msg("UpdateRegistry last_sync_at error")
 		}
 
-		reg, err := GetRegistryFromConfig(registries[i])
+		drive, err := registry.Open(RegToRegistryConf(registries[i]))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("GetRegistryFromConfig ")
+			logging.GetLogger().Error().Err(err).Msg("get no drive")
+			return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
+		}
+		if err := drive.Ping(); err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("尝试连接到仓库出错:%s", registries[i].Name)
 			continue
 		}
-		res = append(res, reg)
+
+		res = append(res, RegistryWithConf{
+			Registry: drive,
+			Config:   registries[i],
+		})
 	}
 	return res, err
 }
@@ -61,26 +78,14 @@ func NewSyncRepoImage(registryDao store.RegistryDaoInterface, scannerDB *store.S
 
 func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 	defer wg.Done()
+	var exitMap sync.Map
 
-	worker := func(reg registry.Registry, extender registry.ImageListExtender) {
-		images, err := reg.ListImages(extender)
+	worker := func(reg RegistryWithConf, extender registry.ImageListExtender) {
+		_, err := reg.Registry.ListImages(extender, false)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get images err.%v", err)
-		} else {
-			logging.GetLogger().Info().Msgf("get images count %d", len(images))
 		}
-	}
-	extender := func(conf registry.RegisterConfig, image registry.Image) error {
-		img := TransImageToImagelist(conf, image)
-
-		_, err := s.scannerDB.InsertImageList(context.Background(), img)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
-			return err
-		} else {
-			logging.GetLogger().Info().Msgf("SyncImage.InsertImageList:%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
-		}
-		return nil
+		exitMap.Store(reg.Config.Name, true)
 	}
 
 	for {
@@ -91,23 +96,44 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 			logging.GetLogger().Error().Err(err).Msg("查询仓库信息出错")
 			continue
 		}
+
 		for i := range registries {
-			go worker(registries[i], extender)
+			if ex, ok := exitMap.Load(registries[i].Config.Name); ok {
+				if ex1, ok := ex.(bool); ok && !ex1 {
+					logging.GetLogger().Info().Msg("SyncImage.InsertImageList last synchronization has not been completed")
+					continue
+				}
+			}
+			exitMap.Store(registries[i].Config.Name, false)
+
+			go worker(registries[i], func(image registry.Image) error {
+				img := TransImageToImagelist(registries[i].Config, image)
+
+				_, err := s.scannerDB.InsertImageList(context.Background(), img)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
+					return err
+				} else {
+					logging.GetLogger().Info().Msgf("SyncImage.InsertImageList:%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
+				}
+				return nil
+			})
 		}
 		time.Sleep(time.Duration(1) * time.Minute) // 每分钟去查一次数据库
 	}
 }
 
-func TransImageToImagelist(conf registry.RegisterConfig, image registry.Image) model.ImageList {
+func TransImageToImagelist(reg model.Registry, image registry.Image) model.ImageList {
 
-	transImagelist := model.ImageList{
+	img := model.ImageList{
+		Url:            reg.Url,
 		FullRepoName:   image.Repository,
 		Tags:           image.Tag,
 		Digest:         image.ImageDigest,
 		Size:           int(image.Size),
-		Library:        conf.URL,
+		Library:        reg.Url,
 		ImageScanVuln:  model.ImageScanSummaryResult{},
-		RegistryId:     conf.RegistryId,
+		RegistryId:     reg.ID,
 		FirstPushTime:  image.Created,
 		LastPushTime:   image.LastPushTime,
 		LastPullTime:   image.LastPullTime,
@@ -116,6 +142,30 @@ func TransImageToImagelist(conf registry.RegisterConfig, image registry.Image) m
 		ConfigJson:     []byte(image.ConfigJson),
 		FromType:       model.ImageFromTypeNormal,
 	}
-	transImagelist.Layers = getLayerString(transImagelist)
-	return transImagelist
+	img.Layers = getLayerString(img)
+	return img
+}
+
+// RegToRegistryConf 把model.Registry转为registry.RegistrableComponentConfig
+func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
+	opt := make(map[string]interface{})
+	opt["type"] = reg.RegType
+	opt["registry_id"] = reg.ID
+	opt["url"] = reg.Url
+	opt["username"] = reg.Username
+	opt["password"] = reg.PasswordString
+	opt["skip_tls_verify"] = true
+	opt["insecure"] = true
+
+	if reg.RegType == hwswr.Version {
+		opt["access_key"] = reg.Username
+		opt["secret_key"] = reg.PasswordString
+		opt["username"] = ""
+		opt["password"] = ""
+	}
+	conf := registry.RegistrableComponentConfig{
+		Type:    reg.RegType,
+		Options: opt,
+	}
+	return conf
 }

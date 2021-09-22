@@ -1380,10 +1380,10 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 	defer cancelFunc()
 	db := s.psql.Get().Model(new(model.RejectRecord)).WithContext(ctx).Debug()
 	if !param.StartAt.IsZero() {
-		db = db.Where("reject_at >= ?", param.StartAt) // fixme
+		db = db.Where("reject_at >= ?", param.StartAt)
 	}
 	if !param.EndAt.IsZero() {
-		db = db.Where("reject_at <= ?", param.EndAt) // fixme
+		db = db.Where("reject_at <= ?", param.EndAt)
 	}
 	if param.Search != "" {
 		db = db.Where("full_repo_name LIKE ? OR tag LIKE ?  ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))

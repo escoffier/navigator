@@ -1,9 +1,10 @@
 package registry
 
 import (
-	"bytes"
+	"crypto/x509"
+	"errors"
 
-	"github.com/docker/distribution/manifest/schema2"
+	registry2 "github.com/heroku/docker-registry-client/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -11,13 +12,23 @@ func RegistryClientLog(format string, args ...interface{}) {
 	logging.GetLogger().Trace().Msgf(format, args...)
 }
 
-func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return "", err
+func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool) (*registry2.Registry, error) {
+	hub, err := registry2.New(url, userName, password)
+	if err != nil && skipTLSVerify {
+		// Check for any type of error defined in x509 package.
+		_, ok1 := errors.Unwrap(err).(x509.SystemRootsError)
+		_, ok2 := errors.Unwrap(err).(x509.CertificateInvalidError)
+		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
+		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
+		if ok1 || ok2 || ok3 || ok4 {
+			logging.GetLogger().Warn().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
+			hub, err = registry2.NewInsecure(url, userName, password)
+		}
 	}
-	digest, _, err := SHA256(bytes.NewReader(data))
-
-	return digest.String(), err
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("new registry client failed.")
+		return nil, err
+	}
+	hub.Logf = RegistryClientLog
+	return hub, nil
 }

@@ -2,10 +2,11 @@ package registry
 
 import (
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/hw-swr"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"testing"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	hwswr2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type TestExtender struct {
@@ -38,7 +39,7 @@ func dumpImages(images []registry.Image) {
 func TestListImages(t *testing.T) {
 	t.Log("start test list images")
 	driver, err := registry.Open(registry.RegistrableComponentConfig{
-		Type: hwswr.Version,
+		Type: hwswr2.Version,
 		Options: map[string]interface{}{
 			"url": swrUrl,
 			//"password":      swrPassword,
