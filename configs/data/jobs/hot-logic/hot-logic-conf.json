@@ -56,6 +56,12 @@
       "condition": "",
       "dataDir": "/audit/posggresql/reject_record",
       "batch": 1000
+    },
+    {
+      "name": "processingcenter_actions",
+      "timeField": "created_at",
+      "dataDir": "/audit/posggresql/processingcenter_actions",
+      "batch": 1000
     }
   ],
   "mongoUnifiedConf": {

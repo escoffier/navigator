@@ -119,7 +119,7 @@ func (api *api) newOpenAPIToken() http.HandlerFunc {
 
 		service, ok := openapiauth.GetServiceInstance()
 		if !ok {
-			apperror.RespAndLog(w, r.Context(), errors.New("service not ready"))
+			apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
 			return
 		}
 
@@ -141,7 +141,7 @@ func openAPIAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) htt
 			token := r.Header.Get(OpenAPITokenKey)
 			service, ok := openapiauth.GetServiceInstance()
 			if !ok {
-				apperror.RespAndLog(w, r.Context(), errors.New("service not ready"))
+				apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
 				return
 			}
 

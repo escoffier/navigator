@@ -19,7 +19,7 @@ var (
 	once     sync.Once
 )
 
-func Get(_ context.Context) (*Service, bool) {
+func GetService(_ context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 

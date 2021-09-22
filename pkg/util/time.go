@@ -13,4 +13,3 @@ func GetMillisecondTimestampByTime(t time.Time) int64 {
 func GetTimeByMillisecondTimestamp(timestamp int64) time.Time {
 	return time.Unix(0, timestamp*1e6)
 }
-
