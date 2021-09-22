@@ -32,7 +32,7 @@ type accountRes struct {
 	PassWord string `json:"password"`
 }
 type accountdata struct {
-	Item []accountRes `json:"item"`
+	Items []accountRes `json:"items"`
 }
 type accountInfo struct {
 	ApiVersion string      `json:"apiVersion"`
@@ -132,12 +132,12 @@ func cicdExec(ctx context.Context, image string, apikey string, maxSecond int, c
 	}
 
 	// push到自己的仓库中
-	if len(accountInfo.Data.Item) == 0 {
+	if len(accountInfo.Data.Items) == 0 {
 		log.Error().Msg("未查询到中转仓库")
 		os.Exit(2)
 	}
 
-	osCmd := exec.Command("docker", "login", "-u", accountInfo.Data.Item[0].UserName, "-p", accountInfo.Data.Item[0].PassWord, bufRegistryUrl)
+	osCmd := exec.Command("docker", "login", "-u", accountInfo.Data.Items[0].UserName, "-p", accountInfo.Data.Items[0].PassWord, bufRegistryUrl)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	osCmd.Stdout = &out
