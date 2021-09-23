@@ -222,11 +222,14 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		if data.FinishedAt > 0 {
 			finishState = 1
 		}
+
 		//update finish state
 		if data.FinishedAt == 0 && finishState != 0 {
-			err = s.postgresDB.Get().WithContext(pgCtx).Where(&model.ScanHistory{TaskID: value.TaskID}).Update("state", 0).Error
+			err = s.postgresDB.Get().WithContext(pgCtx).Table(value.TableName()).Where("task_id = ?", value.TaskID).Update("state", 0).Error
 			if err != nil {
 				logging.GetLogger().Error().Msgf("update scan history state=0 failed, %v.", err)
+			} else {
+				data.FinishedAt = data.CreatedAt
 			}
 		}
 
