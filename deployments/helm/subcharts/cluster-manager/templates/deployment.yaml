@@ -30,6 +30,11 @@ spec:
         - --cluster-name={{ .Values.args.clusterName }}
         - --api-server-address={{ .Values.args.apiServerAddr }}
         {{- end }}
+        env:
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
       imagePullSecrets:
