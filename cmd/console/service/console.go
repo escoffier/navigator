@@ -228,15 +228,6 @@ func NewConsole(
 		return nil, err
 	}
 
-	ctx := context.Background()
-	for _, model := range declaredModels {
-		err := rdbtools.MigrateTable(ctx, postgresDB, model)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("Migrate table %s error. Exit", model.TableName())
-			return nil, err
-		}
-	}
-
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 
 	// main function context
