@@ -142,10 +142,10 @@ func (h *ATTCKHandler) Init() error {
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), loadTimeout)
 	defer cancel()
-	err := h.db.Get().WithContext(ctx).AutoMigrate(&model.ATTCKRuleData{}, &model.ATTCKRuleMask{}, &model.ATTCKRuleMaskVersion{})
-	if err != nil {
-		return err
-	}
+	//err := h.db.Get().WithContext(ctx).AutoMigrate(&model.ATTCKRuleData{}, &model.ATTCKRuleMask{}, &model.ATTCKRuleMaskVersion{})
+	//if err != nil {
+	//	return err
+	//}
 	conf, err := LoadATTCKConfData(ctx, h.db.Get())
 	if err != nil {
 		if err == ErrATTCKConfDataNotFound {

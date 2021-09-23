@@ -539,8 +539,8 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 		}
 	}
 
-	db.Get().WithContext(ctx).Migrator().DropTable(&model.ModuleGroup{}, &model.Url{})
-	db.Get().WithContext(ctx).AutoMigrate(&model.ModuleGroup{}, &model.Url{})
+	//db.Get().WithContext(ctx).Migrator().DropTable(&model.ModuleGroup{}, &model.Url{})
+	//db.Get().WithContext(ctx).AutoMigrate(&model.ModuleGroup{}, &model.Url{})
 
 	mg1 := model.ModuleGroup{
 		ModuleNameZh: "用户中心",

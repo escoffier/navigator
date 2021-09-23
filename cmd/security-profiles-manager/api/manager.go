@@ -11,6 +11,11 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/builder"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/policy"
@@ -23,10 +28,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -88,14 +89,14 @@ func NewSecProfileManager(
 		return nil, err
 	}
 
-	ctx := context.Background()
-	for _, model := range declaredModels {
-		err := rdbtools.MigrateTable(ctx, db, model)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
-			return nil, err
-		}
-	}
+	//ctx := context.Background()
+	//for _, model := range declaredModels {
+	//	err := rdbtools.MigrateTable(ctx, db, model)
+	//	if err != nil {
+	//		logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
+	//		return nil, err
+	//	}
+	//}
 
 	// Redis DB client
 	sa := strings.Split(redisOpts.Endpoint, ",")
