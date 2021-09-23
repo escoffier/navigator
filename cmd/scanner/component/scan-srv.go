@@ -480,7 +480,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	logging.GetLogger().Info().Msgf(fmt.Sprintf("CICD ScanOneForCICD library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
 	image, err := regi.GetImage(projectName, repoName, tag)
 	if err != nil {
-		logging.GetLogger().Info().Msgf(fmt.Sprintf("CICD pull the image from BuffRegistry erorr，library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
+		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("CICD pull the image from BuffRegistry erorr，library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag))
 		return nil, err
 	}
 	logging.GetLogger().Info().Msgf("CICD pull image from BuffRegistry: %s%s:%s", regs[0].Url, image.Repository, image.Tag)
@@ -1175,7 +1175,6 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 		msgEN := "image not in config registry"
 		msgLog := fmt.Sprintf("Image:%s/%s:%s is untrust Library", imgs[0].Library, imgs[0].FullRepoName, imgs[0].Tags)
 
-		safe = false
 		records = append(records, ReasonAndDetail{
 			RejectReason: model.RejectNoLibrary,
 			RejectDetail: msgZh,
@@ -1186,6 +1185,8 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], msgZh+"，被阻断"),
 				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectNoLibrary], msgEN+",blocked")}})
 		logging.GetLogger().Info().Msgf(" %s,has blocked", msgLog)
+		// 仓库都不在本地仓库，就直接返回了
+		return false, records, msgs, nil
 	}
 
 	img := imgs[0]
