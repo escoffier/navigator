@@ -15,6 +15,14 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/mattn/go-colorable"
 	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
@@ -25,13 +33,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -121,13 +122,13 @@ func NewScanner(
 		return nil, err
 	}
 
-	for _, model := range declaredModels {
-		err := rdbtools.MigrateTable(ctx, postgresDB, model)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
-			return nil, err
-		}
-	}
+	//for _, model := range declaredModels {
+	//	err := rdbtools.MigrateTable(ctx, postgresDB, model)
+	//	if err != nil {
+	//		logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
+	//		return nil, err
+	//	}
+	//}
 	scannerDB := store.NewScannerDB(postgresDB)
 
 	// Redis DB client
