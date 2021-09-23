@@ -9,6 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"k8s.io/client-go/rest"
 	"net/http"
+	"strings"
 )
 
 const defaultK8sClusterName = "default"
@@ -42,6 +43,7 @@ func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 		clusterInfo := &TensorCluster{
 			Key:         clusterID,
 			Name:        config.Name,
+			ConsoleUrl:  getConsoleUrlPrefix(config.MasterAddr),
 			Description: "",
 			Status:      0,
 		}
@@ -91,4 +93,11 @@ func getClusterID(clusterName, apiServerAddr string) string {
 	} else {
 		return fmt.Sprintf("%d", util.GenerateUUID(clusterName, apiServerAddr))
 	}
+}
+
+func getConsoleUrlPrefix(masterAddr string) string {
+	if strings.Contains(masterAddr, "http") {
+		return masterAddr
+	}
+	return "http://" + masterAddr
 }

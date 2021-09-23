@@ -4,24 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/gorm"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gorm.io/gorm"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/tealeg/xlsx"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -33,22 +32,20 @@ var (
 
 func Init(mainCtx context.Context,
 	scapOpts *flag.ScapOpts,
-	mongoOpts *flag.MongoOpts,
 	redisClient *redis.Client,
-	mongodb *mongotools.DatabaseWrapper,
 	pgDsn string,
 	postgresDB *rdbtools.GormWrapper,
 ) error {
-	if redisClient == nil || mongodb == nil {
+	if redisClient == nil {
 		return errors.New("illegal argument")
 	}
 	var err error
 	once.Do(func() {
-		svcInstance, err = newScapService(mainCtx, scapOpts, postgresDB)
+		svcInstance, err = newScapService(scapOpts, postgresDB)
 		if err != nil {
 			return
 		}
-		scapperInstance = newScapper(scapOpts, mongoOpts, mongodb, svcInstance, pgDsn, postgresDB)
+		scapperInstance = newScapper(scapOpts, svcInstance, pgDsn, postgresDB)
 
 	})
 	return err
@@ -66,11 +63,7 @@ type ScapService struct {
 	postgresDB *rdbtools.GormWrapper
 }
 
-func newScapService(
-	ctx context.Context,
-	scapOpts *flag.ScapOpts,
-	postgresDB *rdbtools.GormWrapper,
-) (*ScapService, error) {
+func newScapService(scapOpts *flag.ScapOpts, postgresDB *rdbtools.GormWrapper) (*ScapService, error) {
 	scapSvc := &ScapService{
 		postgresDB: postgresDB,
 	}
@@ -199,7 +192,7 @@ func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterI
 	return errors.Errorf("have been scanning task")
 }
 
-func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int, error) {
+func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int, error) {
 	//print debug log
 	//logging.GetLogger().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
 
@@ -207,12 +200,13 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 	defer mpgCancel()
 
 	var scanHistory []model.ScanHistory
-	query := fmt.Sprintf("check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
-	err := s.postgresDB.Get().WithContext(pgCtx).Where(query, checkType).Find(&scanHistory).Error
+	query := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
+	err := s.postgresDB.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
 	}
 
+	finishState := 0
 	items := make([]model.CheckHistoryEntry, 0)
 	docNum := len(scanHistory)
 	for _, value := range scanHistory {
@@ -224,19 +218,31 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		data.CheckID = value.TaskID
 		data.CreatedAt = value.CreatedAt
 		data.FinishedAt = value.FinishedAt
+		//check finish state
+		if data.FinishedAt > 0 {
+			finishState = 1
+		}
+		//update finish state
+		if data.FinishedAt == 0 && finishState != 0 {
+			err = s.postgresDB.Get().WithContext(pgCtx).Where(&model.ScanHistory{TaskID: value.TaskID}).Update("state", 0).Error
+			if err != nil {
+				logging.GetLogger().Error().Msgf("update scan history state=0 failed, %v.", err)
+			}
+		}
+
 		items = append(items, data)
 	}
 
 	return items, docNum, nil
 }
 
-func (s *ScapService) GetLatestHistory(ctx context.Context, checkType, sortBy, sortOrder string) (string, error) {
+func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId, checkType, sortBy, sortOrder string) (string, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, time.Second*2)
 	defer cancel()
 
 	var scanHistory []model.ScanHistory
-	condition := fmt.Sprintf("check_type = ? order by %s %s", sortBy, sortOrder)
-	err := s.postgresDB.Get().WithContext(pgCtx).Where(condition, checkType).Find(&scanHistory).Error
+	condition := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s", sortBy, sortOrder)
+	err := s.postgresDB.Get().WithContext(pgCtx).Find(&scanHistory, condition, clusterId, checkType).Error
 	if err != nil {
 		return "", errors.Errorf("get scan history failed, %v", err)
 	}
@@ -313,7 +319,7 @@ func (s *ScapService) GetClassifiedByLanguage(language lang.LanguageType, policy
 	return value
 }
 
-func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *scap.NodeCheckDetails) error {
+func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
 	autoVars, err := s.GetNodeRecordAutoVariate(ctx, checkID, checkType)
 	if err != nil {
 		return errors.Errorf("get node auto variate, %v", err)
@@ -336,7 +342,7 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 	autoVar := autoVars[nodeName]
 
 	for _, value := range scanRet {
-		var cpMap scap.ComplianceMapEntry
+		var cpMap model.ComplianceMapEntry
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 		if err != nil {
 			logging.GetLogger().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
@@ -363,7 +369,7 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 	return nil
 }
 
-func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *scap.NodeCheckDetails) error {
+func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
 	var scanRet []model.ScanResult
 	query := "node_name = ? and task_id = ?"
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
@@ -380,7 +386,7 @@ func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, c
 	nodeCheckDetails.NodeName = nodeName
 
 	for _, value := range scanRet {
-		var cpMap scap.ComplianceMapEntry
+		var cpMap model.ComplianceMapEntry
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 		if err != nil {
 			logging.GetLogger().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
@@ -407,7 +413,7 @@ func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, c
 	return nil
 }
 
-func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *scap.NodeCheckDetails) error {
+func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
 	var scanRet []model.ScanResult
 	query := "node_name = ? and task_id = ?"
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
@@ -424,7 +430,7 @@ func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, che
 	nodeCheckDetails.NodeName = nodeName
 
 	for _, value := range scanRet {
-		var cpMap scap.ComplianceMapEntry
+		var cpMap model.ComplianceMapEntry
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 		if err != nil {
 			logging.GetLogger().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
@@ -527,7 +533,7 @@ func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) 
 	return dst
 }
 
-func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, checkId, checkType string) error {
+func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
@@ -550,7 +556,7 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 				detail = policy.DetailEn
 			}
 
-			checkMap[value.PolicyID] = &scap.CheckBreakdown{
+			checkMap[value.PolicyID] = &model.CheckBreakdown{
 				PolicyNumber: value.PolicyID,
 				Section:      title,
 				Description:  detail,
@@ -576,7 +582,7 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 	return nil
 }
 
-func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyId, checkType, checkId string) error {
+func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
 	autoVars, err := s.GetNodeRecordAutoVariate(ctx, checkId, checkType)
 	if err != nil {
 		return errors.Errorf("get node auto variate failed, %v", err)
@@ -598,7 +604,7 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *s
 	policyDetails.PolicyNumber = policyId
 
 	for _, value := range scanRet {
-		var nodeRet scap.PolicyNodeRet
+		var nodeRet model.PolicyNodeRet
 		nodeRet.NodeName = value.NodeName
 		autoVar := autoVars[nodeRet.NodeName]
 		nodeRet.TestStatus = value.State
@@ -627,7 +633,7 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *s
 	return nil
 }
 
-func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, checkId, checkType string) error {
+func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
@@ -647,7 +653,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 			if lang.Language(ctx) == lang.LanguageEN {
 				title = policy.TitleEn
 			}
-			checkMap[value.PolicyID] = &scap.CheckBreakdown{
+			checkMap[value.PolicyID] = &model.CheckBreakdown{
 				PolicyNumber: value.PolicyID,
 				Description:  title,
 			}
@@ -671,7 +677,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 	return nil
 }
 
-func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyId, checkType, checkId string) error {
+func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
 	policy, err := s.GetPolicyInfo(ctx, policyId, checkType)
 	if err != nil {
 		return errors.Errorf("get policy information failed, policy id : %s, checkType : %s.", policyId, checkType)
@@ -688,7 +694,7 @@ func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *s
 	policyDetails.PolicyNumber = policyId
 
 	for _, value := range scanRet {
-		var nodeRet scap.PolicyNodeRet
+		var nodeRet model.PolicyNodeRet
 		nodeRet.NodeName = value.NodeName
 		nodeRet.TestStatus = value.State
 		nodeRet.Remediation = policy.DetailZh
@@ -762,7 +768,7 @@ func (s *ScapService) GetScanResultToFile(ctx context.Context, file *xlsx.File, 
 	return nil
 }
 
-func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap map[string]*scap.CheckBreakdown, checkId, checkType string) error {
+func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
@@ -785,7 +791,7 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 				detail = policy.DetailEn
 			}
 
-			checkMap[value.PolicyID] = &scap.CheckBreakdown{
+			checkMap[value.PolicyID] = &model.CheckBreakdown{
 				PolicyNumber: value.PolicyID,
 				Section:      title,
 				Description:  detail,
@@ -812,7 +818,7 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 	return nil
 }
 
-func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails *scap.PolicyDetails, policyId, checkType, checkId string) error {
+func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
 	var scanRet []model.ScanResult
 	query := "task_id = ? and policy_id = ?"
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
@@ -823,7 +829,7 @@ func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails 
 	policyDetails.PolicyNumber = policyId
 
 	for _, value := range scanRet {
-		var nodeRet scap.PolicyNodeRet
+		var nodeRet model.PolicyNodeRet
 		nodeRet.NodeName = value.NodeName
 		nodeRet.TestStatus = value.State
 		nodeRet.Remediation = value.RemediationZh

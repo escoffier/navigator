@@ -209,6 +209,8 @@ type TensorCluster struct {
 	CertificateAuthData string      `gorm:"column:certificate_auth_data" json:"certificateAuthData"`
 	SecretToken         string      `gorm:"column:secret_token" json:"secretToken"`
 	SecretNamespace     string      `gorm:"column:secret_namespace" json:"secretNamespace"`
+	WorkerNamespace     string      `gorm:"column:worker_namespace" json:"worker_namespace"`
+	LabelInited         bool        `gorm:"column:label_inited" json:"label_inited"`
 	Creator             string      `gorm:"column:creator" json:"creator"`
 	CreatedAt           time.Time   `gorm:"column:created_at" json:"createdAt"`
 	Updater             string      `gorm:"column:updater" json:"updater"`

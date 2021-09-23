@@ -61,6 +61,7 @@ spec:
           "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
           "--scap-job-repo={{ include "console.registryPath" . }}",
           "--scap-job-tag={{ .Values.scap.tag }}",
+          "--cluster-addr={{ .Values.scap.clusterAddr }}",
           "--elastic-host={{ .Values.elastic.host }}",
           "--elastic-port={{ .Values.elastic.port }}",
           "--elastic-index={{ .Values.elastic.index }}",

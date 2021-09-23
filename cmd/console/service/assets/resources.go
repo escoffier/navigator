@@ -63,7 +63,7 @@ func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit
 	return dal.GetClusters(ctx, rl.rdb, offset, limit)
 }
 
-func (rl *TensorResourcesService) GetClusterByKey(ctx context.Context, key string) *int64 {
+func (rl *TensorResourcesService) GetClusterByKey(ctx context.Context, key string) *model.TensorCluster {
 	return dal.GetClustersByKey(ctx, rl.rdb, key)
 }
 

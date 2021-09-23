@@ -24,12 +24,6 @@ import (
 
 func (api *api) config() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/clusters", api.listClusters())
-		r.Post("/cluster", api.addCluster())
-		r.Get("/cluster/{clusterID}", api.getCluster())
-		r.Delete("/cluster/{clusterID}", api.delCluster())
-		r.Put("/cluster/{clusterID}", api.updateCluster())
-
 		r.Put("/ATTCK", api.updateATTCKConf())
 		r.Get("/ATTCK/ruleList", api.getATTCKRuleList())
 		r.Post("/ATTCK/ruleSwitch", api.updateRuleSwitch())

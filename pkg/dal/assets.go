@@ -882,18 +882,22 @@ func GetClusters(ctx context.Context, rdb *rdbtools.GormWrapper, offset, limit i
 	})
 	return
 }
-func GetClustersByKey(ctx context.Context, rdb *rdbtools.GormWrapper, key string) *int64 {
+func GetClustersByKey(ctx context.Context, rdb *rdbtools.GormWrapper, key string) *model.TensorCluster {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
-	var count int64 = 0
-	util.RetryWithBackoff(ctx, func() error {
+	var cluster model.TensorCluster
+	err := util.RetryWithBackoff(ctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND key = ?", 0, key).Count(&count).Error
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND key = ?", 0, key).First(&cluster).Error
 
 	})
-	return &count
+	if err != nil {
+		return nil
+	}
+
+	return &cluster
 }
 func UpdateCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey string, name string, description string) error {
 	if clusterKey == "" {
@@ -945,6 +949,7 @@ func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.T
 				"secret_token",
 				"status",
 				"cluster_type",
+				"worker_namespace",
 			}),
 		}).Create(cluster).Error
 	})
