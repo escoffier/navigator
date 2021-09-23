@@ -12,7 +12,6 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv2"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -22,7 +21,6 @@ import (
 
 type HarborSvc interface {
 	GetRedisClient() *redis.Client
-	GetRegistryDriver(url string, authorization string) registry.Registry
 	GetTags(ctx context.Context, url string, authorization string, fullRepoName string, digest string) ([]registry.Tag, error)
 	AddHarborScanTask(ctx context.Context, scanReq model.ScannerReq, tags []registry.Tag) []int64
 	GetScanResult(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList)
@@ -61,20 +59,6 @@ func (Harbor *Harbor) decodeUsernamePassword(authorization string) (string, stri
 	return username, password, nil
 }
 
-func (Harbor *Harbor) GetRegistryDriver(url string, authorization string) registry.Registry {
-	username, password, _ := Harbor.decodeUsernamePassword(authorization)
-	reg, err := harborv2.OpenRegistry(registry.RegisterConfig{
-		URL:           url,
-		Username:      username,
-		Password:      password,
-		SkipTLSVerify: true,
-	})
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("GetRegistryDriver")
-		return nil
-	}
-	return reg
-}
 func (h *Harbor) reqHarbor(ctx context.Context, url string, username string, password string, auth string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

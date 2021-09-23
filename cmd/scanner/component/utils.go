@@ -17,13 +17,11 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/alauda"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/docker"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv1"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/harborv2"
-	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/hw-swr"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/jfrog"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
+	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -412,7 +410,7 @@ func validateRegistry(reg model.Registry, valTY string) error {
 }
 
 func validateRegistryType(regType string) error {
-	if regType == "" || (regType != alauda.Version && regType != docker.Version && regType != harborv1.HarborVersion &&
+	if regType == "" || (regType != docker.Version && regType != harborv1.HarborVersion &&
 		regType != harborv2.HarborVersion && regType != hwswr.Version && regType != jfrog.Version) {
 		return errors.New("registry type is illegal")
 	}
@@ -430,81 +428,6 @@ func registryToUpdater(reg model.Registry) map[string]interface{} {
 		"sync_interval": reg.SyncInterval,
 	}
 	return updater
-}
-
-func PingRegistry(reg model.Registry) error {
-	conf := registry.RegisterConfig{
-		RegistryId:    reg.ID,
-		URL:           reg.Url,
-		Username:      reg.Username,
-		Password:      reg.PasswordString,
-		SkipTLSVerify: true,
-	}
-	switch reg.RegType {
-	case alauda.Version, docker.Version:
-		if _, err := docker.NewRegistryClient(conf); err != nil {
-			return err
-		}
-		return nil
-	case harborv1.HarborVersion:
-		if _, err := harborv1.NewRegistryClient(conf); err != nil {
-			return err
-		}
-		return nil
-	case harborv2.HarborVersion:
-		if _, err := harborv2.NewRegistryClient(conf); err != nil {
-			return err
-		}
-		return nil
-	case hwswr.Version:
-		conf.AccessKey = conf.Username
-		conf.SecretKey = conf.Password
-		conf.Username = ""
-		conf.Password = ""
-
-		if _, err := hwswr.NewRegistryClient(conf); err != nil {
-			return err
-		}
-	case jfrog.Version:
-		if _, err := jfrog.NewRegistryClient(conf); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return fmt.Errorf("no support registry type")
-}
-
-func GetRegistryFromConfig(reg model.Registry) (registry.Registry, error) {
-	conf := registry.RegisterConfig{
-		RegistryId:    reg.ID,
-		URL:           reg.Url,
-		Username:      reg.Username,
-		Password:      reg.PasswordString,
-		SkipTLSVerify: true,
-		Insecure:      true,
-	}
-	switch reg.RegType {
-
-	case docker.Version:
-		return docker.OpenRegistry(conf)
-
-	case harborv1.HarborVersion:
-		return harborv1.OpenRegistry(conf)
-
-	case harborv2.HarborVersion:
-		return harborv2.OpenRegistry(conf)
-
-	case hwswr.Version:
-		conf.AccessKey = conf.Username
-		conf.SecretKey = conf.Password
-		conf.Username = ""
-		conf.Password = ""
-		return hwswr.OpenRegistry(conf)
-	case jfrog.Version:
-		return jfrog.OpenRegistry(conf)
-	}
-	return nil, fmt.Errorf("未识别的仓库类型：%s", reg.RegType)
 }
 
 type ScannerList struct {
