@@ -35,12 +35,11 @@ spec:
         - name: {{ .Chart.Name }}-dockerregistry
           image: {{ include "scanner.docker.registry.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-          - /bin/registry
-          - serve
-          - /etc/docker/registry/config.yml
           ports:
             - containerPort: 5000
+              name: http
+            - containerPort: 8081
+              name: gc
           resources:
 {{ toYaml .Values.dockerregistry.resources | indent 12 }}
           env:

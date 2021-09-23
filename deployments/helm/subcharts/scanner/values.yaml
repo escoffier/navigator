@@ -18,7 +18,7 @@ dockerregistry:
     registry:  localhost:32000
     repository: tensorsecurity
     name: tensorsec-scanner-registry
-    tag: 2.7.1
+    tag: latest
   resources:
     requests:
       cpu: "100m"
@@ -29,8 +29,10 @@ dockerregistry:
   service:
     type: ClusterIP
     # clusterIP:
-    port: 5000
-    # nodePort:
+    httpPort: 5000
+    gcPort: 8081
+    # httpNodePort:
+    # gcNodePort:
   persistence:
     accessMode: 'ReadWriteOnce'
     enabled: true

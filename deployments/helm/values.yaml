@@ -49,8 +49,10 @@ scanner:
     service:
       type: ClusterIP
       # clusterIP:
-      port: 5000
-      # nodePort:
+      httpPort: 5000
+      gcPort: 8081
+      # httpNodePort:
+      # gcNodePort:
   webshell:
     image:
       registry:  localhost:32000
