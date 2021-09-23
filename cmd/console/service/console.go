@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -58,38 +59,6 @@ import (
 
 var (
 	log *logging.Logger
-
-	declaredModels = []rdbtools.GormTable{
-		// accounts & auth
-		model.User{},
-		model.Email{},
-		model.OpenAPIAuthToken{},
-		// data management
-		model.GCTask{},
-		// image security
-		model.ImageList{},
-		model.QuestionInfo{},
-		// microseg
-		model.TensorMicrosegResource{},
-		model.TensorNetworkFlow{},
-		// assets
-		model.TensorResource{},
-		model.TensorContainer{},
-		model.TensorNamespace{},
-		model.TensorCluster{},
-		model.PodResourceRelation{},
-		// configs
-		model.TensorConfig{},
-		// compliance
-		model.ScanResult{},
-		model.ScanHistory{},
-		model.ScanNodeRecord{},
-		model.PolicyDetailInfo{},
-		model.ExportTask{},
-		model.CronScanTask{},
-		// processing center
-		model.ProcessingAction{},
-	}
 )
 
 const (
@@ -534,39 +503,55 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	//db.Get().WithContext(ctx).AutoMigrate(&model.ModuleGroup{}, &model.Url{})
 
 	mg1 := model.ModuleGroup{
+		Id:           1,
 		ModuleNameZh: "用户中心",
 		ModuleNameEn: "User Center",
 	}
 
 	mg2 := model.ModuleGroup{
+		Id:           2,
 		ModuleNameZh: "平台",
 		ModuleNameEn: "Platform",
 	}
 
 	mg3 := model.ModuleGroup{
+		Id:           3,
 		ModuleNameZh: "容器安全",
 		ModuleNameEn: "Container Security",
 	}
 
 	mg4 := model.ModuleGroup{
+		Id:           4,
 		ModuleNameZh: "微隔离",
 		ModuleNameEn: "Micro Segmentation",
 	}
 
-	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg1)
-	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg2)
-	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg3)
-	db.Get().WithContext(ctx).Table(model.ModuleGroup{}.TableName()).Create(&mg4)
+	var modules = []*model.ModuleGroup{&mg1, &mg2, &mg3, &mg4}
+	for _, module := range modules {
+		if err = db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(module).Error; err != nil {
+			logging.GetLogger().Err(err).Msgf("init module:%s fail", module.ModuleNameEn)
+			return err
+		}
+	}
 
-	url1 := model.Url{UrlName: "/api/v2/usercenter", UrlId: mg1.Id}
-	url2 := model.Url{UrlName: "/api/v2/platform", UrlId: mg2.Id}
-	url3 := model.Url{UrlName: "/api/v2/containerSec", UrlId: mg3.Id}
-	url4 := model.Url{UrlName: "/api/v2/microseg", UrlId: mg4.Id}
+	url1 := model.Url{Id: 1, UrlName: "/api/v2/usercenter", UrlId: mg1.Id}
+	url2 := model.Url{Id: 2, UrlName: "/api/v2/platform", UrlId: mg2.Id}
+	url3 := model.Url{Id: 3, UrlName: "/api/v2/containerSec", UrlId: mg3.Id}
+	url4 := model.Url{Id: 4, UrlName: "/api/v2/microseg", UrlId: mg4.Id}
 
-	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url1)
-	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url2)
-	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url3)
-	db.Get().WithContext(ctx).Table(model.Url{}.TableName()).Create(&url4)
+	urls := []*model.Url{&url1, &url2, &url3, &url4}
+	for _, url := range urls {
+		if err = db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(url).Error; err != nil {
+			logging.GetLogger().Err(err).Msgf("init url:%s fail", url.UrlName)
+			return err
+		}
+	}
 
 	return nil
 }
