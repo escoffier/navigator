@@ -1,7 +1,11 @@
 package util
 
 const (
-	// SegmentLabelKey is label key attached to pod to identifiy segment this pod is in
+	// IsolationLabelKey is label key for pods shall be isolated because of having vulnerability
+	IsolationLabelKey = "tensorsec-isolation"
+	// NamespaceLabelKey is label key attached to namespace
+	NamespaceLabelKey = "tensorsec-namespace"
+	// SegmentLabelKey is label key attached to pod to identify segment this pod is in
 	SegmentLabelKey = "tensorsec-segment"
 	// ResourceLabelKey is label key attached to pod to identify resource for per-resource policies
 	ResourceLabelKey = "tensorsec-resource"

@@ -10,4 +10,5 @@ import (
 type Service interface {
 	MutatePodLabels(ctx context.Context, cluster string, review *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
 	MutateLabels(ctx context.Context, parameters *processors.MutatorParameters, pod *v1.Pod) []*processors.Patch
+	MutateNamespaceLabels(ctx context.Context, parameters *processors.MutatorParameters, ns *v1.Namespace) []*processors.Patch
 }

@@ -30,19 +30,20 @@ const (
 )
 
 type ClusterManager struct {
-	masterAddr    string
-	CusterID      string
-	Name          string
-	Token         string
-	CaData        string
-	apiServerAddr string
-	description   string
-	ClusterType   model.ClusterType
-	httpClient    *http.Client
-	tlsClient     bool
-	client        clientset.Interface
-	nodeInformer  coreinformers.NodeInformer
-	resyncPeriod  time.Duration
+	masterAddr      string
+	CusterID        string
+	Name            string
+	Token           string
+	CaData          string
+	apiServerAddr   string
+	description     string
+	ClusterType     model.ClusterType
+	httpClient      *http.Client
+	tlsClient       bool
+	client          clientset.Interface
+	nodeInformer    coreinformers.NodeInformer
+	resyncPeriod    time.Duration
+	workerNamespace string
 }
 
 const (
@@ -55,9 +56,10 @@ const (
 
 func NewClusterManager(config *config.Config) *ClusterManager {
 	return &ClusterManager{
-		masterAddr:    config.MasterAddr,
-		Name:          config.Name,
-		apiServerAddr: fullHttpsUrl(config.ApiServerAddr),
+		masterAddr:      config.MasterAddr,
+		Name:            config.Name,
+		apiServerAddr:   config.ApiServerAddr,
+		workerNamespace: config.WorkerNamespace,
 	}
 }
 
@@ -179,6 +181,7 @@ func (c *ClusterManager) registerClusterInfo() error {
 		APIServerAddr:       c.apiServerAddr,
 		CertificateAuthData: c.CaData,
 		SecretToken:         c.Token,
+		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
 	}
 

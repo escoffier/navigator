@@ -15,8 +15,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/model/scap"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -33,17 +31,16 @@ func (api *api) scapOpen() func(chi.Router) {
 }
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Post("/{checkType}/{clusterID}", api.scapCheck())
+		r.Post("/{checkType}/{clusterKey}", api.scapCheck())
 		r.Get("/{checkType}/{nodeName}/{checkID}/details", api.getNodeCheckDetails())
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
 		r.Get("/{checkType}/breakdown/{checkID}", api.getCheckBreakdown())
-		r.Get("/{checkType}/breakdown", api.getLatestScanRecord())
-		r.Get("/{checkType}/history", api.getCheckHistory())
-		r.Get("/crons", api.listAllCrons())
+		r.Get("/{checkType}/{clusterKey}/breakdown", api.getLatestScanRecord())
+		r.Get("/{checkType}/{clusterKey}/history", api.getCheckHistory())
 		r.Post("/harborScan", api.harborScan())
 		r.Get("/harborScanList", api.harborScanList())
-		r.Get("/{checkType}/{clusterID}/cron", api.getCron())
-		r.Put("/{checkType}/{clusterID}/cron", api.putCron())
+		r.Get("/{checkType}/{clusterKey}/cron", api.getCron())
+		r.Put("/{checkType}/{clusterKey}/cron", api.putCron())
 		r.Get("/{checkType}/{checkID}/exportfile", api.exportFile())
 		r.Get("/{checkID}/getfile", api.getFile())
 	}
@@ -95,7 +92,7 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 		}
 
 		scapService, _ := scapper.GetService(ctx)
-		nodeCheckDetails := &scap.NodeCheckDetails{}
+		nodeCheckDetails := &model.NodeCheckDetails{}
 
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
@@ -130,16 +127,22 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
 // @Param checkID query string false "checkID"
-// @Param clusterID query string false "clusterID"
+// @Param clusterKey query string false "clusterKey"
 // @Param offset query int false "from offset"
 // @Param limit query int false "returned data limit"
 // @Param sortOrder query string false "asc/desc"
-// @Param sortBy query string false "createdAt/finishedAt/checkID/clusterID/numSuccessful/numFailed/numError/numWaiting/numInconclusive"
+// @Param sortBy query string false "createdAt/finishedAt/checkID/clusterKey/numSuccessful/numFailed/numError/numWaiting/numInconclusive"
 // @Router /api/v1/scap/{checkType}/history [get]
 func (api *api) getCheckHistory() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
+
+		clusterKey := chi.URLParam(r, "clusterKey")
+		if clusterKey == "" {
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
+			return
+		}
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
@@ -162,7 +165,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 		offset, limit := api.getOffsetAndLimit(r)
 		scapService, _ := scapper.GetService(ctx)
 
-		items, docNum, err := scapService.GetCheckHistory(ctx, offset, limit, string(checkType), sortBy, sortOrder)
+		items, docNum, err := scapService.GetCheckHistory(ctx, offset, limit, clusterKey, string(checkType), sortBy, sortOrder)
 		if err != nil {
 			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
 			return
@@ -217,7 +220,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 		waitingOn := []string{}
 		errorOn := []string{}
 		successOn := []string{}
-		checkMap := make(map[string]*scap.CheckBreakdown)
+		checkMap := make(map[string]*model.CheckBreakdown)
 
 		scapService, _ := scapper.GetService(ctx)
 		err := scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkID)
@@ -247,7 +250,7 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 			}
 		}
 
-		var results []*scap.CheckBreakdown
+		var results []*model.CheckBreakdown
 		for _, v := range checkMap {
 			results = append(results, v)
 		}
@@ -282,6 +285,12 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
+		clusterKey := chi.URLParam(r, "clusterKey")
+		if clusterKey == "" {
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
+			return
+		}
+
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
@@ -303,7 +312,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 		}
 
 		scapService, _ := scapper.GetService(ctx)
-		checkId, err := scapService.GetLatestHistory(ctx, string(checkType), "created_at", sortOrder)
+		checkId, err := scapService.GetLatestHistory(ctx, clusterKey, string(checkType), "created_at", sortOrder)
 		if err != nil {
 			response.Ok(w, response.WithTotalItems(0))
 			return
@@ -312,7 +321,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 		waitingOn := []string{}
 		errorOn := []string{}
 		successOn := []string{}
-		checkMap := make(map[string]*scap.CheckBreakdown)
+		checkMap := make(map[string]*model.CheckBreakdown)
 
 		err = scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkId)
 		if err != nil {
@@ -344,7 +353,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 			return
 		}
 
-		var results []*scap.CheckBreakdown
+		var results []*model.CheckBreakdown
 		for _, v := range checkMap {
 			results = append(results, v)
 		}
@@ -403,7 +412,7 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		policyDetails := &scap.PolicyDetails{}
+		policyDetails := &model.PolicyDetails{}
 		policyDetails.CheckID = checkID
 
 		scapService, _ := scapper.GetService(ctx)
@@ -439,16 +448,16 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 // @Description Run compliance check on specified cluster
 // @Produce json
 // @Param checkType path string true "kube/docker/host"
-// @Param clusterID path string true "cluster ID"
-// @Router /api/v1/scap/{checkType}/{clusterID} [post]
+// @Param clusterKey path string true "cluster ID"
+// @Router /api/v1/scap/{checkType}/{clusterKey} [post]
 func (api *api) scapCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
-		clusterObjectID, err := getClusterIDFromURL(r)
-		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID: %w", err), Suberror{"clusterID", ""}))
+		clusterKey := chi.URLParam(r, "clusterKey")
+		if clusterKey == "" {
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
 			return
 		}
 
@@ -463,12 +472,6 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		clusterService, _ := cluster.Get(ctx)
-		cluster, err := clusterService.GetCluster(ctx, clusterObjectID, true)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Failed to get cluster from Mongo: %w", err))
-			return
-		}
 		//username
 		username := "unknown"
 		//get token
@@ -480,14 +483,14 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		//check scanning task
 		scapService, _ := scapper.GetService(ctx)
-		err = scapService.CheckScanningTask(ctx, string(checkType), cluster.ID.Hex(), 3600)
+		err = scapService.CheckScanningTask(ctx, string(checkType), clusterKey, 3600)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
 			return
 		}
 
 		scapper, _ := scapper.GetScapper(ctx)
-		checkUUID, err := scapper.RunComplianceCheck(ctx, api.ctx, cluster, checkType, username)
+		checkUUID, err := scapper.RunComplianceCheck(ctx, api.ctx, clusterKey, checkType, username)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 			return

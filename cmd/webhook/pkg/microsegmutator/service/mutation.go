@@ -91,6 +91,20 @@ func (m *mutationService) MutatePodLabels(ctx context.Context, cluster string, r
 	}
 }
 
+func (m *mutationService) MutateNamespaceLabels(ctx context.Context, parameters *processors.MutatorParameters, ns *corev1.Namespace) []*processors.Patch {
+	patches := m.patchNamespace(ctx, ns, parameters.Cluster)
+
+	for _, patch := range patches {
+		p := patch.Value.(string)
+		err := util.EnsureValidK8sLabel(p)
+		if err != nil {
+			logrus.Errorf("Patch label %s sanity check failed: %w", patch.Value, err)
+			return nil
+		}
+	}
+	return patches
+}
+
 func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster, namespace string) []*processors.Patch {
 	var resID uint32
 	var newResLabelValue, newSegLabelValue string
@@ -102,6 +116,9 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 		pod.Labels = map[string]string{}
 	}
 	for key, _ := range pod.Labels {
+		if key == util.IsolationLabelKey {
+			return patches
+		}
 		if key == util.ResourceLabelKey {
 			resourcePatchOp = "replace"
 		}
@@ -162,6 +179,45 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 		})
 		logrus.Infof("Will patch pod %s:%s with %s=%s", namespace, pod.Name, util.SegmentLabelKey, newSegLabelValue)
 	}
+
+	return patches
+}
+
+func (m *mutationService) patchNamespace(ctx context.Context, ns *corev1.Namespace, cluster string) []*processors.Patch {
+	var nsID uint32
+	var newNsLabelValue string
+	nsPatchOp := "add"
+
+	patches := make([]*processors.Patch, 0)
+
+	if ns.Labels == nil {
+		ns.Labels = map[string]string{}
+	}
+	for key, _ := range ns.Labels {
+		if key == util.NamespaceLabelKey {
+			nsPatchOp = "replace"
+		}
+	}
+
+	tensorCluster, err := m.backend.GetClusterByName(ctx, cluster)
+	if err != nil {
+		logrus.Errorf("failed to get cluster by name: %s", cluster)
+		return patches
+	}
+	logrus.Infof("cluster key: %s", tensorCluster.Key)
+	nsID = util.GenID(tensorCluster.Key, ns.Name)
+	logrus.Infof("namespace info is %s:%s", cluster, ns.Name)
+
+	newNsLabelValue = fmt.Sprintf("%d", nsID)
+	patches = append(patches, &processors.Patch{
+		Op:    nsPatchOp,
+		Path:  fmt.Sprintf("/metadata/labels/%s", util.NamespaceLabelKey),
+		Value: newNsLabelValue,
+	})
+
+	logrus.Info(patches[0].Op, patches[0].Path, patches[0].Value)
+
+	logrus.Infof("Will patch namespace %s with %s=%s", ns.Name, util.NamespaceLabelKey, newNsLabelValue)
 
 	return patches
 }

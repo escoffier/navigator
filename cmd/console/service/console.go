@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -18,7 +17,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -28,12 +26,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
 
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
@@ -47,7 +41,6 @@ import (
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -60,7 +53,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gitlab.com/piccolo_su/vegeta/pkg/repository"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -94,6 +86,7 @@ var (
 		model.ScanNodeRecord{},
 		model.PolicyDetailInfo{},
 		model.ExportTask{},
+		model.CronScanTask{},
 		// processing center
 		model.ProcessingAction{},
 	}
@@ -323,13 +316,17 @@ func NewConsole(
 	if ucErr != nil {
 		logging.GetLogger().Err(svcErr).Msgf("ERROR: usercenter limiter init error")
 	}
-	// cluster service
-	cluster.Init(mainCtx, postgresDB, mongoDBWrapper, redisClient, fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port))
+
+	// scap service
+	err = sp.Init(mainCtx, scapOpts, redisClient, PgDsn, postgresDB)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
+	}
 
 	// cron service
 	c := cr.New()
 	c.Start()
-	cron.Init(c, mongoDBWrapper, mainCtx)
+	cron.Init(c, postgresDB, mainCtx)
 
 	reErr := riskexplorer.Init(scannerURL, redisClient)
 	if reErr != nil {
@@ -379,12 +376,6 @@ func NewConsole(
 		return nil, err
 	}
 
-	// scap service
-	err = sp.Init(mainCtx, scapOpts, mongoOpts, redisClient, mongoDBWrapper, PgDsn, postgresDB)
-	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
-	}
-	
 	microSegURL := fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port)
 	err = processingcenter.Init(&processingcenter.ServiceComponent{
 		DB:              postgresDB,
@@ -471,37 +462,27 @@ func (c *Console) Run() func() {
 	canDowngrade := true
 	err = c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("Harbor connection and admin privilege check failed")
+		log.Error().Err(err).Msg("Harbor connection and admin privilege check failed")
 	}
 
 	err = postgreCheck(c.postgresDB)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When check admin data in postgres")
+		log.Error().Err(err).Msg("When check admin data in postgres")
 	}
 
 	err = createMongoIndices(ctx, c.mongoDB)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("When creating mongo indices")
+		log.Error().Err(err).Msg("When creating mongo indices")
 	}
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if ok {
 		err = clusterManager.Start(ctx, nil)
 		if err != nil {
-			log.Error().
-				Err(err).
-				Msg("When starting cluster manager")
+			log.Error().Err(err).Msg("When starting cluster manager")
 		}
 	} else {
-		log.Error().
-			Err(errors.New("cluster manager not exist")).
-			Msg("get a nil cluster manager")
+		log.Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
 	}
 
 	cronService, _ := cron.Get(ctx)
@@ -524,9 +505,7 @@ func (c *Console) Run() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := c.server.Shutdown(ctx); err != nil {
-			log.Error().
-				Err(err).
-				Msg("Error in shutting down HTTP server")
+			log.Error().Err(err).Msg("Error in shutting down HTTP server")
 		}
 		wg.Wait()
 
@@ -638,113 +617,4 @@ func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper
 	}
 
 	return nil
-}
-
-func getCurrentKubeClient(ctx context.Context, clusterSvc *cluster.ClusterService) (*kubernetes.Clientset, *rest.Config, error) {
-	clusters, _, err := clusterSvc.ListClusters(ctx, 0, math.MaxInt64)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(clusters) == 0 {
-		return nil, nil, nil
-	}
-	if len(clusters) != 1 {
-		return nil, nil, errors.New("Expected at most 1 cluster at startup")
-	}
-
-	// TODO when support multiple clusters, just loop?
-	firstCluster := clusters[0]
-
-	logging.GetLogger().Info().
-		Msg("Cluster already exists")
-
-	kubeClient, err := k8s.KubeClientFromB64KubeConfig(firstCluster.KubeConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to create kube client from config: %w", err)
-	}
-	restConfig, err := k8s.GetRestConfigFromKubeConfig(firstCluster.KubeConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to get k8s rest config: %w", err)
-	}
-	err = k8s.CheckKubeClientConnection(ctx, kubeClient)
-	if err != nil {
-		return nil, nil, fmt.Errorf("Kube client connection check failed: %w", err)
-	}
-	return kubeClient, restConfig, nil
-}
-
-func getCurrentKubeClientWithServiceAccount() (*kubernetes.Clientset, *rest.Config, error) {
-	return k8s.KubeClientFromServiceAccoount()
-}
-
-func addDefaultCluster(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
-	newCluster := &model.Cluster{
-		ID:          primitive.NewObjectIDFromTimestamp(time.Now()),
-		ClusterName: "default",
-		KubeConfig:  "",
-		CreatedAt:   time.Now(),
-	}
-
-	collection := mongodb.Get().Collection(model.ClusterCollection.String())
-
-	err := mongodb.Get().Client().UseSession(ctx, func(sessionContext mongo.SessionContext) error {
-		sessionError := sessionContext.StartTransaction()
-		if sessionError != nil {
-			return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't start transaction: %w", sessionError))
-		}
-		defer repository.MongoSessionCommitter(sessionContext, &sessionError)()
-
-		filter := bson.M{"name": newCluster.ClusterName, "deleted_at": bson.M{"$exists": false}}
-		queryResult := collection.FindOne(sessionContext, filter)
-
-		if queryResult.Err() == mongo.ErrNoDocuments {
-			logging.GetLogger().Error().Msgf("default cluster exist,add cluster ")
-			_, sessionError = collection.InsertOne(sessionContext, newCluster)
-			if sessionError != nil {
-				logging.GetLogger().Error().Msgf("add cluster error:%+v", sessionContext)
-				return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't insert document: %w", sessionError))
-			}
-		} else {
-			return queryResult.Err()
-		}
-
-		return nil
-	})
-	if err != nil {
-		logging.GetLogger().Error().Msgf("add cluster error:%+v", err)
-		return err
-	}
-	return nil
-}
-func getAllKubeClient(ctx context.Context) map[string]*kubernetes.Clientset {
-	clientMap := make(map[string]*kubernetes.Clientset)
-
-	resSvc, _ := assetsSvc.GetResourcesService(ctx)
-	clusters, _, err := resSvc.GetClusters(ctx, 0, maxClusterNum)
-	if err != nil {
-		log.Error().Err(err).Msg("get cluster failed")
-		return nil
-	}
-
-	for _, c := range clusters {
-		tlsClientConfig := rest.TLSClientConfig{}
-		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
-			log.Error().Err(err).Msg("load root CA config err")
-			continue
-		} else {
-			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
-		}
-		clientSet, err := kubernetes.NewForConfig(&rest.Config{
-			Host:            c.APIServerAddr,
-			TLSClientConfig: tlsClientConfig,
-			BearerToken:     c.SecretToken,
-		})
-		if err != nil {
-			log.Error().Err(err).Msg("create clientset err")
-			continue
-		}
-		clientMap[c.Key] = clientSet
-	}
-	log.Info().Msgf("get %d k8s client", len(clientMap))
-	return clientMap
 }

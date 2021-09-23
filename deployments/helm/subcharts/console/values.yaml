@@ -15,6 +15,7 @@ image:
 
 scap:
   tag: latest
+  clusterAddr: http://tensorsec-cluster-manager:9443
 
 persistence:
   enabled: true

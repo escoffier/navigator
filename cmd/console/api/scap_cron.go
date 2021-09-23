@@ -7,62 +7,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cluster"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
-
-// @Summary List all crons
-// @Description List all crons (for all check types and clusters)
-// @Produce json
-// @Router /api/v1/scap/crons [get]
-func (api *api) listAllCrons() http.HandlerFunc {
-	type RespItem struct {
-		CronType    model.ComplianceCheckType `json:"cronType"`
-		CronString  string                    `json:"cronString"`
-		ClusterID   string                    `json:"clusterId"`
-		ClusterName string                    `json:"clusterName"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-		defer cancel()
-
-		clusterService, _ := cluster.Get(ctx)
-		clusters, _, err := clusterService.ListClusters(ctx, 0, 9999999)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Couldn't list clusters: %w", err))
-			return
-		}
-
-		respItems := []RespItem{}
-		for _, clust := range clusters {
-			respItems = append(respItems, RespItem{
-				ClusterID:   clust.ID.Hex(),
-				ClusterName: clust.ClusterName,
-				CronType:    model.ComplianceCheckTargetTypeDocker,
-				CronString:  clust.CronConfig.DockerBenchCron.CronString,
-			})
-			respItems = append(respItems, RespItem{
-				ClusterID:   clust.ID.Hex(),
-				ClusterName: clust.ClusterName,
-				CronType:    model.ComplianceCheckTargetTypeHost,
-				CronString:  clust.CronConfig.HostBenchCron.CronString,
-			})
-			respItems = append(respItems, RespItem{
-				ClusterID:   clust.ID.Hex(),
-				ClusterName: clust.ClusterName,
-				CronType:    "kubernetes",
-				CronString:  clust.CronConfig.KubeBenchCron.CronString,
-			})
-		}
-
-		response.Ok(w,
-			response.WithItems(respItems))
-	}
-}
 
 // @Summary Get cron configured for this checkType and cluster
 // @Description Get cron configured for this checkType and cluster
@@ -74,6 +24,7 @@ func (api *api) getCron() http.HandlerFunc {
 	type respStruct struct {
 		CronString string `json:"cronString,omitempty"`
 		LastRun    int    `json:"lastRun,omitempty"`
+		CreateTime int64  `json:"createAt,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := respStruct{}
@@ -81,9 +32,9 @@ func (api *api) getCron() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
-		clusterObjectID, err := getClusterIDFromURL(r)
-		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID: %w", err), Suberror{"clusterID", ""}))
+		clusterID := chi.URLParam(r, "clusterKey")
+		if clusterID == "" {
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
 			return
 		}
 
@@ -94,20 +45,16 @@ func (api *api) getCron() http.HandlerFunc {
 		}
 
 		if !model.IsAnyCheckType(checkType) {
-			RespAndLog(w, ctx,
-				NewFieldError(http.StatusBadRequest,
-					fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
-					Suberror{"checkType", "allowed: kube/docker/host"}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value")))
 			return
 		}
 
 		cronService, _ := cron.Get(ctx)
-		cronConfig, err := cronService.GetCron(ctx, clusterObjectID, checkType)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Failed to get cron: %w", err)))
-			return
+		cronTask, err := cronService.GetCron(ctx, clusterID, checkType)
+		if err == nil {
+			resp.CronString = cronTask.CronTime
+			resp.CreateTime = cronTask.CreatedAt
 		}
-		resp.CronString = cronConfig
 
 		response.Ok(w, response.WithItem(resp))
 	}
@@ -129,9 +76,9 @@ func (api *api) putCron() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
-		clusterObjectID, err := getClusterIDFromURL(r)
-		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID: %w", err), Suberror{"clusterID", ""}))
+		clusterID := chi.URLParam(r, "clusterKey")
+		if clusterID == "" {
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
 			return
 		}
 
@@ -148,14 +95,14 @@ func (api *api) putCron() http.HandlerFunc {
 		}
 
 		var req req
-		err = util.DecodeJSONBody(w, r, &req)
+		err := util.DecodeJSONBody(w, r, &req)
 		if err != nil {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("Failed to decode json: %w", err)))
 			return
 		}
 
 		cronService, _ := cron.Get(ctx)
-		err = cronService.UpdateCron(api.ctx, clusterObjectID, checkType, req.NewCronString)
+		err = cronService.UpdateCron(api.ctx, clusterID, checkType, req.NewCronString)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to update cron: %w", err))
 			return

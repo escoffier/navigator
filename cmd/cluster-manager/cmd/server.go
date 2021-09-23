@@ -6,6 +6,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"os"
+	"strings"
 )
 
 type server struct {
@@ -20,6 +22,10 @@ func NewServer() (*server, error) {
 	s := &server{
 		config: ServerConfig,
 	}
+
+	s.initConfig()
+
+	logging.GetLogger().Info().Msgf("config: %+v", s.config)
 
 	clsm := clusterManager.NewClusterManager(s.config)
 	err := clsm.Init()
@@ -44,6 +50,19 @@ func (s *server) Run() error {
 	go s.manager.Run()
 	go s.httpserver.Run()
 	return <-errChn
+}
+
+func fullHttpsUrl(str string) string {
+	if strings.Contains(str, "https") {
+		return str
+	}
+	return "https://" + str
+}
+
+func (s *server) initConfig() {
+	s.config.ApiServerAddr = fullHttpsUrl(s.config.ApiServerAddr)
+	workerNs := os.Getenv("MY_POD_NAMESPACE")
+	s.config.WorkerNamespace = workerNs
 }
 
 func AddFlags(fs *pflag.FlagSet) {
