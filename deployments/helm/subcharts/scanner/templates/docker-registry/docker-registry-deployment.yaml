@@ -36,9 +36,9 @@ spec:
           image: {{ include "scanner.docker.registry.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 5000
+            - containerPort: {{ .Values.dockerregistry.service.httpPort }}
               name: http
-            - containerPort: 8081
+            - containerPort: {{ .Values.dockerregistry.service.gcPort }}
               name: gc
           resources:
 {{ toYaml .Values.dockerregistry.resources | indent 12 }}

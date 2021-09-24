@@ -16,14 +16,14 @@ spec:
     - port: {{ .Values.dockerregistry.service.httpPort }}
       protocol: TCP
       name: http
-      targetPort: 5000
+      targetPort: {{ .Values.dockerregistry.service.httpPort }}
       {{- if (and (eq .Values.dockerregistry.service.type "NodePort") (not (empty .Values.dockerregistry.service.httpNodePort))) }}
       nodePort: {{ .Values.service.httpNodePort }}
       {{- end }}
     - port: {{ .Values.dockerregistry.service.gcPort }}
       protocol: TCP
       name: gc
-      targetPort: 8081
+      targetPort: {{ .Values.dockerregistry.service.gcPort }}
       {{- if (and (eq .Values.dockerregistry.service.type "NodePort") (not (empty .Values.dockerregistry.service.gcNodePort))) }}
       nodePort: {{ .Values.service.gcNodePort }}
       {{- end }}

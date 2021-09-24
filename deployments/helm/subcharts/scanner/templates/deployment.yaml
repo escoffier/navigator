@@ -70,11 +70,13 @@ spec:
                 name: {{ .Values.redis.redisSecretName }}
                 key: auth
           - name: CICD-BUF-REGISTRY-URL
-            value: http://{{ template "scanner.fullname" . }}-dockerregistry:5000
+            value: http://{{ template "scanner.fullname" . }}-dockerregistry:{{ .Values.dockerregistry.service.httpPort }}
           - name: CICD-BUF-REGISTRY-USER
             value: "tensorsec"
           - name: CICD-BUF-REGISTRY-PASSWORD
             value: "TensorSec@Passw0rd"
+          - name: REGISTRY_GC_PORT
+            value: {{ .Values.dockerregistry.service.gcPort | quote }}
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
             name: {{ include "scanner.name" . }}-api
