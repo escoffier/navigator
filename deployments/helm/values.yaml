@@ -311,8 +311,15 @@ holmes:
     jsonOutput: true
     jsonIncludeOutputProperty: true
     httpOutput:
-      enabled: true
+      enabled: false
       url: http://tensorsec-holmessidekick:2801
+    grpc:
+      enabled: true
+      threadiness: 3
+      # gRPC unix socket with no authentication
+      unixSocketPath: "unix:///var/run/falco/falco.sock"
+    grpcOutput:
+      enabled: true
     webserver:
       enabled: false
     programOutput:
@@ -323,6 +330,9 @@ holmes:
       enabled: false
     stdoutOutput:
       enabled: true
+  eventcenter:
+    eventGrpcUrl: tensorsec-eventcenter:9090
+    eventGrpcCertServerName: tensorsec-eventcenter
 
   # Add extra volumes to Falco daemonset
   extraVolumes:
@@ -421,7 +431,7 @@ security-profiles-manager:
     clusterID: tensorsec
 
 holmessidekick:
-  enabled: true
+  enabled: false
   replicaCount: 1
   image:
     repository: falcosecurity

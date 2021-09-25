@@ -9,7 +9,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,7 +17,7 @@ type EventArg struct {
 	Namespace   string
 	PodName     string
 	PodUID      string
-	RuleNmae    string
+	RuleName    string
 	ContainerID string
 	Output      string
 }
@@ -67,7 +66,7 @@ func GenerateEvent(uuidGenerator *uuid.Generator, arg *EventArg, category model.
 		RuleKey: &pb.RuleKey{
 			Module:   model.AlertModuleContainerSecurity,
 			Category: string(category),
-			Name:     arg.RuleNmae,
+			Name:     arg.RuleName,
 		},
 		NotifyContext: &pb.Context{
 			Cluster:   arg.Cluster,

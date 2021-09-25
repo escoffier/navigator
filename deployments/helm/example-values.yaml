@@ -21,6 +21,8 @@ global:
       clusterName: &clusterName default
       ## ApiServer address 
       apiServerAddr: &apiServerAddr 192.168.0.1:6443
+      ## EventCenter GRPC address, use short servicename for MainCluster and exposed address for MemberCluster
+      eventcenterGrpcAddr: &eventcenterGrpcAddr tensorsec-eventcenter:9090
       
       
 
@@ -95,7 +97,10 @@ holmes:
     image:
       tag: *tensorsecVerison
     multicluster:
-      consoleaddr: *masterAddr   
+      consoleaddr: *masterAddr
+  eventcenter:
+    eventGrpcUrl: *eventcenterGrpcAddr
+    eventGrpcCertServerName: tensorsec-eventcenter
 
 image-validator:
   enabled: false
@@ -144,7 +149,7 @@ stan:
     volume:
       enabled: *persistenceStorage
 holmessidekick:
-  enabled: *isMasterCluster
+  enabled: false
 
 redis-ha:
   enabled: *isMasterCluster

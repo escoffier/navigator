@@ -377,3 +377,7 @@ falcosidekick:
   # enable falcosidekick deployment
   enabled: false
   # for configuration values, see https://github.com/falcosecurity/charts/blob/master/falcosidekick/values.yaml
+
+eventcenter:
+  eventGrpcUrl: tensorsec-eventcenter:9090
+  eventGrpcCertServerName: tensorsec-eventcenter

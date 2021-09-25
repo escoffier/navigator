@@ -58,6 +58,14 @@ spec:
         - name: tensorsec-daemon
           image: {{ include "daemon.image" . }}
           imagePullPolicy: {{ .Values.tensorsecDaemon.image.pullPolicy }}
+          volumeMounts:
+            - mountPath: /auth/server
+              name: server-cert
+              readOnly: true
+            {{- if and .Values.falco.grpc.enabled .Values.falco.grpc.unixSocketPath }}
+            - mountPath: {{ include "falco.unixSocketDir" . }}
+              name: grpc-socket-dir
+            {{- end }}
           securityContext:
             privileged: true
             runAsUser: 0
@@ -65,6 +73,8 @@ spec:
           resources:
 {{ toYaml .Values.tensorsecDaemon.resources | trim | indent 12 }}
           env:
+            - name: RTDETECT_UDS_ADDR
+              value: {{ .Values.falco.grpc.unixSocketPath }}
             - name: CONSOLE_ADDR
               value: {{ .Values.tensorsecDaemon.multicluster.consoleaddr }}
             - name: CLUSTER_ADDR
@@ -81,6 +91,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: EVENT_GRPC_URL
+              value: {{ .Values.eventcenter.eventGrpcUrl }}
+            - name: EVENT_GRPC_CERT_PATH
+              value: /auth/server/tls.crt
+            - name: EVENT_GRPC_CERT_SERVER_NAME
+              value: {{ .Values.eventcenter.eventGrpcCertServerName }}
         {{- if .Values.global.multiCluster.isMasterCluster }}
         - name: {{ .Chart.Name }}
           image: {{ template "falco.image" . }}
@@ -212,6 +228,10 @@ spec:
         - name: etc-fs
           hostPath:
             path: /etc
+        - name: server-cert
+          secret:
+            defaultMode: 400
+            secretName: eventcenter-tls-server-cert-secret
         - name: config-volume
           configMap:
             name: {{ template "falco.fullname" . }}
@@ -235,6 +255,7 @@ spec:
         - name: grpc-socket-dir
           hostPath:
             path: {{ include "falco.unixSocketDir" . }}
+            type: DirectoryOrCreate
         {{- end }}
         {{- if or .Values.falco.webserver.sslEnabled (and .Values.falco.grpc.enabled (not .Values.falco.grpc.unixSocketPath)) }}
         - name: certs-volume

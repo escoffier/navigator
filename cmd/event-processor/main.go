@@ -129,7 +129,7 @@ func dealHolmesAlert(m *stan.Msg, r Reporter) {
 		Namespace:   podNamespace,
 		PodName:     podName,
 		PodUID:      podID,
-		RuleNmae:    ruleName,
+		RuleName:    ruleName,
 		ContainerID: containerID,
 		Output:      output,
 	}, "ATT&CK"))
