@@ -41,16 +41,19 @@ const (
 	IPCTNL_MSG_CT_DELETE = 2
 )
 
+type ClusterManager interface {
+	ClusterKey() (string, bool)
+}
 type FlowSession struct {
-	netlinkFd int
-	hostIP    string
-	krs       *K8sResClient
-	url       string
-	ClusterId string
-	submitter *Submitter
+	netlinkFd      int
+	hostIP         string
+	krs            *K8sResClient
+	url            string
+	clusterManager ClusterManager
+	submitter      *Submitter
 }
 
-func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, error) {
+func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*FlowSession, error) {
 
 	fd, err := newConntrackHandle(NF_NETLINK_CONNTRACK_NEW)
 	if err != nil {
@@ -82,7 +85,7 @@ func NewFlowSession(k8sClient *K8sResClient, clusterId string) (*FlowSession, er
 		netlinkFd: fd,
 		hostIP:    myHostIP,
 		krs:       k8sClient,
-		ClusterId: clusterId,
+		clusterManager: clusterManager,
 		url:       url,
 		submitter: NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
 	}
@@ -195,8 +198,12 @@ func (fs *FlowSession) ProcSessionData(ctx context.Context, SrcIP, DstIP *net.IP
 	//destination resource
 	netData.DstPort = int(dport)
 	netData.Proto = fs.NetProtoConvert(proto)
-	netData.SrcCluster = fs.ClusterId
-	netData.DstCluster = fs.ClusterId
+	ckey, ok := fs.clusterManager.ClusterKey()
+	if !ok {
+		ckey = "default"
+	}
+	netData.SrcCluster = ckey
+	netData.DstCluster = ckey
 
 	dstIp := DstIP.String()
 	dst, err := infos.GetK8sResData(dstIp)

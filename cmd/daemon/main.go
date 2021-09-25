@@ -5,46 +5,57 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/ruleMetrics"
+	"gitlab.com/piccolo_su/vegeta/pkg/clusters"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	_ "go.uber.org/automaxprocs"
 )
 
-func GetClusterId() (string, error) {
-	clusterAddr := os.Getenv("CLUSTER_ADDR")
-	if clusterAddr == "" {
-		return "", errors.Errorf("get cluster address failed.")
+const (
+	// 定时上报，缓存的间隔和缓存大小，实现简单的频控
+	defaultRTBuffInterval = 1 * time.Second
+	defaultRTBuffSize     = 1000
+)
+
+func initEventStreams(udsAddr string, cm *clusters.Manager) (*rtdetect.RuntimeEventStream, error) {
+	bui := rtdetect.StreamBuilder(udsAddr)
+
+	// add handlers here
+	ecHandler, err := rtdetect.NewEcHandler(cm)
+	if err != nil {
+		return nil, err
 	}
+	bui.WithHandler(rtdetect.NewAsyncHandler(ecHandler, defaultRTBuffInterval, defaultRTBuffSize))
 
-	clusterUrl := fmt.Sprintf("%s/internal/cluster", clusterAddr)
-
-	for i := 0; i < 20; i++ {
-		clusterId, err := netflow.GetK8sClusterInfo(clusterUrl)
-		if err == nil && len(clusterId) > 0 {
-			return clusterId, nil
-		}
-
-		time.Sleep(5 * time.Second)
-	}
-
-	return "", errors.Errorf("get k8s cluster id failed with timeout")
+	s, err := bui.Build(context.Background())
+	return s, err
 }
-
 func NetInit(ctx context.Context) error {
+	wg := sync.WaitGroup{}
 	//get node name
 	hostName := os.Getenv("MY_NODE_NAME")
 	if hostName == "" {
 		hostName = "Unknown"
 	}
-	//get cluster id
-	clusterId, err := GetClusterId()
-	if err != nil {
-		return err
+	rtUdsAddr := os.Getenv("RTDETECT_UDS_ADDR")
+	if rtUdsAddr == "" {
+		logging.GetLogger().Warn().Msg("env RTDETECT_UDS_ADDR not found")
 	}
+	clusterAddr := os.Getenv("CLUSTER_ADDR")
+	if clusterAddr == "" {
+		logging.GetLogger().Warn().Msg("env CLUSTER_ADDR not found")
+		errors.Errorf("get cluster address failed.")
+	}
+
+	clusterManager := clusters.NewManager(clusterAddr)
 
 	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(hostName)
 	if err != nil {
@@ -62,14 +73,46 @@ func NetInit(ctx context.Context) error {
 		return fmt.Errorf("listen k8s event failed, %v.", err)
 	}
 
-	flow, err := netflow.NewFlowSession(k8sResSync, clusterId)
+	flow, err := netflow.NewFlowSession(k8sResSync, clusterManager)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
 
-	flow.Start(ctx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
 
-	return nil
+		flow.Start(ctx)
+	}()
+
+	// start events streaming
+	if rtUdsAddr != "" {
+		rtStream, err := initEventStreams(rtUdsAddr, clusterManager)
+		if err != nil {
+			return fmt.Errorf("Failed to rt events streams, %w", err)
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				}
+			}()
+			if err = rtStream.Start(ctx); err != nil {
+				err = fmt.Errorf("runtime detection start error %v", err)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	return err
 }
 
 func main() {

@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 const (
