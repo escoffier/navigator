@@ -334,29 +334,6 @@ holmes:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
 
-  # Add extra volumes to Falco daemonset
-  extraVolumes:
-    - name: client-cert
-      secret:
-        secretName: eventcenter-tls-client-cert-secret
-    - name: ca-cert
-      secret:
-        secretName: eventcenter-tls-ca-secret
-    - name: server-cert
-      secret:
-        secretName: eventcenter-tls-server-cert-secret
-  # Add extra volumeMounts to Falco container in Falco daemonset
-  extraVolumeMounts:
-    - mountPath: /auth/client
-      name: client-cert
-      readOnly: true
-    - mountPath: /auth/ca
-      name: ca-cert
-      readOnly: true
-    - mountPath: /auth/server
-      name: server-cert
-      readOnly: true
-
 image-validator:
   enabled: false
   image:
