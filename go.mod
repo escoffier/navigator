@@ -1,6 +1,6 @@
 module gitlab.com/piccolo_su/vegeta
 
-go 1.16
+go 1.17
 
 require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
@@ -85,7 +85,6 @@ require (
 	github.com/tomogoma/generator v0.0.0-20171014125632-4398aab4dd41 // indirect
 	github.com/tomogoma/go-api-guard v0.0.0-20180312041446-a2bad766ec64
 	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
-	github.com/ugorji/go v1.2.6 // indirect
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vishvananda/netlink v0.0.0 //netlink
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
@@ -112,6 +111,95 @@ require (
 	k8s.io/apiserver v0.19.12
 	k8s.io/client-go v0.19.12
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4
+)
+
+require (
+	github.com/CyrusF/go-bayesian v0.0.0-20180928040635-c6aa877814bd // indirect
+	github.com/CyrusF/libsvm-go v0.0.0-20180928035651-2210b124fd3d // indirect
+	github.com/KyleBanks/depth v1.2.1 // indirect
+	github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5 // indirect
+	github.com/PuerkitoBio/purell v1.1.1 // indirect
+	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
+	github.com/andybalholm/cascadia v1.1.0 // indirect
+	github.com/containerd/containerd v1.4.1 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-units v0.4.0 // indirect
+	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/gin-contrib/sse v0.1.0 // indirect
+	github.com/glaslos/ssdeep v0.3.1 // indirect
+	github.com/go-logr/logr v0.2.0 // indirect
+	github.com/go-openapi/jsonpointer v0.19.3 // indirect
+	github.com/go-openapi/jsonreference v0.19.4 // indirect
+	github.com/go-playground/locales v0.14.0 // indirect
+	github.com/go-playground/universal-translator v0.18.0 // indirect
+	github.com/go-stack/stack v1.8.0 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/googleapis/gnostic v0.4.1 // indirect
+	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
+	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
+	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/imdario/mergo v0.3.9 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/pgconn v1.10.0 // indirect
+	github.com/jackc/pgio v1.0.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.1.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
+	github.com/jackc/pgtype v1.8.1 // indirect
+	github.com/jackc/pgx/v4 v4.13.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.2 // indirect
+	github.com/josharian/intern v1.0.0 // indirect
+	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7 // indirect
+	github.com/jtolds/gls v4.20.0+incompatible // indirect
+	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/magiconair/properties v1.8.1 // indirect
+	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/mdlayher/netlink v1.1.0 // indirect
+	github.com/mitchellh/mapstructure v1.3.1 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/nats-io/nkeys v0.3.0 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/pelletier/go-toml v1.8.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
+	github.com/smartystreets/assertions v1.1.1 // indirect
+	github.com/spf13/afero v1.2.2 // indirect
+	github.com/spf13/cast v1.3.1 // indirect
+	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/subosito/gotenv v1.2.0 // indirect
+	github.com/ugorji/go/codec v1.2.6 // indirect
+	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
+	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
+	github.com/xdg-go/scram v1.0.2 // indirect
+	github.com/xdg-go/stringprep v1.0.2 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+	go.uber.org/multierr v1.5.0 // indirect
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
+	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
+	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/tools v0.1.5 // indirect
+	google.golang.org/appengine v1.6.6 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
+	gopkg.in/ini.v1 v1.56.0 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	k8s.io/klog/v2 v2.2.0 // indirect
+	k8s.io/utils v0.0.0-20200729134348-d5654de09c73 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.0.3 // indirect
+	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (
