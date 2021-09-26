@@ -96,7 +96,7 @@ func (s *OnlineMonitorCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.A
 		Cluster:   newPod.ClusterName,
 	}
 
-	logging.GetLogger().Info().Msgf(fmt.Sprintf("K8sOnlineMonitor NotifyContext PodId:%s,PodName:%s,Namespace:%s,Cluster:%s,action:%v,status:%s", notify.PodUID, notify.PodName, notify.Namespace, notify.Cluster, action, newPod.Status.Phase))
+	logging.GetLogger().Info().Msgf("K8sOnlineMonitor NotifyContext PodId:%s,PodName:%s,Namespace:%s,Cluster:%s,action:%v,status:%s", notify.PodUID, notify.PodName, notify.Namespace, notify.Cluster, action, newPod.Status.Phase)
 
 	if action != assets.ActionDelete {
 		if err := s.detectImage(ctx, newPod.Status.ContainerStatuses, &notify); err != nil {
@@ -182,10 +182,9 @@ func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.C
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := http.Client{}
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
-	response, err := client.Do(req.WithContext(cancelCtx))
+	response, err := http.DefaultClient.Do(req.WithContext(cancelCtx))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("detectImage 请求scanner服务出错")
 		return err

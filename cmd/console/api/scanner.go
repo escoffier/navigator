@@ -125,10 +125,7 @@ func (api *api) scan() http.HandlerFunc {
 			return
 		}
 
-		client := http.Client{
-			Timeout: 10 * time.Second,
-		}
-		resp, err := client.Post(
+		resp, err := http.DefaultClient.Post(
 			fmt.Sprintf("%s/api/v1/scan/one", api.scannerURL),
 			"application/json",
 			bytes.NewBuffer(jsonValue),
@@ -160,8 +157,7 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 			fmt.Errorf("Failed to prepare request to tensorsec scanner: %w", err))
 	}
 
-	httpClient := http.Client{}
-	resp, err := httpClient.Do(tensorsecScannerReq.WithContext(ctx))
+	resp, err := http.DefaultClient.Do(tensorsecScannerReq.WithContext(ctx))
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
 			fmt.Errorf("Failed to send request to tensorsec scanner: %w", err))

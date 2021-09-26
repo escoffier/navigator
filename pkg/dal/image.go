@@ -115,8 +115,7 @@ func GetAllVirusScanStatus(ctx context.Context, scannerURL string) (int, int) {
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	httpClient := http.Client{}
-	resp, err := httpClient.Do(req.WithContext(ctx))
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		logging.GetLogger().Error().Msgf("failed to send get scan all status request to Virus: %+v", err)
 		return 0, 0
@@ -151,8 +150,7 @@ func GetAllVirusScanOneStatus(ctx context.Context, scannerURL, digest string) (s
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	httpClient := http.Client{}
-	resp, err := httpClient.Do(req.WithContext(ctx))
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		logging.GetLogger().Error().Msgf("failed to send get scan one status request to Virus: %+v", err)
 		return "", err

@@ -2,11 +2,13 @@ package layerManage
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type LocalLayerManageClient struct {
@@ -23,7 +25,7 @@ func NewLocalLayerManageClient(llms *LocalLayerManageSrv) (*LocalLayerManageClie
 	return llmc, nil
 }
 
-func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository, digest string, skipTls bool) (string, string, error) {
+func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, password, url, repository, digest string, skipTls bool) (string, string, error) {
 	rq := RequestLayerInfo{
 		Username:   username,
 		Password:   password,
@@ -39,7 +41,9 @@ func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository
 	}
 	log.Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository, rq.Digest)
 
-	req, err := http.NewRequest("POST", llmc.serverAddr, bytes.NewBuffer(jsonStr))
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(tctx, http.MethodPost, llmc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
 
 		log.Error().Msgf("new req err %v", err)
@@ -47,8 +51,7 @@ func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
-	client := &http.Client{}
-	rsp, err := client.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Error().Msgf("client do req err %v", err)
 		return "", "", err
@@ -73,8 +76,8 @@ func (llmc *LocalLayerManageClient) GetLayer(username, password, url, repository
 	return rspLayerInfo.LayerUrl, rspLayerInfo.Url, nil
 }
 
-func (llmc *LocalLayerManageClient) DeleteLayer(digest string) error {
-	req, err := http.NewRequest("DELETE", llmc.serverAddr, nil)
+func (llmc *LocalLayerManageClient) DeleteLayer(ctx context.Context, digest string) error {
+	req, err := http.NewRequestWithContext(ctx, "DELETE", llmc.serverAddr, nil)
 	if err != nil {
 		return err
 	}
@@ -83,8 +86,7 @@ func (llmc *LocalLayerManageClient) DeleteLayer(digest string) error {
 	req.URL.RawQuery = q.Encode()
 
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	rsp, err := client.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

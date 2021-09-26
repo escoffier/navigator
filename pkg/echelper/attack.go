@@ -10,6 +10,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 
+var filteredOutFields = map[string]struct{}{
+	"k8s.ns.name":  {},
+	"k8s.pod.name": {},
+	"k8s.pod.id":   {},
+	"evt.time":     {},
+}
 var eventKVsMap = map[string]map[string]pb.KV{
 	// event
 	"evt.type": {
@@ -133,7 +139,7 @@ var eventKVsMap = map[string]map[string]pb.KV{
 	},
 }
 
-func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, podName string, namespace string) {
+func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, podUID, podName, namespace string) {
 
 	kvs = make([]*pb.MultiLanguageKV, 0, len(data.OutputFields)+5)
 	pid, err := model.GetInfoFromOutput("proc_pid=", data.Output)
@@ -201,10 +207,14 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 			podName = value
 		case "k8s.ns.name":
 			namespace = value
+		case "k8s.pod.id":
+			podUID = value
 		}
 		if key == "proc.pname" && procPname != "" {
 			continue
 		} else if key == "proc.name" && procName != "" {
+			continue
+		} else if _, toFilterOut := filteredOutFields[key]; toFilterOut {
 			continue
 		}
 
@@ -278,12 +288,12 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 			},
 		})
 	}
-	return kvs, podName, namespace
+	return kvs, podUID, podName, namespace
 }
 
 func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string) *pb.SendNotificationReq {
 
-	customKVs, podName, namespace := generateEventCustomKVs(data)
+	customKVs, podUID, podName, namespace := generateEventCustomKVs(data)
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
 			Module:   model.AlertModuleContainerSecurity,
@@ -293,6 +303,7 @@ func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, 
 		NotifyContext: &pb.Context{
 			Cluster:   clusterKey,
 			PodName:   podName,
+			PodUID:    podUID,
 			Namespace: namespace,
 			CustomKV:  customKVs,
 		},
