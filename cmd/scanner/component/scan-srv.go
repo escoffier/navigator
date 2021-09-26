@@ -57,8 +57,8 @@ type ScannerSrv interface {
 	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool
 
 	DeleteCICDImage(ctx context.Context)
-	ListBaseImageOfApp(ctx context.Context, imageId int64) ([]model.ImageList, error)
-	ListAppImageOfBase(ctx context.Context, baseImageId int64) ([]model.ImageList, error)
+	ListBaseImageOfApp(ctx context.Context, imageId int64, filter *model.Filter) ([]model.ImageList, int64, error)
+	ListAppImageOfBase(ctx context.Context, baseImageId int64, filter *model.Filter) ([]model.ImageList, int64, error)
 }
 
 type ConScannerSrv struct {
@@ -85,20 +85,20 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.Registr
 	}
 }
 
-func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageId int64) ([]model.ImageList, error) {
+func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageId int64, filter *model.Filter) ([]model.ImageList, int64, error) {
 	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imageId}, ImageType: consts.AppImage}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ListBaseImageOfApp")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
 	}
 	if len(images) == 0 {
-		return nil, response.NewHttpError(http.StatusExpectationFailed, errors.New("not find the app image"))
+		return nil, 0, response.NewHttpError(http.StatusExpectationFailed, errors.New("not find the app image"))
 	}
 
 	baseImages, _, err := s.SearchImages(ctx, SearchImagesParam{ImageType: consts.BaseImage}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ListBaseImageOfApp")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
 	}
 	baseImageMap := make(map[int64]model.ImageList)
 	for i := range baseImages {
@@ -123,7 +123,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageId int64) (
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("SearchImages.SearchRegistry:error:%s", err.Error()))
-		return nil, response.NewHttpError(http.StatusGone, err)
+		return nil, 0, response.NewHttpError(http.StatusGone, err)
 	}
 	regMap := make(map[int64]model.Registry)
 	for i := range registries {
@@ -134,31 +134,43 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageId int64) (
 			ans[i].Registry = &re
 		}
 	}
+	// 应付前端分页
+	if filter != nil && len(ans) > 0 {
+		start := int(filter.PageSize * (filter.PageIndex - 1))
+		end := int(filter.PageSize * (filter.PageIndex))
 
-	return ans, nil
+		if len(ans) <= start {
+			return make([]model.ImageList, 0), int64(len(ans)), nil
+		}
+		if end > len(ans) {
+			end = len(ans)
+		}
+		return ans[start:end], int64(len(ans)), nil
+	}
+	return ans, int64(len(ans)), nil
 }
 
-func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageId int64) ([]model.ImageList, error) {
+func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageId int64, filter *model.Filter) ([]model.ImageList, int64, error) {
 	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{baseImageId}, ImageType: consts.BaseImage, Fields: []string{"id", "layers"}}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ListAppImageOfBase")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
 	}
 	if len(baseImages) == 0 {
-		return nil, response.NewHttpError(http.StatusExpectationFailed, errors.New("not find the base image"))
+		return nil, 0, response.NewHttpError(http.StatusExpectationFailed, errors.New("not find the base image"))
 	}
 	baseLayer := getLayerString(baseImages[0])
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{ImageType: consts.AppImage, LayersPrefix: baseLayer,
-		Fields: []string{"id", "layers", "full_repo_name", "image_type", "library", "tags", "digest"}}, nil)
+	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{ImageType: consts.AppImage, LayersPrefix: baseLayer,
+		Fields: []string{"id", "layers", "full_repo_name", "image_type", "library", "tags", "digest"}}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchImage")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ListAppImageOfBase")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
 	}
 	regMap := make(map[int64]model.Registry)
 	for i := range registries {
@@ -170,7 +182,7 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageId int6
 		}
 	}
 
-	return images, nil
+	return images, cnt, nil
 }
 
 func (s *ConScannerSrv) UpdateImage(ctx context.Context, param SearchImagesParam, update map[string]interface{}) error {
@@ -1408,7 +1420,7 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img model.ImageList,
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
-	images, err := s.ListBaseImageOfApp(ctx, img.ID)
+	images, _, err := s.ListBaseImageOfApp(ctx, img.ID, nil)
 	if len(images) > 0 {
 		logging.GetLogger().Info().Msgf("checkBaseImage find base image:%s/%s:%s,imagID:%d", images[0].Library, images[0].FullRepoName, images[0].Tags, images[0].ID)
 		return true, records, msgs

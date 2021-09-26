@@ -50,10 +50,14 @@ func (f *Filter) SetDefault() *Filter {
 	}
 	if f.SortBy != "" {
 		f.SortBy = strings.ToLower(f.SortBy)
+	} else {
+		f.SortBy = "id"
 	}
-	if f.SortFiled != "" && (f.SortBy == "" || (f.SortBy != "desc" && f.SortBy != "asc")) {
+
+	if f.SortBy == "" || (f.SortBy != "desc" && f.SortBy != "asc") {
 		f.SortBy = "desc"
 	}
+
 	if f.Offset == 0 {
 		f.PageIndex = 1 // 取第一页
 	}
@@ -67,6 +71,7 @@ func (f *Filter) SetDefault() *Filter {
 	if f.Offset <= 0 && f.PageSize > 0 && f.PageIndex > 0 {
 		f.Offset = (f.PageIndex - 1) * f.PageSize
 	}
+
 	return f
 }
 
