@@ -225,10 +225,6 @@ spec:
         - name: etc-fs
           hostPath:
             path: /etc
-        - name: server-cert
-          secret:
-            defaultMode: 400
-            secretName: eventcenter-tls-server-cert-secret
         - name: config-volume
           configMap:
             name: {{ template "falco.fullname" . }}
