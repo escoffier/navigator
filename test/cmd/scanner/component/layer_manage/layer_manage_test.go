@@ -2,11 +2,12 @@ package layer_manage
 
 import (
 	"context"
-	"github.com/heroku/docker-registry-client/registry"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/heroku/docker-registry-client/registry"
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 )
 
 func ClientPullLayer(t *testing.T, llms *layerManage.LocalLayerManageSrv, num int) {
@@ -22,7 +23,7 @@ func ClientPullLayer(t *testing.T, llms *layerManage.LocalLayerManageSrv, num in
 
 	defer func() {
 		//delete layer
-		err = client.DeleteLayer(digest)
+		err = client.DeleteLayer(context.Background(), digest)
 		if err != nil {
 			t.Fatalf("delete layer err %v", err)
 		}
@@ -33,7 +34,7 @@ func ClientPullLayer(t *testing.T, llms *layerManage.LocalLayerManageSrv, num in
 		t.Fatalf("client %d new local layer manage client err %v", num, err)
 	}
 
-	layerUrl, httpUrl, err := client.GetLayer(username, password, url, repository, digest, true)
+	layerUrl, httpUrl, err := client.GetLayer(context.Background(), username, password, url, repository, digest, true)
 	if err != nil {
 		t.Fatalf("get layer err %v", err)
 	}

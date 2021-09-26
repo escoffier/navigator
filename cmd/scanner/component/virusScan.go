@@ -851,7 +851,7 @@ func (virusScan *VirusScan) GetLayerPath(ctx context.Context, client *layerManag
 	if err != nil {
 		return "", fmt.Errorf("decodeUsernamePassword err %v", err)
 	}
-	layerUrl, _, err := client.GetLayer(username, password, scanTask.URL, scanTask.Repository, digest, true)
+	layerUrl, _, err := client.GetLayer(ctx, username, password, scanTask.URL, scanTask.Repository, digest, true)
 	if err != nil {
 		return "", fmt.Errorf("get layer err %v", err)
 	}
@@ -859,7 +859,7 @@ func (virusScan *VirusScan) GetLayerPath(ctx context.Context, client *layerManag
 }
 func (virusScan *VirusScan) DeleteLayerPath(ctx context.Context, client *layerManage.LocalLayerManageClient, digest string) {
 	zerolog.Ctx(ctx).Info().Str("Digest:", digest).Msg("VirusScan Delete Layer")
-	err := client.DeleteLayer(digest)
+	err := client.DeleteLayer(ctx, digest)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("virusScan DeleteLayerPath error %v", err)
 	}

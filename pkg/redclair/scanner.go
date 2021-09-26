@@ -162,7 +162,7 @@ func (r *Redclair) GetLayerPath(ctx context.Context, client *layerManage.LocalLa
 	if err != nil {
 		return "", "", fmt.Errorf("decodeUsernamePassword err %v", err)
 	}
-	layerUrl, httpLayer, err := client.GetLayer(username, password, scanTask.URL, scanTask.Repository, digest, true)
+	layerUrl, httpLayer, err := client.GetLayer(ctx, username, password, scanTask.URL, scanTask.Repository, digest, true)
 	if err != nil {
 		return "", "", fmt.Errorf("get layer err %v", err)
 	}
@@ -171,7 +171,7 @@ func (r *Redclair) GetLayerPath(ctx context.Context, client *layerManage.LocalLa
 
 func (r *Redclair) DeleteLayerPath(ctx context.Context, client *layerManage.LocalLayerManageClient, digest string) {
 	zerolog.Ctx(ctx).Info().Str("Digest:", digest).Msg("Clair Delete Layer")
-	client.DeleteLayer(digest)
+	client.DeleteLayer(ctx, digest)
 }
 
 func (r *Redclair) decodeUsernamePassword(scanTask model.ScanTask) (string, string, error) {
