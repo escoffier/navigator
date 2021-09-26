@@ -125,7 +125,7 @@ cluster-manager:
     apiServerAddr: *apiServerAddr
 
 eventcenterAuth:
-  enabled: *isMasterCluster
+  enabled: true
 
 security-profiles-manager:
   enabled: *isMasterCluster
