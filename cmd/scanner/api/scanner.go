@@ -577,7 +577,8 @@ func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	images, err := s.Srv.ListBaseImageOfApp(ctx, imageID)
+	filter := model.GetFilter(ctx)
+	images, cnt, err := s.Srv.ListBaseImageOfApp(ctx, imageID, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -588,7 +589,11 @@ func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
 		res = append(res, model.ImageToImageResponse(images[i]))
 	}
 	logging.GetLogger().Info().Msgf("ListBaseImageOfApp end:%d,cost:%d", time.Now().UnixNano()/1000, time.Now().UnixNano()/1000-start)
-	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
+	response.JSONOK(ctx, response.WithItems(res),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset),
+	)
 }
 
 // ListBaseToAppImage 获取基础镜像的应用镜像列表
@@ -608,7 +613,8 @@ func (s *Scanner) ListBaseToAppImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	images, err := s.Srv.ListAppImageOfBase(ctx, imageID)
+	filter := model.GetFilter(ctx)
+	images, cnt, err := s.Srv.ListAppImageOfBase(ctx, imageID, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -619,7 +625,11 @@ func (s *Scanner) ListBaseToAppImage(ctx *gin.Context) {
 		res = append(res, model.ImageToImageResponse(images[i]))
 	}
 	logging.GetLogger().Info().Msgf("ListAppImageOfBase end:%d,cost:%d", time.Now().UnixNano()/(1000*1000), time.Now().UnixNano()/(1000*1000)-start)
-	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
+	response.JSONOK(ctx, response.WithItems(res),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset),
+	)
 }
 
 // CreateBaseImage 创建基础镜像

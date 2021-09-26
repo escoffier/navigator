@@ -30,7 +30,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 )
@@ -38,22 +37,22 @@ import (
 var (
 	log *logging.Logger
 
-	declaredModels = []rdbtools.GormTable{
-		model.User{},
-		model.Email{},
-		model.ImageList{},
-		model.QuestionInfo{},
-		model.ScanImage{},
-		model.ScanLayer{},
-		model.VulnImage{},
-		model.Vuln{},
-		model.Registry{},
-		model.ImageRelate{},
-		model.RejectRecord{},
-		model.ImageWhitelist{},
-		model.RejectPolicy{},
-		model.RejectVuln{},
-	}
+	// declaredModels = []rdbtools.GormTable{
+	// 	model.User{},
+	// 	model.Email{},
+	// 	model.ImageList{},
+	// 	model.QuestionInfo{},
+	// 	model.ScanImage{},
+	// 	model.ScanLayer{},
+	// 	model.VulnImage{},
+	// 	model.Vuln{},
+	// 	model.Registry{},
+	// 	model.ImageRelate{},
+	// 	model.RejectRecord{},
+	// 	model.ImageWhitelist{},
+	// 	model.RejectPolicy{},
+	// 	model.RejectVuln{},
+	// }
 )
 
 func init() {
