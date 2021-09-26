@@ -195,16 +195,27 @@ func getInformerFuncForResources(echan chan resourceEvent, cluster string, resFa
 }
 
 func ShouldResourceBeFiltered(res *TensorResource) bool {
-	if res.Kind != KindReplicaSet {
-		return false
-	}
-	if len(res.OwnerReferences) == 0 {
-		return false
-	}
-	for _, or := range res.OwnerReferences {
-		if or.Controller != nil && *or.Controller {
-			if or.Kind == string(KindDeployment) {
-				return true
+	switch res.Kind {
+	case KindReplicaSet:
+		if len(res.OwnerReferences) == 0 {
+			return false
+		}
+		for _, or := range res.OwnerReferences {
+			if or.Controller != nil && *or.Controller {
+				if or.Kind == string(KindDeployment) {
+					return true
+				}
+			}
+		}
+	case KindJob:
+		if len(res.OwnerReferences) == 0 {
+			return false
+		}
+		for _, or := range res.OwnerReferences {
+			if or.Controller != nil && *or.Controller {
+				if or.Kind == string(KindCronJob) {
+					return true
+				}
 			}
 		}
 	}
