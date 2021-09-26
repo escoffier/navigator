@@ -76,6 +76,10 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"en": {Key: "Process FD Count"},
 		"zh": {Key: "进程文件描述符数量"},
 	},
+	"proc.tty": {
+		"en": {Key: "Process Controlling Terminal"},
+		"zh": {Key: "进程控制台"},
+	},
 	// user
 	"user.name": {
 		"en": {Key: "user"},
