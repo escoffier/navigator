@@ -1,4 +1,3 @@
-{{- if .Values.global.multiCluster.isMasterCluster }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -204,4 +203,3 @@ data:
       enabled: {{ .Values.falco.grpcOutput.enabled }}
 
 {{ (.Files.Glob "rules/*").AsConfig | indent 2 }}
-{{- end }}
