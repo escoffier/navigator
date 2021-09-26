@@ -28,6 +28,18 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"en": {Key: "syscall"},
 		"zh": {Key: "系统调用"},
 	},
+	"evt.arg.name": {
+		"en": {Key: "Event Arguments Name"},
+		"zh": {Key: "事件参数名称"},
+	},
+	"evt.arg.oldpath": {
+		"en": {Key: "Event Argument OldPath"},
+		"zh": {Key: "事件旧参数路径"},
+	},
+	"evt.arg.path": {
+		"en": {Key: "Event Argument Path"},
+		"zh": {Key: "事件参数路径"},
+	},
 
 	// Process
 	"proc.pid": {
@@ -73,7 +85,7 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"en": {Key: "Container Image"},
 		"zh": {Key: "容器镜像"},
 	},
-	"container.image.tg": {
+	"container.image.tag": {
 		"en": {Key: "Container Image Tag"},
 		"zh": {Key: "容器镜像Tag"},
 	},

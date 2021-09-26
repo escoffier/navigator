@@ -21,8 +21,8 @@ import (
 
 const (
 	// 定时上报，缓存的间隔和缓存大小，实现简单的频控
-	defaultRTBuffInterval = 1 * time.Second
-	defaultRTBuffSize     = 1000
+	defaultRTBuffInterval = 500 * time.Millisecond
+	defaultRTBuffSize     = 500
 )
 
 func initEventStreams(udsAddr string, cm *clusters.Manager) (*rtdetect.RuntimeEventStream, error) {
