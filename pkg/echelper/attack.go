@@ -59,7 +59,7 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"en": {Key: "procPname"},
 	},
 	"proc.cmdline": {
-		"en": {Key: "Process Commandline"},
+		"en": {Key: "command"},
 		"zh": {Key: "进程命令行"},
 	},
 	"proc.loginshellid": {
