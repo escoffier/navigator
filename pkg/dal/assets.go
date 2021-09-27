@@ -9,14 +9,13 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	corev1 "k8s.io/api/core/v1"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -27,6 +26,7 @@ var (
 		"ports",
 		"image_pull_policy",
 		"security_context",
+		"image_uuid",
 	}
 	onDupUpdatedColsForResource = []string{
 		"updated_at",
@@ -452,6 +452,7 @@ func fromContainerToModel(container corev1.Container, resource *assets.TensorRes
 	contModel.ResourceName = resource.Name
 	contModel.Image = container.Image
 	contModel.ImagePullPolicy = container.ImagePullPolicy
+	contModel.ImageUUID = util.GenerateUUID(container.Image)
 	contModel.Ports = container.Ports
 	contModel.SecurityContext = (*model.SecurityContext)(container.SecurityContext)
 	contModel.Spec = (*model.ContainerSpec)(&container)
