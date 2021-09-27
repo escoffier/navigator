@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	aiImmuneRulesSet = map[string]struct{}{
-		"file integrity management": struct{}{},
-		"command whitelist":         struct{}{},
-		"seccomp":                   struct{}{},
+	filteredOutRulesSet = map[string]struct{}{
+		"file integrity management":          struct{}{},
+		"command whitelist":                  struct{}{},
+		"seccomp":                            struct{}{},
+		"Falco internal: syscall event drop": struct{}{},
 	}
 )
 
@@ -69,6 +70,6 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 }
 
 func (ec *EcHandler) CheckTarget(ctx context.Context, event eventItem) bool {
-	_, exist := aiImmuneRulesSet[event.data.Rule]
+	_, exist := filteredOutRulesSet[event.data.Rule]
 	return !exist
 }
