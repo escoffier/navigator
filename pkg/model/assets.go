@@ -157,6 +157,7 @@ type TensorContainer struct {
 	Ports           ContainerPorts    `gorm:"column:ports;type:jsonb"`
 	ImagePullPolicy corev1.PullPolicy `gorm:"column:image_pull_policy;type:jsonb"`
 	SecurityContext *SecurityContext  `gorm:"column:security_context;type:jsonb"`
+	ImageUUID       uint32            `gorm:"column:image_uuid"`
 }
 
 func (TensorContainer) TableName() string {

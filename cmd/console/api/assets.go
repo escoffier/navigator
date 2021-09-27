@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -81,6 +82,10 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			logging.GetLogger().Err(err).Msgf("get library query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no library given in params")))
 			return
+		} else if strings.Index(lib, "http://") == 0 {
+			lib = lib[7:]
+		} else if strings.Index(lib, "https://") == 0 {
+			lib = lib[8:]
 		}
 		repo, err := param.QueryString(r, "repo")
 		if err != nil {
@@ -96,13 +101,14 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 		}
 
 		imageID := fmt.Sprintf("%s/%s:%s", lib, repo, tag)
+		imageUUID := util.GenerateUUID(imageID)
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.GetLogger().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		containers, totalCnt, err := resSvc.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCustom("image", imageID), offset, limit)
+		containers, totalCnt, err := resSvc.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCustom("image_uuid", imageUUID), offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetResourceContainers error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
