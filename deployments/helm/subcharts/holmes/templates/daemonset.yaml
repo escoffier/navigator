@@ -163,6 +163,8 @@ spec:
             - mountPath: /host/run/containerd/containerd.sock
               name: containerd-socket
             {{- end}}
+            - mountPath: /auth/server
+              name: server-cert
             - mountPath: /host/dev
               name: dev-fs
               readOnly: true
