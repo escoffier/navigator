@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	docker2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
-	harborv12 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
-	harborv22 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
-	hwswr2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -42,7 +42,7 @@ type SearchRegistryParam struct {
 
 func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
 	res := make([]string, 0)
-	res = append(res, docker2.Version, harborv22.HarborVersion, harborv12.HarborVersion, hwswr2.Version, jfrog.Version)
+	res = append(res, docker.Version, harborv2.HarborVersion, harborv1.HarborVersion, hwswr.Version, jfrog.Version)
 	return res, nil
 }
 
@@ -87,7 +87,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 	}
 	drive, err := registry.Open(RegToRegistryConf(reg))
 	if err != nil {
-		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
+		return 0, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
@@ -128,7 +128,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	drive, err := registry.Open(RegToRegistryConf(reg))
 
 	if err != nil {
-		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
+		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")

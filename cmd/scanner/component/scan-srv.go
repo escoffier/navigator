@@ -1191,7 +1191,7 @@ func (s *ConScannerSrv) getRegistry(ctx context.Context, library string, useType
 	}
 	drive, err := registry.Open(RegToRegistryConf(regs[0]))
 	if err != nil {
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
+		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")

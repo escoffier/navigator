@@ -8,12 +8,7 @@ import (
 	"sync"
 	"time"
 
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
-	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -56,7 +51,7 @@ func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf
 		drive, err := registry.Open(RegToRegistryConf(registries[i]))
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get no drive")
-			return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not support dirver type"))
+			return nil, response.NewHttpError(http.StatusInternalServerError, err)
 		}
 		if err := drive.Ping(); err != nil {
 			logging.GetLogger().Error().Err(err).Msgf("尝试连接到仓库出错:%s", registries[i].Name)
@@ -128,12 +123,11 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 func TransImageToImagelist(reg model.Registry, image registry.Image) model.ImageList {
 	tmpLib := reg.Url
 
-	tmpLib = strings.TrimPrefix(tmpLib, "http://") //trimPrefix http or https
+	tmpLib = strings.TrimPrefix(tmpLib, "http://") // trimPrefix http or https
 	tmpLib = strings.TrimPrefix(tmpLib, "https://")
 
 	imageID := fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)
 	img := model.ImageList{
-		//Url:            reg.Url,
 		FullRepoName:   image.Repository,
 		Tags:           image.Tag,
 		Digest:         image.ImageDigest,
