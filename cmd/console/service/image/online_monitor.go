@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 )
+
+func getImageSHAFromContainer(container *corev1.ContainerStatus) string {
+	// imageID: docker-pullable://192.168.1.203:5000/tensorsec-console@sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
+	shaDigestAndPullInfo := strings.Split(container.ImageID, "@")
+	return shaDigestAndPullInfo[len(shaDigestAndPullInfo)-1]
+}
 
 type OnlineMonitor struct {
 	postgre    *rdbtools.GormWrapper
