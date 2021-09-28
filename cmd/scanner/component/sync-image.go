@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -124,9 +126,14 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 }
 
 func TransImageToImagelist(reg model.Registry, image registry.Image) model.ImageList {
+	tmpLib := reg.Url
 
+	tmpLib = strings.TrimPrefix(tmpLib, "http://") //trimPrefix http or https
+	tmpLib = strings.TrimPrefix(tmpLib, "https://")
+
+	imageID := fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)
 	img := model.ImageList{
-		Url:            reg.Url,
+		//Url:            reg.Url,
 		FullRepoName:   image.Repository,
 		Tags:           image.Tag,
 		Digest:         image.ImageDigest,
@@ -141,6 +148,7 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) model.Image
 		ManifestV2JSON: []byte(image.ManifestV2),
 		ConfigJson:     []byte(image.ConfigJson),
 		FromType:       model.ImageFromTypeNormal,
+		ImageUUID:      util.GenerateUUID(imageID),
 	}
 	img.Layers = getLayerString(img)
 	return img

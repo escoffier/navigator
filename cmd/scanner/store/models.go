@@ -109,16 +109,16 @@ type SearchScanOneStatusParam struct {
 }
 
 type OnlineImage struct {
-	Digest  string `json:"digest"`
-	Library string `json:"library"`
-	Count   int    `json:"count"`
+	ID        int64  `json:"id"`
+	ImageUUID uint32 `json:"image_uuid"`
 }
 
 type ImageGroup struct {
-	Digest  string `json:"digest"`
-	ImageId int64  `json:"image_id"`
-	Library string `json:"library"`
-	Count   int    `json:"count"`
+	Digest    string `json:"digest"`
+	ImageId   int64  `json:"image_id"`
+	Library   string `json:"library"`
+	ImageUUID uint32 `json:"image_uuid"`
+	Count     int    `json:"count"`
 }
 
 type OverviewReasonParam struct {
