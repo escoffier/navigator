@@ -880,7 +880,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 		TopVulns:          scs[0].VulnInfo,
 		SensitiveFiles:    scs[0].SensitiveFile,
 		Repository:        img.FullRepoName,
-		HarborURL:         img.Url,
+		HarborURL:         img.Library,
 		Tag:               img.Tags,
 		Digest:            img.Digest,
 		TaskID:            scanTaskId,
@@ -937,7 +937,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 	}
 
 	// 查在线
-	onlineSql := fmt.Sprintf("select distinct a.digest, a.library  from  %s a  join %s b  on  a.digest = b.digest and a.from_type = %d", store.ImageTable, store.ImageRelateTable, model.ImageFromTypeNormal)
+	onlineSql := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid ", store.ImageTable, store.ImageContainer)
 	if registerUrl != "" {
 		onlineSql = onlineSql + fmt.Sprintf(" AND a.library = %s ; ", registerUrl)
 	} else {
@@ -949,8 +949,23 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
+	//由于uuid是由不带schema的library生成的，这里需要过滤掉同时拥有http与https头但只有一个扫描另一个未扫描的情况
+	onlineIds := make([]int64, len(onlineRes))
 	for i := range onlineRes {
-		on, ok := allResMap[fmt.Sprintf("%s_%s", onlineRes[i].Digest, onlineRes[i].Library)]
+		onlineIds[i] = onlineRes[i].ID
+	}
+	onlineScanRes, _, _ := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: onlineIds, Status: model.ScanStatusSucceeded}, nil)
+	onlineScanMap := make(map[int64]struct{}, len(onlineScanRes))
+	for i := range onlineScanRes {
+		onlineScanMap[onlineScanRes[i].ImageId] = struct{}{}
+	}
+
+	for i := range onlineRes {
+		_, ok := onlineScanMap[onlineRes[i].ID]
+		if !ok {
+			continue
+		}
+		on, ok := allResMap[fmt.Sprintf("%d", onlineRes[i].ImageUUID)]
 		if !ok {
 			continue
 		}
@@ -974,14 +989,14 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 
 // getOverViewHelper 连表查询tensor_image_list和scan_image表，查询各个镜像下漏洞，病毒等的数据
 func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, searchType string, overView *model.OverView, allResMap map[string]map[string]*store.ImageGroup) error {
-	hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.digest, a.library from %s a join %s b on a.id = b.image_id where  b.%s is not null and a.from_type = %d group by b.image_id,a.digest,  a.library;", store.ImageTable, store.ImageScanTable, searchType, model.ImageFromTypeNormal)
+	hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.image_uuid,a.digest, a.library from %s a join %s b on a.id = b.image_id where  b.%s is not null and a.from_type = %d group by b.image_id,a.digest,  a.library,a.image_uuid;", store.ImageTable, store.ImageScanTable, searchType, model.ImageFromTypeNormal)
 
 	hasVuluRes, err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasVuluSql})
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	for i := range hasVuluRes {
-		key := fmt.Sprintf("%s_%s", hasVuluRes[i].Digest, hasVuluRes[i].Library)
+		key := fmt.Sprintf("%d", hasVuluRes[i].ImageUUID)
 		if allResMap[key] == nil {
 			allResMap[key] = make(map[string]*store.ImageGroup)
 		}
@@ -1036,21 +1051,21 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		}
 	}
 	if param.IsOnline {
-		onlineSql := fmt.Sprintf("select distinct a.digest, a.library  from  %s a  join %s b  on  a.digest = b.digest ;", store.ImageTable, store.ImageRelateTable)
+		onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", store.ImageTable, store.ImageContainer)
 		online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchQuestionInfo")
 			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
-		onlineDigests := make([]string, 0)
+		onlineIds := make([]int64, 0)
 		for _, im := range online {
-			onlineDigests = append(onlineDigests, im.Digest)
+			onlineIds = append(onlineIds, im.ID)
 		}
-		if len(onlineDigests) == 0 {
+		if len(onlineIds) == 0 {
 			logging.GetLogger().Info().Msgf("GetOnlineImage not fond scan image")
 			return []model.ImageList{}, 0, nil
 		}
-		daoParam.Digests = onlineDigests
+		daoParam.Ids = onlineIds
 	}
 
 	imgs, cnt, err := s.dbdal.SearchImage(ctx, daoParam, filter)

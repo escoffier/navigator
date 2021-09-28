@@ -126,16 +126,17 @@ func (i ScanImage) TableName() string {
 
 // 镜像信息表
 type ImageList struct {
-	ID            int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	Url           string
+	ID        int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	//Url           string
 	FullRepoName  string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:1"  json:"full_repo_name"`
 	Tags          string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:2" json:"tags"`
 	Digest        string                 `gorm:"index:idx_image_digest" json:"digest"`
 	OS            string                 `gorm:"column:os" json:"os"`
 	Size          int                    `gorm:"column:size" json:"size"`
 	Library       string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:3" json:"library"`
+	ImageUUID     uint32                 `gorm:"column:image_uuid" json:"-"`
 	Questions     []QuestionInfo         `gorm:"-" json:"questions"`
 	CompleteTime  string                 `gorm:"column:complete_time" json:"complete_time"`
 	ImageScanVuln ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`

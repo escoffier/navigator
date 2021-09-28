@@ -27,6 +27,7 @@ const (
 	TrueString       = "true"
 	ImageTable       = "tensor_image_list"
 	ImageRelateTable = "image_relate"
+	ImageContainer   = "tensor_containers"
 	ImageScanTable   = "scan_images"
 )
 

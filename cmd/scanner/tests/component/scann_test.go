@@ -15,7 +15,7 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 	s := component.NewConScannerSrv(newMockDAl(), Newmockregdal(), nil, nil, nil, nil, nil)
 	ctx := context.Background()
 	expectDetails := []component.ReasonAndDetail{
-		{RejectReason: model.RejectNoLibrary, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectNoLibrary]},
+		// {RejectReason: model.RejectNoLibrary, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectNoLibrary]},
 		{RejectReason: model.RejectReasonHasMalicious, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious]},
 		{RejectReason: model.RejectReasonHasSensitiveFile, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile]},
 		{RejectReason: model.RejectReasonVuluScore, RejectDetail: "漏洞综合评分：5，低于阻断分数：50"},
@@ -25,10 +25,10 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 		{RejectReason: model.RejectReasonUntrustedBaseImage, RejectDetail: model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage]},
 	}
 	expectHashs := []model.KVHashs{
-		{KVHash: model.KVHash{
-			EN: model.KeyValue{Key: model.GetRejectReason(model.LangEn)[model.RejectNoLibrary], Value: "image not in config registry,but image has add to the whitelist,unblocked"},
-			ZH: model.KeyValue{Key: model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], Value: "来源镜像不在本地仓库，但镜像已加入白名单中，未被阻断"},
-		}},
+		// {KVHash: model.KVHash{
+		// 	EN: model.KeyValue{Key: model.GetRejectReason(model.LangEn)[model.RejectNoLibrary], Value: "image not in config registry,but image has add to the whitelist,unblocked"},
+		// 	ZH: model.KeyValue{Key: model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], Value: "来源镜像不在本地仓库，但镜像已加入白名单中，未被阻断"},
+		// }},
 		{KVHash: model.KVHash{
 			EN: model.KeyValue{Key: model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious], Value: "contains malicious file,but image has add to the whitelist,unblocked"},
 			ZH: model.KeyValue{Key: model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious], Value: "存在恶意文件，但镜像已加入白名单中，未被阻断"},
@@ -60,7 +60,8 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 	}
 
 	convey.Convey("DetectImageForCICD", t, func() {
-		cicd, details, hashs, err := s.DetectImageForCICD(ctx, 1, "https://registry.t-appagile.com")
+		polg := "https://registry.t-appagile.com"
+		cicd, details, hashs, err := s.DetectImageForCICD(ctx, 1, polg)
 		convey.ShouldEqual(cicd, true)
 		convey.ShouldBeNil(err)
 		// fmt.Println(details)
@@ -89,7 +90,9 @@ type mockregdal struct {
 }
 
 func (m *mockregdal) SearchRegistry(ctx context.Context, param store.SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
-	return nil, 0, nil
+	res := []model.Registry{model.Registry{Url: "https://registry.t-appagile.com"}}
+
+	return res, 0, nil
 }
 
 func (m *mockregdal) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
@@ -118,8 +121,8 @@ func newMockDAl() *mockdal {
 
 func (m *mockdal) SearchImage(ctx context.Context, param store.SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
 	img := model.ImageList{
-		ID:  1,
-		Url: "https://registry.t-appagile.com",
+		ID: 1,
+		//Url: "https://registry.t-appagile.com",
 		// Layers: "hello", // 这里如果有值，那么两次查出来是同一个镜像，就不会报基础镜像不可信息的问题
 	}
 	return []model.ImageList{img}, 1, nil
