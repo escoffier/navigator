@@ -32,7 +32,6 @@ func Watcher(postgre *rdbtools.GormWrapper,
 		logging.GetLogger().Info().Msgf("Init assets.Watcher: stack = %s", debug.Stack())
 		wInstance = assets.NewWatcher()
 		wInstance.AddCallback(ov)
-		wInstance.AddCallback(image.NewAssetsImageAssociator(postgre))
 		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
 		wInstance.AddCallback(kbmSvc.RiskMonitor())
 		wInstance.AddCallback(tsRes)
