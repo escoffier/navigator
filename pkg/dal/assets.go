@@ -505,8 +505,6 @@ func doUpsertResourceContainers(ctx context.Context, rdb *gorm.DB, resource *ass
 	}
 
 	// remove containers that are no longer configured by resources
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
 
 	existingUUIDs := make([]uint32, len(contModels))
 	for i, cont := range contModels {
