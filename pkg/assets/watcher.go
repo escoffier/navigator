@@ -94,11 +94,6 @@ func (w *Watcher) putClusterStopChan(clusterName string, ch chan struct{}) {
 	w.clusterChans[clusterName] = ch
 }
 
-type informerSyncMsg struct {
-	ClusterName string
-	Errored     bool
-}
-
 func (w *Watcher) StopWatch(ctx context.Context, clusters []string) error {
 	for _, cluster := range clusters {
 		stopChan, exist := w.getClusterStopChan(cluster)
@@ -230,7 +225,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		return nil
 	}
 
-	syncChan := make(chan informerSyncMsg, len(k8sClients))
 	for clusterKey, newClient := range k8sClients {
 		stopChan, exist := w.getClusterStopChan(clusterKey)
 		if exist {
@@ -258,7 +252,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 		informerStatuses := make([]*informerStatus, 0, 5)
 		if _, podsWatch := toWatchedTypes[Pods2Watch]; podsWatch {
-			logging.GetLogger().Info().Msg("start watching pods")
+			logging.GetLogger().Info().Msgf("start watching pods for cluster %s", clusterKey)
 			// inform of pods
 			podInformer := informerFactory.Core().V1().Pods().Informer()
 			var p *corev1.Pod
@@ -370,7 +364,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if _, toWatch := toWatchedTypes[Endpoints2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching endpoints")
+			logging.GetLogger().Info().Msgf("start watching endpoints for cluster %s", clusterKey)
 			// watch endpoints
 			endPointsInformer := informerFactory.Core().V1().Endpoints().Informer()
 			var ept *corev1.Endpoints
@@ -430,7 +424,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if toWatchResources {
-			logging.GetLogger().Info().Msg("start watching resources")
+			logging.GetLogger().Info().Msgf("start watching resources for cluster %s", clusterKey)
 
 			go func() {
 				defer func() {
@@ -564,7 +558,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if _, toWatch := toWatchedTypes[Namespaces2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching namespaces")
+			logging.GetLogger().Info().Msgf("start watching namespaces for cluster %s", clusterKey)
 			nsInformer := informerFactory.Core().V1().Namespaces().Informer()
 			var ns *corev1.Namespace
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -622,7 +616,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			})
 		}
 		if _, toWatch := toWatchedTypes[Services2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching services")
+			logging.GetLogger().Info().Msgf("start watching services for cluster %s", clusterKey)
 			servicesInformer := informerFactory.Core().V1().Services().Informer()
 			var svc *corev1.Service
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -681,7 +675,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if _, toWatch := toWatchedTypes[Roles2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching roles")
+			logging.GetLogger().Info().Msgf("start watching roles for cluster %s", clusterKey)
 			rolesInformer := informerFactory.Rbac().V1().Roles().Informer()
 			var role *rbacv1.Role
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -740,7 +734,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if _, toWatch := toWatchedTypes[ServiceAccounts2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching service accounts")
+			logging.GetLogger().Info().Msgf("start watching service accounts for cluster %s", clusterKey)
 			saInformer := informerFactory.Core().V1().ServiceAccounts().Informer()
 			var sa *corev1.ServiceAccount
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -751,7 +745,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 		}
 		if _, toWatch := toWatchedTypes[ClusterRoles2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching clusterroles")
+			logging.GetLogger().Info().Msgf("start watching clusterroles for cluster %s", clusterKey)
 			rolesInformer := informerFactory.Rbac().V1().ClusterRoles().Informer()
 			var role *rbacv1.ClusterRole
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -810,7 +804,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if _, toWatch := toWatchedTypes[ClusterRoleBindings2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching clusterRoleBindings")
+			logging.GetLogger().Info().Msgf("start watching clusterRoleBindings for cluster %s", clusterKey)
 			bindingsInformer := informerFactory.Rbac().V1().ClusterRoleBindings().Informer()
 			var binding *rbacv1.ClusterRoleBinding
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -869,7 +863,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		}
 
 		if _, toWatch := toWatchedTypes[RoleBindings2Watch]; toWatch {
-			logging.GetLogger().Info().Msg("start watching roleBindings")
+			logging.GetLogger().Info().Msgf("start watching roleBindings for cluster %s", clusterKey)
 			rolesInformer := informerFactory.Rbac().V1().RoleBindings().Informer()
 			var role *rbacv1.RoleBinding
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -939,11 +933,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				if r := recover(); r != nil {
 					logging.GetLogger().Error().Msgf("panic when wait for cluster %s informers cache synced: %v. stack: %s", cname, r, debug.Stack())
 				}
-
-				syncChan <- informerSyncMsg{
-					ClusterName: cname,
-					Errored:     !syncSucc,
-				}
 			}()
 
 			syncedStatus := ifactory.WaitForCacheSync(stopChan)
@@ -987,25 +976,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 	}
 
-	erroredClusters := make([]string, 0, 1)
-	timeoutTimer := time.NewTimer(defaultStartWatchTimeout)
-
-LOOP:
-	for _ = range k8sClients {
-		select {
-		case msg := <-syncChan:
-			if msg.Errored {
-				erroredClusters = append(erroredClusters, msg.ClusterName)
-			}
-		case <-timeoutTimer.C:
-			logging.GetLogger().Warn().Msgf("Wait for all clusters (%v) timeout(%v)", k8sClients, defaultStartWatchTimeout)
-			break LOOP
-		}
-	}
-
-	if len(erroredClusters) > 0 {
-		return fmt.Errorf("Clusters (%v) wait for cache sync failed", erroredClusters)
-	}
 	return nil
 }
 
