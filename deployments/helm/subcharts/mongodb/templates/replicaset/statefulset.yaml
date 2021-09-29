@@ -528,7 +528,7 @@ spec:
         {{- if .Values.persistence.volumeClaimTemplates.selector }}
         selector: {{- include "common.tplvalues.render" (dict "value" .Values.persistence.volumeClaimTemplates.selector "context" $) | nindent 10 }}
         {{- end }}
-        {{ include "common.storage.class" (dict "persistence" .Values.persistence "global" .Values.global) }}
+        {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.persistence "global" .Values.global) }}
   {{- end }}
 {{- end }}
 {{- end }}

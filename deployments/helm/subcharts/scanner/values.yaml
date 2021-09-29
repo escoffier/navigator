@@ -34,10 +34,10 @@ dockerregistry:
     # httpNodePort:
     # gcNodePort:
   persistence:
-    accessMode: 'ReadWriteOnce'
     enabled: true
+    storageClass: "nfs-client-provisioner"
     size: 10Gi
-    #storageClass: ""
+    accessMode: 'ReadWriteOnce'
   # Set this to name of secret for tls certs
   # tlsSecretName: registry.docker.example.com
   secrets:

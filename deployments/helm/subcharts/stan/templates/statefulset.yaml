@@ -309,9 +309,6 @@ spec:
   - metadata:
       name: {{ template "stan.name" . }}-pvc
     spec:
-      {{- with .Values.store.volume.storageClass }}
-      storageClassName: {{ . }}
-      {{- end }}
       accessModes:
       {{- with .Values.store.volume.accessModes }}
       - {{ . }}
@@ -319,5 +316,6 @@ spec:
       resources:
         requests:
           storage: {{ .Values.store.volume.storageSize }}
+      {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.store.volume "global" .Values.global) }}
   {{- end }}
   {{- end }}

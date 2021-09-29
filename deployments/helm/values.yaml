@@ -40,6 +40,7 @@ scanner:
   dockerregistry:
     persistence:
       enabled: true
+      storageClass: ""
       size: 50Gi
     secrets:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
@@ -79,6 +80,7 @@ console:
     tag: latest
   persistence:
     enabled: true
+    storageClass: ""
     tensorsecCleaner:
       image:
         registry: localhost:32000
@@ -139,6 +141,7 @@ redis-ha:
   hardAntiAffinity: false
   persistentVolume:
     enabled: true
+    storageClass: ""
 
 elasticsearch:
   enabled: true
@@ -148,6 +151,7 @@ elasticsearch:
     pullSecret: harbor-admin-secret
   persistence:
     enabled: true
+    storageClass: ""
   minimumMasterNodes: 1
   replicas: 1
   extraEnvs:
@@ -172,7 +176,6 @@ elasticsearch:
   #     memory: "512M"
   # volumeClaimTemplate:
   #   accessModes: [ "ReadWriteOnce" ]
-  #   storageClassName: "microk8s-hostpath"
   #   resources:
   #     requests:
   #       storage: 100M
@@ -255,6 +258,7 @@ postgresql-ha:
         memory: 128Mi
   persistence:
     enabled: true
+    storageClass: ""
     size: 20Gi
 
 
@@ -280,6 +284,7 @@ mongodb:
   #
   persistence:
     enabled: true
+    storageClass: ""
 
 holmes:
   enabled: true
@@ -369,6 +374,7 @@ stan:
   store:
     volume:
       enabled: true
+      storageClass: ""
 
 security-profiles-manager:
   enabled: true
