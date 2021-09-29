@@ -121,13 +121,13 @@ func NewScanner(
 		return nil, err
 	}
 
-	//for _, model := range declaredModels {
+	// for _, model := range declaredModels {
 	//	err := rdbtools.MigrateTable(ctx, postgresDB, model)
 	//	if err != nil {
 	//		logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
 	//		return nil, err
 	//	}
-	//}
+	// }
 	scannerDB := store.NewScannerDB(postgresDB)
 
 	// Redis DB client
@@ -154,9 +154,7 @@ func NewScanner(
 	}
 
 	// scanner启动之前的初始化动作
-	registryDal := store.NewRegistryDao(postgresDB)
-	preInit := component.NewInitScanner(registryDal)
-	if err := preInit.CreateCicdBufRegistry(ctx); err != nil {
+	if err := component.NewInitScanner(store.NewRegistryDao(postgresDB), store.NewScannerOrm(postgresDB)).Init(ctx); err != nil {
 		return nil, err
 	}
 

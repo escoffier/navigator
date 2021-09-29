@@ -79,11 +79,13 @@ type ScannerDalInterface interface {
 	GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.RejectPolicy, error)
 	AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error)
 	UpdatePolicy(ctx context.Context, param SearchRejectPolicyParam, updater map[string]interface{}) error
+	UpdateGlobalPolicy(ctx context.Context, updater map[string]interface{}) error
 	DeletePolicy(ctx context.Context, policyId int64) error
 	IsInRegistry(ctx context.Context, library string) bool
+
 	GetK8sRejectImageList(ctx context.Context, image model.ImageList) *model.ImageList
 	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
-	GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy
+	GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectPolicy, error)
 }
 
 type ScannerOrm struct {
@@ -259,12 +261,15 @@ func (s *ScannerOrm) GetScanimageFromImageList(ctx context.Context, imgId int64)
 	return resScanImage, resImageList
 }
 
-func (s *ScannerOrm) GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy {
+func (s *ScannerOrm) GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectPolicy, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	res := []model.RejectPolicy{}
-	s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("is_global = ?", true).Find(&res)
-	return res
+	err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("is_global = ?", true).Find(&res).Error
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (s *ScannerOrm) AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy) {
@@ -420,6 +425,27 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 			}
 		}
 	}
+	return nil
+}
+
+// UpdateGlobalPolicy 更新全局策略时更新整张表
+func (s ScannerOrm) UpdateGlobalPolicy(ctx context.Context, updater map[string]interface{}) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+	db := s.psql.Get().Model(new(model.RejectPolicy)).Omit("is_global").WithContext(ctx)
+	// begin a transaction
+	tx := db.Begin()
+
+	// do some database operations in the transaction (use 'tx' from this point, not 'db')
+	if err := tx.Where("is_global = ?  ", true).Updates(updater).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("is_global = ?  ", false).Updates(updater).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
 	return nil
 }
 

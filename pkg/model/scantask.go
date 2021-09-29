@@ -132,14 +132,6 @@ type ScanOneStatusResponse struct {
 	OverallSeverityInt int     `json:"overall_severity_int"`
 }
 
-type ListRejectPolicyResponse struct {
-	CICD          bool                   `json:"cicd"`
-	K8sDeployment bool                   `json:"k8s_deployment"`
-	Mode          int                    `json:"mode"`
-	OnlineMonitor bool                   `json:"online_monitor"`
-	Policies      []RejectPolicyResponse `json:"policies"`
-}
-
 // RejectPolicyResponse 阻断策略表
 type RejectPolicyResponse struct {
 	ID       int64  `json:"id"`
@@ -176,17 +168,9 @@ type RejectReasonStatistic struct {
 	Count                int64  `gorm:"column:cnt" json:"count"`
 }
 
-type RejectPolicyConfigResponse struct {
-	Cicd          bool           `json:"cicd"`
-	K8sDeployment bool           `json:"k8s_deployment"`
-	Mode          string         `json:"mode"`
-	OnlineMonitor bool           `json:"online_monitor"`
-	Polices       []RejectPolicy `json:"policies"`
-} // @name RejectPolicyConfigResponse
-
 type GlobalRejectPolicy struct {
-	Cicd          bool   `json:"cicd"`
-	K8sDeployment bool   `json:"k8s_deployment"`
+	CICDEnable    bool   `json:"cicd_enable"`
+	K8sEnable     bool   `json:"k8s_enable"`
 	Mode          string `json:"mode"`
 	OnlineMonitor bool   `json:"online_monitor"`
 } // @name GlobalRejectPolicy

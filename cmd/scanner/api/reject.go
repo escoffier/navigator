@@ -261,8 +261,8 @@ func (s *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
 	}
 	if len(policies) == 0 {
 		defaultPolicy := model.GlobalRejectPolicy{
-			Cicd:          false,
-			K8sDeployment: false,
+			CICDEnable:    false,
+			K8sEnable:     false,
 			Mode:          model.RejectPolicySafeModel,
 			OnlineMonitor: false,
 		}
@@ -270,8 +270,8 @@ func (s *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
 		return
 	}
 	res := model.GlobalRejectPolicy{
-		Cicd:          policies[0].CicdEnable,
-		K8sDeployment: policies[0].K8sEnable,
+		CICDEnable:    policies[0].CicdEnable,
+		K8sEnable:     policies[0].K8sEnable,
 		Mode:          policies[0].Mode,
 		OnlineMonitor: policies[0].OnlineMonitor,
 	}

@@ -13,14 +13,25 @@ import (
 )
 
 type InitScannerInterface interface {
-	CreateCicdBufRegistry(ctx context.Context) error
+	Init(ctx context.Context) error
 }
 
 type InitScanner struct {
-	regDal store.RegistryDaoInterface
+	regDal   store.RegistryDaoInterface
+	imageDal store.ScannerDalInterface
 }
 
-func (s *InitScanner) CreateCicdBufRegistry(ctx context.Context) error {
+func (s *InitScanner) Init(ctx context.Context) error {
+	if err := s.createCicdBufRegistry(ctx); err != nil {
+		return err
+	}
+	if err := s.createGlobalPolicy(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 	url := os.Getenv("CICD-BUF-REGISTRY-URL")
 	username := os.Getenv("CICD-BUF-REGISTRY-USER")
 	passwd := os.Getenv("CICD-BUF-REGISTRY-PASSWORD")
@@ -72,6 +83,46 @@ func (s *InitScanner) CreateCicdBufRegistry(ctx context.Context) error {
 	return nil
 }
 
-func NewInitScanner(regDal store.RegistryDaoInterface) *InitScanner {
-	return &InitScanner{regDal: regDal}
+func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
+	policies, err := s.imageDal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("InitScanner.createGlobalPolicy")
+		return err
+	}
+
+	if len(policies) == 0 {
+		policy := model.RejectPolicy{
+			CicdEnable:    false,
+			K8sEnable:     false,
+			Mode:          model.RejectPolicyBaseModel,
+			OnlineMonitor: false,
+			IsGlobal:      true,
+		}
+
+		global := model.GlobalRejectPolicy{
+			CICDEnable:    false,
+			K8sEnable:     false,
+			Mode:          model.RejectPolicyBaseModel,
+			OnlineMonitor: false,
+		}
+
+		policy.IsGlobal = true
+		if _, err := s.imageDal.CreateRejectPolicy(ctx, policy); err != nil {
+			logging.GetLogger().Error().Err(err).Msg("InitScanner.CreateGlobalPolicy")
+			return err
+		}
+
+		// 全局策略对所有的策略都生效(但是gorm不允许更新整张表，所以这里分两次更新)
+		updater := GlobalRejectPolicyToUpdater(global)
+
+		if err := s.imageDal.UpdateGlobalPolicy(ctx, updater); err != nil {
+			logging.GetLogger().Error().Err(err).Msg("InitScanner.CreateGlobalPolicy")
+			return err
+		}
+	}
+	return nil
+}
+
+func NewInitScanner(regDal store.RegistryDaoInterface, imageDal store.ScannerDalInterface) *InitScanner {
+	return &InitScanner{regDal: regDal, imageDal: imageDal}
 }

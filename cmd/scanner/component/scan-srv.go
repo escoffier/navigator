@@ -219,7 +219,20 @@ func (s *ConScannerSrv) UpdateImage(ctx context.Context, param SearchImagesParam
 }
 
 func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
-	resConfig := s.dbdal.GetGlobalPolicyConfig(ctx)
+	resConfig, err := s.dbdal.GetGlobalPolicyConfig(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("K8sDeployDetect search global policy")
+		return false
+	}
+	if len(resConfig) == 0 {
+		logging.GetLogger().Info().Msg("K8sDeployDetect not find global policy")
+		return true
+	}
+	if !resConfig[0].K8sEnable {
+		logging.GetLogger().Info().Msg("K8sDeployDetect k8s deploy is not enable")
+		return true
+	}
+
 	var flag bool = true
 	msgType := consts.AlertKindK8s
 	for k := range containerInfo {
@@ -314,6 +327,22 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) {
 	if len(containerInfo) == 0 {
 		logging.GetLogger().Info().Msg("K8sOnlineMonitor containerInfo is empty")
+		return
+	}
+
+	// 检查全局策略是否开启
+	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor get global  policy")
+		return
+	}
+	if len(globalReg) == 0 {
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor not find  global policy")
+		return
+	}
+
+	if !globalReg[0].OnlineMonitor {
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor global policy is not enable ")
 		return
 	}
 
@@ -949,7 +978,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
-	//由于uuid是由不带schema的library生成的，这里需要过滤掉同时拥有http与https头但只有一个扫描另一个未扫描的情况
+	// 由于uuid是由不带schema的library生成的，这里需要过滤掉同时拥有http与https头但只有一个扫描另一个未扫描的情况
 	onlineIds := make([]int64, len(onlineRes))
 	for i := range onlineRes {
 		onlineIds[i] = onlineRes[i].ID
@@ -1180,6 +1209,22 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 
+	// 检查全局策略是否开启
+	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("CICD get global policy error")
+		return false, records, msgs, err
+	}
+	if len(globalReg) == 0 {
+		logging.GetLogger().Info().Msg("CICD not find global policy")
+		return true, records, msgs, nil
+	}
+
+	if !globalReg[0].CicdEnable {
+		logging.GetLogger().Info().Msg("CICD global is not enable ")
+		return true, records, msgs, nil
+	}
+
 	// 先查镜像是否存在
 	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imageId}}, nil)
 	if err != nil {
@@ -1199,8 +1244,8 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 	}
 	if len(regs) == 0 {
 		logging.GetLogger().Info().Msgf("untrust Library imag Id:" + strconv.Itoa(int(imgs[0].ID)))
-		msgZh := "来源镜像不在本地仓库"
-		msgEN := "image not in config registry"
+		msgZh := model.GetRejectReason(model.LangZh)[model.RejectNoLibrary]
+		msgEN := model.GetRejectReason(model.LangEn)[model.RejectNoLibrary]
 		msgLog := fmt.Sprintf("Image:%s/%s:%s is untrust Library", imgs[0].Library, imgs[0].FullRepoName, imgs[0].Tags)
 
 		records = append(records, ReasonAndDetail{
@@ -1219,17 +1264,6 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 
 	img := imgs[0]
 	img.Library = policeReg
-
-	// 检查全局策略是否开启
-	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("CICD library:%s get global reject policy error", policeReg)
-		return false, records, msgs, err
-	}
-	if len(globalReg) == 0 || !globalReg[0].CicdEnable {
-		logging.GetLogger().Info().Msgf("CICD library:%s global is not enable ", policeReg)
-		return true, records, msgs, nil
-	}
 
 	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg})
 	if err != nil {
@@ -1252,7 +1286,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 	if scanImageRes.ScanImag != nil {
 		scanImage := *scanImageRes.ScanImag
 		for _, po := range policies {
-			if !po.Enable || !po.CicdEnable || po.IsGlobal {
+			if !po.Enable || po.IsGlobal {
 				logging.GetLogger().Info().Msgf("CICD reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
@@ -1313,6 +1347,22 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 
+	// 检查全局策略是否开启
+	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("K8sOnlineMonitor get global policy error")
+		return false, records, msgs, err
+	}
+	if len(globalReg) == 0 {
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor not find global policy ")
+		return true, records, msgs, nil
+	}
+
+	if !globalReg[0].OnlineMonitor {
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor global policy is not enable")
+		return true, records, msgs, nil
+	}
+
 	// 先查镜像是否存在
 	checkImageRes := s.checkImageExist(ctx, model.UsePatternForOnline, image)
 	if !checkImageRes.Safe || checkImageRes.Image == nil {
@@ -1334,16 +1384,6 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedImage], msgZh),
 				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedImage], msgEN)}})
 		return safe, records, msgs, nil
-	}
-	// 检查全局策略是否开启
-	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor library:%s get global reject policy error", checkImageRes.Image.Library)
-		return false, records, msgs, err
-	}
-	if len(globalReg) == 0 || !globalReg[0].OnlineMonitor {
-		logging.GetLogger().Info().Msgf("K8sOnlineMonitor library:%s global reject is not enable ", checkImageRes.Image.Library)
-		return true, records, msgs, nil
 	}
 
 	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: checkImageRes.Image.Library})
@@ -1372,7 +1412,7 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 	if checkScanImage.ScanImag != nil {
 		scanImage := *checkScanImage.ScanImag
 		for _, po := range policies {
-			if !po.Enable || !po.OnlineMonitor || po.IsGlobal {
+			if !po.Enable || po.IsGlobal {
 				logging.GetLogger().Info().Msgf("K8sOnlineMonitor reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
@@ -1985,7 +2025,12 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, po
 		logging.GetLogger().Err(err).Msgf("K8sDeployDetect library:%s get global reject policy error", policeReg)
 		return false, records, msgs, err
 	}
-	if len(globalReg) == 0 || !globalReg[0].K8sEnable {
+	if len(globalReg) == 0 {
+		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s not find global policy", policeReg)
+		return true, records, msgs, nil
+	}
+
+	if !globalReg[0].K8sEnable {
 		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s global reject is not enable ", policeReg)
 		return true, records, msgs, nil
 	}
@@ -2015,7 +2060,7 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, po
 	if scanImageRes.ScanImag != nil {
 		scanImage := *scanImageRes.ScanImag
 		for _, po := range policies {
-			if !po.Enable || !po.K8sEnable || po.IsGlobal {
+			if !po.Enable || po.IsGlobal {
 				logging.GetLogger().Info().Msgf("K8sDeployDetect reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
