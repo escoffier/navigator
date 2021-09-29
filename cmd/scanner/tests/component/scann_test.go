@@ -86,6 +86,10 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 type mockdal struct {
 }
 
+func (m *mockdal) UpdateGlobalPolicy(ctx context.Context, updater map[string]interface{}) error {
+	panic("implement me")
+}
+
 type mockregdal struct {
 }
 
@@ -122,7 +126,7 @@ func newMockDAl() *mockdal {
 func (m *mockdal) SearchImage(ctx context.Context, param store.SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
 	img := model.ImageList{
 		ID: 1,
-		//Url: "https://registry.t-appagile.com",
+		// Url: "https://registry.t-appagile.com",
 		// Layers: "hello", // 这里如果有值，那么两次查出来是同一个镜像，就不会报基础镜像不可信息的问题
 	}
 	return []model.ImageList{img}, 1, nil
@@ -326,6 +330,6 @@ func (m *mockdal) AddGlobalPolicyConfig(ctx context.Context, policy model.Reject
 	panic("implement me")
 }
 
-func (m *mockdal) GetGlobalPolicyConfig(ctx context.Context) []model.RejectPolicy {
+func (m *mockdal) GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectPolicy, error) {
 	panic("implement me")
 }

@@ -76,8 +76,8 @@ func (s *ImageReject) CreateGlobalPolicy(ctx context.Context, global model.Globa
 	}
 	if len(policies) == 0 {
 		policy := model.RejectPolicy{
-			CicdEnable:    global.Cicd,
-			K8sEnable:     global.K8sDeployment,
+			CicdEnable:    global.CICDEnable,
+			K8sEnable:     global.K8sEnable,
 			Mode:          global.Mode,
 			OnlineMonitor: global.OnlineMonitor,
 			IsGlobal:      true,
@@ -92,11 +92,8 @@ func (s *ImageReject) CreateGlobalPolicy(ctx context.Context, global model.Globa
 
 	// 全局策略对所有的策略都生效(但是gorm不允许更新整张表，所以这里分两次更新)
 	updater := GlobalRejectPolicyToUpdater(global)
-	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString}, updater); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("CreateGlobalPolicy")
-		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建策略失败"))
-	}
-	if err := s.dbdal.UpdatePolicy(ctx, store.SearchRejectPolicyParam{Global: consts.FalseString}, updater); err != nil {
+
+	if err := s.dbdal.UpdateGlobalPolicy(ctx, updater); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("CreateGlobalPolicy")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建策略失败"))
 	}

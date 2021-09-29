@@ -377,8 +377,8 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 
 func GlobalRejectPolicyToUpdater(po model.GlobalRejectPolicy) map[string]interface{} {
 	updater := map[string]interface{}{
-		"cicd_enable":    po.Cicd,
-		"k8s_enable":     po.K8sDeployment,
+		"cicd_enable":    po.CICDEnable,
+		"k8s_enable":     po.K8sEnable,
 		"online_monitor": po.OnlineMonitor,
 		"mode":           po.Mode,
 	}
