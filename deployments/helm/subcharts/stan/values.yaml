@@ -177,9 +177,9 @@ store:
   volume:
     enabled: true
     mount: /data/stan
+    storageClass: ""
     storageSize: 10Gi
     accessModes: ReadWriteOnce
-    storageClass:
 
   #
   # File storage settings.

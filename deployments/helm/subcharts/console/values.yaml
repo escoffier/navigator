@@ -2,6 +2,7 @@ global:
   image: 
     registry: ""
     repository: ""
+  storageClass: ""
 
 
 image:
@@ -19,6 +20,7 @@ scap:
 
 persistence:
   enabled: true
+  storageClass: "nfs-client-provisioner"
   claimName: audit-pvc
   accessModes:
     - ReadWriteOnce

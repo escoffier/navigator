@@ -41,6 +41,7 @@ spec:
 {{ toYaml . | indent 8 }}
     {{- end }}
     spec:
+{{ include "tensorsec.common.storage.class" (dict "persistence" .Values.persistence "global" .Values.global) | indent 6 }}
 {{ toYaml .Values.volumeClaimTemplate | indent 6 }}
   {{- end }}
   template:

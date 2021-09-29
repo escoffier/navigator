@@ -302,13 +302,7 @@ spec:
       resources:
         requests:
           storage: {{ .Values.persistentVolume.size | quote }}
-    {{- if .Values.persistentVolume.storageClass }}
-    {{- if (eq "-" .Values.persistentVolume.storageClass) }}
-      storageClassName: ""
-    {{- else }}
-      storageClassName: "{{ .Values.persistentVolume.storageClass }}"
-    {{- end }}
-    {{- end }}
+      {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.persistentVolume "global" .Values.global) }}
     {{- if .Values.persistentVolume.reclaimPolicy }}
     persistentVolumeReclaimPolicy: "{{ .Values.persistentVolume.reclaimPolicy }}"
     {{- end }}

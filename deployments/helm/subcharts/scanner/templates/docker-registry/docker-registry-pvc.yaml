@@ -14,7 +14,5 @@ spec:
   resources:
     requests:
       storage: {{ .Values.dockerregistry.persistence.size | quote }}
-{{- if .Values.dockerregistry.persistence.storageClass }}
-  storageClassName: {{ .Values.dockerregistry.persistence.storageClass }}
-{{- end }}
+  {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.dockerregistry.persistence "global" .Values.global) }}
 {{- end -}}

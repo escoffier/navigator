@@ -120,6 +120,7 @@ podSecurityPolicy:
 
 persistence:
   enabled: true
+  storageClass: "nfs-client-provisioner"
   labels:
     # Add default labels for the volumeClaimTemplate fo the StatefulSet
     enabled: false

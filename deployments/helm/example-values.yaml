@@ -5,6 +5,7 @@ global:
   verison: &tensorsecVerison 1.0.0
   persistence:
     enabled: &persistenceStorage true
+  #storageClass: "nfs-client"
   imagePullSecret:
     url: &imageRegistryURL harbor.local.tensorsecurity.cn
     username: &imageRegistryUsername admin
