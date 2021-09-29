@@ -371,6 +371,10 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 		"base_image_policy":     po.BaseImagePolicy,
 		"enable":                po.Enable,
 		"vuln_policy":           po.VulnPolicy,
+		"cicd_enable":           po.CicdEnable,
+		"k8s_enable":            po.K8sEnable,
+		"online_monitor":        po.OnlineMonitor,
+		"mode":                  po.Mode,
 	}
 	return updater
 }
