@@ -2,10 +2,13 @@ package component
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -1898,15 +1901,6 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 
 // DeleteCICDImage 定期删除cicd仓库的镜像
 func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
-	ticker := time.NewTicker(time.Hour * 12) // 每12个小时删除一次
-	for {
-		<-ticker.C
-		s.deleteCICDImage(context.Background())
-	}
-}
-
-// DeleteCICDImage 定期删除cicd仓库的镜像
-func (s *ConScannerSrv) deleteCICDImage(ctx context.Context) {
 
 	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.RegistryUseTypeBuff}, nil)
 	if err != nil {
@@ -1938,6 +1932,54 @@ func (s *ConScannerSrv) deleteCICDImage(ctx context.Context) {
 			logging.GetLogger().Info().Msgf("CICD asynchronous delete BuffRegistry image :%s", images[i].Repository)
 		}
 	}
+
+	// 启动GC
+	logging.GetLogger().Info().Msg("deleteCICDImage start GC")
+	split := strings.Split(regs[0].Url, ":")
+
+	if len(split) <= 2 {
+		logging.GetLogger().Info().Msgf("deleteCICDImage url parse error url:%s", regs[0].Url)
+		return
+	}
+	port := os.Getenv("REGISTRY_GC_PORT") // 以环境变量的方式取值
+	if port == "" {
+		port = "8081"
+	}
+
+	url := fmt.Sprintf("%s:%s:%s/api/registry/gc", split[0], split[1], port)
+	logging.GetLogger().Info().Msgf("deleteCICDImage NewRequest url:%s", url)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("deleteCICDImage NewRequest,url:%s", url)
+		return
+	}
+	timeOutCtx, cancelFunc := context.WithTimeout(ctx, time.Minute*2)
+	defer cancelFunc()
+
+	resp, err := http.DefaultClient.Do(req.WithContext(timeOutCtx))
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("deleteCICDImage NewRequest,url:%s", url)
+		return
+	}
+	defer util.CloseBodyWithLog(resp.Body)
+	if resp.StatusCode >= http.StatusMultipleChoices || resp.StatusCode < http.StatusOK {
+		logging.GetLogger().Error().Err(err).Msgf("deleteCICDImage StatusCode not 200,url:%s", url)
+		return
+	}
+	by, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("deleteCICDImage parse ")
+		return
+	}
+	type body struct {
+		Status bool `json:"status"`
+	}
+	bd := new(body)
+	if err := json.Unmarshal(by, bd); err != nil || !bd.Status {
+		logging.GetLogger().Error().Err(err).Msg("deleteCICDImage This call failed to clean up the storage")
+		return
+	}
+	logging.GetLogger().Info().Msg("deleteCICDImage success GC")
 }
 
 func (s *ConScannerSrv) GetImageLibraryNameTag(imageName string) (*model.ImageList, error) {

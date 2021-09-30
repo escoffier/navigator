@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/mattn/go-colorable"
+	"github.com/mileusna/crontab"
 	"github.com/patrickmn/go-cache"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -185,10 +186,19 @@ func NewScanner(
 	// callback cache
 	globalCache := cache.New(60*time.Minute, 10*time.Minute)
 
+	scannerSrv := newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache, &scannerList)
+	ctab := crontab.New() // create cron table
+
+	// AddJob ,每天0点过2分时运行一次
+	if err := ctab.AddJob("2 0 * * *", scannerSrv.DeleteCICDImage, context.Background()); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("add GC job")
+		return nil, err
+	}
+
 	return &Scanner{
 		ginServer: &http.Server{
 			Addr: httpOpts.HTTPListen, Handler: api.SetupGinRouter(
-				newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache, &scannerList),
+				scannerSrv,
 				component.NewImageRejectSrc(store.NewScannerOrm(postgresDB)),
 				component.NewHarborSrc(store.NewScannerOrm(postgresDB), redisClient, redclairSvc),
 				component.NewRegistrySrv(store.NewRegistryDao(postgresDB)),
@@ -394,7 +404,7 @@ func newConScannerSrv(
 	registryDal := store.NewRegistryDao(db)
 
 	srv := component.NewConScannerSrv(dal, registryDal, redclair, virusScan, store.NewScannerDB(db), globalCache, scannerList)
-	go srv.DeleteCICDImage(context.Background()) // 起协程删除cache仓库的image
+
 	return srv
 }
 

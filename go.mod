@@ -51,6 +51,7 @@ require (
 	github.com/mattn/go-colorable v0.1.8
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
+	github.com/mileusna/crontab v1.2.0
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mozilla/tls-observatory v0.0.0-20200317151703-4fa42e1c2dee
