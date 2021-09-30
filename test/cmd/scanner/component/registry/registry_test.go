@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	hwswr2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -39,15 +39,15 @@ func dumpImages(images []registry.Image) {
 func TestListImages(t *testing.T) {
 	t.Log("start test list images")
 	driver, err := registry.Open(registry.RegistrableComponentConfig{
-		Type: hwswr2.Version,
+		Type: hwswr.Version,
 		Options: map[string]interface{}{
 			"url": swrUrl,
-			//"password":      swrPassword,
-			//"username":      swrUser,
+			// "password":      swrPassword,
+			// "username":      swrUser,
 			"skiptlsverify": true,
 			"accesskey":     swrAccessKey,
 			"secretkey":     swrSecretKey,
-			//"region":        swrRegion,
+			// "region":        swrRegion,
 		},
 	})
 	if err != nil {
@@ -55,7 +55,7 @@ func TestListImages(t *testing.T) {
 	}
 	images, err := driver.ListImages(func(image registry.Image) error {
 		return nil
-	})
+	}, true)
 	if err != nil {
 		t.Fatalf("list images err:%v", images)
 	}

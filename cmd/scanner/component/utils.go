@@ -20,7 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
-	hwswr "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
