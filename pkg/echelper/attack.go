@@ -10,6 +10,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 
+const (
+	emptyVal = "<NA>"
+)
+
 var filteredOutFields = map[string]struct{}{
 	"k8s.ns.name":  {},
 	"k8s.pod.name": {},
@@ -196,6 +200,9 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 
 	var pidFromFields, ppidFromFields, commandFromFields, userFromFields, syscallFromFields string
 	for key, value := range data.OutputFields {
+		if value == emptyVal {
+			value = ""
+		}
 		switch key {
 		case "proc.pid":
 			pidFromFields = value
