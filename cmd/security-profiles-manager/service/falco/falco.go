@@ -18,7 +18,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/apimachinery/pkg/labels"
+	// "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -629,7 +629,7 @@ const (
       APPARMOR data (container.name=%container.name container.id=%container.id evt.is_open_write=%evt.is_open_write evt.is_open_read=%evt.is_open_read evt.type=%evt.type evt.args=%evt.args fd.name=%fd.name syscall.type=%syscall.type)
     priority:
       WARNING
-    tags: [apparmor]	
+    tags: [apparmor]
 `
 	seccompRuleTemplate = `
   - rule: Seccomp
@@ -655,7 +655,7 @@ const (
       CW data (container.name=%container.name container.id=%container.id proc.exepath=%proc.exepath proc.exe=%proc.exe proc.cwd=%proc.cwd proc.exeline=%proc.exeline evt.type=%evt.type evt.args=%evt.args fd.name=%fd.name proc.exeline=%proc.exeline syscall.type=%syscall.type)
     priority:
       WARNING
-    tags: [command-whitelist]	
+    tags: [command-whitelist]
 `
 )
 
@@ -696,23 +696,23 @@ func (s *FalcoService) RestartFalco(ctx context.Context) error {
 	if namespace == "" {
 		return fmt.Errorf("MY_POD_NAMESPACE environment variable not set")
 	}
-	labelSelector := metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"app": falcoLabel,
-		},
-	}
-	listOpts := metav1.ListOptions{LabelSelector: labels.Set(labelSelector.MatchLabels).String()}
+	// labelSelector := metav1.LabelSelector{
+	// 	MatchLabels: map[string]string{
+	// 		"app": falcoLabel,
+	// 	},
+	// }
+	// listOpts := metav1.ListOptions{LabelSelector: labels.Set(labelSelector.MatchLabels).String()}
 
-	podList, err := s.k8sClient.CoreV1().Pods(namespace).List(ctx, listOpts)
-	if err != nil {
-		return err
-	}
-	for _, pod := range podList.Items {
-		err = s.k8sClient.CoreV1().Pods(namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
-		if err != nil {
-			return err
-		}
-	}
+	// podList, err := s.k8sClient.CoreV1().Pods(namespace).List(ctx, listOpts)
+	// if err != nil {
+	// 	return err
+	// }
+	// for _, pod := range podList.Items {
+	// 	err = s.k8sClient.CoreV1().Pods(namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 	return nil
 }
 

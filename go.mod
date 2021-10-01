@@ -24,6 +24,7 @@ require (
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/florianl/go-conntrack v0.2.0 //conntrack
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-chi/jwtauth v4.0.4+incompatible

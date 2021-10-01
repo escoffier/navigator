@@ -25,13 +25,13 @@ if [ "$main" -ge 4 -a "$minor" -ge 14 ] || [ "$main" -ge 5 ]
     then
         # export FALCO_BPF_PROBE=''
         # TODO: check ebpf reference: https://github.com/iovisor/bcc/blob/master/INSTALL.md#kernel-configuration
-        if [ -v FALCO_BPF_PROBE ]; then
+        if [ -v HOLMES_BPF_PROBE ]; then
             echo "ebpf module!"
         fi
 
     else
-        if [ -v FALCO_BPF_PROBE ]; then
-            unset FALCO_BPF_PROBE
+        if [ -v HOLMES_BPF_PROBE ]; then
+            unset HOLMES_BPF_PROBE
         fi
         echo "kernel module!"
 fi
@@ -57,4 +57,4 @@ fi
 
 #/holmes-rules-update --output /tmp/test.yaml
 #/usr/bin/holmes --cri /run/containerd/containerd.sock -K /var/run/secrets/kubernetes.io/serviceaccount/token -k \"https://$(KUBERNETES_SERVICE_HOST)\" -pk
-exec /holmes-rules-update --output /tmp/latest.yaml --holmes-args "$*"
+exec /holmes-scheduler --output /tmp/latest_rules.yaml --holmes-args "$*"

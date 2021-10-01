@@ -21,6 +21,7 @@
     and not proc.name in (db_server_binaries)
     and not postgres_running_wal_e
     and not user_known_db_spawned_processes
+    and not tensorsec_namespace
   output: >
     Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续：数据库服务生成非自身进程,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
@@ -374,7 +375,7 @@
     original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
   priority:
     WARNING
-  tags: [file, mitre_persistence]  
+  tags: [file, mitre_persistence]
 
 - rule: Create files below dev
   hid: 16
@@ -539,7 +540,8 @@
   priority: ERROR
   tags: [filesystem, mitre_persistence]
 
-
+- macro: tensorsec_namespace
+  condition: k8s.ns.name startswith "tensorsec"
 
 ##attck_rule_type=Privilege Escalation
 - rule: Launch Privileged Container
@@ -553,11 +555,12 @@
       key: "处置建议"
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect the initial process started in a privileged container. Exceptions are made for known trusted images.
-  condition: 
+  condition:
     container_started and container
     and container.privileged=true
     and not falco_privileged_containers
     and not user_privileged_containers
+    and not tensorsec_namespace
   output: >
     Privileged container started (zh_msg=特权容器启动,rule_type=Privilege Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
   priority: INFO
@@ -1119,6 +1122,7 @@
     and sensitive_mount
     and not falco_sensitive_mount_containers
     and not user_sensitive_mount_containers
+    and not tensorsec_namespace
   output: >
     Container with sensitive mount started (zh_msg=挂载敏感路径容器启动,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts)
   priority: INFO
@@ -1190,7 +1194,7 @@
       key: "处置建议"
       value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: Detect a k8s client tool executed inside a container
-  condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not k8s.pod.name contains "scarecrow" 
+  condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not k8s.pod.name contains "scarecrow"
   output: >
     Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
   priority: WARNING
