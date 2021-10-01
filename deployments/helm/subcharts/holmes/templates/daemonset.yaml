@@ -123,15 +123,15 @@ spec:
               command:
               - grep
               - -q
-              - "internal:"
+              - "ready"
               - /var/log/holmes.log
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             periodSeconds: 5
           env:
             - name: CONSOLE_HTTP_ADDR
               value: {{ .Values.consoleInfo.httpAddr }}
           {{- if .Values.ebpf.enabled }}
-            - name: FALCO_BPF_PROBE
+            - name: HOLMES_BPF_PROBE
               value: {{ .Values.ebpf.path }}
           {{- end }}
           {{- if .Values.proxy.httpProxy }}
@@ -182,7 +182,7 @@ spec:
             - mountPath: /host/etc
               name: etc-fs
               readOnly: true
-            - mountPath: /etc/falco
+            - mountPath: /etc/holmes
               name: config-volume
             - mountPath: /etc/holmes/rules.d
               name: rules-volume
@@ -191,7 +191,7 @@ spec:
               name: grpc-socket-dir
             {{- end }}
             {{- if or .Values.falco.webserver.sslEnabled (and .Values.falco.grpc.enabled (not .Values.falco.grpc.unixSocketPath)) }}
-            - mountPath: /etc/falco/certs
+            - mountPath: /etc/holmes/certs
               name: certs-volume
               readOnly: true
             {{- end }}
@@ -235,8 +235,8 @@ spec:
           configMap:
             name: {{ template "falco.fullname" . }}
             items:
-              - key: falco.yaml
-                path: falco.yaml
+              - key: holmes.yaml
+                path: holmes.yaml
               # - key: falco_rules.yaml
               #   path: falco_rules.yaml
 #              - key: falco_rules.local.yaml

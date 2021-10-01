@@ -301,7 +301,7 @@ holmes:
     multicluster:
       consoleaddr: http://tensorsec-console:8889
   ebpf:
-    enabled: false
+    enabled: true
   falco:
     resources:
       requests:
@@ -312,7 +312,7 @@ holmes:
         memory: 2048Mi
     rulesFile:
       - /etc/holmes/rules.d
-      - /etc/holmes/holmes_rules.yaml
+      # - /etc/holmes/holmes_rules.yaml
     jsonOutput: true
     jsonIncludeOutputProperty: true
     httpOutput:

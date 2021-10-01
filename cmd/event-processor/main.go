@@ -162,9 +162,10 @@ func updateLatestChannels(sc stan.Conn, channels []string, r Reporter, addr stri
 	tmpUrl := "http://" + addr + "/api/openapi/ATTCK/latestData"
 	client := &http.Client{}
 	token := "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
 	for {
-		timer := time.NewTimer(interval)
-		<-timer.C
+		<-t.C
 		url := fmt.Sprintf("%s?curDataVersion=%d&curSettingVersion=%d", tmpUrl, currentVersion, currentSetVersion)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {

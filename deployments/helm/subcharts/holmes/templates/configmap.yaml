@@ -9,7 +9,7 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 data:
-  falco.yaml: |-
+  holmes.yaml: |-
     # File(s) or Directories containing Falco rules, loaded at startup.
     # The name "rules_file" is only for backwards compatibility.
     # If the entry is a file, it will be read directly. If the entry is a directory,

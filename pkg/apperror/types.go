@@ -1043,7 +1043,7 @@ func NewCannotAddResourceToActivePolicyError(httpCode int, err error, suberrors 
 		detailedError{
 			err:       err,
 			English:   "Cannot add resource to active policy",
-			Chinese:   "無法將資源添加到活動策略",
+			Chinese:   "无法将资源添加到已启用的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1059,7 +1059,7 @@ func NewCannotAddResourceToPolicyInTrainingError(httpCode int, err error, suberr
 		detailedError{
 			err:       err,
 			English:   "Cannot add resource to policy in training",
-			Chinese:   "無法將資源添加到活動策略",
+			Chinese:   "无法将资源添加到正在训练中的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1075,7 +1075,7 @@ func NewPolicyNotFoundError(httpCode int, err error, suberrors ...Suberror) erro
 		detailedError{
 			err:       err,
 			English:   "Policy not found",
-			Chinese:   "未找到政策",
+			Chinese:   "未找到策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1091,7 +1091,7 @@ func NewResourceNotFoundError(httpCode int, err error, suberrors ...Suberror) er
 		detailedError{
 			err:       err,
 			English:   "Resource not found",
-			Chinese:   "找不到資源",
+			Chinese:   "找不到资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1107,7 +1107,7 @@ func NewResourceAlreadyAttachedToPolicyError(httpCode int, err error, suberrors 
 		detailedError{
 			err:       err,
 			English:   "Resource already attached to policy",
-			Chinese:   "資源已附加到策略",
+			Chinese:   "资源已经添加到策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1123,7 +1123,7 @@ func NewResourceAttachedToDifferentPolicyError(httpCode int, err error, suberror
 		detailedError{
 			err:       err,
 			English:   "Resource attached to different policy",
-			Chinese:   "附加到不同策略的資源",
+			Chinese:   "资源已经添加到其他策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1139,7 +1139,7 @@ func NewCannotRemoveResourceFromActivePolicyError(httpCode int, err error, suber
 		detailedError{
 			err:       err,
 			English:   "Cannot remove resource from active policy",
-			Chinese:   "無法從活動策略中刪除資源",
+			Chinese:   "无法删除启用中策略的资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1155,7 +1155,7 @@ func NewCannotRemoveResourceFromPolicyInTrainingError(httpCode int, err error, s
 		detailedError{
 			err:       err,
 			English:   "Cannot remove resource from policy in training",
-			Chinese:   "無法從活動策略中刪除資源",
+			Chinese:   "无法从训练中的策略里删除资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1171,7 +1171,7 @@ func NewResourceNotAttachedToPolicyError(httpCode int, err error, suberrors ...S
 		detailedError{
 			err:       err,
 			English:   "Resource not attached to policy",
-			Chinese:   "資源未附加到策略",
+			Chinese:   "资源未添加到策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1203,7 +1203,7 @@ func NewProfileUpdateError(httpCode int, err error, suberrors ...Suberror) error
 		detailedError{
 			err:       err,
 			English:   "Profile update error",
-			Chinese:   "配置文件更新錯誤",
+			Chinese:   "配置文件更新错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1219,7 +1219,7 @@ func NewCannotDeactivatePolicyProfilesAreInTrainingError(httpCode int, err error
 		detailedError{
 			err:       err,
 			English:   "Cannot deactivate policy, because some profiles are in training",
-			Chinese:   "無法停用策略，因為某些配置文件正在訓練中",
+			Chinese:   "无法停用策略，因为某些配置文件正在训练中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1235,7 +1235,7 @@ func NewCannotDeleteActivePolicyError(httpCode int, err error, suberrors ...Sube
 		detailedError{
 			err:       err,
 			English:   "Cannot delete active policy",
-			Chinese:   "無法刪除活動策略",
+			Chinese:   "无法刪除已启用的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1251,7 +1251,7 @@ func NewCannotUpdateConfigOfCurrentlyTrainedProfileError(httpCode int, err error
 		detailedError{
 			err:       err,
 			English:   "Cannot update configuration of currently trained profile",
-			Chinese:   "無法更新當前訓練的配置文件的配置",
+			Chinese:   "无法更新当前训练的配置文件",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1267,7 +1267,7 @@ func NewCannotChangeProfileStatusWhenPolicyIsActiveError(httpCode int, err error
 		detailedError{
 			err:       err,
 			English:   "Cannot change profile status when policy is active",
-			Chinese:   "策略處於活動狀態時無法啟用配置文件",
+			Chinese:   "策略开启时无法修改默认动作",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1283,7 +1283,7 @@ func NewUnknownSecurityProfileKindError(httpCode int, err error, suberrors ...Su
 		detailedError{
 			err:       err,
 			English:   "Unknown security profile kind",
-			Chinese:   "未知的安全配置文件類型",
+			Chinese:   "未知的安全配置文件类型",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1315,7 +1315,7 @@ func NewCannotStartTrainingThatIsInProgressError(httpCode int, err error, suberr
 		detailedError{
 			err:       err,
 			English:   "Cannot start training that is in progress",
-			Chinese:   "無法開始正在進行的訓練",
+			Chinese:   "无法开始正在进行的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1331,7 +1331,7 @@ func NewCannotStartAPausedTrainingError(httpCode int, err error, suberrors ...Su
 		detailedError{
 			err:       err,
 			English:   "Cannot start training that is paused",
-			Chinese:   "無法開始暫停的訓練",
+			Chinese:   "无法开始暂停的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1347,7 +1347,7 @@ func NewCannotAbortNonStartedTrainingError(httpCode int, err error, suberrors ..
 		detailedError{
 			err:       err,
 			English:   "Cannot abort a non started training",
-			Chinese:   "無法中止未開始的培訓",
+			Chinese:   "无法终止未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1363,7 +1363,7 @@ func NewCannotSuspendAPausedTrainingError(httpCode int, err error, suberrors ...
 		detailedError{
 			err:       err,
 			English:   "Cannot suspend a paused training",
-			Chinese:   "無法暫停暫停的訓練",
+			Chinese:   "无法暂停已经暂停的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1379,7 +1379,7 @@ func NewCannotSuspendANonStartedTrainingError(httpCode int, err error, suberrors
 		detailedError{
 			err:       err,
 			English:   "Cannot suspend a non started training",
-			Chinese:   "無法暫停未開始的培訓",
+			Chinese:   "无法暂停未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1395,7 +1395,7 @@ func NewCannotResumeAnInProgressTrainingError(httpCode int, err error, suberrors
 		detailedError{
 			err:       err,
 			English:   "Cannot resume an in progress training",
-			Chinese:   "無法恢復正在進行的培訓",
+			Chinese:   "无法继续正在进行的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1411,7 +1411,7 @@ func NewCannotResumeANonStartedTrainingError(httpCode int, err error, suberrors 
 		detailedError{
 			err:       err,
 			English:   "Cannot resume an non started training",
-			Chinese:   "無法恢復未開始的培訓",
+			Chinese:   "无法继续未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1427,7 +1427,7 @@ func NewCannotStopANonStartedTrainingError(httpCode int, err error, suberrors ..
 		detailedError{
 			err:       err,
 			English:   "Cannot stop a non started training",
-			Chinese:   "無法停止未開始的培訓",
+			Chinese:   "无法停止未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1457,7 +1457,7 @@ func NewMissingStartTrainingTimeInTrainedProfileError(httpCode int, err error, s
 		detailedError{
 			err:       err,
 			English:   "Missing 'startTrainingTime' in trained profile",
-			Chinese:   "訓練資料中缺少'startTrainingTime'",
+			Chinese:   "训练配置中缺少'开始时间'",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1473,7 +1473,7 @@ func NewPolicyAlreadySetToRequestedStatus(httpCode int, err error, suberrors ...
 		detailedError{
 			err:       err,
 			English:   "Policy already set to requested status",
-			Chinese:   "政策已設置為請求狀態",
+			Chinese:   "策略已经设置为请求状态",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1489,7 +1489,7 @@ func NewPolicyAlreadySetToRequestedMode(httpCode int, err error, suberrors ...Su
 		detailedError{
 			err:       err,
 			English:   "Policy already set to requested mode",
-			Chinese:   "策略已設置為請求模式",
+			Chinese:   "策略已经设置为请求模式",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1505,7 +1505,7 @@ func NewProfileAlreadySetToRequestedStatus(httpCode int, err error, suberrors ..
 		detailedError{
 			err:       err,
 			English:   "Profile already set to requested status",
-			Chinese:   "政策已設置為請求狀態",
+			Chinese:   "配置已经设置为请求状态",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1521,7 +1521,7 @@ func NewCannotChangePolicyStatusAreInTrainingError(httpCode int, err error, sube
 		detailedError{
 			err:       err,
 			English:   "Cannot change policy status, there are profiles in training",
-			Chinese:   "無法更改策略狀態，有正在訓練中的配置文件",
+			Chinese:   "无法修改配置，配置文件正在训练中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1537,7 +1537,7 @@ func NewCannotUpdateProfileThatIsTrained(httpCode int, err error, suberrors ...S
 		detailedError{
 			err:       err,
 			English:   "Cannot update policy that is in training",
-			Chinese:   "無法更新正在訓練的策略",
+			Chinese:   "无法更新正在训练中的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1553,7 +1553,7 @@ func NewInvalidAccessSentError(httpCode int, err error, suberrors ...Suberror) e
 		detailedError{
 			err:       err,
 			English:   "Invalid file access sent",
-			Chinese:   "發送的文件訪問無效",
+			Chinese:   "输入的的文件访问无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1569,7 +1569,7 @@ func NewInvalidSyscallSentError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Invalid syscall sent",
-			Chinese:   "發送的系統調用無效",
+			Chinese:   "输入的系统调用无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1585,7 +1585,7 @@ func NewFileSentNotAbsoluteError(httpCode int, err error, suberrors ...Suberror)
 		detailedError{
 			err:       err,
 			English:   "Sent file is not absolute path",
-			Chinese:   "發送的文件不是絕對路徑",
+			Chinese:   "输入的文件不是绝对路径",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1601,7 +1601,7 @@ func NewMissingFileSentError(httpCode int, err error, suberrors ...Suberror) err
 		detailedError{
 			err:       err,
 			English:   "Empty filepath sent",
-			Chinese:   "發送空文件路徑",
+			Chinese:   "输入空的文件路径",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1617,7 +1617,7 @@ func NewMissingWorkingDirSentError(httpCode int, err error, suberrors ...Suberro
 		detailedError{
 			err:       err,
 			English:   "Empty working directory sent",
-			Chinese:   "已發送空工作目錄",
+			Chinese:   "输入空的文件目录",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1633,7 +1633,7 @@ func NewMissingSyscallSentError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Empty syscall sent",
-			Chinese:   "發送空系統調用",
+			Chinese:   "输入空的系统调用",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1649,7 +1649,7 @@ func NewWorkingDirSentNotAbsoluteError(httpCode int, err error, suberrors ...Sub
 		detailedError{
 			err:       err,
 			English:   "Sent working directory is not absolute path",
-			Chinese:   "發送的工作目錄不是絕對路徑",
+			Chinese:   "输入的工作路径不是绝对路径",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1665,7 +1665,7 @@ func NewMissingCommandSentError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Empty command sent",
-			Chinese:   "發送空命令",
+			Chinese:   "输入空命令",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,
@@ -1681,7 +1681,7 @@ func NewDuplicateEntrySentError(httpCode int, err error, suberrors ...Suberror) 
 		detailedError{
 			err:       err,
 			English:   "Duplicate entry sent",
-			Chinese:   "已發送重複條目",
+			Chinese:   "输入的条目已经存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

@@ -12,6 +12,8 @@ USEMIRROR?=true
 
 RELEASEVERSION?=v0.0.1
 
+FETCHTAG?=latest
+
 .PHONY: help
 help:
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -371,18 +373,18 @@ holmes-base: ## Build holmes base image
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/holmes/baseimage-dockerfile .
+    --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) -f TAG=$(FETCHTAG) ./build/holmes/baseimage-dockerfile .
 else
 	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    -f ./build/holmes/baseimage-dockerfile .
+    --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) -f ./build/holmes/baseimage-dockerfile .
 endif
 
 .PHONY: holmes
 holmes:     ## Build holmes docker
 	@echo "+ $@"
 	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/update/cmd.Version=$(VERSION)" \
-		-o dist/holmes-rules-update gitlab.com/piccolo_su/vegeta/cmd/holmes/update
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/cmd.Version=$(VERSION)" \
+		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
@@ -390,10 +392,10 @@ holmes:     ## Build holmes docker
 ifeq ($(USEMIRROR),true)
 	@echo "holmes will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile \
-                --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
+                --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) .
 else
 	@echo "holmes will not use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile --build-arg REPO=$(REPOPREFIX) .
+	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) .
 endif
 
 .PHONY: event-processor
