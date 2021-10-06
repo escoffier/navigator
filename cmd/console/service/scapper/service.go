@@ -143,53 +143,93 @@ func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterI
 	var task model.ScanHistory
 	query := "check_type = ? and cluster_key = ? and state = 1"
 	err := s.postgresDB.Get().WithContext(ctx).First(&task, query, checkType, clusterId).Error
-	if err == nil || task.TaskID == "" {
-		return nil
-	}
-
-	var nodeTask []model.ScanNodeRecord
-	err = s.postgresDB.Get().WithContext(ctx).Where(&model.ScanNodeRecord{TaskID: task.TaskID}).Find(&nodeTask).Error
-	if err != nil {
-		return errors.Errorf("get node's scan job task failed, %w", err)
-	}
-
-	if len(nodeTask) == 0 {
-		err = s.postgresDB.Get().WithContext(ctx).Where(&model.ScanHistory{TaskID: task.TaskID}).Delete(&task).Error
-		if err != nil {
-			return errors.Errorf("delete invalid history task failed, %w", err)
-		}
-		return nil
-	}
-
-	sucNum := 0
-	nowTime := time.Now().Unix()
-	var finishTime, createTime int64
-	for i := 0; i < len(nodeTask); i++ {
-		createTime = nodeTask[i].CreatedAt
-		state := nodeTask[i].State
-		if state == 1 {
-			continue
-		}
-
-		if state == 0 {
-			sucNum++
-		}
-
-		finishTime = nodeTask[i].FinishedAt
-	}
-
-	if sucNum > 0 || (nowTime-createTime) > timeout {
-		task.State = 0
-		task.FinishedAt = finishTime
-		task.SucNode = int32(sucNum)
-		err = s.postgresDB.Get().WithContext(ctx).Where(&model.ScanHistory{TaskID: task.TaskID}).Select("*").Updates(task).Error
-		if err != nil {
-			return errors.Errorf("update history task failed, %w", err)
-		}
+	if err != nil || task.TaskID == "" {
 		return nil
 	}
 
 	return errors.Errorf("have been scanning task")
+}
+
+func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	scap, _ := GetScapper(ctx)
+
+	var scanNodes []model.ScanNodeRecord
+	query := "task_id = ?"
+	err := s.postgresDB.Get().WithContext(ctx).Find(&scanNodes, query, checkHistory.CheckID).Error
+	if err != nil {
+		return errors.Errorf("get scan node record failed, %v", err)
+	}
+
+	//get success node
+	sucNode := 0
+	var finishAt int64
+	for _, nodeRecord := range scanNodes {
+		if finishAt == 0 {
+			finishAt = nodeRecord.FinishedAt
+		}
+
+		if nodeRecord.State == model.ScanStateInProgress {
+			sucNode++
+		}
+
+		if nodeRecord.State != model.ScanStateInProgress {
+			continue
+		}
+
+		status := ""
+		status, err = scap.GetJobStatus(nodeRecord.ClusterKey, nodeRecord.Namespace, nodeRecord.JobName)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get jobs status failed, %v.", err)
+			continue
+		}
+
+		if status == "running" {
+			return nil
+		}
+
+		nodeRecord.State = model.ScanStateCompleted
+		if status == "failed" {
+			nodeRecord.State = model.ScanStateFailed
+		} else {
+			sucNode++
+		}
+
+		query = "task_id = ? and node_name = ?"
+		taskId := nodeRecord.TaskID
+		nodename := nodeRecord.NodeName
+		state := nodeRecord.State
+		//table name
+		tb := nodeRecord.TableName()
+		//update state
+		err = s.postgresDB.Get().WithContext(ctx).Table(tb).Where(query, taskId, nodename).Update("state", state).Update("finished_at", finishAt).Error
+		if err != nil {
+			logging.GetLogger().Error().Msgf("updates scan node record failed, %v.", err)
+		}
+	}
+
+	if finishAt < checkHistory.CreatedAt {
+		finishAt = checkHistory.CreatedAt
+	}
+	//update check history
+	checkHistory.FinishedAt = finishAt
+	//update scan history
+	taskId := checkHistory.CheckID
+	tb := model.ScanHistory{
+		State:      model.ScanStateCompleted,
+		FinishedAt: finishAt,
+		SucNode:    int32(sucNode),
+	}
+	//
+	query = "task_id = ? and check_type = ?"
+	err = s.postgresDB.Get().WithContext(ctx).Model(tb).Where(query, taskId, checkHistory.CheckType).Select("state", "suc_node", "finished_at").Updates(tb).Error
+	if err != nil {
+		logging.GetLogger().Error().Msgf("update scan history state=0 failed, task_id : %s, %v.", taskId, err)
+	}
+
+	return nil
 }
 
 func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int, error) {
@@ -206,7 +246,6 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
 	}
 
-	finishState := 0
 	items := make([]model.CheckHistoryEntry, 0)
 	docNum := len(scanHistory)
 	for _, value := range scanHistory {
@@ -219,17 +258,10 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		data.CreatedAt = value.CreatedAt
 		data.FinishedAt = value.FinishedAt
 		//check finish state
-		if data.FinishedAt > 0 {
-			finishState = 1
-		}
-
-		//update finish state
-		if data.FinishedAt == 0 && finishState != 0 {
-			err = s.postgresDB.Get().WithContext(pgCtx).Table(value.TableName()).Where("task_id = ?", value.TaskID).Update("state", 0).Error
+		if data.FinishedAt <= 0 || value.State == model.ScanStateInProgress {
+			err = s.SynScanState(&data)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("update scan history state=0 failed, %v.", err)
-			} else {
-				data.FinishedAt = data.CreatedAt
+				logging.GetLogger().Error().Msgf("syn scan history failed, %v.", err)
 			}
 		}
 
@@ -251,7 +283,7 @@ func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId, checkType
 	}
 
 	for _, value := range scanHistory {
-		if value.State != 0 || value.FinishedAt <= 0 || value.SucNode == 0 {
+		if value.State != model.ScanStateCompleted || value.FinishedAt <= 0 || value.SucNode == 0 {
 			continue
 		}
 		return value.TaskID, nil

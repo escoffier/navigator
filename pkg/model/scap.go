@@ -89,6 +89,8 @@ type ScanNodeRecord struct {
 	ClusterKey  string `gorm:"column:cluster_key"`
 	Operator    string `gorm:"column:operator"`
 	NodeName    string `gorm:"column:node_name"`
+	Namespace   string `gorm:"namespace"`
+	JobName     string `gorm:"job_name"`
 	State       int32  `gorm:"column:state"`
 	Message     string `gorm:"column:message"`
 	CreatedAt   int64  `gorm:"column:created_at"`
