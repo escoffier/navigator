@@ -173,12 +173,12 @@ func (s *Scapper) InitCheckUnFinishedJobs(ctx context.Context) error {
 }
 
 func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, checkType, clusterID string) bool {
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var scanTask model.ScanHistory
 	query := "check_type = ? and cluster_key = ?"
-	err := s.PostgresDB.Get().WithContext(pgCtx).Order("finished_at DESC").Take(&scanTask, query, checkType, clusterID).Error
+	err := s.PostgresDB.Get().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, query, checkType, clusterID).Error
 	if err != nil {
 		return false
 	}
@@ -189,7 +189,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 		return false
 	}
 	//task state
-	if scanTask.FinishedAt <= 0 {
+	if scanTask.FinishedAt <= 0 || scanTask.State == model.ScanStateInProgress {
 		return true
 	}
 
@@ -444,7 +444,10 @@ func (s *Scapper) asyncScheduleAndManageJobs(ctx context.Context, kubeClient *ku
 			// I know kubeClient has some built in rate limiting so maybe it's ok?
 			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
-			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, targetNode.Name)
+			//create job name
+			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode.Name)
+			//schedule job
+			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, targetNode.Name)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("Failed to schedule job, %v.", err)
 
@@ -507,7 +510,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, targetNodeName string) error {
+func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName string) error {
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
@@ -516,7 +519,7 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Cli
 	jobObj.Labels["CHECK_ID"] = check.CheckUUID
 	jobObj.Labels["TENSORSEC"] = "true"
 
-	jobObj.Name = fmt.Sprintf("%s-%s", check.CheckUUID[:8], check.CheckType)
+	jobObj.Name = jobName
 
 	checkEnv := corev1.EnvVar{
 		Name:  "CHECK_ID",
@@ -554,8 +557,6 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Cli
 	}
 	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, ClusterUrlEnv)
 
-	jobObj.Name = fmt.Sprintf("%s-%s", jobObj.Name, targetNodeName)
-
 	jobsClient := kubeClient.BatchV1().Jobs(check.Namespace)
 	res, err := jobsClient.Create(ctx, jobObj, metav1.CreateOptions{})
 	// HACK
@@ -572,24 +573,27 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Cli
 		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %w", err))
 	}
 
-	jobName := res.ObjectMeta.Name
+	jobsName := res.ObjectMeta.Name
 
 	logging.GetLogger().Info().Str("target-node", jobObj.Spec.Template.Spec.NodeName).
-		Str("job-name", jobName).Msg("Scheduled SCAP check job")
+		Str("job-name", jobsName).Msg("Scheduled SCAP check job")
 
 	return nil
 }
 
 func (s *Scapper) PgAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNodeName string) error {
-	now := time.Now()
+	jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNodeName)
+
 	task := model.ScanNodeRecord{
 		TaskID:     check.CheckUUID,
 		CheckType:  check.CheckType,
 		ClusterKey: check.ClusterID,
 		Operator:   check.Operator,
 		NodeName:   targetNodeName,
+		Namespace:  check.Namespace,
+		JobName:    jobName,
 		State:      model.ScanStateInProgress,
-		CreatedAt:  now.Unix(),
+		CreatedAt:  time.Now().Unix(),
 		FinishedAt: 0,
 	}
 
@@ -598,6 +602,10 @@ func (s *Scapper) PgAddJobStatusInProgress(ctx context.Context, check *model.Che
 		return errors.Errorf("create scan task failed, %v", err)
 	}
 	return nil
+}
+
+func (s *Scapper) CreateJobName(checkId, checkType, targetNodeName string) string {
+	return fmt.Sprintf("%s-%s-%s", checkId[:8], checkType, targetNodeName)
 }
 
 func (s *Scapper) PgJobStatusUpdate(ctx context.Context, state int32, check *model.Check, msg string, timeEpochSecs int64) error {
@@ -820,6 +828,37 @@ func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *kubernetes.C
 		return fmt.Errorf("Failed to delete job's pods: %w", err)
 	}
 	return nil
+}
+
+func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	//get cluster manager
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return "", errors.Errorf("get cluster manager failed")
+	}
+	//get k8s client
+	kubeClient, ok := clusterManager.GetClient(clusterID)
+	if !ok {
+		return "", errors.Errorf("get k8s client failed")
+	}
+
+	job, err := kubeClient.BatchV1().Jobs(namespaces).Get(ctx, jobName, metav1.GetOptions{})
+	if err != nil {
+		return "failed", nil
+	}
+
+	if job.Status.Succeeded > 0 {
+		return "success", nil
+	}
+
+	if job.Status.Active > 0 {
+		return "running", nil
+	}
+
+	return "failed", nil
 }
 
 func removeAtIdx(s []string, index int) []string {
