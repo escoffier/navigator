@@ -172,6 +172,39 @@ console:
         - build/cluster-manager/**/*
         - configs/cluster-manager/**/*
 
+event-processor:
+  stage: build
+  resource_group: event-processor
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git merge origin/master
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make event-processor
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-event-processor:ci
+    - kubectl scale --replicas=0 deploy tensorsec-sec-prof-man-processor -n tensorsec-ci
+    - kubectl scale --replicas=1 deploy tensorsec-sec-prof-man-processor -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/event-processor/**/*
+        - build/event-processor/**/*
+        - configs/event-processor/**/*
+
 holmes:
   stage: build
   resource_group: holmes
@@ -208,6 +241,74 @@ holmes:
         - build/holmes/**/*
         - configs/holmes/**/*
 
+prof-man-daemon:
+  stage: build
+  resource_group: prof-man-daemon
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git merge origin/master
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make go-audit security-profiles-loader
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-go-audit:ci
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-security-profiles-loader:ci
+    - kubectl delete pod -n tensorsec-ci -l app=tensorsec-sec-prof-man-daemon
+  rules:
+    - changes:
+        - cmd/go-audit/**/*
+        - build/go-audit/**/*
+        - configs/go-audit/**/*
+        - cmd/security-profiles-loader/**/*
+        - build/security-profiles-loader/**/*
+        - configs/security-profiles-loader/**/*
+
+safe-node-image:
+  stage: build
+  resource_group: safe-node-image
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git merge origin/master
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make safe-node-image
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-safe-node-image:ci
+    - kubectl delete pod -l app=tensorsec-scanner-safenode-image -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/safe-node-image/**/*
+        - build/safe-node-image/**/*
+        - configs/safe-node-image/**/*
+
 scanner:
   stage: build
   resource_group: scanner
@@ -241,6 +342,39 @@ scanner:
         - cmd/scanner/**/*
         - build/scanner/**/*
         - configs/scanner/**/*
+
+security-profiles-manager:
+  stage: build
+  resource_group: security-profiles-manage
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - git merge origin/master
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git submodule init
+    - git submodule update
+    - git submodule update --init --recursive
+    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+    - sed -i "s#latest#ci#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - mkdir ~/.kube/
+    - cp ~/.docker/config-ci ~/.kube/config
+    - cp ~/.docker/kubectl /bin/
+    - chmod +755 /bin/kubectl
+  script:
+    - USEMIRROR=true make security-profiles-manager
+    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-security-profiles-manager:ci
+    - kubectl scale --replicas=0 deploy/tensorsec-sec-prof-man -n tensorsec-ci
+    - kubectl scale --replicas=1 deploy/tensorsec-sec-prof-man -n tensorsec-ci
+  rules:
+    - changes:
+        - cmd/security-profiles-manager/**/*
+        - build/security-profiles-manager/**/*
+        - configs/security-profiles-manager/**/*
 
 webhook:
   stage: build
