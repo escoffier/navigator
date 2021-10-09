@@ -89,6 +89,20 @@ func (l *PodTemplate) Value() (driver.Value, error) {
 	return json.Marshal(l)
 }
 
+type Managers []string
+
+func (m *Managers) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &m)
+}
+
+func (m *Managers) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}
+
 type TensorResource struct {
 	TableBase                      // id: cluster_key/namespace/kind/resource_name
 	Name            string         `gorm:"column:name"`
@@ -100,6 +114,9 @@ type TensorResource struct {
 	OwnerReferences OwnerRefs      `gorm:"column:owner_references;type:jsonb"`
 	Labels          Labels         `gorm:"column:labels;type:jsonb"`
 	PodTemplate     *PodTemplate   `gorm:"column:pod_template;type:jsonb"`
+	Alias           string         `gorm:"column:alias"`
+	Managers        Managers       `gorm:"column:managers;type:jsonb"`
+	Authority       string         `gorm:"column:authority"`
 }
 
 func (TensorResource) TableName() string {
@@ -108,7 +125,7 @@ func (TensorResource) TableName() string {
 
 type ContainerPorts []corev1.ContainerPort
 
-func (p ContainerPorts) Scan(value interface{}) error {
+func (p *ContainerPorts) Scan(value interface{}) error {
 	b, ok := value.([]byte)
 	if !ok {
 		return TypeAssertErr
@@ -157,6 +174,7 @@ type TensorContainer struct {
 	Ports           ContainerPorts    `gorm:"column:ports;type:jsonb"`
 	ImagePullPolicy corev1.PullPolicy `gorm:"column:image_pull_policy;type:jsonb"`
 	SecurityContext *SecurityContext  `gorm:"column:security_context;type:jsonb"`
+	Type            string            `gorm:"column:type"`
 	ImageUUID       uint32            `gorm:"column:image_uuid"`
 }
 
@@ -171,6 +189,9 @@ type TensorNamespace struct {
 	UID             string    `gorm:"column:uid"`
 	OwnerReferences OwnerRefs `gorm:"column:owner_references;type:jsonb"`
 	Labels          Labels    `gorm:"column:labels;type:jsonb"`
+	Alias           string    `gorm:"column:alias"`
+	Managers        Managers  `gorm:"column:managers;type:jsonb"`
+	Authority       string    `gorm:"column:authority"`
 }
 
 func (TensorNamespace) TableName() string {
@@ -185,6 +206,7 @@ type PodResourceRelation struct {
 	HostIP          string `json:"HostIP,omitempty"`
 	Namespace       string `json:"Namespace" gorm:"column:namespace;index:idx_prr_res,priority:2"`
 	PodName         string `json:"PodName"`
+	NodeName        string `json:"NodeName" gorm:"column:node_name""`
 	ResourceName    string `json:"ResourceName" gorm:"column:resource_name;index:idx_prr_res,priority:4"`
 	ResourceKind    string `json:"ResourceKind" gorm:"column:resource_kind;index:idx_prr_res,priority:3"`
 	CreateTimestamp int64  `json:"CreateTimestamp" gorm:"-"`

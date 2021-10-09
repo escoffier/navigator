@@ -128,7 +128,6 @@ func (s Severity) String() string {
 	}
 }
 
-
 type RiskExplorerService struct {
 	scannerURL string
 	reporters  []RiskTypeReporter
@@ -139,6 +138,16 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 	totalCount := maxCount
 	offset := 0
 	failCnt := 0
+	clusterKey, ok := queryOpt.GetClusterOption()
+	if !ok {
+		return nil, fmt.Errorf("invalid cluster key")
+	}
+
+	resQueryOpt := dal.ResourcesQuery()
+	resMap, err := resSvc.GetResourceMap(ctx, resQueryOpt)
+	if err != nil {
+		return nil, err
+	}
 
 	nsMap := make(map[string]*NamespaceSummary, 10)
 	for offset < totalCount {
@@ -180,6 +189,18 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 				svcItem.ResourceKind = container.ResourceKind
 				svcItem.ContainersList = make([]*ContainerSummary, 0, 2)
 				svcItem.RiskTypes = make(map[string]RiskTypeDesc, 1)
+
+				res, ok := resMap[dal.ResourceKey{
+					ClusterKey:   clusterKey,
+					Namespace:    container.Namespace,
+					ResourceKind: container.ResourceKind,
+					ResourceName: container.ResourceName,
+				}]
+				if ok {
+					svcItem.Alias = res.Alias
+					svcItem.Managers = res.Managers
+					svcItem.Authority = res.Authority
+				}
 				nsItem.ResourcesList = append(nsItem.ResourcesList, svcItem)
 			}
 
@@ -329,7 +350,13 @@ func (s *RiskExplorerService) ResourceDetail(ctx context.Context, clusterKey, na
 		logging.GetLogger().Err(err).Msgf("get resource containers in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
 		return nil, err
 	}
-	pods, err := resSvc.GetResourcePods(ctx, clusterKey, namespace, resourceKind, resourceName)
+	pods, _, err := resSvc.GetResourcePods(ctx,
+		dal.ResourcePodssQuery().
+			WithCluster(clusterKey).
+			WithNamespace(namespace).
+			WithResourceKind(assets.ResourceKind(resourceKind)).
+			WithResourceName(resourceName),
+		-1, -1)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("get resource pods in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
 	}

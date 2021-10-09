@@ -19,22 +19,25 @@ type RiskTypeDesc struct {
 	DisplayEn string `json:"displayEn"`
 }
 type ResourceSummary struct {
-	ContainersList []*ContainerSummary       `json:"containerList"`
-	FinalSeverity  string                    `json:"finalSeverity"`
-	RiskLevel      int                       `json:"riskLevel"`
-	ResourceName   string                    `json:"resourceName"`
-	NodeType       string                    `json:"nodeType"`
-	ResourceKind   string                    `json:"resourceKind"`
-	Namespace      string                    `json:"namespace"`
-		RiskTypes      map[string]RiskTypeDesc `json:"tag"`
+	ContainersList []*ContainerSummary     `json:"containerList"`
+	FinalSeverity  string                  `json:"finalSeverity"`
+	RiskLevel      int                     `json:"riskLevel"`
+	ResourceName   string                  `json:"resourceName"`
+	NodeType       string                  `json:"nodeType"`
+	ResourceKind   string                  `json:"resourceKind"`
+	Namespace      string                  `json:"namespace"`
+	RiskTypes      map[string]RiskTypeDesc `json:"tag"`
+	Alias          string                  `json:"alias"`
+	Managers       []string                `json:"managers"`
+	Authority      string                  `json:"authority"`
 }
 
 type ContainerSummary struct {
-	Name          string                    `json:"name"`
-	Namespace     string                    `json:"namespaceName"`
-	ResourceName  string                    `json:"resourceName"`
-	FinalSeverity string                    `json:"finalSeverity,omitempty"`
-	Image         string                    `json:"image"`
+	Name          string                  `json:"name"`
+	Namespace     string                  `json:"namespaceName"`
+	ResourceName  string                  `json:"resourceName"`
+	FinalSeverity string                  `json:"finalSeverity,omitempty"`
+	Image         string                  `json:"image"`
 	RiskTypes     map[string]RiskTypeDesc `json:"tag,omitempty"`
 }
 
