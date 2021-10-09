@@ -46,6 +46,10 @@ const (
 )
 
 const (
+	RegistryDefaultSyncInterval = 5 // 5分钟
+)
+
+const (
 	VulnType          = "vuln_info_json"
 	PkgType           = "pkg_info_json"
 	SensitiveFileType = "sensitive_file_json"
@@ -64,4 +68,9 @@ const (
 
 const (
 	StatusInternalServerErrorMsg = "服务器开小差了，请稍后再试"
+)
+
+const (
+	NodeSafeSalt = "tensorsecurity"
+	NodeSafeTage = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/镜像名
 )

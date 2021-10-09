@@ -47,9 +47,9 @@ type ImageInfo struct {
 type QuestionInfo struct {
 	QID          int    `gorm:"primary_key;AUTO_INCREMENT" json:"-" `
 	ID           int    `gorm:"column:id;index" json:"id"`
-	Digest       string `gorm:"column:digest;index" json:"digest" bson:"digest"`
-	LinkObjectId string `gorm:"column:link_object_id" json:"link_object_id"` // mongo scantask表的ID
-	Time         string `gorm:"column:time" json:"time"`
+	Digest       string `gorm:"column:digest;index" json:"digest,omitempty"`
+	LinkObjectId string `gorm:"column:link_object_id" json:"link_object_id,omitempty"` // mongo scantask表的ID
+	Time         string `gorm:"column:time" json:"timem,omitempty"`
 }
 
 func (q QuestionInfo) TableName() string {

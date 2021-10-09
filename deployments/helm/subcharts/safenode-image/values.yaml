@@ -1,0 +1,36 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
+
+## tensorsec safenode image name
+image:
+  registry: localhost:32000
+  repository: tensorsecurity
+  name: tensorsec-safe-node-image
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+bufRegistry: 
+  bufRegistryUrl: 10.33.41.205:5000
+  bufRegistryUser: tensorsec
+  bufRegistryPass: TensorSec@Passw0rd
+  bufInternal: 10
+
+tolerations:
+- effect: NoSchedule
+  key: node-role.kubernetes.io/master
+resources:
+  limits:
+    cpu: "1000m"
+    memory: "1024Mi"
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+
+nameOverride: "safenode-image"
+fullnameOverride: "tensorsec-safenode-image"
+
+restartPolicy: Always

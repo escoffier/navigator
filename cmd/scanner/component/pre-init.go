@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strconv"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -28,6 +29,9 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	if err := s.createGlobalPolicy(ctx); err != nil {
 		return err
 	}
+	if err := s.createSafeNodeBufRegistry(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -45,11 +49,12 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 		Username:       username,
 		PasswordString: passwd,
 		Description:    "cicd中转仓库",
-		UseType:        model.RegistryUseTypeBuff,
+		UseType:        model.RegistryUseTypeCICDBuff,
+		SyncInterval:   consts.RegistryDefaultSyncInterval,
 	}
 	// 先查一下,可能已经存在
 	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseType:  model.RegistryUseTypeBuff,
+		UseType:  model.RegistryUseTypeCICDBuff,
 		NoDelete: true,
 	}, nil)
 	if err != nil {
@@ -73,7 +78,66 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 			"url":      url,
 			"username": username,
 			"password": encryPass,
-			"use_type": model.RegistryUseTypeBuff,
+			"use_type": model.RegistryUseTypeCICDBuff,
+		}
+		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{Id: registries[0].ID}, updater); err != nil {
+			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
+	url := os.Getenv("SAFENODE-BUF-REGISTRY-URL")
+	username := os.Getenv("SAFENODE-BUF-REGISTRY-USER")
+	passwd := os.Getenv("SAFENODE-BUF-REGISTRY-PASSWORD")
+	inter := os.Getenv("SAFENODE-BUF-INTERNA")
+	inter1, err := strconv.ParseInt(inter, 10, 64)
+	if err != nil {
+		inter1 = consts.RegistryDefaultSyncInterval
+	}
+
+	if url == "" || username == "" || passwd == "" {
+		return errors.New("safe node buf registry not setting")
+	}
+	data := model.Registry{
+		Name:           "safe-node-buf-registry",
+		RegType:        "registry-v2",
+		Url:            url,
+		Username:       username,
+		PasswordString: passwd,
+		Description:    "节点镜像中转仓库",
+		UseType:        model.RegistryUseSafeNode,
+		SyncInterval:   inter1,
+	}
+	// 先查一下,可能已经存在
+	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
+		UseType:  model.RegistryUseSafeNode,
+		NoDelete: true,
+	}, nil)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, query error occurred")
+		return err
+	}
+	if len(registries) == 0 {
+		if _, err = s.regDal.CreateRegistry(ctx, data); err != nil {
+			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry,create data error")
+			return err
+		}
+	} else {
+		encryPass, err := util.DesEncrypt([]byte(passwd), []byte(consts.EncryptPasswordKey))
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
+			return err
+		}
+
+		updater := map[string]interface{}{
+			"reg_type": "registry-v2",
+			"url":      url,
+			"username": username,
+			"password": encryPass,
+			"use_type": model.RegistryUseSafeNode,
 		}
 		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{Id: registries[0].ID}, updater); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
@@ -106,13 +170,11 @@ func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
 			OnlineMonitor: false,
 		}
 
-		policy.IsGlobal = true
 		if _, err := s.imageDal.CreateRejectPolicy(ctx, policy); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("InitScanner.CreateGlobalPolicy")
 			return err
 		}
 
-		// 全局策略对所有的策略都生效(但是gorm不允许更新整张表，所以这里分两次更新)
 		updater := GlobalRejectPolicyToUpdater(global)
 
 		if err := s.imageDal.UpdateGlobalPolicy(ctx, updater); err != nil {

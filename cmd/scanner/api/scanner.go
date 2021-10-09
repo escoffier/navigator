@@ -429,20 +429,27 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		return
 	}
 	kind := ctx.Query("kind")
-	imageType := ctx.Query("imageType")
+	imageType := ctx.Query("image_type")
+	online := ctx.Query("online")
 	library := ctx.Query("library")
 
+	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
+	if err != nil || fromType == 0 {
+		fromType = model.ImageFromTypeNormal
+	}
+	scanStatus := ctx.Query("scan_status")
+
 	filter := model.GetFilter(ctx)
-	online, _ := strconv.ParseBool(ctx.Query("online"))
 
 	logging.GetLogger().Info().Msg(fmt.Sprintf("get kind:%s", kind))
 	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{
-		SearchWord:      search,
-		Kind:            kind,
-		IsOnline:        online,
-		HasQuestionInfo: true,
-		Library:         library,
-		ImageType:       imageType,
+		SearchWord: search,
+		Kind:       kind,
+		Online:     online,
+		Library:    library,
+		ImageType:  imageType,
+		FromType:   fromType,
+		ScanStatus: scanStatus,
 	}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
@@ -450,11 +457,11 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		return
 	}
 	// 数据规整
-	res := make([]model.ImageResponse, 0)
-	for i := range images {
-		res = append(res, model.ImageToImageResponse(images[i]))
-	}
-	response.JSONOK(ctx, response.WithItems(res),
+	// res := make([]model.ImageResponse, 0)
+	// for i := range images {
+	// 	res = append(res, model.ImageToImageResponse(images[i]))
+	// }
+	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
@@ -543,17 +550,17 @@ func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
 func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter := model.GetFilter(ctx)
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImage, HasQuestionInfo: true, SearchWord: search}, filter)
+	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImage, SearchWord: search}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 
-	res := make([]model.ImageResponse, 0)
-	for i := range images {
-		res = append(res, model.ImageToImageResponse(images[i]))
-	}
-	response.JSONOK(ctx, response.WithItems(res),
+	// res := make([]model.ImageResponse, 0)
+	// for i := range images {
+	// 	res = append(res, model.ImageToImageResponse(images[i]))
+	// }
+	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset),

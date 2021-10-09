@@ -36,6 +36,8 @@ type ScannerDalInterface interface {
 	DeleteImage(ctx context.Context, param DeleteImageParam) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
 
+	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]ImageListWithScan, int64, error)
+
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
 	SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
 	DeleteScanImage(ctx context.Context, param DeleteScanImageParam) error
@@ -90,6 +92,91 @@ type ScannerDalInterface interface {
 
 type ScannerOrm struct {
 	psql *rdbtools.GormWrapper
+}
+
+type ImageListWithScan struct {
+	ID           int64     `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	FullRepoName string    `json:"full_repo_name"`
+	Tags         string    `json:"tags"`
+	Digest       string    `json:"digest"`
+	OS           string    `json:"os"`
+	Library      string    `json:"library"`
+	ImageUUID    uint32    `json:"image_uuid"`
+	CompleteTime string    `json:"complete_time"`
+	Status       string    `json:"status"`
+	RegistryId   int64     `json:"registry_id"`
+	FromType     int64     `json:"from_type"`
+	NodeIp       string    `json:"node_ip"`
+	NodeHostname string    `json:"node_hostname"`
+	ImageType    int64     `json:"image_type"`
+}
+
+// SearchImageWithScan scan_list和scan_image join搜索
+func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]ImageListWithScan, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*300)
+	defer cancelFunc()
+	res := make([]ImageListWithScan, 0)
+	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id")
+	if param.FullRepoSearch != "" {
+		db = db.Where("tensor_image_list.full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", param.FullRepoSearch))
+	}
+	if param.TagSearch != "" {
+		db = db.Where("tensor_image_list.tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagSearch))
+	}
+	if param.NodeImageSearch != "" {
+		db = db.Where("tensor_image_list.node_ip LIKE ? OR tensor_image_list.node_hostname LIKE ?  ", fmt.Sprintf("%%%s%%", param.NodeImageSearch), fmt.Sprintf("%%%s%%", param.NodeImageSearch))
+	}
+	if param.Kind != "" {
+		split := strings.Split(param.Kind, ",")
+		for _, k := range split {
+			if k == strconv.Itoa(model.QUESTION_VULN) {
+				db = db.Where("scan_images.vuln_info_json is not null ")
+			}
+			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
+				db = db.Where("scan_images.sensitive_file_json is not null ")
+			}
+			if k == strconv.Itoa(model.QUESTION_VIRUS) {
+				db = db.Where("scan_images.malicious_info_json is not null ")
+			}
+			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
+				db = db.Where("scan_images.webshell_info_json is not null ")
+			}
+		}
+	}
+	if param.ScanStatus != "" {
+		if param.ScanStatus == model.ScanStatusNotScan {
+			db = db.Where("scan_images.status = '' OR scan_images.status is null ")
+		} else {
+			db = db.Where("scan_images.status = ? ", param.ScanStatus)
+		}
+	}
+	if param.FromType > 0 {
+		db = db.Where("tensor_image_list.from_type = ? ", param.FromType)
+	}
+	fields := []string{"tensor_image_list.id", "tensor_image_list.created_at", "tensor_image_list.full_repo_name",
+		"tensor_image_list.tags", "tensor_image_list.digest", "tensor_image_list.os", "tensor_image_list.library",
+		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status",
+		"tensor_image_list.registry_id", "tensor_image_list.from_type",
+		"tensor_image_list.node_ip", "tensor_image_list.node_hostname", "tensor_image_list.image_type"}
+	db = db.Select(fields)
+	if len(param.InIDs) > 0 {
+		db = db.Where("tensor_image_list.id  IN ? ", param.InIDs)
+	}
+
+	if len(param.NotInIDs) > 0 {
+		db = db.Where("tensor_image_list.id  NOT IN ? ", param.NotInIDs)
+	}
+	// 先查总数
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, cnt, err
+	}
+	return res, cnt, nil
 }
 
 func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
@@ -1104,6 +1191,9 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 	}
 	if param.UseType > 0 {
 		db = db.Where("use_type = ? ", param.UseType)
+	}
+	if len(param.UseTypes) > 0 {
+		db = db.Where("use_type IN ? ", param.UseTypes)
 	}
 
 	// 先查总数

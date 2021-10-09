@@ -94,6 +94,11 @@ dependencies:
     repository: "file://./subcharts/holmessidekick"
     condition: holmessidekick.enabled
 
+  - name: safenode-image
+    version: 0.1.0
+    repository: "file://./subcharts/safenode-image"
+    condition: safenode-image.enabled
+
   - name: tensorsec-common
     version: 0.1.0
     repository: "file://./subcharts/tensorsec-common"

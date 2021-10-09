@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "safenode.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "safenode.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "safenode.fullname" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: {{ template "safenode.fullname" . }}
+      labels:
+        app: {{ template "safenode.fullname" . }}
+        release: {{ .Release.Name }}
+    spec:
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      containers:
+        - name: {{ template "safenode.name" . }}
+          image: {{ include "safenode.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/docker.sock
+              name: docker-socket
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          env:
+            - name: SAFENODE-BUF-REGISTRY-URL
+              value: {{ .Values.bufRegistry.bufRegistryUrl }}
+            - name: SAFENODE-BUF-REGISTRY-USER
+              value: {{ .Values.bufRegistry.bufRegistryUser }}
+            - name: SAFENODE-BUF-REGISTRY-PASSWORD
+              value: {{ .Values.bufRegistry.bufRegistryPass }}
+            - name: SAFENODE-BUF-INTERNAL
+              value: {{ .Values.bufRegistry.bufInternal | quote }}
+          resources:
+{{ toYaml .Values.resources | trim | indent 12 }}
+      volumes:
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
