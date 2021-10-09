@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,10 +30,18 @@ func (api *api) assets() func(chi.Router) {
 		r.Post("/cluster", api.updateClusterInfo())
 		r.Delete("/cluster/{clusterKey}", api.deleteCluster())
 		r.Get("/namespaces", api.getNamespaces())
+		r.Post("/namespace", api.updateNamespace())
 		r.Get("/namespace/{namespace}/kind/{kind}/resources", api.getResourcesInNamespace())
+		r.Post("/resource/userData", api.updateResourceUserData())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
 		r.Get("/resources/byImage", api.getResourcesByImage())
 		r.Get("/resources/byImageVulns", api.getResourcesByImageVuln())
+		r.Get("/pods", api.getPods())
+
+		r.Get("/resources/count", api.countResource())
+		r.Get("/containers/count", api.countContainers())
+		r.Get("/pods/count", api.countPods())
+		r.Get("/namespaces/count", api.countNamespaces())
 	}
 }
 
@@ -400,6 +409,79 @@ func (api *api) getNamespaces() http.HandlerFunc {
 	}
 }
 
+func (api *api) updateNamespace() http.HandlerFunc {
+	type Ns struct {
+		ClusterKey string   `json:"cluster_key"`
+		Name       string   `json:"name"`
+		Alias      string   `json:"alias"`
+		Managers   []string `json:"managers"`
+		Authority  string   `json:"authority"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		var tensorNs Ns
+		err := util.DecodeJSONBody(w, r, &tensorNs)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		err = resSvc.UpdateNamespaces(ctx, tensorNs.ClusterKey, tensorNs.Name, tensorNs.Alias, tensorNs.Managers, tensorNs.Authority)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("update Namespaces error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+func (api *api) countNamespaces() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = "default"
+		}
+		query, err := param.QueryString(r, "query")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get query param error.")
+			query = ""
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		cnt, err := resSvc.CountNamespaces(ctx, clusterKey, query)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("count Namespaces error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		type resp struct {
+			Count int64 `json:"count"`
+		}
+
+		response.Ok(w, response.WithItem(resp{Count: cnt}))
+	}
+}
+
 func (api *api) getResourcesInNamespace() http.HandlerFunc {
 	type resource struct {
 		Cluster   string `json:"cluster"`
@@ -476,14 +558,86 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 	}
 }
 
+func (api *api) updateResourceUserData() http.HandlerFunc {
+	type UserData struct {
+		ClusterKey string   `json:"cluster_key"`
+		Namespace  string   `json:"namespace"`
+		Kind       string   `json:"kind"`
+		Name       string   `json:"name"`
+		Alias      string   `json:"alias"`
+		Managers   []string `json:"managers"`
+		Authority  string   `json:"authority"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		var userData UserData
+		err := util.DecodeJSONBody(w, r, &userData)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		res := &model.TensorResource{
+			Name:       userData.Name,
+			Namespace:  userData.Namespace,
+			ClusterKey: userData.ClusterKey,
+			Kind:       userData.Kind,
+			Alias:      userData.Alias,
+			Managers:   userData.Managers,
+			Authority:  userData.Authority,
+		}
+		err = resSvc.UpdateResourceUserData(ctx, res)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("update resource user data error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+func parseImage(image string) (string, string, string) {
+	var repo, name, tag string
+
+	splits := strings.SplitN(image, ":", 2)
+	if len(splits) == 2 {
+		tag = splits[1]
+		sp := strings.SplitN(splits[0], "/", 2)
+		if len(sp) < 2 {
+			name = sp[0]
+		} else {
+			repo = sp[0]
+			name = sp[len(sp)-1]
+		}
+	}
+	return repo, name, tag
+}
+
 func (api *api) getResourceContainers() http.HandlerFunc {
 	type container struct {
-		Cluster      string `json:"cluster"`
-		Namespace    string `json:"namespace"`
-		ResourceKind string `json:"resource_kind"`
-		ResourceName string `json:"resource_name"`
-		Name         string `json:"name"`
-		Image        string `json:"image"`
+		Cluster      string             `json:"cluster"`
+		Namespace    string             `json:"namespace"`
+		ResourceKind string             `json:"resource_kind"`
+		ResourceName string             `json:"resource_name"`
+		Name         string             `json:"name"`
+		WorkingDir   string             `json:"working_dir"`
+		Command      []string           `json:"command"`
+		Type         string             `json:"type"`
+		ImageRepo    string             `json:"image_repo"`
+		ImageName    string             `json:"image_name"`
+		ImageTag     string             `json:"image_tag"`
+		Ports        []v1.ContainerPort `json:"ports"`
 	}
 	fromModelToContainer := func(cm *model.TensorContainer) *container {
 		c := new(container)
@@ -492,7 +646,16 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		c.ResourceKind = cm.ResourceKind
 		c.ResourceName = cm.ResourceName
 		c.Name = cm.Name
-		c.Image = cm.Image
+		c.Type = cm.Type
+		c.WorkingDir = cm.Spec.WorkingDir
+		c.Command = cm.Spec.Command
+		c.Ports = make([]v1.ContainerPort, len(cm.Ports))
+		copy(c.Ports, cm.Ports)
+
+		repo, name, tag := parseImage(cm.Image)
+		c.ImageRepo = repo
+		c.ImageName = name
+		c.ImageTag = tag
 		return c
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -555,5 +718,231 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(items))))
+	}
+}
+
+// @Summary
+// @Description get the list of pods with options
+// @Produce json
+// @Method GET
+// @Router /api/v2/platform/assets/pods
+func (api *api) getPods() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+
+		queryOpt := dal.ResourcePodssQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			clusterKey = ""
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace") //chi.URLParam(r, "namespace")
+		if err != nil {
+			namespace = ""
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service err")))
+			return
+		}
+
+		pods, cnt, err := resSvc.GetResourcePods(ctx, queryOpt, offset, limit)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod err: %v", err)))
+			return
+		}
+		response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
+	}
+}
+
+func (api *api) countResource() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		queryOpt := dal.ResourcesQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = ""
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			namespace = ""
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		c, err := resSvc.CountResource(ctx, queryOpt)
+		if err != nil {
+			logging.GetLogger().Error().Msg("count resource error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count resource error")))
+			return
+		}
+		response.Ok(w, response.WithItem(struct {
+			Count int64 `json:"count"`
+		}{Count: c}))
+	}
+}
+
+func (api *api) countContainers() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		queryOpt := dal.ResourceContainersQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get namespace param error.")
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind") //chi.URLParam(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName") //chi.URLParam(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		c, err := resSvc.CountContainer(ctx, queryOpt)
+		if err != nil {
+			logging.GetLogger().Error().Msg("count container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count container error")))
+			return
+		}
+		response.Ok(w, response.WithItem(struct {
+			Count int64 `json:"count"`
+		}{Count: c}))
+	}
+}
+
+func (api *api) countPods() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		queryOpt := dal.ResourcePodssQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get namespace param error.")
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+
+		cnt, err := resSvc.CountPods(ctx, queryOpt)
+		if err != nil {
+			logging.GetLogger().Error().Msg("count pods error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count pods error")))
+			return
+		}
+		response.Ok(w, response.WithItem(struct {
+			Count int64 `json:"count"`
+		}{Count: cnt}))
 	}
 }

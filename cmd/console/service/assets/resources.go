@@ -91,6 +91,38 @@ func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions
 	}
 	return resources, resCnt, nil
 }
+
+func (rl *TensorResourcesService) CountResource(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (int64, error) {
+	resCnt, err := dal.CountResources(ctx, rl.rdb, queryOptions)
+	if err != nil {
+		return 0, err
+	}
+
+	return resCnt, nil
+}
+
+func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, res *model.TensorResource) error {
+	return dal.UpdateResourceUserData(ctx, rl.rdb, res)
+}
+
+func (rl *TensorResourcesService) GetResourceMap(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (map[dal.ResourceKey]*model.TensorResource, error) {
+	res, err := dal.GetResources(ctx, rl.rdb, queryOptions, -1, -1)
+	if err != nil {
+		return nil, err
+	}
+
+	resMap := make(map[dal.ResourceKey]*model.TensorResource)
+	for _, r := range res {
+		resMap[dal.ResourceKey{
+			ClusterKey:   r.ClusterKey,
+			Namespace:    r.Namespace,
+			ResourceKind: r.Kind,
+			ResourceName: r.Name,
+		}] = r
+	}
+	return resMap, nil
+}
+
 func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey, nameQuery string, offset, limit int) ([]*model.TensorNamespace, int64, error) {
 	ns, err := dal.GetNamespacesByCluster(ctx, rl.rdb, clusterKey, nameQuery, offset, limit)
 	if err != nil {
@@ -103,9 +135,36 @@ func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey,
 	return ns, cnt, nil
 }
 
-func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, clusterKey, namespace, resKind, resName string) ([]*model.PodResourceRelation, error) {
-	return dal.GetResourcePodsList(ctx, rl.rdb, clusterKey, namespace, resKind, resName)
+func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKey, nameQuery string) (int64, error) {
+	cnt, err := dal.CountNamespaces(ctx, rl.rdb, clusterKey, nameQuery)
+	if err != nil {
+		return 0, err
+	}
+	return cnt, nil
 }
+
+func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, clusterKey, name, alias string, manager []string, authority string) error {
+	err := dal.UpdateNamespace(ctx, rl.rdb, clusterKey, name, alias, manager, authority)
+	return err
+}
+
+func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, queryOptions *dal.ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, int64, error) {
+	pods, err := dal.GetResourcePodsList(ctx, rl.rdb, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	cnt, err := dal.CountPods(ctx, rl.rdb, queryOptions)
+	return pods, cnt, err
+}
+
+func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *dal.ResPodsQueryOption) (int64, error) {
+	cnt, err := dal.CountPods(ctx, rl.rdb, queryOptions)
+	if err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
 func (rl *TensorResourcesService) GetResourceContainers(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*model.TensorContainer, int64, error) {
 	containers, err := dal.GetResourceContainers(ctx, rl.rdb, queryOptions, offset, limit)
 	if err != nil {
@@ -114,6 +173,14 @@ func (rl *TensorResourcesService) GetResourceContainers(ctx context.Context, que
 
 	cnt, err := dal.CountResourceContainers(ctx, rl.rdb, queryOptions)
 	return containers, cnt, err
+}
+
+func (rl *TensorResourcesService) CountContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption) (int64, error) {
+	cnt, err := dal.CountResourceContainers(ctx, rl.rdb, queryOptions)
+	if err != nil {
+		return 0, err
+	}
+	return cnt, nil
 }
 
 func (rl *TensorResourcesService) GetImagesWithGivenVuln(ctx context.Context, vulnName string) ([]*model.ImageInfo, error) {

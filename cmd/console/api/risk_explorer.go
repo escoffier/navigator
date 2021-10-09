@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"net/http"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 func (api *api) riskExplorer() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/wholeGraphOverall", api.wholeGraphOverrall())
-		r.Get("/resourceDetails/namespace/{namespace}/kind/{resourceKind}/name/{resourceName}", api.serviceDetails())
+		r.Get("/cluster/{clusterKey}/namespace/{namespace}/kind/{resourceKind}/name/{resourceName}/detail", api.serviceDetails())
 	}
 }
 
@@ -64,33 +65,35 @@ func (api *api) serviceDetails() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		resKind := chi.URLParam(r, "resourceKind")
-		if len(resKind) == 0 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.New("missing resourceKind in url")))
-			return
-		}
-		namespace := chi.URLParam(r, "namespace")
-		if len(namespace) == 0 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.New("missing namespace in url")))
-			return
-		}
-		resName := chi.URLParam(r, "resourceName")
-		if len(resName) == 0 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.New("missing resourceName in url")))
-			return
+		queryOpt := dal.ResourcesQuery()
+
+		clusterKey := chi.URLParam(r, "clusterKey")
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
 		}
 
-		cluster, err := param.QueryString(r, "cluster")
-		if err != nil {
-			cluster = "default"
+		namespace := chi.URLParam(r, "namespace")
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
 		}
+
+		resKind := chi.URLParam(r, "resourceKind")
+		if resKind != "" {
+			queryOpt.WithResourceKind(assets.ResourceKind(resKind))
+		}
+
+		resName := chi.URLParam(r, "resourceName")
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+
 		reSvc, ok := riskexplorer.Get(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewAnError(http.StatusServiceUnavailable, errors.New("RiskExplorer Service not found")))
 			return
 		}
 
-		detail, err := reSvc.ResourceDetail(ctx, cluster, namespace, resKind, resName)
+		detail, err := reSvc.ResourceDetail(ctx, clusterKey, namespace, resKind, resName)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
