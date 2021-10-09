@@ -10,6 +10,7 @@ global:
     url: &imageRegistryURL harbor.local.tensorsecurity.cn
     username: &imageRegistryUsername admin
     password: &imageRegistryPassword Harbor12345
+  bufRegistryUrl: &bufRegistryUrl console.localhost.com
   multiCluster:
     ## Both 'isMasterCluster' and 'isMemberCluster' all need be modified 
     ## and the values of them must be opposite
@@ -151,6 +152,14 @@ stan:
       enabled: *persistenceStorage
 holmessidekick:
   enabled: false
+
+safenode-image:
+  enabled: true
+  image:
+    tag: *tensorsecVerison
+  bufRegistry: 
+    bufRegistryUrl: *bufRegistryUrl
+    bufInternal: 10
 
 redis-ha:
   enabled: *isMasterCluster

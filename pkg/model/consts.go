@@ -51,13 +51,15 @@ const (
 	UsePatternForOnline = "for_online"
 )
 const (
-	RegistryUseTypeBuff   = 2 // 表示CICD的中转仓库
-	RegistryUseTypeNormal = 1 // 表示同步仓库
+	RegistryUseTypeCICDBuff = 2 // 表示CICD的中转仓库
+	RegistryUseSafeNode     = 3 // 表示节点镜像所使用的仓库
+	RegistryUseTypeNormal   = 1 // 表示同步仓库
 )
 
 const (
 	ImageFromTypeCICD   = 2
 	ImageFromTypeNormal = 1
+	ImageFromSafeNode   = 3
 )
 
 var reasonZHMap = map[int64]string{

@@ -124,29 +124,28 @@ func (i ScanImage) TableName() string {
 	return "scan_images"
 }
 
-// 镜像信息表
+// ImageList 镜像信息表
 type ImageList struct {
 	ID        int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	//Url           string
-	FullRepoName  string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:1"  json:"full_repo_name"`
-	Tags          string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:2" json:"tags"`
-	Digest        string                 `gorm:"index:idx_image_digest" json:"digest"`
-	OS            string                 `gorm:"column:os" json:"os"`
-	Size          int                    `gorm:"column:size" json:"size"`
-	Library       string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:3" json:"library"`
-	ImageUUID     uint32                 `gorm:"column:image_uuid" json:"-"`
-	Questions     []QuestionInfo         `gorm:"-" json:"questions"`
-	CompleteTime  string                 `gorm:"column:complete_time" json:"complete_time"`
-	ImageScanVuln ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
-	// Container      []AssetContainer       `gorm:"-" json:"container"`
-	ScanStatus        string             `gorm:"-" json:"scan_status"`
-	ImageScanVirus    []VirusFileInfo    `gorm:"-" json:"image_scan_virus"`
-	ImageScanWebshell []WebshellFileInfo `gorm:"-" json:"image_scan_webshell"`
-	OnLineCount       int                `gorm:"column:on_line_count;default:0" json:"-"`
-	Status            int                `gorm:"column:status;default:0" json:"status"`                                   //  status: -1 not ready images 0 normal status
-	RegistryId        int64              `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"registry_id"` // 来源registry，id为registry表的id
+	// Url           string
+	FullRepoName      string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:1"  json:"full_repo_name"`
+	Tags              string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:2" json:"tags"`
+	Digest            string                 `gorm:"index:idx_image_digest" json:"digest"`
+	OS                string                 `gorm:"column:os" json:"os"`
+	Size              int                    `gorm:"column:size" json:"size"`
+	Library           string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:3" json:"library"`
+	ImageUUID         uint32                 `gorm:"column:image_uuid" json:"-"`
+	Questions         []QuestionInfo         `gorm:"-" json:"questions"`
+	CompleteTime      string                 `gorm:"column:complete_time" json:"complete_time"`
+	ImageScanVuln     ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
+	ScanStatus        string                 `gorm:"-" json:"scan_status"`
+	ImageScanVirus    []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
+	ImageScanWebshell []WebshellFileInfo     `gorm:"-" json:"image_scan_webshell"`
+	OnLineCount       int                    `gorm:"column:on_line_count;default:0" json:"-"`
+	Status            int                    `gorm:"column:status;default:0" json:"status"`                                   //  status: -1 not ready images 0 normal status
+	RegistryId        int64                  `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"registry_id"` // 来源registry，id为registry表的id
 	FirstPushTime     time.Time
 	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
 	LastPullTime      time.Time  // 上次pull时间
@@ -156,9 +155,11 @@ type ImageList struct {
 
 	ManifestV1JSON datatypes.JSON `gorm:"type:jsonb"` // manifest内容
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
-	ConfigJson     datatypes.JSON `gorm:"type:jsonb"` // config内容,包括layer diffid
-	FromType       int            `gorm:"uniqueIndex:uniq_idx_image_list,priority:5,default:0" json:"from_type"`
-	Layers         string         `gorm:"index:idx_image_layers" json:"layers"` // 把layer拼成字符串，为了找出基础镜像,用|分隔
+	ConfigJson     datatypes.JSON `gorm:"type:jsonb"`                                                            // config内容,包括layer diffid
+	FromType       int            `gorm:"uniqueIndex:uniq_idx_image_list,priority:5,default:0" json:"from_type"` // 镜像来源
+	Layers         string         `gorm:"index:idx_image_layers" json:"layers"`                                  // 把layer拼成字符串，为了找出基础镜像,用|分隔
+	NodeIp         string         `gorm:"column:node_ip" json:"node_ip"`                                         // 结点的Ip
+	NodeHostname   string         `gorm:"column:node_hostname" json:"node_hostname"`                             // 结点的HostName
 
 	ImageType int64 `gorm:"column:image_type;default:0" json:"image_type"`
 

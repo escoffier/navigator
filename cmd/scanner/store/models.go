@@ -20,12 +20,27 @@ type SearchImageParam struct {
 	Where          string // 外面传一个附加的字符串的where条件
 	StartId        int64  // 取大于该ID的数据
 	LastId         int64  // 取大于该ID的数据
-	FromType       int
-	NotFromType    int
+	FromType       int64
+	NotFromType    int64
 	ImageType      string
 	Fields         []string // 只想要的字端
 	LayersPrefix   string
 	RegistryIds    []int64 // 仓库Id列表
+}
+
+type SearchImageWithScanParam struct {
+	Library         string
+	FullRepoSearch  string // full_repo_name字段的模糊匹配
+	TagSearch       string // tag字段的模糊匹配
+	NodeImageSearch string // 节点镜像的搜索字段
+	Kind            string
+
+	Digests    []string
+	ScanStatus string // 是否删除等状态
+	FromType   int64
+	ImageType  string
+	InIDs      []int64 //
+	NotInIDs   []int64 //
 }
 
 type GetImageParam struct {
@@ -60,6 +75,7 @@ type SearchScanLayerParam struct {
 }
 
 type SearchScanImageParam struct {
+	FromType        int64
 	Kind            string
 	TaskIds         []string
 	Ids             []int64
@@ -75,6 +91,7 @@ type SearchRegistryParam struct {
 	RegistryIds []uint
 	Fields      []string // 只想要的字端
 	LibraryUrl  string
+	UseTypes    []int64
 	UseType     int64
 	RegType     []string
 	Id          int64

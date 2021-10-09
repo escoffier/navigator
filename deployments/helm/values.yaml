@@ -427,3 +427,21 @@ holmessidekick:
       clusterid: tensorsec
       clientid:  falco
 
+safenode-image:
+  enabled: true
+  image:
+    name: tensorsec-safe-node-image
+    tag: latest
+    pullSecret: harbor-admin-secret
+  bufRegistry: 
+    bufRegistryUrl: 10.33.41.205:5000
+    bufRegistryUser: tensorsec
+    bufRegistryPass: TensorSec@Passw0rd
+    bufInternal: 10
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1024Mi"
+    requests:
+      cpu: "500m"
+      memory: "512Mi"

@@ -31,18 +31,6 @@ import (
 
 var (
 	log *logging.Logger
-
-	// declaredModels = []rdbtools.GormTable{
-	// 	model.SecurityPolicy{},
-	// 	model.SecurityPolicyResource{},
-	// 	model.ApparmorProfile{},
-	// 	model.SeccompProfile{},
-	// 	model.CommandWhitelistProfile{},
-	// 	model.DriftProfile{},
-	// 	model.ApparmorProfileData{},
-	// 	model.SeccompProfileData{},
-	// 	model.CommandWhitelistProfileData{},
-	// }
 )
 
 const (
@@ -87,15 +75,6 @@ func NewSecProfileManager(
 		logging.GetLogger().Err(err).Msg("Init postgre error")
 		return nil, err
 	}
-
-	// ctx := context.Background()
-	// for _, model := range declaredModels {
-	//	err := rdbtools.MigrateTable(ctx, db, model)
-	//	if err != nil {
-	//		logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
-	//		return nil, err
-	//	}
-	// }
 
 	// Redis DB client
 	sa := strings.Split(redisOpts.Endpoint, ",")

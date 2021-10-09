@@ -54,6 +54,9 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 	if param.UseType > 0 {
 		db = db.Where("use_type = ? ", param.UseType)
 	}
+	if len(param.UseTypes) > 0 {
+		db = db.Where("use_type In ? ", param.UseTypes)
+	}
 	if param.Search != "" {
 		db = db.Where("name LIKE ? OR url LIKE ? ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))
 	}

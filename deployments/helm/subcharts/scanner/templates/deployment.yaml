@@ -77,6 +77,14 @@ spec:
             value: "TensorSec@Passw0rd"
           - name: REGISTRY_GC_PORT
             value: {{ .Values.dockerregistry.service.gcPort | quote }}
+          - name: SAFENODE-BUF-REGISTRY-URL
+            value: http://{{ template "scanner.fullname" . }}-dockerregistry:{{ .Values.dockerregistry.service.httpPort }}
+          - name: SAFENODE-BUF-REGISTRY-USER
+            value: "tensorsec"
+          - name: SAFENODE-BUF-REGISTRY-PASSWORD
+            value: "TensorSec@Passw0rd"
+          - name: SAFENODE-BUF-INTERNAL
+            value: "5"
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
             name: {{ include "scanner.name" . }}-api

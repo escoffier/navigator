@@ -42,23 +42,6 @@ import (
 
 var (
 	log *logging.Logger
-
-	// declaredModels = []rdbtools.GormTable{
-	// 	model.User{},
-	// 	model.Email{},
-	// 	model.ImageList{},
-	// 	model.QuestionInfo{},
-	// 	model.ScanImage{},
-	// 	model.ScanLayer{},
-	// 	model.VulnImage{},
-	// 	model.Vuln{},
-	// 	model.Registry{},
-	// 	model.ImageRelate{},
-	// 	model.RejectRecord{},
-	// 	model.ImageWhitelist{},
-	// 	model.RejectPolicy{},
-	// 	model.RejectVuln{},
-	// }
 )
 
 func init() {
@@ -127,13 +110,6 @@ func NewScanner(
 		return nil, err
 	}
 
-	// for _, model := range declaredModels {
-	//	err := rdbtools.MigrateTable(ctx, postgresDB, model)
-	//	if err != nil {
-	//		logging.GetLogger().Err(err).Msgf("migrate table %s error", model.TableName())
-	//		return nil, err
-	//	}
-	// }
 	scannerDB := store.NewScannerDB(postgresDB)
 
 	// Redis DB client

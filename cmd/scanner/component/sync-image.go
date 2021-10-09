@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -34,7 +35,8 @@ type RegistryWithConf struct {
 }
 
 func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf, error) {
-	registries, _, err := s.registryDao.SearchRegistry(context.Background(), store.SearchRegistryParam{UseType: model.ImageFromTypeNormal, NoDelete: true}, nil)
+	registries, _, err := s.registryDao.SearchRegistry(context.Background(), store.SearchRegistryParam{NoDelete: true,
+		UseTypes: []int64{model.RegistryUseTypeNormal, model.RegistryUseSafeNode}}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +106,13 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 			exitMap.Store(registries[i].Config.Name, false)
 
 			go worker(registries[i], func(image registry.Image) error {
-				img := TransImageToImagelist(registries[i].Config, image)
+				img, err := TransImageToImagelist(registries[i].Config, image)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
+					return err
+				}
 
-				_, err := s.scannerDB.InsertImageList(context.Background(), img)
+				_, err = s.scannerDB.InsertImageList(context.Background(), img)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
 					return err
@@ -120,9 +126,8 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 	}
 }
 
-func TransImageToImagelist(reg model.Registry, image registry.Image) model.ImageList {
+func TransImageToImagelist(reg model.Registry, image registry.Image) (model.ImageList, error) {
 	tmpLib := reg.Url
-
 	tmpLib = strings.TrimPrefix(tmpLib, "http://") // trimPrefix http or https
 	tmpLib = strings.TrimPrefix(tmpLib, "https://")
 
@@ -145,7 +150,21 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) model.Image
 		ImageUUID:      util.GenerateUUID(imageID),
 	}
 	img.Layers = getLayerString(img)
-	return img
+	if reg.UseType == model.RegistryUseSafeNode {
+		newImage, err := parseImageFromNodeSafe(image.Repository)
+		if err != nil {
+			return img, err
+		}
+		img.NodeIp = newImage.NodeIp
+		img.NodeHostname = newImage.NodeHostname
+		img.OS = newImage.OS
+
+		img.FullRepoName = newImage.FullRepoName
+		img.Library = newImage.Library
+		img.FromType = model.ImageFromSafeNode
+	}
+
+	return img, nil
 }
 
 // RegToRegistryConf 把model.Registry转为registry.RegistrableComponentConfig
@@ -170,4 +189,28 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 		Options: opt,
 	}
 	return conf
+}
+
+func parseImageFromNodeSafe(imageName string) (*model.ImageList, error) {
+	// tensorsecurity/tensorsec-safe-node-image-gjj92/10.65.72.63/linux/index.docker.io/calico/cni"
+	imageName = strings.Trim(imageName, " ")
+	split := strings.Split(imageName, "/")
+	if len(split) < 6 {
+		return nil, fmt.Errorf("parse error %s", imageName)
+	}
+	if split[0] != consts.NodeSafeSalt {
+		return nil, fmt.Errorf("parse error %s", imageName)
+	}
+	// NodeSafeTage = "%s/" + NodeSafeSalt + "/%s/%s%s/%s" // 仓库地址/tensorsec/hostname/ip/os/镜像名
+	if len(split) >= 6 {
+		im := &model.ImageList{
+			FullRepoName: strings.Join(split[5:], "/"),
+			Library:      split[4],
+			NodeIp:       split[2],
+			OS:           split[3],
+			NodeHostname: split[1],
+		}
+		return im, nil
+	}
+	return nil, fmt.Errorf("parse error %s", imageName)
 }

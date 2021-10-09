@@ -12,6 +12,7 @@ const (
 	ScanStatusSucceeded  = "succeeded"
 	ScanStatusFailed     = "failed"
 	ScanStatusPending    = "pending"
+	ScanStatusNotScan    = "not_scan"
 )
 
 type ScannerReq struct {
@@ -86,6 +87,7 @@ type ImageResponse struct {
 	ID                int64          `json:"id"`
 	Digest            string         `json:"digest"`
 	Library           string         `json:"library"`
+	NodeIp            string         `json:"node_ip"`
 	ScanStatus        string         `json:"scan_status"`
 	CompleteTime      string         `json:"complete_time"`
 	Questions         []QuestionInfo `json:"questions"`
@@ -95,6 +97,12 @@ type ImageResponse struct {
 	RiskScore         float64        `json:"risk_score"`
 	RegistryName      string         `json:"registry_name"`
 	RegistryDeletedAt int64          `json:"registry_deleted_at"`
+	FromType          int64          `json:"from_type"`
+	Trusted           int64          `json:"trusted"`
+	ExistFixedVulu    bool           `json:"exist_fixed_vulu"`
+	Online            bool           `json:"online"`
+	Os                string         `json:"os"`
+	NodeHostname      string         `json:"node_hostname"`
 }
 
 func ImageToImageResponse(img ImageList) ImageResponse {
@@ -108,9 +116,13 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		FullRepoName: img.FullRepoName,
 		Tags:         img.Tags,
 		ImageType:    img.ImageType,
+		NodeIp:       img.NodeIp,
+		NodeHostname: img.NodeHostname,
+		Os:           img.OS,
 	}
 	if img.ScanImage != nil {
 		im.RiskScore = img.ScanImage.VulnScore + img.ScanImage.SensitiveScore + math.Min(img.ScanImage.WebshellScore+img.ScanImage.VirusScore, 40)
+		im.ScanStatus = img.ScanImage.Status
 	}
 
 	if img.Registry != nil {
