@@ -22,17 +22,17 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20201021153353-00ad82a08272 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
-	github.com/falcosecurity/client-go v0.3.0
+	github.com/falcosecurity/client-go v0.4.0
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/florianl/go-conntrack v0.2.0 //conntrack
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-chi/jwtauth v4.0.4+incompatible
 	github.com/go-openapi/spec v0.19.9 // indirect
 	github.com/go-openapi/swag v0.19.9 // indirect
 	github.com/go-playground/validator/v10 v10.9.0 // indirect
-	github.com/go-redis/redis/v8 v8.11.3
+	github.com/go-redis/redis/v8 v8.11.4
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
@@ -47,7 +47,7 @@ require (
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.59
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.13.5 // indirect
+	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/lib/pq v1.10.3
 	github.com/mattn/go-colorable v0.1.8
 	github.com/mattn/go-isatty v0.0.14 // indirect
@@ -90,14 +90,14 @@ require (
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vishvananda/netlink v0.0.0 //netlink
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
-	go.mongodb.org/mongo-driver v1.7.2
+	go.mongodb.org/mongo-driver v1.7.3
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.13.0
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/net v0.0.0-20210907225631-ff17edfbf26d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210925032602-92d5a993a665
+	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/genproto v0.0.0-20210903162649-d08c68adba83
 	google.golang.org/grpc v1.40.0
@@ -105,9 +105,9 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/datatypes v1.0.1
-	gorm.io/driver/postgres v1.1.1
-	gorm.io/gorm v1.21.15
+	gorm.io/datatypes v1.0.2
+	gorm.io/driver/postgres v1.1.2
+	gorm.io/gorm v1.21.16
 	k8s.io/api v0.19.12
 	k8s.io/apimachinery v0.19.12
 	k8s.io/apiserver v0.19.12
@@ -130,7 +130,6 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/glaslos/ssdeep v0.3.1 // indirect
 	github.com/go-logr/logr v0.2.0 // indirect

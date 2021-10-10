@@ -6,6 +6,7 @@ import (
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/falcosecurity/client-go/pkg/client"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
@@ -66,6 +67,13 @@ func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 	}
 	return nil
 }
+
 func (s *RuntimeEventStream) Start(ctx context.Context) error {
-	return s.rtClient.OutputsWatch(ctx, s.callback, timeout)
+	for {
+		if err := s.rtClient.OutputsWatch(ctx, s.callback, timeout); err != nil {
+			logging.GetLogger().Err(err).Msg("OutputsWatch error")
+			time.Sleep(100 * time.Millisecond)
+		}
+
+	}
 }

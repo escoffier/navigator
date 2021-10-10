@@ -105,7 +105,7 @@ func NetInit(ctx context.Context) error {
 				}
 			}()
 			if err = rtStream.Start(ctx); err != nil {
-				err = fmt.Errorf("runtime detection start error %v", err)
+				logging.GetLogger().Err(err).Msgf("runtime detection start error %v", err)
 			}
 		}()
 	}
