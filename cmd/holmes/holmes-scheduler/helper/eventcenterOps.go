@@ -20,9 +20,11 @@ const (
 
 func SendRulesToEventCenter(rulesData []byte) error {
 	const (
-		timeout  = time.Second * 5
-		module   = "ContainerSecurity"
-		category = "ATT&CK"
+		timeout    = time.Second * 5
+		module     = "ContainerSecurity"
+		moduleZh   = "容器安全"
+		category   = "ATT&CK"
+		categoryZh = "ATT&CK"
 	)
 	var fDataRules []model.RuleFromYaml
 	err := yaml.Unmarshal(rulesData, &fDataRules)
@@ -76,6 +78,16 @@ func SendRulesToEventCenter(rulesData []byte) error {
 				"description": {
 					ValueHash: map[string]string{
 						string(lang.LanguageZH): descZh,
+					},
+				},
+				"module": {
+					ValueHash: map[string]string{
+						string(lang.LanguageZH): moduleZh,
+					},
+				},
+				"category": {
+					ValueHash: map[string]string{
+						string(lang.LanguageZH): categoryZh,
 					},
 				},
 			},
