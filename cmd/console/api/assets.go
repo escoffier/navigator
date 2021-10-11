@@ -383,7 +383,7 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
-			clusterKey = "default"
+			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
@@ -454,7 +454,7 @@ func (api *api) countNamespaces() http.HandlerFunc {
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
-			clusterKey = "default"
+			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
