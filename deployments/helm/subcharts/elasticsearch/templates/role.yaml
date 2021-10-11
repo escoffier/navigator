@@ -1,6 +1,6 @@
 {{- if .Values.rbac.create -}}
 {{- $fullName := include "elasticsearch.uname" . -}}
-apiVersion: rbac.authorization.k8s.io/v1
+apiVersion: {{ include "tensorsec.common.capabilities.cronjob.apiVersion" . }}
 kind: Role
 metadata:
   name: {{ $fullName | quote }}

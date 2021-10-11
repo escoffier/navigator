@@ -1,4 +1,3 @@
-{{- if .Values.global.multiCluster.isMasterCluster }}
 {{- if (and .Values.auditLog.enabled .Values.auditLog.dynamicBackend.enabled) }}
 apiVersion: auditregistration.k8s.io/v1alpha1
 kind: AuditSink
@@ -28,5 +27,4 @@ spec:
       {{- if .Values.falco.webserver.sslEnabled }}
       caBundle: {{ .Values.certs.ca.crt | b64enc | quote }}
       {{- end}}
-{{- end }}
 {{- end }}

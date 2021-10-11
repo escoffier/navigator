@@ -1,5 +1,5 @@
 ---
-apiVersion: apps/v1
+apiVersion: {{ include "tensorsec.common.capabilities.statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
   name: {{ template "stan.name" . }}

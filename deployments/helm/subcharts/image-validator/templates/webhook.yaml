@@ -1,4 +1,4 @@
-apiVersion: {{ template "admissionregistration.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.admissionregistration.apiVersion" . }}
 kind: ValidatingWebhookConfiguration
 metadata:
   name: {{ include "image-validator.fullname" . }}

@@ -93,27 +93,3 @@ Return the scanner image name
 {{- define "initContainers.image" -}}
 {{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.initContainers.image "global" .Values.global) }}
 {{- end -}}
-
-
-
-{{/*
-Return the appropriate apiVersion for admission.
-*/}}
-{{- define "admissionregistration.apiVersion" -}}
-{{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
-{{- print "admissionregistration.k8s.io/v1" -}}
-{{- else -}}
-{{- print "admissionregistration.k8s.io/v1beta1" -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Return the appropriate apiVersion for rbac.
-*/}}
-{{- define "rbac.apiVersion" -}}
-{{- if .Capabilities.APIVersions.Has "rbac.authorization.k8s.io/v1" }}
-{{- print "rbac.authorization.k8s.io/v1" -}}
-{{- else -}}
-{{- print "rbac.authorization.k8s.io/v1beta1" -}}
-{{- end -}}
-{{- end -}}

@@ -1,7 +1,7 @@
 {{- if .Values.global.multiCluster.isMasterCluster }}
 {{- if .Values.podSecurityPolicy.create}}
 ---
-apiVersion: policy/v1beta1
+apiVersion: {{ include "tensorsec.common.capabilities.policy.apiVersion" . }}
 kind: PodSecurityPolicy
 metadata:
   name: {{ template "falco.fullname" . }}
@@ -26,7 +26,7 @@ spec:
 {{- end }}
 {{- if (and .Values.podSecurityPolicy.create .Values.fakeEventGenerator.enabled) }}
 ---
-apiVersion: policy/v1beta1
+apiVersion: {{ include "tensorsec.common.capabilities.policy.apiVersion" . }}
 kind: PodSecurityPolicy
 metadata:
   name: event-generator-{{ template "falco.fullname" . }}

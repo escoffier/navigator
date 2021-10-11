@@ -36,7 +36,7 @@ data:
             defaultmode: 420
             secretname: "{{ .Values.volumes.caSecretName }}"
 ---
-apiVersion: rbac.authorization.k8s.io/v1
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
   name: {{ template "secProfilesManager.serviceAccount" . }}-webhook-cluster-role
@@ -73,7 +73,7 @@ metadata:
     release: {{ .Release.Name | quote }}
 
 ---
-apiVersion: rbac.authorization.k8s.io/v1
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRoleBinding
 metadata:
   name: {{ template "secProfilesManager.serviceAccount" . }}-webhook-cluster-role-binding
@@ -109,7 +109,7 @@ spec:
     app: {{ template "secProfilesManager.fullname" . }}-webhook
 
 ---
-apiVersion: apps/v1
+apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
   name: {{ template "secProfilesManager.fullname" . }}-webhook

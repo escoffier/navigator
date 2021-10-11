@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 ---
-apiVersion: {{ template "rbac.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 kind: Role
 metadata:
   name: {{ include "falcosidekick.fullname" . }}
@@ -30,7 +30,7 @@ rules:
   verbs:
     - get
 ---
-apiVersion: {{ template "rbac.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 kind: RoleBinding
 metadata:
   name: {{ include "falcosidekick.fullname" . }}

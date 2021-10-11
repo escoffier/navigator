@@ -1,4 +1,4 @@
-apiVersion: {{ template "rbac.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
   name: {{ include "image-validator.fullname" . }}

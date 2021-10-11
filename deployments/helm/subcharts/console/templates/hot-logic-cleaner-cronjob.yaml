@@ -1,5 +1,5 @@
 {{- if .Values.persistence.enabled -}}
-apiVersion: batch/v1beta1
+apiVersion: {{ include "tensorsec.common.capabilities.cronjob.apiVersion" . }}
 kind: CronJob
 metadata:
   name: {{ .Values.persistence.tensorsecCleaner.hotLogicCronjob.fullnameOverride }}
