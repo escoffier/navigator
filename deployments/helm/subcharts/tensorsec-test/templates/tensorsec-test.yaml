@@ -1,5 +1,5 @@
 ---
-apiVersion: apps/v1
+apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
   labels:
@@ -23,7 +23,7 @@ spec:
         name: tensorsec-test1
 
 ---
-apiVersion: apps/v1
+apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
   labels:

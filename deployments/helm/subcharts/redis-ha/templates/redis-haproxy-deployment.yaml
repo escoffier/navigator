@@ -1,6 +1,6 @@
 {{- if .Values.haproxy.enabled }}
 kind: Deployment
-apiVersion: apps/v1
+apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
 metadata:
   name: {{ template "redis-ha.fullname" . }}-haproxy
   namespace: {{ .Release.Namespace }}

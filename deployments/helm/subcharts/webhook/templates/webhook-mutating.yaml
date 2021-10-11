@@ -1,4 +1,4 @@
-apiVersion: {{ template "admissionregistration.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.admissionregistration.apiVersion" . }}
 kind: MutatingWebhookConfiguration
 metadata:
   name: {{ include "webhook.fullname" . }}

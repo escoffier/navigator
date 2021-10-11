@@ -1,6 +1,5 @@
-{{- if .Values.global.multiCluster.isMasterCluster }}
 {{- if .Values.fakeEventGenerator.enabled }}
-apiVersion: apps/v1
+apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
   name: {{ template "falco.fullname" . }}-event-generator
@@ -29,6 +28,5 @@ spec:
 {{- with .Values.fakeEventGenerator.args }}
         args:
 {{ toYaml . | indent 10 }}
-{{- end }}
 {{- end }}
 {{- end }}

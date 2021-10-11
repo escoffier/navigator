@@ -1,7 +1,7 @@
 {{- if .Values.podSecurityPolicy.create }}
 ---
 kind: ClusterRole
-apiVersion: {{ template "rbac.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 metadata:
   name: {{ template "falcosidekick.fullname" .}}
   labels:

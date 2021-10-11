@@ -1,6 +1,6 @@
 {{- if .Values.rbac.create }}
 kind: ClusterRoleBinding
-apiVersion: {{ template "rbac.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 metadata:
   name: {{ template "falco.serviceAccountName" .}}-cluster-role-binding
   labels:

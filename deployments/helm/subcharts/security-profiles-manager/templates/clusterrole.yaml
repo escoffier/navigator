@@ -1,5 +1,5 @@
 {{- if .Values.managedServiceAccount }}
-apiVersion: {{ template "rbac.apiVersion" . }}
+apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
   name: {{ template "secProfilesManager.serviceAccount" . }}-cluster-role
