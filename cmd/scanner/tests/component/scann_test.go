@@ -86,7 +86,7 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 type mockdal struct {
 }
 
-func (m *mockdal) SearchImageWithScan(ctx context.Context, param store.SearchImageWithScanParam, filter *model.Filter) ([]store.ImageListWithScan, int64, error) {
+func (m *mockdal) SearchImageWithScan(ctx context.Context, param store.SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
 	panic("implement me")
 }
 

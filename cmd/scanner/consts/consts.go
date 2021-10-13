@@ -50,15 +50,17 @@ const (
 )
 
 const (
-	VulnType          = "vuln_info_json"
-	PkgType           = "pkg_info_json"
-	SensitiveFileType = "sensitive_file_json"
-	MaliciousInfoType = "malicious_info_json"
-	WebsellInfoType   = "webshell_info_json"
-	BaseImage         = "base"
-	AppImage          = "app"
-	BaseImageType     = 1
-	AppImageType      = 0
+	VulnType            = "vuln_info_json"
+	PkgType             = "pkg_info_json"
+	SensitiveFileType   = "sensitive_file_json"
+	MaliciousInfoType   = "malicious_info_json"
+	WebsellInfoType     = "webshell_info_json"
+	BaseImage           = "base"
+	AppImage            = "app"
+	BaseImageType       = 1
+	AppImageType        = 0
+	BaseImageTypeString = "1"
+	AppImageTypeString  = "0"
 )
 
 const (
@@ -71,6 +73,7 @@ const (
 )
 
 const (
-	NodeSafeSalt = "tensorsecurity"
-	NodeSafeTage = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/镜像名
+	NodeSafeSalt     = "tensorsecurity"
+	NodeSafeTage     = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/镜像名
+	NodeSafeFullName = NodeSafeSalt + "/%s/%s/%s/%s"         // tensorsec/hostname/ip/os/镜像名
 )

@@ -28,28 +28,30 @@ import (
 )
 
 type SearchImagesParam struct {
-	SearchWord string
-	FromType   int64
-	Kind       string
-	Online     string
-	ImageType  string
-	ImageId    int64
-	ImageIds   []int64
-	Library    string
-	ScanStatus string
+	SearchWord     string
+	FromType       int64
+	Kind           string
+	Online         string
+	ImageType      string
+	ImageId        int64
+	ImageIds       []int64
+	Library        string
+	ScanStatus     []string
+	Trusted        string
+	ExistFixedVulu string
 }
 
 type ScannerSrv interface {
 	CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error
-	SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]model.ImageResponse, int64, error)
+	SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 	UpdateImage(ctx context.Context, where SearchImagesParam, update map[string]interface{}) error
 	GetImageDetail(ctx context.Context, imgId int64) (*model.ImageList, error)
-	GetImageOverView(ctx context.Context, registerUrl string) (*model.OverView, error)
+	GetImageOverView(ctx context.Context, registerUrl string, fromType int64) (*model.OverView, error)
 	GetScanOneStatus(ctx context.Context, imgId int64, fromUrl string) (*model.ScanOneStatusResponse, error)
 	TickScanOne(ctx context.Context, imgId int64, fromUrl string, comefrom int) error
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
 	ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error)
-	ScanAllNow(ctx context.Context, fromUrl string) error
+	ScanAllNow(ctx context.Context, fromUrl string, fromType int64) error
 	GetScanAllStatus(ctx context.Context) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
 	ListImgLayers(ctx context.Context, imgDigest string, filter *model.Filter) ([]model.ReportImgBackInfo, error)
@@ -738,7 +740,7 @@ func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context) harbor.ScanAllStat
 	return s.dbdal.SearchScanAllStatus(ctx)
 }
 
-func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
+func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string, fromType int64) error {
 	logging.GetLogger().Info().Msgf(fmt.Sprintf("start of full scan:%s", time.Now().Format("2006-01-02 15:04:05")))
 	// 先查询当前时刻已存在的仓库列表
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
@@ -760,7 +762,7 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 	}
 	for {
 		// step1: search image_list
-		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{StartId: lastID, FromType: model.ImageFromTypeNormal, RegistryIds: registryIds}, &model.Filter{
+		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{StartId: lastID, FromType: fromType, RegistryIds: registryIds}, &model.Filter{
 			PageSize:  bathSize, // 批量取
 			PageIndex: 1,
 			SortBy:    "asc",
@@ -784,16 +786,14 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string) error {
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("ScanAllNow.SearchScanImage error:%s", err.Error())
 			if err := s.dbdal.SetImageStatus(ctx, nil, model.ScanStatusFailed); err != nil {
-				if err != nil {
-					dbfunc := ScannerDbFunc{}
-					f := func() error {
-						err := s.dbdal.SetImageStatus(context.Background(), nil, model.ScanStatusFailed)
-						return err
-					}
-					dbfunc.RetryNum = 0
-					dbfunc.Value = f
-					s.scannerList.ReUpdataDBPush(dbfunc)
+				dbfunc := ScannerDbFunc{}
+				f := func() error {
+					err := s.dbdal.SetImageStatus(context.Background(), nil, model.ScanStatusFailed)
+					return err
 				}
+				dbfunc.RetryNum = 0
+				dbfunc.Value = f
+				s.scannerList.ReUpdataDBPush(dbfunc)
 				logging.GetLogger().Error().Err(err).Msg("ScanAllNow.SetImageStatus")
 				return err
 			}
@@ -961,10 +961,10 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 	return img, nil
 }
 
-func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string) (*model.OverView, error) {
+func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string, fromType int64) (*model.OverView, error) {
 	overView := new(model.OverView)
 	// 查总数
-	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Library: registerUrl, FromType: model.ImageFromTypeNormal}, model.EmptyFilterForTheTotalQuery())
+	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Library: registerUrl, FromType: fromType}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("GetImageOverView.SearchImage error %s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -972,14 +972,14 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 	allResMap := make(map[string]map[string]*store.ImageGroup)
 
 	for _, ty := range []string{consts.VulnType, consts.MaliciousInfoType, consts.SensitiveFileType, consts.WebsellInfoType} {
-		if err := s.getOverViewHelper(ctx, ty, overView, allResMap); err != nil {
+		if err := s.getOverViewHelper(ctx, fromType, ty, overView, allResMap); err != nil {
 			logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("GetImageOverView.getOverViewHelper error %s", err.Error()))
 			return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 	}
 
 	// 查在线
-	onlineSql := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid ", store.ImageTable, store.ImageContainer)
+	onlineSql := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.from_type = %d  ", store.ImageTable, store.ImageContainer, fromType)
 	if registerUrl != "" {
 		onlineSql = onlineSql + fmt.Sprintf(" AND a.library = %s ; ", registerUrl)
 	} else {
@@ -1030,8 +1030,8 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string
 }
 
 // getOverViewHelper 连表查询tensor_image_list和scan_image表，查询各个镜像下漏洞，病毒等的数据
-func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, searchType string, overView *model.OverView, allResMap map[string]map[string]*store.ImageGroup) error {
-	hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.image_uuid,a.digest, a.library from %s a join %s b on a.id = b.image_id where  b.%s is not null and a.from_type = %d group by b.image_id,a.digest,  a.library,a.image_uuid;", store.ImageTable, store.ImageScanTable, searchType, model.ImageFromTypeNormal)
+func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, searchType string, overView *model.OverView, allResMap map[string]map[string]*store.ImageGroup) error {
+	hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.image_uuid,a.digest, a.library from %s a join %s b on a.id = b.image_id where a.from_type = %d and  b.%s is not null group by b.image_id,a.digest,  a.library,a.image_uuid;", store.ImageTable, store.ImageScanTable, fromType, searchType)
 
 	hasVuluRes, err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasVuluSql})
 	if err != nil {
@@ -1059,13 +1059,17 @@ func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, searchType string
 	return nil
 }
 
-func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]model.ImageResponse, int64, error) {
+func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
+
 	daoParam := store.SearchImageWithScanParam{
-		FromType:   param.FromType,
-		ImageType:  param.ImageType,
-		Library:    param.Library,
-		Kind:       param.Kind,
-		ScanStatus: param.ScanStatus,
+		FromType:       param.FromType,
+		ImageType:      param.ImageType,
+		Library:        param.Library,
+		Kind:           param.Kind,
+		ScanStatus:     param.ScanStatus,
+		ExistFixedVulu: param.ExistFixedVulu,
+		SearchWord:     param.SearchWord,
+		Trusted:        param.Trusted,
 	}
 	onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", store.ImageTable, store.ImageContainer)
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
@@ -1086,78 +1090,46 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		daoParam.NotInIDs = onlineIds
 	}
 
-	if param.SearchWord != "" {
-		if param.FromType == model.ImageFromTypeNormal {
-			split := strings.Split(param.SearchWord, ":")
-			if len(split) > 0 {
-				daoParam.FullRepoSearch = split[0]
-			}
-			if len(split) > 1 {
-				daoParam.TagSearch = split[1]
-			}
-		} else if param.FromType == model.RegistryUseSafeNode {
-			daoParam.NodeImageSearch = param.SearchWord
-		}
-	}
-	res := make([]model.ImageResponse, 0)
 	imgs, cnt, err := s.dbdal.SearchImageWithScan(ctx, daoParam, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	if len(imgs) == 0 {
-		return res, 0, nil
+		return imgs, 0, nil
 	}
-
-	ans := make([]model.ImageResponse, len(imgs))
 	for i := range imgs {
-		ans[i] = model.ImageResponse{
-			ID:           imgs[i].ID,
-			Digest:       imgs[i].Digest,
-			Library:      imgs[i].Library,
-			NodeIp:       imgs[i].NodeIp,
-			NodeHostname: imgs[i].NodeHostname,
-			ScanStatus:   imgs[i].Status,
-			CompleteTime: imgs[i].CompleteTime,
-			FullRepoName: imgs[i].FullRepoName,
-			Tags:         imgs[i].Tags,
-			ImageType:    imgs[i].ImageType,
-			FromType:     imgs[i].FromType,
-			Os:           imgs[i].OS,
-		}
-		if ans[i].CompleteTime == "" {
-			ans[i].CompleteTime = imgs[i].CreatedAt.Format("2006-01-02 15:04:05")
-		}
-		if on, ok := onlineMap[imgs[i].ID]; on && ok {
-			ans[i].Online = true
-		}
-		if ans[i].ScanStatus == "" {
-			ans[i].ScanStatus = model.ScanStatusNotScan
+		// 加上在线离线状态
+		if on, ok := onlineMap[imgs[i].ID]; ok && on {
+			imgs[i].Online = true
 		}
 	}
-
 	// 内存排序
-	sort.Sort(ModeImageResponse(ans))
+	sortStart := time.Now().Nanosecond()
+	sort.Sort(ModeImageResponse(imgs))
+	logging.GetLogger().Info().Msgf("SearchImages sort length:%d cast:%d", len(imgs), (time.Now().Nanosecond()-sortStart)/1000)
+	res := make([]*model.ImageResponse, 0)
 
-	// 然后再分页
-	if filter != nil && len(ans) > 0 {
+	// 然后再分页取当前页数据
+	if filter != nil && len(imgs) > 0 {
 		start := int(filter.PageSize * (filter.PageIndex - 1))
 		end := int(filter.PageSize * (filter.PageIndex))
 
-		if len(ans) <= start {
-			return make([]model.ImageResponse, 0), cnt, nil
+		if len(imgs) <= start {
+			return make([]*model.ImageResponse, 0), cnt, nil
 		}
-		if end > len(ans) {
-			end = len(ans)
+		if end > len(imgs) {
+			end = len(imgs)
 		}
-		res = ans[start:end]
+		res = imgs[start:end]
 	}
 
 	imageIds := make([]int64, 0)
-	imgeMap := make(map[int64]*model.ImageResponse)
+	imageMap := make(map[int64]*model.ImageResponse)
 	for i := range res {
 		imageIds = append(imageIds, res[i].ID)
-		imgeMap[imgs[i].ID] = &res[i]
+		imageMap[res[i].ID] = res[i]
+		imageMap[res[i].ID].Questions = make([]model.QuestionInfo, 0)
 	}
 
 	// 兼容前端把questionInfo信息加上
@@ -1167,71 +1139,65 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
-	scMap := make(map[int64][]model.QuestionInfo)
-	for _, sc := range scs {
-		if im, ok := imgeMap[sc.ImageId]; ok && sc.FinishAt > 0 {
-			im.CompleteTime = time.Unix(sc.FinishAt, 0).Format("2006-01-02 15:04:05")
+	for i := range scs {
+		if _, ok := imageMap[scs[i].ImageId]; ok && scs[i].FinishAt > 0 {
+			imageMap[scs[i].ImageId].CompleteTime = time.Unix(scs[i].FinishAt, 0).Format("2006-01-02 15:04:05")
 		}
 		qus := make([]model.QuestionInfo, 0)
-		if len(sc.VulnInfoJSON) > 0 {
+		if len(scs[i].VulnInfoJSON) > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VULN})
 
 			// 是否存在可修复镜像
-			for j := range sc.VulnInfo {
-				if sc.VulnInfo[j].FixedBy != "" {
-					if imk, ok := imgeMap[sc.ImageId]; ok {
-						imk.ExistFixedVulu = true
+			for j := range scs[i].VulnInfo {
+				if scs[i].VulnInfo[j].FixedBy != "" {
+					logging.GetLogger().Info().Msgf("发现FixedBy1:%d", scs[i].ImageId)
+					if _, ok := imageMap[scs[i].ImageId]; ok {
+						logging.GetLogger().Info().Msgf("发现FixedBy2:%d", scs[i].ImageId)
+						imageMap[scs[i].ImageId].ExistFixedVulu = true
 					}
 				}
 			}
 		}
-		if len(sc.SensitiveFileJSON) > 0 {
+		if len(scs[i].SensitiveFileJSON) > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SENSITIVE})
 		}
-		if len(sc.MaliciousInfoJSON) > 0 {
+		if len(scs[i].MaliciousInfoJSON) > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VIRUS})
 		}
-		if len(sc.WebshellInfoJSON) > 0 {
+		if len(scs[i].WebshellInfoJSON) > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_WEB_SHELL})
 		}
-		scMap[sc.ImageId] = qus
-	}
 
-	for i := range res {
-		if qs, ok := scMap[imgs[i].ID]; ok {
-			res[i].Questions = qs
-		} else {
-			res[i].Questions = make([]model.QuestionInfo, 0) // 防止null
+		// 问题类别加上
+		if _, ok := imageMap[scs[i].ImageId]; ok {
+			imageMap[scs[i].ImageId].Questions = qus
+		}
+		// 镜像评分信息加上
+		if _, ok := imageMap[scs[i].ImageId]; ok {
+			imageMap[scs[i].ImageId].RiskScore = scs[i].VulnScore + scs[i].SensitiveScore + math.Min(scs[i].WebshellScore+scs[i].VirusScore, 40)
 		}
 	}
+
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
+
 	regMap := make(map[int64]model.Registry)
 	for i := range registries {
 		regMap[registries[i].ID] = registries[i]
 	}
 
-	// 镜像评分信息加上
-	riskScoreMap := make(map[int64]model.ScanImage)
-	for i := range scs {
-		riskScoreMap[scs[i].ImageId] = scs[i]
-	}
-
 	for i := range res {
-		if sc, ok := riskScoreMap[res[i].ID]; ok {
-			res[i].RiskScore = sc.VulnScore + sc.SensitiveScore + math.Min(sc.WebshellScore+sc.VirusScore, 40)
-		}
-
-		if re, ok := regMap[imgs[i].RegistryId]; ok {
+		if re, ok := regMap[res[i].RegistryId]; ok {
 			res[i].RegistryName = re.Name
 			res[i].Library = re.Url
 			res[i].RegistryDeletedAt = re.DeletedAt
 		}
 	}
+
 	return res, cnt, nil
 }
 

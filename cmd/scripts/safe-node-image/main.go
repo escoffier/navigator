@@ -111,7 +111,10 @@ func getPreImage(imge string) (string, error) {
 }
 
 func changeTage(lib, pre, hostname, ip, os string) string {
-	return fmt.Sprintf(consts.NodeSafeTage, getLib(lib), hostname, ip, os, pre)
+	image := fmt.Sprintf(consts.NodeSafeTage, getLib(lib), hostname, ip, os, pre)
+	image = strings.Replace(image, ".", "_", -1)
+
+	return image
 }
 
 func reTage(pre, after string) error {

@@ -95,6 +95,7 @@ type ImageResponse struct {
 	Tags              string         `json:"tags"`
 	ImageType         int64          `json:"image_type"`
 	RiskScore         float64        `json:"risk_score"`
+	RegistryId        int64          `json:"registry_id"`
 	RegistryName      string         `json:"registry_name"`
 	RegistryDeletedAt int64          `json:"registry_deleted_at"`
 	FromType          int64          `json:"from_type"`

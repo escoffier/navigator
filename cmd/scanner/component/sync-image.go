@@ -108,7 +108,7 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 			go worker(registries[i], func(image registry.Image) error {
 				img, err := TransImageToImagelist(registries[i].Config, image)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
+					logging.GetLogger().Info().Msgf("SyncImage.InsertImageList:%s", err.Error())
 					return err
 				}
 
@@ -137,7 +137,7 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) (model.Imag
 		Tags:           image.Tag,
 		Digest:         image.ImageDigest,
 		Size:           int(image.Size),
-		Library:        reg.Url,
+		Library:        tmpLib,
 		ImageScanVuln:  model.ImageScanSummaryResult{},
 		RegistryId:     reg.ID,
 		FirstPushTime:  image.Created,
@@ -151,6 +151,7 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) (model.Imag
 	}
 	img.Layers = getLayerString(img)
 	if reg.UseType == model.RegistryUseSafeNode {
+		logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
 		newImage, err := parseImageFromNodeSafe(image.Repository)
 		if err != nil {
 			return img, err
@@ -158,9 +159,8 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) (model.Imag
 		img.NodeIp = newImage.NodeIp
 		img.NodeHostname = newImage.NodeHostname
 		img.OS = newImage.OS
-
-		img.FullRepoName = newImage.FullRepoName
 		img.Library = newImage.Library
+
 		img.FromType = model.ImageFromSafeNode
 	}
 
@@ -191,26 +191,25 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 	return conf
 }
 
-func parseImageFromNodeSafe(imageName string) (*model.ImageList, error) {
+func parseImageFromNodeSafe(fullRepoName string) (*model.ImageList, error) {
 	// tensorsecurity/tensorsec-safe-node-image-gjj92/10.65.72.63/linux/index.docker.io/calico/cni"
-	imageName = strings.Trim(imageName, " ")
-	split := strings.Split(imageName, "/")
-	if len(split) < 6 {
-		return nil, fmt.Errorf("parse error %s", imageName)
+	// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+
+	fullRepoName = strings.Trim(fullRepoName, " ")
+	// fullRepoName = strings.Replace(fullRepoName, "_", ".", -1)
+	split := strings.Split(fullRepoName, "/")
+	if len(split) < 7 {
+		return nil, fmt.Errorf("parse error  %s split is %d", fullRepoName, len(split))
 	}
 	if split[0] != consts.NodeSafeSalt {
-		return nil, fmt.Errorf("parse error %s", imageName)
+		return nil, fmt.Errorf("parse error not fond NodeSafeSalt %s", fullRepoName)
 	}
-	// NodeSafeTage = "%s/" + NodeSafeSalt + "/%s/%s%s/%s" // 仓库地址/tensorsec/hostname/ip/os/镜像名
-	if len(split) >= 6 {
-		im := &model.ImageList{
-			FullRepoName: strings.Join(split[5:], "/"),
-			Library:      split[4],
-			NodeIp:       split[2],
-			OS:           split[3],
-			NodeHostname: split[1],
-		}
-		return im, nil
+	// NodeSafeTage = NodeSafeSalt + "/%s/%s%s/%s" // tensorsec/hostname/ip/os/镜像名
+	im := &model.ImageList{
+		NodeIp:       split[2],
+		OS:           split[3],
+		NodeHostname: split[1],
+		Library:      split[4],
 	}
-	return nil, fmt.Errorf("parse error %s", imageName)
+	return im, nil
 }

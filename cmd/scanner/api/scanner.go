@@ -190,9 +190,13 @@ func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 // @Router	/api/v1/scan/harbor/scanAllNow [post]
 func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 	registerUrl := ctx.Query("fromUrl")
+	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
+	if err != nil {
+		fromType = model.ImageFromTypeNormal
+	}
 	// asynchronous execution, no matter what return no error
 	go func() {
-		if err := s.Srv.ScanAllNow(ctx, registerUrl); err != nil {
+		if err := s.Srv.ScanAllNow(ctx, registerUrl, fromType); err != nil {
 			log.Err(err).Msg("scan all error")
 		}
 	}()
@@ -378,8 +382,12 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 // @Router	/api/v1/scan/reportsByImageOverview [get]
 func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
 	registerUrl := ctx.Query("fromUrl")
+	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
+	if err != nil {
+		fromType = model.ImageFromTypeNormal
+	}
 
-	view, err := s.Srv.GetImageOverView(ctx, registerUrl)
+	view, err := s.Srv.GetImageOverView(ctx, registerUrl, fromType)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -432,24 +440,31 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	imageType := ctx.Query("image_type")
 	online := ctx.Query("online")
 	library := ctx.Query("library")
+	trusted := ctx.Query("trusted")
+	existFixedVulu := ctx.Query("exist_fixed_vulu")
 
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
 		fromType = model.ImageFromTypeNormal
 	}
-	scanStatus := ctx.Query("scan_status")
+	scanStatus := make([]string, 0)
+	if ctx.Query("scan_status") != "" {
+		scanStatus = strings.Split(ctx.Query("scan_status"), ",")
+	}
 
 	filter := model.GetFilter(ctx)
 
-	logging.GetLogger().Info().Msg(fmt.Sprintf("get kind:%s", kind))
+	logging.GetLogger().Info().Msgf("get kind:%s", kind)
 	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{
-		SearchWord: search,
-		Kind:       kind,
-		Online:     online,
-		Library:    library,
-		ImageType:  imageType,
-		FromType:   fromType,
-		ScanStatus: scanStatus,
+		SearchWord:     search,
+		Kind:           kind,
+		Online:         online,
+		Library:        library,
+		ImageType:      imageType,
+		FromType:       fromType,
+		ScanStatus:     scanStatus,
+		Trusted:        trusted,
+		ExistFixedVulu: existFixedVulu,
 	}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
@@ -457,10 +472,16 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		return
 	}
 	// 数据规整
-	// res := make([]model.ImageResponse, 0)
-	// for i := range images {
-	// 	res = append(res, model.ImageToImageResponse(images[i]))
-	// }
+	for i := range images {
+		if images[i].FromType == model.ImageFromSafeNode {
+			split := strings.Split(images[i].FullRepoName, "/")
+			// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
+			// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+			if len(split) >= 7 {
+				images[i].FullRepoName = strings.Join(split[5:], "/")
+			}
+		}
+	}
 	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),

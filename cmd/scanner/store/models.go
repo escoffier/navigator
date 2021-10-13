@@ -29,18 +29,16 @@ type SearchImageParam struct {
 }
 
 type SearchImageWithScanParam struct {
-	Library         string
-	FullRepoSearch  string // full_repo_name字段的模糊匹配
-	TagSearch       string // tag字段的模糊匹配
-	NodeImageSearch string // 节点镜像的搜索字段
-	Kind            string
-
-	Digests    []string
-	ScanStatus string // 是否删除等状态
-	FromType   int64
-	ImageType  string
-	InIDs      []int64 //
-	NotInIDs   []int64 //
+	Library        string
+	SearchWord     string
+	Kind           string
+	ScanStatus     []string // 是否删除等状态
+	FromType       int64
+	ImageType      string
+	InIDs          []int64 //
+	NotInIDs       []int64 //
+	ExistFixedVulu string
+	Trusted        string
 }
 
 type GetImageParam struct {
