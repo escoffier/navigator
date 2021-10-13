@@ -357,9 +357,6 @@ func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
 		}
-		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
-		}
 		return db.Order("id ASC").Find(&containers).Error
 	})
 	if err != nil {
@@ -958,9 +955,18 @@ func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOp
 		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
 		defer oneCancel()
 
-		db := rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{})
+		db := rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("status = ?", 0)
 		if len(queryOptions.whereEqCondition) > 0 {
 			db.Where(queryOptions.whereEqCondition)
+		}
+
+		if len(queryOptions.whereInCondition) > 0 {
+			for column, val := range queryOptions.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if offset >= 0 && limit >= 0 {

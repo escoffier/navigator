@@ -748,7 +748,7 @@ func (api *api) getPods() http.HandlerFunc {
 			queryOpt.WithCluster(clusterKey)
 		}
 
-		namespace, err := param.QueryString(r, "namespace") //chi.URLParam(r, "namespace")
+		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
 			namespace = ""
 		}
@@ -768,9 +768,16 @@ func (api *api) getPods() http.HandlerFunc {
 		if err != nil {
 			resName = ""
 		}
-
 		if resName != "" {
 			queryOpt.WithResourceName(resName)
+		}
+
+		query, err := param.QueryString(r, "query")
+		if err != nil {
+			query = ""
+		}
+		if query != "" {
+			queryOpt.WithColumnQuery("pod_name", query)
 		}
 
 		resSvc, ok := assets.GetResourcesService(ctx)
