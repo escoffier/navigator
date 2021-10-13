@@ -463,26 +463,34 @@ func (l *ScannerList) ReUpdataDBPush(s ScannerDbFunc) {
 	}
 }
 
-type ModeImageResponse []model.ImageResponse
+type ModeImageResponse []*model.ImageResponse
 
 func (m ModeImageResponse) Len() int {
 	return len(m)
 }
 
 func (m ModeImageResponse) Less(i, j int) bool {
+	// 在线在前,离线在后
 	if m[i].Online && !m[j].Online {
 		return true
+	} else if m[j].Online && !m[i].Online {
+		return false
 	}
-	// 未扫描在前
+	// 未扫描在前，其次扫描中
 	if m[i].ScanStatus == model.ScanStatusNotScan && m[j].ScanStatus != model.ScanStatusNotScan {
 		return true
-		// 扫描中在后
+	} else if m[j].ScanStatus == model.ScanStatusNotScan && m[i].ScanStatus != model.ScanStatusNotScan {
+		return false
 	} else if m[i].ScanStatus == model.ScanStatusInProgress && m[j].ScanStatus != model.ScanStatusInProgress {
 		return true
+	} else if m[j].ScanStatus == model.ScanStatusInProgress && m[i].ScanStatus != model.ScanStatusInProgress {
+		return false
 	}
 	// 再排序扫描结束时间
-	if m[i].CompleteTime != m[j].CompleteTime {
-		return m[i].CompleteTime < m[j].CompleteTime
+	if m[i].CompleteTime > m[j].CompleteTime {
+		return true
+	} else if m[j].CompleteTime < m[i].CompleteTime {
+		return false
 	}
 	// 最后按名字的字典序排序
 	return m[i].FullRepoName < m[j].FullRepoName

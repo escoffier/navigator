@@ -36,7 +36,7 @@ type ScannerDalInterface interface {
 	DeleteImage(ctx context.Context, param DeleteImageParam) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
 
-	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]ImageListWithScan, int64, error)
+	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
 	SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
@@ -95,38 +95,54 @@ type ScannerOrm struct {
 }
 
 type ImageListWithScan struct {
-	ID           int64     `json:"id"`
-	CreatedAt    time.Time `json:"created_at"`
-	FullRepoName string    `json:"full_repo_name"`
-	Tags         string    `json:"tags"`
-	Digest       string    `json:"digest"`
-	OS           string    `json:"os"`
-	Library      string    `json:"library"`
-	ImageUUID    uint32    `json:"image_uuid"`
-	CompleteTime string    `json:"complete_time"`
-	Status       string    `json:"status"`
-	RegistryId   int64     `json:"registry_id"`
-	FromType     int64     `json:"from_type"`
-	NodeIp       string    `json:"node_ip"`
-	NodeHostname string    `json:"node_hostname"`
-	ImageType    int64     `json:"image_type"`
+	ID           int64                     `json:"id"`
+	CreatedAt    time.Time                 `json:"created_at"`
+	FullRepoName string                    `json:"full_repo_name"`
+	Tags         string                    `json:"tags"`
+	Digest       string                    `json:"digest"`
+	OS           string                    `json:"os"`
+	Library      string                    `json:"library"`
+	ImageUUID    uint32                    `json:"image_uuid"`
+	CompleteTime string                    `json:"complete_time"`
+	Status       string                    `json:"status"`
+	RegistryId   int64                     `json:"registry_id"`
+	FromType     int64                     `json:"from_type"`
+	NodeIp       string                    `json:"node_ip"`
+	NodeHostname string                    `json:"node_hostname"`
+	ImageType    int64                     `json:"image_type"`
+	VulnInfo     []model.VulnerabilityInfo `gorm:"-" json:"vuln_info"`
+	VulnInfoJSON datatypes.JSON            `gorm:"type:jsonb" json:"vuln_info_json"` // 漏洞结果汇总
 }
 
 // SearchImageWithScan scan_list和scan_image join搜索
-func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]ImageListWithScan, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*300)
+func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := make([]ImageListWithScan, 0)
 	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id")
-	if param.FullRepoSearch != "" {
-		db = db.Where("tensor_image_list.full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", param.FullRepoSearch))
+
+	if param.SearchWord != "" {
+		if param.FromType == model.ImageFromTypeNormal {
+			split := strings.Split(param.SearchWord, ":")
+			if len(split) > 0 {
+				db = db.Where("tensor_image_list.full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", split[0]))
+			}
+			if len(split) > 1 {
+				db = db.Where("tensor_image_list.tags LIKE ? ", fmt.Sprintf("%%%s%%", split[1]))
+			}
+		} else if param.FromType == model.RegistryUseSafeNode {
+			db = db.Where("tensor_image_list.node_hostname LIKE ?  ", fmt.Sprintf("%%%s%%", param.SearchWord))
+		}
 	}
-	if param.TagSearch != "" {
-		db = db.Where("tensor_image_list.tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagSearch))
+
+	if param.ImageType != "" {
+		if param.ImageType == consts.BaseImageTypeString {
+			db = db.Where("tensor_image_list.image_type = 1 ")
+		} else if param.ImageType == consts.AppImageTypeString {
+			db = db.Where("tensor_image_list.image_type = 0 ")
+		}
 	}
-	if param.NodeImageSearch != "" {
-		db = db.Where("tensor_image_list.node_ip LIKE ? OR tensor_image_list.node_hostname LIKE ?  ", fmt.Sprintf("%%%s%%", param.NodeImageSearch), fmt.Sprintf("%%%s%%", param.NodeImageSearch))
-	}
+
 	if param.Kind != "" {
 		split := strings.Split(param.Kind, ",")
 		for _, k := range split {
@@ -144,13 +160,19 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			}
 		}
 	}
-	if param.ScanStatus != "" {
-		if param.ScanStatus == model.ScanStatusNotScan {
-			db = db.Where("scan_images.status = '' OR scan_images.status is null ")
-		} else {
-			db = db.Where("scan_images.status = ? ", param.ScanStatus)
+	// 扫描状态是取并集
+	if len(param.ScanStatus) > 0 {
+		where := make([]string, 0)
+		for i := range param.ScanStatus {
+			if param.ScanStatus[i] == model.ScanStatusNotScan {
+				where = append(where, "scan_images.status = '' OR scan_images.status is null ")
+			} else {
+				where = append(where, fmt.Sprintf("scan_images.status = '%s'", param.ScanStatus[i]))
+			}
 		}
+		db = db.Where(strings.Join(where, " OR "))
 	}
+
 	if param.FromType > 0 {
 		db = db.Where("tensor_image_list.from_type = ? ", param.FromType)
 	}
@@ -159,7 +181,12 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status",
 		"tensor_image_list.registry_id", "tensor_image_list.from_type",
 		"tensor_image_list.node_ip", "tensor_image_list.node_hostname", "tensor_image_list.image_type"}
+	if param.ExistFixedVulu != "" {
+		fields = append(fields, "scan_images.vuln_info_json")
+	}
+
 	db = db.Select(fields)
+
 	if len(param.InIDs) > 0 {
 		db = db.Where("tensor_image_list.id  IN ? ", param.InIDs)
 	}
@@ -167,18 +194,71 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	if len(param.NotInIDs) > 0 {
 		db = db.Where("tensor_image_list.id  NOT IN ? ", param.NotInIDs)
 	}
-	// 先查总数
-	var cnt int64
-	if err := db.Count(&cnt).Error; err != nil {
-		return nil, 0, err
-	}
 
 	if err := db.Find(&res).Error; err != nil {
-		return nil, cnt, err
+		return nil, 0, err
 	}
-	return res, cnt, nil
-}
+	if param.ExistFixedVulu != "" {
+		for i := range res {
+			vulnInfo := make([]model.VulnerabilityInfo, 0)
+			if len(res[i].VulnInfoJSON) > 0 {
+				if err := json.Unmarshal(res[i].VulnInfoJSON, &vulnInfo); err == nil {
+					res[i].VulnInfo = vulnInfo
+				} else {
+					logging.GetLogger().Error().Err(err).Msg("序列化VulnInfoJSON时出错")
+				}
+				res[i].VulnInfoJSON = nil
+			}
+		}
+	}
 
+	ans := make([]*model.ImageResponse, 0)
+	for i := range res {
+		ir := model.ImageResponse{
+			ID:           res[i].ID,
+			Digest:       res[i].Digest,
+			Library:      res[i].Library,
+			NodeIp:       res[i].NodeIp,
+			NodeHostname: res[i].NodeHostname,
+			ScanStatus:   res[i].Status,
+			CompleteTime: res[i].CompleteTime,
+			FullRepoName: res[i].FullRepoName,
+			Tags:         res[i].Tags,
+			ImageType:    res[i].ImageType,
+			FromType:     res[i].FromType,
+			Os:           res[i].OS,
+			RegistryId:   res[i].RegistryId,
+		}
+		if ir.CompleteTime == "" {
+			ir.CompleteTime = res[i].CreatedAt.Format("2006-01-02 15:04:05")
+		}
+
+		if ir.ScanStatus == "" {
+			ir.ScanStatus = model.ScanStatusNotScan
+		}
+
+		// 是否有可修复漏洞的筛选
+		if param.ExistFixedVulu != "" {
+			exit := false
+			for j := range res[i].VulnInfo {
+				if res[i].VulnInfo[j].FixedBy != "" {
+					exit = true
+				}
+			}
+			if param.ExistFixedVulu == consts.TrueString && exit {
+				ans = append(ans, &ir)
+			} else if param.ExistFixedVulu == consts.FalseString && !exit {
+				ans = append(ans, &ir)
+			}
+		} else {
+			ans = append(ans, &ir)
+		}
+	}
+
+	// 是否可信镜像筛选
+
+	return ans, int64(len(ans)), nil
+}
 func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
 	if len(data.Library) > 0 && len(data.LibraryJSON) == 0 {
 		bytes, err := json.Marshal(data.Library)
@@ -979,24 +1059,30 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, from
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	if err := s.psql.Get().WithContext(ctx).Where(&model.ImageList{ID: imgId}).First(&tmp).Error; err != nil {
-		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应镜像记录: %v", err)
+	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgId).First(&tmp).Error; err != nil {
+		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应镜像记录: %+v", err)
 	}
-	authStr := s.GetAuthFromRegistry(ctx, tmp.RegistryId)
-	if authStr == "" && auth == "" {
-		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应仓库记录")
-	} else if authStr == "" {
-		authStr = auth
+	// 支持多仓库，而且有节点镜像，所以这里的URL最好通过regestryID去查
+	logging.GetLogger().Info().Msgf("GetTaskFromImageList:Tem:%+v", tmp)
+	regs, _, err := s.SearchRegistry(ctx, SearchRegistryParam{Id: tmp.RegistryId}, nil)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("GetTaskFromImageList imageID:%d,regestryId:%d", imgId, tmp.RegistryId)
+		return model.ScanTask{}, model.VirusScanTask{}, err
 	}
+	if len(regs) == 0 {
+		logging.GetLogger().Info().Msgf("GetTaskFromImageList not find registry imageID:%d,registryId:%d", imgId, tmp.RegistryId)
+		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("not find registry")
+	}
+
 	// return tmp, nil
 	task := model.ScanTask{
 		Status:        model.ScanStatusInProgress,
 		StartedAt:     time.Now().Unix(),
 		Repository:    tmp.FullRepoName,
 		Tag:           tmp.Tags,
-		URL:           tmp.Library,
+		URL:           regs[0].Url,
 		HarborURL:     "",
-		Authorization: authStr,
+		Authorization: regs[0].AuthStr,
 		ImageDigest:   tmp.Digest,
 	}
 	// 插入待扫描的任务进postgres
@@ -1022,9 +1108,9 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, from
 		StartedAt:     time.Now().Unix(),
 		Repository:    tmp.FullRepoName,
 		Tag:           tmp.Tags,
-		URL:           tmp.Library,
+		URL:           regs[0].AuthStr,
 		HarborURL:     "",
-		Authorization: authStr,
+		Authorization: regs[0].Url,
 		ImageDigest:   tmp.Digest,
 	}
 	virustask.ImageID = tmp.ID
@@ -1124,49 +1210,46 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 		return nil, 0, err
 	}
 	// 序列化数据,
-	if !param.NoSerialization {
-		for i := range res {
-			vulnInfo := make([]model.VulnerabilityInfo, 0)
-			if len(res[i].VulnInfoJSON) > 0 {
-				if err := json.Unmarshal(res[i].VulnInfoJSON, &vulnInfo); err == nil {
-					res[i].VulnInfo = vulnInfo
-					res[i].VulnInfoJSON = nil
-				}
+	for i := range res {
+		vulnInfo := make([]model.VulnerabilityInfo, 0)
+		if len(res[i].VulnInfoJSON) > 0 {
+			if err := json.Unmarshal(res[i].VulnInfoJSON, &vulnInfo); err == nil {
+				res[i].VulnInfo = vulnInfo
 			}
+		}
 
-			perLayerReport := make([]model.VulnerabilityLayerReport, 0)
-			if len(res[i].PerLayerReportJSON) > 0 {
-				if err := json.Unmarshal(res[i].PerLayerReportJSON, &perLayerReport); err == nil {
-					res[i].PerLayerReport = perLayerReport
-				}
+		perLayerReport := make([]model.VulnerabilityLayerReport, 0)
+		if len(res[i].PerLayerReportJSON) > 0 {
+			if err := json.Unmarshal(res[i].PerLayerReportJSON, &perLayerReport); err == nil {
+				res[i].PerLayerReport = perLayerReport
 			}
+		}
 
-			severityHistogram := new(model.SeverityHistogramInfo)
-			if len(res[i].SeverityHistogramJSON) > 0 {
-				if err := json.Unmarshal(res[i].SeverityHistogramJSON, severityHistogram); err == nil {
-					res[i].SeverityHistogram = *severityHistogram
-				}
+		severityHistogram := new(model.SeverityHistogramInfo)
+		if len(res[i].SeverityHistogramJSON) > 0 {
+			if err := json.Unmarshal(res[i].SeverityHistogramJSON, severityHistogram); err == nil {
+				res[i].SeverityHistogram = *severityHistogram
 			}
+		}
 
-			sensitiveFile := make([]model.Sensitive, 0)
-			if len(res[i].SensitiveFileJSON) > 0 {
-				if err := json.Unmarshal(res[i].SensitiveFileJSON, &sensitiveFile); err == nil {
-					res[i].SensitiveFile = sensitiveFile
-				}
+		sensitiveFile := make([]model.Sensitive, 0)
+		if len(res[i].SensitiveFileJSON) > 0 {
+			if err := json.Unmarshal(res[i].SensitiveFileJSON, &sensitiveFile); err == nil {
+				res[i].SensitiveFile = sensitiveFile
 			}
+		}
 
-			maliciousInfo := make([]model.Malicious, 0)
-			if len(res[i].MaliciousInfoJSON) > 0 {
-				if err := json.Unmarshal(res[i].MaliciousInfoJSON, &maliciousInfo); err == nil {
-					res[i].MaliciousInfo = maliciousInfo
-				}
+		maliciousInfo := make([]model.Malicious, 0)
+		if len(res[i].MaliciousInfoJSON) > 0 {
+			if err := json.Unmarshal(res[i].MaliciousInfoJSON, &maliciousInfo); err == nil {
+				res[i].MaliciousInfo = maliciousInfo
 			}
+		}
 
-			webShellInfo := make([]model.Webshell, 0)
-			if len(res[i].WebshellInfoJSON) > 0 {
-				if err := json.Unmarshal(res[i].WebshellInfoJSON, &webShellInfo); err == nil {
-					res[i].WebshellInfo = webShellInfo
-				}
+		webShellInfo := make([]model.Webshell, 0)
+		if len(res[i].WebshellInfoJSON) > 0 {
+			if err := json.Unmarshal(res[i].WebshellInfoJSON, &webShellInfo); err == nil {
+				res[i].WebshellInfo = webShellInfo
 			}
 		}
 	}
@@ -1185,6 +1268,9 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 		} else {
 			db = db.Where("id IN ? ", param.RegistryIds)
 		}
+	}
+	if param.Id > 0 {
+		db = db.Where("id = ? ", param.Id)
 	}
 	if param.LibraryUrl != "" {
 		db = db.Where("url = ? ", param.LibraryUrl)
