@@ -15,6 +15,7 @@ import (
 	redis "github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
 	elastic "github.com/olivere/elastic/v7"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -23,7 +24,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 

@@ -9,12 +9,13 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"google.golang.org/grpc/status"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -39,6 +40,8 @@ func (api *api) eventsCenter() func(chi.Router) {
 		r.Get("/signalProcessTree", api.getSignalProcessTree())
 		r.Get("/config", api.getEventCenterConfig())
 		r.Post("/config", api.updateEventCenterConfig())
+		r.Get("/config/syslog", api.GetEventCenterSyslogConfig())
+		r.Post("/config/syslog", api.SetEventCenterSyslogConfig())
 		r.Get("/warn", api.checkNeedAlert())
 	}
 }
@@ -699,4 +702,80 @@ func (api *api) checkNeedAlert() http.HandlerFunc {
 		}))
 	}
 
+}
+
+type syslogSetting struct {
+	Enable   bool   `json:"enable"`
+	Network  string `json:"network"`
+	Addr     string `json:"addr"`
+	Severity string `json:"severity"`
+	Facility string `json:"facility"`
+	Tag      string `json:"tag"`
+}
+
+func convertSyslogSettingFromPb(setting *pb.SyslogSetting) *syslogSetting {
+	return &syslogSetting{
+		Enable:   setting.Enable,
+		Network:  setting.Network,
+		Addr:     setting.Addr,
+		Severity: setting.Severity,
+		Facility: setting.Facility,
+		Tag:      setting.Tag,
+	}
+}
+
+func (api *api) GetEventCenterSyslogConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)
+		defer cancel()
+
+		setting, err := api.ecCli.GetSyslogSettings(ctx, &pb.GetSyslogSettingsReq{})
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("GetSyslogSettings fail, err:%s", err.Error())))
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItem(*convertSyslogSettingFromPb(setting.Setting)))
+	}
+}
+
+func convertSyslogSettingToPb(setting *syslogSetting) *pb.SyslogSetting {
+	return &pb.SyslogSetting{
+		Enable:   setting.Enable,
+		Network:  setting.Network,
+		Addr:     setting.Addr,
+		Severity: setting.Severity,
+		Facility: setting.Facility,
+		Tag:      setting.Tag,
+	}
+}
+
+func (api *api) SetEventCenterSyslogConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)
+		defer cancel()
+		var setting syslogSetting
+		err := util.DecodeJSONBody(w, r, &setting)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		_, err = api.ecCli.UpdateSyslogSettings(ctx, &pb.UpdateSyslogSettingsReq{Setting: convertSyslogSettingToPb(&setting)})
+		if err != nil {
+			if s, ok := status.FromError(err); ok && s.Code() == 400 {
+				apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+				return
+			}
+
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(eventCenterAPIVersion), response.WithItem(setting))
+	}
 }

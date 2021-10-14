@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	pb "gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 

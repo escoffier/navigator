@@ -36,7 +36,6 @@ require (
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
-	github.com/golang/protobuf v1.5.2
 	github.com/google/go-containerregistry v0.1.2 //ct
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/securecookie v1.1.1
@@ -89,6 +88,7 @@ require (
 	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/vishvananda/netlink v0.0.0 //netlink
+	gitlab.com/tensorsecurity-rd/go-pkg v0.1.4
 	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.mongodb.org/mongo-driver v1.7.3
 	go.uber.org/atomic v1.9.0
@@ -99,9 +99,8 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
-	google.golang.org/genproto v0.0.0-20210903162649-d08c68adba83
+	google.golang.org/genproto v0.0.0-20211001223012-bfb93cce50d9 // indirect
 	google.golang.org/grpc v1.40.0
-	google.golang.org/protobuf v1.27.1
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.4.0
@@ -139,12 +138,14 @@ require (
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.4.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
 	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
+	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -194,6 +195,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
+	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
@@ -205,6 +207,6 @@ require (
 
 replace (
 	github.com/vishvananda/netlink => ./configs/daemon/netlink
-	gitlab.com/tensorsecurity-rd/go-pkg => ./tensorpkg
+	gitlab.com/tensorsecurity-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.4
 	gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf
 )

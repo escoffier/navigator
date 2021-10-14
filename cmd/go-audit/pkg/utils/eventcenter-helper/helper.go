@@ -1,10 +1,11 @@
 package eventcenter_helper
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
+	"os"
+
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"os"
 )
 
 func NewClientFromEnv() (pb.EventsCenterCollectionServiceClient, error) {

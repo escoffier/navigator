@@ -6,10 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 
 type EventArg struct {

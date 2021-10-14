@@ -18,6 +18,7 @@ import (
 	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/patrickmn/go-cache"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -25,7 +26,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 

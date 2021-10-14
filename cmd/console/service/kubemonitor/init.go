@@ -5,8 +5,9 @@ import (
 	"errors"
 	"sync"
 
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 )
 
 var (
