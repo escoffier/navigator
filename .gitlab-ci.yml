@@ -228,7 +228,7 @@ holmes:
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
-    - USEMIRROR=true make daemon holmes
+    - USEMIRROR=true FETCHTAG=latest make daemon holmes
     - docker push registry.t-appagile.com/tensorsecurity/tensorsec-daemon:ci
     - docker push registry.t-appagile.com/tensorsecurity/tensorsec-holmes:ci
     - kubectl delete pod -n tensorsec-ci -l app=tensorsec-holmes
