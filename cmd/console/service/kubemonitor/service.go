@@ -9,12 +9,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkg "gitlab.com/piccolo_su/vegeta/pkg/kubemonitor"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 	"google.golang.org/grpc/status"
 	yaml "gopkg.in/yaml.v2"
+
+	pkg "gitlab.com/piccolo_su/vegeta/pkg/kubemonitor"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (

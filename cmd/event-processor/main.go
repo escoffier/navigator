@@ -14,26 +14,28 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/alert"
-	"gitlab.com/piccolo_su/vegeta/pkg/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	dp "github.com/novln/docker-parser"
-	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/eventcenter-helper"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+
+	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/eventcenter-helper"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type Reporter struct {

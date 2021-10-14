@@ -23,6 +23,8 @@ func (api *api) audit() func(chi.Router) {
 		r.Get("/", api.getAuditLog())
 		r.Get("/config", api.getAuditConfig())
 		r.Post("/config", api.setAuditConfig())
+		r.Get("/config/syslog", api.getAuditSyslogConfig())
+		r.Post("/config/syslog", api.setAuditSyslogConfig())
 	}
 }
 
@@ -154,5 +156,62 @@ func (api *api) setAuditConfig() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithApiVersion(auditAPIVersion), response.WithItem(conf))
+	}
+}
+
+func (api *api) getAuditSyslogConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), auditDefaultTimeout)
+		defer cancel()
+
+		service, ok := k8saudit.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+		setting, err := service.GetSyslogSettings(ctx)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("GetSyslogSettings fail, err:%s", err.Error())))
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(auditAPIVersion), response.WithItem(*convertSyslogSettingFromPb(setting)))
+	}
+}
+
+func (api *api) setAuditSyslogConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), auditDefaultTimeout)
+		defer cancel()
+
+		service, ok := k8saudit.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		var setting syslogSetting
+		err := util.DecodeJSONBody(w, r, &setting)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		err = service.UpdateSyslogSettings(ctx, convertSyslogSettingToPb(&setting))
+		if err != nil {
+			if err == k8saudit.ErrInvalidSyslogSetting {
+				apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+				return
+			}
+
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(auditAPIVersion), response.WithItem(setting))
 	}
 }

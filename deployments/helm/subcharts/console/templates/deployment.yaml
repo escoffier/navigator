@@ -133,18 +133,6 @@ spec:
           value: {{ .Values.version.softVersion }}
         - name: K8S_AUDIT_INDEX_PREFIX
           value: {{ .Values.k8sAudit.prefix }}
-        - name: K8S_AUDIT_SYSLOG_ENABLE
-          value: {{ .Values.k8sAudit.syslog.enable | quote }}
-        - name: K8S_AUDIT_SYSLOG_NETWORK
-          value: {{ .Values.k8sAudit.syslog.network }}
-        - name: K8S_AUDIT_SYSLOG_SERVER_ADDR
-          value: {{ .Values.k8sAudit.syslog.addr }}
-        - name: K8S_AUDIT_SYSLOG_FACILITY
-          value: {{ .Values.k8sAudit.syslog.facility | quote }}
-        - name: K8S_AUDIT_SYSLOG_SEVERITY
-          value: {{ .Values.k8sAudit.syslog.severity | quote }}
-        - name: K8S_AUDIT_SYSLOG_TAG
-          value: {{ .Values.k8sAudit.syslog.tag }}
         - name: OPEN_API_GUIDE_URL
           value: {{ .Values.openapi.guideURL }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}

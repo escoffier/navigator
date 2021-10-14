@@ -176,13 +176,6 @@ version:
 
 k8sAudit:
   prefix: "audit_"
-  syslog:
-    enable: "false"
-    network: "udp"
-    addr: ""
-    facility: "1"
-    severity: "5"
-    tag: "k8s-audit"
 
 openapi:
   guideURL: "https://tensorsecurity.feishu.cn/docs/doccn14Oeay2PwoXy0gq3RvRj2f"

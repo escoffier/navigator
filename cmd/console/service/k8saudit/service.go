@@ -5,19 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/syslog"
 	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/olivere/elastic/v7"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/tensorsecurity-rd/go-pkg/syslog"
 	"go.uber.org/atomic"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	syslog2 "gitlab.com/piccolo_su/vegeta/pkg/syslog"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -25,6 +25,10 @@ var (
 	instance       atomic.Value // *Service
 	once           sync.Once
 	initServiceErr error
+)
+var (
+	ErrESDocumentNotFound   = errors.New("es document not found")
+	ErrInvalidSyslogSetting = errors.New("invalid syslog setting")
 )
 
 func Init(postgresDB *rdbtools.GormWrapper, esCli *elastic.Client) error {
@@ -52,11 +56,16 @@ func GetServiceInstance() (*Service, bool) {
 }
 
 func newService(postgresDB *rdbtools.GormWrapper, esCli *elastic.Client) (*Service, error) {
+	syslogHandler, err := syslog.NewHandler(&store{db: postgresDB})
+	if err != nil {
+		return nil, err
+	}
 	s := &Service{
-		db:          postgresDB,
-		esCli:       esCli,
-		ch:          make(chan []*model.AuditRecord, 1000),
-		indexPrefix: util.GetEnvWithDefault(AuditIndexPrefixEnv, DefaultAuditIndexPrefix),
+		db:            postgresDB,
+		esCli:         esCli,
+		ch:            make(chan []*model.AuditRecord, 1000),
+		indexPrefix:   util.GetEnvWithDefault(AuditIndexPrefixEnv, DefaultAuditIndexPrefix),
+		syslogHandler: syslogHandler,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
@@ -68,33 +77,18 @@ func newService(postgresDB *rdbtools.GormWrapper, esCli *elastic.Client) (*Servi
 	}
 	s.logEnabled.Store(conf.LogEnabled)
 
-	if util.GetBoolValWithDefault(SyslogEnableEnv, DefaultSyslogEnable) {
-		writer, _err := syslog2.NewWriter(&syslog2.Conf{
-			Network:  util.GetEnvWithDefault(SyslogNetworkEnv, DefaultSyslogNetwork),
-			Addr:     util.GetEnvWithDefault(SyslogServerAddrEnv, ""),
-			Facility: uint8(util.GetIntValWithDefault(SyslogFacilityEnv, DefaultSyslogFacility)),
-			Severity: uint8(util.GetIntValWithDefault(SyslogSeverityEnv, DefaultSyslogSeverity)),
-			Tag:      util.GetEnvWithDefault(SyslogTagEnv, DefaultSyslogTag),
-		})
-		if _err != nil {
-			logging.GetLogger().Err(_err).Msgf("new sys log handler fail")
-		} else {
-			s.writer = writer
-		}
-	}
-
 	go s.asyncRecordLog()
 	go s.asyncWatchConfig()
 	return s, nil
 }
 
 type Service struct {
-	esCli       *elastic.Client
-	db          *rdbtools.GormWrapper
-	ch          chan []*model.AuditRecord
-	indexPrefix string
-	logEnabled  atomic.Bool
-	writer      *syslog.Writer
+	esCli         *elastic.Client
+	db            *rdbtools.GormWrapper
+	ch            chan []*model.AuditRecord
+	indexPrefix   string
+	logEnabled    atomic.Bool
+	syslogHandler *syslog.Handler
 }
 
 func (s *Service) RecordAuditLog(ctx context.Context, records []*model.AuditRecord) error {
@@ -172,10 +166,6 @@ func (s *Service) GetAuditLog(ctx context.Context, arg *GetAuditLogArg) ([]*mode
 	return result, nil
 }
 
-var (
-	ErrESDocumentNotFound = fmt.Errorf("es document not found")
-)
-
 func (s *Service) GetRecordByID(ctx context.Context, id string) (*model.AuditRecord, error) {
 	rsp, err := s.esCli.Search().Index(fmt.Sprintf("%s*", s.indexPrefix)).
 		Query(elastic.NewTermQuery("_id", id)).Do(ctx)
@@ -197,7 +187,7 @@ func parseRecord(item *elastic.SearchHit) (*model.AuditRecord, error) {
 }
 
 const (
-	ConfigKey = "k8s-audit-log-conf"
+	auditConfigKey = "k8s-audit-log-conf"
 )
 
 func (s *Service) GetAuditConfig(ctx context.Context) (*model.AuditLogConfig, error) {
@@ -205,7 +195,7 @@ func (s *Service) GetAuditConfig(ctx context.Context) (*model.AuditLogConfig, er
 }
 
 func (s *Service) getAuditConfig(ctx context.Context) (*model.AuditLogConfig, error) {
-	conf, err := dal.GetConfig(ctx, s.db, ConfigKey)
+	conf, err := dal.GetConfig(ctx, s.db, auditConfigKey)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +220,7 @@ func (s *Service) SetAuditConfig(ctx context.Context, config *model.AuditLogConf
 		return err
 	}
 
-	err = dal.SetConfig(ctx, s.db, ConfigKey, confJSON)
+	err = dal.SetConfig(ctx, s.db, auditConfigKey, confJSON)
 	if err == nil {
 		s.logEnabled.Store(config.LogEnabled)
 	}
@@ -300,10 +290,6 @@ func (s *Service) recordAuditLog(records []*model.AuditRecord) error {
 }
 
 func (s *Service) exportToSyslog(records []*model.AuditRecord) {
-	if s.writer == nil {
-		return
-	}
-
 	for _, event := range records {
 		eventJSON, err := json.Marshal(event.Event)
 		if err != nil {
@@ -311,7 +297,7 @@ func (s *Service) exportToSyslog(records []*model.AuditRecord) {
 			continue
 		}
 
-		if _, err = s.writer.Write(eventJSON); err != nil {
+		if err = s.syslogHandler.Log(eventJSON); err != nil {
 			logging.GetLogger().Err(err).Msg("write syslog fail")
 		}
 	}
@@ -339,4 +325,16 @@ func (s *Service) asyncWatchConfig() {
 			logging.GetLogger().Err(err).Msg("get audit config fail")
 		}
 	}
+}
+
+func (s *Service) GetSyslogSettings(ctx context.Context) (*pb.SyslogSetting, error) {
+	return s.syslogHandler.GetSetting(ctx)
+}
+
+func (s *Service) UpdateSyslogSettings(ctx context.Context, setting *pb.SyslogSetting) error {
+	err := s.syslogHandler.UpdateSetting(ctx, setting)
+	if err == syslog.ErrInvalidSyslogSetting {
+		return ErrInvalidSyslogSetting
+	}
+	return err
 }
