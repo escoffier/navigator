@@ -29,7 +29,7 @@ webhooks:
             - "kube-system"
             - "{{ .Release.Namespace }}"
     sideEffects: None
-    {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+    {{- if eq (include "tensorsec.common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
     admissionReviewVersions:
       - v1beta1
       - v1
