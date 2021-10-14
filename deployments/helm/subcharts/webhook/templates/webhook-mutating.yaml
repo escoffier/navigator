@@ -17,12 +17,12 @@ webhooks:
         apiGroups: [""]
         apiVersions: ["v1", "v1beta1"]
         resources: [ "pods"]
-        {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+        {{- if eq (include "tensorsec.common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
         scope: "Namespaced"
         {{- end }}
     sideEffects: None
     failurePolicy: Ignore
-    {{- if .Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1" }}
+    {{- if eq (include "tensorsec.common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
     admissionReviewVersions:
       - v1beta1
       - v1
