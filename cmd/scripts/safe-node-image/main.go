@@ -29,7 +29,7 @@ func main() {
 
 	for {
 		if err := worker(); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("safe-node pull node image failure")
+			logging.GetLogger().Error().Err(err).Msg("safe-node push node image failure")
 			continue
 		}
 		ticker.Reset(time.Minute * time.Duration(inter1))
@@ -58,6 +58,10 @@ func worker() error {
 	url := os.Getenv("SAFENODE-BUF-REGISTRY-URL")
 	username := os.Getenv("SAFENODE-BUF-REGISTRY-USER")
 	password := os.Getenv("SAFENODE-BUF-REGISTRY-PASSWORD")
+	if url == "" || username == "" || password == "" {
+		logging.GetLogger().Info().Msg("url or username or password is empty")
+		return fmt.Errorf("url or username or password is empty")
+	}
 
 	if err := login(url, username, password); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("safe-node login")
@@ -73,14 +77,14 @@ func worker() error {
 
 		after := changeTage(url, pre, hostname, ip, nodeos)
 		if err := reTage(preImages[i], after); err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("safe-node reTage:pre:% after:%s", pre, after)
+			logging.GetLogger().Error().Err(err).Msgf("safe-node reTage:pre:%s after:%s", preImages[i], after)
 			continue
 		}
 		if err := pushImage(after); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("safe-node pushImage")
+			logging.GetLogger().Error().Err(err).Msgf("safe-node pushImage imageName:%s", after)
 		}
 		if err := rmImage(after); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("safe-node rmImage")
+			logging.GetLogger().Error().Err(err).Msgf("safe-node rmImage:imageName:%s", after)
 		}
 		// 传了10个就停一份钟
 		if i%10 == 0 {
@@ -121,7 +125,7 @@ func reTage(pre, after string) error {
 	osCmd := exec.Command("docker", "tag", pre, after)
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("safe-node docker retag :%s", pre)
+		logging.GetLogger().Error().Err(err).Msgf("safe-node docker retag pre:%s,after:%s", pre, after)
 		return err
 	}
 	logging.GetLogger().Debug().Msgf("safe-node docker retag:%s", pre)
