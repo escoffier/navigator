@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -21,8 +22,8 @@ func main() {
 
 	inter := os.Getenv("SAFENODE-BUF-INTERNA")
 	inter1, err := strconv.ParseInt(inter, 10, 64)
-	if err != nil {
-		inter1 = 20
+	if err != nil || inter1 <= 5 {
+		inter1 = 5
 	}
 
 	ticker := time.NewTicker(time.Minute * time.Duration(inter1))
@@ -30,7 +31,6 @@ func main() {
 	for {
 		if err := worker(); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("safe-node push node image failure")
-			continue
 		}
 		ticker.Reset(time.Minute * time.Duration(inter1))
 		<-ticker.C
@@ -116,19 +116,23 @@ func getPreImage(imge string) (string, error) {
 
 func changeTage(lib, pre, hostname, ip, os string) string {
 	image := fmt.Sprintf(consts.NodeSafeTage, getLib(lib), hostname, ip, os, pre)
-	image = strings.Replace(image, ".", "_", -1)
 
 	return image
 }
 
 func reTage(pre, after string) error {
 	osCmd := exec.Command("docker", "tag", pre, after)
+	var stdout, stderr bytes.Buffer
+	osCmd.Stdout = &stdout // 标准输出
+	osCmd.Stderr = &stderr // 标准错误
 	err := osCmd.Run()
 	if err != nil {
+		logging.GetLogger().Info().Msgf("safe-node docker args:%v", osCmd.Args)
+		logging.GetLogger().Info().Msgf("safe-node docker err:%s", stderr.String())
 		logging.GetLogger().Error().Err(err).Msgf("safe-node docker retag pre:%s,after:%s", pre, after)
 		return err
 	}
-	logging.GetLogger().Debug().Msgf("safe-node docker retag:%s", pre)
+	logging.GetLogger().Debug().Msgf("safe-node docker retag:%s", stdout.String())
 	return nil
 }
 
@@ -154,14 +158,15 @@ func getImages() ([]string, error) {
 
 	stdout, err := osCmd.StdoutPipe()
 	if err != nil {
-		fmt.Println(err.Error())
+		logging.GetLogger().Error().Err(err).Msgf("safe-node docker StdoutPipe:%v ", osCmd.Args)
 		return nil, err
 	}
+	defer stdout.Close()
 
 	err = osCmd.Start()
 
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("safe-node docker ps getting image:%v", osCmd.Args)
+		logging.GetLogger().Error().Err(err).Msgf("safe-node docker images getting image:%v", osCmd.Args)
 		return nil, err
 	}
 	logScan := bufio.NewScanner(stdout)
@@ -189,7 +194,7 @@ func getImages() ([]string, error) {
 			}
 		}
 	}
-
+	logging.GetLogger().Info().Msgf("safe-node docker images getting image:%d", len(imgs))
 	return images, nil
 }
 
