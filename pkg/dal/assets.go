@@ -26,6 +26,7 @@ var (
 		"ports",
 		"image_pull_policy",
 		"security_context",
+		"type",
 		"image_uuid",
 	}
 	onDupUpdatedColsForResource = []string{
@@ -47,6 +48,7 @@ var (
 		"updated_at",
 		"pod_ip",
 		"host_ip",
+		"node_name",
 	}
 )
 
