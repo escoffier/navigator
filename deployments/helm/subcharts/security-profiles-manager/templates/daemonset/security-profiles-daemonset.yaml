@@ -69,8 +69,8 @@ spec:
           readOnly: true
         - name: apparmor-includes
           mountPath: /etc/apparmor.d
-        - name: var
-          mountPath: /var
+        - name: kubelet
+          mountPath: /var/lib/kubelet
         resources:
 {{ toYaml .Values.loader.resources | indent 10 }}
       {{- if .Values.global.image.pullSecret }}
@@ -82,9 +82,9 @@ spec:
       {{- end }}
       hostPID: true
       volumes:
-      - name: var
+      - name: kubelet
         hostPath:
-          path: "/var"
+          path: "/var/lib/kubelet"
       - name: sys
         hostPath:
           path: /sys
