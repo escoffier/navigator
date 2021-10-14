@@ -137,7 +137,7 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) (model.Imag
 		Tags:           image.Tag,
 		Digest:         image.ImageDigest,
 		Size:           int(image.Size),
-		Library:        tmpLib,
+		Library:        reg.Url,
 		ImageScanVuln:  model.ImageScanSummaryResult{},
 		RegistryId:     reg.ID,
 		FirstPushTime:  image.Created,
@@ -210,6 +210,9 @@ func parseImageFromNodeSafe(fullRepoName string) (*model.ImageList, error) {
 		OS:           split[3],
 		NodeHostname: split[1],
 		Library:      split[4],
+	}
+	if !strings.Contains(im.Library, "http://") && !strings.Contains(im.Library, "https://") {
+		im.Library = "https://" + im.Library
 	}
 	return im, nil
 }
