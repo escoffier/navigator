@@ -12,7 +12,7 @@ USEMIRROR?=true
 
 RELEASEVERSION?=v0.0.1
 
-FETCHTAG?=latest
+FETCHTAG?=fetchtag
 
 .PHONY: help
 help:
