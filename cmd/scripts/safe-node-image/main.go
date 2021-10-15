@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/clusters"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -29,6 +30,7 @@ func main() {
 	ticker := time.NewTicker(time.Minute * time.Duration(inter1))
 
 	for {
+
 		if err := worker(); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("safe-node push node image failure")
 		}
@@ -38,17 +40,20 @@ func main() {
 }
 
 func worker() error {
+	clusterManager := os.Getenv("CLUSTER-MANAGER-ADDR")
+	nameSpace := os.Getenv("MY_POD_NAMESPACE")
+	if clusterManager == "" || nameSpace == "" {
+		return fmt.Errorf("clusterManager or nameSpace is empty %s,%s ", clusterManager, nameSpace)
+	}
+	logging.GetLogger().Info().Msgf("clusterManager:%s,namespace:%s", clusterManager, nameSpace)
+
 	preImages, err := getImages()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("safe-node getImages")
 		return err
 	}
-	ip, err := getNodIp()
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("safe-node getNodIp")
-		return err
-	}
-	hostname, err := os.Hostname()
+
+	podName, err := os.Hostname()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("safe-node Hostname")
 		return err
@@ -58,9 +63,16 @@ func worker() error {
 	url := os.Getenv("SAFENODE-BUF-REGISTRY-URL")
 	username := os.Getenv("SAFENODE-BUF-REGISTRY-USER")
 	password := os.Getenv("SAFENODE-BUF-REGISTRY-PASSWORD")
-	if url == "" || username == "" || password == "" {
-		logging.GetLogger().Info().Msg("url or username or password is empty")
+	if url == "" || username == "" || password == "" || nameSpace == "" {
+		logging.GetLogger().Info().Msg("safe-node url or username or password is empty")
 		return fmt.Errorf("url or username or password is empty")
+	}
+
+	manager := clusters.NewManager(clusterManager)
+	key, b := manager.ClusterKey()
+	if !b || key == "" {
+		logging.GetLogger().Info().Msg("safe-node not fond the cluster key")
+		return fmt.Errorf("not fond the cluster key")
 	}
 
 	if err := login(url, username, password); err != nil {
@@ -74,8 +86,16 @@ func worker() error {
 			logging.GetLogger().Error().Err(err).Msg("safe-node getPreImage")
 			continue
 		}
+		info := NodeImageInfo{
+			PodName:    podName,
+			Namespace:  nameSpace,
+			ClasterKey: key,
+			Os:         nodeos,
+			Lib:        url,
+			ImageName:  pre,
+		}
 
-		after := changeTage(url, pre, hostname, ip, nodeos)
+		after := changeTage(info)
 		if err := reTage(preImages[i], after); err != nil {
 			logging.GetLogger().Error().Err(err).Msgf("safe-node reTage:pre:%s after:%s", preImages[i], after)
 			continue
@@ -114,10 +134,19 @@ func getPreImage(imge string) (string, error) {
 	return registryStr + "/" + repositoryName + ":" + tag, nil
 }
 
-func changeTage(lib, pre, hostname, ip, os string) string {
-	image := fmt.Sprintf(consts.NodeSafeTage, getLib(lib), hostname, ip, os, pre)
-
+func changeTage(info NodeImageInfo) string {
+	// 仓库地址/tensorsec/clusterKey/namespace/podName/podIp/os/镜像名
+	image := fmt.Sprintf(consts.NodeSafeTage, getLib(info.Lib), info.ClasterKey, info.Namespace, info.PodName, info.Os, info.ImageName)
 	return image
+}
+
+type NodeImageInfo struct {
+	PodName    string
+	Namespace  string
+	ClasterKey string
+	Os         string
+	Lib        string
+	ImageName  string
 }
 
 func reTage(pre, after string) error {

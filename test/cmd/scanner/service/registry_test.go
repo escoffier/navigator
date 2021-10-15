@@ -3,10 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"sync"
 	"testing"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
@@ -30,7 +31,7 @@ func (te *TestExtender) OutPut() {
 
 func TestSyncRepo(t *testing.T) {
 	t.Log("start sync repo")
-	//postgresDB, err := gorm.Open(postgres.Open("postgres://postgres:xxxxxx@192.168.134.26:5432/postgres?sslmode=disable"), &gorm.Config{})
+	// postgresDB, err := gorm.Open(postgres.Open("postgres://postgres:xxxxxx@192.168.134.26:5432/postgres?sslmode=disable"), &gorm.Config{})
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
 		return gorm.Open(postgres.Open("postgres://postgres:xxxxxx@192.168.134.26:5432/postgres?sslmode=disable"), &gorm.Config{})
 	})
@@ -38,7 +39,7 @@ func TestSyncRepo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	syncInterval := uint(5)
-	r, err := component.NewSyncRepoImage(ctx, configPath, syncInterval, scannerDB)
+	r, err := component.NewSyncRepoImage(nil, nil, nil)
 	if err != nil {
 		t.Fatalf("new sync repo image err:%v", err)
 	}
@@ -55,11 +56,11 @@ func TestSyncRepo(t *testing.T) {
 			return nil
 		}, &wg)
 	}
-	//r.MockRun(func(image registry.Image) error {
+	// r.MockRun(func(image registry.Image) error {
 	//	te.OutPut()
 	//	fmt.Println("image", image.ImageDigest)
 	//	return nil
-	//})
+	// })
 
 	t.Log("end")
 }
