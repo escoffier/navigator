@@ -170,12 +170,16 @@ func (s *Scanner) ListScannedByVulnOverview(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=ScanStatusRes{harborStatus=harbor.ScanAllStatus{metrics=harbor.ScanAllStatusMetrics}}}}
 // @Router	/api/v1/scan/harbor/GetScanStatus [get]
 func (s *Scanner) GetScanStatus(ctx *gin.Context) {
+	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
+	if err != nil {
+		fromType = model.ImageFromTypeNormal
+	}
 	type respT struct {
 		ScanAllStatus harbor.ScanAllStatus `json:"harborStatus"`
 		IsAborted     bool                 `json:"isAborted"` // if true, we are currently in the process of aborting harbor scan all job. Abort button should be disabled.
 	}
 	time.Sleep(1 * time.Second)
-	status := s.Srv.GetScanAllStatus(ctx)
+	status := s.Srv.GetScanAllStatus(ctx, fromType)
 	resp := respT{ScanAllStatus: status, IsAborted: false}
 	response.JSONOK(ctx, response.WithItem(resp))
 }

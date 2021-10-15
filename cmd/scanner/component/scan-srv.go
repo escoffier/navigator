@@ -52,7 +52,7 @@ type ScannerSrv interface {
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
 	ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error)
 	ScanAllNow(ctx context.Context, fromUrl string, fromType int64) error
-	GetScanAllStatus(ctx context.Context) harbor.ScanAllStatus
+	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
 	ListImgLayers(ctx context.Context, imgDigest string, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayer, error)
@@ -736,8 +736,8 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imgDigest string, fil
 	return res, nil
 }
 
-func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context) harbor.ScanAllStatus {
-	return s.dbdal.SearchScanAllStatus(ctx)
+func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus {
+	return s.dbdal.SearchScanAllStatus(ctx, fromType)
 }
 
 func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromUrl string, fromType int64) error {
