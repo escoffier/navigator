@@ -862,26 +862,30 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 		ImageType             int64   `json:"image_type"`
 		VulnScore             float64 `json:"vuln_score"`
 		SeverityHistogramJSON datatypes.JSON
+		// FromType              int64  `json:"from_type"`
+		// NodeIp                string `json:"node_ip"`       // 结点的Ip
+		// NodeHostname          string `json:"node_hostname"` // 结点的
+		// Os                    string `json:"os"`
 	}
+	// tensor_image_list.image_type,tensor_image_list.from_type,tensor_image_list.node_ip,tensor_image_list.node_hostname,tensor_image_list.os").
+
 	tmp := []tmpRes{}
-	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("scan_images.image_id,scan_images.vuln_score,scan_images.severity_histogram_json,tensor_image_list.image_type").
-		Joins("right join tensor_image_list on tensor_image_list.id=scan_images.image_id").
+	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("scan_images.image_id,scan_images.vuln_score,scan_images.severity_histogram_json").
+		Joins("join tensor_image_list on tensor_image_list.id=scan_images.image_id").
 		Where("scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("scan_images.vuln_score desc").Find(&tmp).Error
 	if err != nil {
 		return []model.ImageRiskScore{}, nil
 	}
-	res := []model.ImageRiskScore{}
-	type tmpInfo struct {
-		FullRepoName string
-		Tags         string
-	}
+	res := make([]model.ImageRiskScore, 0)
 	for _, v := range tmp {
 		tmpRiskScore := model.ImageRiskScore{}
-		tmpInfo := tmpInfo{}
-		err = s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,tags").Where("id = ?", v.ImageID).Find(&tmpInfo).Error
+		tmpInfo := new(model.ImageList)
+		err = s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", v.ImageID).Find(&tmpInfo).Error
 		if err != nil {
 			continue
 		}
+		tmpRiskScore.ImageType = tmpInfo.ImageType
+		tmpRiskScore.FromType = tmpInfo.FromType
 		tmpRiskScore.Name = tmpInfo.FullRepoName
 		tmpRiskScore.Score = v.VulnScore
 		tmpRiskScore.Tag = tmpInfo.Tags
@@ -891,6 +895,15 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 			if err := json.Unmarshal(v.SeverityHistogramJSON, &tmpRiskScore.SeverityHistogramInfo); err != nil {
 				logging.GetLogger().Err(err).Msg("json.Unmarshal SeverityHistogramInfo")
 			}
+		}
+		if tmpInfo.FromType == model.ImageFromSafeNode {
+			// hostname + ip + 镜像名就可以了
+			// tensorsecurity/clusterKey/namespace/podName/linux/registry.t-appagile.com/google_containers/coredns
+			split := strings.Split(tmpRiskScore.Name, "/")
+			if len(split) <= 6 {
+				continue
+			}
+			tmpRiskScore.Name = fmt.Sprintf("%s-%s-%s", tmpInfo.NodeHostname, tmpInfo.NodeIp, strings.Join(split[5:], "/"))
 		}
 		res = append(res, tmpRiskScore)
 	}

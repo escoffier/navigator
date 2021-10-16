@@ -156,7 +156,7 @@ type ImageList struct {
 	ManifestV1JSON datatypes.JSON `gorm:"type:jsonb"` // manifest内容
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
 	ConfigJson     datatypes.JSON `gorm:"type:jsonb"`                                                            // config内容,包括layer diffid
-	FromType       int            `gorm:"uniqueIndex:uniq_idx_image_list,priority:5,default:0" json:"from_type"` // 镜像来源
+	FromType       int64          `gorm:"uniqueIndex:uniq_idx_image_list,priority:5,default:0" json:"from_type"` // 镜像来源
 	Layers         string         `gorm:"index:idx_image_layers" json:"layers"`                                  // 把layer拼成字符串，为了找出基础镜像,用|分隔
 	NodeIp         string         `gorm:"column:node_ip" json:"node_ip"`                                         // 结点的Ip
 	NodeHostname   string         `gorm:"column:node_hostname" json:"node_hostname"`                             // 结点的HostName
