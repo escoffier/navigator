@@ -54,7 +54,7 @@ type ScannerDalInterface interface {
 	GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList)
 
 	GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string, auth string) (model.ScanTask, model.VirusScanTask, error)
-	SearchScanAllStatus(ctx context.Context) harbor.ScanAllStatus
+	SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnTotal(ctx context.Context) (int, error)
 	GetVulnSeverityCount(ctx context.Context) (model.SeverityCount, error)
 	GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, error)
@@ -968,7 +968,7 @@ func (s *ScannerOrm) UpdateImage(ctx context.Context, where string, updater map[
 	return db.Error
 }
 
-func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStatus {
+func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
@@ -977,7 +977,7 @@ func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStat
 	var total int
 	var doingNum, errorNum, successNum, pendingNum int
 	s.psql.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("scan_images.image_id,scan_images.status").Joins("join tensor_image_list on tensor_image_list.id=scan_images.image_id").
-		Where("tensor_image_list.from_type = 1 and scan_images.id >0").Find(&tmpScanImage).Debug() // 可能分段查询更好,todo
+		Where(fmt.Sprintf("tensor_image_list.from_type = %d and scan_images.id >0", fromType)).Find(&tmpScanImage) // 可能分段查询更好,todo
 	total = len(tmpScanImage)
 	for _, v := range tmpScanImage {
 		if v.Status == "inprogress" {

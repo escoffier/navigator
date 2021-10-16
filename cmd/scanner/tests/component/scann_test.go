@@ -208,7 +208,7 @@ func (m *mockdal) GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl
 	panic("implement me")
 }
 
-func (m *mockdal) SearchScanAllStatus(ctx context.Context) harbor.ScanAllStatus {
+func (m *mockdal) SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus {
 	panic("implement me")
 }
 
