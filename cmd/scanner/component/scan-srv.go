@@ -957,6 +957,13 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 			},
 		)
 	}
+	if img.FromType == model.ImageFromSafeNode {
+		split := strings.Split(img.FullRepoName, "/")
+		if len(split) <= 6 {
+			return img, nil
+		}
+		img.FullRepoName = fmt.Sprintf("%s-%s-%s", img.NodeHostname, img.NodeIp, strings.Join(split[5:], "/"))
+	}
 
 	return img, nil
 }

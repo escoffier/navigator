@@ -137,6 +137,7 @@ type ImageRiskScore struct {
 	Tag                   string `json:"tag"`
 	ImageId               int    `json:"id"`
 	ImageType             int64  `json:"image_type"`
+	FromType              int64  `json:"from_type"`
 }
 
 type ConstMapScore struct {
