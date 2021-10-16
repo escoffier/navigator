@@ -20,13 +20,14 @@ import (
 )
 
 type SyncImageInterface interface {
-	SyncImage(wg *sync.WaitGroup) error
+	SyncImage(ctx context.Context, wg *sync.WaitGroup) error
 }
 
 // SyncRepoImage sync registry repos and tags to db
 type SyncRepoImage struct {
-	registryDao store.RegistryDaoInterface
-	scannerDB   *store.ScannerDB
+	registryDao            store.RegistryDaoInterface
+	scannerDB              *store.ScannerDB
+	podResourceRelationDAl store.PodResourceRelationInterface
 }
 
 type RegistryWithConf struct {
@@ -68,14 +69,15 @@ func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf
 	return res, err
 }
 
-func NewSyncRepoImage(registryDao store.RegistryDaoInterface, scannerDB *store.ScannerDB) *SyncRepoImage {
+func NewSyncRepoImage(registryDao store.RegistryDaoInterface, scannerDB *store.ScannerDB, podResourceRelationDAl store.PodResourceRelationInterface) *SyncRepoImage {
 	return &SyncRepoImage{
-		registryDao: registryDao,
-		scannerDB:   scannerDB,
+		registryDao:            registryDao,
+		scannerDB:              scannerDB,
+		podResourceRelationDAl: podResourceRelationDAl,
 	}
 }
 
-func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
+func (s *SyncRepoImage) SyncImage(ctx context.Context, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	var exitMap sync.Map
 
@@ -106,7 +108,7 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 			exitMap.Store(registries[i].Config.Name, false)
 
 			go worker(registries[i], func(image registry.Image) error {
-				img, err := TransImageToImagelist(registries[i].Config, image)
+				img, err := s.TransImageToImagelist(ctx, registries[i].Config, image)
 				if err != nil {
 					logging.GetLogger().Info().Msgf("SyncImage.InsertImageList:%s", err.Error())
 					return err
@@ -126,7 +128,7 @@ func (s *SyncRepoImage) SyncImage(wg *sync.WaitGroup) error {
 	}
 }
 
-func TransImageToImagelist(reg model.Registry, image registry.Image) (model.ImageList, error) {
+func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Registry, image registry.Image) (model.ImageList, error) {
 	tmpLib := reg.Url
 	tmpLib = strings.TrimPrefix(tmpLib, "http://") // trimPrefix http or https
 	tmpLib = strings.TrimPrefix(tmpLib, "https://")
@@ -152,7 +154,7 @@ func TransImageToImagelist(reg model.Registry, image registry.Image) (model.Imag
 	img.Layers = getLayerString(img)
 	if reg.UseType == model.RegistryUseSafeNode {
 		logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
-		newImage, err := parseImageFromNodeSafe(image.Repository)
+		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
 		if err != nil {
 			return img, err
 		}
@@ -191,25 +193,37 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 	return conf
 }
 
-func parseImageFromNodeSafe(fullRepoName string) (*model.ImageList, error) {
-	// tensorsecurity/tensorsec-safe-node-image-gjj92/10.65.72.63/linux/index.docker.io/calico/cni"
-	// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName string) (*model.ImageList, error) {
+	// tensorsecurity/clusterKey/namespace/podName/tensorsec-safe-node-image-v2x54/linux/registry.t-appagile.com/google_containers/coredns
 
+	// 仓库地址/tensorsec/clusterKey/namespace/podName/os/镜像名
 	fullRepoName = strings.Trim(fullRepoName, " ")
 	// fullRepoName = strings.Replace(fullRepoName, "_", ".", -1)
 	split := strings.Split(fullRepoName, "/")
-	if len(split) < 7 {
+	if len(split) < 8 {
 		return nil, fmt.Errorf("parse error  %s split is %d", fullRepoName, len(split))
 	}
 	if split[0] != consts.NodeSafeSalt {
 		return nil, fmt.Errorf("parse error not fond NodeSafeSalt %s", fullRepoName)
 	}
 	// NodeSafeTage = NodeSafeSalt + "/%s/%s%s/%s" // tensorsec/hostname/ip/os/镜像名
+	clusterKey := split[1]
+	namespace := split[2]
+	podName := split[3]
+	info, err := s.podResourceRelationDAl.Search(ctx, namespace, clusterKey, podName)
+	if err != nil {
+		return nil, err
+	}
+	if len(info) == 0 {
+		return nil, fmt.Errorf("not find node info")
+	}
+	logging.GetLogger().Info().Msgf("cluster info:%+v", info[0])
+
 	im := &model.ImageList{
-		NodeIp:       split[2],
-		OS:           split[3],
-		NodeHostname: split[1],
-		Library:      split[4],
+		NodeIp:       info[0].HostIP,
+		OS:           split[4],
+		NodeHostname: info[0].NodeName,
+		Library:      split[5],
 	}
 	if !strings.Contains(im.Library, "http://") && !strings.Contains(im.Library, "https://") {
 		im.Library = "https://" + im.Library

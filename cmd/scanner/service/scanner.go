@@ -189,7 +189,7 @@ func NewScanner(
 		cancel:          mainCancel,
 		localLayerMange: llms,
 		harborOpts:      harborOpts,
-		syncImage:       component.NewSyncRepoImage(store.NewRegistryDao(postgresDB), scannerDB),
+		syncImage:       component.NewSyncRepoImage(store.NewRegistryDao(postgresDB), scannerDB, store.NewPodResourceRelationDao(postgresDB)),
 	}, nil
 }
 
@@ -214,7 +214,7 @@ func (s *Scanner) Run() func() {
 		}()
 
 		defer wg.Done()
-		go s.syncImage.SyncImage(&wg) // nolint errcheck
+		go s.syncImage.SyncImage(context.Background(), &wg) // nolint errcheck
 		wg.Wait()
 
 	}()
