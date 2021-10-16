@@ -37,6 +37,10 @@ spec:
             privileged: true
             runAsUser: 0
           env:
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: SAFENODE-BUF-REGISTRY-URL
               value: {{ .Values.bufRegistry.bufRegistryUrl }}
             - name: SAFENODE-BUF-REGISTRY-USER
@@ -45,6 +49,8 @@ spec:
               value: {{ .Values.bufRegistry.bufRegistryPass }}
             - name: SAFENODE-BUF-INTERNAL
               value: {{ .Values.bufRegistry.bufInternal | quote }}
+            - name: CLUSTER-MANAGER-ADDR
+              value: {{ .Values.multicluster.clusterManagerAddr }}
           resources:
 {{ toYaml .Values.resources | trim | indent 12 }}
       volumes:
