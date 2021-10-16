@@ -303,7 +303,7 @@ safe-node-image:
   script:
     - USEMIRROR=true make safe-node-image
     - docker push registry.t-appagile.com/tensorsecurity/tensorsec-safe-node-image:ci
-    - kubectl delete pod -l app=tensorsec-scanner-safenode-image -n tensorsec-ci
+    - kubectl delete pod -l app=tensorsec-safenode-image -n tensorsec-ci
   rules:
     - changes:
         - cmd/safe-node-image/**/*
