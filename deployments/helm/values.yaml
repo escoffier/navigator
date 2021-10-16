@@ -445,3 +445,5 @@ safenode-image:
     requests:
       cpu: "500m"
       memory: "512Mi"
+  multicluster:
+    clusterManagerAddr: "http://tensorsec-cluster-manager:9443"
