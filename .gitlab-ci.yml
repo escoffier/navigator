@@ -96,6 +96,7 @@ helm-upgrade:
     - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#console.localhost.com#172.21.0.20:31517#g" deployments/helm/example-values.yaml'
     ## Copy tools
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
