@@ -298,8 +298,6 @@ holmes:
     image:
       name: tensorsec-daemon
       tag: latest
-    multicluster:
-      consoleaddr: http://tensorsec-console:8889
   ebpf:
     enabled: true
   falco:
@@ -338,6 +336,9 @@ holmes:
   eventcenter:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
+  multicluster:
+    clusterinfo: http://tensorsec-cluster-manager:9443
+    consoleaddr: http://tensorsec-console:8889
 
 image-validator:
   enabled: false

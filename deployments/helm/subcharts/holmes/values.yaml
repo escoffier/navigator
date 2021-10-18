@@ -24,9 +24,6 @@ tensorsecDaemon:
     name: tensorsec-daemon
     tag: latest
     pullPolicy: Always
-  multicluster:
-    clusterinfo: http://tensorsec-cluster-manager:9443
-    consoleaddr: http://tensorsec-console:8889
   resources:
     requests:
       memory: "128Mi"
@@ -35,8 +32,9 @@ tensorsecDaemon:
        memory: "512Mi"
        cpu: "100m"
 
-consoleInfo:
-  httpAddr: "tensorsec-console:8889"
+multicluster:
+  clusterinfo: http://tensorsec-cluster-manager:9443
+  consoleaddr: http://tensorsec-console:8889
 
 nameOverride: "holmes"
 fullnameOverride: "tensorsec-holmes"

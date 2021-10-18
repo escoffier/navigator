@@ -98,11 +98,11 @@ holmes:
   tensorsecDaemon:
     image:
       tag: *tensorsecVerison
-    multicluster:
-      consoleaddr: *masterAddr
   eventcenter:
     eventGrpcUrl: *eventcenterGrpcAddr
     eventGrpcCertServerName: tensorsec-eventcenter
+  multicluster:
+    consoleaddr: *masterAddr
 
 image-validator:
   enabled: false

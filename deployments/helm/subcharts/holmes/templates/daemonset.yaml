@@ -76,9 +76,9 @@ spec:
             - name: RTDETECT_UDS_ADDR
               value: {{ .Values.falco.grpc.unixSocketPath }}
             - name: CONSOLE_ADDR
-              value: {{ .Values.tensorsecDaemon.multicluster.consoleaddr }}
+              value: {{ .Values.multicluster.consoleaddr }}
             - name: CLUSTER_ADDR
-              value: {{ .Values.tensorsecDaemon.multicluster.clusterinfo }}
+              value: {{ .Values.multicluster.clusterinfo }}
             - name: MY_POD_IP
               valueFrom:
                 fieldRef:
@@ -129,7 +129,13 @@ spec:
             periodSeconds: 5
           env:
             - name: CONSOLE_HTTP_ADDR
-              value: {{ .Values.consoleInfo.httpAddr }}
+              value: {{ .Values.multicluster.consoleaddr }}
+            - name: EVENT_GRPC_URL
+              value: {{ .Values.eventcenter.eventGrpcUrl }}
+            - name: EVENT_GRPC_CERT_PATH
+              value: /auth/server/tls.crt
+            - name: EVENT_GRPC_CERT_SERVER_NAME
+              value: {{ .Values.eventcenter.eventGrpcCertServerName }}
           {{- if .Values.ebpf.enabled }}
             - name: HOLMES_BPF_PROBE
               value: {{ .Values.ebpf.path }}
