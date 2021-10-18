@@ -72,11 +72,11 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules []string) e
 
 func main() {
 
-	consoleAddr := "tensorsec-console:8889"
+	consoleAddr := "http://tensorsec-console:8889"
 	if len(os.Getenv("CONSOLE_HTTP_ADDR")) > 0 {
 		consoleAddr = os.Getenv("CONSOLE_HTTP_ADDR")
 	}
-	url := "http://" + consoleAddr
+	url := consoleAddr
 	suffix := "/api/openapi/ATTCK/latestData"
 
 	outputRulesFilename := flag.String("output",
