@@ -1,4 +1,3 @@
-{{- if .Values.global.multiCluster.isMasterCluster }}
 {{- if and .Values.scc.create (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
 apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
@@ -44,5 +43,4 @@ volumes:
 - emptyDir
 - secret
 - configMap
-{{- end }}
 {{- end }}

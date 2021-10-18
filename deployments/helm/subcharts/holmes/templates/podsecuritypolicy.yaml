@@ -1,4 +1,3 @@
-{{- if .Values.global.multiCluster.isMasterCluster }}
 {{- if .Values.podSecurityPolicy.create}}
 ---
 apiVersion: {{ include "tensorsec.common.capabilities.policy.apiVersion" . }}
@@ -50,5 +49,4 @@ spec:
   supplementalGroups:
     rule: RunAsAny
   volumes: []
-{{- end }}
 {{- end }}
