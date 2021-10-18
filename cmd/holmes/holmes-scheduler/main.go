@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -55,10 +56,15 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules []string) e
 
 	writeBytes := closeRules(rulesContext, closedRules)
 
-	err = holmeshelper.SendRulesToEventCenter(writeBytes)
-
-	if err != nil {
-		log.Error(err)
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+	for ; true; <-t.C {
+		err = holmeshelper.SendRulesToEventCenter(writeBytes)
+		if err != nil {
+			log.Error(err)
+		} else {
+			break
+		}
 	}
 
 	return saveRulesFile(writeBytes, outputPath)
