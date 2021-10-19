@@ -7,7 +7,11 @@ import (
 
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
+		r.Get("/config/loginOption", api.GetLoginOption())
 		r.Post("/login", api.login())
+		r.Post("/ldapLogin", api.LdapLogin())
+		r.Post("/radiusLogin", api.RadiusLogin())
+		r.Post("/radiusResponseChallenge", api.RadiusResponseChallenge())
 		r.Post("/createCaptcha", api.createCaptcha())
 		r.Post("/getCaptchaImage", api.getCaptchaImage())
 		r.Get("/getCaptchaValue", api.getCaptchaValue())
@@ -21,6 +25,12 @@ func (api *api) userCenter() func(chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
 			r.Use(jwtAccessCheck(api.postgresDB, api.userCache))
+			r.Post("/config/ldap", api.UpdateLdapConf())
+			r.Get("/config/ldap", api.GetLdapConf())
+			r.Post("/config/ldap/cert", api.UpdateLdapCert())
+			r.Get("/config/ldap/cert", api.GetLdapCertInfo())
+			r.Post("/config/radius", api.UpdateRadiusConf())
+			r.Get("/config/radius", api.GetRadiusConf())
 			r.Get("/user", user)
 			r.Get("/openapi/token", api.getOpenAPIToken())
 			r.Get("/userList", api.userList())
@@ -32,6 +42,10 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Get("/loginConfig", api.readConfig())
 			r.Post("/user/ban", api.userBan())
 			r.Post("/user/unban", api.userUnban())
+			r.Get("/ldapGroup", api.GetLdapGroupList())
+			r.Post("/ldapGroup", api.CreateLdapGroup())
+			r.Put("/ldapGroup", api.UpdateLdapGroup())
+			r.Delete("/ldapGroup", api.DeleteLdapGroup())
 		})
 	}
 }

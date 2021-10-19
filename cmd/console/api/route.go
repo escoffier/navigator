@@ -27,8 +27,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type key int
-
 const (
 	UserSessionExpiration = 10 * time.Minute
 )
@@ -129,41 +127,41 @@ func SetupRoutes(
 	})
 }
 
-func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, claims, err := jwtauth.FromContext(r.Context())
-
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("Error when getting token & claims from context: %w", err)))
-				return
-			}
-			if token == nil || !token.Valid {
-				RespAndLog(w, r.Context(),
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("Token empty or invalid")))
-				return
-			}
-			username, _ := claims[JWT_KEY_USERNAME].(string)
-			userPtr, ok := userCache.Get(username)
-			if !ok {
-				testWithLogJson("jwt-jwtAccessCheck()", "user get error")
-				RespAndLog(w, r.Context(),
-					NewSessionExpired(http.StatusUnauthorized,
-						fmt.Errorf("User not in cache")))
-				return
-			}
-
-			u, _ := userPtr.(*model.User)
-			userCache.Set(username, u, cache.DefaultExpiration)
-
-			ctx := context.WithValue(r.Context(), util.CtxUserKey, u)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
+//func jwtAllPass(userCache *cache.Cache) func(http.Handler) http.Handler {
+//	return func(next http.Handler) http.Handler {
+//		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//			token, claims, err := jwtauth.FromContext(r.Context())
+//
+//			if err != nil {
+//				RespAndLog(w, r.Context(),
+//					NewInvalidAuthToken(http.StatusUnauthorized,
+//						fmt.Errorf("Error when getting token & claims from context: %w", err)))
+//				return
+//			}
+//			if token == nil || !token.Valid {
+//				RespAndLog(w, r.Context(),
+//					NewInvalidAuthToken(http.StatusUnauthorized,
+//						fmt.Errorf("Token empty or invalid")))
+//				return
+//			}
+//			username, _ := claims[JWTKeyUsername].(string)
+//			userPtr, ok := userCache.Get(username)
+//			if !ok {
+//				testWithLogJson("jwt-jwtAccessCheck()", "user get error")
+//				RespAndLog(w, r.Context(),
+//					NewSessionExpired(http.StatusUnauthorized,
+//						fmt.Errorf("User not in cache")))
+//				return
+//			}
+//
+//			u, _ := userPtr.(*model.User)
+//			userCache.Set(username, u, cache.DefaultExpiration)
+//
+//			ctx := context.WithValue(r.Context(), util.CtxUserKey, u)
+//			next.ServeHTTP(w, r.WithContext(ctx))
+//		})
+//	}
+//}
 
 func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -173,23 +171,23 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper, userCache *cache.Cache) fu
 			if err != nil {
 				RespAndLog(w, r.Context(),
 					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("Error when getting token & claims from context: %w", err)))
+						fmt.Errorf("error when getting token & claims from context: %w", err)))
 				return
 			}
 			if token == nil || !token.Valid {
 				RespAndLog(w, r.Context(),
 					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("Token empty or invalid")))
+						fmt.Errorf("token empty or invalid")))
 				return
 			}
 
-			username, _ := claims[JWT_KEY_USERNAME].(string)
+			username, _ := claims[JWTKeyUsername].(string)
 			userPtr, ok := userCache.Get(username)
 			if !ok {
 				testWithLogJson("jwt-jwtAccessCheck()", "user get error")
 				RespAndLog(w, r.Context(),
 					NewSessionExpired(http.StatusUnauthorized,
-						fmt.Errorf("User not in cache")))
+						fmt.Errorf("user not in cache")))
 				return
 			}
 

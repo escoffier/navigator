@@ -1,12 +1,15 @@
 package model
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"encoding/json"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type ModuleGroup struct {
 	Id           int    `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
 	ModuleNameZh string `json:"module_name_zh"`
 	ModuleNameEn string `json:"module_name_en"`
-	Url          []Url  `gorm:"-" json:"-"`
 }
 
 func (m ModuleGroup) TableName() string {
@@ -51,6 +54,7 @@ type User struct {
 	Rule        string        `gorm:"column:rule" json:"rule"`
 	ModuleID    string        `gorm:"column:module_id" json:"-"`
 	ModuleGroup []ModuleGroup `gorm:"-" json:"module_group"`
+	External    bool          `gorm:"-" json:"-"`
 	Checked     bool          `json:"checked"`
 	CreateAt    int64         `json:"create_at"`
 	BanStatus   int32         `json:"ban_status" gorm:"column:ban_status"`
@@ -69,4 +73,47 @@ type Email struct {
 
 func (e Email) TableName() string {
 	return "tensor_email"
+}
+
+type LdapGroup struct {
+	ID      int32  `gorm:"primaryKey;autoIncrement;column:id"`
+	Name    string `gorm:"column:name; unique"`
+	Role    string `gorm:"column:role"`
+	Modules string `gorm:"column:modules"`
+}
+
+type LdapGroupDisplay struct {
+	ID      int32          `json:"id"`
+	Name    string         `json:"name"`
+	Role    string         `json:"role"`
+	Modules []*ModuleGroup `json:"modules"`
+}
+
+func (l LdapGroup) TableName() string {
+	return "ldap_groups"
+}
+
+func GetModuleIDByGroup(group *LdapGroup) []int {
+	var result []int
+	if group.Modules != "" {
+		_ = json.Unmarshal([]byte(group.Modules), &result)
+	}
+
+	return result
+}
+
+func GetModuleIDByGroups(groups []*LdapGroup) []int {
+	var hash = make(map[int]struct{})
+	for _, group := range groups {
+		modules := GetModuleIDByGroup(group)
+		for _, moduleID := range modules {
+			hash[moduleID] = struct{}{}
+		}
+	}
+	var result = make([]int, 0, len(hash))
+	for moduleID := range hash {
+		result = append(result, moduleID)
+	}
+
+	return result
 }

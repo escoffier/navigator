@@ -138,7 +138,7 @@ func GetAccessUrl(db *rdbtools.GormWrapper, moduleID string) ([]string, error) {
 	for _, v := range m {
 		ids = append(ids, v.Id)
 	}
-	ids = append(ids, 1)
+	ids = append(ids, ModuleUserCenter)
 	err = db.Get().Where("url_id in (?)", ids).Find(&url).Error
 	if err != nil {
 		return nil, err
@@ -318,6 +318,12 @@ func ActiveUser(ctx context.Context, postgresDB *gorm.DB, userName, pwd string) 
 
 		return SaveAuthToken(ctx, tx, userName, authToken)
 	})
+}
+
+func GetModules(ctx context.Context, db *gorm.DB, moduleIDs []int) ([]*model.ModuleGroup, error) {
+	var result []*model.ModuleGroup
+	var err = db.WithContext(ctx).Where("id in (?)", moduleIDs).Find(&result).Error
+	return result, err
 }
 
 func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.MongoUser, err error) {

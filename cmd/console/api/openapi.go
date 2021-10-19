@@ -51,6 +51,11 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
+		if user.External {
+			response.Ok(w, response.WithApiVersion(OpenAPIVersion), response.WithItem(Rsp{GuideURL: OpenAPIGuideURL}))
+			return
+		}
+
 		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.postgresDB.Get(), user.UserName)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
