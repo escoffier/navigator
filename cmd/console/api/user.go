@@ -11,6 +11,8 @@ import (
 
 	"github.com/go-chi/jwtauth"
 	"github.com/patrickmn/go-cache"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -19,7 +21,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 var (
@@ -38,8 +39,8 @@ func (api *api) verifyAuthorization(ctx context.Context) error {
 		return fmt.Errorf("Token empty or invalid")
 	}
 
-	username, _ := claims[JWT_KEY_USERNAME].(string)
-	userRole, _ := claims[JWT_KEY_USERROLE].(string)
+	username, _ := claims[JWTKeyUsername].(string)
+	userRole, _ := claims[JWTKeyUserRole].(string)
 
 	userPtr, ok := api.userCache.Get(username)
 	if !ok {
@@ -251,7 +252,20 @@ func (api *api) resetPassword() http.HandlerFunc {
 		// 	return
 		// }
 
-		user := r.Context().Value(util.CtxUserKey).(*model.User)
+		user, ok := util.GetUserFromContext(r.Context())
+		if !ok {
+			RespAndLog(w, r.Context(), errors.New("unexpected request: no user info"))
+			return
+		}
+
+		if user.External {
+			RespAndLog(w, r.Context(),
+				NewCommonError(http.StatusBadRequest,
+					errors.New("external user not suppoert resetPassword"),
+					"外部用户不支持重置密码","external user not suppoert resetPassword" ))
+			return
+		}
+
 
 		if dal.GetSaltedPwd(rq.OldPwd, user.Salt) != user.Pwd {
 			RespAndLog(w, r.Context(),
@@ -356,44 +370,43 @@ func (api *api) userList() http.HandlerFunc {
 }
 
 func (api *api) userModule() http.HandlerFunc {
-
 	return func(w http.ResponseWriter, r *http.Request) {
-		token, claims, err := jwtauth.FromContext(r.Context())
-
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("Error when getting token & claims from context: %w", err)))
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+		user, ok := util.GetUserFromContext(ctx)
+		if !ok {
+			RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
 		}
-		if token == nil || !token.Valid {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("Token empty or invalid")))
+		if user.External {
+			mdgroup, err := dal.GetModuleGroup(ctx, api.postgresDB, user.ModuleID)
+			if err != nil {
+				RespAndLog(w, ctx, err)
+			} else {
+				response.Ok(w, response.WithItems(mdgroup))
+			}
 			return
 		}
 
-		username, _ := claims[JWT_KEY_USERNAME].(string)
-		_, u, err := dal.SelectUser(r.Context(), api.postgresDB.Get(), username)
+		_, u, err := dal.SelectUser(ctx, api.postgresDB.Get(), user.UserName)
 		if err != nil {
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewInvalidAuthToken(http.StatusUnauthorized,
 					fmt.Errorf("user Error not exist")))
 			return
 		}
 
-		if username == model.UserSuperAdmin {
-
-			mdgroup := dal.GetAdminModuleGroup(r.Context(), api.postgresDB)
+		if user.UserName == model.UserSuperAdmin {
+			mdgroup := dal.GetAdminModuleGroup(ctx, api.postgresDB)
 			response.Ok(w, response.WithItems(mdgroup))
 		} else {
 
 			//get model
-			mdgroup, err := dal.GetModuleGroup(r.Context(), api.postgresDB, u.ModuleID)
+			mdgroup, err := dal.GetModuleGroup(ctx, api.postgresDB, u.ModuleID)
 			if err == nil {
 				response.Ok(w, response.WithItems(mdgroup))
 			} else {
-				RespAndLog(w, r.Context(), PostgresError(500, err))
+				RespAndLog(w, ctx, PostgresError(500, err))
 			}
 		}
 	}
@@ -524,33 +537,11 @@ func (api *api) editUser() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
-		token, claims, err := jwtauth.FromContext(ctx)
-
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("Error when getting token & claims from context: %w", err)))
-			return
-		}
-		if token == nil || !token.Valid {
-			RespAndLog(w, r.Context(),
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("Token empty or invalid")))
-			return
-		}
-
-		username, _ := claims[JWT_KEY_USERNAME].(string)
-
-		userPtr, ok := api.userCache.Get(username)
+		u, ok := util.GetUserFromContext(ctx)
 		if !ok {
-			testWithLogJson("jwt-jwtAccessCheck()", "user get error")
-			RespAndLog(w, r.Context(),
-				NewSessionExpired(http.StatusUnauthorized,
-					fmt.Errorf("User not in cache")))
+			RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
 		}
-
-		u, _ := userPtr.(*model.User)
 		if u.Rule == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
@@ -566,7 +557,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 		if !exist {
 			RespAndLog(w, ctx,
-				UserNotExistError(http.StatusInternalServerError, fmt.Errorf("user name already exist:%+v", err)))
+				UserNotExistError(http.StatusBadRequest, fmt.Errorf("user name already exist:%+v", err)))
 			return
 		}
 		if queryUser.Rule == model.RoleAdmin && rq.RoleName == model.RoleNormal {
@@ -610,7 +601,7 @@ func (api *api) GetUserInfoFromRequest(r *http.Request) (*model.User, error) {
 			fmt.Errorf("token empty or invalid"))
 	}
 
-	username, ok := claims[JWT_KEY_USERNAME].(string)
+	username, ok := claims[JWTKeyUsername].(string)
 	if !ok {
 		return nil, fmt.Errorf("unexpected username")
 	}

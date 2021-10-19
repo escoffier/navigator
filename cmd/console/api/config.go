@@ -96,7 +96,7 @@ func getUsername(ctx context.Context) string {
 	}
 
 	// check if we can find the user's session
-	username, ok := claims[JWT_KEY_USERNAME].(string)
+	username, ok := claims[JWTKeyUsername].(string)
 	if ok {
 		return username
 	}

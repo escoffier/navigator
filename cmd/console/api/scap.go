@@ -478,7 +478,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		_, claims, err := jwtauth.FromContext(r.Context())
 		if err == nil && claims != nil {
 			//get username from token
-			username = claims[JWT_KEY_USERNAME].(string)
+			username = claims[JWTKeyUsername].(string)
 		}
 
 		//check scanning task
@@ -566,7 +566,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		_, claims, err := jwtauth.FromContext(ctx)
 		if err == nil && claims != nil {
 			//get username from token
-			username = claims[JWT_KEY_USERNAME].(string)
+			username = claims[JWTKeyUsername].(string)
 		}
 
 		checkID := chi.URLParam(r, "checkID")
@@ -642,7 +642,7 @@ func (api *api) getFile() http.HandlerFunc {
 		_, claims, err := jwtauth.FromContext(r.Context())
 		if err == nil && claims != nil {
 			//get username from token
-			username = claims[JWT_KEY_USERNAME].(string)
+			username = claims[JWTKeyUsername].(string)
 		}
 
 		checkID := chi.URLParam(r, "checkID")

@@ -40,7 +40,7 @@ func GetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string) (*mod
 	return &config, nil
 }
 
-func newConfig(ctx context.Context, key string, val []byte, utime time.Time) *model.TensorConfig {
+func NewConfig(ctx context.Context, key string, val []byte, utime time.Time) *model.TensorConfig {
 	user, ok := util.GetUserFromContext(ctx)
 	userName := ""
 	if ok {
@@ -61,7 +61,7 @@ func SetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string, val [
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	config := newConfig(ctx, key, val, time.Now())
+	config := NewConfig(ctx, key, val, time.Now())
 	return util.RetryWithBackoff(pgCtx, func() error {
 		oneCtx, cancel := context.WithTimeout(pgCtx, 500*time.Millisecond)
 		defer cancel()
@@ -76,4 +76,49 @@ func SetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string, val [
 			}),
 		}).Create(config).Error
 	})
+}
+
+func BatchSetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, configs []*model.TensorConfig) error {
+	if len(configs) == 0 {
+		return nil
+	}
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(pgCtx, 500*time.Millisecond)
+		defer cancel()
+
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorConfig{}).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "key"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"updated_at",
+				"config",
+				"status",
+				"updater",
+			}),
+		}).CreateInBatches(configs, 10).Error
+	})
+}
+
+func BatchGetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, keys []string) ([]*model.TensorConfig, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	var configs []*model.TensorConfig
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
+		defer cancel()
+
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorConfig{}).Where("key in (?) AND status = ?", keys, 0).Find(&configs).Error
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return configs, nil
 }

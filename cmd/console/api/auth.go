@@ -9,6 +9,7 @@ import (
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -19,8 +20,8 @@ import (
 )
 
 const (
-	JWT_KEY_USERNAME = "user_name"
-	JWT_KEY_USERROLE = "user_role"
+	JWTKeyUsername = "user_name"
+	JWTKeyUserRole = "user_role"
 )
 
 // User defines the obj in the userCache
@@ -41,6 +42,7 @@ type LoginResponse struct {
 	Type             string `json:"type"`
 	Token            string `json:"token"`
 	Role             string `json:"role"`
+	ChallengeState   string `json:"challengeState"`
 }
 
 // @Summary Login API
@@ -128,8 +130,8 @@ func (api *api) login() http.HandlerFunc {
 		// matched password
 		// generated a jwt, set cookie and put it in the userCache
 		jwtmc := jwt.MapClaims{
-			JWT_KEY_USERNAME: creds.Username,
-			JWT_KEY_USERROLE: findUser.Rule,
+			JWTKeyUsername: creds.Username,
+			JWTKeyUserRole: findUser.Rule,
 		}
 		jwtauth.SetIssuedNow(jwtmc)
 		_, tokenString, _ := api.tokenAuth.Encode(jwtmc)
@@ -168,7 +170,7 @@ func (api *api) logout() http.HandlerFunc {
 		}
 
 		// check if we can find the user's session
-		username := claims[JWT_KEY_USERNAME].(string)
+		username := claims[JWTKeyUsername].(string)
 		api.userCache.Delete(username)
 		response.Ok(w)
 	}
