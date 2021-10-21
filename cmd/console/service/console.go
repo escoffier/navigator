@@ -30,6 +30,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
@@ -41,6 +42,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -313,6 +315,18 @@ func NewConsole(
 	err = openapiauth.Init(postgresDB, redisClient)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: openapi auth service init error")
+		return nil, err
+	}
+
+	err = captcha.Init(redisClient, captcha.DefaultConf)
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: captcha service init error")
+		return nil, err
+	}
+
+	err = session.Init(redisClient, session.DefaultConf)
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: session service init error")
 		return nil, err
 	}
 

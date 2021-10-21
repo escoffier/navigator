@@ -8,8 +8,8 @@ import (
 )
 
 type DataHeader struct {
-	_     	   [2]byte
-	Offset     uint16
+	_           [2]byte
+	Offset      uint16
 	MD5Checksum [16]byte
 }
 
@@ -24,7 +24,7 @@ func (dh *DataHeader) dump(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func readDataBlock(blockData []byte) (DataHeader,[]byte, error) {
+func readDataBlock(blockData []byte) (DataHeader, []byte, error) {
 	header := DataHeader{}
 	err := binary.Read(bytes.NewBuffer(blockData[:dataHeaderSize]), binary.LittleEndian, &header)
 	if err != nil {

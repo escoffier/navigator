@@ -82,12 +82,12 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*Fl
 	url := fmt.Sprintf("%s/internal/platform/networkTopo/topologies", consoleUrl)
 
 	fs := FlowSession{
-		netlinkFd: fd,
-		hostIP:    myHostIP,
-		krs:       k8sClient,
+		netlinkFd:      fd,
+		hostIP:         myHostIP,
+		krs:            k8sClient,
 		clusterManager: clusterManager,
-		url:       url,
-		submitter: NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
+		url:            url,
+		submitter:      NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
 	}
 
 	return &fs, nil

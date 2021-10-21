@@ -31,7 +31,6 @@ import (
 
 type api struct {
 	ctx         context.Context
-	userCache   *cache.Cache
 	tokenAuth   *jwtauth.JWTAuth
 	mongodb     *mongotools.DatabaseWrapper
 	postgresDB  *rdbtools.GormWrapper
@@ -54,7 +53,6 @@ type api struct {
 
 func newAPI(
 	ctx context.Context,
-	sessionExpiration time.Duration,
 	tokenAuth *jwtauth.JWTAuth,
 	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
@@ -75,7 +73,6 @@ func newAPI(
 
 	return &api{
 		ctx:                         ctx,
-		userCache:                   cache.New(sessionExpiration, time.Minute),
 		tokenAuth:                   tokenAuth,
 		mongodb:                     mongodb,
 		postgresDB:                  postgresDB,

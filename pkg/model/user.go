@@ -51,13 +51,37 @@ type User struct {
 	UserName    string        `gorm:"index:username,unique;column:username" json:"userName"` // index
 	Pwd         string        `json:"-" bson:"pwd"`
 	Salt        string        `gorm:"column:salt" json:"-"`
-	Rule        string        `gorm:"column:rule" json:"rule"`
+	Rule        string        `gorm:"column:rule" json:"rule"` // typo; role
 	ModuleID    string        `gorm:"column:module_id" json:"-"`
 	ModuleGroup []ModuleGroup `gorm:"-" json:"module_group"`
 	External    bool          `gorm:"-" json:"-"`
 	Checked     bool          `json:"checked"`
 	CreateAt    int64         `json:"create_at"`
 	BanStatus   int32         `json:"ban_status" gorm:"column:ban_status"`
+}
+
+func (u *User) GenerateSession(external bool) *UserSession {
+	return &UserSession{
+		Username:  u.UserName,
+		Pwd:       u.Pwd,
+		Salt:      u.Salt,
+		Role:      u.Rule,
+		ModuleID:  u.ModuleID,
+		Checked:   u.Checked,
+		BanStatus: u.BanStatus,
+		External:  external,
+	}
+}
+
+type UserSession struct {
+	Username  string `json:"username"`
+	Pwd       string `json:"pwd"`
+	Salt      string `json:"salt"`
+	Role      string `json:"role"`
+	ModuleID  string `json:"moduleID"`
+	Checked   bool   `json:"checked"`
+	BanStatus int32  `json:"banStatus"`
+	External  bool   `json:"external"`
 }
 
 func (u User) TableName() string {

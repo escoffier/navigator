@@ -255,7 +255,7 @@ func InsertEmail(ctx context.Context, postgresDB *gorm.DB, username, hashcode st
 func GetSaltedPwd(pwd, salt string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
 }
-func LoginCheckByPostgres(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, pwd string) (bool, *model.User, error) {
+func GetUserByPassword(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, pwd string) (bool, *model.User, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth"
-	"github.com/patrickmn/go-cache"
 	"gorm.io/gorm"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -42,14 +42,17 @@ func (api *api) verifyAuthorization(ctx context.Context) error {
 	username, _ := claims[JWTKeyUsername].(string)
 	userRole, _ := claims[JWTKeyUserRole].(string)
 
-	userPtr, ok := api.userCache.Get(username)
+	sessionService, ok := session.GetService()
 	if !ok {
-		testWithLogJson("jwt-jwtAccessCheck()", "user get error")
-		return fmt.Errorf("User not in cache")
+		return ErrServiceNotReady
 	}
 
-	u, _ := userPtr.(*model.User)
-	if u.Rule == model.RoleNormal {
+	userSession, err := sessionService.GetUserSession(ctx, username)
+	if err != nil {
+		return err
+	}
+
+	if userSession.Role == model.RoleNormal {
 		return ErrNoAccess
 	}
 
@@ -229,17 +232,20 @@ func (api *api) resetPassword() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
 		rq := reqResetPwd{}
 		err := json.NewDecoder(r.Body).Decode(&rq)
 		if err != nil {
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
 
 		if rq.OldPwd == "" || len(rq.Pwd) > 16 || len(rq.Pwd) < 8 || rq.Pwd == "" {
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("pwd error")))
 			return
@@ -252,49 +258,39 @@ func (api *api) resetPassword() http.HandlerFunc {
 		// 	return
 		// }
 
-		user, ok := util.GetUserFromContext(r.Context())
+		userSession, ok := util.GetSessionFromContext(ctx)
 		if !ok {
-			RespAndLog(w, r.Context(), errors.New("unexpected request: no user info"))
+			RespAndLog(w, ctx, errors.New("unexpected request: no user session"))
 			return
 		}
 
-		if user.External {
-			RespAndLog(w, r.Context(),
+		if userSession.External {
+			RespAndLog(w, ctx,
 				NewCommonError(http.StatusBadRequest,
 					errors.New("external user not suppoert resetPassword"),
-					"外部用户不支持重置密码","external user not suppoert resetPassword" ))
+					"外部用户不支持重置密码", "external user not suppoert resetPassword"))
 			return
 		}
 
+		ok, _, err = dal.GetUserByPassword(ctx, api.postgresDB, userSession.Username, rq.OldPwd)
+		if err != nil {
+			RespAndLog(w, ctx, err)
+			return
+		}
 
-		if dal.GetSaltedPwd(rq.OldPwd, user.Salt) != user.Pwd {
-			RespAndLog(w, r.Context(),
+		if !ok {
+			RespAndLog(w, ctx,
 				NewPasswordNotMatchError(http.StatusBadRequest,
 					fmt.Errorf("oldpwd error")))
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-		defer cancel()
-
-		err = dal.UpdateUserPwd(ctx, api.postgresDB, user.UserName, rq.Pwd)
+		err = dal.UpdateUserPwd(ctx, api.postgresDB, userSession.Username, rq.Pwd)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
 			return
 		}
-
-		userPtr, ok := api.userCache.Get(user.UserName)
-		if !ok {
-			testWithLogJson("jwt-jwtAccessCheck()", "user get error")
-			RespAndLog(w, r.Context(),
-				NewSessionExpired(http.StatusUnauthorized,
-					fmt.Errorf("User not in cache")))
-			return
-		}
-
-		u, _ := userPtr.(*model.User)
-		api.userCache.Set(user.UserName, u, cache.DefaultExpiration)
 
 		response.Ok(w, response.WithItem(ResetPwdResponse{
 			Success: true,
@@ -315,9 +311,9 @@ func (api *api) loadUser() http.HandlerFunc {
 			return
 		}
 		for _, v := range u {
-			bool, _, _ := dal.SelectUser(ctx, api.postgresDB.Get(), v.UserName)
-			if !bool {
-				err := dal.InsertUser(ctx, api.postgresDB, v.UserName, model.RoleNormal, []string{"1"})
+			success, _, _ := dal.SelectUser(ctx, api.postgresDB.Get(), v.UserName)
+			if !success {
+				err = dal.InsertUser(ctx, api.postgresDB, v.UserName, model.RoleNormal, []string{"1"})
 				if err != nil {
 					RespAndLog(w, ctx,
 						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -373,7 +369,7 @@ func (api *api) userModule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
-		user, ok := util.GetUserFromContext(ctx)
+		user, ok := util.GetSessionFromContext(ctx)
 		if !ok {
 			RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
@@ -388,23 +384,13 @@ func (api *api) userModule() http.HandlerFunc {
 			return
 		}
 
-		_, u, err := dal.SelectUser(ctx, api.postgresDB.Get(), user.UserName)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("user Error not exist")))
-			return
-		}
-
-		if user.UserName == model.UserSuperAdmin {
-			mdgroup := dal.GetAdminModuleGroup(ctx, api.postgresDB)
-			response.Ok(w, response.WithItems(mdgroup))
+		if user.Username == model.UserSuperAdmin {
+			moduleGroup := dal.GetAdminModuleGroup(ctx, api.postgresDB)
+			response.Ok(w, response.WithItems(moduleGroup))
 		} else {
-
-			//get model
-			mdgroup, err := dal.GetModuleGroup(ctx, api.postgresDB, u.ModuleID)
+			moduleGroup, err := dal.GetModuleGroup(ctx, api.postgresDB, user.ModuleID)
 			if err == nil {
-				response.Ok(w, response.WithItems(mdgroup))
+				response.Ok(w, response.WithItems(moduleGroup))
 			} else {
 				RespAndLog(w, ctx, PostgresError(500, err))
 			}
@@ -442,13 +428,13 @@ func (api *api) addUser() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
-		user, err := api.GetUserInfoFromRequest(r)
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
+		userSession, ok := util.GetSessionFromContext(ctx)
+		if !ok {
+			RespAndLog(w, r.Context(), errors.New("get user session fail"))
 			return
 		}
 
-		if user.Rule == model.RoleNormal {
+		if userSession.Role == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
@@ -520,36 +506,35 @@ func (api *api) editUser() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		rq := reqAddUser{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+		var cliReq reqAddUser
+		err := json.NewDecoder(r.Body).Decode(&cliReq)
 		if err != nil {
-			RespAndLog(w, r.Context(),
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-		if rq.UserName == "" || rq.RoleName == "" || len(rq.UserName) > 32 || (rq.RoleName != model.RoleAdmin && rq.RoleName != model.RoleNormal) {
-			RespAndLog(w, r.Context(),
+		if cliReq.UserName == "" || cliReq.RoleName == "" || len(cliReq.UserName) > 32 || (cliReq.RoleName != model.RoleAdmin && cliReq.RoleName != model.RoleNormal) {
+			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("username or role error")))
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		defer cancel()
-
-		u, ok := util.GetUserFromContext(ctx)
+		opUser, ok := util.GetSessionFromContext(ctx)
 		if !ok {
 			RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
 		}
-		if u.Rule == model.RoleNormal {
-			RespAndLog(w, r.Context(),
+		if opUser.Role == model.RoleNormal {
+			RespAndLog(w, ctx,
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
 			return
 		}
 
-		exist, queryUser, err := dal.SelectUser(ctx, api.postgresDB.Get(), rq.UserName)
+		exist, queryUser, err := dal.SelectUser(ctx, api.postgresDB.Get(), cliReq.UserName)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -560,65 +545,42 @@ func (api *api) editUser() http.HandlerFunc {
 				UserNotExistError(http.StatusBadRequest, fmt.Errorf("user name already exist:%+v", err)))
 			return
 		}
-		if queryUser.Rule == model.RoleAdmin && rq.RoleName == model.RoleNormal {
+		if queryUser.Rule == model.RoleAdmin && cliReq.RoleName == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
 			return
 		}
 
-		err = dal.UpdateUser(r.Context(), api.postgresDB, rq.UserName, rq.RoleName, rq.ModuleID)
+		err = dal.UpdateUser(ctx, api.postgresDB, cliReq.UserName, cliReq.RoleName, cliReq.ModuleID)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 
+		sessionService, ok := session.GetService()
+		if !ok {
+			RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
 		var findUser *model.User
-		_, findUser, err = dal.SelectUser(ctx, api.postgresDB.Get(), rq.UserName)
-		if err != nil {
+		ok, findUser, err = dal.SelectUser(ctx, api.postgresDB.Get(), cliReq.UserName)
+		if err != nil || !ok {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
 					fmt.Errorf("mongo err: %w", err)))
 			return
 		}
 
-		api.userCache.Set(rq.UserName, findUser, UserSessionExpiration)
+		if err = sessionService.SaveUserSession(ctx, findUser.GenerateSession(false)); err != nil {
+			RespAndLog(w, ctx, err)
+			return
+		}
+
 		response.Ok(w, response.WithItem(resp{Status: "OK"}))
 	}
-}
-
-func (api *api) GetUserInfoFromRequest(r *http.Request) (*model.User, error) {
-	token, claims, err := jwtauth.FromContext(r.Context())
-
-	if err != nil {
-		return nil, NewInvalidAuthToken(http.StatusUnauthorized,
-			fmt.Errorf("error when getting token & claims from context: %w", err))
-	}
-
-	if token == nil || !token.Valid {
-		return nil, NewInvalidAuthToken(http.StatusUnauthorized,
-			fmt.Errorf("token empty or invalid"))
-	}
-
-	username, ok := claims[JWTKeyUsername].(string)
-	if !ok {
-		return nil, fmt.Errorf("unexpected username")
-	}
-
-	userPtr, ok := api.userCache.Get(username)
-	if !ok {
-		testWithLogJson("jwt-jwtAccessCheck()", "user get error")
-		return nil, NewSessionExpired(http.StatusUnauthorized,
-			fmt.Errorf("user not in cache"))
-	}
-
-	result, ok := userPtr.(*model.User)
-	if !ok {
-		return nil, fmt.Errorf("unexpected user")
-	}
-
-	return result, nil
 }
 
 func VerifyEmailFormat(email string, opts *flag.EmailOpts) bool {

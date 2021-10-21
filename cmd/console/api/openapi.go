@@ -45,7 +45,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
 		defer cancel()
-		user, ok := util.GetUserFromContext(ctx)
+		user, ok := util.GetSessionFromContext(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
@@ -56,7 +56,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.postgresDB.Get(), user.UserName)
+		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.postgresDB.Get(), user.Username)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -186,7 +186,7 @@ func openAPIAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) htt
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), util.CtxUserKey, user)
+			ctx := context.WithValue(r.Context(), util.CtxUserSessionKey, user.GenerateSession(false))
 			if r.Method == http.MethodGet {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

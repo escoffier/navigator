@@ -24,3 +24,4 @@ main
 cmd/console/api/testCaptcha.png
 /bin/
 /deployments/helm/requirements.lock
+cmd/console/service/captcha/testCaptcha.png
