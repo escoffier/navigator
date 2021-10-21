@@ -40,7 +40,7 @@ func setup(t *testing.T,
 		flag.NewDefaultHarborOpts(),
 		flag.NewDefaultEmailOpts(),
 		flag.NewDefaultSecProfilesOpts(),
-		flag.NewDefaultMicrosegOpts())
+		flag.NewDefaultClusterManagerOpts())
 	require.NoError(t, err)
 
 	stop := console.Run()

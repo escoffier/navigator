@@ -15,9 +15,10 @@ func NewClusterManagerCommand() *cobra.Command {
 			if verbose {
 				logging.SetVerbose()
 			}
-			server, err := NewServer()
+			server, err := NewServer(cmd, args)
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("failed to create server")
+				return
 			}
 
 			err = server.Run()
@@ -28,6 +29,6 @@ func NewClusterManagerCommand() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(versionCmd)
-	AddFlags(cmd.Flags())
+	AddFlags(cmd.Flags(), cmd)
 	return cmd
 }

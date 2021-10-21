@@ -20,26 +20,6 @@ import (
 )
 
 var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
-var (
-	podResInstance *PodResourcesService
-	once           sync.Once
-)
-
-func Init(redisCli *redis.Client, postgresDB *rdbtools.GormWrapper) error {
-	var err error
-	once.Do(func() {
-		if redisCli == nil || postgresDB == nil {
-			err = errors.New("dependency is nil")
-			return
-		}
-		podResInstance = newAssetsInResources(redisCli, postgresDB)
-	})
-	return err
-}
-
-func GetPodResourcesService(ctx context.Context) (*PodResourcesService, bool) {
-	return podResInstance, podResInstance != nil
-}
 
 type PodResourcesService struct {
 	sync.RWMutex
@@ -59,7 +39,7 @@ type PodResourcesClusterCallback struct {
 	rsToDeploymentCache *sync.Map // string(namespace/name) -> *metav1.OwnerReference
 }
 
-func newAssetsInResources(redisCli *redis.Client, postgresDB *rdbtools.GormWrapper) *PodResourcesService {
+func newPodResourcesService(redisCli *redis.Client, postgresDB *rdbtools.GormWrapper) *PodResourcesService {
 	return &PodResourcesService{
 		redisCli:         redisCli,
 		postgresDB:       postgresDB,

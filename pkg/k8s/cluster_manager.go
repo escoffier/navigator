@@ -3,6 +3,9 @@ package k8s
 import (
 	"context"
 	"errors"
+	"sync"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -11,14 +14,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
-	"sync"
-	"time"
 )
 
 const maxClusterNum = 1000
 
 var (
 	instance *ClusterManager
+	initErr  error
 	rlOnce   sync.Once
 )
 
@@ -26,58 +28,72 @@ type ClusterManager struct {
 	clientMap map[string]*kubernetes.Clientset
 	watcher   *assets.Watcher
 	rdb       *rdbtools.GormWrapper
+	creator   CreateWatcherFunc
+
+	clusterManagerURL string
 	sync.RWMutex
 }
 
 type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
 
 // InitClusterManager 通过 CreateWatcherFunc 解耦cluster manager与service
-func InitClusterManager(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc) error {
+func InitClusterManager(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
 	rlOnce.Do(func() {
-		instance = newClusterManger(postgre, creator)
+		for i := 0; i < 3; i++ {
+			instance, initErr = newClusterManger(postgre, creator, clusterManagerURL)
+			if initErr == nil {
+				break
+			} else {
+				logging.GetLogger().Err(initErr).Msg("create k8s cluster manager error")
+			}
+		}
 	})
-	return nil
+	return initErr
 }
 
 func GetClusterManager() (*ClusterManager, bool) {
 	return instance, instance != nil
 }
 
-func newClusterManger(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc) *ClusterManager {
+func newClusterManger(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clsm := &ClusterManager{
-		clientMap: make(map[string]*kubernetes.Clientset),
-		watcher:   nil,
-		rdb:       postgre,
-		RWMutex:   sync.RWMutex{},
+		clientMap:         make(map[string]*kubernetes.Clientset),
+		watcher:           nil,
+		rdb:               postgre,
+		clusterManagerURL: clusterManagerURL,
+		RWMutex:           sync.RWMutex{},
+		creator:           creator,
 	}
 
 	err := clsm.loadClientFromDB(ctx)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	// create k8s resource watcher
 	if creator != nil {
 		watcher, err := creator(ctx)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		clsm.watcher = watcher
 	}
-	return clsm
+	return clsm, nil
 }
 
-func (m *ClusterManager) Start(ctx context.Context, creator CreateWatcherFunc) error {
+func (m *ClusterManager) Start(ctx context.Context) error {
 	if m.watcher == nil {
-		if creator != nil {
-			watcher, err := creator(ctx)
+		if m.creator != nil {
+			watcher, err := m.creator(ctx)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("create cluster Watcher error")
 				return err
 			}
 			m.watcher = watcher
+		} else {
+			return nil
 		}
 	}
 
@@ -90,7 +106,16 @@ func (m *ClusterManager) Start(ctx context.Context, creator CreateWatcherFunc) e
 	return nil
 }
 
-func (m *ClusterManager) WatchCluster(ctx context.Context, cluster *model.TensorCluster) error {
+func (m *ClusterManager) WatchClusterForRemote(ctx context.Context, cluster *model.TensorCluster) error {
+	if m.clusterManagerURL == "" {
+		return errors.New("no cluster manager url given")
+	}
+
+	return nil
+}
+
+// WatchClusterLocally is to watch the target cluster locally
+func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model.TensorCluster) error {
 	// watcher is created in console.Run, it may be not ready right now!!
 	//return err, cluster manager will try to register repeatedly until watcher is ready
 	if m.watcher == nil {
@@ -111,7 +136,7 @@ func (m *ClusterManager) WatchCluster(ctx context.Context, cluster *model.Tensor
 	}
 
 	clientMap := map[string]*kubernetes.Clientset{cluster.Key: k8sClient}
-	m.AddClient(clientMap)
+	m.addClient(clientMap)
 	err = m.watcher.StartsToWatch(ctx, clientMap)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
@@ -152,7 +177,7 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 		clientMap[c.Key] = clientSet
 	}
 	logging.GetLogger().Info().Msgf("get %d k8s client", len(clientMap))
-	m.AddClient(clientMap)
+	m.addClient(clientMap)
 	return nil
 }
 
@@ -176,7 +201,18 @@ func (m *ClusterManager) GetClient(clusterKey string) (*kubernetes.Clientset, bo
 	return client, ok
 }
 
-func (m *ClusterManager) AddClient(clientMap map[string]*kubernetes.Clientset) {
+func (m *ClusterManager) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
+	k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	if err != nil {
+		return err
+	}
+
+	clientMap := map[string]*kubernetes.Clientset{cluster.Key: k8sClient}
+	m.addClient(clientMap)
+	return nil
+}
+
+func (m *ClusterManager) addClient(clientMap map[string]*kubernetes.Clientset) {
 	m.Lock()
 	defer m.Unlock()
 	for key, c := range clientMap {

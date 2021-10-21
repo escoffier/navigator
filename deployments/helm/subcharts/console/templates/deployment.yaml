@@ -56,8 +56,8 @@ spec:
           {{- end }}
           "--vegeta-scanner-host=tensorsec-scanner",
           "--vegeta-scanner-port=8888",
-          "--microseg-host=tensorsec-microseg",
-          "--microseg-port=8090",
+          "--clustermanager-host=tensorsec-cluster-manager",
+          "--clustermanager-port=9443",
           "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
           "--scap-job-repo={{ include "console.registryPath" . }}",
           "--scap-job-tag={{ .Values.scap.tag }}",
@@ -133,6 +133,8 @@ spec:
           value: {{ .Values.version.softVersion }}
         - name: K8S_AUDIT_INDEX_PREFIX
           value: {{ .Values.k8sAudit.prefix }}
+        - name: TENSORSEC_MICROSEG_HOST
+          value: "http://tensorsec-microseg:8090"
         - name: OPEN_API_GUIDE_URL
           value: {{ .Values.openapi.guideURL }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}

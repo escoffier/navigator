@@ -9,13 +9,21 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
-	"google.golang.org/grpc/status"
-	yaml "gopkg.in/yaml.v2"
-
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	pkg "gitlab.com/piccolo_su/vegeta/pkg/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"google.golang.org/grpc/status"
+	yaml "gopkg.in/yaml.v2"
+
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+)
+
+const (
+	eventsCategory   = "kubeMonitor"
+	eventsCategoryCN = "集群风险监控"
+	eventsModule     = "ContainerSecurity"
+	eventsModuleCN   = "容器安全"
 )
 
 var (
@@ -43,24 +51,16 @@ func parseRules() error {
 	}
 	return parseErr
 }
-func newService(ecCli pb.EventsCenterCollectionServiceClient) (*Service, error) {
+func NewService() (*Service, error) {
 	monitor, err := pkg.NewKubeRiskMonitor(rules, pkg.NewMemStorage)
 	if err != nil {
 		return nil, err
 	}
 
 	svc := &Service{
-		monitor:         monitor,
-		eventsCenterCli: ecCli,
-		dupCache:        newDupCache(24 * time.Hour),
+		monitor:  monitor,
+		dupCache: newDupCache(24 * time.Hour),
 	}
-
-	err = svc.doRegisterEventsCenterRules(context.Background())
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
-		svc.asyncRegisterEventsCenterRules()
-	}
-	svc.asyncRiskMonitor()
 
 	return svc, nil
 }
@@ -309,6 +309,25 @@ func (s *Service) asyncRiskMonitor() {
 				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
+
+		var eclientErr error
+		for eclientErr != nil {
+			var ecenterColCli pb.EventsCenterCollectionServiceClient
+			ecenterColCli, eclientErr = echelper.NewGRPCClientFromEnv()
+			if eclientErr != nil {
+				logging.GetLogger().Err(eclientErr).Msg("init events center error")
+				time.Sleep(1 * time.Second)
+			} else {
+				s.eventsCenterCli = ecenterColCli
+				break
+			}
+		}
+
+		err := s.doRegisterEventsCenterRules(context.Background())
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
+			s.asyncRegisterEventsCenterRules()
+		}
 
 		for {
 			select {

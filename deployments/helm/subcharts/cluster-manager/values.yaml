@@ -11,12 +11,21 @@ image:
   pullPolicy: Always
   pullSecret: harbor-admin-secret
 
+redis:
+  redisSecretName: tensorsec-redis-ha
+  
+postgresql:
+  postgresqlDataDir: /bitnami/postgresql/data
+  postgresqlUsername: postgres
+  postgresqlPassword: password
+  postgresqlDatabase: postgres
+
 nameOverride: "cluster-manager"
 fullnameOverride: "tensorsec-cluster-manager"
 
 resources:
   limits:
-    cpu: 200m
+    cpu: 500m
     memory: 256Mi
   requests:
     cpu: 100m
