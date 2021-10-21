@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/jwtauth"
 	redis "github.com/go-redis/redis/v8"
-	"github.com/gorilla/securecookie"
 	elastic "github.com/olivere/elastic/v7"
 	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 
@@ -25,6 +24,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+)
+
+var (
+	jwtSignKey = []byte("skielsJKL@qlLKYY9091LSAqweVGY8769VHKskafhw239s$kskSJ)ksj!jHN7hJs")
 )
 
 func setupChiRouter(
@@ -43,7 +46,7 @@ func setupChiRouter(
 	ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
-	tokenAuth := jwtauth.New("HS256", securecookie.GenerateRandomKey(64), nil)
+	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
 	r := chi.NewRouter()
 	r.Use(jwtauth.Verifier(tokenAuth))
 	r.Use(middleware.RequestID)
@@ -58,7 +61,7 @@ func setupChiRouter(
 		r.Use(middleware.Logger)
 	}
 
-	api.SetupRoutes(ctx, r, 24*time.Hour,
+	api.SetupRoutes(ctx, r,
 		tokenAuth,
 		mongodb,
 		postgresDB,

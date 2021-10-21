@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	corev1 "k8s.io/api/core/v1"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -1059,14 +1060,14 @@ func UpdateCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey st
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	userInfo, ok := util.GetUserFromContext(ctx)
+	userInfo, ok := util.GetSessionFromContext(ctx)
 	updateMap := map[string]interface{}{
 		"name":        name,
 		"description": description,
 		"updated_at":  time.Now(),
 	}
 	if ok {
-		updateMap["updater"] = userInfo.UserName
+		updateMap["updater"] = userInfo.Username
 	}
 
 	return util.RetryWithBackoff(ctx, func() error {
@@ -1083,10 +1084,10 @@ func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.T
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	userInfo, ok := util.GetUserFromContext(ctx)
+	userInfo, ok := util.GetSessionFromContext(ctx)
 	if ok {
-		cluster.Creator = userInfo.UserName
-		cluster.Updater = userInfo.UserName
+		cluster.Creator = userInfo.Username
+		cluster.Updater = userInfo.Username
 	}
 	cluster.CreatedAt = time.Now()
 	cluster.UpdatedAt = cluster.CreatedAt

@@ -9,12 +9,12 @@ import (
 	"strings"
 )
 
-type  RuleFromeYaml struct{
-	Rule		string `yaml:"rule"`
-	Priority	string `yaml:"priority"`
+type RuleFromeYaml struct {
+	Rule     string `yaml:"rule"`
+	Priority string `yaml:"priority"`
 }
 
-func ParseYamlDiffSet(data []byte, rulesSet map[string]bool)([]string, error) {
+func ParseYamlDiffSet(data []byte, rulesSet map[string]bool) ([]string, error) {
 	rules := []RuleFromeYaml{}
 	err := yaml.Unmarshal(data, &rules)
 	if err != nil {

@@ -12,7 +12,6 @@ func readBufN(p []byte, n int) (int, []byte) {
 		n = len(p)
 	}
 	return n, p[:n]
-	
 
 }
 
@@ -26,7 +25,9 @@ func EncryptionRules(fData []byte) ([]byte, []byte, uint32) {
 	i := 0
 	for ; i < len(fData); i += rulesBlockSize {
 		n, buf := readBufN(fData[i:], rulesBlockSize)
-		if 0 ==n {break}
+		if 0 == n {
+			break
+		}
 		buf = buf[:n]
 
 		header := DataHeader{}

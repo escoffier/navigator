@@ -1,0 +1,163 @@
+package captcha
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/avast/retry-go"
+	"github.com/dchest/captcha"
+	"github.com/go-redis/redis/v8"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+)
+
+type Conf struct {
+	CaptchaWidth      int
+	CaptchaHeight     int
+	CaptchaLen        int
+	CaptchaExpiration time.Duration
+}
+
+var (
+	DefaultConf = &Conf{
+		CaptchaWidth:      240,
+		CaptchaHeight:     80,
+		CaptchaLen:        4,
+		CaptchaExpiration: time.Minute,
+	}
+)
+
+type Service struct {
+	redisCli *redis.Client
+	conf     *Conf
+}
+
+var (
+	instance atomic.Value // *Service
+	once     sync.Once
+)
+
+func Init(redisCli *redis.Client, conf *Conf) error {
+	if redisCli == nil || conf == nil {
+		return errors.New("unexpected empty pointer")
+	}
+
+	once.Do(func() {
+		var service = newService(redisCli, conf)
+		captcha.SetCustomStore(service)
+		instance.Store(service)
+	})
+
+	return nil
+}
+
+func GetService() (*Service, bool) {
+	service := instance.Load()
+	if service == nil {
+		return nil, false
+	}
+
+	return service.(*Service), true
+}
+
+func newService(redisCli *redis.Client, conf *Conf) *Service {
+	return &Service{
+		redisCli: redisCli,
+		conf:     conf,
+	}
+}
+
+const (
+	defaultTimeout    = time.Second * 3
+	defaultOneTimeout = time.Millisecond * 500
+	captchaPrefix     = "captcha@"
+)
+
+func (s *Service) Set(id string, digits []byte) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		return s.redisCli.Set(oneCtx, getRedisKey(id), base64.StdEncoding.EncodeToString(digits), s.conf.CaptchaExpiration).Err()
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save captcha fail")
+	}
+}
+
+// Get returns stored digits for the captcha id. Clear indicates
+// whether the captcha must be deleted from the store.
+func (s *Service) Get(id string, clear bool) (digits []byte) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	var result string
+	get := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		var _err error
+		result, _err = s.redisCli.Get(oneCtx, getRedisKey(id)).Result()
+		if _err != nil {
+			return _err
+		}
+
+		if clear {
+			return s.redisCli.Del(oneCtx, fmt.Sprintf("%s%s", captchaPrefix, id)).Err()
+		}
+
+		return nil
+	}
+
+	if err := util.RetryWithBackoff(ctx, get, retry.RetryIf(func(err error) bool {
+		return err != redis.Nil
+	})); err != nil {
+		logging.GetLogger().Err(err).Msg("get captcha fail")
+		return nil
+	}
+
+	digits, err := base64.StdEncoding.DecodeString(result)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("base64 decode fail")
+		return nil
+	}
+
+	return digits
+}
+
+func (s *Service) CreateCaptcha() string {
+	return captcha.NewLen(s.conf.CaptchaLen)
+}
+
+func (s *Service) Reload(id string) bool {
+	return captcha.Reload(id)
+}
+
+func (s *Service) WriteImage(w io.Writer, id string) error {
+	return captcha.WriteImage(w, id, s.conf.CaptchaWidth, s.conf.CaptchaHeight)
+}
+
+func (s *Service) GetCaptchaString(id string) string {
+	digits := s.Get(id, false)
+	ns := make([]byte, len(digits))
+	for i := range ns {
+		ns[i] = digits[i] + '0'
+	}
+
+	return string(ns)
+}
+
+func (s *Service) Verify(id, digits string) bool {
+	return captcha.VerifyString(id, digits)
+}
+
+func getRedisKey(key string) string {
+	return fmt.Sprintf("%s%s", captchaPrefix, key)
+}

@@ -7,22 +7,22 @@ import (
 )
 
 const (
-	CtxUserKey = "ctx_userinfo"
+	CtxUserSessionKey = "ctx_user_session"
 )
 
-func GetUserFromContext(ctx context.Context) (*model.User, bool) {
-	val := ctx.Value(CtxUserKey)
+func GetSessionFromContext(ctx context.Context) (*model.UserSession, bool) {
+	val := ctx.Value(CtxUserSessionKey)
 	if val == nil {
 		return nil, false
 	}
-	uinfo, ok := val.(*model.User)
-	return uinfo, ok
+	userSession, ok := val.(*model.UserSession)
+	return userSession, ok
 }
 
 func GetUsernameFromContext(ctx context.Context) string {
-	user, ok := GetUserFromContext(ctx)
-	if ok && user != nil {
-		return user.UserName
+	userSession, ok := GetSessionFromContext(ctx)
+	if ok && userSession != nil {
+		return userSession.Username
 	}
 	return ""
 }

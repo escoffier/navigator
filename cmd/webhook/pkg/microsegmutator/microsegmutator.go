@@ -14,15 +14,15 @@ type MicroSegMutator struct {
 	svc service.Service
 }
 
-var _ processors.NamespaceMutator =(*MicroSegMutator)(nil)
-var _ processors.PodMutator =(*MicroSegMutator)(nil)
+var _ processors.NamespaceMutator = (*MicroSegMutator)(nil)
+var _ processors.PodMutator = (*MicroSegMutator)(nil)
 
 func (m *MicroSegMutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *v1.Pod) []*processors.Patch {
 	log.Info("MicroSegMutator for Pod processing")
 	return m.svc.MutateLabels(ctx, parameters, pod)
 }
 
-func (m *MicroSegMutator) NamespaceMutate(ctx context.Context, parameters *processors.MutatorParameters, ns *v1.Namespace) []*processors.Patch{
+func (m *MicroSegMutator) NamespaceMutate(ctx context.Context, parameters *processors.MutatorParameters, ns *v1.Namespace) []*processors.Patch {
 	log.Info("MicroSegMutator for Namespace processing")
 	return m.svc.MutateNamespaceLabels(ctx, parameters, ns)
 }

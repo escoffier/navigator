@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
-	"github.com/go-chi/jwtauth"
 	param "github.com/oceanicdev/chi-param"
 	"gorm.io/gorm"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/ldap"
@@ -36,6 +36,10 @@ const (
 
 	LdapUsernamePrefix   = "ldap$"
 	RadiusUsernamePrefix = "radius$"
+
+	AccountTypeNormal = "account"
+	AccountTypeLdap   = "ldapAccount"
+	AccountTypeRadius = "radiusAccount"
 )
 
 var (
@@ -336,7 +340,13 @@ func (api *api) LdapLogin() http.HandlerFunc {
 			return
 		}
 
-		if !CaptchaVerifyString(cliReq.CaptchaID, cliReq.CaptchaValue) {
+		captchaService, ok := captcha.GetService()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		if !captchaService.Verify(cliReq.CaptchaID, cliReq.CaptchaValue) {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
@@ -374,28 +384,12 @@ func (api *api) LdapLogin() http.HandlerFunc {
 		}
 
 		ldapUsername := fmt.Sprintf("%s%s", LdapUsernamePrefix, cliReq.Username)
-		user, err := api.makeUserByGroup(ctx, ldapUsername, group)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-
-		claims := jwt.MapClaims{
-			JWTKeyUsername: ldapUsername,
-			JWTKeyUserRole: user.Rule,
-		}
-		jwtauth.SetIssuedNow(claims)
-		_, tokenString, _ := api.tokenAuth.Encode(claims)
-
-		api.userCache.Set(ldapUsername, user, UserSessionExpiration)
-
-		response.Ok(w, response.WithItem(LoginResponse{
-			CurrentAuthority: cliReq.Username,
-			Status:           "ok",
-			Type:             "ldapAccount",
-			Token:            tokenString,
-			Role:             user.Rule,
-		}))
+		api.externalLogin(ctx, w, &externalUserArg{
+			username:       ldapUsername,
+			originUsername: cliReq.Username,
+			accountType:    AccountTypeLdap,
+			group:          group,
+		})
 	}
 }
 
@@ -469,7 +463,13 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 			return
 		}
 
-		if !CaptchaVerifyString(cliReq.CaptchaID, cliReq.CaptchaValue) {
+		captchaService, ok := captcha.GetService()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		if !captchaService.Verify(cliReq.CaptchaID, cliReq.CaptchaValue) {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
@@ -567,31 +567,50 @@ func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username
 	}
 
 	radiusUsername := fmt.Sprintf("%s%s", RadiusUsernamePrefix, username)
-	user, err := api.makeUserByGroup(ctx, radiusUsername, group)
+	api.externalLogin(ctx, w, &externalUserArg{
+		username:       radiusUsername,
+		originUsername: username,
+		group:          group,
+		accountType:    AccountTypeRadius,
+	})
+}
+
+type externalUserArg struct {
+	username       string
+	originUsername string
+	accountType    string
+	group          string
+}
+
+func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *externalUserArg) {
+	userSession, err := api.makeUserSessionByGroup(ctx, arg.username, arg.group)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, err)
 		return
 	}
 
-	claims := jwt.MapClaims{
-		JWTKeyUsername: radiusUsername,
-		JWTKeyUserRole: user.Rule,
+	tokenString := api.saveJWTToken(arg.username, userSession.Role)
+	sessionService, ok := session.GetService()
+	if !ok {
+		apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+		return
 	}
-	jwtauth.SetIssuedNow(claims)
-	_, tokenString, _ := api.tokenAuth.Encode(claims)
 
-	api.userCache.Set(radiusUsername, user, UserSessionExpiration)
+	if err = sessionService.SaveUserSession(ctx, userSession); err != nil {
+		apperror.RespAndLog(w, ctx, fmt.Errorf("save user session fail:%w", err))
+		return
+	}
 
 	response.Ok(w, response.WithItem(LoginResponse{
-		CurrentAuthority: username,
+		CurrentAuthority: arg.originUsername,
 		Status:           "ok",
-		Type:             "radiusAccount",
+		Type:             arg.accountType,
 		Token:            tokenString,
-		Role:             user.Rule,
+		Role:             userSession.Role,
 	}))
 }
 
-func (api *api) makeUserByGroup(ctx context.Context, username, group string) (*model.User, error) {
+func (api *api) makeUserSessionByGroup(ctx context.Context, username, group string) (*model.UserSession, error) {
 	ldapGroup, err := dal.GetLdapGroupByName(ctx, api.postgresDB.Get(), group)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -600,12 +619,12 @@ func (api *api) makeUserByGroup(ctx context.Context, username, group string) (*m
 			return nil, fmt.Errorf("get ldap group fail, err:%w", err)
 		}
 	}
-	user := &model.User{
-		UserName: username,
+	user := &model.UserSession{
+		Username: username,
 		External: true,
 		Checked:  true,
 		ModuleID: convertModule(ldapGroup.Modules),
-		Rule:     ldapGroup.Role,
+		Role:     ldapGroup.Role,
 	}
 	return user, nil
 }
