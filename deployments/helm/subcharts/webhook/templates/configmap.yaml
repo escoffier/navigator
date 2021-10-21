@@ -6,9 +6,16 @@ metadata:
   labels:
 {{ include "webhook.labels" . | indent 4 }}
 data:
-  image-validator.yaml: |-
-    imageValidateHost: tensorsec-scanner.{{ .Release.Namespace }}.svc:8888
-    ignoredNameSpaces: [{{ .Values.imageValidator.ignoredNameSpaces }},{{ .Release.Namespace }}]
+  image-trust-mutator.yaml: |-
+    ignored_name_spaces:
+    - kube-system
+    - {{ .Release.Namespace }}
+    pg_addr: postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable
+  image-trust-validator.yaml: |-
+    image_trust_url: http://tensorsec-scanner.{{ .Release.Namespace }}.svc:8888/api/v1/imagereject/online_moniter
+    ignored_name_spaces:
+    - kube-system
+    - {{ .Release.Namespace }}
   microseg.yaml: |-
 {{ toYaml .Values.microseg.appCfg | trim | indent 4 }}
   presets.yaml: |-

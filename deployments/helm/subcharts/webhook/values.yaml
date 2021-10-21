@@ -41,13 +41,8 @@ resources:
     cpu: 100m
     memory: 100Mi
 
-validators: ImageValidator
-mutators: "DriftPreventionMutator,MicroSegMutator"
-
-imageValidator:
-  ## Specify which namespace of your cluster will not use image-validator webhook
-  ## suggestion is "kube-system" and teh namespace which deployed Tensorsec profduct
-  ignoredNameSpaces: kube-system
+validators: ImageTrustValidator
+mutators: "DriftPreventionMutator,MicroSegMutator,ImageTrustMutator"
 
 microseg:
   appCfg:
