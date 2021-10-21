@@ -7,6 +7,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/cmd"
 )
 
+
 func main() {
 	command := cmd.NewClusterManagerCommand()
 

@@ -100,7 +100,7 @@ var rootCmd = &cobra.Command{
 			Int("port", secProfilesOpts.Port).
 			Msg("Security Profiles options")
 
-		microsegOpts := flag.GetMicrosegOpts(cmd)
+		microsegOpts := flag.GetClusterManagerOpts(cmd)
 		logging.GetLogger().Info().
 			Str("host", microsegOpts.Host).
 			Int("port", microsegOpts.Port).
@@ -148,7 +148,7 @@ func init() {
 	flag.AddHarborFlags(rootCmd)
 	flag.AddEmailOpts(rootCmd)
 	flag.AddSecProfilesOpts(rootCmd)
-	flag.AddMicrosegmentationFlags(rootCmd)
+	flag.AddClusterManagerFlags(rootCmd)
 	flag.AddWebHookFlags(rootCmd)
 
 	flag.ConfigViper()

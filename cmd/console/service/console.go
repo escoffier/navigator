@@ -16,26 +16,12 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/processingcenter"
@@ -57,6 +43,19 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 )
 
 var (
@@ -112,7 +111,7 @@ func NewConsole(
 	harborOpts *flag.HarborOpts,
 	emailOpts *flag.EmailOpts,
 	secProfilesOpts *flag.SecProfilesOpts,
-	microsegOpts *flag.MicrosegOpts,
+	clusterManagerOpts *flag.ClusterManagerOpts,
 	webhookOpts *flag.WebHookOpts,
 ) (*Console, error) {
 	// mongo client
@@ -164,7 +163,6 @@ func NewConsole(
 		return nil, err
 	}
 	ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
-	ecColCli := pb.NewEventsCenterCollectionServiceClient(conn)
 
 	// Redis DB client
 	sa := strings.Split(redisOpts.Endpoint, ",")
@@ -180,7 +178,6 @@ func NewConsole(
 
 	PgDsn := postgresOpts.PostgresConnectionString
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-
 		db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
@@ -200,6 +197,8 @@ func NewConsole(
 	}
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
+	microsegURL := os.Getenv("TENSORSEC_MICROSEG_HOST")
+	clusterManagerURL := fmt.Sprintf("http://%s:%d", clusterManagerOpts.Host, clusterManagerOpts.Port)
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -265,18 +264,9 @@ func NewConsole(
 		logging.GetLogger().Err(rlErr).Msgf("ERROR: InitResourcesService init error")
 	}
 
-	kbmErr := kubemonitor.Init(ecColCli)
-	if err != nil {
-		logging.GetLogger().Err(kbmErr).Msgf("ERROR: kubeMonitor init error")
-	}
-	svcErr := assetsSvc.Init(redisClient, postgresDB)
-	if svcErr != nil {
-		logging.GetLogger().Err(svcErr).Msgf("ERROR: ServiceAssetsService init error")
-	}
-
 	ucErr := usercenter.Init(postgresDB)
 	if ucErr != nil {
-		logging.GetLogger().Err(svcErr).Msgf("ERROR: usercenter limiter init error")
+		logging.GetLogger().Err(ucErr).Msgf("ERROR: usercenter limiter init error")
 	}
 
 	// scap service
@@ -331,31 +321,17 @@ func NewConsole(
 	}
 
 	// init cluster manager
-	err = k8s.InitClusterManager(postgresDB, func(ctx context.Context) (*assets.Watcher, error) {
-		inResSvc, ok := assetsSvc.GetPodResourcesService(ctx)
-		kbmSvc, ok := kubemonitor.Get(ctx)
-		resSvc, ok := assetsSvc.GetResourcesService(ctx)
-		if !ok {
-			return nil, errors.New("get service err")
-		}
-		watcher, err := assetsSvc.Watcher(postgresDB, inResSvc, kbmSvc, resSvc, scannerURL)
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("ERROR: create watcher error")
-			return nil, err
-		}
-		return watcher, nil
-	})
+	err = k8s.InitClusterManager(postgresDB, nil, clusterManagerURL)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msg("cluster manager init error")
 		return nil, err
 	}
 
-	microSegURL := fmt.Sprintf("http://%s:%d", microsegOpts.Host, microsegOpts.Port)
 	err = processingcenter.Init(&processingcenter.ServiceComponent{
 		DB:              postgresDB,
 		EsCli:           es,
 		RedisCli:        redisClient,
-		MicroSegBaseURL: microSegURL,
+		MicroSegBaseURL: microsegURL,
 	})
 
 	return &Console{
@@ -368,7 +344,7 @@ func NewConsole(
 				es,
 				scannerURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
-				microSegURL,
+				microsegURL,
 				fmt.Sprintf("https://%s:%d", webhookOpts.Host, webhookOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
@@ -451,7 +427,7 @@ func (c *Console) Run() func() {
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if ok {
-		err = clusterManager.Start(ctx, nil)
+		err = clusterManager.Start(ctx)
 		if err != nil {
 			log.Error().Err(err).Msg("When starting cluster manager")
 		}

@@ -25,6 +25,13 @@ spec:
         {{- if .Values.global.multiCluster.isMasterCluster }}
         - --cluster-name=default
         - --master-addr=tensorsec-console:8889
+        - --console-postgres=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable
+        - --postgres-pvc=data-tensorsec-db-postgresql-0
+        - --postgres-pod=tensorsec-db-postgresql-0
+        - --postgres-data-path={{ .Values.postgresql.postgresqlDataDir }}
+        - --vegeta-scanner-host=tensorsec-scanner
+        - --vegeta-scanner-port=8888
+        - --redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379
         {{- else if .Values.global.multiCluster.isMemberCluster }}
         - --master-addr={{ .Values.args.masterAddr }}
         - --cluster-name={{ .Values.args.clusterName }}
@@ -35,6 +42,13 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if .Values.global.multiCluster.isMasterCluster }}
+        - name: TENSORSEC_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.redis.redisSecretName }}
+              key: auth
+        {{- end }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
       imagePullSecrets:

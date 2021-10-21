@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	v1 "k8s.io/api/core/v1"
 )
 
 func (api *api) assets() func(chi.Router) {
@@ -266,7 +266,13 @@ func (api *api) addNewCluster() http.HandlerFunc {
 				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
 			return
 		}
-		err = clusterManager.WatchCluster(ctx, &cluster)
+		err = clusterManager.AddCluster(ctx, &cluster)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		err = clusterManager.WatchClusterForRemote(ctx, &cluster)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError, err))

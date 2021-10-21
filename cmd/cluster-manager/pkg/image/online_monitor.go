@@ -182,16 +182,16 @@ func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.C
 	detectURl := fmt.Sprintf("%s/api/v1/imagereject/online_moniter", s.parent.scannerURL)
 	logging.GetLogger().Debug().Msgf("detectImage detectURl:%s", detectURl)
 
-	req, err := http.NewRequest("POST", detectURl, bytes.NewReader(bys))
+	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(tctx, "POST", detectURl, bytes.NewReader(bys))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("detectImage NewRequest,error")
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	cancelCtx, cancelFunc := context.WithCancel(ctx)
-	defer cancelFunc()
-	response, err := http.DefaultClient.Do(req.WithContext(cancelCtx))
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("detectImage 请求scanner服务出错")
 		return err

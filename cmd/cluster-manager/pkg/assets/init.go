@@ -5,9 +5,10 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/image"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/kubemonitor"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/microseg"
+	"github.com/go-redis/redis/v8"
+	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/image"
+	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/kubemonitor"
+	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
@@ -20,21 +21,24 @@ var (
 
 // Watcher singleton
 func Watcher(postgre *rdbtools.GormWrapper,
-	ov *PodResourcesService,
-	kbmSvc *kubemonitor.Service,
-	tsRes *TensorResourcesService,
+	redisCli *redis.Client,
 	scannerURL string,
 ) (*assets.Watcher, error) {
-	if ov == nil || postgre == nil || kbmSvc == nil {
-		return nil, errors.New("arguments exist nil")
+	if postgre == nil || redisCli == nil || scannerURL == "" {
+		return nil, errors.New("illegal argument")
 	}
 	initOnce.Do(func() {
 		logging.GetLogger().Info().Msgf("Init assets.Watcher: stack = %s", debug.Stack())
 		wInstance = assets.NewWatcher()
-		wInstance.AddCallback(ov)
+		wInstance.AddCallback(newPodResourcesService(redisCli, postgre))
 		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
-		wInstance.AddCallback(kbmSvc.RiskMonitor())
-		wInstance.AddCallback(tsRes)
+		kbm, err := kubemonitor.NewService()
+		if err == nil {
+			wInstance.AddCallback(kbm.RiskMonitor())
+		} else {
+			logging.GetLogger().Err(err).Msg("init kube monitor error")
+		}
+		wInstance.AddCallback(newResourcesWatcher(postgre, scannerURL))
 		wInstance.AddCallback(image.NewOnlineMonitor(postgre, scannerURL))
 	})
 	return wInstance, nil
