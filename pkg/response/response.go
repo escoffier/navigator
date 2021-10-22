@@ -66,11 +66,8 @@ func WithItems(items interface{}) ResponseDataOptionFunc {
 
 func WithItem(item interface{}) ResponseDataOptionFunc {
 	val := reflect.ValueOf(item)
-	if val.Kind() != reflect.Struct {
-		return func(ev *HTTPEnvelope) {
-			ev.EnvelopeError = fmt.Sprintf("WithItem expected reflect.Struct, got %s", val.Kind().String())
-		}
-	} else {
+	// 如果传入的item是一个指针，则判断指针关联的类型是否为结构体
+	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
 		return func(ev *HTTPEnvelope) {
 			// need to marshal since HTTPData.Item is of type json.RawMessage
 			marshalled, err := json.Marshal(item)
@@ -79,6 +76,10 @@ func WithItem(item interface{}) ResponseDataOptionFunc {
 			} else {
 				ev.Data.Item = marshalled
 			}
+		}
+	} else {
+		return func(ev *HTTPEnvelope) {
+			ev.EnvelopeError = fmt.Sprintf("WithItem expected reflect.Struct, got %s", val.Kind().String())
 		}
 	}
 }

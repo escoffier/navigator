@@ -61,7 +61,7 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 
 	convey.Convey("DetectImageForCICD", t, func() {
 		polg := "https://registry.t-appagile.com"
-		cicd, details, hashs, err := s.DetectImageForCICD(ctx, 1, polg)
+		cicd, details, hashs, err := s.DetectImageForCICD(ctx, &model.ImageList{ID: 1, Library: polg})
 		convey.ShouldEqual(cicd, true)
 		convey.ShouldBeNil(err)
 		// fmt.Println(details)
@@ -84,6 +84,44 @@ func TestCheckDetectImageForCICD(t *testing.T) {
 }
 
 type mockdal struct {
+}
+
+func (m *mockdal) TrustedImagesMulti(ctx context.Context, digests []string) ([]model.TrustedImages, error) {
+	data := []model.TrustedImages{
+		{
+			IsTrusted: 1,
+		},
+	}
+
+	return data, nil
+}
+
+func (m *mockdal) TrustedImageCreat(ctx context.Context, trustedImage *model.TrustedImages) error {
+	panic("implement me")
+}
+
+func (m *mockdal) ImageRsaCreate(ctx context.Context, data *model.ImageRsa) error {
+	panic("implement me")
+}
+
+func (m *mockdal) ImageRsaUpdate(ctx context.Context, id int64, data *model.ImageRsa) error {
+	panic("implement me")
+}
+
+func (m *mockdal) ImageRsaDetail(ctx context.Context, id int64) (*model.ImageRsa, error) {
+	panic("implement me")
+}
+
+func (m *mockdal) ImageRsaDelete(ctx context.Context, id int64) error {
+	panic("implement me")
+}
+
+func (m *mockdal) ImageRsaList(ctx context.Context, limit, offset int64) ([]model.ImageRsa, int64, error) {
+	panic("implement me")
+}
+
+func (m *mockdal) ImageRsaQueryByPrivateKey(ctx context.Context, privateKey string) (*model.ImageRsa, error) {
+	panic("implement me")
 }
 
 func (m *mockdal) SearchImageWithScan(ctx context.Context, param store.SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {

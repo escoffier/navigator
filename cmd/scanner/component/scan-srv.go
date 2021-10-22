@@ -286,14 +286,16 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 
 		if len(imgs) == 0 {
 			if resConfig[0].Mode == model.RejectPolicySafeModel {
-				logging.GetLogger().Info().Msg("K8sDeployDetect not find the image and the mode is safe mode")
+				logging.GetLogger().Info().Msgf("K8sDeployDetect not find the image and the mode is safe mode, digest: %s", containerInfo[k].Digest)
 				s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
 				flag = false
+			} else {
+				logging.GetLogger().Info().Msgf("K8sDeployDetect not find the image and the mode not is safe mode, digest:%s", containerInfo[k].Digest)
 			}
 			continue
 		}
 		img := imgs[0]
-		safe, records, msgs, _ := s.DetectImageForK8s(ctx, imgs[0].ID, img.Library)
+		safe, records, msgs, _ := s.DetectImageForK8s(ctx, &img)
 		if len(msgs) > 0 {
 			notify := model.NotifyContext{
 				ServiceID: fmt.Sprintf("%s/%s:%s(image)", img.Library, img.FullRepoName, img.Tags),
@@ -384,7 +386,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 		}
 
 		// 进行检测
-		_, _, msgs, _ := s.DetectImageForK8sOnlineMonitor(ctx, *tmpImageList)
+		_, _, msgs, _ := s.DetectImageForK8sOnlineMonitor(ctx, tmpImageList)
 		// 发送消息
 		if len(msgs) > 0 {
 			notify := model.NotifyContext{
@@ -450,7 +452,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 	}
 	imgDetail, _ := s.GetImageDetail(ctx, req.ImageID)
 
-	safe, records, msgs, err := s.DetectImageForCICD(ctx, req.ImageID, req.Library)
+	safe, records, msgs, err := s.DetectImageForCICD(ctx, &img[0])
 	// 向事件中心发送消息
 	if len(msgs) > 0 {
 		logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult detect complete,send message to the event center")
@@ -1232,8 +1234,8 @@ func (s *ConScannerSrv) getRegistry(ctx context.Context, library string, useType
 }
 
 // DetectImageForCICD CICD 检查镜像是否正确
-func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, policeReg string) (bool, []ReasonAndDetail, []model.KVHashs, error) {
-	logging.GetLogger().Info().Msgf("CICD,start DetectImage,imageId：%d", imageId)
+func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.ImageList) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+	logging.GetLogger().Info().Msgf("CICD,start DetectImage,imageId：%d", img.ID)
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
@@ -1255,22 +1257,22 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 		return true, records, msgs, nil
 	}
 
-	// 先查镜像是否存在
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imageId}}, nil)
+	// 先查镜像是否存在  // todo 这里可以移除吗 @liuqiang
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{img.ID}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("CICD,find the image :%d,error", imageId)
+		logging.GetLogger().Err(err).Msgf("CICD,find the image :%d,error", img.ID)
 		return false, records, msgs, err
 	}
 	// 如果没有在数据库没有查到镜像，默认不安全
 	if len(imgs) == 0 {
-		logging.GetLogger().Info().Msgf("CICD,not find the image:%d", imageId)
-		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,没有查到对应镜像:%d", imageId))
+		logging.GetLogger().Info().Msgf("CICD,not find the image:%d", img.ID)
+		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,没有查到对应镜像:%d", img.ID))
 	}
 
 	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryUrl: imgs[0].Library, NoDelete: true}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult search SearchRegistry error:%s", err.Error())
-		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,查询镜像仓库地址出错：%d", imageId))
+		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,查询镜像仓库地址出错：%d", img.ID))
 	}
 	if len(regs) == 0 {
 		logging.GetLogger().Info().Msgf("untrust Library imag Id:" + strconv.Itoa(int(imgs[0].ID)))
@@ -1292,22 +1294,21 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 		return false, records, msgs, nil
 	}
 
-	img := imgs[0]
-	img.Library = policeReg
+	img = &imgs[0]
 
-	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg})
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: img.Library})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("CICD library:%s get reject policy error", policeReg)
+		logging.GetLogger().Err(err).Msgf("CICD library:%s get reject policy error", img.Library)
 		return true, records, msgs, err
 	}
 
 	if len(policies) == 0 { // 没有策略说明不检测，默认全安全
-		logging.GetLogger().Info().Msgf("CICD library:%s has no reject policy, all safe by default", policeReg)
+		logging.GetLogger().Info().Msgf("CICD library:%s has no reject policy, all safe by default", img.Library)
 		return true, records, msgs, nil
 	}
 	scanImageRes, err := s.checkScanImageExist(ctx, model.UsePatternForCICD, img, policies[0])
 	if err != nil {
-		logging.GetLogger().Info().Msgf("CICD search scan_image: %d, error: %s", imageId, err.Error())
+		logging.GetLogger().Info().Msgf("CICD search scan_image: %d, error: %s", img.ID, err.Error())
 		return false, records, msgs, err
 	}
 	records = append(records, scanImageRes.Records...)
@@ -1331,7 +1332,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
 			// webshell
-			sa6, red6, ms6 := s.checkWebselhl(ctx, scanImage, img, po)
+			sa6, red6, ms6 := s.checkWebshell(ctx, scanImage, img, po)
 			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 || !sa6 {
 				safe = false
 			}
@@ -1352,6 +1353,24 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 		}
 		records = append(records, red6...)
 		msgs = append(msgs, ms6...)
+
+		// 可信镜像
+		sa7, red7, ms7 := s.checkTrustedImage(ctx, img, po)
+		if !sa7 {
+			safe = false
+		}
+
+		records = append(records, red7...)
+		msgs = append(msgs, ms7...)
+
+		// 特权账户
+		sa8, red8, ms8 := s.checkPrivilegedBoot(ctx, img, po)
+		if !sa8 {
+			safe = false
+		}
+
+		records = append(records, red8...)
+		msgs = append(msgs, ms8...)
 	}
 
 	// 检查白名单,要检查一下Digest,防止通过Library+FullRepoName+Tags的方式绕过检测
@@ -1370,7 +1389,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, imageId int64, p
 }
 
 // DetectImageForK8sOnlineMonitor  判断该镜像是否安全
-func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, image model.ImageList) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, image *model.ImageList) (bool, []ReasonAndDetail, []model.KVHashs, error) {
 	logging.GetLogger().Info().Msgf("K8sOnlineMonitor,start DetectImage,image：%s/%s:%s", image.Library, image.FullRepoName, image.Tags)
 
 	records := make([]ReasonAndDetail, 0)
@@ -1411,8 +1430,8 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedImage], msgZh),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedImage], msgEN)}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonDifferentImageDigest], msgZh),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonDifferentImageDigest], msgEN)}})
 		return safe, records, msgs, nil
 	}
 
@@ -1427,7 +1446,7 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 		return true, records, msgs, nil
 	}
 
-	img := *checkImageRes.Image
+	img := checkImageRes.Image
 	checkScanImage, err := s.checkScanImageExist(ctx, model.UsePatternForOnline, img, policies[0])
 	if err != nil {
 		logging.GetLogger().Info().Msgf("K8sOnlineMonitor search scan_image: %d, error: %s", checkImageRes.Image.ID, err.Error())
@@ -1457,7 +1476,7 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
 			// webshell
-			sa6, red6, ms6 := s.checkWebselhl(ctx, scanImage, img, po)
+			sa6, red6, ms6 := s.checkWebshell(ctx, scanImage, img, po)
 			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 || !sa6 {
 				safe = false
 			}
@@ -1478,6 +1497,24 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 		}
 		records = append(records, red6...)
 		msgs = append(msgs, ms6...)
+
+		// 检查可信镜像
+		sa7, red7, ms7 := s.checkTrustedImage(ctx, img, po)
+		if !sa7 {
+			safe = false
+		}
+
+		records = append(records, red7...)
+		msgs = append(msgs, ms7...)
+
+		// 特权账户
+		sa8, red8, ms8 := s.checkPrivilegedBoot(ctx, img, po)
+		if !sa8 {
+			safe = false
+		}
+
+		records = append(records, red8...)
+		msgs = append(msgs, ms8...)
 	}
 
 	if !safe {
@@ -1500,7 +1537,7 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 }
 
 // checkBaseImage 是否是基础镜像构建的应用
-func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	logging.GetLogger().Info().Msgf("start  checkBaseImage imag Id:" + strconv.Itoa(int(img.ID)))
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
@@ -1547,9 +1584,9 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img model.ImageList,
 	return safe, records, msgs
 }
 
-// checkWebselhl 检查websell的扫描结果
-func (s *ConScannerSrv) checkWebselhl(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Info().Msg("checkWebselhl,start ")
+// checkWebshell 检查websell的扫描结果
+func (s *ConScannerSrv) checkWebshell(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msg("checkWebshell,start ")
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -1591,7 +1628,7 @@ func (s *ConScannerSrv) checkWebselhl(ctx context.Context, scanImage model.ScanI
 }
 
 // checkInWhitelist 检测白名单
-func (s *ConScannerSrv) checkWhitelist(ctx context.Context, img model.ImageList, usePattern string) (bool, error) {
+func (s *ConScannerSrv) checkWhitelist(ctx context.Context, img *model.ImageList, usePattern string) (bool, error) {
 	logging.GetLogger().Info().Msgf("checkWhitelist checking whitelist: %s%s:%s, Digest:%s", img.Library, img.FullRepoName, img.Tags, img.Digest)
 	param := store.SearchImageWhitelistParam{
 		Library:      img.Library,
@@ -1614,7 +1651,7 @@ func (s *ConScannerSrv) checkWhitelist(ctx context.Context, img model.ImageList,
 }
 
 // 未找到扫描结果时拼装消息和阻断记录 拼装数据
-func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern string, img model.ImageList, po model.RejectPolicy) (checkSanImageRes, error) {
+func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern string, img *model.ImageList, po model.RejectPolicy) (checkSanImageRes, error) {
 	res := checkSanImageRes{
 		Safe:    true,
 		Records: make([]ReasonAndDetail, 0),
@@ -1673,7 +1710,7 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 }
 
 // 未找到镜像
-func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, img model.ImageList) checkImageRes {
+func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, img *model.ImageList) checkImageRes {
 	res := checkImageRes{
 		Safe:    true,
 		Records: make([]ReasonAndDetail, 0),
@@ -1702,7 +1739,7 @@ func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, 
 	return res
 }
 
-func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -1740,7 +1777,7 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 	return safe, records, msgs
 }
 
-func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -1778,7 +1815,7 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 	return safe, records, msgs
 }
 
-func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -1835,7 +1872,7 @@ func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.
 	return safe, records, msgs
 }
 
-func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -1888,7 +1925,7 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 	return safe, records, msgs
 }
 
-func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.ScanImage, img model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -2068,55 +2105,55 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 	}
 }
 
-func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, policeReg string) (bool, []ReasonAndDetail, []model.KVHashs, error) {
-	logging.GetLogger().Info().Msgf("K8sDeployDetect,start DetectImage,imageId：%d", imageId)
+func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageList) (bool, []ReasonAndDetail, []model.KVHashs, error) {
+	logging.GetLogger().Info().Msgf("K8sDeployDetect,start DetectImage,imageId：%d, policeReg: %s", img.ID, img.Library)
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imageId}}, nil)
+	// todo @liuqiang 这块查询逻辑是否可以去除
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{img.ID}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("K8sDeployDetect,find the image :%d,error", imageId)
+		logging.GetLogger().Err(err).Msgf("K8sDeployDetect,find the img :%d,error", img.ID)
 		return false, records, msgs, err
 	}
 	// 如果没有在数据库没有查到镜像，默认不安全
 	if len(imgs) == 0 {
-		logging.GetLogger().Info().Msgf("K8sDeployDetect,not find the image:%d", imageId)
-		return false, records, msgs, fmt.Errorf(fmt.Sprintf("K8sDeployDetect,没有查到对应镜像:%d", imageId))
+		logging.GetLogger().Info().Msgf("K8sDeployDetect,not find the img:%d", img.ID)
+		return false, records, msgs, fmt.Errorf(fmt.Sprintf("K8sDeployDetect,没有查到对应镜像:%d", img.ID))
 	}
 
-	img := imgs[0]
-	img.Library = policeReg
+	img = &imgs[0]
 
 	// 检查全局策略是否开启
 	globalReg, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("K8sDeployDetect library:%s get global reject policy error", policeReg)
+		logging.GetLogger().Err(err).Msgf("K8sDeployDetect library:%s get global reject policy error", img.Library)
 		return false, records, msgs, err
 	}
 	if len(globalReg) == 0 {
-		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s not find global policy", policeReg)
+		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s not find global policy", img.Library)
 		return true, records, msgs, nil
 	}
 
 	if !globalReg[0].K8sEnable {
-		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s global reject is not enable ", policeReg)
+		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s global reject is not enable ", img.Library)
 		return true, records, msgs, nil
 	}
 
-	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: policeReg, Global: consts.FalseString})
+	policies, err := s.dbdal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Library: img.Library, Global: consts.FalseString})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("K8sDeployDetect library:%s get reject policy error", policeReg)
+		logging.GetLogger().Err(err).Msgf("K8sDeployDetect library:%s get reject policy error", img.Library)
 		return true, records, msgs, err
 	}
 
 	if len(policies) == 0 { // 没有策略说明不检测，默认全安全
-		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s has no reject policy, all safe by default", policeReg)
+		logging.GetLogger().Info().Msgf("K8sDeployDetect library:%s has no reject policy, all safe by default", img.Library)
 		return true, records, msgs, nil
 	}
 	scanImageRes, err := s.checkScanImageExist(ctx, model.UsePatternForK8s, img, policies[0])
 	if err != nil {
-		logging.GetLogger().Info().Msgf("K8sDeployDetect search scan_image: %d, error: %s", imageId, err.Error())
+		logging.GetLogger().Info().Msgf("K8sDeployDetect search scan_image: %d, error: %s", img.ID, err.Error())
 		return false, records, msgs, err
 	}
 	records = append(records, scanImageRes.Records...)
@@ -2144,7 +2181,7 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, po
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
 			// webshell
-			sa6, red6, ms6 := s.checkWebselhl(ctx, scanImage, img, po)
+			sa6, red6, ms6 := s.checkWebshell(ctx, scanImage, img, po)
 			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 || !sa6 {
 				safe = false
 			}
@@ -2164,8 +2201,26 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, po
 		}
 		records = append(records, red6...)
 		msgs = append(msgs, ms6...)
+
+		// 可信镜像
+		sa7, red7, ms7 := s.checkTrustedImage(ctx, img, po)
+		if !sa7 {
+			safe = false
+		}
+
+		records = append(records, red7...)
+		msgs = append(msgs, ms7...)
+
+		// 特权账户
+		sa8, red8, ms8 := s.checkPrivilegedBoot(ctx, img, po)
+		if !sa8 {
+			safe = false
+		}
+
+		records = append(records, red8...)
+		msgs = append(msgs, ms8...)
 	}
-	logging.GetLogger().Info().Msgf("K8sDeployDetect:checkBaseImage ... safe:%t: msg:%d,records:%d", safe, len(msgs), len(records))
+	logging.GetLogger().Info().Msgf("K8sDeployDetect:checkBaseImage ... digest: %s, safe:%t: msg:%d,records:%d", img.Digest, safe, len(msgs), len(records))
 
 	// 检查白名单,K8s不检查Digest
 	// 镜像存在白名单中，只是不阻断，任然要进行扫描检测，对检测结果仍然要发事件中心
@@ -2174,9 +2229,114 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, imageId int64, po
 			safe = true
 			for i := range msgs {
 				msgs[i].KVHash.ZH.Value = strings.Replace(msgs[i].KVHash.ZH.Value, "被阻断", "但镜像已加入白名单中，未被阻断", 1)
-				msgs[i].KVHash.EN.Value = strings.Replace(msgs[i].KVHash.EN.Value, ",blocked", ",but image has add to the whitelist,unblocked", 1)
+				msgs[i].KVHash.EN.Value = strings.Replace(msgs[i].KVHash.EN.Value, ",blocked", ",but img has add to the whitelist,unblocked", 1)
 			}
 		}
 	}
 	return safe, records, msgs, nil
+}
+
+// 检查是否为可信镜像
+func (s *ConScannerSrv) checkTrustedImage(ctx context.Context, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Debug().Msgf("checkTrustedImage, image digest: %s, PrivilegedBootPolicy: %s", img.Digest, po.PrivilegedBootPolicy)
+	r, err := s.dbdal.TrustedImagesMulti(ctx, []string{img.Digest})
+	if err == nil && len(r) > 0 && r[0].IsTrusted == 1 {
+		return true, nil, nil
+	}
+
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("获取digest<%s>的可信信息失败", img.Digest)
+	}
+
+	var reasonAndDetail []ReasonAndDetail
+	var kv []model.KVHashs
+	var safe = true
+
+	var zhMsg = model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedImage]
+	var enMsg = model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedImage]
+
+	switch po.TrustedImagePolicy {
+	case model.RejectPolicyReject:
+		safe = false
+		reasonAndDetail = []ReasonAndDetail{
+			{
+				RejectReason: model.RejectReasonUntrustedImage,
+				RejectDetail: zhMsg,
+			},
+		}
+
+		kv = []model.KVHashs{
+			{
+				KVHash: model.KVHash{
+					ZH: model.NewKeyValue(zhMsg, zhMsg+"，被阻断"),
+					EN: model.NewKeyValue(enMsg, enMsg+",blocked"),
+				},
+			},
+		}
+
+		logging.GetLogger().Info().Msgf("镜像<%s>不可信，被阻断", img.Digest)
+	case model.RejectPolicyAlarm:
+		kv = []model.KVHashs{
+			{
+				KVHash: model.KVHash{
+					ZH: model.NewKeyValue(zhMsg, zhMsg+"，未阻断，只告警"),
+					EN: model.NewKeyValue(enMsg, enMsg+",unblocked,just alert"),
+				},
+			},
+		}
+		logging.GetLogger().Info().Msgf("镜像<%s>不可信，告警不阻断", img.Digest)
+	}
+
+	return safe, reasonAndDetail, kv
+}
+
+// 检查是否为特权启动
+func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Debug().Msgf("checkPrivilegedBoot, image digest: %s, User: %s, PrivilegedBootPolicy: %s", img.Digest, img.ConfigFile.Config.User, po.PrivilegedBootPolicy)
+	// 当用户不包含root时，说明不是特权用户启动
+	// 这里把User为空时也当作root用户
+	if img.ConfigFile.Config.User != "" && !strings.Contains(img.ConfigFile.Config.User, "root") {
+		return true, nil, nil
+	}
+
+	var reasonAndDetail []ReasonAndDetail
+	var kv []model.KVHashs
+	var safe = true
+
+	var zhMsg = model.GetRejectReason(model.LangZh)[model.RejectReasonPrivilegedBoot]
+	var enMsg = model.GetRejectReason(model.LangEn)[model.RejectReasonPrivilegedBoot]
+
+	switch po.PrivilegedBootPolicy {
+	case model.RejectPolicyReject:
+		safe = false
+		reasonAndDetail = []ReasonAndDetail{
+			{
+				RejectReason: model.RejectReasonPrivilegedBoot,
+				RejectDetail: zhMsg,
+			},
+		}
+
+		kv = []model.KVHashs{
+			{
+				KVHash: model.KVHash{
+					ZH: model.NewKeyValue(zhMsg, zhMsg+"，被阻断"),
+					EN: model.NewKeyValue(enMsg, enMsg+",blocked"),
+				},
+			},
+		}
+
+		logging.GetLogger().Info().Msgf("镜像<%s>特权启动，被阻断", img.Digest)
+	case model.RejectPolicyAlarm:
+		kv = []model.KVHashs{
+			{
+				KVHash: model.KVHash{
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonPrivilegedBoot], zhMsg+"，未阻断，只告警"),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonPrivilegedBoot], enMsg+",unblocked,just alert"),
+				},
+			},
+		}
+		logging.GetLogger().Info().Msgf("镜像<%s>特权启动，告警不阻断", img.Digest)
+	}
+
+	return safe, reasonAndDetail, kv
 }

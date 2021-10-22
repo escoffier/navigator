@@ -1,6 +1,9 @@
 package main
 
 import (
+	"math/rand"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	_ "go.uber.org/automaxprocs"
@@ -14,6 +17,7 @@ import (
 
 func main() {
 	_ = util.InitPprofMontitor()
+	rand.Seed(time.Now().UnixNano())
 
 	cmd.Execute()
 }

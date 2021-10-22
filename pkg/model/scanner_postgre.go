@@ -1,9 +1,15 @@
 package model
 
 import (
+	"fmt"
+	"regexp"
 	"time"
+	"unicode/utf8"
 
+	"github.com/gobwas/glob"
+	"github.com/pkg/errors"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type VulnMatedata struct {
@@ -224,16 +230,16 @@ func (Registry) TableName() string {
 // docker_version and os.version are not part of the spec but included
 // for backwards compatibility.
 type ConfigFile struct {
-	Architecture  string       `json:"architecture"`
-	Author        string       `json:"author,omitempty"`
-	Container     string       `json:"container,omitempty"`
-	Created       time.Time    `json:"created,omitempty"`
-	DockerVersion string       `json:"docker_version,omitempty"`
-	History       []History    `json:"history,omitempty"`
-	OS            string       `json:"os"`
-	RootFS        RootFS       `json:"rootfs"`
-	Config        TensorConfig `json:"config"`
-	OSVersion     string       `json:"os.version,omitempty"`
+	Architecture  string    `json:"architecture"`
+	Author        string    `json:"author,omitempty"`
+	Container     string    `json:"container,omitempty"`
+	Created       time.Time `json:"created,omitempty"`
+	DockerVersion string    `json:"docker_version,omitempty"`
+	History       []History `json:"history,omitempty"`
+	OS            string    `json:"os"`
+	RootFS        RootFS    `json:"rootfs"`
+	Config        Config    `json:"config"`
+	OSVersion     string    `json:"os.version,omitempty"`
 }
 
 // History is one entry of a list recording how this container image was built.
@@ -455,10 +461,12 @@ type RejectPolicy struct {
 	VulnPolicy    string `json:"vuln_policy"` //
 	WebShellScore int64  `json:"web_shell_score"`
 
-	WebShellPolicy      string `json:"web_shell_policy"`
-	SensitiveFilePolicy string `json:"sensitive_file_policy"` // 敏感文件规则
-	MaliciousPolicy     string `json:"malicious_policy"`      // 恶意文件规则
-	BaseImagePolicy     string `json:"base_image_policy"`     // 基础镜像规则
+	WebShellPolicy       string `json:"web_shell_policy"`
+	SensitiveFilePolicy  string `json:"sensitive_file_policy"`  // 敏感文件规则
+	MaliciousPolicy      string `json:"malicious_policy"`       // 恶意文件规则
+	BaseImagePolicy      string `json:"base_image_policy"`      // 基础镜像规则
+	TrustedImagePolicy   string `json:"trusted_image_policy"`   // 可信镜像规则
+	PrivilegedBootPolicy string `json:"privileged_boot_policy"` // 特权启动规则
 
 	CicdEnable    bool         `gorm:"cicd_enable" json:"cicd_enable"`
 	K8sEnable     bool         `gorm:"k8s_enable" json:"k8s_enable"`
@@ -489,3 +497,52 @@ type RejectVuln struct {
 func (RejectVuln) TableName() string {
 	return "reject_vuln"
 }
+
+// ImageRsa 用于保存可信镜像的RSA公钥和匹配规则
+type ImageRsa struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+
+	RsaId            string `gorm:"column:rsa_id;uniqueIndex:uqi_rsa_id;comment:唯一的ID;type:CHAR(14)" json:"rsa_id"`
+	Name             string `gorm:"column:name;comment:名字;type:VARCHAR(50)" json:"name"`
+	PrivateKeyDigest string `gorm:"column:private_key_digest;index:idx_prv_dig;type:CHAR(64);comment:私钥的sha256值" json:"private_key_digest"`
+	PublicKey        string `gorm:"column:public_key;not null;comment:公钥的内容" json:"public_key"`
+	Registry         string `gorm:"column:registry;comment:适用的仓库;default:''" json:"registry"`
+	MatchRule        string `gorm:"column:match_rule;comment:匹配规则;default:''" json:"match_rule"`
+	Comment          string `gorm:"column:comment;comment:说明;default:'';type:VARCHAR(150)" json:"comment"`
+}
+
+func (ImageRsa) TableName() string { return "image_rsa" }
+
+var RsaNameCheck = regexp.MustCompile(`^[0-9a-zA-Z_]+$`)
+
+func (i *ImageRsa) Check() error {
+	if !RsaNameCheck.MatchString(i.Name) {
+		return fmt.Errorf("密钥名称不符合格式")
+	}
+
+	if utf8.RuneCountInString(i.Comment) > 150 {
+		return errors.New("密钥描述长度不能超过150")
+	}
+
+	if _, err := glob.Compile(i.MatchRule, '/'); err != nil {
+		return errors.New("镜像规则错误")
+	}
+	return nil
+}
+
+// TrustedImages 记录可信镜像信息
+type TrustedImages struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+
+	Digest string `gorm:"column:digest;not null;uniqueIndex:uqi_digest;type:CHAR(71);comment:镜像的digest" json:"digest"`
+	// 是否为可信镜像, 0为不可信, 1为可信
+	IsTrusted uint8 `gorm:"column:is_trusted;default:0;comment:是否为可信,0为不可信,1为可信" json:"is_trusted"`
+}
+
+func (TrustedImages) TableName() string { return "trusted_images" }
