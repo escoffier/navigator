@@ -343,6 +343,14 @@ func checkRejectPolicy(po model.RejectPolicy) error {
 		return errors.New("no webshell policy")
 	}
 
+	if po.TrustedImagePolicy != model.RejectPolicyAlarm && po.TrustedImagePolicy != model.RejectPolicyReject {
+		return errors.New("no trusted imagepolicy")
+	}
+
+	if po.PrivilegedBootPolicy != model.RejectPolicyAlarm && po.PrivilegedBootPolicy != model.RejectPolicyReject {
+		return errors.New("no privileged boot policy")
+	}
+
 	if po.WebShellScore > 10 || po.WebShellScore < 4 {
 		return errors.New("webshell阻断分数设置不正确，可选选项包括4、5、6、7、8、9、10共7项")
 	}
@@ -358,23 +366,25 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 	bys, _ := json.Marshal(po.Library)
 
 	updater := map[string]interface{}{
-		"name":                  po.Name,
-		"library_json":          bys,
-		"comment":               po.Comment,
-		"operator":              po.Operator,
-		"vuln_score":            po.VulnScore,
-		"vuln_level":            po.VulnLevel,
-		"web_shell_score":       po.WebShellScore,
-		"web_shell_policy":      po.WebShellPolicy,
-		"sensitive_file_policy": po.SensitiveFilePolicy,
-		"malicious_policy":      po.MaliciousPolicy,
-		"base_image_policy":     po.BaseImagePolicy,
-		"enable":                po.Enable,
-		"vuln_policy":           po.VulnPolicy,
-		"cicd_enable":           po.CicdEnable,
-		"k8s_enable":            po.K8sEnable,
-		"online_monitor":        po.OnlineMonitor,
-		"mode":                  po.Mode,
+		"name":                   po.Name,
+		"library_json":           bys,
+		"comment":                po.Comment,
+		"operator":               po.Operator,
+		"vuln_score":             po.VulnScore,
+		"vuln_level":             po.VulnLevel,
+		"web_shell_score":        po.WebShellScore,
+		"web_shell_policy":       po.WebShellPolicy,
+		"sensitive_file_policy":  po.SensitiveFilePolicy,
+		"malicious_policy":       po.MaliciousPolicy,
+		"trusted_image_policy":   po.TrustedImagePolicy,
+		"privileged_boot_policy": po.PrivilegedBootPolicy,
+		"base_image_policy":      po.BaseImagePolicy,
+		"enable":                 po.Enable,
+		"vuln_policy":            po.VulnPolicy,
+		"cicd_enable":            po.CicdEnable,
+		"k8s_enable":             po.K8sEnable,
+		"online_monitor":         po.OnlineMonitor,
+		"mode":                   po.Mode,
 	}
 	return updater
 }

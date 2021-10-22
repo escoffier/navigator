@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -26,9 +27,9 @@ type RejectApi struct {
 // @Param graph query string true "展示时间 24hour等"
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageRejectOverview{}}}
 // @Router	/api/v1/imagereject/overview [get]
-func (s *RejectApi) Overview(ctx *gin.Context) {
+func (r *RejectApi) Overview(ctx *gin.Context) {
 	graph := ctx.Query("graph")
-	overview, err := s.Srv.GetOverview(ctx, graph)
+	overview, err := r.Srv.GetOverview(ctx, graph)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -47,7 +48,7 @@ func (s *RejectApi) Overview(ctx *gin.Context) {
 // @Param reject_reason query string true "阻断理由筛选"
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.RejectRecord{}}}
 // @Router	/api/v1/imagereject/overview [get]
-func (s *RejectApi) ListRejectRecord(ctx *gin.Context) {
+func (r *RejectApi) ListRejectRecord(ctx *gin.Context) {
 	search := ctx.Query("search")
 	filter := model.GetFilter(ctx)
 	libraries := make([]string, 0)
@@ -68,7 +69,7 @@ func (s *RejectApi) ListRejectRecord(ctx *gin.Context) {
 	}
 	filter = filter.SetDefault()
 
-	rgs, cnt, err := s.Srv.ListRejectRecord(ctx, search, libraries, rjr, filter)
+	rgs, cnt, err := r.Srv.ListRejectRecord(ctx, search, libraries, rjr, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -87,10 +88,10 @@ func (s *RejectApi) ListRejectRecord(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageWhitelist{}}}
 // @Router	/api/v1/imagereject/whitelist [ge]t
-func (s *RejectApi) ListWhitelist(ctx *gin.Context) {
+func (r *RejectApi) ListWhitelist(ctx *gin.Context) {
 	search := ctx.Query("search")
 	filter := model.GetFilter(ctx)
-	iws, cnt, err := s.Srv.ListImageWhitelist(ctx, search, filter)
+	iws, cnt, err := r.Srv.ListImageWhitelist(ctx, search, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -110,9 +111,9 @@ func (s *RejectApi) ListWhitelist(ctx *gin.Context) {
 // @Param id path int true "白名单ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/whitelist/:id [delete]
-func (s *RejectApi) DeleteWhitelist(ctx *gin.Context) {
+func (r *RejectApi) DeleteWhitelist(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
-	err := s.Srv.DeleteImageWhitelist(ctx, id)
+	err := r.Srv.DeleteImageWhitelist(ctx, id)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -129,13 +130,13 @@ func (s *RejectApi) DeleteWhitelist(ctx *gin.Context) {
 // @Param body body	model.ImageWhitelist true "JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageWhitelist{}}}
 // @Router	/api/v1/imagereject/whitelist [post]
-func (s *RejectApi) CreateWhitelist(ctx *gin.Context) {
+func (r *RejectApi) CreateWhitelist(ctx *gin.Context) {
 	wi := new(model.ImageWhitelist)
 	if err := ctx.BindJSON(wi); err != nil {
 		response.JSONError(ctx, fmt.Errorf("解析传参出错：%s", err.Error()))
 		return
 	}
-	res, err := s.Srv.CreateImageWhitelist(ctx, wi.FullRepoName, wi.Library, wi.Tag, wi.Digest)
+	res, err := r.Srv.CreateImageWhitelist(ctx, wi.FullRepoName, wi.Library, wi.Tag, wi.Digest)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -151,7 +152,7 @@ func (s *RejectApi) CreateWhitelist(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.RejectReasonMap{}}}
 // @Router	/api/v1/imagereject/reasons [get]
-func (s *RejectApi) RejectReasons(ctx *gin.Context) {
+func (r *RejectApi) RejectReasons(ctx *gin.Context) {
 	res := model.RejectReasonMap{
 		En: model.GetRejectReason(model.LangEn),
 		Zh: model.GetRejectReason(model.LangZh),
@@ -168,9 +169,9 @@ func (s *RejectApi) RejectReasons(ctx *gin.Context) {
 // @Param id path int true "policy ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/single/:id [delete]
-func (s *RejectApi) DeletePolicy(ctx *gin.Context) {
+func (r *RejectApi) DeletePolicy(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
-	if err := s.Srv.DeletePolicy(ctx, id); err != nil {
+	if err := r.Srv.DeletePolicy(ctx, id); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -185,8 +186,8 @@ func (s *RejectApi) DeletePolicy(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.RejectPolicy{}}}
 // @Router	/api/v1/imagereject/policy/single [get]
-func (s *RejectApi) ListPolicy(ctx *gin.Context) {
-	res, err := s.Srv.SearchRejectPolicy(ctx, "", consts.FalseString)
+func (r *RejectApi) ListPolicy(ctx *gin.Context) {
+	res, err := r.Srv.SearchRejectPolicy(ctx, "", consts.FalseString)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -203,7 +204,7 @@ func (s *RejectApi) ListPolicy(ctx *gin.Context) {
 // @Param body body	model.RejectPolicy true "策略JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/single [post]
-func (s *RejectApi) CreatePolicy(ctx *gin.Context) {
+func (r *RejectApi) CreatePolicy(ctx *gin.Context) {
 	policy := new(model.RejectPolicy)
 	if err := ctx.BindJSON(policy); err != nil {
 		response.JSONError(ctx, err)
@@ -213,7 +214,7 @@ func (s *RejectApi) CreatePolicy(ctx *gin.Context) {
 	logging.GetLogger().Debug().Msgf("received info %v\n", policy)
 	policy.IsGlobal = false
 
-	if err := s.Srv.CreateSinglePolicy(ctx, *policy); err != nil {
+	if err := r.Srv.CreateSinglePolicy(ctx, *policy); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -229,7 +230,7 @@ func (s *RejectApi) CreatePolicy(ctx *gin.Context) {
 // @Param body body	model.GlobalRejectPolicy true "全局策略JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/global [put]
-func (s *RejectApi) UpdateGlobalPolicy(ctx *gin.Context) {
+func (r *RejectApi) UpdateGlobalPolicy(ctx *gin.Context) {
 	global := new(model.GlobalRejectPolicy)
 	if err := ctx.BindJSON(&global); err != nil {
 		response.JSONError(ctx, err)
@@ -238,7 +239,7 @@ func (s *RejectApi) UpdateGlobalPolicy(ctx *gin.Context) {
 
 	logging.GetLogger().Info().Msgf("received info is %v\n", global)
 
-	if err := s.Srv.CreateGlobalPolicy(ctx, *global); err != nil {
+	if err := r.Srv.CreateGlobalPolicy(ctx, *global); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -253,8 +254,8 @@ func (s *RejectApi) UpdateGlobalPolicy(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.GlobalRejectPolicy{}}}
 // @Router	/api/v1/imagereject/policy/global [get]
-func (s *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
-	policies, err := s.Srv.SearchRejectPolicy(ctx, "", consts.TrueString)
+func (r *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
+	policies, err := r.Srv.SearchRejectPolicy(ctx, "", consts.TrueString)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -289,7 +290,7 @@ func (s *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
 // @Param id path int true "策略ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/single/:id [put]
-func (s *RejectApi) UpdatePolicy(ctx *gin.Context) {
+func (r *RejectApi) UpdatePolicy(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -303,10 +304,170 @@ func (s *RejectApi) UpdatePolicy(ctx *gin.Context) {
 	}
 
 	logging.GetLogger().Info().Msgf("收到的内容为 %v\n", police)
-	if err := s.Srv.UpdateSinglePolicy(ctx, id, *police); err != nil {
+	if err := r.Srv.UpdateSinglePolicy(ctx, id, *police); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+	response.JSONOK(ctx)
+}
+
+// RSAGenerate 生成RSA密钥对
+// @Summary 可信镜像
+// @Title 生成RSA密钥对
+// @Author liuyang@tensorsecurity.cn
+// @Description 生成RSA密钥对
+// @Tags image-reject
+// @Param json body model.ImageRsa true "请求参数"
+// @Success 200 {object} gin.Context
+// @Router	/api/v1/imagereject/trustedImages/rsa [post]
+func (r *RejectApi) RSAGenerate(ctx *gin.Context) {
+	var req = new(model.ImageRsa)
+	err := ctx.BindJSON(req)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	result, err := r.Srv.RSAGenerate(ctx, req)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	ctx.Writer.WriteHeader(http.StatusOK)
+	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s_private.pem", req.Name))
+	ctx.Header("Content-Type", "application/octet-stream")
+	ctx.Header("Accept-Length", strconv.Itoa(len(result)))
+	_, _ = ctx.Writer.Write(result)
+}
+
+// RSAUpdate 修改指定RSA密钥对
+// @Summary 可信镜像
+// @Title 修改指定RSA密钥对
+// @Author liuyang@tensorsecurity.cn
+// @Description 修改指定RSA密钥对
+// @Tags image-reject
+// @Param object body model.ImageRsa true "请求参数"
+// @Param integer path id true "RSA id"
+// @Success 200 {object} response.HTTPEnvelope{}
+// @Failure 400 {object} response.HTTPEnvelope{}
+// @Router	/api/v1/imagereject/trustedImages/rsa/:id [put]
+func (r *RejectApi) RSAUpdate(ctx *gin.Context) {
+	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
+		return
+	}
+
+	var req = new(model.ImageRsa)
+	if err := ctx.BindJSON(req); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	if err := r.Srv.RSAUpdate(ctx, id, req); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx)
+}
+
+// RSAList 获取RSA列表
+// @Summary 可信镜像
+// @Title 判断是否为可信镜像
+// @Author liuyang@tensorsecurity.cn
+// @Description 判断是否为可信镜像
+// @Tags image-reject
+// @Param integer query offset  true "偏移量"
+// @Param integer query limit true "条数"
+// @Success 200 {object} response.HTTPEnvelope{Data: []model}
+// @Failure 400 {object} response.HTTPEnvelope{}
+// @Router	/api/v1/imagereject/trustedImages/rsa [get]
+func (r *RejectApi) RSAList(ctx *gin.Context) {
+	offset, err := strconv.ParseInt(ctx.Query("offset"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的偏移量", ctx.Query("offset")))
+		return
+	}
+	limit, err := strconv.ParseInt(ctx.Query("limit"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的条数", ctx.Query("limit")))
+		return
+	}
+
+	result, count, err := r.Srv.RSAList(ctx, limit, offset)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(result), response.WithTotalItems(count))
+}
+
+// RSADetail 获取某个RSA详情
+// @Summary 可信镜像
+// @Title 判断是否为可信镜像
+// @Author liuyang@tensorsecurity.cn
+// @Description 判断是否为可信镜像
+// @Tags image-reject
+// @Param object body model.IsTrustedImagesReq true "请求参数" // todo
+// @Success 200 {object} response.HTTPEnvelope{Data: model.ImageRsa}
+// @Router	/api/v1/imagereject/trustedImages/rsa/:id [get]
+func (r *RejectApi) RSADetail(ctx *gin.Context) {
+	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
+		return
+	}
+
+	result, err := r.Srv.RSADetail(ctx, id)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItem(result))
+}
+
+// RSADelete 删除某个RSA
+// @Summary 可信镜像
+// @Title 判断是否为可信镜像
+// @Author liuyang@tensorsecurity.cn
+// @Description 判断是否为可信镜像
+// @Tags image-reject
+// @Param integer path id true "RSA id"
+// @Success 200 {object} response.HTTPEnvelope{}
+// @Router	/api/v1/imagereject/trustedImages/rsa/:id [delete]
+func (r *RejectApi) RSADelete(ctx *gin.Context) {
+	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
+	}
+
+	if err := r.Srv.RSADelete(ctx, id); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx)
+}
+
+// SignImageTrusted 签名镜像是否可信
+// @Router /api/v1/imagereject/trustedImages/sign [post]
+func (r *RejectApi) SignImageTrusted(ctx *gin.Context) {
+	var s = new(model.SignImageTrustedReq)
+	if err := ctx.BindJSON(s); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	err := r.Srv.SignImageTrusted(ctx, s)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
 	response.JSONOK(ctx)
 }
 

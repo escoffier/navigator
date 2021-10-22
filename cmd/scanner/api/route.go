@@ -86,6 +86,16 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 		v5.POST("/result/cicd", apiScannerSrv.ScanOneForCICDRequest)
 
 		v5.GET("/reasons", apiRejectSrv.RejectReasons)
+
+		trustedImageGroup := v5.Group("/trustedImages")
+		{
+			trustedImageGroup.GET("/rsa", apiRejectSrv.RSAList)
+			trustedImageGroup.GET("/rsa/:id", apiRejectSrv.RSADetail)
+			trustedImageGroup.POST("/rsa", apiRejectSrv.RSAGenerate)
+			trustedImageGroup.PUT("/rsa/:id", apiRejectSrv.RSAUpdate)
+			trustedImageGroup.DELETE("/rsa/:id", apiRejectSrv.RSADelete)
+			trustedImageGroup.POST("/sign", apiRejectSrv.SignImageTrusted)
+		}
 	}
 	// 和仓库相关
 	v6 := router.Group("/api/v1/register")

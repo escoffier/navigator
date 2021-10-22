@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -88,6 +88,8 @@ type ScannerDalInterface interface {
 	GetK8sRejectImageList(ctx context.Context, image model.ImageList) *model.ImageList
 	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
 	GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectPolicy, error)
+
+	TrustedImageInterface
 }
 
 type ScannerOrm struct {

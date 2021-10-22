@@ -25,19 +25,23 @@ const (
 
 	RejectReasonHasCustomizeVulu = 4 // 存在自定义漏洞
 
-	RejectReasonHasNegligible  = 5  // 存在可忽略漏洞
-	RejectReasonHasUnknown     = 6  // 存在末知漏洞
-	RejectReasonHasLow         = 7  // 存在低危漏洞
-	RejectReasonHasMedium      = 8  // 存在中危漏洞
-	RejectReasonHasHigh        = 9  // 存在危险漏洞
-	RejectReasonHasCritical    = 10 // 存在高危漏洞
-	RejectNoLibrary            = 11 // 来源镜像不在本地仓库（安全模式）
-	RejectScanFailure          = 12 // 镜像扫描失败
-	RejectScanNotScanned       = 13 // 镜像未扫描
-	RejectReasonUntrustedImage = 14 // 不信任的镜像
+	RejectReasonHasNegligible        = 5  // 存在可忽略漏洞
+	RejectReasonHasUnknown           = 6  // 存在末知漏洞
+	RejectReasonHasLow               = 7  // 存在低危漏洞
+	RejectReasonHasMedium            = 8  // 存在中危漏洞
+	RejectReasonHasHigh              = 9  // 存在危险漏洞
+	RejectReasonHasCritical          = 10 // 存在高危漏洞
+	RejectNoLibrary                  = 11 // 来源镜像不在本地仓库（安全模式）
+	RejectScanFailure                = 12 // 镜像扫描失败
+	RejectScanNotScanned             = 13 // 镜像未扫描
+	RejectReasonDifferentImageDigest = 14 // 在线镜像digest和仓库digest不一致
 
 	RejectReasonUntrustedBaseImage = 15 // 基础镜像不可信
 	RejectReasonWebshellScore      = 16 // webshell 评分低于设置值
+
+	RejectReasonUntrustedImage = 17 // 不信任的镜像
+	RejectReasonPrivilegedBoot = 18 // 特权账户启动的镜像
+
 )
 
 const (
@@ -63,40 +67,44 @@ const (
 )
 
 var reasonZHMap = map[int64]string{
-	RejectReasonVuluScore:          "漏洞评分低于设置值",
-	RejectReasonHasSensitiveFile:   "存在敏感文件",
-	RejectReasonHasMalicious:       "存在恶意文件",
-	RejectReasonHasCustomizeVulu:   "存在自定义漏洞",
-	RejectReasonHasNegligible:      "存在可忽略漏洞",
-	RejectReasonHasUnknown:         "存在末知漏洞",
-	RejectReasonHasLow:             "存在低危漏洞",
-	RejectReasonHasMedium:          "存在中危漏洞",
-	RejectReasonHasHigh:            "存在危险漏洞",
-	RejectReasonHasCritical:        "存在高危漏洞",
-	RejectNoLibrary:                "来源镜像不在本地仓库",
-	RejectScanFailure:              "镜像扫描失败",
-	RejectScanNotScanned:           "镜像未扫描",
-	RejectReasonUntrustedImage:     "非可信镜像",
-	RejectReasonUntrustedBaseImage: "非基础镜像构建的应用镜像",
-	RejectReasonWebshellScore:      "webshell评分高于设置值",
+	RejectReasonVuluScore:            "漏洞评分低于设置值",
+	RejectReasonHasSensitiveFile:     "存在敏感文件",
+	RejectReasonHasMalicious:         "存在恶意文件",
+	RejectReasonHasCustomizeVulu:     "存在自定义漏洞",
+	RejectReasonHasNegligible:        "存在可忽略漏洞",
+	RejectReasonHasUnknown:           "存在末知漏洞",
+	RejectReasonHasLow:               "存在低危漏洞",
+	RejectReasonHasMedium:            "存在中危漏洞",
+	RejectReasonHasHigh:              "存在危险漏洞",
+	RejectReasonHasCritical:          "存在高危漏洞",
+	RejectNoLibrary:                  "来源镜像不在本地仓库",
+	RejectScanFailure:                "镜像扫描失败",
+	RejectScanNotScanned:             "镜像未扫描",
+	RejectReasonDifferentImageDigest: "在线镜像digest和仓库digest不一致",
+	RejectReasonUntrustedBaseImage:   "非基础镜像构建的应用镜像",
+	RejectReasonWebshellScore:        "webshell评分高于设置值",
+	RejectReasonUntrustedImage:       "非可信镜像",
+	RejectReasonPrivilegedBoot:       "特权启动镜像",
 }
 var reasonENMap = map[int64]string{
-	RejectReasonVuluScore:          "Vulnerability score lower than set value",
-	RejectReasonHasSensitiveFile:   "Exist sensitive file",
-	RejectReasonHasMalicious:       "Exist malicious file",
-	RejectReasonHasCustomizeVulu:   "Exist custom vulnerability file",
-	RejectReasonHasNegligible:      "Exist Negligible vulnerability file",
-	RejectReasonHasUnknown:         "Exist Unknown vulnerability file",
-	RejectReasonHasLow:             "Exist Low vulnerability file",
-	RejectReasonHasMedium:          "Exist Medium vulnerability file",
-	RejectReasonHasHigh:            "Exist High vulnerability file",
-	RejectReasonHasCritical:        "Exist Critical vulnerability file",
-	RejectNoLibrary:                "Image not in config registry",
-	RejectScanFailure:              "Image scan failure",
-	RejectScanNotScanned:           "Image not scanned",
-	RejectReasonUntrustedImage:     "Untrusted image",
-	RejectReasonUntrustedBaseImage: "The application image is not built with a verified base image",
-	RejectReasonWebshellScore:      "Webshell score more than set value",
+	RejectReasonVuluScore:            "Vulnerability score lower than set value",
+	RejectReasonHasSensitiveFile:     "Exist sensitive file",
+	RejectReasonHasMalicious:         "Exist malicious file",
+	RejectReasonHasCustomizeVulu:     "Exist custom vulnerability file",
+	RejectReasonHasNegligible:        "Exist Negligible vulnerability file",
+	RejectReasonHasUnknown:           "Exist Unknown vulnerability file",
+	RejectReasonHasLow:               "Exist Low vulnerability file",
+	RejectReasonHasMedium:            "Exist Medium vulnerability file",
+	RejectReasonHasHigh:              "Exist High vulnerability file",
+	RejectReasonHasCritical:          "Exist Critical vulnerability file",
+	RejectNoLibrary:                  "Image not in config registry",
+	RejectScanFailure:                "Image scan failure",
+	RejectScanNotScanned:             "Image not scanned",
+	RejectReasonDifferentImageDigest: "The online mirror's digest is different from the registry mirror's",
+	RejectReasonUntrustedBaseImage:   "The application image is not built with a verified base image",
+	RejectReasonWebshellScore:        "Webshell score more than set value",
+	RejectReasonUntrustedImage:       "Untrusted image",
+	RejectReasonPrivilegedBoot:       "Privileged boot image",
 }
 var reasonChMap = map[string]string{
 	NegligibleVuln: GetRejectReason(LangZh)[RejectReasonHasNegligible],

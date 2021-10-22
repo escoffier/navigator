@@ -84,6 +84,13 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/imagereject/scanone/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/result/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
+
+		r.Get("/imagereject/trustedImages/rsa", api.RedirectToScanner())
+		r.Get("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
+		r.Post("/imagereject/trustedImages/rsa", api.RedirectToScanner())
+		r.Put("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
+		r.Delete("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
+		r.Post("/imagereject/trustedImages/sign", api.RedirectToScanner())
 	}
 }
 
