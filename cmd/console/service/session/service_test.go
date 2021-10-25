@@ -28,8 +28,6 @@ func TestService_SaveUserSession(t *testing.T) {
 	initService(t)
 	userSession := &model.UserSession{
 		Username:  "testUsername",
-		Pwd:       "testPwd",
-		Salt:      "testSalt",
 		Role:      "testRole",
 		ModuleID:  "testModuleID",
 		Checked:   true,
@@ -51,8 +49,6 @@ func TestService_GetUserSession(t *testing.T) {
 	initService(t)
 	userSession := &model.UserSession{
 		Username:  "testUsername",
-		Pwd:       "testPwd",
-		Salt:      "testSalt",
 		Role:      "testRole",
 		ModuleID:  "testModuleID",
 		Checked:   true,
@@ -88,8 +84,6 @@ func TestService_DeleteUserSession(t *testing.T) {
 	initService(t)
 	userSession := &model.UserSession{
 		Username:  "testUsername",
-		Pwd:       "testPwd",
-		Salt:      "testSalt",
 		Role:      "testRole",
 		ModuleID:  "testModuleID",
 		Checked:   true,
@@ -119,8 +113,6 @@ func TestService_RefreshUserSession(t *testing.T) {
 	initService(t)
 	userSession := &model.UserSession{
 		Username:  "testUsername",
-		Pwd:       "testPwd",
-		Salt:      "testSalt",
 		Role:      "testRole",
 		ModuleID:  "testModuleID",
 		Checked:   true,

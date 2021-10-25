@@ -121,6 +121,12 @@ spec:
           value: {{ .Values.eventcenter.eventGrpcCertServerName }}
         - name: CLEANER_IMAGE
           value: "{{ include "console.cleaner.image" . }}"
+        - name: CONSOLE_URL
+          value: {{ .Values.consoleAddress }}
+        - name: HUNTER_IMAGE
+          value: "{{ include "console.hunter.image" . }}"
+        - name: HUNTER_ORIGIN_IMAGE
+          value: "{{ include "console.hunter.originImage" . }}"
         - name: AUDIT_PVC
           value: audit-pvc
         - name: AUDIT_PATH

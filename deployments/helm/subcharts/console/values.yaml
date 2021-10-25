@@ -66,6 +66,18 @@ persistence:
         requests:
           cpu: "0.2"
           memory: 200Mi
+  tensorsecHunter:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: tensorsec-kube-hunter-report
+      tag: latest
+  tensorsecHunterOrigin:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: kube-hunter
+      tag: 0.6.2
 
 
 ## Deployment pod host aliases
@@ -133,6 +145,8 @@ init:
   
 
 apiInstallLabel: "console.tensorsec/install"
+
+consoleAddress: "http://tensorsec-console:8889"
 
 eventcenter:
   eventGrpcUrl: tensorsec-eventcenter:9090

@@ -25,6 +25,18 @@ Return the job tensorsec cleaner image name
 {{- define "console.cleaner.image" -}}
 {{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.persistence.tensorsecCleaner.image "global" .Values.global) }}
 {{- end -}}
+{{/*
+Return the job tensorsec hunter image name
+*/}}
+{{- define "console.hunter.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.persistence.tensorsecHunter.image "global" .Values.global) }}
+{{- end -}}
+{{/*
+Return the job tensorsec hunter-origin image name
+*/}}
+{{- define "console.hunter.originImage" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.persistence.tensorsecHunterOrigin.image "global" .Values.global) }}
+{{- end -}}
 
 
 

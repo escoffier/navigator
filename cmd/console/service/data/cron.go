@@ -22,6 +22,7 @@ func (s *Service) expireGCTaskLoop() {
 
 	s.expireGCTask(time.Now())
 	ticker := time.NewTicker(time.Minute * 5)
+	defer ticker.Stop()
 	for {
 		t := <-ticker.C
 		s.expireGCTask(t)

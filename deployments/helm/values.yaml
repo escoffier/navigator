@@ -87,6 +87,18 @@ console:
         repository: tensorsecurity
         name: tensorsec-cleaner
         tag: latest
+    tensorsecHunter:
+      image:
+        registry: localhost:32000
+        repository: tensorsecurity
+        name: tensorsec-kube-hunter-report
+        tag: latest
+    tensorsecHunterOrigin:
+      image:
+        registry: localhost:32000
+        repository: tensorsecurity
+        name: kube-hunter
+        tag: 0.6.2
   elasticsearch:
     elasticSecretName: elastic-secret
     extraEnvs:
@@ -97,6 +109,7 @@ console:
   eventcenter:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
+  consoleAddress: "http://tensorsec-console:8889"
   postgresql:
     postgresqlDataDir: /bitnami/postgresql/data
     postgresqlUsername: postgres

@@ -48,6 +48,9 @@ console:
     tensorsecCleaner:
       image:
         tag: *tensorsecVerison
+    tensorsecHunter:
+      image:
+        tag: *tensorsecVerison
   imagePullSecret:
     imageRegistryURL: *imageRegistryURL
     imageRegistryUsername: *imageRegistryUsername
@@ -61,6 +64,7 @@ console:
   version:
     softName: tensor
     softVersion: v1.9
+  consoleAddress: *masterAddr
 
 scanner:
   enabled: *isMasterCluster

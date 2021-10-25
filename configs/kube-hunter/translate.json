@@ -1,0 +1,952 @@
+{
+  "locationReplaceTransConf":{
+    "zh": {
+      "Local to Pod":"本地到pod"
+    }
+  },
+  "severityTransConf": {
+    "zh": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    }
+  },
+  "vulnerabilities":{
+    "Credential Access@Access container service account@Read access to pod's service account token":{
+      "en":{
+        "name":"Read access to pod's service account token",
+        "category":"Credential Access",
+        "subCategory":"Access container service account",
+        "description":"Accessing the pod service account token gives an attacker the option to use the server API",
+        "issueDetail":"Every Pod in Kubernetes is associated with a Service Account which by default has access to the Kubernetes API. This access is made available to Pods by an auto-generated token that is made available to the Pod by Kubernetes. An attacker with access to a Pod can read the token and access the Kubernetes API.",
+        "remediation":"It is recommended to explicitly specify a Service Account for all of your workloads (serviceAccountName in Pod.Spec), and manage their permissions according to the least privilege principle."
+      },
+      "zh":{
+        "name":"读取pod service账户token",
+        "category":"授权访问",
+        "subCategory":"访问容器service账户",
+        "description":"访问容器service账户给攻击者提供了使用server api的可能",
+        "issueDetail":"Kubernetes中的每个Pod都与一个服务帐户相关联，默认情况下，该帐户可以访问Kubernetes API。通过Kubernetes向Pod提供的自动生成令牌，Pod可以访问此访问。具有Pod访问权限的攻击者可以读取令牌并访问Kubernetes API。",
+        "remediation":"建议为所有工作负载明确指定一个service account（Pod.Spec中的serviceAccountName），并根据最小特权原则管理其权限。"
+      }
+    },
+    "Initial Access@Exposed sensitive interfaces@K8s Version Disclosure":{
+      "en":{
+        "name":"K8s Version Disclosure",
+        "category":"Initial Access",
+        "subCategory":"Exposed sensitive interfaces",
+        "description":"The kubernetes version could be obtained from the {} endpoint",
+        "issueDetail":"The fact that your infrastructure is using Kubernetes, and the specific version of Kubernetes used is publicly available, and could be used by an attacker to target your environment with known vulnerabilities in the specific version of Kubernetes you are using.\nThis information could have been obtained from the Kubernetes API /version endpoint, or from the Kubelet’s /metrics debug endpoint.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"K8s版本泄漏",
+        "category":"初始化访问",
+        "subCategory":"暴露敏感接口",
+        "description":"The kubernetes version could be obtained from the {} endpoint",
+        "issueDetail":"您的基础设施正在使用Kubernetes，并且所使用的Kubernetes的特定版本是公开的，攻击者可能会利用您使用的Kubernetes的特定版本中存在的已知漏洞。此信息可能是从Kubernetes API/版本终结点获得的，或者从Kubelet的/metrics调试端点。",
+        "remediation":"禁用 --enable-debugging-handlers kubelet 标志."
+      }
+    },
+    "Credential Access@Access container service account@Access to pod's secrets":{
+      "en":{
+        "name":"Access to pod's secrets",
+        "category":"Credential Access",
+        "subCategory":"Access container service account",
+        "description":"Accessing the pod's secrets within a compromised pod might disclose valuable data to a potential attacker",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"访问pod的secrets",
+        "category":"授权访问",
+        "subCategory":"访问容器的service账户",
+        "description":"访问风险pod中的pod secrets可能会向潜在攻击者泄露有价值的数据",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Persistence@General Peristence@Etcd Remote Write Access Event":{
+      "en":{
+        "name":"Etcd Remote Write Access Event",
+        "category":"Persistence",
+        "subCategory":"General Peristence",
+        "description":"Remote write access might grant an attacker full control over the kubernetes cluster",
+        "issueDetail":"Etcd (Kubernetes' Database) is writable without authentication. This gives full control of your Kubernetes cluster to an attacker with access to etcd.",
+        "remediation":"Ensure your etcd is accepting connections only from the Kubernetes API, using the --trusted-ca-file etcd flag. This is usually done by the installer, or cloud platform."
+      },
+      "zh":{
+        "name":"Etcd远程写事件",
+        "category":"持久化",
+        "subCategory":"一般持久化",
+        "description":"远程写访问可能会授予攻击者对kubernetes群集的完全控制权",
+        "issueDetail":"Etcd（Kubernetes的数据库）无需身份验证即可写入。这使攻击者能够完全控制Kubernetes群集，从而访问etcd。",
+        "remediation":"使用--trusted-ca-file etcd标志，确保您的etcd仅接受来自Kubernetes API的连接。这通常由安装程序或云平台完成。"
+      }
+    },
+    "Credential Access@List K8S secrets@Etcd Remote Read Access Event":{
+      "en":{
+        "name":"Etcd Remote Read Access Event",
+        "category":"Credential Access",
+        "subCategory":"List K8S secrets",
+        "description":"Remote read access might expose to an attacker cluster's possible exploits, secrets and more.",
+        "issueDetail":"Etcd (Kubernetes' Database) is accessible without authentication. This exposes the entire state of your Kubernetes cluster to the reader.",
+        "remediation":"Ensure your etcd is accepting connections only from the Kubernetes API, using the --trusted-ca-file etcd flag. This is usually done by the installer, or cloud platform."
+      },
+      "zh":{
+        "name":"Etcd远程写事件",
+        "category":"授权访问",
+        "subCategory":"列出 K8S secrets",
+        "description":"远程读取访问可能会暴露给攻击者群集的可能漏洞、机密等。",
+        "issueDetail":"Etcd（Kubernetes数据库）无需身份验证即可访问。这将向读取者公开Kubernetes集群的整个状态。",
+        "remediation":"使用--trusted-ca-file etcd标志，确保您的etcd仅接受来自Kubernetes API的连接。这通常由安装程序或云平台完成。"
+      }
+    },
+    "Initial Access@General Sensitive Information@Etcd Remote version disclosure":{
+      "en":{
+        "name":"Etcd Remote version disclosure",
+        "category":"Initial Access",
+        "subCategory":"General Sensitive Information",
+        "description":"Remote version disclosure might give an attacker a valuable data to attack a cluster",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"Etcd远程版本泄漏",
+        "category":"初始化访问",
+        "subCategory":"一般敏感信息",
+        "description":"远程版本泄露可能会给攻击者提供有价值的数据来攻击群集",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Initial Access@Exposed sensitive interfaces@Etcd is accessible using insecure connection (HTTP)":{
+      "en":{
+        "name":"Etcd is accessible using insecure connection (HTTP)",
+        "category":"Initial Access",
+        "subCategory":"Exposed sensitive interfaces",
+        "description":"Etcd is accessible using HTTP (without authorization and authentication),it would allow a potential attacker to gain access to the etcd",
+        "issueDetail":"The etcd server (Kubernetes database) port is accessible over plain HTTP, and therefore unencrypted and potentially insecured.",
+        "remediation":"Ensure your setup is exposing etcd only on an HTTPS port by using the etcd flags --key-file and --cert-file."
+      },
+      "zh":{
+        "name":"Etcd可以通过不安全的方式连接(HTTP)",
+        "category":"初始化访问",
+        "subCategory":"泄漏敏感接口",
+        "description":"可以使用HTTP访问Etcd（无需授权和身份验证），这将允许潜在攻击者访问Etcd",
+        "issueDetail":"etcd服务器（Kubernetes数据库）端口可通过普通HTTP访问，因此未加密且可能不安全。",
+        "remediation":"通过使用etcd标志--key-file和--cert-file，确保安装程序仅在HTTPS端口上公开etcd。"
+      }
+    },
+    "Discovery@Access the K8S API Server@Access to API using service account token":{
+      "en":{
+        "name":"Access to API using service account token",
+        "category":"Discovery",
+        "subCategory":"Access the K8S API Server",
+        "description":"The API Server port is accessible.Depending on your RBAC settings this could expose access to or control of your cluster.",
+        "issueDetail":"Kubernetes API was accessed with Pod Service Account or without Authentication (see report message for details).",
+        "remediation":"Secure access to your Kubernetes API."
+      },
+      "zh":{
+        "name":"通过service账户token访问api",
+        "category":"信息发现",
+        "subCategory":"访问K8S API 服务器",
+        "description":"API服务器端口是可访问的。根据您的RBAC设置，这可能会公开对群集的访问或控制。",
+        "issueDetail":"Kubernetes API是通过Pod服务帐户访问的，或者没有身份验证（有关详细信息，请参阅报告消息）。",
+        "remediation":"安全访问Kubernetes API"
+      }
+    },
+    "Initial Access@Exposed sensitive interfaces@Unauthenticated access to API":{
+      "en":{
+        "name":"Unauthenticated access to API",
+        "category":"Initial Access",
+        "subCategory":"Exposed sensitive interfaces",
+        "description":"The API Server port is accessible.Depending on your RBAC settings this could expose access to or control of your cluster.",
+        "issueDetail":"Kubernetes API was accessed with Pod Service Account or without Authentication (see report message for details).",
+        "remediation":"Secure access to your Kubernetes API."
+      },
+      "zh":{
+        "name":"未授权API访问",
+        "category":"初始化访问",
+        "subCategory":"泄漏敏感接口",
+        "description":"API服务器端口是可访问的。根据您的RBAC设置，这可能会公开对群集的访问或控制。",
+        "issueDetail":"Kubernetes API是通过Pod服务帐户访问的，或者没有身份验证（有关详细信息，请参阅报告消息）",
+        "remediation":"安全访问Kubernetes API"
+      }
+    },
+    "Initial Access@Exposed sensitive interfaces@Insecure (HTTP) access to API":{
+      "en":{
+        "name":"Insecure (HTTP) access to API",
+        "category":"Initial Access",
+        "subCategory":"Exposed sensitive interfaces",
+        "description":"The API Server port is accessible over HTTP, and therefore unencrypted. Depending on your RBAC settings this could expose access to or control of your cluster.",
+        "issueDetail":"The API Server port is accessible over plain HTTP, and therefore unencrypted and potentially insecured.",
+        "remediation":"Ensure your setup is exposing kube-api only on an HTTPS port."
+      },
+      "zh":{
+        "name":"不安全(HTTP)访问API",
+        "category":"初始化访问",
+        "subCategory":"泄漏敏感接口",
+        "description":"API服务器端口可以通过HTTP访问，因此未加密。根据您的RBAC设置，这可能会公开对集群的访问或控制。",
+        "issueDetail":"API服务器端口可以通过普通HTTP访问，因此未加密且可能不安全。",
+        "remediation":"确保安装程序仅在HTTPS端口上公开kube api。"
+      }
+    },
+    "Discovery@Access the K8S API Server@using default service account token":{
+      "en":{
+        "name":"using default service account token",
+        "category":"Discovery",
+        "subCategory":"Access the K8S API Server",
+        "description":"Information Disclosure depending upon RBAC permissions and Kube-Cluster Setup",
+        "issueDetail":"kube-scanner was able to perform the action specified by the reported vulnerability (check the report for more information). This may or may not be a problem, depending on your cluster setup and preferences.",
+        "remediation":"Review the RBAC permissions to Kubernetes API server for the anonymous and default service account."
+      },
+      "zh":{
+        "name":"使用默认service账户token",
+        "category":"信息发现",
+        "subCategory":"访问K8S API服务器",
+        "description":"信息泄漏取决于RBAC权限和Kube群集设置",
+        "issueDetail":"kube-scanner能够执行报告的漏洞指定的操作（有关更多信息，请查看报告）。这可能是问题，也可能不是问题，具体取决于您的群集设置和首选项。",
+        "remediation":"查看匿名和默认服务帐户对Kubernetes API服务器的RBAC权限。"
+      }
+    },
+    "Defense Evasion@General Defense Evasion@Created a namespace":{
+      "en":{
+        "name":"Created a namespace",
+        "category":"Defense Evasion",
+        "subCategory":"General Defense Evasion",
+        "description":"Creating a namespace might give an attacker an area with default (exploitable) permissions to run pods in.",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"创建命名空间",
+        "category":"防御逃逸",
+        "subCategory":"一般防御逃逸",
+        "description":"创建命名空间可能会给攻击者一个具有默认（可利用）权限的区域来运行POD。",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Impact@Data Destruction@Delete a namespace":{
+      "en":{
+        "name":"Delete a namespace",
+        "category":"Impact",
+        "subCategory":"Data Destruction",
+        "description":"Deleting a namespace might give an attacker the option to affect application behavior",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"删除命名空间",
+        "category":"影响",
+        "subCategory":"数据破坏",
+        "description":"删除命名空间可能会让攻击者能够影响应用程序行为",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Defense Evasion@General Defense Evasion@Created a role":{
+      "en":{
+        "name":"Created a role",
+        "category":"Defense Evasion",
+        "subCategory":"General Defense Evasion",
+        "description":"Creating a role might give an attacker the option to harm the normal behavior of newly created pods within the specified namespaces.",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"创建角色",
+        "category":"防御逃逸",
+        "subCategory":"一般防御逃逸",
+        "description":"创建角色可能会让攻击者有机会损害指定名称空间中新创建的POD的正常行为",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Privilege Escalation@Cluser-admin binding@Created a cluster role":{
+      "en":{
+        "name":"Created a cluster role",
+        "category":"Privilege Escalation",
+        "subCategory":"Cluser-admin binding",
+        "description":"Creating a cluster role might give an attacker the option to harm the normal behavior of newly created pods across the whole cluster",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"创建cluster角色",
+        "category":"权限提升",
+        "subCategory":"Cluser-admin 绑定",
+        "description":"创建集群角色可能会让攻击者有机会破坏整个集群中新创建的POD的正常行为",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Privilege Escalation@Cluser-admin binding@Patched a role":{
+      "en":{
+        "name":"Patched a role",
+        "category":"Privilege Escalation",
+        "subCategory":"Cluser-admin binding",
+        "description":"Patching a role might give an attacker the option to create new pods with custom roles within the specific role's namespace scope",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"修复角色",
+        "category":"权限提升",
+        "subCategory":"Cluser-admin绑定",
+        "description":"修复角色可能会让攻击者有机会在特定角色的命名空间范围内创建具有自定义角色的新POD",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Privilege Escalation@Cluser-admin binding@Patched a cluster role":{
+      "en":{
+        "name":"Patched a cluster role",
+        "category":"Privilege Escalation",
+        "subCategory":"Cluser-admin binding",
+        "description":"Patching a cluster role might give an attacker the option to create new pods with custom roles within the whole cluster scope.",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"修复角色",
+        "category":"权限提升",
+        "subCategory":"Cluser-admin绑定",
+        "description":"修补群集角色可能会让攻击者选择在整个群集范围内创建具有自定义角色的新POD。",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Impact@Data Destruction@Deleted a role":{
+      "en":{
+        "name":"Deleted a role",
+        "category":"Impact",
+        "subCategory":"Data Destruction",
+        "description":"Deleting a role might allow an attacker to affect access to resources in the namespace",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"删除角色",
+        "category":"影响",
+        "subCategory":"数据破坏",
+        "description":"删除角色可能会使攻击者影响对命名空间中资源的访问",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Impact@Data Destruction@Deleted a cluster role":{
+      "en":{
+        "name":"Deleted a cluster role",
+        "category":"Impact",
+        "subCategory":"Data Destruction",
+        "description":"Deleting a cluster role might allow an attacker to affect access to resources in the cluster",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"删除集群角色",
+        "category":"影响",
+        "subCategory":"数据破坏",
+        "description":"删除群集角色可能会使攻击者影响对群集中资源的访问",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Execution@New container@Created A Pod":{
+      "en":{
+        "name":"Created A Pod",
+        "category":"Execution",
+        "subCategory":"New container",
+        "description":"Creating a new pod allows an attacker to run custom code",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"创建Pod",
+        "category":"执行",
+        "subCategory":"新容器",
+        "description":"创建新pod允许攻击者运行自定义代码",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Privilege Escalation@Privileged container@Created A PRIVILEGED Pod":{
+      "en":{
+        "name":"Created A PRIVILEGED Pod",
+        "category":"Privilege Escalation",
+        "subCategory":"Privileged container",
+        "description":"Creating a new PRIVILEGED pod would gain an attacker FULL CONTROL over the cluster",
+        "issueDetail":"A privileged container is given access to all devices on the host and can work at the kernel level. It is declared using the Pod.spec.containers[].securityContext.privileged attribute. This may be useful for infrastructure containers that perform setup work on the host, but is a dangerous attack vector.",
+        "remediation":"Minimize the use of privileged containers."
+      },
+      "zh":{
+        "name":"创建特权容器",
+        "category":"权限提升",
+        "subCategory":"特权容器",
+        "description":"创建新的特权pod将使攻击者完全控制集群",
+        "issueDetail":"特权容器可以访问主机上的所有设备，并且可以在内核级别工作。它是使用Pod.spec.containers[].securityContext.privileged属性声明的。这对于在主机上执行安装工作的基础设施容器可能是有用的，但却是危险的攻击向量。",
+        "remediation":"最小化特权容器使用."
+      }
+    },
+    "Execution@Sidecar injection@Patched A Pod":{
+      "en":{
+        "name":"Patched A Pod",
+        "category":"Execution",
+        "subCategory":"Sidecar injection",
+        "description":"Patching a pod allows an attacker to compromise and control it",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"修复容器",
+        "category":"执行",
+        "subCategory":"Sidecar 注入",
+        "description":"修补pod允许攻击者破坏并控制它",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Impact@Data Destruction@Deleted A Pod":{
+      "en":{
+        "name":"Deleted A Pod",
+        "category":"Impact",
+        "subCategory":"Data Destruction",
+        "description":"Deleting a pod allows an attacker to disturb applications on the cluster",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"删除容器",
+        "category":"影响",
+        "subCategory":"数据破坏",
+        "description":"删除pod允许攻击者干扰群集上的应用程序",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Lateral Movement@ARP poisoning and IP spoofing@CAP_NET_RAW Enabled":{
+      "en":{
+        "name":"CAP_NET_RAW Enabled",
+        "category":"Lateral Movement",
+        "subCategory":"ARP poisoning and IP spoofing",
+        "description":"CAP_NET_RAW is enabled by default for pods.If an attacker manages to compromise a pod,they could potentially take advantage of this capability to perform network attacks on other pods running on the same node",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"CAP_NET_RAW 允许",
+        "category":"横向移动",
+        "subCategory":"ARP中毒和IP欺骗",
+        "description":"默认情况下，pod会启用CAP_NET_RAW。如果攻击者设法破坏pod，他们可能会利用此功能对同一节点上运行的其他pod执行网络攻击",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "CVE@Privilege Escalation (CVE)@Critical Privilege Escalation CVE":{
+      "en":{
+        "name":"Critical Privilege Escalation CVE",
+        "category":"CVE",
+        "subCategory":"Privilege Escalation (CVE)",
+        "description":"Node is vulnerable to critical CVE-2018-1002105",
+        "issueDetail":"Cluster is found to be vulnerable to CVE-2018-1002105. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"严重权限提升CVE",
+        "category":"CVE",
+        "subCategory":"权限提升(CVE)",
+        "description":"Node存在漏洞CVE-2018-1002105",
+        "issueDetail":"发现集群易受CVE-2018-1002105的影响。有关其他信息，请参见漏洞描述。",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "CVE@Denial Of Service (CVE)@Denial of Service to Kubernetes API Server":{
+      "en":{
+        "name":"Denial of Service to Kubernetes API Server",
+        "category":"CVE",
+        "subCategory":"Denial Of Service (CVE)",
+        "description":"Node not patched for CVE-2019-1002100. Depending on your RBAC settings, a crafted json-patch could cause a Denial of Service.",
+        "issueDetail":"Cluster is found to be vulnerable to CVE-2019-1002100. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"对Kubernetes API服务器的拒绝服务",
+        "category":"CVE",
+        "subCategory":"拒绝服务(CVE)",
+        "description":"未为节点做CVE-2019-1002100修复。根据您的RBAC设置，特殊构造的json修补程序可能会导致拒绝服务。",
+        "issueDetail":"发现集群易受CVE-2019-1002100的攻击。有关其他信息，请参见漏洞描述",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "CVE@Denial Of Service (CVE)@Possible Ping Flood Attack":{
+      "en":{
+        "name":"Possible Ping Flood Attack",
+        "category":"CVE",
+        "subCategory":"Denial Of Service (CVE)",
+        "description":"Node not patched for CVE-2019-9512. an attacker could cause a Denial of Service by sending specially crafted HTTP requests.",
+        "issueDetail":"Cluster is found to be vulnerable to CVE-2019-1002100. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"可能导致ping泛洪攻击",
+        "category":"CVE",
+        "subCategory":"拒绝服务(CVE)",
+        "description":"未为CVE-2019-9512修补节点。攻击者可以通过发送巧尽心思构建的HTTP请求来造成拒绝服务。",
+        "issueDetail":"发现集群易受CVE-2019-1002100的攻击。有关其他信息，请参见漏洞描述。",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "CVE@Denial Of Service (CVE)@Possible Reset Flood Attack":{
+      "en":{
+        "name":"Possible Reset Flood Attack",
+        "category":"CVE",
+        "subCategory":"Denial Of Service (CVE)",
+        "description":"Node not patched for CVE-2019-9514. an attacker could cause a Denial of Service by sending specially crafted HTTP requests.",
+        "issueDetail":"Cluster is found to be vulnerable to CVE-2019-9514. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"可能导致重置泛洪攻击",
+        "category":"CVE",
+        "subCategory":"拒绝服务(CVE)",
+        "description":"未为CVE-2019-9514修补节点。攻击者可以通过发送巧尽心思构建的HTTP请求来造成拒绝服务。",
+        "issueDetail":"发现集群易受CVE-2019-9514攻击。有关其他信息，请参见漏洞描述",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "CVE@Privilege Escalation (CVE)@Arbitrary Access To Cluster Scoped Resources":{
+      "en":{
+        "name":"Arbitrary Access To Cluster Scoped Resources",
+        "category":"CVE",
+        "subCategory":"Privilege Escalation (CVE)",
+        "description":"Api Server not patched for CVE-2019-11247.API server allows access to custom resources via wrong scope",
+        "issueDetail":"Cluster is found to be vulnerable to CVE-2019-11247. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"对群集范围内资源的任意访问",
+        "category":"CVE",
+        "subCategory":"权限提升 (CVE)",
+        "description":"未为CVE-2019-11247修补Api服务器。Api服务器允许通过错误的作用域访问自定义资源",
+        "issueDetail":"发现集群易受CVE-2019-11247的攻击。有关其他信息，请参见漏洞描述。",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "CVE@Remote Code Execution (CVE)@Kubectl Vulnerable To CVE-2019-11246":{
+      "en":{
+        "name":"Kubectl Vulnerable To CVE-2019-11246",
+        "category":"CVE",
+        "subCategory":"Remote Code Execution (CVE)",
+        "description":"The kubectl client is vulnerable to CVE-2019-11246, an attacker could potentially execute arbitrary code on the client's machine",
+        "issueDetail":"Kubectl is found to be vulnerable to CVE-2019-11246. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"Kubectl漏洞CVE-2019-11246",
+        "category":"CVE",
+        "subCategory":"远程代码执行(CVE)",
+        "description":"kubectl客户端易受CVE-2019-11246攻击，攻击者可能会在客户端计算机上执行任意代码",
+        "issueDetail":"发现Kubectl易受CVE-2019-11246的影响。有关其他信息，请参见漏洞描述。",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "CVE@Remote Code Execution (CVE)@Kubectl Vulnerable To CVE-2019-1002101":{
+      "en":{
+        "name":"Kubectl Vulnerable To CVE-2019-1002101",
+        "category":"CVE",
+        "subCategory":"Remote Code Execution (CVE)",
+        "description":"The kubectl client is vulnerable to CVE-2019-1002101,an attacker could potentially execute arbitrary code on the client's machine",
+        "issueDetail":"Kubectl is found to be vulnerable to CVE-2019-1002101. Please see the Vulnerability description for additional information.",
+        "remediation":"Please see the Vulnerability description for remediation."
+      },
+      "zh":{
+        "name":"Kubectl漏洞CVE-2019-1002101",
+        "category":"CVE",
+        "subCategory":"远程代码执行(CVE)",
+        "description":"kubectl客户端易受CVE-2019-1002101攻击，攻击者可能会在客户端计算机上执行任意代码",
+        "issueDetail":"发现Kubectl易受CVE-2019-1002101的影响。有关其他信息，请参见漏洞描述。",
+        "remediation":"请参阅漏洞说明以进行修复。"
+      }
+    },
+    "Discovery@Access Kubelet API@Exposed Pods":{
+      "en":{
+        "name":"Exposed Pods",
+        "category":"Discovery",
+        "subCategory":"Access Kubelet API",
+        "description":"An attacker could view sensitive information about pods that are bound to a Node using the /pods endpoint",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"容器暴露",
+        "category":"信息发现",
+        "subCategory":"访问Kubelet API",
+        "description":"攻击者可以使用/pods端点查看绑定到节点的pods的敏感信息",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Initial Access@Exposed sensitive interfaces@Anonymous Authentication":{
+      "en":{
+        "name":"Anonymous Authentication",
+        "category":"Initial Access",
+        "subCategory":"Exposed sensitive interfaces",
+        "description":"The kubelet is misconfigured, potentially allowing secure access to all requests on the kubelet, without the need to authenticate",
+        "issueDetail":"The kubelet is configured to allow anonymous (unauthenticated) requests to it’s HTTP api. This may expose certein information, and capabilities to an attacker with access to the kubelet API.",
+        "remediation":"Ensure kubelet is protected using --anonymous-auth=false kubelet flag. Allow only legitimate users using --client-ca-file or --authentication-token-webhook kubelet flags. This is usually done by the installer or cloud protitleer."
+      },
+      "zh":{
+        "name":"匿名授权",
+        "category":"初始化访问",
+        "subCategory":"暴露敏感接口",
+        "description":"kubelet配置错误，可能允许安全访问kubelet上的所有请求，而无需进行身份验证",
+        "issueDetail":"kubelet被配置为允许匿名（未经验证）请求访问其HTTP api。这可能会将certein信息和功能暴露给有权访问kubelet API的攻击者。",
+        "remediation":"确保使用--anonymous auth=false kubelet标志保护kubelet。仅允许合法用户使用--client-ca-file或--authentication-token-webhook kubelet标志。这通常由安装程序或云protitleer完成。"
+      }
+    },
+    "Discovery@Access Kubelet API@Exposed Running Pods":{
+      "en":{
+        "name":"Exposed Running Pods",
+        "category":"Discovery",
+        "subCategory":"Access Kubelet API",
+        "description":"Outputs a list of currently running pods, and some of their metadata, which can reveal sensitive information",
+        "issueDetail":"The kubelet is leaking information about running pods via the /runningpods endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"暴露正在运行的容器",
+        "category":"信息发现",
+        "subCategory":"访问 Kubelet API",
+        "description":"输出当前正在运行的播客列表及其一些元数据，这些元数据可以显示敏感信息",
+        "issueDetail":"kubelet正在通过/runningpods端点泄漏有关运行pods的信息。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用 --enable-debugging-handlers kubelet标志."
+      }
+    },
+    "Execution@Exec into container@Exposed Exec On Container":{
+      "en":{
+        "name":"Exposed Exec On Container",
+        "category":"Execution",
+        "subCategory":"Exec into container",
+        "description":"An attacker could run arbitrary commands on a container",
+        "issueDetail":"An attacker could run arbitrary commands on a container via the kubelet’s /exec endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"容器命令执行暴露",
+        "category":"执行",
+        "subCategory":"容器内执行",
+        "description":"攻击者可以在容器上运行任意命令",
+        "issueDetail":"攻击者可以通过kubelet的/exec端点在容器上运行任意命令。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet 标志."
+      }
+    },
+    "Execution@Exec into container@Exposed Run Inside Container":{
+      "en":{
+        "name":"Exposed Run Inside Container",
+        "category":"Execution",
+        "subCategory":"Exec into container",
+        "description":"An attacker could run an arbitrary command inside a container",
+        "issueDetail":"An attacker could run arbitrary commands on a container via the kubelet’s /run endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"暴露容器内部运行",
+        "category":"执行",
+        "subCategory":"容器内执行",
+        "description":"攻击者可以在容器上运行任意命令",
+        "issueDetail":"攻击者可以通过kubelet的/run端点在容器上运行任意命令。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet 标志."
+      }
+    },
+    "Discovery@Access Kubelet API@Exposed Container Logs":{
+      "en":{
+        "name":"Exposed Container Logs",
+        "category":"Discovery",
+        "subCategory":"Access Kubelet API",
+        "description":"Output logs from a running container are using the exposed /containerLogs endpoint",
+        "issueDetail":"The kubelet is leaking container logs via the /containerLogs endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable  kubelet flag."
+      },
+      "zh":{
+        "name":"暴露容器日志",
+        "category":"信息发现",
+        "subCategory":"访问 Kubelet API",
+        "description":"正在运行的容器的输出日志正在使用exposed/containerLogs端点",
+        "issueDetail":"kubelet正在通过/containerLogs端点泄漏容器日志。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet标志"
+      }
+    },
+    "Defense Evasion@General Defense Evasion@Exposed Port Forward":{
+      "en":{
+        "name":"Exposed Port Forward",
+        "category":"Defense Evasion",
+        "subCategory":"General Defense Evasion",
+        "description":"An attacker could set port forwarding rule on a pod",
+        "issueDetail":"An attacker could read and write data from a pod via the kubelet’s /portForward endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"暴露端口转发",
+        "category":"防御逃逸",
+        "subCategory":"一般防御逃逸",
+        "description":"攻击者可以在pod上设置端口转发规则",
+        "issueDetail":"攻击者可以通过kubelet的/portForward端点从pod读取和写入数据。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet 标志."
+      }
+    },
+    "Execution@Exec into container@Exposed Attaching To Container":{
+      "en":{
+        "name":"Exposed Attaching To Container",
+        "category":"Execution",
+        "subCategory":"Exec into container",
+        "description":"Opens a websocket that could enable an attacker to attach to a running container",
+        "issueDetail":"An attacker could attach to a running container via a websocket on the kubelet’s /attach endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"暴露在容器上",
+        "category":"执行",
+        "subCategory":"容器内执行",
+        "description":"打开一个websocket，使攻击者能够连接到正在运行的容器",
+        "issueDetail":"攻击者可以通过kubelet的/attach端点上的websocket连接到正在运行的容器。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet 标志."
+      }
+    },
+    "Initial Access@General Sensitive Information@Cluster Health Disclosure":{
+      "en":{
+        "name":"Cluster Health Disclosure",
+        "category":"Initial Access",
+        "subCategory":"General Sensitive Information",
+        "description":"By accessing the open /healthz handler, an attacker could get the cluster health state without authenticating",
+        "issueDetail":"The kubelet is leaking it’s health information, which may contain sensitive information, via the /healthz endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"集群健康信息泄漏",
+        "category":"初始化访问",
+        "subCategory":"一般敏感信息",
+        "description":"通过访问open/healthz处理程序，攻击者可以在不进行身份验证的情况下获取集群运行状况状态",
+        "issueDetail":"kubelet正在通过/healthz端点泄漏其健康信息，其中可能包含敏感信息。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet标志."
+      }
+    },
+    "Privilege Escalation@Privileged container@Exposed Existing Privileged Container(s) Via Secure Kubelet Port":{
+      "en":{
+        "name":"Exposed Existing Privileged Container(s) Via Secure Kubelet Port",
+        "category":"Privilege Escalation",
+        "subCategory":"Privileged container",
+        "description":"A malicious actor, that has confirmed anonymous access to the API via the kubelet's secure port, can leverage the existing privileged containers identified to damage the host and potentially the whole cluster",
+        "issueDetail":"The kubelet is configured to allow anonymous (unauthenticated) requests to its HTTPs API. This may expose certain information and capabilities to an attacker with access to the kubelet API.",
+        "remediation":"A privileged container is given access to all devices on the host and can work at the kernel level. It is declared using the Pod.spec.containers[].securityContext.privileged attribute. This may be useful for infrastructure containers that perform setup work on the host, but is a dangerous attack vector."
+      },
+      "zh":{
+        "name":"通过安全Kubelet端口公开现有特权容器",
+        "category":"特权提升",
+        "subCategory":"特权容器",
+        "description":"已确认通过kubelet的安全端口匿名访问API的恶意参与者可以利用已识别的现有特权容器损坏主机，并可能损坏整个集群",
+        "issueDetail":"kubelet被配置为允许匿名（未经验证）请求其HTTPs API。这可能会将某些信息和功能暴露给能够访问kubelet API的攻击者。",
+        "remediation":"特权容器可以访问主机上的所有设备，并且可以在内核级别工作。它是使用Pod.spec.containers[].securityContext.privileged属性声明的。这对于在主机上执行安装工作的基础设施容器可能是有用的，但却是危险的攻击向量。"
+      }
+    },
+    "Privilege Escalation@Privileged container@Privileged Container":{
+      "en":{
+        "name":"Privileged Container",
+        "category":"Privilege Escalation",
+        "subCategory":"Privileged container",
+        "description":"A Privileged container exist on a node could expose the node/cluster to unwanted root operations",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"特权容器",
+        "category":"权限提升",
+        "subCategory":"特权容器",
+        "description":"节点上存在特权容器可能会使节点/群集发生不可预知的root操作",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Discovery@Access Kubelet API@Exposed System Logs":{
+      "en":{
+        "name":"Exposed System Logs",
+        "category":"Discovery",
+        "subCategory":"Access Kubelet API",
+        "description":"System logs are exposed from the /logs endpoint on the kubelet",
+        "issueDetail":"The kubelet is leaking system logs via the /logs endpoint. This endpoint is exposed as part of the kubelet’s debug handlers.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"系统日志暴露",
+        "category":"信息发现",
+        "subCategory":"访问Kubelet API",
+        "description":"系统日志从kubelet上的/logs端点公开",
+        "issueDetail":"kubelet正在通过/logs端点泄漏系统日志。该端点作为kubelet调试处理程序的一部分公开。",
+        "remediation":"禁用--enable-debugging-handlers kubelet 标志."
+      }
+    },
+    "Discovery@Access Kubelet API@Exposed Kubelet Cmdline":{
+      "en":{
+        "name":"Exposed Kubelet Cmdline",
+        "category":"Discovery",
+        "subCategory":"Access Kubelet API",
+        "description":"Commandline flags that were passed to the kubelet can be obtained from the pprof endpoints",
+        "issueDetail":"When the Kubelet is run in debug mode, a Pod running in the cluster is able to access the Kubelet’s debug/pprof/cmdline endpoint and examine how the kubelet was executed on the node, specifically the command line flags that were used, which tells the attacker about what capabilities the kubelet has which might be exploited.",
+        "remediation":"Disable --enable-debugging-handlers kubelet flag."
+      },
+      "zh":{
+        "name":"暴露Kubelet命令行",
+        "category":"信息发现",
+        "subCategory":"访问Kubelet API",
+        "description":"可以从pprof端点获取传递给kubelet的命令行标志",
+        "issueDetail":"当Kubelet在调试模式下运行时，群集中运行的Pod能够访问Kubelet的debug/pprof/cmdline端点，并检查Kubelet是如何在节点上执行的，特别是所使用的命令行标志，这会告诉攻击者Kubelet具有哪些可能被利用的功能。",
+        "remediation":"禁用 --enable-debugging-handlers kubelet标志."
+      }
+    },
+    "Credential Access@Mount service principal@Azure SPN Exposure":{
+      "en":{
+        "name":"Azure SPN Exposure",
+        "category":"Credential Access",
+        "subCategory":"Mount service principal",
+        "description":"The SPN is exposed, potentially allowing an attacker to gain access to the Azure subscription",
+        "issueDetail":"Kubernetes has native integration with Microsoft Azure, for that a Kubernetes installation on Azure will require API access to manage the cluster’s resources in Azure (for example, to create a cloud load balancer). Some installations of Kubernetes on Azure rely on a shared file on the node that contains credentials to the Azure API under /etc/kubernetes/azure.json. A Pod with access to this file may become a gateway for an attacker to control your Azure environment.",
+        "remediation":"The better solution would be to use Azure Managed Identities instead of a static SPN. However this functionality is not mature yet, and is currently available in alpha stage only for aks-engine (non-managed Kubernetes)."
+      },
+      "zh":{
+        "name":"Azure SPN 暴露",
+        "category":"授权访问",
+        "subCategory":"挂载主要服务",
+        "description":"SPN已暴露，可能允许攻击者访问Azure订阅",
+        "issueDetail":"Kubernetes与Microsoft Azure进行了本机集成，因为在Azure上安装Kubernetes需要API访问才能管理Azure中的群集资源（例如，创建云负载平衡器）。Azure上的某些Kubernetes安装依赖于节点上的共享文件，该文件包含/etc/Kubernetes/Azure.json下Azure API的凭据。访问此文件的Pod可能成为攻击者控制Azure环境的网关。",
+        "remediation":"更好的解决方案是使用Azure托管标识，而不是静态SPN。但是，该功能尚未成熟，目前仅在alpha阶段可用于aks引擎（非托管Kubernetes）。"
+      }
+    },
+    "Lateral Movement@ARP poisoning and IP spoofing@Possible Arp Spoof":{
+      "en":{
+        "name":"Possible Arp Spoof",
+        "category":"Lateral Movement",
+        "subCategory":"ARP poisoning and IP spoofing",
+        "description":"A malicious pod running on the cluster could potentially run an ARP Spoof attack and perform a MITM between pods on the node.",
+        "issueDetail":"When using a basic (but common) container networking in the cluster, containers on the same host are bridged togeather to form a virtual layer 2 network. This setup, which is also common for Kubernetes installations. What’s also common in Kubernetes installations, is that the NET_RAW capability is granted to Pods, allowing them low level access to network interactions. By pairing these two issues together, a malicious Pod running on the cluster could abusing the ARP protocol (used to discover MAC address by IP) in order to spoof the IP address of another pod on same node, thus making other pods on the node talk to the attacker’s Pod instead of the legitimate Pod.",
+        "remediation":"Consider dropping the NET_RAW capability from your pods using Pod.spec.securityContext.capabilities"
+      },
+      "zh":{
+        "name":"可能的ARP欺骗",
+        "category":"横向移动",
+        "subCategory":"ARP中毒和IP欺骗",
+        "description":"群集上运行的恶意pod可能会运行ARP欺骗攻击，并在节点上的pod之间执行MITM。",
+        "issueDetail":"在群集中使用基本（但通用）容器网络时，同一主机上的容器将桥接在一起以形成虚拟的第2层网络。此设置也适用于Kubernetes安装。Kubernetes安装中的另一个共同点是，将NET_RAW功能授予POD，允许它们对网络交互进行低级访问。通过将这两个问题配对在一起，集群上运行的恶意Pod可能会滥用ARP协议（用于通过IP发现MAC地址），以欺骗同一节点上另一个Pod的IP地址，从而使该节点上的其他Pod与攻击者的Pod而不是合法Pod对话。",
+        "remediation":"考虑使用PODSPEC.SurvivCutExt.能力从POD中删除NETSRAW原始能力。"
+      }
+    },
+    "Initial Access@General Sensitive Information@Certificate Includes Email Address":{
+      "en":{
+        "name":"Certificate Includes Email Address",
+        "category":"Initial Access",
+        "subCategory":"General Sensitive Information",
+        "description":"The Kubernetes API Server advertises a public certificate for TLS.This certificate includes an email address, that may provide additional information for an attacker on your organization, or be abused for further email based attacks.",
+        "issueDetail":"The Kubernetes API Server advertises a public certificate for TLS. This certificate includes an email address, that may protitlee additional information for an attacker on your organization, or be abused for further email based attacks.",
+        "remediation":"Do not include email address in the Kubernetes API server certificate. (You should continue to use certificates to secure the API Server!)"
+      },
+      "zh":{
+        "name":"证书包括电子邮件地址",
+        "category":"初始化访问",
+        "subCategory":"一般敏感信息",
+        "description":"Kubernetes API服务器播发TLS的公共证书。此证书包含一个电子邮件地址，该地址可能为组织上的攻击者提供附加信息，或被滥用以进行进一步的基于电子邮件的攻击。",
+        "issueDetail":"Kubernetes API服务器播发TLS的公共证书。此证书包含一个电子邮件地址，该地址可能为组织上的攻击者提供附加信息，或被滥用以进行进一步的基于电子邮件的攻击。",
+        "remediation":"不要在Kubernetes API服务器证书中包含电子邮件地址。（您应该继续使用证书来保护API服务器！）"
+      }
+    },
+    "Discovery@Access Kubernetes Dashboard@Dashboard Exposed":{
+      "en":{
+        "name":"Dashboard Exposed",
+        "category":"Discovery",
+        "subCategory":"Access Kubernetes Dashboard",
+        "description":"All operations on the cluster are exposed",
+        "issueDetail":"An open Kubernetes Dashboard was detected. The Kubernetes Dashboard can be used by an attacker to learn about the cluster and potentially to create new resources.",
+        "remediation":"Do not leave the Dashboard insecured."
+      },
+      "zh":{
+        "name":"Dashboard暴露",
+        "category":"信息发现",
+        "subCategory":"访问 Kubernetes Dashboard",
+        "description":"集群所有操作暴露",
+        "issueDetail":"检测到打开的Kubernetes仪表板。攻击者可以使用Kubernetes仪表板了解集群，并可能创建新资源。",
+        "remediation":"不要让仪表板处于不安全状态。"
+      }
+    },
+    "Lateral Movement@CoreDNS poisoning@Possible DNS Spoof":{
+      "en":{
+        "name":"Possible DNS Spoof",
+        "category":"Lateral Movement",
+        "subCategory":"CoreDNS poisoning",
+        "description":"A malicious pod running on the cluster could potentially run a DNS Spoof attack and perform a MITM attack on applications running in the cluster.",
+        "issueDetail":"Your Kubernetes DNS setup is vulnerable to spoofing attacks which impersonate your DNS for malicious purposes.In this case the exploited vulnerability was ARP spoofing, but other methods could be used as well.",
+        "remediation":"Consider using DNS over TLS. CoreDNS (the common DNS server for Kubernetes) supports this out of the box, but your client applications might not."
+      },
+      "zh":{
+        "name":"可能的饿DNS欺骗",
+        "category":"横向移动",
+        "subCategory":"核心DNS投毒",
+        "description":"群集上运行的恶意pod可能会运行DNS欺骗攻击，并对群集中运行的应用程序执行MITM攻击。",
+        "issueDetail":"您的Kubernetes DNS设置容易受到出于恶意目的模拟您的DNS的欺骗攻击。在这种情况下，被利用的漏洞是ARP欺骗，但也可以使用其他方法。",
+        "remediation":"考虑在TLS上使用DNS。CoreDNS（Kubernetes的通用DNS服务器）支持这种开箱即用的方式，但您的客户端应用程序可能不支持。"
+      }
+    },
+    "Privilege Escalation@hostPath mount@Pod With Mount To /var/log":{
+      "en":{
+        "name":"Pod With Mount To /var/log",
+        "category":"Privilege Escalation",
+        "subCategory":"hostPath mount",
+        "description":"A pod can create symlinks in the /var/log directory on the host, which can lead to a root directory traveral",
+        "issueDetail":"Kubernetes uses /var/log/pods on nodes to store Pods log files. When running kubectl logs the kubelet is fetching the pod logs from that directory. If a container has write access to /var/log it can create arbitrary files, or symlink to other files on the host. Those would be read by the kubelet when a user executes kubectl logs.",
+        "remediation":"Consider disallowing running as root:\nUsing Kubernetes Pod Security Policies with MustRunAsNonRoot policy. users can use a Runtime Policy with Volume Blacklist."
+      },
+      "zh":{
+        "name":"Pod挂载了/var/log",
+        "category":"权限提升",
+        "subCategory":"主机路径挂载",
+        "description":"pod可以在主机上的/var/log目录中创建符号链接，这可以导致根目录遍历",
+        "issueDetail":"Kubernetes在节点上使用/var/log/pods来存储pods日志文件。运行kubectl日志时，kubelet正在从该目录获取pod日志。如果容器对/var/log具有写访问权，则它可以创建任意文件，或将其符号链接到主机上的其他文件。当用户执行kubectl日志时，kubelet将读取这些日志。",
+        "remediation":"考虑禁止以root权限运行：使用Kubnet pod的安全策略MustRunAsNonRoot。用户可以使用带有黑名单的运行时策略。"
+      }
+    },
+    "Privilege Escalation@hostPath mount@Root Traversal Read On The Kubelet":{
+      "en":{
+        "name":"Root Traversal Read On The Kubelet",
+        "category":"Privilege Escalation",
+        "subCategory":"hostPath mount",
+        "description":"An attacker can run commands on pods with mount to /var/log, and traverse read all files on the host filesystem",
+        "issueDetail":"",
+        "remediation":""
+      },
+      "zh":{
+        "name":"Kubelet上的root遍历",
+        "category":"权限提升",
+        "subCategory":"主机路径挂载",
+        "description":"攻击者可以使用mount to /var/log在POD上运行命令，并遍历主机文件系统上的所有文件",
+        "issueDetail":"",
+        "remediation":""
+      }
+    },
+    "Defense Evasion@Connect from Proxy server@Proxy Exposed":{
+      "en":{
+        "name":"Proxy Exposed",
+        "category":"Defense Evasion",
+        "subCategory":"Connect from Proxy server",
+        "description":"All operations on the cluster are exposed",
+        "issueDetail":"An open kubectl proxy was detected. kubectl proxy is a convenient tool to connect from a local machine into an application running in Kubernetes or to the Kubernetes API. This is common practice to browse for example the Kubernetes dashboard. Leaving an open proxy can be exploited by an attacker to gain access into your entire cluster.",
+        "remediation":"Expose your applications in a permanent, legitimate way, such as via Ingress."
+      },
+      "zh":{
+        "name":"代理暴露",
+        "category":"防御逃逸",
+        "subCategory":"连接到代理服务器",
+        "description":"集群所有操作暴露",
+        "issueDetail":"检测到打开的kubectl代理。kubectl proxy是一个方便的工具，可以从本地机器连接到运行在Kubernetes中的应用程序或Kubernetes API。例如，浏览Kubernetes仪表板是常见的做法。攻击者可以利用离开打开的代理来访问整个集群。",
+        "remediation":"以永久、合法的方式公开应用程序，例如通过ingress。"
+      }
+    }
+  }
+}

@@ -63,8 +63,6 @@ type User struct {
 func (u *User) GenerateSession(external bool) *UserSession {
 	return &UserSession{
 		Username:  u.UserName,
-		Pwd:       u.Pwd,
-		Salt:      u.Salt,
 		Role:      u.Rule,
 		ModuleID:  u.ModuleID,
 		Checked:   u.Checked,
@@ -75,8 +73,6 @@ func (u *User) GenerateSession(external bool) *UserSession {
 
 type UserSession struct {
 	Username  string `json:"username"`
-	Pwd       string `json:"pwd"`
-	Salt      string `json:"salt"`
 	Role      string `json:"role"`
 	ModuleID  string `json:"moduleID"`
 	Checked   bool   `json:"checked"`

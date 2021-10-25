@@ -16,11 +16,24 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
@@ -43,17 +56,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 )
@@ -293,18 +295,24 @@ func NewConsole(
 
 	err = config.Init(postgresDB)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: config service init error")
+		logging.GetLogger().Err(err).Msgf("ERROR: config service init error")
 	}
 
 	err = k8saudit.Init(postgresDB, es)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: k8s-audit service init error")
+		logging.GetLogger().Err(err).Msgf("ERROR: k8s-audit service init error")
 		return nil, err
 	}
 
 	err = openapiauth.Init(postgresDB, redisClient)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: openapi auth service init error")
+		logging.GetLogger().Err(err).Msgf("ERROR: openapi auth service init error")
+		return nil, err
+	}
+
+	err = hunter.Init(postgresDB)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("ERROR: hunter service init error")
 		return nil, err
 	}
 
@@ -323,7 +331,7 @@ func NewConsole(
 	// init cluster manager
 	err = k8s.InitClusterManager(postgresDB, nil, clusterManagerURL)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msg("cluster manager init error")
+		logging.GetLogger().Err(err).Msg("cluster manager init error")
 		return nil, err
 	}
 

@@ -35,8 +35,9 @@ func init() {
 }
 
 const (
-	OpenAPIURLPrefix   = "/openapi/v1"
-	NormalAPIURLPrefix = "/api/v2"
+	InternalAPIURLPrefix = "/api/openapi"
+	OpenAPIURLPrefix     = "/openapi/v1"
+	NormalAPIURLPrefix   = "/api/v2"
 )
 
 // SetupRoutes is to set up the chi router
@@ -75,12 +76,13 @@ func SetupRoutes(
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
 	// Open Api
-	r.Route("/api/openapi", func(r chi.Router) {
+	r.Route(InternalAPIURLPrefix, func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(apikey.ScannerValid())
 			r.Route("/ATTCK", api.ATTCK())
 			r.Route("/scanner", api.scanner())
 			r.Route("/assets", api.assets())
+			r.Post("/hunter-report/{uuid}", api.reportKubeHunterResult())
 		})
 	})
 
