@@ -4,13 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	param2 "github.com/oceanicdev/chi-param"
-	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagetrust"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagevalidator"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"io/ioutil"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,10 +75,10 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 }
 
 func (s *webHookServer) Start() {
-	log.Debug("starting server ")
+	logging.GetLogger().Debug().Msg("starting server ")
 	err := s.Server.ListenAndServeTLS("", "")
 	if err != nil {
-		log.Errorf("failed to start server: %v", err)
+		logging.GetLogger().Err(err).Msg("failed to start server")
 		os.Exit(1)
 	}
 }
@@ -85,44 +87,42 @@ func (s *webHookServer) Stop() {
 	s.Server.Shutdown(context.Background())
 }
 
-func getAdmissionReview(r *http.Request) *v1.AdmissionReview {
+func getAdmissionReview(r *http.Request) (*v1.AdmissionReview, int) {
 	var body []byte
 	if r.Body != nil {
 		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
-			//http.Error(w, "read request body err", http.StatusNoContent)
-			return nil
+			return nil, http.StatusNoContent
 		}
 	}
 
 	if len(body) == 0 {
-		//http.Error(w, "empty request body", http.StatusNoContent)
-		return nil
+		return nil, http.StatusNoContent
 	}
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		log.Errorf("Content-Type=%s, expect application/json", contentType)
-		return nil
+		logging.GetLogger().Err(errors.New("invalid content")).Msgf("Content-Type=%s, expect application/json", contentType)
+		return nil, http.StatusInternalServerError
 	}
 	ar := &v1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, ar); err != nil {
-		log.Errorf("failed to decode AdmissionReview %v", err)
-		return nil
+		logging.GetLogger().Err(err).Msg("failed to decode AdmissionReview")
+		return nil, http.StatusInternalServerError
 	}
-	return ar
+	return ar, http.StatusOK
 }
 
 func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
-	ar := getAdmissionReview(r)
-	if ar == nil {
-		http.Error(w, "read request body err", http.StatusInternalServerError)
+	ar, code := getAdmissionReview(r)
+	if code != http.StatusOK {
+		http.Error(w, "read request body err", code)
 		return
 	}
 	cluster, err := param2.QueryString(r, "cluster")
 	//host cluster request has no cluster param
 	if err != nil {
-		log.Infof("parse request param err: %v", err)
+		logging.GetLogger().Info().Msg("no request param")
 	}
 
 	//cluster param is empty mean thant  mutating request comes from api-server of host cluster
@@ -190,7 +190,7 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		log.Errorf("Content-Type=%s, expect application/json", contentType)
+		logging.GetLogger().Err(errors.New("invalid content type")).Msgf("Content-Type=%s, expect application/json", contentType)
 		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return
 	}
@@ -203,8 +203,6 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 	}
-	//review, _ := json.MarshalIndent(&ar, "", "  ")
-	//fmt.Println(string(review))
 
 	kind := ar.Request.Kind.Kind
 
@@ -214,7 +212,7 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 	}
 	err = processors.ValidationFilterChain.Validate(validateParas, ar.Request.Object.Raw)
 	if err != nil {
-		log.Errorf("process err %v", err)
+		logging.GetLogger().Err(err).Msgf("process object %s:%s err", validateParas.Namespace, validateParas.Kind)
 		admissionResponse = &v1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
@@ -250,18 +248,6 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 func (s *webHookServer) initProcessorChain() {
 	initValidatingChain(s.Config)
 	initMutatingChain(s.Config)
-
-	//config := &processors.ValidatingConfig{IgnoredNameSpaces: s.Config.IgnoredNameSpaces}
-	//processors.ValidationFilterChain = processors.NewValidatorChain(config)
-	//
-	//for _, processor := range s.Config.Validators {
-	//	v := makeProcessor(processor)
-	//	if v != nil {
-	//		processors.ValidationFilterChain.AddValidator(v)
-	//	} else {
-	//		log.Errorf("invalid validator %s", processor)
-	//	}
-	//}
 }
 
 func initValidatingChain(config *Config) {
@@ -273,7 +259,7 @@ func initValidatingChain(config *Config) {
 		if v != nil {
 			processors.ValidationFilterChain.AddValidator(v)
 		} else {
-			log.Errorf("invalid validator %s", processor)
+			logging.GetLogger().Err(errors.New("invalid validator")).Msg(processor)
 		}
 	}
 }
@@ -285,7 +271,7 @@ func initMutatingChain(config *Config) {
 		if v != nil {
 			processors.MutatorChain.AddMutator(v)
 		} else {
-			log.Errorf("invalid mutator %s", processor)
+			logging.GetLogger().Err(errors.New("invalid mutator")).Msg(processor)
 		}
 	}
 }
@@ -301,9 +287,15 @@ func makeProcessor(name string) interface{} {
 			method := va.MethodByName("Init")
 			if method.IsValid() {
 				r := method.Call(nil)
-				err := r[0].Interface()
-				if err != nil {
-					log.Errorf("init processor failed %v", err)
+				ret := r[0].Interface()
+
+				if ret != nil {
+					e, isErr := ret.(error)
+					if isErr {
+						logging.GetLogger().Err(e).Msgf("init processor %s failed", name)
+					} else {
+						logging.GetLogger().Err(errors.New("unexpected return value")).Msgf("%v", ret)
+					}
 					return nil
 				}
 			}
@@ -318,4 +310,5 @@ func init() {
 	imagevalidator.Register()
 	microsegmutator.Register()
 	driftprevention.Register()
+	imagetrust.Register()
 }

@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/cmd/webhook"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var webHookConfig = &webhook.Config{}
@@ -12,19 +12,24 @@ func NewWebhookCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "webhook server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			verbose, _ := cmd.Flags().GetBool("verbose")
+			if verbose {
+				logging.SetVerbose()
+			}
+
 			server, err := webhook.NewWebHookServer(webHookConfig)
 			if err != nil {
-				log.Errorf("failed to create webhook server : %v", err)
+				logging.GetLogger().Err(err).Msg("failed to create webhook server")
 				return err
 			}
 
 			// start inject server in new routine
 			server.Start()
-			log.Info("Server started")
+			logging.GetLogger().Info().Msg("Server started")
 			return nil
 		},
 	}
-
+	cmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 	cmd.Flags().IntVar(&webHookConfig.Port, "port", 9443, "The port of inject server to listen.")
 	cmd.Flags().StringVar(&webHookConfig.CertFile, "tlsCertPath", "/etc/tensorsec/certs/tls.crt", "The path of tls cert")
 	cmd.Flags().StringVar(&webHookConfig.KeyFile, "tlsKeyPath", "/etc/tensorsec/certs/tls.key", "The path of tls key")

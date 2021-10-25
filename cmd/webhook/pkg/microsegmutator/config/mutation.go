@@ -29,7 +29,7 @@ func InitMutationConfig(configName string) error {
 	viper.AutomaticEnv()
 	viper.SetConfigName(configName)
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(processors.ConfigBasePath)
+	viper.AddConfigPath(processors.DefaultBasePath)
 	err := viper.ReadInConfig()
 	if err != nil {
 		return errors.Wrap(err, "failed to read config")

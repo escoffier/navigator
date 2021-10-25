@@ -1,9 +1,10 @@
 package imagevalidator
 
 import (
-	log "github.com/sirupsen/logrus"
+	"context"
 	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
@@ -25,7 +26,7 @@ type Config struct {
 }
 
 func (v *ImageValidator) Init() error {
-	log.Info("init ImageValidator")
+	logging.GetLogger().Info().Msg("init ImageValidator")
 	//v.ValidatorUrl = "test/123"
 	path := processors.GetConfigFullPath(configFile)
 	config, err := loadConfig(path)
@@ -36,17 +37,17 @@ func (v *ImageValidator) Init() error {
 	return nil
 }
 
-func (v *ImageValidator) PreValidate(_ *v1.Pod, parameters *processors.ValidatingParameters) bool {
+func (v *ImageValidator) PreValidate(_ context.Context, _ *v1.Pod, parameters *processors.ValidatingParameters) bool {
 	for _, ns := range v.config.IgnoredNameSpaces {
 		if parameters.Namespace == ns {
-			log.Debugf("ingored validating for resource %s in namespace %s", parameters.Kind, ns)
+			logging.GetLogger().Info().Msgf("ignored validating for resource %s in namespace %s", parameters.Kind, ns)
 			return false
 		}
 	}
 	return true
 }
 
-func (v *ImageValidator) Validate(pod *v1.Pod, _ *processors.ValidatingParameters) error {
+func (v *ImageValidator) Validate(_ context.Context, pod *v1.Pod, _ *processors.ValidatingParameters) error {
 	return v.ValidateImage(pod)
 }
 
@@ -57,7 +58,7 @@ func (v *ImageValidator) Name() string {
 func loadConfig(path string) (*Config, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Errorf("read config file failed: %v", err)
+		logging.GetLogger().Err(err).Msg("read config file failed")
 		return nil, err
 	}
 

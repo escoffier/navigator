@@ -100,22 +100,6 @@ func buildRequest(pod *v1.Pod) *ImageValidatorReq {
 	return req
 }
 
-//func buildRequest(statuses []v1.ContainerStatus) *ImageValidatorReq {
-//	req := &ImageValidatorReq{}
-//	for _, status := range statuses {
-//		image := RejectOnlineMonitorImage{
-//			ContainerID:   getContainerID(status.ContainerID),
-//			ContainerName: status.Name,
-//			FullRepoName:  getFullRepoName(status.Image),
-//			Library:       getLibrary(status.Image),
-//			Digest:        getImageDigest(status.ImageID),
-//			Tag:           getImageTag(status.Image),
-//		}
-//		req.Images = append(req.Images, image)
-//	}
-//	return req
-//}
-
 func getContainerID(containerID string) string {
 	// docker://23526afd26ea860bfc1f2c729b0b67da8f57ade5388855c27283d20df56ba95e
 	i := strings.LastIndex(containerID, "/")

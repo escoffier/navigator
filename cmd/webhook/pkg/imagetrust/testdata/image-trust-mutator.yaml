@@ -1,0 +1,3 @@
+ignored_name_spaces:
+  - kube-system
+  - default

@@ -6,20 +6,19 @@ import (
 )
 
 const (
-	ConfigBasePath = "/etc/tensorsec/config"
+	DefaultBasePath = "/etc/tensorsec/config"
 )
 
-var configBasePath string
+var ConfigBasePath string
 
 type ValidatorConfig struct {
 	ImageValidateServer string
 }
 
 func GetConfigFullPath(configFile string) string {
-	return filepath.Join(configBasePath, configFile)
-	//return configBasePath + configFile
+	return filepath.Join(ConfigBasePath, configFile)
 }
 
 func init() {
-	flag.StringVar(&configBasePath, "config base path", ConfigBasePath, "The path of tls cert")
+	flag.StringVar(&ConfigBasePath, "config base path", DefaultBasePath, "The path of tls cert")
 }
