@@ -11,6 +11,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -69,7 +70,7 @@ func (api *api) getATTCKVersion() http.HandlerFunc {
 
 		version, err := service.GetATTCKVersion(ctx)
 		if err != nil {
-			if err == config.ErrATTCKConfDataNotFound {
+			if err == dal.ErrATTCKConfDataNotFound {
 				response.Ok(w, response.WithItem(rsp{}), response.WithApiVersion(versionAPIVersion))
 				return
 			}

@@ -5,12 +5,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 
 	"gopkg.in/yaml.v2"
@@ -19,7 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/serailize"
-	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ATTCKHandler struct {
@@ -126,15 +128,16 @@ func NewATTCKHandler(db *rdbtools.GormWrapper) (*ATTCKHandler, error) {
 		Serializer: serailize.NewSerializer(),
 	}
 
-	err := handler.Init()
+	err := handler.loadFromStore()
 	if err != nil {
 		return nil, err
 	}
 
+	go handler.asyncLoop()
 	return handler, nil
 }
 
-func (h *ATTCKHandler) Init() error {
+func (h *ATTCKHandler) loadFromStore() error {
 	h.cacheLock.Lock()
 	defer h.cacheLock.Unlock()
 	const (
@@ -142,14 +145,12 @@ func (h *ATTCKHandler) Init() error {
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), loadTimeout)
 	defer cancel()
-	//err := h.db.Get().WithContext(ctx).AutoMigrate(&model.ATTCKRuleData{}, &model.ATTCKRuleMask{}, &model.ATTCKRuleMaskVersion{})
-	//if err != nil {
-	//	return err
-	//}
-	conf, err := LoadATTCKConfData(ctx, h.db.Get())
+	conf, err := dal.LoadATTCKConfData(ctx, h.db.Get())
 	if err != nil {
-		if err == ErrATTCKConfDataNotFound {
+		if err == dal.ErrATTCKConfDataNotFound {
 			logging.GetLogger().Warn().Msgf("attck conf not found")
+			h.baseOffset = 0
+			h.onlineOffset = 0
 			return nil
 		}
 		return err
@@ -160,26 +161,26 @@ func (h *ATTCKHandler) Init() error {
 		return err
 	}
 
+	onlineOffset, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
+	if err != nil {
+		return err
+	}
+
+	ruleMasks, err := dal.LoadATTCKRuleMasks(ctx, h.db.Get())
+	if err != nil {
+		return err
+	}
+
 	h.updateRules(rules)
 	h.baseOffset = conf.ID
+	h.onlineOffset = onlineOffset
 	h.currentVersion = &model.ATTCKConfVersion{
 		Version:   conf.Version,
 		Username:  conf.Username,
 		CreatedAt: conf.CreatedAt,
 	}
-	onlineOffset, err := LoadATTCKRuleMaskVersion(ctx, h.db.Get())
-	if err != nil {
-		return err
-	}
-	h.onlineOffset = onlineOffset
 
-	ruleMasks, err := LoadATTCKRuleMasks(ctx, h.db.Get())
-	if err != nil {
-		return err
-	}
-
-	logging.GetLogger().Info().Msgf("baseOffset:%d, onlineOffset:%d, ruleMasks:%+v", h.baseOffset, h.onlineOffset, ruleMasks)
-
+	logging.GetLogger().Info().Msgf("baseOffset:%d, onlineOffset:%d", h.baseOffset, h.onlineOffset)
 	for _, mask := range ruleMasks {
 		if item := h.items[mask.Name]; item != nil {
 			item.disabled = true
@@ -224,7 +225,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 			Content:          data,
 		}
 
-		baseOffset, err := SaveATTCKConfData(ctx, h.db.Get(), attckRuleData, deprecatedRuleMasks, h.onlineOffset)
+		baseOffset, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attckRuleData, deprecatedRuleMasks)
 		if err != nil {
 			return nil, err
 		}
@@ -312,7 +313,7 @@ func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model
 		for _, setting := range settings {
 			item := h.items[setting.Name]
 			if item == nil {
-				return nil, ErrRuleNotExists
+				return nil, dal.ErrRuleNotExists
 			}
 
 			if item.disabled != setting.Enabled {
@@ -326,7 +327,7 @@ func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model
 			}
 		}
 
-		newMasks := util2.StringSetToArray(addMasks)
+		newMasks := util.StringSetToArray(addMasks)
 		var masks = make([]*model.ATTCKRuleMask, 0, len(newMasks))
 		for _, mask := range newMasks {
 			masks = append(masks, &model.ATTCKRuleMask{
@@ -335,7 +336,7 @@ func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model
 		}
 
 		if len(deletedMasks) > 0 || len(addMasks) > 0 {
-			if err := UpdateRuleMask(ctx, h.db.Get(), masks, util2.StringSetToArray(deletedMasks), h.onlineOffset); err != nil {
+			if err := dal.UpdateRuleMask(ctx, h.db.Get(), masks, util.StringSetToArray(deletedMasks)); err != nil {
 				return nil, err
 			}
 			for _, setting := range settings {
@@ -389,13 +390,13 @@ func (h *ATTCKHandler) GetATTCKVersion(_ context.Context) (*model.ATTCKConfVersi
 		return h.currentVersion, nil
 	}
 
-	return nil, ErrATTCKConfDataNotFound
+	return nil, dal.ErrATTCKConfDataNotFound
 }
 
 func (h *ATTCKHandler) GetATTCKVersionHistory(ctx context.Context, offset, limit int) (int64, []*model.ATTCKConfVersion, error) {
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
-	return LoadATTCKConfVersions(ctx, h.db.Get(), offset, limit)
+	return dal.LoadATTCKConfVersions(ctx, h.db.Get(), offset, limit)
 }
 
 func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqOnlineOffset uint32) (*model.LatestATTCKRuleInfo, error) {
@@ -408,7 +409,7 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 		LatestSettingVersion: latestOnlineOffset,
 	}
 	if latestBaseOffset > reqBaseOffset {
-		data, err := LoadATTCKConfData(ctx, h.db.Get())
+		data, err := dal.LoadATTCKConfData(ctx, h.db.Get())
 		if err != nil {
 			return nil, err
 		}
@@ -427,4 +428,58 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 	}
 
 	return info, nil
+}
+
+const (
+	flushInterval = time.Second * 10
+)
+
+func (h *ATTCKHandler) asyncLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		h.flushCache()
+	}
+}
+
+func (h *ATTCKHandler) flushCache() {
+	ctx, cancel := context.WithTimeout(context.Background(), flushInterval)
+	defer cancel()
+	latestOffset, latestOnlineOffset, err := h.getLatestVersion(ctx)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("LoadATTCKConfVersion fail")
+		return
+	}
+
+	if latestOffset > h.baseOffset || latestOnlineOffset > h.onlineOffset {
+		logging.GetLogger().Info().Msgf(
+			"baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
+			h.baseOffset, h.onlineOffset, latestOffset, latestOnlineOffset)
+		if err = h.loadFromStore(); err != nil {
+			logging.GetLogger().Err(err).Msg("load fail")
+		}
+	}
+}
+
+func (h *ATTCKHandler) getLatestVersion(ctx context.Context) (uint32, uint32, error) {
+	h.cacheLock.RLock()
+	defer h.cacheLock.RUnlock()
+	latestOffset, err := dal.LoadATTCKConfVersion(ctx, h.db.Get())
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("LoadATTCKConfVersion fail")
+		return 0, 0, err
+	}
+
+	latestOnlineOffset, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("LoadATTCKRuleMaskVersion fail")
+		return 0, 0, err
+	}
+	return latestOffset, latestOnlineOffset, err
 }

@@ -1,8 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"testing"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 )
 
 func TestParseItems(t *testing.T) {
@@ -31,4 +35,43 @@ func TestParseItems(t *testing.T) {
 			t.Fatal("data changed")
 		}
 	}
+}
+
+func TestFlushCache(t *testing.T) {
+	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
+		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+
+	dbWrapper, err := util.NewPostgresClient(postgresqlDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler, err := NewATTCKHandler(dbWrapper)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(flushInterval * 2)
+	_ = handler
+}
+
+func TestFlushCache_2(t *testing.T) {
+	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
+		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+
+	dbWrapper, err := util.NewPostgresClient(postgresqlDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler, err := NewATTCKHandler(dbWrapper)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler.onlineOffset = 0
+	handler.baseOffset = 0
+
+	time.Sleep(flushInterval * 2)
+	_ = handler
 }

@@ -1,10 +1,11 @@
-package config
+package dal
 
 import (
 	"context"
 	"errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -28,7 +29,13 @@ func LoadATTCKConfData(ctx context.Context, db *gorm.DB) (*model.ATTCKRuleData, 
 	return &data, nil
 }
 
-func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleData, deprecatedRuleMasks []string, curOnlineOffset uint32) (baseOffset uint32, err error) {
+func LoadATTCKConfVersion(ctx context.Context, db *gorm.DB) (uint32, error) {
+	var data model.ATTCKRuleData
+	var err = db.WithContext(ctx).Select("id").Order("id desc").Limit(1).Find(&data).Error
+	return data.ID, err
+}
+
+func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleData, deprecatedRuleMasks []string) (baseOffset uint32, err error) {
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if _err := tx.WithContext(ctx).Create(data).Error; _err != nil {
 			return _err
@@ -39,7 +46,7 @@ func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleDa
 				return _err
 			}
 
-			if _err := updateRuleMaskVersion(ctx, tx, curOnlineOffset); _err != nil {
+			if _err := updateRuleMaskVersion(ctx, tx); _err != nil {
 				return _err
 			}
 		}
@@ -76,7 +83,7 @@ func LoadATTCKConfVersions(ctx context.Context, db *gorm.DB, offset, limit int) 
 	return total, records, err
 }
 
-func UpdateRuleMask(ctx context.Context, db *gorm.DB, addMasks []*model.ATTCKRuleMask, deletedMasks []string, curOnlineOffset uint32) (err error) {
+func UpdateRuleMask(ctx context.Context, db *gorm.DB, addMasks []*model.ATTCKRuleMask, deletedMasks []string) (err error) {
 	return db.Transaction(func(tx *gorm.DB) error {
 		if _err := tx.WithContext(ctx).Exec("delete from attck_rule_masks where name in (?)", deletedMasks).Error; _err != nil {
 			return _err
@@ -86,15 +93,21 @@ func UpdateRuleMask(ctx context.Context, db *gorm.DB, addMasks []*model.ATTCKRul
 			return _err
 		}
 
-		return updateRuleMaskVersion(ctx, tx, curOnlineOffset)
+		return updateRuleMaskVersion(ctx, tx)
 	})
 }
 
-func updateRuleMaskVersion(ctx context.Context, db *gorm.DB, curOnlineOffset uint32) (err error) {
-	if curOnlineOffset == 0 {
-		return db.WithContext(ctx).Create(&model.ATTCKRuleMaskVersion{
-			Version: 1,
-		}).Error
-	}
-	return db.WithContext(ctx).Exec("update attck_rule_mask_version set version = ? + 1", curOnlineOffset).Error
+func updateRuleMaskVersion(ctx context.Context, db *gorm.DB) (err error) {
+	return db.Transaction(func(tx *gorm.DB) error {
+		var conf model.ATTCKRuleMaskVersion
+		var _err = tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&conf).Error
+		if _err != nil {
+			if _err == gorm.ErrRecordNotFound {
+				return tx.WithContext(ctx).Create(&model.ATTCKRuleMaskVersion{Version: 1}).Error
+			}
+			return _err
+		} else {
+			return db.WithContext(ctx).Exec("update attck_rule_mask_version set version = version + 1").Error
+		}
+	})
 }
