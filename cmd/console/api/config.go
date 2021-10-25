@@ -15,6 +15,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -197,7 +198,7 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 
 		switches, err := service.UpdateRuleSettings(ctx, items)
 		if err != nil {
-			if err == config.ErrRuleNotExists {
+			if err == dal.ErrRuleNotExists {
 				apperror.RespAndLog(w, ctx,
 					apperror.NewFieldError(http.StatusBadRequest, err))
 				return
