@@ -3,7 +3,8 @@ package processors
 import (
 	"context"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
+	"errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	"time"
 )
@@ -47,12 +48,12 @@ type MutatorParameters struct {
 func (m *mutatorChain) AddMutator(mutator interface{}) {
 	vp, isPod := mutator.(PodMutator)
 	if isPod {
-		log.Infof("add pod mutator: %s", vp.Name())
+		logging.GetLogger().Info().Msgf("add pod mutator: %s", vp.Name())
 		m.podMutators = append(m.podMutators, vp)
 	}
 	nsMu, isNs := mutator.(NamespaceMutator)
 	if isNs {
-		log.Infof("add namespace mutator: %s", nsMu.Name())
+		logging.GetLogger().Info().Msgf("add namespace mutator: %s", nsMu.Name())
 		m.nsMutators = append(m.nsMutators, nsMu)
 	}
 }
@@ -66,26 +67,26 @@ func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []by
 	case "Pod":
 		pod := &corev1.Pod{}
 		if err := json.Unmarshal(rawObj, pod); err != nil {
-			log.Errorf("failed to Unmarshal pod: %v", err)
+			logging.GetLogger().Err(err).Msg("failed to Unmarshal pod")
 			return nil
 		}
 		patch = m.mutatePod(ctx, parameters, pod)
 	case "ConfigMap":
 		cm := &corev1.ConfigMap{}
 		if err := json.Unmarshal(rawObj, cm); err != nil {
-			log.Errorf("failed to Unmarshal configmap: %v", err)
+			logging.GetLogger().Err(err).Msg("failed to Unmarshal configmap")
 			return nil
 		}
 		patch = m.mutateConfigMap(ctx, parameters, cm)
 	case "Namespace":
 		ns := &corev1.Namespace{}
 		if err := json.Unmarshal(rawObj, ns); err != nil {
-			log.Errorf("failed to Unmarshal configmap: %v", err)
+			logging.GetLogger().Err(err).Msg("failed to Unmarshal namespace")
 			return nil
 		}
 		patch = m.mutateNamespace(ctx, parameters, ns)
 	default:
-		log.Errorf("unsupported resource: %v", parameters.Kind)
+		logging.GetLogger().Err(errors.New("unsupported resource kind")).Msg(parameters.Kind)
 	}
 	return patch
 }
@@ -93,16 +94,16 @@ func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []by
 func (m *mutatorChain) mutatePod(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) []byte {
 	var patches []*Patch
 	for _, m := range m.podMutators {
-		log.Debugf("mutatePod by %s", m.Name())
+		logging.GetLogger().Debug().Msgf("mutatePod by %s", m.Name())
 		p := m.Mutate(ctx, parameters, pod)
 		patches = append(patches, p...)
 	}
-	log.Debugf("pod patches: %v", patches)
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		log.Errorf("failed to marshal patches")
+		logging.GetLogger().Err(err).Msg("failed to marshal patches")
 		return nil
 	}
+	logging.GetLogger().Info().Msg(string(patchData))
 	return patchData
 }
 
@@ -112,14 +113,13 @@ func (m *mutatorChain) mutateConfigMap(ctx context.Context, parameters *MutatorP
 		p := m.Mutate(ctx, parameters, cm)
 		patches = append(patches, p...)
 	}
-	log.Debugf("patches: %v", patches)
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		log.Errorf("failed to marshal patches")
+		logging.GetLogger().Err(err).Msg("failed to marshal patches")
 		return nil
 	}
+	logging.GetLogger().Info().Msg(string(patchData))
 	return patchData
-	//return patches
 }
 
 func (m *mutatorChain) mutateNamespace(ctx context.Context, parameters *MutatorParameters, ns *corev1.Namespace) []byte {
@@ -128,14 +128,13 @@ func (m *mutatorChain) mutateNamespace(ctx context.Context, parameters *MutatorP
 		p := m.NamespaceMutate(ctx, parameters, ns)
 		patches = append(patches, p...)
 	}
-	log.Debugf("patches: %v", patches)
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		log.Errorf("failed to marshal patches")
+		logging.GetLogger().Err(err).Msg("failed to marshal patches")
 		return nil
 	}
+	logging.GetLogger().Info().Msg(string(patchData))
 	return patchData
-	//return patches
 }
 
 func NewMutatorChain() *mutatorChain {

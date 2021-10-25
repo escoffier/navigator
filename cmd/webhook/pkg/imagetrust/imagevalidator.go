@@ -1,0 +1,194 @@
+package imagetrust
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"encoding/json"
+	"errors"
+	"github.com/avast/retry-go"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	corev1 "k8s.io/api/core/v1"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+const validatorConfigFile = "image-trust-validator.yaml"
+
+type Validator struct {
+	client            *http.Client
+	digestUrl         string
+	IgnoredNameSpaces []string
+}
+
+type RejectOnlineMonitorImage struct {
+	Image    string `json:"image"`
+	FromType string `json:"type"`
+	Digest   string `json:"digest"`
+	//CustomKV []KVHash `json:"custom_KV"` //自定义kv
+}
+
+type ImageValidatorReq struct {
+	Images []RejectOnlineMonitorImage
+}
+type Result struct {
+	ApiVersion string `json:"apiVersion"`
+	Data       Data   `json:"data"`
+}
+
+type Data struct {
+	Item Item `json:"item"`
+}
+
+type Item struct {
+	Flag bool `json:"flag"`
+}
+
+type ValidatorConfig struct {
+	ImageTrustUrl     string   `yaml:"image_trust_url"`
+	IgnoredNameSpaces []string `yaml:"ignored_name_spaces"`
+}
+
+func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, _ *processors.ValidatingParameters) error {
+	validation := &ImageValidatorReq{}
+
+	for _, c := range pod.Spec.InitContainers {
+		buildValidation(validation, c.Image)
+	}
+
+	for _, c := range pod.Spec.Containers {
+		buildValidation(validation, c.Image)
+	}
+
+	data, err := json.Marshal(validation.Images)
+	if err != nil {
+		return err
+	}
+
+	logging.GetLogger().Info().Msgf("validation: %s", string(data))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.digestUrl, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	var validationResp Result
+	err = util.HTTPRequest(ctx, v.client, req, func(resp *http.Response, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if resp.Body == nil {
+			return err
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		logging.GetLogger().Info().Msgf("resp %s", string(body))
+		err = json.Unmarshal(body, &validationResp)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("validation resp err")
+			return err
+		}
+		return nil
+	}, retry.Attempts(3))
+	if err != nil {
+		return err
+	}
+
+	if !validationResp.Data.Item.Flag {
+		return errors.New("image is untrusted")
+	}
+
+	return nil
+}
+
+func buildValidation(v *ImageValidatorReq, image string) {
+	var digest, imageTag string
+
+	digest = getDigest(image)
+	if digest != "" {
+		imageMap, ok := GetImageDigestMap()
+		if ok {
+			imageTag = imageMap.get(digest)
+		}
+	}
+	if imageTag == "" {
+		imageTag = image
+	}
+
+	v.Images = append(v.Images, RejectOnlineMonitorImage{
+		Image:    imageTag,
+		FromType: "k8s_deployment",
+		Digest:   digest,
+	})
+}
+
+func (v *Validator) PreValidate(_ context.Context, pod *corev1.Pod, parameters *processors.ValidatingParameters) bool {
+	for _, ns := range v.IgnoredNameSpaces {
+		if parameters.Namespace == ns {
+			logging.GetLogger().Info().Msgf("ignored mutating for resource %s in namespace %s", parameters.Kind, ns)
+			return false
+		}
+	}
+	return true
+}
+
+func (v *Validator) Name() string {
+	return "ImageTrustValidator"
+}
+
+func (v *Validator) Init() error {
+	v.client = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	path := processors.GetConfigFullPath(validatorConfigFile)
+	config, err := loadValidatorConfig(path)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("load config err")
+		return err
+	}
+
+	digestUrl, err := url.Parse(config.ImageTrustUrl)
+	if err != nil {
+		return err
+	}
+
+	v.digestUrl = digestUrl.String()
+	v.IgnoredNameSpaces = append(v.IgnoredNameSpaces, config.IgnoredNameSpaces...)
+	return nil
+}
+
+func loadValidatorConfig(path string) (*ValidatorConfig, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("read config file failed")
+		return nil, err
+	}
+
+	config := ValidatorConfig{}
+	err = yaml.Unmarshal(b, &config)
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func getDigest(image string) string {
+	s := strings.SplitN(image, "@", 2)
+	if s == nil || len(s) != 2 {
+		return ""
+	}
+	return s[1]
+}
