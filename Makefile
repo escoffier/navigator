@@ -183,6 +183,13 @@ data: generate 		## Build cleaner binary
 		-o dist/tensor-cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
 	docker build -t $(REPOPREFIX)/tensorsec-cleaner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
 
+.PHONY: kube-hunter-report
+kube-hunter-report: generate
+	@echo "+ $@"
+	CGO_ENABLED=0 go build -v \
+    		-o dist/tensor-kube-hunter-report gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report
+	docker build -t $(REPOPREFIX)/tensorsec-kube-hunter-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-hunter-report/Dockerfile .
+
 .PHONY: scanner-base
 scanner-base: ## Build scanner base image
 	@echo "+ $@"
@@ -445,7 +452,7 @@ cluster-manager: generate
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes image-validate daemon  \
 webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
-event-processor go-audit   safe-node-image
+event-processor go-audit safe-node-image kube-hunter-report
 
 .PHONY: base
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -514,6 +521,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-safe-node-image:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-cluster-manager:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -538,6 +546,7 @@ else
 	docker push $(REPOPREFIX)/tensorsec-safe-node-image:latest
 	docker push $(REPOPREFIX)/tensorsec-webhook:latest
 	docker push $(REPOPREFIX)/tensorsec-cluster-manager:latest
+	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:latest
 endif
 
 .PHONY: retag
@@ -566,6 +575,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/tensorsec-safe-node-image:latest $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/kube-hunter-report:latest $(REPOPREFIX)/tensorsec-kube-hunter-report:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/tensorsec-console:latest $(REPOPREFIX)/tensorsec-console:latest
@@ -589,7 +599,8 @@ else
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-safe-node-image:latest $(REPOPREFIX)/safe-node-image:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:latest
-	docker tag $(REPOPREFIX)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
+	docker tag $(REPOPREFIXOLD)/kube-hunter-report:latest $(REPOPREFIX)/tensorsec-kube-hunter-report:latest
 endif
 
 .PHONY: redeploy

@@ -1,30 +1,27 @@
 package rdbtools
 
 import (
-	"context"
 	"time"
 
-	"github.com/avast/retry-go"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-var (
-	migrateRetryOptions = []retry.Option{
-		retry.MaxDelay(time.Duration(5) * time.Second),
-		retry.DelayType(retry.FixedDelay),
-		retry.Attempts(uint(3)),
-		retry.Delay(time.Duration(5) * time.Second),
-	}
-)
-
-type GormTable interface {
-	TableName() string
-}
-
-func MigrateTable(ctx context.Context, rdb *GormWrapper, model GormTable) error {
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		return rdb.Get().WithContext(oneCtx).AutoMigrate(model)
-	}, migrateRetryOptions...)
+func NewPostgresClient(postgresDSN string) (*GormWrapper, error) {
+	return GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		db, err := gorm.Open(postgres.Open(postgresDSN), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		})
+		if err != nil {
+			return nil, err
+		}
+		sqlDB, err := db.DB()
+		if err == nil {
+			sqlDB.SetMaxOpenConns(10)
+			sqlDB.SetMaxIdleConns(5)
+			sqlDB.SetConnMaxLifetime(time.Hour)
+		}
+		return db, nil
+	})
 }
