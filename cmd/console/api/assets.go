@@ -764,6 +764,14 @@ func (api *api) getPods() http.HandlerFunc {
 			queryOpt.WithNamespace(namespace)
 		}
 
+		nodeName, err := param.QueryString(r, "node_name")
+		if err != nil {
+			nodeName = ""
+		}
+		if nodeName != "" {
+			queryOpt.WithNodeName(nodeName)
+		}
+
 		resKind, err := param.QueryString(r, "resourceKind")
 		if err != nil {
 			resKind = ""

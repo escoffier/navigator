@@ -961,6 +961,10 @@ func (q *ResPodsQueryOption) WithCluster(clusterKey string) *ResPodsQueryOption 
 	q.whereEqCondition["cluster_key"] = clusterKey
 	return q
 }
+func (q *ResPodsQueryOption) WithNodeName(nodeName string) *ResPodsQueryOption {
+	q.whereEqCondition["node_name"] = nodeName
+	return q
+}
 func (q *ResPodsQueryOption) WithNamespace(ns string) *ResPodsQueryOption {
 	q.whereEqCondition["namespace"] = ns
 	return q

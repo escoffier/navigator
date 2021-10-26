@@ -5,8 +5,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/cmd"
+	_ "go.uber.org/automaxprocs"
 )
-
 
 func main() {
 	command := cmd.NewClusterManagerCommand()
