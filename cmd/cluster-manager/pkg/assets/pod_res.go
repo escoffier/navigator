@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -30,6 +31,13 @@ type PodResourcesService struct {
 	syncedClusters   map[string]struct{}
 }
 
+type podEvent struct {
+	pod        *corev1.Pod
+	action     assets.AssetsAction
+	ownerName  string
+	ownerKind  string
+	updateTime time.Time
+}
 type PodResourcesClusterCallback struct {
 	cluster          string
 	parent           *PodResourcesService
@@ -37,6 +45,7 @@ type PodResourcesClusterCallback struct {
 	resyncInterval   time.Duration
 
 	rsToDeploymentCache *sync.Map // string(namespace/name) -> *metav1.OwnerReference
+	inputQueue          *util.Queue
 }
 
 func newPodResourcesService(redisCli *redis.Client, postgresDB *rdbtools.GormWrapper) *PodResourcesService {
@@ -55,13 +64,6 @@ func (cb *PodResourcesService) WatchedTypes() map[assets.WatchedType]struct{} {
 	}
 }
 
-func (cb *PodResourcesService) setClusterDataSynced(cluster string) {
-	cb.Lock()
-	defer cb.Unlock()
-
-	cb.syncedClusters[cluster] = struct{}{}
-}
-
 func (cb *PodResourcesService) getClusterRefreshTimestamp(clusterName string) (int64, bool) {
 	cb.RLock()
 	defer cb.RUnlock()
@@ -74,6 +76,8 @@ func (cb *PodResourcesService) getClusterRefreshTimestamp(clusterName string) (i
 	return ts, ts > 0
 }
 
+type syncSignal struct{}
+
 // BeforWatchNewCluster called before watch events
 func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) assets.ClusterCallback {
 	logging.GetLogger().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
@@ -84,7 +88,25 @@ func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, cluster
 		refreshTimestamp:    time.Now().Unix(),
 		rsToDeploymentCache: new(sync.Map),
 		resyncInterval:      resyncInterval,
+		inputQueue:          util.NewQueue(),
 	}
+	ccb.inputQueue.Consume(func(item interface{}) {
+		switch typed := item.(type) {
+		case syncSignal:
+			err := ccb.removeInactiveData(context.Background())
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("do removeInactiveData error")
+			} else {
+				logging.GetLogger().Info().Msg("cluster information scyned")
+			}
+		case podEvent:
+			err := ccb.doOnPodEvent(context.Background(), typed)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("do on pod event %+v error", typed)
+			}
+		}
+	})
+
 	cb.Lock()
 	defer cb.Unlock()
 	cb.clusterCallbacks[clusterName] = ccb
@@ -94,7 +116,7 @@ func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, cluster
 
 // Name returns the name
 func (cb *PodResourcesService) Name() string {
-	return "onlineVulns"
+	return "podResources"
 }
 
 func (cb *PodResourcesClusterCallback) refreshUnixTimestamp() int64 {
@@ -118,6 +140,51 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 	}
 	return owner, owner != nil
 }
+
+func (cb *PodResourcesClusterCallback) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) sendInput(ctx context.Context, e podEvent) error {
+	cb.inputQueue.Add(e)
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEvent) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when do on pod event: %v. event: %+v", r, e)
+			err = errors.New("panic")
+		}
+	}()
+
+	tctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	switch e.action {
+	case assets.ActionDelete:
+		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.postgresDB, e.pod, cb.cluster)
+		if rerr != nil {
+			logging.GetLogger().Err(rerr).Msg("delete pod resource rel in rdb error")
+		}
+		cerr := dal.DeletePodResourceRelation(tctx, cb.parent.redisCli, e.pod, cb.cluster)
+		if cerr != nil {
+			logging.GetLogger().Err(cerr).Msg("delete pod resource rel in cache error")
+		}
+	case assets.ActionUpdate, assets.ActionAdd:
+		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.postgresDB, e.pod, e.ownerName, e.ownerKind, cb.cluster, time.Now())
+		if rerr != nil {
+			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in rdb error")
+		}
+		cerr := dal.UpsertPodResourceRelation(tctx, cb.parent.redisCli, e.pod, e.ownerName, e.ownerKind, cb.cluster, 2*cb.resyncInterval)
+		if cerr != nil {
+			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in cache error")
+		}
+
+	}
+	return nil
+}
+
 func (cb *PodResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -126,14 +193,10 @@ func (cb *PodResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, ac
 			return errors.New("not given old pod")
 		}
 
-		rerr := dal.DeletePodResourceRelationInRDB(ctx, cb.parent.postgresDB, oldPod, cb.cluster)
-		if rerr != nil {
-			logging.GetLogger().Err(rerr).Msg("delete pod resource rel in rdb error")
-		}
-		cerr := dal.DeletePodResourceRelation(ctx, cb.parent.redisCli, oldPod, cb.cluster)
-		if cerr != nil {
-			logging.GetLogger().Err(cerr).Msg("delete pod resource rel in cache error")
-		}
+		return cb.sendInput(ctx, podEvent{
+			pod:    oldPod,
+			action: action,
+		})
 	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
 		if newPod == nil {
 			return errors.New("not given new pod")
@@ -148,14 +211,13 @@ func (cb *PodResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, ac
 			ownerKind = owner.Kind
 		}
 
-		rerr := dal.UpsertPodResourceRelationInRDB(ctx, cb.parent.postgresDB, newPod, ownerName, ownerKind, cb.cluster, time.Now())
-		if rerr != nil {
-			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in rdb error")
-		}
-		cerr := dal.UpsertPodResourceRelation(ctx, cb.parent.redisCli, newPod, ownerName, ownerKind, cb.cluster, 2*cb.resyncInterval)
-		if cerr != nil {
-			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in cache error")
-		}
+		return cb.sendInput(ctx, podEvent{
+			pod:       newPod,
+			action:    action,
+			ownerName: ownerName,
+			ownerKind: ownerKind,
+		})
+
 	}
 
 	return nil
@@ -224,8 +286,7 @@ func (cb *PodResourcesClusterCallback) OnTensorResourceEvent(newResource, oldRes
 
 func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
 	if dataSynced {
-		cb.parent.setClusterDataSynced(cb.cluster)
-		cb.removeInactiveData(ctx)
+		cb.inputQueue.Add(syncSignal{})
 	}
 }
 

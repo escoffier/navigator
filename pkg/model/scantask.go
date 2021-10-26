@@ -188,12 +188,12 @@ type GlobalRejectPolicy struct {
 	OnlineMonitor bool   `json:"online_monitor"`
 } // @name GlobalRejectPolicy
 
-type RejectOnlineMoniterImage struct {
+type RejectOnlineMonitorImage struct {
 	Image    string `json:"image"`
 	Digest   string `json:"digest"`
 	FromType string `json:"type"`
 	// CustomKV      []KVHash      `json:"custom_KV"`
-	NotifyContext *NotifyContext `json:"notify_context"`
+	NotifyContext NotifyContext `json:"notify_context"`
 }
 
 type RejectReasonStatistics []RejectReasonStatistic

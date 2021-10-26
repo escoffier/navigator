@@ -31,7 +31,7 @@ type Scanner struct {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyFlagRes{}}}
 // @Router	/api/v1/imagereject/online_moniter [post]
 func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
-	containerInfo := []model.RejectOnlineMoniterImage{}
+	containerInfo := []model.RejectOnlineMonitorImage{}
 	if err := ctx.BindJSON(&containerInfo); err != nil {
 		s.log.WithContext(ctx).Errorf(err, "BindJSON error")
 		return

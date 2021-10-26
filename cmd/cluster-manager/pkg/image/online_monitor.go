@@ -3,13 +3,14 @@ package image
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -19,7 +20,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 
-func getImageSHAFromContainer(container *corev1.ContainerStatus) string {
+func getImageSHAFromContainer(container corev1.ContainerStatus) string {
 	// imageID: docker-pullable://192.168.1.203:5000/tensorsec-console@sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
 	shaDigestAndPullInfo := strings.Split(container.ImageID, "@")
 	return shaDigestAndPullInfo[len(shaDigestAndPullInfo)-1]
@@ -36,20 +37,21 @@ func NewOnlineMonitor(postgre *rdbtools.GormWrapper, scannerURL string) *OnlineM
 		scannerURL: scannerURL,
 	}
 }
-func (s *OnlineMonitor) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncDur time.Duration) assets.ClusterCallback {
+func (s *OnlineMonitor) BeforWatchNewCluster(ctx context.Context, clusterKey string, resyncDur time.Duration) assets.ClusterCallback {
 	res := &OnlineMonitorCB{
-		parent:  s,
-		exitMap: make(map[string]int64),
-		lock:    sync.Mutex{},
+		parent:     s,
+		exitMap:    make(map[string]int64, 100),
+		lock:       sync.RWMutex{},
+		clusterKey: clusterKey,
+		inputChan:  make(chan model.RejectOnlineMonitorImage, 50),
 	}
-	go res.deleteMap()
+	res.asyncLoop()
 	return res
 }
 
 func (s *OnlineMonitor) WatchedTypes() map[assets.WatchedType]struct{} {
 	return map[assets.WatchedType]struct{}{
 		assets.Pods2Watch: {},
-		// assets.TensorResources2Watch: {},
 	}
 }
 
@@ -58,19 +60,28 @@ func (s *OnlineMonitor) Name() string {
 }
 
 type OnlineMonitorCB struct {
-	parent  *OnlineMonitor
-	exitMap map[string]int64
-	lock    sync.Mutex
+	parent     *OnlineMonitor
+	exitMap    map[string]int64
+	lock       sync.RWMutex
+	clusterKey string
+	inputChan  chan model.RejectOnlineMonitorImage
 }
 
-func (s *OnlineMonitorCB) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet, action assets.AssetsAction) error {
-	return nil
+func (s *OnlineMonitorCB) checkMap(uid string) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	_, ok := s.exitMap[uid]
+	return ok
+}
+func (s *OnlineMonitorCB) addMap(uid string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.exitMap[uid] = time.Now().Unix()
 }
 
 // OnPodEvent 对于新增的pod,我们查一下有那些镜像没有被扫描，或扫描失败
 func (s *OnlineMonitorCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
-	ctx := context.Background()
-	// logging.GetLogger().WithContext(ctx).Infof("K8sOnlineMonitor 在线监控，开始检测")
 	if newPod == nil {
 		return nil
 	}
@@ -87,34 +98,86 @@ func (s *OnlineMonitorCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.A
 		return nil
 	}
 	// 使用一个全局的map做验证
-	s.lock.Lock()
-	if _, ok := s.exitMap[string(newPod.UID)]; ok {
-		s.lock.Unlock()
+	if s.checkMap(string(newPod.UID)) {
 		logging.GetLogger().Info().Msgf("K8sOnlineMonitor updated ,podUUID %s", newPod.UID)
 		return nil
 	}
-	s.exitMap[string(newPod.UID)] = time.Now().Unix()
-	s.lock.Unlock()
-
-	notify := model.NotifyContext{
-		PodUID:    string(newPod.UID),
-		PodName:   newPod.Name,
-		Namespace: newPod.Namespace,
-		Cluster:   newPod.ClusterName,
-	}
-
-	logging.GetLogger().Info().Msgf("K8sOnlineMonitor NotifyContext PodId:%s,PodName:%s,Namespace:%s,Cluster:%s,action:%v,status:%s", notify.PodUID, notify.PodName, notify.Namespace, notify.Cluster, action, newPod.Status.Phase)
 
 	if action != assets.ActionDelete {
-		if err := s.detectImage(ctx, newPod.Status.ContainerStatuses, &notify); err != nil {
-			logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor detect image error")
+		notify := model.NotifyContext{
+			PodUID:    string(newPod.UID),
+			PodName:   newPod.Name,
+			Namespace: newPod.Namespace,
+			Cluster:   s.clusterKey,
+		}
+		s.sendInput(newPod, notify)
+	}
+	return nil
+}
+
+func (s *OnlineMonitorCB) cleanUpMap(now time.Time) {
+	s.lock.RLock()
+	toDelete := make([]string, 0, 2)
+	for key, timestamp := range s.exitMap {
+		if now.Unix()-timestamp > 24*3600 {
+			toDelete = append(toDelete, key)
 		}
 	}
+	s.lock.RUnlock()
+	if len(toDelete) > 0 {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+
+		for _, key := range toDelete {
+			delete(s.exitMap, key)
+		}
+
+		// to prevent the memory leak of go map
+		if rand.Float64() < 0.1 {
+			newMap := make(map[string]int64, len(s.exitMap))
+			for key, val := range s.exitMap {
+				newMap[key] = val
+			}
+			s.exitMap = newMap
+		}
+	}
+}
+func (s *OnlineMonitorCB) asyncLoop() {
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		buffer := make(map[string]model.RejectOnlineMonitorImage, 50)
+		for {
+			select {
+			case evt := <-s.inputChan:
+				buffer[evt.NotifyContext.PodUID] = evt
+			case now := <-ticker.C:
+				err := s.batchDetectImages(buffer)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("batch update detectImages err. data: %v", buffer)
+				}
+
+				for _, rej := range buffer {
+					s.addMap(rej.NotifyContext.PodUID)
+				}
+				buffer = make(map[string]model.RejectOnlineMonitorImage, len(buffer))
+
+				s.cleanUpMap(now)
+			}
+		}
+	}()
+}
+
+func (s *OnlineMonitorCB) OnReplicaSetEvent(newRs, oldRs *appsv1.ReplicaSet, action assets.AssetsAction) error {
 	return nil
 }
 
 func (s *OnlineMonitorCB) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
 	// monitor resource creation and chages including replicasets, statefulsets, daemonsets, cronjobs, jobs, deployments, replicationcontrollers, pods with no owner.
+	return nil
+}
+func (cb *OnlineMonitorCB) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
 	return nil
 }
 
@@ -153,25 +216,33 @@ func (s *OnlineMonitorCB) Name() string {
 	return "images_online_monitor"
 }
 
-func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.ContainerStatus, notify *model.NotifyContext) error {
-	body := make([]model.RejectOnlineMoniterImage, 0)
-	// logging.GetLogger().WithContext(ctx).Infof("K8sOnlineMonitor detectImage,containers:%d", len(containers))
-
-	for i := range containers {
-		rej := model.RejectOnlineMoniterImage{
-			Digest:        getImageSHAFromContainer(&containers[i]),
-			Image:         containers[i].Image,
+func (s *OnlineMonitorCB) sendInput(pod *corev1.Pod, notify model.NotifyContext) {
+	for _, container := range pod.Status.ContainerStatuses {
+		rej := model.RejectOnlineMonitorImage{
+			Digest:        getImageSHAFromContainer(container),
+			Image:         container.Image,
 			FromType:      model.UsePatternForOnline,
 			NotifyContext: notify,
 		}
-		// 对于删除的事件，K8s还是会发更新事件，这个时候digest为空
-		if rej.Digest != "" {
-			body = append(body, rej)
+
+		if len(rej.Digest) > 0 {
+			timer := time.NewTimer(100 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case s.inputChan <- rej:
+			case <-timer.C:
+				continue
+			}
 		}
 	}
-	if len(body) == 0 {
-		logging.GetLogger().Debug().Msgf("body is empty")
+}
+func (s *OnlineMonitorCB) batchDetectImages(buffer map[string]model.RejectOnlineMonitorImage) error {
+	if len(buffer) == 0 {
 		return nil
+	}
+	body := make([]model.RejectOnlineMonitorImage, 0, len(buffer))
+	for _, rej := range buffer {
+		body = append(body, rej)
 	}
 
 	bys, err := json.Marshal(body)
@@ -179,12 +250,11 @@ func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.C
 		logging.GetLogger().Err(err).Msgf("detectImage Marshal error")
 		return err
 	}
-	detectURl := fmt.Sprintf("%s/api/v1/imagereject/online_moniter", s.parent.scannerURL)
-	logging.GetLogger().Debug().Msgf("detectImage detectURl:%s", detectURl)
+	detectURL := fmt.Sprintf("%s/api/v1/imagereject/online_moniter", s.parent.scannerURL)
 
-	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	tctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(tctx, "POST", detectURl, bytes.NewReader(bys))
+	req, err := http.NewRequestWithContext(tctx, "POST", detectURL, bytes.NewReader(bys))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("detectImage NewRequest,error")
 		return err
@@ -201,14 +271,4 @@ func (s *OnlineMonitorCB) detectImage(ctx context.Context, containers []corev1.C
 		logging.GetLogger().Error().Msgf("detectImage 请求scanner服务出错:statusCode:%d", response.StatusCode)
 	}
 	return nil
-}
-
-func (s *OnlineMonitorCB) deleteMap() {
-	ticker := time.NewTicker(time.Hour * 24)
-	for {
-		<-ticker.C
-		s.lock.Lock()
-		s.exitMap = make(map[string]int64)
-		s.lock.Unlock()
-	}
 }

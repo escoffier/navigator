@@ -301,6 +301,9 @@ func (l *KubeClusterMonitor) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, ac
 func (l *KubeClusterMonitor) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
 	return nil
 }
+func (l *KubeClusterMonitor) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+	return nil
+}
 func (l *KubeClusterMonitor) AfterDataSynced(ctx context.Context, dataSynced bool) {
 
 }

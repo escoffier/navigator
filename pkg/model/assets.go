@@ -2,10 +2,11 @@ package model
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -13,6 +14,51 @@ import (
 var (
 	TypeAssertErr = errors.New("type cast error")
 )
+
+const (
+	WebTypeNginx     = "nginx"
+	WebTypeApache    = "httpd"
+	WebTypeTomcat    = "tomcat"
+	WebTypeKong      = "kong"
+	WebTypeOpenResty = "openresty"
+	WebTypeTraefik   = "traefik"
+	WebTypeApisix    = "apisix"
+)
+
+func GetWebType(imageID string) (bool, string, string, error) {
+	if len(imageID) == 0 {
+		return false, "", "", errors.New("empty input")
+	}
+	idx := strings.Index(imageID, ":")
+	if idx <= 0 || idx >= len(imageID)-1 {
+		return false, "", "", nil
+	}
+	version := imageID[idx+1:]
+	fullRepoName := imageID[0:idx]
+	idx = strings.IndexByte(fullRepoName, '/')
+	if idx <= 0 || idx >= len(fullRepoName)-1 {
+		return false, "", "", nil
+	}
+	repoName := fullRepoName[idx+1:]
+	repoName = strings.ToLower(repoName)
+
+	if strings.Index(repoName, WebTypeNginx) >= 0 {
+		return true, WebTypeNginx, version, nil
+	} else if strings.Index(repoName, WebTypeTomcat) >= 0 {
+		return true, WebTypeTomcat, version, nil
+	} else if strings.Index(repoName, WebTypeKong) >= 0 {
+		return true, WebTypeKong, version, nil
+	} else if strings.Index(repoName, WebTypeOpenResty) >= 0 {
+		return true, WebTypeOpenResty, version, nil
+	} else if strings.Index(repoName, WebTypeTraefik) >= 0 {
+		return true, WebTypeTraefik, version, nil
+	} else if strings.Index(repoName, WebTypeApisix) >= 0 {
+		return true, WebTypeApisix, version, nil
+	} else if strings.Index(repoName, WebTypeApache) >= 0 {
+		return true, WebTypeTraefik, version, nil
+	}
+	return false, "", "", nil
+}
 
 type MatchExpression struct {
 	Key      string   `json:"key"`
@@ -176,6 +222,8 @@ type TensorContainer struct {
 	SecurityContext *SecurityContext  `gorm:"column:security_context;type:jsonb"`
 	Type            string            `gorm:"column:type"`
 	ImageUUID       uint32            `gorm:"column:image_uuid"`
+	WebType         *string
+	WebFrameVersion *string
 }
 
 func (TensorContainer) TableName() string {
@@ -206,7 +254,7 @@ type PodResourceRelation struct {
 	HostIP          string `json:"HostIP,omitempty"`
 	Namespace       string `json:"Namespace" gorm:"column:namespace;index:idx_prr_res,priority:2"`
 	PodName         string `json:"PodName"`
-	NodeName        string `json:"NodeName" gorm:"column:node_name""`
+	NodeName        string `json:"NodeName" gorm:"column:node_name"`
 	ResourceName    string `json:"ResourceName" gorm:"column:resource_name;index:idx_prr_res,priority:4"`
 	ResourceKind    string `json:"ResourceKind" gorm:"column:resource_kind;index:idx_prr_res,priority:3"`
 	CreateTimestamp int64  `json:"CreateTimestamp" gorm:"-"`
@@ -244,3 +292,55 @@ type TensorCluster struct {
 func (TensorCluster) TableName() string {
 	return "tensor_clusters"
 }
+
+type ContainerImages []corev1.ContainerImage
+
+func (sc ContainerImages) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &sc)
+}
+func (sc ContainerImages) Value() (driver.Value, error) {
+	return json.Marshal(sc)
+}
+
+type NodeVolume struct {
+	Type       string
+	VolumeName string
+	DevicePath string
+}
+type Volumes []NodeVolume
+
+func (sc Volumes) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &sc)
+}
+func (sc Volumes) Value() (driver.Value, error) {
+	return json.Marshal(sc)
+}
+
+type TensorNode struct {
+	ID                      uint32
+	ClusterKey              string
+	HostName                string
+	NodeIP                  string
+	KernelVersion           string
+	OsInfo                  string
+	OsImage                 string
+	ContainerRuntimeVersion string
+	KubeletVersion          string
+	KubeProxyVersion        string
+	Architecture            string
+	Volumes                 Volumes         `gorm:"column:volumes;type:jsonb"`
+	ContainerImages         ContainerImages `gorm:"column:container_images;type:jsonb"`
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+	Status                  int8
+}
+
+func (TensorNode) TableName() string { return "tensor_nodes" }
