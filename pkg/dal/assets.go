@@ -386,6 +386,11 @@ func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query
 				db = db.Where(fmt.Sprintf("%s in ?", column), val)
 			}
 		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column, _ := range query.whereNotNullCondition {
+				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
 			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
