@@ -2,21 +2,20 @@ package dal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	corev1 "k8s.io/api/core/v1"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -29,6 +28,8 @@ var (
 		"security_context",
 		"type",
 		"image_uuid",
+		"web_type",
+		"web_frame_version",
 	}
 	onDupUpdatedColsForResource = []string{
 		"updated_at",
@@ -50,6 +51,21 @@ var (
 		"pod_ip",
 		"host_ip",
 		"node_name",
+	}
+	OnDupUpdatedColsForNodes = []string{
+		"host_name",
+		"node_ip",
+		"kernel_version",
+		"os_info",
+		"container_runtime_version",
+		"kubelet_version",
+		"kube_proxy_version",
+		"architecture",
+		"os_image",
+		"volumes",
+		"container_images",
+		"updated_at",
+		"status",
 	}
 )
 
@@ -228,7 +244,7 @@ func GetResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resourc
 	defer cancel()
 
 	err = util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
 		db := rdb.Get().WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
@@ -256,9 +272,10 @@ func GetResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resourc
 }
 
 type ResContainersQueryOption struct {
-	whereEqCondition map[string]interface{}
-	whereInCondition map[string]interface{}
-	columnQuery      colQuery
+	whereEqCondition      map[string]interface{}
+	whereNotNullCondition map[string]struct{}
+	whereInCondition      map[string]interface{}
+	columnQuery           colQuery
 }
 
 func ResourceContainersQuery() *ResContainersQueryOption {
@@ -274,6 +291,15 @@ func (q *ResContainersQueryOption) GetClusterOption() (string, bool) {
 		return "", false
 	}
 	return v.(string), ok
+}
+
+func (q *ResContainersQueryOption) WithWebType(webType string) *ResContainersQueryOption {
+	q.whereEqCondition["web_type"] = webType
+	return q
+}
+func (q *ResContainersQueryOption) WithWebTypeNotEmpty() *ResContainersQueryOption {
+	q.whereNotNullCondition["web_type"] = struct{}{}
+	return q
 }
 func (q *ResContainersQueryOption) WithCluster(clusterKey string) *ResContainersQueryOption {
 	q.whereEqCondition["cluster_key"] = clusterKey
@@ -327,6 +353,11 @@ func CountResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, que
 				db = db.Where(fmt.Sprintf("%s in ?", column), val)
 			}
 		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column, _ := range query.whereNotNullCondition {
+				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
 			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
@@ -342,7 +373,7 @@ func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query
 	defer cancel()
 
 	err = util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
 		db := rdb.Get().WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
@@ -514,6 +545,12 @@ func fromContainerToModel(container corev1.Container, resource *assets.TensorRes
 	contModel.CreatedAt = resource.CreateTime
 	contModel.UpdatedAt = updateTime
 	contModel.Status = 0
+
+	isWebFrame, webType, version, err := model.GetWebType(contModel.Image)
+	if err == nil && isWebFrame {
+		contModel.WebType = &webType
+		contModel.WebFrameVersion = &version
+	}
 	return contModel
 }
 
@@ -760,11 +797,11 @@ func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, cluster
 		return nil, false, errors.New("illegal queryKind")
 	}
 
-	rctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	rctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()
 	val := ""
 	rerr := util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 200*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(rctx, 400*time.Millisecond)
 		defer oneCancel()
 
 		res, err := redisCli.Get(oneCtx, rkey).Result()
@@ -808,10 +845,10 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapp
 	rel.UpdatedAt = updateTime
 	rel.ID = util.GenerateUUID(clusterKey, rel.Namespace, rel.ResourceKind, rel.ResourceName, rel.PodUID)
 
-	rCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	rCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rCtx, 300*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
 		defer oneCancel()
 		return rdb.Get().WithContext(oneCtx).Model(&rel).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
@@ -821,10 +858,10 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapp
 }
 
 func DeletePodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, pod *corev1.Pod, clusterKey string) error {
-	rCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	rCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rCtx, 300*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
 		defer oneCancel()
 		return rdb.Get().WithContext(oneCtx).Where("cluster_key = ? AND pod_uid = ?", clusterKey, string(pod.GetUID())).Delete(&model.PodResourceRelation{}).Error
 	})
@@ -877,7 +914,7 @@ func UpsertPodResourceRelation(ctx context.Context, redisCli *redis.Client, pod 
 }
 
 func DeletePodResourceRelation(ctx context.Context, redisCli *redis.Client, pod *corev1.Pod, clusterKey string) error {
-	rctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	rctx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(rctx, 200*time.Millisecond)
@@ -1131,6 +1168,241 @@ func CountCluster(ctx context.Context, rdb *rdbtools.GormWrapper) (int64, error)
 		defer oneCancel()
 		return rdb.Get().WithContext(oneCtx).Count(&count).Error
 	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func newModelFromNode(node *corev1.Node, clusterKey string, updateTime time.Time) (*model.TensorNode, error) {
+	n := new(model.TensorNode)
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == corev1.NodeInternalIP {
+			n.NodeIP = addr.Address
+		} else if addr.Type == corev1.NodeHostName {
+			n.HostName = addr.Address
+		}
+	}
+	if n.HostName == "" {
+		return nil, errors.New("missing significant nodeIPs/hostNames")
+	}
+	n.ID = util.GenerateUUID(clusterKey, n.HostName)
+	n.ClusterKey = clusterKey
+	n.Architecture = node.Status.NodeInfo.Architecture
+	n.ContainerRuntimeVersion = node.Status.NodeInfo.ContainerRuntimeVersion
+	n.CreatedAt = updateTime
+	n.UpdatedAt = updateTime
+	n.KernelVersion = node.Status.NodeInfo.KernelVersion
+	n.OsInfo = node.Status.NodeInfo.OperatingSystem
+	n.OsImage = node.Status.NodeInfo.OSImage
+	n.KubeProxyVersion = node.Status.NodeInfo.KubeProxyVersion
+	n.KubeletVersion = node.Status.NodeInfo.KubeletVersion
+	n.Volumes = make([]model.NodeVolume, 0, len(node.Status.VolumesAttached)+len(node.Status.VolumesInUse))
+	for _, v := range node.Status.VolumesAttached {
+		n.Volumes = append(n.Volumes, model.NodeVolume{
+			Type:       "attached",
+			VolumeName: string(v.Name),
+			DevicePath: v.DevicePath,
+		})
+	}
+	for _, v := range node.Status.VolumesInUse {
+		n.Volumes = append(n.Volumes, model.NodeVolume{
+			Type:       "in_use",
+			VolumeName: string(v),
+		})
+	}
+	n.ContainerImages = node.Status.Images
+	switch node.Status.Phase {
+	case corev1.NodeRunning:
+		n.Status = 0
+	case corev1.NodeTerminated:
+		n.Status = 1
+	case corev1.NodePending:
+		n.Status = 2
+	}
+
+	return n, nil
+}
+
+func SoftDeleteNode(ctx context.Context, rdb *gorm.DB, node *corev1.Node, clusterKey string, updateTime time.Time) error {
+	hostName := ""
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == corev1.NodeHostName {
+			hostName = addr.Address
+			break
+		}
+	}
+	if hostName == "" {
+		return errors.New("error input")
+	}
+	tctx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, hostName)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 700*time.Millisecond)
+		defer cancel()
+		return rdb.WithContext(oneCtx).Model(&model.TensorNode{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+	})
+}
+func UpsertNode(ctx context.Context, rdb *gorm.DB, node *corev1.Node, clusterKey string, updateTime time.Time) (uint32, error) {
+	n, createErr := newModelFromNode(node, clusterKey, updateTime)
+	if createErr != nil {
+		return 0, createErr
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 700*time.Millisecond)
+		defer cancel()
+		return rdb.WithContext(oneCtx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForNodes),
+		}).Create(n).Error
+	})
+	return n.ID, err
+}
+
+func CleanUpUnUpdatedNodes(ctx context.Context, rdb *gorm.DB, clusterKey string, t time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorNode{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", t, 0, clusterKey).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": t,
+		}).Error
+	})
+}
+
+type NodeQueryOption struct {
+	whereEqCondition map[string]interface{}
+	whereInCondition map[string]interface{}
+	columnQuery      colQuery
+}
+
+func NodeQuery() *NodeQueryOption {
+	return &NodeQueryOption{
+		whereEqCondition: make(map[string]interface{}, 3),
+		whereInCondition: make(map[string]interface{}, 2),
+	}
+}
+
+func (q *NodeQueryOption) GetClusterOption() (string, bool) {
+	v, ok := q.whereEqCondition["cluster_key"]
+	if !ok {
+		return "", false
+	}
+	return v.(string), ok
+}
+func (q *NodeQueryOption) WithCluster(clusterKey string) *NodeQueryOption {
+	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+func (q *NodeQueryOption) WithCustom(column string, value interface{}) *NodeQueryOption {
+	q.whereEqCondition[column] = value
+	return q
+}
+func (q *NodeQueryOption) WithStatus(status int8) *NodeQueryOption {
+	q.whereEqCondition["status"] = status
+	return q
+}
+func (q *NodeQueryOption) WithInConditionCustom(column string, value interface{}) *NodeQueryOption {
+	q.whereInCondition[column] = value
+	return q
+}
+func (q *NodeQueryOption) WithColumnQuery(column, query string) *NodeQueryOption {
+	q.columnQuery.column = column
+	q.columnQuery.query = query
+	return q
+}
+
+func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, offset, limit int) ([]*model.TensorNode, error) {
+	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	var nodes []*model.TensorNode
+	notFound := false
+	err := util.RetryWithBackoff(rctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		defer oneCancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorNode{}).Order("id asc")
+		if len(queryOptions.whereEqCondition) > 0 {
+			db.Where(queryOptions.whereEqCondition)
+		}
+
+		if len(queryOptions.whereInCondition) > 0 {
+			for column, val := range queryOptions.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+
+		err := db.Find(&nodes).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
+func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption) (int64, error) {
+	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	var count int64
+	notFound := false
+	err := util.RetryWithBackoff(rctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		defer oneCancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorNode{})
+		if len(queryOptions.whereEqCondition) > 0 {
+			db.Where(queryOptions.whereEqCondition)
+		}
+
+		if len(queryOptions.whereInCondition) > 0 {
+			for column, val := range queryOptions.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+
+		err := db.Count(&count).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}

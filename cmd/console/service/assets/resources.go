@@ -164,6 +164,14 @@ func (rl *TensorResourcesService) CountContainer(ctx context.Context, queryOptio
 	return cnt, nil
 }
 
+func (rl *TensorResourcesService) GetNodes(ctx context.Context, queryOptions *dal.NodeQueryOption, offset, limit int) ([]*model.TensorNode, error) {
+	return dal.GetNodes(ctx, rl.rdb.Get(), queryOptions, offset, limit)
+}
+
+func (rl *TensorResourcesService) CountNodes(ctx context.Context, queryOptions *dal.NodeQueryOption) (int64, error) {
+	return dal.CountNodes(ctx, rl.rdb.Get(), queryOptions)
+}
+
 func (rl *TensorResourcesService) GetImagesWithGivenVuln(ctx context.Context, vulnName string) ([]*model.ImageInfo, error) {
 	return dal.GetImagesWithGivenVuln(ctx, rl.scannerURL, vulnName)
 }

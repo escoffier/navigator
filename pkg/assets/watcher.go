@@ -44,6 +44,7 @@ const (
 	ClusterRoleBindings2Watch WatchedType = "clusterrolebindings"
 	ServiceAccounts2Watch     WatchedType = "serviceaccounts"
 	TensorResources2Watch     WatchedType = "tensorresources"
+	Nodes2Watch               WatchedType = "nodes"
 )
 
 type AssetsCallback interface {
@@ -65,6 +66,7 @@ type ClusterCallback interface {
 	OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action AssetsAction) error
 	OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action AssetsAction) error
 	OnTensorResourceEvent(newResource, oldResource *TensorResource, action AssetsAction) error
+	OnNodeEvent(newNode, oldNode *corev1.Node, action AssetsAction) error
 	AfterDataSynced(ctx context.Context, dataSynced bool)
 	Name() string
 }
@@ -913,6 +915,64 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 					for _, cb := range callbacks {
 						roleErr := cb.OnRoleBindingEvent(newB, oldB, ActionUpdate)
+						if roleErr != nil {
+							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
+						}
+					}
+				},
+			})
+		}
+		if _, toWatch := toWatchedTypes[Nodes2Watch]; toWatch {
+			logging.GetLogger().Info().Msgf("start watching nodes for cluster %s", clusterKey)
+			nodesInformer := informerFactory.Core().V1().Nodes().Informer()
+			var node *corev1.Node
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &nodesInformer,
+				targetType: reflect.TypeOf(node),
+			})
+
+			nodesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc: func(newObj interface{}) {
+					newNode, ok := newObj.(*corev1.Node)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnNodeEvent(newNode, nil, ActionAdd)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on newNode event %s error", cb.Name()))
+						}
+					}
+				},
+				DeleteFunc: func(oldObj interface{}) {
+					oldNode, ok := oldObj.(*corev1.Node)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to (*corev1.Node)")
+						return
+					}
+					for _, cb := range callbacks {
+						evtErr := cb.OnNodeEvent(nil, oldNode, ActionDelete)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newNode, ok := newObj.(*corev1.Node)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
+						return
+					}
+					oldNode, ok := oldObj.(*corev1.Node)
+					if !ok {
+						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
+						return
+					}
+
+					for _, cb := range callbacks {
+						roleErr := cb.OnNodeEvent(newNode, oldNode, ActionUpdate)
 						if roleErr != nil {
 							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
 						}

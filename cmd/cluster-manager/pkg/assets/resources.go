@@ -49,6 +49,7 @@ func (rl *ResourcesWatcher) WatchedTypes() map[assets.WatchedType]struct{} {
 	return map[assets.WatchedType]struct{}{
 		assets.TensorResources2Watch: {},
 		assets.Namespaces2Watch:      {},
+		assets.Nodes2Watch:           {},
 	}
 }
 func (rl *ResourcesWatcher) Name() string {
@@ -86,6 +87,8 @@ type resourceEvent struct {
 	oldResource  *assets.TensorResource
 	newNamespace *corev1.Namespace
 	oldNamespace *corev1.Namespace
+	newNode      *corev1.Node
+	oldNode      *corev1.Node
 	action       assets.AssetsAction
 	updateTime   time.Time
 	retryCount   int
@@ -171,6 +174,31 @@ func (cl *ResourcesClusterListener) sendToRetry(resAction resourceEvent) {
 	cl.retryQueue.Add(resAction)
 }
 
+func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnNodeEvent: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := cl.doOnResource(ctx, resourceEvent{
+		wtype:      assets.Nodes2Watch,
+		newNode:    newNode,
+		oldNode:    oldNode,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnNodeEvent action: %s. new: %+v. old: %+v", action, newNode, oldNode)
+		return err
+	}
+	return nil
+}
+
 func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent resourceEvent) error {
 	if resEvent.action == assets.ActionAdd || resEvent.action == assets.ActionUpdate {
 		switch resEvent.wtype {
@@ -195,6 +223,17 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			_, err := dal.UpsertNamespace(ctx, cl.parent.rdb, resEvent.newNamespace, cl.clusterKey, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert namespace error. namespace: %+v. action: %v", resEvent.newNamespace, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Nodes2Watch:
+			if resEvent.newNode == nil {
+				return errors.New("newNode is nil")
+			}
+			_, err := dal.UpsertNode(ctx, cl.parent.rdb.Get(), resEvent.newNode, cl.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert node error. node: %+v. action: %v", resEvent.newNode, resEvent.action)
 				// will periodically retry to write
 				cl.sendToRetry(resEvent)
 				return err
@@ -229,6 +268,17 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 				cl.sendToRetry(resEvent)
 				return err
 			}
+		case assets.Nodes2Watch:
+			if resEvent.oldNode == nil {
+				return errors.New("oldNode is nil")
+			}
+			err := dal.SoftDeleteNode(ctx, cl.parent.rdb.Get(), resEvent.oldNode, cl.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete node error. node: %+v. action: %v", resEvent.oldNode, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
 		default:
 			logging.GetLogger().Warn().Msgf("watch type not supported. event: %+v", resEvent)
 		}
@@ -244,7 +294,7 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 	}()
 
 	now := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	err := cl.doOnResource(ctx, resourceEvent{
@@ -288,6 +338,7 @@ func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namesp
 
 func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSynced bool) {
 	if !dataSynced {
+		logging.GetLogger().Warn().Msg("AfterDataSynced dataSynced=false")
 		return
 	}
 
@@ -305,6 +356,10 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNamespaces error. refreshTime: %v", cl.refreshTime)
 	}
 
+	err = dal.CleanUpUnUpdatedNodes(ctx, cl.parent.rdb.Get(), cl.clusterKey, cl.refreshTime)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNodes error. refreshTime: %v", cl.refreshTime)
+	}
 }
 
 func (cl *ResourcesClusterListener) Name() string {

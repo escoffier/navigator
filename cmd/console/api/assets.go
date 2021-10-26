@@ -42,6 +42,8 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/containers/count", api.countContainers())
 		r.Get("/pods/count", api.countPods())
 		r.Get("/namespaces/count", api.countNamespaces())
+		r.Get("/nodes/count", api.countNodes())
+		r.Get("/nodes", api.getNodes())
 	}
 }
 
@@ -957,5 +959,72 @@ func (api *api) countPods() http.HandlerFunc {
 		response.Ok(w, response.WithItem(struct {
 			Count int64 `json:"count"`
 		}{Count: cnt}))
+	}
+}
+
+func (api *api) getNodes() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = ""
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		nodes, err := resSvc.GetNodes(ctx, dal.NodeQuery().WithCluster(clusterKey), offset, limit)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("getNodes error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		totalCnt, err := resSvc.CountNodes(ctx, dal.NodeQuery().WithCluster(clusterKey))
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("countNodes error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(nodes),
+			response.WithTotalItems(totalCnt),
+			response.WithStartIndex(int64(offset+len(nodes))),
+		)
+	}
+}
+
+func (api *api) countNodes() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = ""
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		totalCnt, err := resSvc.CountNodes(ctx, dal.NodeQuery().WithCluster(clusterKey))
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("countNodes error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItem(totalCnt))
 	}
 }

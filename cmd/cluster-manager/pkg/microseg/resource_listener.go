@@ -136,6 +136,9 @@ func (cl *ResourcesClusterListener) OnServiceAccountEvent(newSa, oldSa *corev1.S
 	// do nothing
 	return nil
 }
+func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+	return nil
+}
 func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
 
 	switch action {

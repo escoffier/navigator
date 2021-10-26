@@ -61,7 +61,7 @@ type ScannerSrv interface {
 	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
 	GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail
 
-	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool
+	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool
 
 	DeleteCICDImage(ctx context.Context)
 	ListBaseImageOfApp(ctx context.Context, imageId int64, filter *model.Filter) ([]model.ImageList, int64, error)
@@ -240,7 +240,7 @@ func (s *ConScannerSrv) UpdateImage(ctx context.Context, param SearchImagesParam
 	return nil
 }
 
-func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
+func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool {
 	resConfig, err := s.dbdal.GetGlobalPolicyConfig(ctx)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("K8sDeployDetect search global policy")
@@ -335,7 +335,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 	return flag
 }
 
-func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) bool {
+func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool {
 
 	if strings.Contains(containerInfo[0].FromType, "k8s") {
 		return s.K8sDeployDetect(ctx, containerInfo)
@@ -348,7 +348,7 @@ func (s *ConScannerSrv) TickOnlineScan(ctx context.Context, containerInfo []mode
 }
 
 // K8sOnlineMonitor  k8s在线监控时的镜像检测
-func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []model.RejectOnlineMoniterImage) {
+func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) {
 	if len(containerInfo) == 0 {
 		logging.GetLogger().Info().Msg("K8sOnlineMonitor containerInfo is empty")
 		return
