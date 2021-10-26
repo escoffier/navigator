@@ -9,18 +9,44 @@ import (
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+)
+
+const (
+	defaultBufSize = 100
 )
 
 var (
 	ErrBufferFull = errors.New("buffer full")
 )
 
+type RuntimeRulesManager interface {
+	GetRule(ruleName string) (*model.RuleFromYaml, bool)
+}
 type eventItem struct {
-	data *outputs.Response
+	data       *outputs.Response
+	uuid       uint64
+	clusterKey string
 }
 type eventsHandler interface {
 	Handle(ctx context.Context, events []eventItem) error
 	CheckTarget(ctx context.Context, event eventItem) bool
+}
+
+type SyncHandler struct {
+	ehandler eventsHandler
+}
+
+func NewSyncHandler(handler eventsHandler) *SyncHandler {
+	return &SyncHandler{handler}
+}
+
+func (h *SyncHandler) Put(ctx context.Context, event eventItem) error {
+	return h.ehandler.Handle(ctx, []eventItem{event})
+}
+
+func (h *SyncHandler) CheckTarget(ctx context.Context, event eventItem) bool {
+	return h.ehandler.CheckTarget(ctx, event)
 }
 
 type AsyncHandler struct {
@@ -32,6 +58,9 @@ type AsyncHandler struct {
 }
 
 func NewAsyncHandler(handler eventsHandler, interval time.Duration, bufferSize int) *AsyncHandler {
+	if bufferSize == 0 {
+		bufferSize = defaultBufSize
+	}
 	h := AsyncHandler{
 		input:      make(chan eventItem, bufferSize),
 		ehandler:   handler,
@@ -43,11 +72,12 @@ func NewAsyncHandler(handler eventsHandler, interval time.Duration, bufferSize i
 
 	return &h
 }
-func (h *AsyncHandler) Put(ctx context.Context, event eventItem) error {
-	if !h.ehandler.CheckTarget(ctx, event) {
-		return nil
-	}
 
+func (h *AsyncHandler) CheckTarget(ctx context.Context, event eventItem) bool {
+	return h.ehandler.CheckTarget(ctx, event)
+}
+
+func (h *AsyncHandler) Put(ctx context.Context, event eventItem) error {
 	select {
 	case h.input <- event:
 		return nil

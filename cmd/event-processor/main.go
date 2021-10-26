@@ -2,40 +2,34 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"flag"
 	"fmt"
-	"io/ioutil"
-	"net/http"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"time"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/config"
-	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/alert"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-
+	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/go-redis/redis/v8"
+	"github.com/golang/protobuf/proto"
+	json "github.com/json-iterator/go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	dp "github.com/novln/docker-parser"
+	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/alert"
+	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/eventcenter-helper"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/eventcenter-helper"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 )
 
 type Reporter struct {
@@ -138,101 +132,18 @@ func dealHolmesAlert(m *stan.Msg, r Reporter) {
 
 }
 
-type lateversionResp struct {
-	Data struct {
-		Item struct {
-			Data                 string `json:"data"`
-			LatestDataVersion    int    `json:"latestDataVersion"`
-			LatestSettingVersion int    `json:"latestSettingVersion"`
-			DataChanged          bool   `json:"dataChanged"`
-			SettingChanged       bool   `json:"settingChanged"`
-		} `json:"item"`
-	} `json:"data"`
-}
-
-func updateLatestChannels(sc stan.Conn, channels []string, r Reporter, addr string) {
-	const (
-		interval = time.Second * 30
-	)
-	channelsMap := make(map[string]bool)
-	for _, v := range channels {
-		channelsMap[v] = true
-
-	}
-
-	currentVersion, currentSetVersion := -1, -1
-	tmpUrl := "http://" + addr + "/api/openapi/ATTCK/latestData"
-	client := &http.Client{}
-	token := "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-	for {
-		<-t.C
-		url := fmt.Sprintf("%s?curDataVersion=%d&curSettingVersion=%d", tmpUrl, currentVersion, currentSetVersion)
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("X-Tensorsec-cicd-key", token)
-		resp, err := client.Do(req)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("request fail")
-			continue
-		}
-		body, _ := ioutil.ReadAll(resp.Body)
-		respStrut := lateversionResp{}
-		err = json.Unmarshal(body, &respStrut)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("body is null")
-			continue
-		}
-		currentVersion = respStrut.Data.Item.LatestDataVersion
-		currentSetVersion = respStrut.Data.Item.LatestSettingVersion
-		if !respStrut.Data.Item.DataChanged {
-			continue
-		}
-
-		ruleBytes, err := base64.StdEncoding.DecodeString(respStrut.Data.Item.Data)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("base64 decode fail")
-			continue
-		}
-		_, rulesContext, _, err := cryption.ReadRulesData(ruleBytes)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-			continue
-		}
-		newChannels, err := config.ParseYamlDiffSet(rulesContext, channelsMap)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-			continue
-		}
-		for _, channel := range newChannels {
-			_, err = sc.Subscribe(channel, func(m *stan.Msg) {
-				dealHolmesAlert(m, r)
-			})
-			if err != nil {
-				logging.GetLogger().Fatal().Err(err).Str("channel", channel).Msg("Failed to subscribe to falco alert topic")
-			}
-			channelsMap[channel] = true
-			logging.GetLogger().Info().Str("new channel: ", channel).Msg("success")
-		}
-
-	}
-}
-
 func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *kubernetes.Clientset, m *stan.Msg, kind model.SecurityKind) {
 	redisCtx, redisCtxCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer redisCtxCancel()
-	var f HolmesAlert
-	err := json.Unmarshal(m.Data, &f)
+	var f outputs.Response
+	err := proto.Unmarshal(m.Data, &f)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to unmarshal message")
 		return
 	}
 	var resource model.SecurityPolicyResource
-	podName := f.OutputFields["k8s.pod.name"].(string)
-	podNamespace := f.OutputFields["k8s.ns.name"].(string)
+	podName := f.OutputFields["k8s.pod.name"]
+	podNamespace := f.OutputFields["k8s.ns.name"]
 	podNameKey := fmt.Sprintf("%s-%s", model.EventProcessorRedisKey, podName)
 	x, err := redisClient.Get(redisCtx, podNameKey).Result()
 	if err == redis.Nil {
@@ -241,7 +152,7 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 			logging.GetLogger().Error().Err(err).Str("pod", podName).Msg("Failed to get pod")
 			return
 		}
-		containerID := f.OutputFields["container.id"].(string)
+		containerID := f.OutputFields["container.id"]
 		containerKey := fmt.Sprintf("%s-%s", model.EventProcessorRedisKey, containerID)
 		containerInfoRaw, err := redisClient.Get(redisCtx, containerKey).Result()
 		if err == redis.Nil {
@@ -327,14 +238,14 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 			profile.SecProfileEnvelope.ApparmorProfileData = files
 		}
 		var mode string
-		if f.OutputFields["evt.is_open_write"].(bool) {
+		if f.OutputFields["evt.is_open_write"] == "true" {
 			mode = "w"
 		} else {
 			mode = "r"
 		}
 		fileIndex := -1
 		for i, val := range profile.SecProfileEnvelope.ApparmorProfileData {
-			if val.File == f.OutputFields["fd.name"].(string) {
+			if val.File == f.OutputFields["fd.name"] {
 				fileIndex = i
 			}
 		}
@@ -345,12 +256,12 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 				} else if mode == "w" {
 					profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access = profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access + "w"
 				} else {
-					logging.GetLogger().Error().Err(err).Str("mode", mode).Str("pod", f.OutputFields["k8s.pod.name"].(string)).Msg("Unknown mode")
+					logging.GetLogger().Error().Err(err).Str("mode", mode).Str("pod", f.OutputFields["k8s.pod.name"]).Msg("Unknown mode")
 					return
 				}
-				logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"].(string), mode)).Msg("New event added to the profile")
+				logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"], mode)).Msg("New event added to the profile")
 			} else {
-				logging.GetLogger().Info().Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"].(string), mode)).Msg("Event already registered in the profile")
+				logging.GetLogger().Info().Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"], mode)).Msg("Event already registered in the profile")
 				return
 			}
 		} else {
@@ -358,11 +269,11 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 				profile.SecProfileEnvelope.ApparmorProfileData = make([]model.ApparmorProfileData, 0)
 			}
 			profile.SecProfileEnvelope.ApparmorProfileData = append(profile.SecProfileEnvelope.ApparmorProfileData, model.ApparmorProfileData{
-				File:   f.OutputFields["fd.name"].(string),
+				File:   f.OutputFields["fd.name"],
 				Access: mode,
 			})
 			profile.NewEventsInTimeFrame = profile.NewEventsInTimeFrame + 1
-			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"].(string), mode)).Msg("New event added to the profile")
+			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"], mode)).Msg("New event added to the profile")
 		}
 	} else if kind == model.SecurityKindCommandWhitelist {
 		if profile.SecProfileEnvelope.CommandWhitelistProfileData == nil {
@@ -370,9 +281,9 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 		}
 
 		var command string
-		cwd := f.OutputFields["proc.cwd"].(string)
+		cwd := f.OutputFields["proc.cwd"]
 		if f.OutputFields["proc.exepath"] == "/bin/bash" {
-			args := f.OutputFields["evt.args"].(string)
+			args := f.OutputFields["evt.args"]
 			argsSplit := strings.Split(args, " ")
 			for _, val := range argsSplit {
 				if strings.Contains(val, "exe=") {
@@ -384,9 +295,9 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 				}
 			}
 		} else {
-			exeline := f.OutputFields["proc.exeline"].(string)
+			exeline := f.OutputFields["proc.exeline"]
 			exelineSplit := strings.Split(exeline, " ")
-			command = f.OutputFields["proc.exepath"].(string)
+			command = f.OutputFields["proc.exepath"]
 			command = command + " " + strings.Join(exelineSplit[1:], " ")
 		}
 		command = strings.TrimSpace(command)
@@ -421,18 +332,18 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 		}
 		alreadyExists := false
 		for _, val := range profile.SecProfileEnvelope.SeccompProfileData {
-			if val.Syscall == f.OutputFields["syscall.type"].(string) {
+			if val.Syscall == f.OutputFields["syscall.type"] {
 				alreadyExists = true
 			}
 		}
 		if !alreadyExists {
 			profile.SecProfileEnvelope.SeccompProfileData = append(profile.SecProfileEnvelope.SeccompProfileData, model.SeccompProfileData{
-				Syscall: f.OutputFields["syscall.type"].(string),
+				Syscall: f.OutputFields["syscall.type"],
 			})
 			profile.NewEventsInTimeFrame = profile.NewEventsInTimeFrame + 1
-			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", f.OutputFields["syscall.type"].(string)).Msg("New event added to the profile")
+			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", f.OutputFields["syscall.type"]).Msg("New event added to the profile")
 		} else {
-			logging.GetLogger().Info().Str("event", f.OutputFields["syscall.type"].(string)).Msg("Event already registered in the profile")
+			logging.GetLogger().Info().Str("event", f.OutputFields["syscall.type"]).Msg("Event already registered in the profile")
 			return
 		}
 	} else {
@@ -451,17 +362,24 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 	}
 }
 
-func main() {
-	rulesFilename := flag.String("rule",
-		"holmes_rules.yaml",
-		"Rule file list holmes rules to work")
+var runes = []rune{
+	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+}
 
-	flag.Parse()
-	var holmesChannels, err = config.ParseYaml(rulesFilename)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to read falco channels")
+func getClientID(podName string) string {
+	b := strings.Builder{}
+	for _, by := range podName {
+		if (by >= 'a' && by <= 'b') || (by >= 'A' && by <= 'Z') || by == '-' || by == '_' {
+			b.WriteRune(by)
+		} else {
+			b.WriteRune(runes[rand.Intn(len(runes))])
+		}
 	}
+	return b.String()
+}
 
+func main() {
 	redisEndpoint := os.Getenv("REDIS_ENDPOINT")
 	if redisEndpoint == "" {
 		panic("REDIS_ENDPOINT env variable not set")
@@ -652,13 +570,9 @@ func main() {
 	if stanURL == "" {
 		panic("STAN_URL env variable not set")
 	}
-	clusterID := os.Getenv("CLUSTER_ID")
+	clusterID := os.Getenv("STAN_CLUSTER_ID")
 	if clusterID == "" {
 		panic("CLUSTER_ID env variable not set")
-	}
-	clientID := os.Getenv("CLIENT_ID")
-	if clientID == "" {
-		panic("CLIENT_ID env variable not set")
 	}
 	myPodName := os.Getenv("MY_POD_NAME")
 	if myPodName == "" {
@@ -673,7 +587,7 @@ func main() {
 	if err != nil {
 		panic("Failed to connect to NATS")
 	}
-	sc, err := stan.Connect(clusterID, clientID, stan.NatsConn(nc))
+	sc, err := stan.Connect(clusterID, getClientID(myPodName), stan.NatsConn(nc))
 	if err != nil {
 		panic("Failed to connect to STAN")
 	}
@@ -1091,7 +1005,7 @@ func main() {
 			}
 			logging.GetLogger().Info().Str("profileKind", string(c.Kind)).Str("policy", fmt.Sprintf("%d", c.PolicyID)).Msg("Message about invalid state sent")
 		}
-	})
+	}, stan.StartWithLastReceived(), stan.DurableName("tensorsec-event-processor"))
 	if err != nil {
 		logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to management topic")
 	}
@@ -1107,19 +1021,10 @@ func main() {
 		logging.GetLogger().Error().Err(err).Msg("eventcenter_helper.NewClientFromEnv fail")
 	}
 
-	for _, channel := range holmesChannels {
-		_, err = sc.Subscribe(channel, func(m *stan.Msg) {
-			dealHolmesAlert(m, rp)
-		})
-		if err != nil {
-			logging.GetLogger().Fatal().Err(err).Str("channel", fmt.Sprintf("%s", channel)).Msg("Failed to subscribe to falco alert topic")
-		}
-	}
-
 	_, err = sc.Subscribe("falco.warning.file_integrity_management", func(m *stan.Msg) {
 		logging.GetLogger().Info().Msg("Received new apparmor message")
 		updateProfile(mainCtx, redisClient, clientset, m, model.SecurityKindApparmor)
-	})
+	}, stan.StartWithLastReceived(), stan.DurableName("tensorsec-event-processor"))
 	if err != nil {
 		logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to apparmor topic")
 	}
@@ -1127,7 +1032,7 @@ func main() {
 	_, err = sc.Subscribe("falco.warning.command_whitelist", func(m *stan.Msg) {
 		logging.GetLogger().Info().Msg("Received new command whitelist message")
 		updateProfile(mainCtx, redisClient, clientset, m, model.SecurityKindCommandWhitelist)
-	})
+	}, stan.StartWithLastReceived(), stan.DurableName("tensorsec-event-processor"))
 	if err != nil {
 		logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to command whitelist topic")
 	}
@@ -1135,11 +1040,11 @@ func main() {
 	_, err = sc.Subscribe("falco.warning.seccomp", func(m *stan.Msg) {
 		logging.GetLogger().Info().Msg("Received new seccomp message")
 		updateProfile(mainCtx, redisClient, clientset, m, model.SecurityKindSeccomp)
-	})
+	}, stan.StartWithLastReceived(), stan.DurableName("tensorsec-event-processor"))
 	if err != nil {
 		logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to seccomp topic")
 	}
-	go updateLatestChannels(sc, holmesChannels, rp, consoleAddr)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill)
 	<-sigChan

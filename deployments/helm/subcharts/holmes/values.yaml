@@ -379,3 +379,7 @@ falcosidekick:
 eventcenter:
   eventGrpcUrl: tensorsec-eventcenter:9090
   eventGrpcCertServerName: tensorsec-eventcenter
+
+stan:
+  host: tensorsec-stan-headless
+  port: "4222"

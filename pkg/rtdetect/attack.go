@@ -1,8 +1,9 @@
-package echelper
+package rtdetect
 
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
@@ -12,7 +13,17 @@ import (
 )
 
 const (
-	emptyVal = "<NA>"
+	emptyVal      = "<NA>"
+	KeyClusterKey = "_cluster_key"
+	KeyUuid       = "_uuid"
+
+	FieldProcessPid        = "proc.pid"
+	FieldProcessName       = "proc.name"
+	FieldParentProcessPid  = "proc.ppid"
+	FieldParentProcessName = "proc.pname"
+	FieldK8sNsName         = "k8s.ns.name"
+	FieldK8sPodName        = "k8s.pod.name"
+	FieldContainerId       = "container.id"
 )
 
 var filteredOutFields = map[string]struct{}{
@@ -53,19 +64,19 @@ var eventKVsMap = map[string]map[string]pb.KV{
 	},
 
 	// Process
-	"proc.pid": {
+	FieldProcessPid: {
 		"zh": {Key: "进程号"},
 		"en": {Key: "pid"},
 	},
-	"proc.name": {
+	FieldProcessName: {
 		"zh": {Key: "进程名"},
 		"en": {Key: "procName"},
 	},
-	"proc.ppid": {
+	FieldParentProcessPid: {
 		"en": {Key: "ppid"},
 		"zh": {Key: "父进程号"},
 	},
-	"proc.pname": {
+	FieldParentProcessName: {
 		"zh": {Key: "父进程名称"},
 		"en": {Key: "procPname"},
 	},
@@ -108,7 +119,7 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"en": {Key: "Container Name"},
 		"zh": {Key: "容器名称"},
 	},
-	"container.id": {
+	FieldContainerId: {
 		"en": {Key: "containerId"},
 		"zh": {Key: "容器ID"},
 	},
@@ -134,11 +145,11 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"zh": {Key: "文件描述符类型"},
 	},
 	// k8s
-	"k8s.ns.name": {
+	FieldK8sNsName: {
 		"en": {Key: "Namespace"},
 		"zh": {Key: "命名空间"},
 	},
-	"k8s.pod.name": {
+	FieldK8sPodName: {
 		"en": {Key: "Pod Name"},
 		"zh": {Key: "Pod名称"},
 	},
@@ -303,8 +314,13 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 	return kvs, podUID, podName, namespace
 }
 
-func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string) *pb.SendNotificationReq {
-
+func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string, uuid uint64) *pb.SendNotificationReq {
+	var timestamp int64
+	if data.Time == nil {
+		timestamp = time.Now().Unix()
+	} else {
+		timestamp = data.Time.GetSeconds()
+	}
 	customKVs, podUID, podName, namespace := generateEventCustomKVs(data)
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
@@ -319,8 +335,11 @@ func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, 
 			Namespace: namespace,
 			CustomKV:  customKVs,
 		},
-		Timestamp: data.Time.GetSeconds(),
-		UUID:      uuidGenerator.GenerateUUID(),
+		Timestamp: timestamp,
+		UUID:      uuid,
+	}
+	if uuid == 0 {
+		req.UUID = uuidGenerator.GenerateUUID()
 	}
 
 	return req
