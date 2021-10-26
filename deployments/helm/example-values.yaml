@@ -11,6 +11,7 @@ global:
     username: &imageRegistryUsername admin
     password: &imageRegistryPassword Harbor12345
   bufRegistryUrl: &bufRegistryUrl console.localhost.com
+  consoleExternalAdd: &consoleExternalAdd https://console-external.localhost.com
   multiCluster:
     ## Both 'isMasterCluster' and 'isMemberCluster' all need be modified 
     ## and the values of them must be opposite
@@ -64,7 +65,7 @@ console:
   version:
     softName: tensor
     softVersion: v1.9
-  consoleExternalAdd: *masterAddr
+  consoleExternalAdd: *consoleExternalAdd
 
 scanner:
   enabled: *isMasterCluster
