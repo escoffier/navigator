@@ -89,6 +89,10 @@ var (
 	ErrClusterNotFound = errors.New("cluster not found")
 )
 
+const (
+	mainClusterName = "default"
+)
+
 func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
@@ -103,6 +107,11 @@ func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 	cluster := resSvc.GetClusterByKey(ctx, clusterID)
 	if cluster == nil {
 		return ErrClusterNotFound
+	}
+
+	consoleBaseURL := util.GetEnvWithDefault(consoleBaseExternalURLEnv, "")
+	if cluster.Name == mainClusterName {
+		consoleBaseURL = util.GetEnvWithDefault(consoleBaseInternalURLEnv, "")
 	}
 
 	namespace := cluster.WorkerNamespace
@@ -131,16 +140,16 @@ func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 		}
 	}()
 
-	return s.launchK8sJob(ctx, kubeClient, uuid, namespace)
+	return s.launchK8sJob(ctx, kubeClient, uuid, namespace, consoleBaseURL)
 }
 
-func (s *Service) launchK8sJob(ctx context.Context, client *kubernetes.Clientset, uuid, namespace string) error {
+func (s *Service) launchK8sJob(ctx context.Context, client *kubernetes.Clientset, uuid, namespace, consoleBaseURL string) error {
 	jobObj, err := s.loadJobTemplate()
 	if err != nil {
 		return fmt.Errorf("loadJobTemplate fail, err:%w", err)
 	}
 
-	if err = s.completeJobInfo(jobObj, uuid); err != nil {
+	if err = s.completeJobInfo(jobObj, uuid, consoleBaseURL); err != nil {
 		return fmt.Errorf("completeJobInfo fail, err:%w", err)
 	}
 
@@ -170,7 +179,7 @@ func (s *Service) loadJobTemplate() (*batchV1.Job, error) {
 	return jobObj, nil
 }
 
-func (s *Service) completeJobInfo(job *batchV1.Job, uuid string) error {
+func (s *Service) completeJobInfo(job *batchV1.Job, uuid, consoleBaseURL string) error {
 	if len(job.Spec.Template.Spec.Containers) != 2 {
 		return fmt.Errorf("unexpected job template")
 	}
@@ -184,7 +193,7 @@ func (s *Service) completeJobInfo(job *batchV1.Job, uuid string) error {
 		Value: uuid,
 	}
 
-	reportURL, err := generateReportURL()
+	reportURL, err := generateReportURL(consoleBaseURL)
 	if err != nil {
 		return fmt.Errorf("generateReportURL fail, err:%s", err)
 	}
@@ -205,12 +214,12 @@ func (s *Service) completeJobInfo(job *batchV1.Job, uuid string) error {
 }
 
 const (
-	consoleBaseURLEnv = "CONSOLE_URL"
-	relativePath      = "/api/openapi/hunter-report"
+	consoleBaseInternalURLEnv = "CONSOLE_INTERNAL_URL"
+	consoleBaseExternalURLEnv = "CONSOLE_EXTERNAL_URL"
+	relativePath              = "/api/openapi/hunter-report"
 )
 
-func generateReportURL() (string, error) {
-	consoleBaseURL := util.GetEnvWithDefault(consoleBaseURLEnv, "")
+func generateReportURL(consoleBaseURL string) (string, error) {
 	u, err := url.Parse(consoleBaseURL)
 	if err != nil {
 		return "", err
