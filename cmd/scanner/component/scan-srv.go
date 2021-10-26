@@ -302,13 +302,11 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 				CustomKV:  msgs,
 			}
 
-			if containerInfo[k].NotifyContext != nil {
-				notify.PodName = containerInfo[k].NotifyContext.PodName
-				notify.PodUID = containerInfo[k].NotifyContext.PodUID
-				notify.Cluster = containerInfo[k].NotifyContext.Cluster
-				notify.Namespace = containerInfo[k].NotifyContext.Namespace
-				notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
-			}
+			notify.PodName = containerInfo[k].NotifyContext.PodName
+			notify.PodUID = containerInfo[k].NotifyContext.PodUID
+			notify.Cluster = containerInfo[k].NotifyContext.Cluster
+			notify.Namespace = containerInfo[k].NotifyContext.Namespace
+			notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
 			notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
 				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
 				ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
@@ -393,13 +391,11 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 				CustomKV: msgs,
 			}
 
-			if containerInfo[k].NotifyContext != nil {
-				notify.PodName = containerInfo[k].NotifyContext.PodName
-				notify.PodUID = containerInfo[k].NotifyContext.PodUID
-				notify.Cluster = containerInfo[k].NotifyContext.Cluster
-				notify.Namespace = containerInfo[k].NotifyContext.Namespace
-				notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
-			}
+			notify.PodName = containerInfo[k].NotifyContext.PodName
+			notify.PodUID = containerInfo[k].NotifyContext.PodUID
+			notify.Cluster = containerInfo[k].NotifyContext.Cluster
+			notify.Namespace = containerInfo[k].NotifyContext.Namespace
+			notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
 			notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
 				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)},
 				ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)},
