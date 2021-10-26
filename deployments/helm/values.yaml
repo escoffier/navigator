@@ -353,6 +353,9 @@ holmes:
   multicluster:
     clusterinfo: http://tensorsec-cluster-manager:9443
     consoleaddr: http://tensorsec-console:8889
+  stan:
+    host: tensorsec-stan-headless
+    port: "4222"
 
 image-validator:
   enabled: false

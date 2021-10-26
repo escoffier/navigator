@@ -75,6 +75,10 @@ spec:
           env:
             - name: RTDETECT_UDS_ADDR
               value: {{ .Values.falco.grpc.unixSocketPath }}
+            - name: STAN_CLUSTER_ID
+              value: tensorsec
+            - name: STAN_URL
+              value: {{ .Values.stan.host }}:{{ .Values.stan.port }}
             - name: CONSOLE_ADDR
               value: {{ .Values.multicluster.consoleaddr }}
             - name: CLUSTER_ADDR

@@ -3,17 +3,13 @@ package model
 type Collection int
 
 const (
-	ClusterCollection Collection = iota
-
-	Cve2cnnvdCollection
+	Cve2cnnvdCollection Collection = iota
 	HarborProjectConfigCollection
 	VirusScanTaskCollection
 )
 
 func GetCollectionNames() []string {
 	return []string{
-		"cluster",
-
 		"CVE2CNNVD",
 		"harborProjectConfig",
 		"virusScanTasks",

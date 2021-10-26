@@ -26,6 +26,9 @@ global:
       apiServerAddr: &apiServerAddr 192.168.0.1:6443
       ## EventCenter GRPC address, use short servicename for MainCluster and exposed address for MemberCluster
       eventcenterGrpcAddr: &eventcenterGrpcAddr tensorsec-eventcenter:9090
+      ## MQ stan info, use short servicename for MainCluster and exposed address for MemberCluster
+      stanHost: &stanHost tensorsec-stan-headless
+      stanPort: &stanPort 4222
       
       
 
@@ -108,6 +111,9 @@ holmes:
     eventGrpcCertServerName: tensorsec-eventcenter
   multicluster:
     consoleaddr: *masterAddr
+  stan:
+    host: *stanHost
+    port: *stanPort
 
 image-validator:
   enabled: false

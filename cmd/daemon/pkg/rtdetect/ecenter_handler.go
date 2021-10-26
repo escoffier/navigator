@@ -4,32 +4,29 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
+
+	pb "gitlab.com/tensorsecurity-rd/go-pkg/pb"
 )
 
 var (
 	filteredOutRulesSet = map[string]struct{}{
-		"file integrity management":          struct{}{},
-		"command whitelist":                  struct{}{},
-		"seccomp":                            struct{}{},
-		"Falco internal: syscall event drop": struct{}{},
+		"file integrity management":          {},
+		"command whitelist":                  {},
+		"seccomp":                            {},
+		"Falco internal: syscall event drop": {},
 	}
 )
 
-type ClusterManager interface {
-	ClusterKey() (string, bool)
-}
 type EcHandler struct {
 	ecCli   pb.EventsCenterCollectionServiceClient
-	cm      ClusterManager
 	uuidGen *uuid.Generator
 }
 
-func NewEcHandler(clusterManager ClusterManager) (*EcHandler, error) {
+func NewEcHandler() (*EcHandler, error) {
 	ech, err := echelper.NewGRPCClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -41,18 +38,13 @@ func NewEcHandler(clusterManager ClusterManager) (*EcHandler, error) {
 	}
 	return &EcHandler{
 		ecCli:   ech,
-		cm:      clusterManager,
 		uuidGen: uuidGen,
 	}, nil
 }
 
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
-	clusterKey, ok := ec.cm.ClusterKey()
-	if !ok {
-		clusterKey = "unknown"
-	}
 	for _, item := range events {
-		eventReq := echelper.GenerateAttackEvent(ec.uuidGen, item.data, clusterKey)
+		eventReq := rtdetect.GenerateAttackEvent(ec.uuidGen, item.data, item.clusterKey, item.uuid)
 
 		func() {
 			oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)

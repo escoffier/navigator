@@ -4,11 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
@@ -19,24 +23,49 @@ import (
 	_ "go.uber.org/automaxprocs"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 const (
 	// 定时上报，缓存的间隔和缓存大小，实现简单的频控
-	defaultRTBuffInterval = 500 * time.Millisecond
-	defaultRTBuffSize     = 500
+	defaultRTBuffInterval = 250 * time.Millisecond
+	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr string, cm *clusters.Manager) (*rtdetect.RuntimeEventStream, error) {
-	bui := rtdetect.StreamBuilder(udsAddr)
+func initEventStreams(udsAddr, nodeName string, cm *clusters.Manager, stanConn stan.Conn) (*rtdetect.RuntimeEventStream, error) {
+	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler, err := rtdetect.NewEcHandler(cm)
+	ecHandler, err := rtdetect.NewEcHandler()
 	if err != nil {
 		return nil, err
 	}
+	imHandler := rtdetect.NewImmuneHandler(stanConn)
+	// aeHandler := rtdetect.NewAssociatedEventsHandler(stanConn)
 	bui.WithHandler(rtdetect.NewAsyncHandler(ecHandler, defaultRTBuffInterval, defaultRTBuffSize))
+	bui.WithHandler(rtdetect.NewSyncHandler(imHandler))
+	// bui.WithHandler(rtdetect.NewSyncHandler(aeHandler))
 
 	s, err := bui.Build(context.Background())
 	return s, err
+}
+
+var runes = []rune{
+	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+}
+
+func getClientID(podName, hostName string) string {
+	b := strings.Builder{}
+	for _, by := range podName {
+		if (by >= 'a' && by <= 'b') || (by >= 'A' && by <= 'Z') || by == '-' || by == '_' {
+			b.WriteRune(by)
+		} else {
+			b.WriteRune(runes[rand.Intn(len(runes))])
+		}
+	}
+	return b.String()
 }
 func NetInit(ctx context.Context) error {
 	wg := sync.WaitGroup{}
@@ -45,6 +74,10 @@ func NetInit(ctx context.Context) error {
 	if hostName == "" {
 		hostName = "Unknown"
 	}
+	podName := os.Getenv("MY_POD_NAME")
+	if podName == "" {
+		podName = "Unknown"
+	}
 	rtUdsAddr := os.Getenv("RTDETECT_UDS_ADDR")
 	if rtUdsAddr == "" {
 		logging.GetLogger().Warn().Msg("env RTDETECT_UDS_ADDR not found")
@@ -52,10 +85,34 @@ func NetInit(ctx context.Context) error {
 	clusterAddr := os.Getenv("CLUSTER_ADDR")
 	if clusterAddr == "" {
 		logging.GetLogger().Warn().Msg("env CLUSTER_ADDR not found")
-		errors.Errorf("get cluster address failed.")
+		return errors.Errorf("get cluster address failed.")
+	}
+	consoleAddr := os.Getenv("CONSOLE_ADDR")
+	if consoleAddr == "" {
+		logging.GetLogger().Warn().Msg("env CONSOLE_ADDR not found")
+		return errors.Errorf("get console address failed.")
+	}
+	stanURL := os.Getenv("STAN_URL")
+	if stanURL == "" {
+		logging.GetLogger().Warn().Msg("env STAN_URL not found")
+		return errors.Errorf("get STAN address failed.")
+	}
+	stanClusterID := os.Getenv("STAN_CLUSTER_ID")
+	if stanClusterID == "" {
+		logging.GetLogger().Warn().Msg("env STAN_CLUSTER_ID not found")
+		stanClusterID = "tensorsec"
+	}
+	nc, err := nats.Connect(fmt.Sprintf("nats://%s", stanURL), nats.MaxReconnects(5), nats.ReconnectBufSize(64*1024), nats.ReconnectWait(500*time.Millisecond))
+	if err != nil {
+		panic("Failed to connect to NATS")
+	}
+	stanConn, err := stan.Connect(stanClusterID, getClientID(podName, hostName), stan.NatsConn(nc))
+	if err != nil {
+		panic("Failed to connect to STAN")
 	}
 
 	clusterManager := clusters.NewManager(clusterAddr)
+	// rulesManager := pkgRtdetect.NewRulesManager(consoleAddr, 30*time.Second)
 
 	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(hostName)
 	if err != nil {
@@ -92,7 +149,7 @@ func NetInit(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		rtStream, err := initEventStreams(rtUdsAddr, clusterManager)
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn)
 		if err != nil {
 			return fmt.Errorf("Failed to rt events streams, %w", err)
 		}
