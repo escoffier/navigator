@@ -19,8 +19,8 @@ certgen:
   image:
     registry: localhost:32000
     repository: tensorsecurity
-    name: tensorsec-certgen
-    tag: v1.5.1
+    name: kube-webhook-certgen
+    tag: v1.1.1
 
 nameOverride: "sec-prof-man"
 fullnameOverride: "tensorsec-sec-prof-man"

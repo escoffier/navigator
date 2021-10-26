@@ -8,7 +8,7 @@ Return the proper tensorsec webhook image name
 Return the proper tensorsec certgen image name
 */}}
 {{- define "tensorsec.webhook.certgen.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.certgen.image "global" .Values.global) }}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.global.certgen.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
