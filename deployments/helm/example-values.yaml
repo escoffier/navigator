@@ -64,7 +64,7 @@ console:
   version:
     softName: tensor
     softVersion: v1.9
-  consoleAddress: *masterAddr
+  consoleExternalAdd: *masterAddr
 
 scanner:
   enabled: *isMasterCluster

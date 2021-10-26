@@ -121,8 +121,10 @@ spec:
           value: {{ .Values.eventcenter.eventGrpcCertServerName }}
         - name: CLEANER_IMAGE
           value: "{{ include "console.cleaner.image" . }}"
-        - name: CONSOLE_URL
-          value: {{ .Values.consoleAddress }}
+        - name: CONSOLE_EXTERNAL_URL
+          value: {{ .Values.consoleExternalAdd }}
+        - name: CONSOLE_INTERNAL_URL
+          value: {{ .Values.consoleInternalAdd }}
         - name: HUNTER_IMAGE
           value: "{{ include "console.hunter.image" . }}"
         - name: HUNTER_ORIGIN_IMAGE

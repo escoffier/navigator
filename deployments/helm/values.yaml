@@ -109,7 +109,8 @@ console:
   eventcenter:
     eventGrpcUrl: tensorsec-eventcenter:9090
     eventGrpcCertServerName: tensorsec-eventcenter
-  consoleAddress: "http://tensorsec-console:8889"
+  consoleInternalAdd: "http://tensorsec-console:8889"
+  consoleExternalAdd: "http://tensorsec-console:8889"
   postgresql:
     postgresqlDataDir: /bitnami/postgresql/data
     postgresqlUsername: postgres

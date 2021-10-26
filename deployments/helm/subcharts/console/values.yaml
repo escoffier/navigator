@@ -146,7 +146,8 @@ init:
 
 apiInstallLabel: "console.tensorsec/install"
 
-consoleAddress: "http://tensorsec-console:8889"
+consoleInternalAdd: "http://tensorsec-console:8889"
+consoleExternalAdd: "http://tensorsec-console:8889"
 
 eventcenter:
   eventGrpcUrl: tensorsec-eventcenter:9090
