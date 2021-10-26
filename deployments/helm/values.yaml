@@ -397,6 +397,10 @@ security-profiles-manager:
     name: tensorsec-security-profiles-manager
     tag: latest
     pullSecret: harbor-admin-secret
+  certgen:
+    image:
+      name: tensorsec-certgen
+      tag: v1.5.1
   initContainers:
     image:
       name: alpine

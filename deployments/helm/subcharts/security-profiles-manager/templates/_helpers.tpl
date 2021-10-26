@@ -55,7 +55,7 @@ heritage: {{ .Release.Service }}
 Return the proper tensorsec certgen image name
 */}}
 {{- define "tensorsec.secProfilesManager.certgen.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.certgen.image "global" .Values.global) }}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.global.certgen.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the security-profiles-manager webhook image name
