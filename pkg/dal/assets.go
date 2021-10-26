@@ -280,8 +280,9 @@ type ResContainersQueryOption struct {
 
 func ResourceContainersQuery() *ResContainersQueryOption {
 	return &ResContainersQueryOption{
-		whereEqCondition: make(map[string]interface{}, 3),
-		whereInCondition: make(map[string]interface{}, 2),
+		whereEqCondition:      make(map[string]interface{}, 3),
+		whereInCondition:      make(map[string]interface{}, 2),
+		whereNotNullCondition: make(map[string]struct{}, 2),
 	}
 }
 
