@@ -16,7 +16,7 @@ import (
 // @BasePath /
 
 func main() {
-	_ = util.InitPprofMontitor()
+	util.InitPprofMontitor()
 	rand.Seed(time.Now().UnixNano())
 
 	cmd.Execute()
