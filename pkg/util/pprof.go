@@ -12,10 +12,10 @@ const (
 	EnvPprofName = "TENSORSEC_PPROF_PORT"
 )
 
-func InitPprofMontitor() error {
+func InitPprofMontitor() {
 	env := os.Getenv(EnvPprofName)
 	if len(env) == 0 {
-		return nil
+		return
 	}
 	addr := ":" + env
 	go func() {
@@ -26,5 +26,4 @@ func InitPprofMontitor() error {
 		}
 	}()
 
-	return nil
 }
