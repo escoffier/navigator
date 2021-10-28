@@ -244,7 +244,7 @@ func (api *api) getClusters() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluster
 func (api *api) addNewCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
 		var cluster model.TensorCluster

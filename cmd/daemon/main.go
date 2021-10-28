@@ -18,7 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/ruleMetrics"
-	"gitlab.com/piccolo_su/vegeta/pkg/clusters"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	_ "go.uber.org/automaxprocs"
 )
@@ -33,7 +33,7 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *clusters.Manager, stanConn stan.Conn) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn stan.Conn) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
@@ -111,8 +111,7 @@ func NetInit(ctx context.Context) error {
 		panic("Failed to connect to STAN")
 	}
 
-	clusterManager := clusters.NewManager(clusterAddr)
-	// rulesManager := pkgRtdetect.NewRulesManager(consoleAddr, 30*time.Second)
+	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
 	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(hostName)
 	if err != nil {

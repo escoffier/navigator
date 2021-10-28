@@ -1,11 +1,15 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -111,6 +115,30 @@ func (m *ClusterManager) WatchClusterForRemote(ctx context.Context, cluster *mod
 		return errors.New("no cluster manager url given")
 	}
 
+	tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	clusterBytes, err := json.Marshal(cluster)
+	if err != nil {
+		return err
+	}
+	buff := bytes.NewBuffer(clusterBytes)
+	req, err := http.NewRequestWithContext(tctx, http.MethodPost,
+		fmt.Sprintf("%s/internal/watch_cluster", m.clusterManagerURL),
+		buff,
+	)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("req error")
+	}
 	return nil
 }
 

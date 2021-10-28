@@ -1,4 +1,4 @@
-package clusters
+package k8s
 
 import (
 	"context"
@@ -15,13 +15,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type Manager struct {
+type ClusterInfoManager struct {
 	cinfoVal atomic.Value
 	host     string
 }
 
-func NewManager(cmHost string) *Manager {
-	m := Manager{
+func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
+	m := ClusterInfoManager{
 		host: cmHost,
 	}
 	m.load()
@@ -29,7 +29,7 @@ func NewManager(cmHost string) *Manager {
 	return &m
 }
 
-func (m *Manager) load() {
+func (m *ClusterInfoManager) load() {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
@@ -52,7 +52,7 @@ func (m *Manager) load() {
 		m.cinfoVal.Store(*cinfo)
 	}
 }
-func (m *Manager) asyncLoop() {
+func (m *ClusterInfoManager) asyncLoop() {
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
@@ -65,7 +65,7 @@ func (m *Manager) asyncLoop() {
 		}
 	}()
 }
-func (m *Manager) ClusterKey() (string, bool) {
+func (m *ClusterInfoManager) ClusterKey() (string, bool) {
 	cobj := m.cinfoVal.Load()
 	if cobj == nil {
 		return "", false
