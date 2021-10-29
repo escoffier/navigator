@@ -1016,7 +1016,6 @@ func (api *api) countNodes() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -1025,7 +1024,11 @@ func (api *api) countNodes() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		totalCnt, err := resSvc.CountNodes(ctx, dal.NodeQuery().WithCluster(clusterKey))
+		query := dal.NodeQuery()
+		if clusterKey != "" {
+			query = query.WithCluster(clusterKey)
+		}
+		totalCnt, err := resSvc.CountNodes(ctx, query)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("countNodes error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
