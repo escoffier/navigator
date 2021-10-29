@@ -51,7 +51,15 @@ spec:
         {{- end }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
+        volumeMounts:
+        - name: cluster-admin-secret
+          readOnly: true
+          mountPath: "/etc/secrets/cluster-admin"
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       restartPolicy: Always
+      volumes:
+      - name: cluster-admin-secret
+        secret:
+          secretName: {{ include "cluster-manager.fullname" . }}
 
