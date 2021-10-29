@@ -47,6 +47,10 @@ func (api *api) assets() func(chi.Router) {
 	}
 }
 
+type countResp struct {
+	Count int64 `json:"count"`
+}
+
 func getLimitAndOffset(r *http.Request) (int, int, error) {
 	limitStr, err := param.QueryString(r, "limit")
 	if err != nil {
@@ -849,9 +853,7 @@ func (api *api) countResource() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count resource error")))
 			return
 		}
-		response.Ok(w, response.WithItem(struct {
-			Count int64 `json:"count"`
-		}{Count: c}))
+		response.Ok(w, response.WithItem(countResp{Count: c}))
 	}
 }
 
@@ -907,9 +909,7 @@ func (api *api) countContainers() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count container error")))
 			return
 		}
-		response.Ok(w, response.WithItem(struct {
-			Count int64 `json:"count"`
-		}{Count: c}))
+		response.Ok(w, response.WithItem(countResp{Count: c}))
 	}
 }
 
@@ -964,9 +964,7 @@ func (api *api) countPods() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count pods error")))
 			return
 		}
-		response.Ok(w, response.WithItem(struct {
-			Count int64 `json:"count"`
-		}{Count: cnt}))
+		response.Ok(w, response.WithItem(countResp{Count: cnt}))
 	}
 }
 
@@ -1033,6 +1031,6 @@ func (api *api) countNodes() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItem(totalCnt))
+		response.Ok(w, response.WithItem(countResp{totalCnt}))
 	}
 }
