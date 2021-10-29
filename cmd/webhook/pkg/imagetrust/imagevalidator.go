@@ -67,14 +67,16 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, _ *processors
 
 	data, err := json.Marshal(validation.Images)
 	if err != nil {
-		return err
+		logging.GetLogger().Err(err).Msg("marshal json err")
+		return nil
 	}
 
 	logging.GetLogger().Info().Msgf("validation: %s", string(data))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.digestUrl, bytes.NewReader(data))
 	if err != nil {
-		return err
+		logging.GetLogger().Err(err).Msg("create request failed")
+		return nil
 	}
 
 	var validationResp Result
@@ -100,7 +102,8 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, _ *processors
 		return nil
 	}, retry.Attempts(3))
 	if err != nil {
-		return err
+		logging.GetLogger().Err(err).Msg("http request failed")
+		return nil
 	}
 
 	if !validationResp.Data.Item.Flag {

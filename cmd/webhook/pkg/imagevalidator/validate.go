@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"net/http"
@@ -42,7 +43,8 @@ func (v *ImageValidator) ValidateImage(pod *v1.Pod) error {
 	data, err = json.Marshal(reqs.Images)
 	log.Info(string(data))
 	if err != nil {
-		return err
+		logging.GetLogger().Err(err).Msg("marshal json err")
+		return nil
 	}
 
 	resp, err = http.Post(v.config.ValidatorUrl, "application/json", bytes.NewReader(data))
