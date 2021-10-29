@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/clusters"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -40,12 +40,12 @@ func main() {
 }
 
 func worker() error {
-	clusterManager := os.Getenv("CLUSTER-MANAGER-ADDR")
+	clusterManagerURL := os.Getenv("CLUSTER-MANAGER-ADDR")
 	nameSpace := os.Getenv("MY_POD_NAMESPACE")
-	if clusterManager == "" || nameSpace == "" {
-		return fmt.Errorf("clusterManager or nameSpace is empty %s,%s ", clusterManager, nameSpace)
+	if clusterManagerURL == "" || nameSpace == "" {
+		return fmt.Errorf("clusterManager or nameSpace is empty %s,%s ", clusterManagerURL, nameSpace)
 	}
-	logging.GetLogger().Info().Msgf("clusterManager:%s,namespace:%s", clusterManager, nameSpace)
+	logging.GetLogger().Info().Msgf("clusterManager:%s,namespace:%s", clusterManagerURL, nameSpace)
 
 	preImages, err := getImages()
 	if err != nil {
@@ -68,7 +68,7 @@ func worker() error {
 		return fmt.Errorf("url or username or password is empty")
 	}
 
-	manager := clusters.NewManager(clusterManager)
+	manager := k8s.NewClusterInfoManager(clusterManagerURL)
 	key, b := manager.ClusterKey()
 	if !b || key == "" {
 		logging.GetLogger().Info().Msg("safe-node not fond the cluster key")
