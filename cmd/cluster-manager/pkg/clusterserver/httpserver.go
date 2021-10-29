@@ -83,15 +83,8 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(400)
 		return
 	}
-	reader, err := r.GetBody()
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("handleWatchCluster get body err")
-		resp.Status = 1
-		resp.Message = err.Error()
-		w.WriteHeader(500)
-		return
-	}
-	dataBytes, err := ioutil.ReadAll(reader)
+	
+	dataBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("handleWatchCluster read body err")
 		resp.Status = 1

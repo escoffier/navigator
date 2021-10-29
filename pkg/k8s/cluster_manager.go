@@ -101,7 +101,12 @@ func (m *ClusterManager) Start(ctx context.Context) error {
 		}
 	}
 
-	err := m.watcher.StartsToWatch(ctx, m.clientMap)
+	copy := make(map[string]*kubernetes.Clientset)
+	m.TraverseClient(func(key string, client *kubernetes.Clientset) bool {
+		copy[key] = client
+		return true
+	})
+	err := m.watcher.StartsToWatch(ctx, copy)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
 		return err
@@ -122,7 +127,7 @@ func (m *ClusterManager) WatchClusterForRemote(ctx context.Context, cluster *mod
 	if err != nil {
 		return err
 	}
-	buff := bytes.NewBuffer(clusterBytes)
+	buff := bytes.NewReader(clusterBytes)
 	req, err := http.NewRequestWithContext(tctx, http.MethodPost,
 		fmt.Sprintf("%s/internal/watch_cluster", m.clusterManagerURL),
 		buff,
@@ -131,6 +136,7 @@ func (m *ClusterManager) WatchClusterForRemote(ctx context.Context, cluster *mod
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -227,6 +233,16 @@ func (m *ClusterManager) GetClient(clusterKey string) (*kubernetes.Clientset, bo
 	defer m.RUnlock()
 	client, ok := m.clientMap[clusterKey]
 	return client, ok
+}
+
+func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *kubernetes.Clientset) bool) {
+	m.RLock()
+	m.RUnlock()
+	for key, cli := range m.clientMap {
+		if toContinue := visitFunc(key, cli); !toContinue {
+			break
+		}
+	}
 }
 
 func (m *ClusterManager) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
