@@ -237,7 +237,7 @@ func (m *ClusterManager) GetClient(clusterKey string) (*kubernetes.Clientset, bo
 
 func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *kubernetes.Clientset) bool) {
 	m.RLock()
-	m.RUnlock()
+	defer m.RUnlock()
 	for key, cli := range m.clientMap {
 		if toContinue := visitFunc(key, cli); !toContinue {
 			break
