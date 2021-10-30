@@ -552,7 +552,7 @@ endif
 .PHONY: rm-local-images
 rm-local-images:
 	@echo "rm all local images latest"
-    docker rmi $(REPOPREFIX)/tensorsec-console:latest
+	docker rmi $(REPOPREFIX)/tensorsec-console:latest
 	docker rmi $(REPOPREFIX)/tensorsec-scanner:latest
 	docker rmi $(REPOPREFIX)/kube-bench:latest
 	docker rmi $(REPOPREFIX)/docker-bench-security:latest
