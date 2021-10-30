@@ -81,6 +81,7 @@ console:
   persistence:
     enabled: true
     storageClass: ""
+  jobs:
     tensorsecCleaner:
       image:
         registry: localhost:32000
@@ -99,6 +100,18 @@ console:
         repository: tensorsecurity
         name: kube-hunter
         tag: 0.6.2
+    tensorsecApiScan:
+      image:
+        registry: localhost:32000
+        repository: tensorsecurity
+        name: tensorsec-apiscan-job
+        tag: latest
+    tensorsecPlatform:
+      image:
+        registry: localhost:32000
+        repository: tensorsecurity
+        name: tensorsec-platform-report
+        tag: latest
   elasticsearch:
     elasticSecretName: elastic-secret
     extraEnvs:

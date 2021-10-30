@@ -16,7 +16,7 @@ image:
 
 scap:
   tag: latest
-  clusterAddr: http://tensorsec-cluster-manager:9443
+  clusterAddr: "http://tensorsec-cluster-manager:9443"
 
 persistence:
   enabled: true
@@ -66,6 +66,16 @@ persistence:
         requests:
           cpu: "0.2"
           memory: 200Mi
+
+jobs:
+  tensorsecCleaner:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: tensorsec-cleaner
+      tag: latest
+      pullPolicy: Always
+      pullSecret: harbor-admin-secret
   tensorsecHunter:
     image:
       registry: localhost:32000
@@ -78,7 +88,18 @@ persistence:
       repository: tensorsecurity
       name: kube-hunter
       tag: 0.6.2
-
+  tensorsecApiScan:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: tensorsec-apiscan-job
+      tag: latest
+  tensorsecPlatform:
+    image:
+      registry: localhost:32000
+      repository: tensorsecurity
+      name: tensorsec-platform-report
+      tag: latest
 
 ## Deployment pod host aliases
 ####  hostAliases:

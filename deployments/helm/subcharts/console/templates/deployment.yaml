@@ -119,16 +119,20 @@ spec:
           value: /auth/server/tls.crt
         - name: EVENT_GRPC_CERT_SERVER_NAME
           value: {{ .Values.eventcenter.eventGrpcCertServerName }}
-        - name: CLEANER_IMAGE
-          value: "{{ include "console.cleaner.image" . }}"
         - name: CONSOLE_EXTERNAL_URL
           value: {{ .Values.consoleExternalAdd }}
         - name: CONSOLE_INTERNAL_URL
           value: {{ .Values.consoleInternalAdd }}
+        - name: CLEANER_IMAGE
+          value: "{{ include "jobs.cleaner.image" . }}"
         - name: HUNTER_IMAGE
-          value: "{{ include "console.hunter.image" . }}"
+          value: "{{ include "jobs.hunter.image" . }}"
         - name: HUNTER_ORIGIN_IMAGE
-          value: "{{ include "console.hunter.originImage" . }}"
+          value: "{{ include "jobs.hunter.originImage" . }}"
+        - name: APISCANJOB_IMAGE
+          value: "{{ include "jobs.apiscan.image" . }}"
+        - name: PLATFORM_REPORTER_IMAGE
+          value: "{{ include "jobs.platform.image" . }}"
         - name: AUDIT_PVC
           value: audit-pvc
         - name: AUDIT_PATH
