@@ -30,7 +30,7 @@ spec:
                   value: password
                 - name: AUDIT_PATH
                   value: /audit
-              image: {{ include "console.cleaner.image" . }}
+              image: {{ include "jobs.cleaner.image" . }}
               imagePullPolicy: {{ .Values.persistence.tensorsecCleaner.image.pullPolicy }}
               name: {{ .Values.persistence.tensorsecCleaner.coldCronjob.nameOverride }}
               resources:

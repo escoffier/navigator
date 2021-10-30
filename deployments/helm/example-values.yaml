@@ -49,10 +49,17 @@ console:
   persistence:
     #enabled: false
     enabled: *persistenceStorage
+  jobs:
     tensorsecCleaner:
       image:
         tag: *tensorsecVerison
     tensorsecHunter:
+      image:
+        tag: *tensorsecVerison
+    tensorsecApiScan:
+      image:
+        tag: *tensorsecVerison
+    tensorsecPlatform:
       image:
         tag: *tensorsecVerison
   imagePullSecret:

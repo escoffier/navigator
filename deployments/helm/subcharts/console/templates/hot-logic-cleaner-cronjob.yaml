@@ -43,7 +43,7 @@ spec:
                   value: disable
                 - name: PGSQL_PASSWORD
                   value: password
-              image: {{ include "console.cleaner.image" . }}
+              image: {{ include "jobs.cleaner.image" . }}
               imagePullPolicy: {{ .Values.persistence.tensorsecCleaner.image.pullPolicy }}
               name: {{ .Values.persistence.tensorsecCleaner.hotLogicCronjob.nameOverride }}
               resources:
