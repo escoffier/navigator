@@ -24,7 +24,7 @@ var (
 
 type ClusterManager struct {
 	clientMap        map[string]*kubernetes.Clientset
-	stopCh           chan struct{}
+	stopCh           map[string]chan struct{}
 	secretController map[string]Controller
 	rdb              *rdbtools.GormWrapper
 	sync.RWMutex
@@ -66,7 +66,7 @@ func newClusterManger(postgre *rdbtools.GormWrapper) *ClusterManager {
 		clientMap:        make(map[string]*kubernetes.Clientset),
 		secretController: make(map[string]Controller),
 		rdb:              postgre,
-		stopCh:           make(chan struct{}),
+		stopCh:           make(map[string]chan struct{}),
 		RWMutex:          sync.RWMutex{},
 	}
 
@@ -89,7 +89,9 @@ func (m *ClusterManager) Start() {
 }
 
 func (m *ClusterManager) Stop() {
-	close(m.stopCh)
+	for k := range m.stopCh {
+		close(m.stopCh[k])
+	}
 }
 
 func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
@@ -104,6 +106,9 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 
 	for k := range m.clientMap {
 		delete(m.clientMap, k)
+		close(m.stopCh[k])
+		delete(m.secretController, k)
+		delete(m.stopCh, k)
 	}
 
 	for _, c := range clusters {
@@ -124,9 +129,10 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 			continue
 		}
 		m.clientMap[c.Key] = clientSet
+		m.stopCh[c.Key] = make(chan struct{})
 		logging.GetLogger().Info().Msgf("cluster %s client", c.Key)
 		m.secretController[c.Key] = NewController(clientSet, c.Key)
-		go m.secretController[c.Key].Start(m.stopCh)
+		go m.secretController[c.Key].Start(m.stopCh[c.Key])
 	}
 	logging.GetLogger().Info().Msgf("get %d k8s client", len(m.clientMap))
 	return nil

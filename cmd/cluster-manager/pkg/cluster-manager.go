@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	certutil "k8s.io/client-go/util/cert"
 	"net/http"
 	"strings"
 	"time"
@@ -21,7 +22,6 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
 )
 
 const ApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
@@ -48,8 +48,8 @@ type ClusterManager struct {
 }
 
 const (
-	tokenFile      = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	rootCAFile     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	tokenFile      = "/etc/secrets/cluster-admin/token"
+	rootCAFile     = "/etc/secrets/cluster-admin/ca.crt"
 	masterAssetUrl = "/internal/platform/assets/cluster"
 	tlsCAFile      = "/etc/tensorsec/cluster-manager/tls.crt"
 	tlsKeyFile     = "/etc/tensorsec/cluster-manager/tls.key"
@@ -115,36 +115,31 @@ func (c *ClusterManager) Init() error {
 			return err
 		}
 		c.CusterID = fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
-		c.Token = clusterConfig.BearerToken
 		c.apiServerAddr = clusterConfig.Host
 
-		ca, err := ioutil.ReadFile(clusterConfig.TLSClientConfig.CAFile)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
-			return err
-		}
-		c.CaData = string(ca)
 	} else {
 		c.CusterID = fmt.Sprintf("%d", util.GenerateUUID(c.Name, c.apiServerAddr))
 		c.ClusterType = model.MemberCluster
-		token, err := ioutil.ReadFile(tokenFile)
+	}
+
+	token, err := ioutil.ReadFile(tokenFile)
+	if err != nil {
+		return err
+	}
+
+	c.Token = string(token)
+
+	if _, err := certutil.NewPool(rootCAFile); err != nil {
+		logging.GetLogger().Err(err).Msg("load-file-err")
+		return err
+	} else {
+		caData, err := ioutil.ReadFile(rootCAFile)
 		if err != nil {
 			return err
 		}
-
-		c.Token = string(token)
-
-		if _, err := certutil.NewPool(rootCAFile); err != nil {
-			logging.GetLogger().Err(err).Msg("load-file-err")
-			return err
-		} else {
-			caData, err := ioutil.ReadFile(rootCAFile)
-			if err != nil {
-				return err
-			}
-			c.CaData = string(caData)
-		}
+		c.CaData = string(caData)
 	}
+
 	logging.GetLogger().Info().Msgf("cluster id : %s", c.CusterID)
 	return nil
 }
