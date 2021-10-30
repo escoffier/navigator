@@ -549,6 +549,33 @@ else
 	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:latest
 endif
 
+.PHONY: rm-local-images
+rm-local-images:
+	@echo "rm all local images latest"
+    docker rmi $(REPOPREFIX)/tensorsec-console:latest
+	docker rmi $(REPOPREFIX)/tensorsec-scanner:latest
+	docker rmi $(REPOPREFIX)/kube-bench:latest
+	docker rmi $(REPOPREFIX)/docker-bench-security:latest
+	docker rmi $(REPOPREFIX)/host-bench:latest
+	#docker rmi $(REPOPREFIX)/tensordig:latest
+	docker rmi $(REPOPREFIX)/tensorsec-cleaner:latest
+	docker rmi $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
+	docker rmi $(REPOPREFIX)/faulty:latest
+	docker rmi $(REPOPREFIX)/tensorsec-security-profiles-webhook:latest
+	docker rmi $(REPOPREFIX)/tensorsec-security-profiles-manager:latest
+	docker rmi $(REPOPREFIX)/tensorsec-security-profiles-loader:latest
+	docker rmi $(REPOPREFIX)/tensorsec-event-processor:latest
+	docker rmi $(REPOPREFIX)/tensorsec-go-audit:latest
+	docker rmi $(REPOPREFIX)/tensorsec-holmes:latest
+	docker rmi $(REPOPREFIX)/tensorsec-daemon:latest
+	docker rmi $(REPOPREFIX)/tensorsec-image-validator:latest
+	#docker rmi $(REPOPREFIX)/scarecrow:latest
+	docker rmi $(REPOPREFIX)/webshell-server:latest
+	docker rmi $(REPOPREFIX)/tensorsec-safe-node-image:latest
+	docker rmi $(REPOPREFIX)/tensorsec-webhook:latest
+	docker rmi $(REPOPREFIX)/tensorsec-cluster-manager:latest
+	docker rmi $(REPOPREFIX)/tensorsec-kube-hunter-report:latest
+
 .PHONY: retag
 retag:
 ifeq ($(USERELEASE),true)
