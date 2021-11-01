@@ -405,8 +405,8 @@ resources:
     cpu: 500m
     memory: 512Mi
   requests:
-    cpu: 250m
-    memory: 256Mi
+    cpu: 500m
+    memory: 512Mi
 
 ## MongoDB(R) pods' liveness and readiness probes. Evaluated as a template.
 ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes

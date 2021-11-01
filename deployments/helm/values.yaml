@@ -66,8 +66,8 @@ scanner:
         cpu: "300m"
         memory: "500Mi"
       requests:
-        cpu: "100m"
-        memory: "200Mi"
+        cpu: "300m"
+        memory: "500Mi"
 
 console:
   enabled: true
@@ -252,8 +252,8 @@ postgresql-ha:
         memory: 512Mi
         cpu: 500m
       requests:
-        memory: 256Mi
-        cpu: 250m
+        memory: 512Mi
+        cpu: 500m
   pgpoolImage:
     name: pgpool
     tag: 4.2.3-debian-10-r38
@@ -267,8 +267,8 @@ postgresql-ha:
         memory: 512Mi
         cpu: 500m
       requests:
-        memory: 256Mi
-        cpu: 250m
+        memory: 512Mi
+        cpu: 500m
   volumePermissionsImage:
     name: bitnami-shell
     tag: 10-debian-10-r125
@@ -478,7 +478,7 @@ safenode-image:
       cpu: "1000m"
       memory: "1024Mi"
     requests:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "1000m"
+      memory: "1024Mi"
   multicluster:
     clusterManagerAddr: "http://tensorsec-cluster-manager:9443"

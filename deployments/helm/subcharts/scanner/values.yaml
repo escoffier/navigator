@@ -21,8 +21,8 @@ dockerregistry:
     tag: latest
   resources:
     requests:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "200m"
+      memory: "512Mi"
     limits:
       cpu: "200m"
       memory: "512Mi"
@@ -81,8 +81,8 @@ webshell:
       cpu: "300m"
       memory: "500Mi" 
     requests:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "300m"
+      memory: "500Mi"
   service:
     type: ClusterIP
     # clusterIP:
@@ -114,8 +114,8 @@ apiInstallLabel: "scanner.tensorsec/install"
 
 resources:
   requests:
-    cpu: "100m"
-    memory: "1500Mi"
+    cpu: "1000m"
+    memory: "2000Mi"
   limits:
     cpu: "1000m"
     memory: "2000Mi"

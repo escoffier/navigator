@@ -78,8 +78,8 @@ resources:
     cpu: 200m
     memory: 1500Mi
   requests:
-    cpu: 100m
-    memory: 200Mi
+    cpu: 200m
+    memory: 1500Mi
 config:
   postgresServiceName: "tensorsec-postgresql"
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"

@@ -27,8 +27,8 @@ resources:
     cpu: "1000m"
     memory: "1024Mi"
   requests:
-    cpu: "500m"
-    memory: "512Mi"
+    cpu: "1000m"
+    memory: "1024Mi"
 
 nameOverride: "safenode-image"
 fullnameOverride: "tensorsec-safenode-image"

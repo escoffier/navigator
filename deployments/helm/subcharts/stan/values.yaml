@@ -101,8 +101,8 @@ affinity: {}
 # ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 resources:
   requests:
-    cpu: "200m"
-    memory: "200Mi"
+    cpu: "500m"
+    memory: "500Mi"
   limits:
     cpu: "500m"
     memory: "500Mi"
