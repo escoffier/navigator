@@ -28,8 +28,9 @@ var (
 		"security_context",
 		"type",
 		"image_uuid",
-		"web_type",
-		"web_frame_version",
+		"app_type",
+		"app_target_version",
+		"app_target_name",
 	}
 	onDupUpdatedColsForResource = []string{
 		"updated_at",
