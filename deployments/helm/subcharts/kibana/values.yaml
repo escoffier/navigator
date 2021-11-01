@@ -13,11 +13,11 @@ image:
 
 resources:
   limits:
-    cpu: "1"
+    cpu: 500m
     memory: 500Mi
   requests:
-    cpu: 100m
-    memory: 200Mi
+    cpu: 500m
+    memory: 500Mi
 
 init: 
   image:

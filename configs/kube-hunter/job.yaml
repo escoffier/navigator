@@ -17,10 +17,10 @@ spec:
           resources:
             requests:
               memory: "100Mi"
-              cpu: "100m"
+              cpu: "500m"
             limits:
               memory: "100Mi"
-              cpu: "0.5"
+              cpu: "500m"
         - name: kube-hunter
           image: localhost:32000/kube-hunter:0.6.2
           command: [ "kube-hunter" ]
@@ -32,11 +32,11 @@ spec:
               value: "POST"
           resources:
             requests:
-              cpu: "100m"
+              cpu: "500m"
               memory: "100Mi"
             limits:
               memory: "100Mi"
-              cpu: "0.5"
+              cpu: "500m"
       restartPolicy: Never
       imagePullSecrets:
         - name: harbor-admin-secret
