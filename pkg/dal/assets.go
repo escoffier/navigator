@@ -294,12 +294,12 @@ func (q *ResContainersQueryOption) GetClusterOption() (string, bool) {
 	return v.(string), ok
 }
 
-func (q *ResContainersQueryOption) WithWebType(webType string) *ResContainersQueryOption {
-	q.whereEqCondition["web_type"] = webType
+func (q *ResContainersQueryOption) WithAppType(appType string) *ResContainersQueryOption {
+	q.whereEqCondition["app_type"] = appType
 	return q
 }
-func (q *ResContainersQueryOption) WithWebTypeNotEmpty() *ResContainersQueryOption {
-	q.whereNotNullCondition["web_type"] = struct{}{}
+func (q *ResContainersQueryOption) WithAppTypeNotEmpty() *ResContainersQueryOption {
+	q.whereNotNullCondition["app_type"] = struct{}{}
 	return q
 }
 func (q *ResContainersQueryOption) WithCluster(clusterKey string) *ResContainersQueryOption {
@@ -554,9 +554,19 @@ func fromContainerToModel(container corev1.Container, resource *assets.TensorRes
 
 	isWebFrame, webType, version, err := model.GetWebType(contModel.Image)
 	if err == nil && isWebFrame {
-		contModel.WebType = &webType
-		contModel.WebFrameVersion = &version
+		contModel.AppType = &model.AppTypeWeb
+		contModel.AppTargetName = &webType
+		contModel.AppTargetVersion = &version
+
+	} else {
+		isDB, dbType, version, err := model.GetDatabaseType(contModel.Image)
+		if err == nil && isDB {
+			contModel.AppType = &model.AppTypeDB
+			contModel.AppTargetName = &dbType
+			contModel.AppTargetVersion = &version
+		}
 	}
+
 	return contModel
 }
 
