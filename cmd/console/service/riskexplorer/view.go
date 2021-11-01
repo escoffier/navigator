@@ -19,19 +19,20 @@ type RiskTypeDesc struct {
 	DisplayEn string `json:"displayEn"`
 }
 type ResourceSummary struct {
-	ContainersList  []*ContainerSummary     `json:"containerList"`
-	FinalSeverity   string                  `json:"finalSeverity"`
-	RiskLevel       int                     `json:"riskLevel"`
-	ResourceName    string                  `json:"resourceName"`
-	NodeType        string                  `json:"nodeType"`
-	ResourceKind    string                  `json:"resourceKind"`
-	Namespace       string                  `json:"namespace"`
-	RiskTypes       map[string]RiskTypeDesc `json:"tag"`
-	Alias           string                  `json:"alias"`
-	Managers        []string                `json:"managers"`
-	Authority       string                  `json:"authority"`
-	WebType         string                  `json:"webType"`
-	WebFrameVersion string                  `json:"webFrameVersion"`
+	ContainersList   []*ContainerSummary     `json:"containerList"`
+	FinalSeverity    string                  `json:"finalSeverity"`
+	RiskLevel        int                     `json:"riskLevel"`
+	ResourceName     string                  `json:"resourceName"`
+	NodeType         string                  `json:"nodeType"`
+	ResourceKind     string                  `json:"resourceKind"`
+	Namespace        string                  `json:"namespace"`
+	RiskTypes        map[string]RiskTypeDesc `json:"tag"`
+	Alias            string                  `json:"alias"`
+	Managers         []string                `json:"managers"`
+	Authority        string                  `json:"authority"`
+	AppType          string                  `json:"appType"`
+	AppTargetName    string                  `json:"appTargetName"`
+	AppTargetVersion string                  `json:"appTargetVersion"`
 }
 
 type ContainerSummary struct {

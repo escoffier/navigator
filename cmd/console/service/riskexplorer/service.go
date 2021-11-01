@@ -219,11 +219,14 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 				contSumm.RiskTypes = make(map[string]RiskTypeDesc, 10)
 				contSumm.Image = container.Image
 				svcItem.ContainersList = append(svcItem.ContainersList, contSumm)
-				if container.WebType != nil && len(*container.WebType) > 0 {
-					svcItem.WebType = *container.WebType
+				if container.AppType != nil && len(*container.AppType) > 0 {
+					svcItem.AppType = *container.AppType
 				}
-				if container.WebFrameVersion != nil && len(*container.WebFrameVersion) > 0 {
-					svcItem.WebFrameVersion = *container.WebFrameVersion
+				if container.AppTargetVersion != nil && len(*container.AppTargetVersion) > 0 {
+					svcItem.AppTargetVersion = *container.AppTargetVersion
+				}
+				if container.AppTargetName != nil && len(*container.AppTargetName) > 0 {
+					svcItem.AppTargetName = *container.AppTargetName
 				}
 			}
 		}

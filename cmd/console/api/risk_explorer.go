@@ -35,12 +35,12 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 			cluster = "default"
 		}
 		query := dal.ResourceContainersQuery().WithCluster(cluster)
-		webType, err := param.QueryString(r, "webtype")
-		if err == nil && len(webType) > 0 {
-			if webType == "*" {
-				query = query.WithWebTypeNotEmpty()
+		appType, err := param.QueryString(r, "app_type")
+		if err == nil && len(appType) > 0 {
+			if appType == "*" {
+				query = query.WithAppTypeNotEmpty()
 			} else {
-				query = query.WithWebType(webType)
+				query = query.WithAppType(appType)
 			}
 		}
 		reSvc, ok := riskexplorer.Get(ctx)

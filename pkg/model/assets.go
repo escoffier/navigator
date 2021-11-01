@@ -23,8 +23,58 @@ const (
 	WebTypeOpenResty = "openresty"
 	WebTypeTraefik   = "traefik"
 	WebTypeApisix    = "apisix"
+
+	DBTypeRedis       = "redis"
+	DBTypePostgres    = "postgres"
+	DBTypeMysql       = "mysql"
+	DBTypeMariadb     = "mariadb"
+	DBTypeMemcached   = "memcached"
+	DBTypeMongo       = "mongo"
+	DBTypeMsSQLServer = "mssql"
+	DBTypeTiDB        = "tidb"
 )
 
+var (
+	AppTypeWeb = "web" // Don't change: needs to refer by pointer, so it's a variable not constant
+	AppTypeDB  = "database"
+)
+
+func GetDatabaseType(imageID string) (bool, string, string, error) {
+	if len(imageID) == 0 {
+		return false, "", "", errors.New("empty input")
+	}
+	idx := strings.Index(imageID, ":")
+	if idx <= 0 || idx >= len(imageID)-1 {
+		return false, "", "", nil
+	}
+	version := imageID[idx+1:]
+	fullRepoName := imageID[0:idx]
+	idx = strings.IndexByte(fullRepoName, '/')
+	if idx <= 0 || idx >= len(fullRepoName)-1 {
+		return false, "", "", nil
+	}
+	repoName := fullRepoName[idx+1:]
+	repoName = strings.ToLower(repoName)
+
+	if strings.Index(repoName, DBTypeRedis) >= 0 {
+		return true, DBTypeRedis, version, nil
+	} else if strings.Index(repoName, DBTypePostgres) >= 0 {
+		return true, DBTypePostgres, version, nil
+	} else if strings.Index(repoName, DBTypeMysql) >= 0 {
+		return true, DBTypeMysql, version, nil
+	} else if strings.Index(repoName, DBTypeMariadb) >= 0 {
+		return true, DBTypeMariadb, version, nil
+	} else if strings.Index(repoName, DBTypeMemcached) >= 0 {
+		return true, DBTypeMemcached, version, nil
+	} else if strings.Index(repoName, DBTypeMongo) >= 0 {
+		return true, DBTypeMongo, version, nil
+	} else if strings.Index(repoName, DBTypeMsSQLServer) >= 0 {
+		return true, DBTypeMsSQLServer, version, nil
+	} else if strings.Index(repoName, DBTypeTiDB) >= 0 {
+		return true, DBTypeTiDB, version, nil
+	}
+	return false, "", "", nil
+}
 func GetWebType(imageID string) (bool, string, string, error) {
 	if len(imageID) == 0 {
 		return false, "", "", errors.New("empty input")
@@ -209,21 +259,22 @@ func (sc *ContainerSpec) Value() (driver.Value, error) {
 }
 
 type TensorContainer struct {
-	TableBase                         // id: cluster_key/namespace/kind/resource_name/container_name
-	Name            string            `gorm:"column:name"`
-	ResourceName    string            `gorm:"column:resource_name;index:idx_tc_list_q,priority:4"`
-	Namespace       string            `gorm:"column:namespace;index:idx_tc_list_q,priority:2"`
-	ClusterKey      string            `gorm:"column:cluster_key;index:idx_tc_list_q,priority:1"`
-	ResourceKind    string            `gorm:"column:resource_kind;index:idx_tc_list_q,priority:3"`
-	Image           string            `gorm:"column:image"`
-	Spec            *ContainerSpec    `gorm:"column:spec;type:jsonb"`
-	Ports           ContainerPorts    `gorm:"column:ports;type:jsonb"`
-	ImagePullPolicy corev1.PullPolicy `gorm:"column:image_pull_policy;type:jsonb"`
-	SecurityContext *SecurityContext  `gorm:"column:security_context;type:jsonb"`
-	Type            string            `gorm:"column:type"`
-	ImageUUID       uint32            `gorm:"column:image_uuid"`
-	WebType         *string
-	WebFrameVersion *string
+	TableBase                          // id: cluster_key/namespace/kind/resource_name/container_name
+	Name             string            `gorm:"column:name"`
+	ResourceName     string            `gorm:"column:resource_name;index:idx_tc_list_q,priority:4"`
+	Namespace        string            `gorm:"column:namespace;index:idx_tc_list_q,priority:2"`
+	ClusterKey       string            `gorm:"column:cluster_key;index:idx_tc_list_q,priority:1"`
+	ResourceKind     string            `gorm:"column:resource_kind;index:idx_tc_list_q,priority:3"`
+	Image            string            `gorm:"column:image"`
+	Spec             *ContainerSpec    `gorm:"column:spec;type:jsonb"`
+	Ports            ContainerPorts    `gorm:"column:ports;type:jsonb"`
+	ImagePullPolicy  corev1.PullPolicy `gorm:"column:image_pull_policy;type:jsonb"`
+	SecurityContext  *SecurityContext  `gorm:"column:security_context;type:jsonb"`
+	Type             string            `gorm:"column:type"`
+	ImageUUID        uint32            `gorm:"column:image_uuid"`
+	AppType          *string
+	AppTargetName    *string
+	AppTargetVersion *string
 }
 
 func (TensorContainer) TableName() string {
