@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -30,7 +29,6 @@ func main() {
 	ticker := time.NewTicker(time.Minute * time.Duration(inter1))
 
 	for {
-
 		if err := worker(); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("safe-node push node image failure")
 		}
@@ -185,25 +183,14 @@ func getNodIp() (string, error) {
 func getImages() ([]string, error) {
 	osCmd := exec.Command("docker", "images", "-a")
 
-	stdout, err := osCmd.StdoutPipe()
+	stdout, err := osCmd.CombinedOutput()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("safe-node docker StdoutPipe:%v ", osCmd.Args)
 		return nil, err
 	}
-	defer stdout.Close()
 
-	err = osCmd.Start()
+	imgs := strings.Split(string(stdout), "\n")
 
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("safe-node docker images getting image:%v", osCmd.Args)
-		return nil, err
-	}
-	logScan := bufio.NewScanner(stdout)
-
-	imgs := make([]string, 0)
-	for logScan.Scan() {
-		imgs = append(imgs, logScan.Text())
-	}
 	// 处理数据
 	images := make([]string, 0)
 	if len(imgs) <= 1 {
@@ -217,7 +204,7 @@ func getImages() ([]string, error) {
 			if strings.Trim(ss[j], " ") != "" {
 				ss1 = append(ss1, strings.Trim(ss[j], " "))
 			}
-			if len(ss1) >= 2 {
+			if len(ss1) >= 2 && ss1[0] != "<none>" && ss1[1] != "<none>" {
 				images = append(images, ss1[0]+":"+ss1[1])
 				break
 			}

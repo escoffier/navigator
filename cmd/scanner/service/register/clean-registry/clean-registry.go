@@ -1,0 +1,59 @@
+package clean_registry
+
+import (
+	"context"
+
+	"github.com/mileusna/crontab"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+)
+
+const (
+	serviceName = "clean-registry-service"
+)
+
+type Config struct {
+	BuffRegistryUrl string // buffer registry url, store in ENV variables
+	Options         *flag2.ScannerOpts
+}
+
+type CleanRegistryService struct {
+	//config Config
+}
+
+func (s *CleanRegistryService) Start(ctx context.Context) error {
+	dal := store.GetScannerOrmDb()
+	sdb := store.GetScannerDb()
+	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
+	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal)
+	cleanJob := crontab.New() // create cron table
+
+	// AddJob ,每天0点过2分时运行一次
+	if err := cleanJob.AddJob("2 0 * * *", scannerSrv.DeleteCICDImage, context.Background()); err != nil {
+		logging.GetLogger().Error().Err(err).Msg("add buffer registry GC job")
+		return err
+	}
+
+	return nil
+}
+
+func (s *CleanRegistryService) Stop(ctx context.Context) error {
+
+	return nil
+}
+
+func init() {
+	err := register.Register(serviceName, newService)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+	}
+}
+
+func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
+	c := &CleanRegistryService{}
+
+	return c, nil
+}

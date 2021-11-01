@@ -196,5 +196,4 @@ func NewHaborApiSrv(srv component.HarborSvc, redisClient *redis.Client) *harborA
 		Srv:         srv,
 		redisClient: redisClient,
 	}
-
 }

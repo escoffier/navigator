@@ -1,21 +1,23 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gobwas/glob"
-	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type VulnMatedata struct {
-	CVSS   CVSSVulnerabilityInfo    `json:"cvss,omitempty" bson:"cvss,omitempty"`
-	CNNVDs []CNNVDVulnerabilityInfo `json:"cnnvds,omitempty" bson:"cnnvds,omitempty"`
-	CNVDs  []CNVDVulnerabilityInfo  `json:"cnvds,omitempty" bson:"cnvds,omitempty"`
+	CVSS   CVSSVulnerabilityInfo        `json:"cvss,omitempty" bson:"cvss,omitempty"`
+	CNNVDs cnnvd.CNNVDVulnerabilityInfo `json:"cnnvds,omitempty" bson:"cnnvds,omitempty"`
+	CNVDs  []cnvd.CnvdMetadata          `json:"cnvds,omitempty" bson:"cnvds,omitempty"`
 }
 
 type PostModel struct {
@@ -31,19 +33,20 @@ type Vuln struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    int
+	Target       string
 	Name         string         `gorm:"uniqueIndex:uniq_idx_vuln,priority:1"` // 形如CVE-2021-28831
-	Namespace    string         `gorm:"uniqueIndex:uniq_idx_vuln,priority:2"` // 发行版名字：alpine，redhat等
+	Namespace    string         // 发行版名字：alpine，redhat等
 	Description  string         // 描述
 	Link         []string       `gorm:"-"` // 参考链接
 	LinkJSON     datatypes.JSON `gorm:"type:jsonb"`
 	Severity     string         // 威胁等级
 	SeverityInt  int            `gorm:"column:severity_int"`
 	Metadata     VulnMatedata   `gorm:"-"`
-	MetadataJSON datatypes.JSON `gorm:"type:jsonb"` // 元数据
-	PkgName      string         // 软件包来源
-	PkgVersion   string         // 软件包版本
-	FixedBy      string         `json:"fixedby" bson:"fixedby"` // 修复建议
-	ExtraInfo    datatypes.JSON `gorm:"type:jsonb"`             //  预留，漏洞属性。如我们自己的漏洞评级
+	MetadataJSON datatypes.JSON `gorm:"type:jsonb"`                           // 元数据
+	PkgName      string         `gorm:"uniqueIndex:uniq_idx_vuln,priority:2"` // 软件包来源
+	PkgVersion   string         `gorm:"uniqueIndex:uniq_idx_vuln,priority:3"` // 软件包版本
+	FixedBy      string         `json:"fixedby" bson:"fixedby"`               // 修复建议
+	ExtraInfo    datatypes.JSON `gorm:"type:jsonb"`                           //  预留，漏洞属性。如我们自己的漏洞评级
 }
 
 func (Vuln) TableName() string {
@@ -94,36 +97,45 @@ func (ScanLayer) TableName() string {
 }
 
 type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scantasks表
-	ID                    int64 `gorm:"primaryKey"`
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	DeletedAt             int
-	ImageId               int64                      `gorm:"uniqueIndex:idx_scan_image"`
-	RiskScore             float64                    `gorm:"column:risk_score" json:"risk_score"`
-	VulnScore             float64                    `gorm:"column:vuln_score" json:"vuln_score"`
-	SensitiveScore        float64                    `gorm:"column:sensitive_score" json:"sensitive_score"`
-	VirusScore            float64                    `gorm:"column:virus_score" json:"virus_score"`
-	WebshellScore         float64                    `gorm:"column:webshell_score" json:"webshell_score"`
-	VulnInfo              []VulnerabilityInfo        `gorm:"-" json:"vuln_info"`
-	VulnInfoJSON          datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 漏洞结果汇总
-	PkgInfoJSON           datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 软件包信息
-	MaliciousInfoJSON     datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 恶意文件
-	MaliciousInfo         []Malicious                `gorm:"-" json:"malicious_info"` // 恶意文件
-	WebshellInfo          []Webshell                 `gorm:"-" json:"webshell_info"`  // webshell
-	WebshellInfoJSON      datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // webshell
-	SensitiveFile         []Sensitive                `gorm:"-" json:"sensitive_file"`
-	SensitiveFileJSON     datatypes.JSON             `gorm:"type:jsonb" json:"-"` // 敏感文件
-	PerLayerReport        []VulnerabilityLayerReport `gorm:"-" json:"per_layer_report"`
-	PerLayerReportJSON    datatypes.JSON             `gorm:"type:jsonb" json:"-"`        // 层结果汇总
-	OverallSeverity       string                     `json:"overallSeverity"`            // 评级
-	OverallSeverityInt    int                        `json:"overallSeverityInt"`         // 评级int
-	SeverityHistogram     SeverityHistogramInfo      `gorm:"-" json:"severityHistogram"` // 评级集合
-	SeverityHistogramJSON datatypes.JSON             `gorm:"type:jsonb"`
-	ScanTaskId            string
-	Status                string // 扫描状态
-	Message               string // 错误信息
-	StartedAt             int64  // 扫描开始时间
-	FinishAt              int64  // 扫描结束时间
+	ID                       int64 `gorm:"primaryKey"`
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	DeletedAt                int
+	ImageId                  int64                      `gorm:"uniqueIndex:idx_scan_image"`
+	RiskScore                float64                    `gorm:"column:risk_score" json:"risk_score"`
+	VulnScore                float64                    `gorm:"column:vuln_score" json:"vuln_score"`
+	SensitiveScore           float64                    `gorm:"column:sensitive_score" json:"sensitive_score"`
+	VirusScore               float64                    `gorm:"column:virus_score" json:"virus_score"`
+	WebshellScore            float64                    `gorm:"column:webshell_score" json:"webshell_score"`
+	VulnInfo                 []SingleScanDetail         `gorm:"-" json:"vuln_info"`
+	VulnInfoJSON             datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 漏洞结果汇总
+	PkgInfoJSON              datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 软件包信息
+	MaliciousInfoJSON        datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // 恶意文件
+	MaliciousInfo            []Malicious                `gorm:"-" json:"malicious_info"` // 恶意文件
+	WebshellInfo             []Webshell                 `gorm:"-" json:"webshell_info"`  // webshell
+	WebshellInfoJSON         datatypes.JSON             `gorm:"type:jsonb" json:"-"`     // webshell
+	SensitiveFile            []Sensitive                `gorm:"-" json:"sensitive_file"`
+	SensitiveFileJSON        datatypes.JSON             `gorm:"type:jsonb" json:"-"` // 敏感文件
+	PerLayerReport           []VulnerabilityLayerReport `gorm:"-" json:"per_layer_report"`
+	PerLayerReportJSON       datatypes.JSON             `gorm:"type:jsonb" json:"-"` // 层结果汇总
+	LicenseInfo              []LicenseInfo              `gorm:"-" json:"license_info"`
+	LicenseInfoJSON          datatypes.JSON             `gorm:"type:jsonb" json:"-"`
+	Software                 []Software                 `gorm:"-" json:"software"`
+	SoftwareJSON             datatypes.JSON             `gorm:"type:jsonb" json:"-"`
+	EnvKeyValue              []EnvKeyValue              `gorm:"-" json:"env_key_value"`
+	EnvJSON                  datatypes.JSON             `gorm:"type:jsonb" json:"-"`
+	OverallSeverity          string                     `json:"overallSeverity"`            // 评级
+	OverallSeverityInt       int                        `json:"overallSeverityInt"`         // 评级int
+	SeverityHistogram        SeverityHistogramInfo      `gorm:"-" json:"severityHistogram"` // 评级集合
+	SeverityHistogramJSON    datatypes.JSON             `gorm:"type:jsonb"`
+	ScanEnableCollection     ScanEnableCollection       `gorm:"-" json:"scan_enable_collection"`
+	ScanEnableCollectionJson string                     `gorm:"column:scan_enable_collection_json"`
+	HasFixedVuln             int                        `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
+	ScanTaskId               string
+	Status                   string // 扫描状态
+	Message                  string // 错误信息
+	StartedAt                int64  // 扫描开始时间
+	FinishAt                 int64  // 扫描结束时间
 }
 
 func (i ScanImage) TableName() string {
@@ -141,17 +153,18 @@ type ImageList struct {
 	Digest            string                 `gorm:"index:idx_image_digest" json:"digest"`
 	OS                string                 `gorm:"column:os" json:"os"`
 	Size              int                    `gorm:"column:size" json:"size"`
-	Library           string                 `gorm:"uniqueIndex:uniq_idx_image_list,priority:3" json:"library"`
+	Library           string                 `gorm:"column:library" json:"library"`
 	ImageUUID         uint32                 `gorm:"column:image_uuid" json:"-"`
 	Questions         []QuestionInfo         `gorm:"-" json:"questions"`
 	CompleteTime      string                 `gorm:"column:complete_time" json:"complete_time"`
 	ImageScanVuln     ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
-	ScanStatus        string                 `gorm:"-" json:"scan_status"`
+	ScanStatus        int                    `gorm:"-" json:"scan_status"`
 	ImageScanVirus    []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
 	ImageScanWebshell []WebshellFileInfo     `gorm:"-" json:"image_scan_webshell"`
+	ImageScanEnv      []SummaryEnv           `gorm:"-"  json:"image_scan_env"`
 	OnLineCount       int                    `gorm:"column:on_line_count;default:0" json:"-"`
 	Status            int                    `gorm:"column:status;default:0" json:"status"`                                   //  status: -1 not ready images 0 normal status
-	RegistryId        int64                  `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"registry_id"` // 来源registry，id为registry表的id
+	RegistryId        int64                  `gorm:"uniqueIndex:uniq_idx_image_list,priority:3,default:0" json:"registry_id"` // 来源registry，id为registry表的id
 	FirstPushTime     time.Time
 	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
 	LastPullTime      time.Time  // 上次pull时间
@@ -162,7 +175,7 @@ type ImageList struct {
 	ManifestV1JSON datatypes.JSON `gorm:"type:jsonb"` // manifest内容
 	ManifestV2JSON datatypes.JSON `gorm:"type:jsonb"`
 	ConfigJson     datatypes.JSON `gorm:"type:jsonb"`                                                            // config内容,包括layer diffid
-	FromType       int64          `gorm:"uniqueIndex:uniq_idx_image_list,priority:5,default:0" json:"from_type"` // 镜像来源
+	FromType       int64          `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"from_type"` // 镜像来源
 	Layers         string         `gorm:"index:idx_image_layers" json:"layers"`                                  // 把layer拼成字符串，为了找出基础镜像,用|分隔
 	NodeIp         string         `gorm:"column:node_ip" json:"node_ip"`                                         // 结点的Ip
 	NodeHostname   string         `gorm:"column:node_hostname" json:"node_hostname"`                             // 结点的HostName
@@ -171,6 +184,11 @@ type ImageList struct {
 
 	ScanImage *ScanImage `gorm:"-" json:"scan_image"`
 	Registry  *Registry  `gorm:"-" json:"registry"`
+
+	Project        string `gorm:"project" json:"project"`     // 项目 用于报表统计
+	RepoName       string `gorm:"repo_name" json:"repo_name"` // 仓库名 用于报表统计
+	PrivilegedBoot int64  `gorm:"privileged_boot" json:"privileged_boot"`
+	IsReinforce    int    `gorm:"is_reinforce" json:"is_reinforce"`
 }
 
 func (i ImageList) TableName() string {
@@ -462,23 +480,33 @@ type RejectPolicy struct {
 	WebShellScore int64  `json:"web_shell_score"`
 
 	WebShellPolicy       string `json:"web_shell_policy"`
-	SensitiveFilePolicy  string `json:"sensitive_file_policy"`  // 敏感文件规则
-	MaliciousPolicy      string `json:"malicious_policy"`       // 恶意文件规则
-	BaseImagePolicy      string `json:"base_image_policy"`      // 基础镜像规则
-	TrustedImagePolicy   string `json:"trusted_image_policy"`   // 可信镜像规则
-	PrivilegedBootPolicy string `json:"privileged_boot_policy"` // 特权启动规则
+	SensitiveFilePolicy  string `json:"sensitive_file_policy"`        // 敏感文件规则
+	MaliciousPolicy      string `json:"malicious_policy"`             // 恶意文件规则
+	BaseImagePolicy      string `json:"base_image_policy"`            // 基础镜像规则
+	TrustedImagePolicy   string `json:"trusted_image_policy"`         // 可信镜像规则
+	PrivilegedBootPolicy string `json:"privileged_boot_policy"`       // 特权启动规则
+	EnvPolicy            string `gorm:"env_policy" json:"env_policy"` // 环境变量
 
-	CicdEnable    bool         `gorm:"cicd_enable" json:"cicd_enable"`
-	K8sEnable     bool         `gorm:"k8s_enable" json:"k8s_enable"`
-	RejectVulns   []RejectVuln `gorm:"-" json:"reject_vulns"`
-	Mode          string       `gorm:"mode" json:"mode"`                     // 阻断模式(基本模式,安全模式)
-	OnlineMonitor bool         `gorm:"online_monitor" json:"online_monitor"` // 是否开启在线监控
-	CreatedAt     time.Time    `json:"created_at"`                           //
-	UpdatedAt     time.Time    `json:"updated_at"`
-	Enable        bool         `json:"enable"` // 是否启用该策略
-	IsGlobal      bool         `json:"is_global"`
-	DeletedAt     int          `json:"deleted_at,omitempty"`
+	SensitiveFileJson string                `gorm:"column:sensitive_file" json:"-"`
+	SensitiveFile     []SensitiveFilePolicy `gorm:"-" json:"sensitive_file"`
+	EnvsJson          string                `gorm:"column:envs" json:"-"`
+	Envs              []string              `gorm:"-" json:"envs"`
+	CicdEnable        bool                  `gorm:"cicd_enable" json:"cicd_enable"`
+	K8sEnable         bool                  `gorm:"k8s_enable" json:"k8s_enable"`
+	RejectVulns       []RejectVuln          `gorm:"-" json:"reject_vulns"`
+	Mode              string                `gorm:"mode" json:"mode"`                     // 阻断模式(基本模式,安全模式)
+	OnlineMonitor     bool                  `gorm:"online_monitor" json:"online_monitor"` // 是否开启在线监控
+	CreatedAt         time.Time             `json:"created_at"`                           //
+	UpdatedAt         time.Time             `json:"updated_at"`
+	Enable            bool                  `json:"enable"` // 是否启用该策略
+	IsGlobal          bool                  `json:"is_global"`
+	DeletedAt         int                   `json:"deleted_at,omitempty"`
 } // @name RejectPolicy
+
+type SensitiveFilePolicy struct {
+	Key    string `json:"key"`
+	Policy string `json:"policy"`
+}
 
 func (RejectPolicy) TableName() string {
 	return "reject_policy"
@@ -496,6 +524,58 @@ type RejectVuln struct {
 
 func (RejectVuln) TableName() string {
 	return "reject_vuln"
+}
+
+// Task define scan dimension
+type Task struct {
+	ID                  int64     `json:"id"`
+	ScopeType           int       `gorm:"scope_type" json:"scope_type"`         // full-scan or partial-scan
+	SubTaskCount        int       `gorm:"sub_task_count" json:"sub_task_count"` // subtask count
+	Trigger             int       `gorm:"trigger" json:"trigger"`               // 扫描类型， 1:cicd 2:漏洞库更新 3:病毒库更新 4:周期 5:手动
+	FlowConf            string    `gorm:"flow_conf" json:"flow_conf"`
+	Priority            int       `gorm:"priority" json:"priority"`
+	Status              int       `gorm:"status" json:"status"`
+	Result              int       `gorm:"result" json:"result"`
+	Msg                 string    `gorm:"msg" json:"msg"`
+	Comment             string    `gorm:"comment" json:"comment"`
+	CreatedAt           time.Time `gorm:"created_at" json:"created_at"`   // task create time
+	StartedAt           time.Time `gorm:"started_at" json:"started_at"`   // task start time
+	FinishedAt          time.Time `gorm:"finished_at" json:"finished_at"` // task finish time
+	UpdatedAt           time.Time `gorm:"updated_at" json:"updated_at"`   // task update time
+	HeartBeat           time.Time `gorm:"heart_beat" json:"heart_beat"`
+	Operator            string    `gorm:"operator" json:"operator"`
+	PolicyId            int64     `gorm:"policy_id" json:"policy_id"` // scan type,scan scope,detail policy info in policy table
+	ScanStrategyName    string    `gorm:"-" json:"scan_strategy_name"`
+	SuccessSubTaskCount int       `gorm:"-" json:"success_sub_task_count"` // 成功的子任务数量
+}
+
+func (Task) TableName() string {
+	return "tensor_scan_task"
+}
+
+type SubTask struct {
+	ID         int64     `json:"id"`
+	TaskId     int64     `gorm:"column:task_id;index:task_id_idx" json:"task_id"`
+	ImageId    int64     `gorm:"image_id" json:"image_id"` // image id in db
+	Status     uint8     `gorm:"status" json:"status"`     // 1:pending,2:inprogress,3:scan success,4:scan failed
+	Result     uint8     `gorm:"result" json:"result"`     // deprecated,1:failed, 2:success
+	ErrMsg     string    `gorm:"err_msg" json:"err_msg"`
+	CreatedAt  time.Time `gorm:"created_at" json:"created_at"` // subtask create time
+	StartedAt  time.Time `gorm:"started_at" json:"started_at"`
+	UpdatedAt  time.Time `gorm:"updated_at" json:"updated_at"`
+	FinishedAt time.Time `gorm:"finished_at" json:"finished_at"`
+	HeartBeat  time.Time `gorm:"heart_beat" json:"heart_beat"`
+
+	// 镜像的信息
+	ImageInfo struct {
+		FullRepoName string `gorm:"-" json:"full_repo_name"` // eg:library/redis,may not use,could fetch by image list table
+		Tag          string `gorm:"-" json:"tag"`            // eg:1.10, may not use
+		Library      string `gorm:"-" json:"library"`        // registry name
+	} `gorm:"-" json:"image_info"`
+}
+
+func (SubTask) TableName() string {
+	return "tensor_scan_subtask"
 }
 
 // ImageRsa 用于保存可信镜像的RSA公钥和匹配规则
@@ -542,7 +622,8 @@ type TrustedImages struct {
 
 	Digest string `gorm:"column:digest;not null;uniqueIndex:uqi_digest;type:CHAR(71);comment:镜像的digest" json:"digest"`
 	// 是否为可信镜像, 0为不可信, 1为可信
-	IsTrusted uint8 `gorm:"column:is_trusted;default:0;comment:是否为可信,0为不可信,1为可信" json:"is_trusted"`
+	IsTrusted   uint8 `gorm:"column:is_trusted;default:0;comment:是否为可信,0为不可信,1为可信" json:"is_trusted"`
+	IsReinforce uint8 `gorm:"column:is_reinforce;default:0" json:"is_reinforce"`
 }
 
 func (TrustedImages) TableName() string { return "trusted_images" }

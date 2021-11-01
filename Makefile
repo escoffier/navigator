@@ -8,11 +8,9 @@ endif
 REPOPREFIX?=localhost:32000
 REPOPREFIXOLD?=localhost:32000
 
-USEMIRROR?=true
+USEMIRROR?=definitelynottrue
 
 RELEASEVERSION?=v0.0.1
-
-FETCHTAG?=latest
 
 .PHONY: help
 help:
@@ -34,6 +32,8 @@ generate:
 	@echo "+ $@"
 	cd cmd/console; go generate; cd -
 	cd cmd/scanner; go generate; cd -
+	# go get -u sigs.k8s.io/controller-tools/cmd/controller-gen
+	# cd cmd/seccomp-generator; controller-gen object paths=./api/types/v1/seccompProfile.go; cd -
 
 .PHONY: test
 test: generate			## Run golint, staticcheck, and go test for all the sub-directories
@@ -58,79 +58,6 @@ clean:				## Clean all artifacts
 	@echo "+ $@"
 	rm -fr dist
 
-.PHONY: host-bench-base
-host-bench-base:
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	cd configs/scap/jobs/host-bench && \
-		docker build -t $(REPOPREFIX)/baseimage-host-bench:latest \
-    	--build-arg REPO=$(REPOPREFIX) --build-arg MIRROR=mirrors.aliyun.com -f ./baseimage-dockerfile .
-else
-	cd configs/scap/jobs/host-bench && \
-		docker build -t $(REPOPREFIX)/baseimage-host-bench:latest \
-    	--build-arg REPO=$(REPOPREFIX) -f ./baseimage-dockerfile .
-endif
-
-.PHONY: redis
-redis:
-	@echo "+ $@"
-	docker pull redis:6.2.5-alpine
-	docker tag redis:6.2.5-alpine $(REPOPREFIX)/redis:6.2.5-alpine
-
-.PHONY: alpine
-alpine:
-	@echo "+ $@"
-	docker pull alpine:latest
-	docker tag alpine:latest $(REPOPREFIX)/alpine:latest
-
-.PHONY: elasticsearch
-elasticsearch:
-	@echo "+ $@"
-	docker pull docker.elastic.co/elasticsearch/elasticsearch:7.9.1
-	docker tag docker.elastic.co/elasticsearch/elasticsearch:7.9.1 $(REPOPREFIX)/elasticsearch:7.9.1
-
-.PHONY: mongodb
-mongodb:
-	@echo "+ $@"
-	docker pull docker.io/bitnami/mongodb:4.0.12-debian-9-r43
-	docker tag docker.io/bitnami/mongodb:4.0.12-debian-9-r43 $(REPOPREFIX)/mongodb:4.0.12-debian-9-r43
-
-.PHONY: mongo-arbiter
-mongo-arbiter:
-	@echo "+ $@"
-	docker pull docker.io/bitnami/mongodb:4.4.6-debian-10-r8
-	docker tag docker.io/bitnami/mongodb:4.4.6-debian-10-r8 $(REPOPREFIX)/mongodb:4.4.6-debian-10-r8
-
-.PHONY: mongodb-init
-mongodb-init:
-	@echo "+ $@"
-	docker pull docker.io/bitnami/bitnami-shell:10-debian-10-r91
-	docker tag docker.io/bitnami/bitnami-shell:10-debian-10-r91 $(REPOPREFIX)/bitnami-shell:10-debian-10-r91
-
-.PHONY: postgres-init
-postgres-init:
-	@echo "+ $@"
-	docker pull docker.io/bitnami/minideb:buster
-	docker tag docker.io/bitnami/minideb:buster $(REPOPREFIX)/minideb:buster
-
-.PHONY: postgres
-postgres:
-	@echo "+ $@"
-	docker pull docker.io/bitnami/postgresql:11.6.0-debian-10-r5
-	docker tag docker.io/bitnami/postgresql:11.6.0-debian-10-r5 $(REPOPREFIX)/postgresql:11.6.0-debian-10-r5
-
-.PHONY: falcosidekick
-falcosidekick:
-	@echo "+ $@"
-	docker pull falcosecurity/falcosidekick:2.22.0
-	docker tag falcosecurity/falcosidekick:2.22.0 $(REPOPREFIX)/falcosidekick:2.22.0
-
-.PHONY: nats-streaming
-nats-streaming:
-	@echo "+ $@"
-	docker pull nats-streaming:0.21.2
-	docker tag nats-streaming:0.21.2 $(REPOPREFIX)/nats-streaming:0.21.2
-
 .PHONY: scap-jobs
 scap-jobs:
 	@echo "+ $@"
@@ -144,7 +71,7 @@ ifeq ($(USEMIRROR),true)
 			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 	cd configs/scap/jobs/host-bench && \
 		docker build -t $(REPOPREFIX)/host-bench:latest \
-			--build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
+			--build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "scap-jobs will not use mirror"
 	cd configs/scap/jobs/kube-bench && \
@@ -152,7 +79,7 @@ else
 	cd configs/scap/jobs/docker-bench-security && \
 		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
 	cd configs/scap/jobs/host-bench && \
-		docker build --build-arg REPO=$(REPOPREFIX) -t $(REPOPREFIX)/host-bench:latest .
+		docker build -t $(REPOPREFIX)/host-bench:latest .
 endif
 
 .PHONY: console
@@ -164,17 +91,6 @@ console: generate 		## Build console binary
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/tensor-console gitlab.com/piccolo_su/vegeta/cmd/console
 	docker build -t $(REPOPREFIX)/tensorsec-console:latest -f ./build/console/Dockerfile .
-
-.PHONY: data-base
-data-base: ## Build data base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-data:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/data/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-data:latest \
-    -f ./build/data/baseimage-dockerfile .
-endif
 
 .PHONY: data
 data: generate 		## Build cleaner binary
@@ -215,30 +131,13 @@ scanner-cicd: generate
                 --ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/cmd.Version=$(VERSION)" \
                 -o dist/tensor-scanner-cicd gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd
 
-.PHONY: safe-node-image
-safe-node-image: generate
-	echo "+ $@"
-	go build -v  -o dist/safe-node-image  cmd/scripts/safe-node-image/main.go
-	docker build -t $(REPOPREFIX)/tensorsec-safe-node-image:latest -f ./build/safe-node-image/Dockerfile .
-
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/tensor-scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
-	docker build -t $(REPOPREFIX)/tensorsec-scanner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/Dockerfile .
-
-.PHONY: tensordig-base
-tensordig-base: ## Build tensordig base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-tensordig:latest \
-    --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) -f ./build/tensordig/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-tensordig:latest \
-    --build-arg REPO=$(REPOPREFIX) -f ./build/tensordig/baseimage-dockerfile .
-endif
+	docker build -t $(REPOPREFIX)/tensorsec-scanner:testcn -f ./build/scanner/Dockerfile .
 
 .PHONY: tensordig
 tensordig: ## Build tensordig binary
@@ -246,21 +145,10 @@ tensordig: ## Build tensordig binary
 ifeq ($(USEMIRROR),true)
 	@echo "tensordig will use mirror"
 	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile \
-		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "tensordig will not use mirror"
-	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile --build-arg REPO=$(REPOPREFIX) .
-endif
-
-.PHONY: faulty-base
-faulty-base: ## Build faulty base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-faulty:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/faulty/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-faulty:latest \
-    -f ./build/faulty/baseimage-dockerfile .
+	docker build -t $(REPOPREFIX)/tensordig:latest  -f ./build/tensordig/Dockerfile .
 endif
 
 .PHONY: daemon
@@ -298,22 +186,11 @@ faulty: drift-prevention-client     ## Build faulty docker to test CVEs
 ifeq ($(USEMIRROR),true)
 	@echo "faulty will use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
-		--build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
+		--build-arg MIRROR=mirrors.aliyun.com --build-arg TAG=$(RELEASEVERSION) .
 else
 	@echo "faulty will not use mirror"
 	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
-		--build-arg REPO=$(REPOPREFIX) .
-endif
-
-.PHONY: drift-prevention-client-base
-drift-prevention-client-base: ## Build drift-prevention-client base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-drift-prevention-client:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/drift-prevention-client/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-drift-prevention-client:latest \
-    -f ./build/drift-prevention-client/baseimage-dockerfile .
+		--build-arg TAG=$(RELEASEVERSION) .
 endif
 
 .PHONY: drift-prevention-client
@@ -324,80 +201,68 @@ ifeq ($(USEMIRROR),true)
 	go build -v -a -o dist/file-checker cmd/file-checker/main.go
 	@echo "drift-prevention-client will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile \
-		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 else
 	@echo "drift-prevention-client will not use mirror"
 	(cd configs/drift-prevention && ./run.sh)
 	go build -v -a -o dist/file-checker cmd/file-checker/main.go
-	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile --build-arg REPO=$(REPOPREFIX) .
+	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile .
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 endif
 
-.PHONY: security-profiles-webhook
-security-profiles-webhook:     ## Build security-profiles-webhook docker
+.PHONY: drift-prevention
+drift-prevention:     ## Build drift-prevention docker
+	@echo "+ $@"
+ifeq ($(USEMIRROR),true)
+	@echo "drift-prevention will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention:latest -f ./build/drift-prevention/Dockerfile \
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "drift-prevention will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-drift-prevention:latest -f ./build/drift-prevention/Dockerfile .
+endif
+
+.PHONY: seccomp-generator
+seccomp-generator: generate	## Build seccomp-generator docker
 	@echo "+ $@"
 	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook/cmd.Version=$(VERSION)" \
-		-o dist/tensor-security-profiles-webhook gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook
-	docker build -t $(REPOPREFIX)/tensorsec-security-profiles-webhook:latest -f ./build/security-profiles-webhook/Dockerfile .
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator/cmd.Version=$(VERSION)" \
+		-o dist/vegeta-seccomp-generator gitlab.com/piccolo_su/vegeta/cmd/seccomp-generator
+	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator:latest -f ./build/seccomp-generator/Dockerfile .
+
+.PHONY: seccomp-generator-webhook
+seccomp-generator-webhook:     ## Build seccomp-generator-webhook docker
+	@echo "+ $@"
+ifeq ($(USEMIRROR),true)
+	@echo "seccomp-generator-webhook will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest -f ./build/seccomp-generator-webhook/Dockerfile \
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "seccomp-generator-webhook will not use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest -f ./build/seccomp-generator-webhook/Dockerfile .
+endif
 
 .PHONY: go-audit
 go-audit:     ## Build go-audit docker
 	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/go-audit/cmd.Version=$(VERSION)" \
-		-o dist/tensor-go-audit gitlab.com/piccolo_su/vegeta/cmd/go-audit
+ifeq ($(USEMIRROR),true)
+	@echo "go-audit will use mirror"
+	docker build -t $(REPOPREFIX)/tensorsec-go-audit:latest -f ./build/go-audit/Dockerfile \
+		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "go-audit will not use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-go-audit:latest -f ./build/go-audit/Dockerfile .
-
-.PHONY: security-profiles-manager
-security-profiles-manager:	## Build security-profiles-manager binary
-	@echo "+ $@"
-	cd cmd/security-profiles-manager; go generate; cd -
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/cmd.Version=$(VERSION)" \
-		-o dist/tensor-security-profiles-manager gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager
-	docker build -t $(REPOPREFIX)/tensorsec-security-profiles-manager:latest -f ./build/security-profiles-manager/Dockerfile .
-
-.PHONY: security-profiles-loader-base
-security-profiles-loader-base: ## Build security-profiles-loader base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-security-profiles-loader:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/security-profiles-loader/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-security-profiles-loader:latest \
-    -f ./build/security-profiles-loader/baseimage-dockerfile .
-endif
-
-.PHONY: security-profiles-loader
-security-profiles-loader:     ## Build security-profiles-loader docker
-	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-loader/cmd.Version=$(VERSION)" \
-		-o dist/tensor-security-profiles-loader gitlab.com/piccolo_su/vegeta/cmd/security-profiles-loader
-	docker build -t $(REPOPREFIX)/tensorsec-security-profiles-loader:latest -f ./build/security-profiles-loader/Dockerfile \
-		--build-arg REPO=$(REPOPREFIX) .
-
-.PHONY: holmes-base
-holmes-base: ## Build holmes base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) -f TAG=$(FETCHTAG) ./build/holmes/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) -f ./build/holmes/baseimage-dockerfile .
 endif
 
 .PHONY: holmes
 holmes:     ## Build holmes docker
 	@echo "+ $@"
 	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/cmd.Version=$(VERSION)" \
-		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/update/cmd.Version=$(VERSION)" \
+		-o dist/holmes-rules-update gitlab.com/piccolo_su/vegeta/cmd/holmes/update
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
@@ -405,23 +270,14 @@ holmes:     ## Build holmes docker
 ifeq ($(USEMIRROR),true)
 	@echo "holmes will use mirror"
 	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile \
-                --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) .
+                --build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "holmes will not use mirror"
-	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) .
+	docker build -t $(REPOPREFIX)/tensorsec-holmes:latest -f ./build/holmes/Dockerfile .
 endif
 
-.PHONY: event-processor
-event-processor:		## Build event-processor binary
-	@echo "+ $@"
-	# cat configs/holmes/rules/holmes_rules.yaml| shyaml get-value | grep "rule:\|priority:" > configs/holmes/rules/_rules_list.yaml
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/event-processor/cmd.Version=$(VERSION)" \
-		-o dist/event-processor gitlab.com/piccolo_su/vegeta/cmd/event-processor
-	docker build -t $(REPOPREFIX)/tensorsec-event-processor:latest -f ./build/event-processor/Dockerfile .
-
 .PHONY: migrate
-migrate: generate		## Build migrage binary
+migrate: generate		## Build scanner binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS)" \
@@ -433,7 +289,6 @@ image-validate: generate
 	go build -v \
 		-o dist/image-validator gitlab.com/piccolo_su/vegeta/cmd/image-validate
 	docker build -t $(REPOPREFIX)/tensorsec-image-validator:latest -f ./build/image-validate/Dockerfile .
-
 
 .PHONY: webhook
 webhook: generate
@@ -506,19 +361,17 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	#docker push $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-cleaner:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-security-profiles-webhook:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-security-profiles-manager:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-security-profiles-loader:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-event-processor:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
+	#docker push $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
+	#docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
+	# docker push $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
 	#docker push $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/tensorsec-safe-node-image:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-cluster-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:$(RELEASEVERSION)
@@ -531,19 +384,17 @@ else
 	docker push $(REPOPREFIX)/host-bench:latest
 	#docker push $(REPOPREFIX)/tensordig:latest
 	docker push $(REPOPREFIX)/tensorsec-cleaner:latest
+	docker push $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker push $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
-	docker push $(REPOPREFIX)/tensorsec-security-profiles-webhook:latest
-	docker push $(REPOPREFIX)/tensorsec-security-profiles-manager:latest
-	docker push $(REPOPREFIX)/tensorsec-security-profiles-loader:latest
-	docker push $(REPOPREFIX)/tensorsec-event-processor:latest
-	docker push $(REPOPREFIX)/tensorsec-go-audit:latest
+	#docker push $(REPOPREFIX)/tensorsec-seccomp-generator:latest
+	#docker push $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
+	# docker push $(REPOPREFIX)/tensorsec-go-audit:latest
 	docker push $(REPOPREFIX)/tensorsec-holmes:latest
 	docker push $(REPOPREFIX)/tensorsec-daemon:latest
 	docker push $(REPOPREFIX)/tensorsec-image-validator:latest
 	#docker push $(REPOPREFIX)/scarecrow:latest
 	docker push $(REPOPREFIX)/webshell-server:latest
-	docker push $(REPOPREFIX)/tensorsec-safe-node-image:latest
 	docker push $(REPOPREFIX)/tensorsec-webhook:latest
 	docker push $(REPOPREFIX)/tensorsec-cluster-manager:latest
 	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:latest
@@ -587,19 +438,17 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	#docker tag $(REPOPREFIX)/tensordig:latest $(REPOPREFIX)/tensordig:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-cleaner:latest $(REPOPREFIX)/tensorsec-cleaner:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-security-profiles-webhook:latest $(REPOPREFIX)/tensorsec-security-profiles-webhook:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-security-profiles-manager:latest $(REPOPREFIX)/tensorsec-security-profiles-manager:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-security-profiles-loader:latest $(REPOPREFIX)/tensorsec-security-profiles-loader:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-event-processor:latest $(REPOPREFIX)/tensorsec-event-processor:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
+	#docker tag $(REPOPREFIX)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:$(RELEASEVERSION)
+	#docker tag $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:$(RELEASEVERSION)
+	# docker tag $(REPOPREFIX)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-daemon:latest $(REPOPREFIX)/tensorsec-daemon:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:$(RELEASEVERSION)
 	#docker tag $(REPOPREFIX)/scarecrow:latest $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/tensorsec-safe-node-image:latest $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/kube-hunter-report:latest $(REPOPREFIX)/tensorsec-kube-hunter-report:$(RELEASEVERSION)
@@ -612,19 +461,17 @@ else
 	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	#docker tag $(REPOPREFIXOLD)/tensordig:latest $(REPOPREFIX)/tensordig:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-cleaner:latest $(REPOPREFIX)/tensorsec-cleaner:latest
+	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention:latest $(REPOPREFIX)/tensorsec-drift-prevention:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-drift-prevention-client:latest $(REPOPREFIX)/tensorsec-drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-security-profiles-webhook:latest $(REPOPREFIX)/tensorsec-security-profiles-webhook:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-security-profiles-manager:latest $(REPOPREFIX)/tensorsec-security-profiles-manager:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-security-profiles-loader:latest $(REPOPREFIX)/tensorsec-security-profiles-loader:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-event-processor:latest $(REPOPREFIX)/tensorsec-event-processor:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:latest
+	#docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator:latest $(REPOPREFIX)/tensorsec-seccomp-generator:latest
+	#docker tag $(REPOPREFIXOLD)/tensorsec-seccomp-generator-webhook:latest $(REPOPREFIX)/tensorsec-seccomp-generator-webhook:latest
+	# docker tag $(REPOPREFIXOLD)/tensorsec-go-audit:latest $(REPOPREFIX)/tensorsec-go-audit:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-holmes:latest $(REPOPREFIX)/tensorsec-holmes:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-daemon:latest $(REPOPREFIX)/tensorsec-daemon:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-image-validator:latest $(REPOPREFIX)/tensorsec-image-validator:latest
 	#docker tag $(REPOPREFIXOLD)/scarecrow:latest $(REPOPREFIX)/scarecrow:latest
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
-	docker tag $(REPOPREFIXOLD)/tensorsec-safe-node-image:latest $(REPOPREFIX)/safe-node-image:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-webhook:latest $(REPOPREFIX)/tensorsec-webhook:latest
 	docker tag $(REPOPREFIXOLD)/tensorsec-cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 	docker tag $(REPOPREFIXOLD)/kube-hunter-report:latest $(REPOPREFIX)/tensorsec-kube-hunter-report:latest

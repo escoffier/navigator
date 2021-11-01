@@ -82,8 +82,8 @@ func (h *HwSwr) PullConfigBlob(repo string, configDigest digest.Digest) (string,
 	return configBlob.String(), nil
 }
 
-func (h *HwSwr) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
-	images := make([]registry.Image, 0)
+func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	res := new(registry.ListImagesRes)
 
 	cnt := 0
 	// get namespaces
@@ -145,19 +145,25 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, needToReturnRes 
 				} else {
 					i.LastPushTime = tm2
 				}
-				if needToReturnRes {
-					images = append(images, *i)
+
+				im, err := extender(*i)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Msg("ListImages.extender")
+					continue
 				}
 				cnt++
-				if err = extender(*i); err != nil {
-					logging.GetLogger().Error().Err(err).Msg("ListImages.extender")
+				if req.NeedToReturnAll {
+					res.All = append(res.All, im.All...)
+				}
+				if req.NeedToReturnAdded {
+					res.Added = append(res.Added, im.Added...)
 				}
 			}
 		}
 	}
 
 	logging.GetLogger().Info().Msgf("hw-swr List images count:%d", cnt)
-	return images, nil
+	return res, nil
 }
 
 func (h *HwSwr) CheckProject(projectName string) error {

@@ -20,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"gorm.io/datatypes"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -35,7 +36,7 @@ type ScannerDalInterface interface {
 	SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
 	DeleteImage(ctx context.Context, param DeleteImageParam) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
-
+	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
 	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
@@ -89,31 +90,112 @@ type ScannerDalInterface interface {
 	AddGlobalPolicyConfig(ctx context.Context, policy model.RejectPolicy)
 	GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectPolicy, error)
 
+	ScanTaskInterface
 	TrustedImageInterface
+}
+
+type ScanTaskInterface interface {
+	CreateTasks(ctx context.Context, tasks ...model.Task) error
+	UpdateTask(ctx context.Context, task model.Task, param SearchTaskParam) error
+	UpdateTasksInfo(ctx context.Context, param SearchTaskParam, updateInfo map[string]interface{}) error
+	UpdateTasksStatus(ctx context.Context, updateIds []int64, status int) error
+	UpdateSubTask(ctx context.Context, subtask model.SubTask) error
+	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
+	GetTotalTaskNum(ctx context.Context) (int64, error)
+	GetImageInfo(ctx context.Context, imgId int64) (*model.ImageList, error)
+	GetRegistryInfo(ctx context.Context, Id int64) (*model.Registry, error)
+	AddTask(ctx context.Context, task model.Task) (int64, error)
+	AddSubTask(ctx context.Context, subtask []model.SubTask) error
+	GetSubTasks(ctx context.Context, param SearchSubTaskParam, filter *model.Filter) ([]model.SubTask, int64, error)
+
+	SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error)
+
+	UpdateTaskStatus(ctx context.Context, id int64, status uint8) error
+	GetTaskList(ctx context.Context, limit, offset int) ([]*model.Task, int64, error)
+	GetSubTaskListWithImage(ctx context.Context, taskId int64, limit, offset int) ([]model.SubTask, int64, error)
+
+	GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error)
+	// GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
+	SetSingleStrategy(ctx context.Context, envName string, policyId []int64) error
 }
 
 type ScannerOrm struct {
 	psql *rdbtools.GormWrapper
 }
 
+func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error) {
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	in := ""
+	for i := range status {
+		if i == len(status)-1 {
+			in = in + fmt.Sprintf("%d ", status[i])
+		} else {
+			in = in + fmt.Sprintf("%d, ", status[i])
+		}
+	}
+
+	idin := ""
+	for i := range imageIds {
+		if i == len(imageIds)-1 {
+			idin = idin + fmt.Sprintf("%d ", imageIds[i])
+		} else {
+			idin = idin + fmt.Sprintf("%d, ", imageIds[i])
+		}
+	}
+
+	sql := "select  a.task_id,  a.image_id, a.status, a.created_at from tensor_scan_subtask as a where (a.image_id, a.created_at) in (select b.image_id, max(b.created_at) from tensor_scan_subtask b group by b.image_id) "
+
+	if len(status) > 0 {
+		sql = sql + fmt.Sprintf("AND a.status IN ( %s )", in)
+	}
+	if len(imageIds) > 0 {
+		sql = sql + fmt.Sprintf("AND a.image_id IN ( %s )", idin)
+	}
+	sql = sql + ";"
+	db := s.psql.Get().WithContext(ctx).Debug()
+	res := make([]model.SubTask, 0)
+	if err := db.Raw(sql).Find(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*model.ImageList, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	tmp := model.ImageList{}
+	res := s.psql.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryId).First(&tmp)
+	if res.Error != nil {
+		err := s.psql.Get().WithContext(ctx).Create(im).Error
+		return im, err
+	}
+
+	err := s.psql.Get().WithContext(ctx).Model(tmp).Updates(im).Error
+	im.ID = tmp.ID
+	return im, err
+}
+
 type ImageListWithScan struct {
-	ID           int64                     `json:"id"`
-	CreatedAt    time.Time                 `json:"created_at"`
-	FullRepoName string                    `json:"full_repo_name"`
-	Tags         string                    `json:"tags"`
-	Digest       string                    `json:"digest"`
-	OS           string                    `json:"os"`
-	Library      string                    `json:"library"`
-	ImageUUID    uint32                    `json:"image_uuid"`
-	CompleteTime string                    `json:"complete_time"`
-	Status       string                    `json:"status"`
-	RegistryId   int64                     `json:"registry_id"`
-	FromType     int64                     `json:"from_type"`
-	NodeIp       string                    `json:"node_ip"`
-	NodeHostname string                    `json:"node_hostname"`
-	ImageType    int64                     `json:"image_type"`
-	VulnInfo     []model.VulnerabilityInfo `gorm:"-" json:"vuln_info"`
-	VulnInfoJSON datatypes.JSON            `gorm:"type:jsonb" json:"vuln_info_json"` // 漏洞结果汇总
+	ID             int64     `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	FullRepoName   string    `json:"full_repo_name"`
+	Tags           string    `json:"tags"`
+	Digest         string    `json:"digest"`
+	OS             string    `json:"os"`
+	Library        string    `json:"library"`
+	ImageUUID      uint32    `json:"image_uuid"`
+	CompleteTime   string    `json:"complete_time"`
+	RegistryId     int64     `json:"registry_id"`
+	FromType       int64     `json:"from_type"`
+	NodeIp         string    `json:"node_ip"`
+	NodeHostname   string    `json:"node_hostname"`
+	ImageType      int64     `json:"image_type"`
+	IsReinforce    int64     `json:"is_reinforce"`
+	PrivilegedBoot int64     `json:"privileged_boot"`
+	HasFixedVuln   int64     `json:"has_fixed_vuln"`
 }
 
 // SearchImageWithScan scan_list和scan_image join搜索
@@ -121,17 +203,11 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := make([]ImageListWithScan, 0)
-	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id")
+	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id").Debug()
 
 	if param.SearchWord != "" {
 		if param.FromType == model.ImageFromTypeNormal {
-			split := strings.Split(param.SearchWord, ":")
-			if len(split) > 0 {
-				db = db.Where("tensor_image_list.full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", split[0]))
-			}
-			if len(split) > 1 {
-				db = db.Where("tensor_image_list.tags LIKE ? ", fmt.Sprintf("%%%s%%", split[1]))
-			}
+			db = db.Where("tensor_image_list.full_repo_name LIKE ? OR tensor_image_list.tags LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
 		} else if param.FromType == model.RegistryUseSafeNode {
 			db = db.Where("tensor_image_list.node_hostname LIKE ?  ", fmt.Sprintf("%%%s%%", param.SearchWord))
 		}
@@ -160,34 +236,25 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
 				db = db.Where("scan_images.webshell_info_json is not null ")
 			}
-		}
-	}
-	// 扫描状态是取并集
-	if len(param.ScanStatus) > 0 {
-		where := make([]string, 0)
-		for i := range param.ScanStatus {
-			if param.ScanStatus[i] == model.ScanStatusNotScan {
-				where = append(where, "scan_images.status = '' OR scan_images.status is null ")
-			} else {
-				where = append(where, fmt.Sprintf("scan_images.status = '%s'", param.ScanStatus[i]))
+			if k == strconv.Itoa(model.QUESTION_SOFTWARE) {
+				db = db.Where("scan_images.software_json is not null ")
+			}
+			if k == strconv.Itoa(model.QUESTION_ENV) {
+				db = db.Where("scan_images.env_json is not null ")
+			}
+			if k == strconv.Itoa(model.QUESTION_PRIORITY) {
+				db = db.Where("tensor_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
+			}
+
+			if k == strconv.Itoa(model.QUESTION_LICENSE) {
+				db = db.Where("scan_images.license_info_json is not null ")
 			}
 		}
-		db = db.Where(strings.Join(where, " OR "))
 	}
 
 	if param.FromType > 0 {
 		db = db.Where("tensor_image_list.from_type = ? ", param.FromType)
 	}
-	fields := []string{"tensor_image_list.id", "tensor_image_list.created_at", "tensor_image_list.full_repo_name",
-		"tensor_image_list.tags", "tensor_image_list.digest", "tensor_image_list.os", "tensor_image_list.library",
-		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status",
-		"tensor_image_list.registry_id", "tensor_image_list.from_type",
-		"tensor_image_list.node_ip", "tensor_image_list.node_hostname", "tensor_image_list.image_type"}
-	if param.ExistFixedVulu != "" {
-		fields = append(fields, "scan_images.vuln_info_json")
-	}
-
-	db = db.Select(fields)
 
 	if len(param.InIDs) > 0 {
 		db = db.Where("tensor_image_list.id  IN ? ", param.InIDs)
@@ -196,72 +263,94 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	if len(param.NotInIDs) > 0 {
 		db = db.Where("tensor_image_list.id  NOT IN ? ", param.NotInIDs)
 	}
+	if len(param.InDigests) > 0 {
+		db = db.Where("tensor_image_list.digest  IN ? ", param.InDigests)
+	}
 
-	if err := db.Find(&res).Error; err != nil {
+	if len(param.NotInDigests) > 0 {
+		db = db.Where("tensor_image_list.digest  NOT IN ? ", param.NotInDigests)
+	}
+	if param.HasFixedVulu == consts.HasFixedvulnStringd {
+		db = db.Where("scan_images.has_fixed_vuln =  ? ", consts.HasFixedvuln)
+	} else if param.HasFixedVulu == consts.NotHasFixedvulnString {
+		db = db.Where("scan_images.has_fixed_vuln =  ? ", consts.NotHasFixedvuln)
+	}
+
+	if param.IsReinforce == consts.IsReinforceImageString {
+		db = db.Where("tensor_image_list.is_reinforce =  ? ", consts.IsReinforceImage)
+	} else if param.IsReinforce == consts.IsNotReinforceImageString {
+		db = db.Where("tensor_image_list.is_reinforce =  ? ", consts.IsNotReinforceImage)
+	}
+
+	if param.FromType == model.ImageFromSafeNode && param.NodeHostname != "" {
+		db = db.Where("tensor_image_list.node_hostname =  ? ", param.NodeHostname)
+	}
+
+	fields := []string{"tensor_image_list.id", "tensor_image_list.privileged_boot", "tensor_image_list.created_at", "tensor_image_list.full_repo_name",
+		"tensor_image_list.tags", "tensor_image_list.digest", "tensor_image_list.os", "tensor_image_list.library",
+		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status", "scan_images.has_fixed_vuln", "tensor_image_list.is_reinforce",
+		"tensor_image_list.registry_id", "tensor_image_list.from_type",
+		"tensor_image_list.node_ip", "tensor_image_list.node_hostname", "tensor_image_list.image_type"}
+
+	db = db.Select(fields)
+
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	if param.ExistFixedVulu != "" {
-		for i := range res {
-			vulnInfo := make([]model.VulnerabilityInfo, 0)
-			if len(res[i].VulnInfoJSON) > 0 {
-				if err := json.Unmarshal(res[i].VulnInfoJSON, &vulnInfo); err == nil {
-					res[i].VulnInfo = vulnInfo
-				} else {
-					logging.GetLogger().Error().Err(err).Msg("序列化VulnInfoJSON时出错")
-				}
-				res[i].VulnInfoJSON = nil
-			}
-		}
+
+	db = model.AddFilter(db, filter)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
 	}
 
 	ans := make([]*model.ImageResponse, 0)
 	for i := range res {
 		ir := model.ImageResponse{
-			ID:           res[i].ID,
-			Digest:       res[i].Digest,
-			Library:      res[i].Library,
-			NodeIp:       res[i].NodeIp,
-			NodeHostname: res[i].NodeHostname,
-			ScanStatus:   res[i].Status,
-			CompleteTime: res[i].CompleteTime,
-			FullRepoName: res[i].FullRepoName,
-			Tags:         res[i].Tags,
-			ImageType:    res[i].ImageType,
-			FromType:     res[i].FromType,
-			Os:           res[i].OS,
-			RegistryId:   res[i].RegistryId,
+			ID:             res[i].ID,
+			Digest:         res[i].Digest,
+			Library:        res[i].Library,
+			NodeIp:         res[i].NodeIp,
+			CompleteTime:   res[i].CompleteTime,
+			FullRepoName:   res[i].FullRepoName,
+			Tags:           res[i].Tags,
+			ImageType:      res[i].ImageType,
+			RegistryId:     res[i].RegistryId,
+			FromType:       res[i].FromType,
+			HasFixedVulu:   res[i].HasFixedVuln,
+			Os:             res[i].OS,
+			NodeHostname:   res[i].NodeHostname,
+			IsReinforce:    res[i].IsReinforce,
+			PrivilegedBoot: res[i].PrivilegedBoot,
 		}
 		if ir.CompleteTime == "" {
 			ir.CompleteTime = res[i].CreatedAt.Format("2006-01-02 15:04:05")
 		}
 
-		if ir.ScanStatus == "" {
-			ir.ScanStatus = model.ScanStatusNotScan
-		}
+		ans = append(ans, &ir)
+	}
 
-		// 是否有可修复漏洞的筛选
-		if param.ExistFixedVulu != "" {
-			exit := false
-			for j := range res[i].VulnInfo {
-				if res[i].VulnInfo[j].FixedBy != "" {
-					exit = true
-				}
-			}
-			if param.ExistFixedVulu == consts.TrueString && exit {
-				ans = append(ans, &ir)
-			} else if param.ExistFixedVulu == consts.FalseString && !exit {
-				ans = append(ans, &ir)
-			}
+	return ans, cnt, nil
+}
+func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
+	if len(data.EnvsJson) == 0 && len(data.Envs) > 0 {
+		bys, err := json.Marshal(data.Envs)
+		if err == nil {
+			data.EnvsJson = string(bys)
 		} else {
-			ans = append(ans, &ir)
+			logging.GetLogger().Error().Err(err).Msg("CreateRejectPolicy")
 		}
 	}
 
-	// 是否可信镜像筛选
+	if len(data.SensitiveFileJson) == 0 && len(data.SensitiveFile) > 0 {
+		bys, err := json.Marshal(data.SensitiveFile)
+		if err == nil {
+			data.SensitiveFileJson = string(bys)
+		} else {
+			logging.GetLogger().Error().Err(err).Msg("CreateRejectPolicy")
+		}
+	}
 
-	return ans, int64(len(ans)), nil
-}
-func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
 	if len(data.Library) > 0 && len(data.LibraryJSON) == 0 {
 		bytes, err := json.Marshal(data.Library)
 		if err != nil {
@@ -498,6 +587,26 @@ func (s *ScannerOrm) SearchRejectPolicy(ctx context.Context, param SearchRejectP
 		}
 		res[i].RejectVulns = vulns
 	}
+	// 自定义异常文件
+	for i := range res {
+		if len(res[i].SensitiveFileJson) > 0 {
+			ses := make([]model.SensitiveFilePolicy, 0)
+			if err := json.Unmarshal([]byte(res[i].SensitiveFileJson), &ses); err == nil {
+				res[i].SensitiveFile = ses
+			} else {
+				logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+			}
+		}
+
+		if len(res[i].EnvsJson) > 0 {
+			ses := make([]string, 0)
+			if err := json.Unmarshal([]byte(res[i].EnvsJson), &ses); err == nil {
+				res[i].Envs = ses
+			} else {
+				logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+			}
+		}
+	}
 
 	return res, nil
 }
@@ -581,7 +690,7 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 
 	// 更新自定义漏洞
 	if param.UpdateRejectVulns && param.ID > 0 {
-		if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ?", param.ID).Delete(model.RejectVuln{}).Error; err != nil {
+		if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", param.ID).Delete(model.RejectVuln{}).Error; err != nil {
 			return err
 		}
 		tmpVuln := param.RejectVulns
@@ -1226,7 +1335,7 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 	}
 	// 序列化数据,
 	for i := range res {
-		vulnInfo := make([]model.VulnerabilityInfo, 0)
+		vulnInfo := make([]model.SingleScanDetail, 0)
 		if len(res[i].VulnInfoJSON) > 0 {
 			if err := json.Unmarshal(res[i].VulnInfoJSON, &vulnInfo); err == nil {
 				res[i].VulnInfo = vulnInfo
@@ -1265,6 +1374,13 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 		if len(res[i].WebshellInfoJSON) > 0 {
 			if err := json.Unmarshal(res[i].WebshellInfoJSON, &webShellInfo); err == nil {
 				res[i].WebshellInfo = webShellInfo
+			}
+		}
+
+		envInfo := make([]model.EnvKeyValue, 0)
+		if len(res[i].EnvJSON) > 0 {
+			if err := json.Unmarshal(res[i].EnvJSON, &webShellInfo); err == nil {
+				res[i].EnvKeyValue = envInfo
 			}
 		}
 	}
@@ -1345,6 +1461,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 			db = db.Where("id IN ? ", param.Ids)
 		}
 	}
+	if len(param.NodeHostnames) > 0 {
+		db = db.Where("node_hostname IN ? ", param.NodeHostnames)
+	}
 
 	if len(param.RegistryIds) > 0 {
 		if len(param.RegistryIds) == 1 {
@@ -1383,9 +1502,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.NotFromType > 0 {
 		db = db.Where("from_type != ?", param.NotFromType)
 	}
-	if param.ImageType == consts.AppImage {
+	if param.ImageType == consts.AppImageTypeString {
 		db = db.Where("image_type = ? ", consts.AppImageType)
-	} else if param.ImageType == consts.BaseImage {
+	} else if param.ImageType == consts.BaseImageTypeString {
 		db = db.Where("image_type = ? ", consts.BaseImageType)
 	}
 	if param.LayersPrefix != "" {
@@ -1721,4 +1840,393 @@ func (s *ScannerOrm) DeleteImageWhitelist(ctx context.Context, param DeleteImage
 
 	err := s.psql.Get().WithContext(ctx).Where("id = ?", param.WhiteId).Delete(&model.ImageWhitelist{}).Error
 	return err
+}
+
+func (s *ScannerOrm) UpdateTasksInfo(ctx context.Context, param SearchTaskParam, updateInfo map[string]interface{}) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(model.Task{})
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ? ", param.Ids)
+	}
+	if len(param.Statuses) > 0 {
+		db = db.Where("status IN ? ", param.Statuses)
+	}
+
+	db = db.Updates(updateInfo)
+	return db.Error
+}
+
+func (s *ScannerOrm) UpdateTask(ctx context.Context, task model.Task, param SearchTaskParam) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(model.Task{}).Where("id = ?", task.ID)
+	if len(param.ExcludeStatus) != 0 {
+		db = db.Where("status NOT IN ? ", param.ExcludeStatus)
+	}
+	db = db.Updates(&task)
+	return db.Error
+}
+
+func (s *ScannerOrm) UpdateTasksStatus(ctx context.Context, updateIds []int64, status int) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+	res := map[string]interface{}{"Status": status}
+	db := s.psql.Get().WithContext(ctx).Model(model.Task{}).Where("id IN ?", updateIds).Updates(res)
+	return db.Error
+}
+
+func (s *ScannerOrm) UpdateSubTasksInfo(ctx context.Context, param SearchSubTaskParam, updateInfo map[string]interface{}) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(model.SubTask{})
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ? ", param.Ids)
+	}
+	if len(param.Statuses) > 0 {
+		db = db.Where("status IN ? ", param.Statuses)
+	}
+	if len(param.TaskIds) > 0 {
+		db = db.Where("task_id In ? ", param.TaskIds)
+	}
+
+	db = db.Updates(updateInfo)
+	return db.Error
+}
+
+func (s *ScannerOrm) UpdateSubTask(ctx context.Context, subtask model.SubTask) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).Where("id = ?", subtask.ID).Updates(&subtask)
+	return db.Error
+}
+
+func (s *ScannerOrm) GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(new(model.Task))
+	if param.StrategyID > 0 {
+		db = db.Where("policy_id = ? ", param.StrategyID)
+	}
+	if len(param.Statuses) > 0 {
+		db = db.Where("status IN ? ", param.Statuses)
+	}
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ? ", param.Ids)
+	}
+	db = db.Order("created_at DESC")
+
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, filter)
+	res := make([]model.Task, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, cnt, err
+	}
+	return res, cnt, nil
+}
+
+func (s *ScannerOrm) GetTotalTaskNum(ctx context.Context) (int64, error) {
+	db := s.psql.Get().WithContext(ctx).Model(new(model.Task))
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
+func (s *ScannerOrm) GetImageInfo(ctx context.Context, imgId int64) (*model.ImageList, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+	tmp := model.ImageList{}
+	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgId).First(&tmp).Error; err != nil {
+		return nil, fmt.Errorf("not find image:%v", err)
+	}
+
+	return &tmp, nil
+}
+
+func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, Id int64) (*model.Registry, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+	tmp := model.Registry{}
+	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", Id).First(&tmp).Error; err != nil {
+		return nil, fmt.Errorf("not find registry:%v", err)
+	}
+
+	return &tmp, nil
+}
+func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
+	defer cancelFunc()
+	if err := s.psql.Get().WithContext(ctx).Model(model.Task{}).Create(&task).Error; err != nil {
+		return 0, err
+	}
+
+	return task.ID, nil
+}
+func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
+	defer cancelFunc()
+	if err := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).Create(&subtask).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, filter *model.Filter) ([]model.SubTask, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx).Model(new(model.SubTask))
+	if len(param.Statuses) > 0 {
+		db = db.Where("status in  ?  ", param.Statuses)
+	}
+	if len(param.TaskIds) > 0 {
+		db = db.Where("task_id in ? ", param.TaskIds)
+	}
+	if len(param.Ids) > 0 {
+		db = db.Where("id in ? ", param.Ids)
+	}
+	db = db.Order("created_at DESC")
+
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, filter)
+	res := make([]model.SubTask, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, cnt, err
+	}
+
+	return res, cnt, nil
+}
+
+func (s *ScannerOrm) CreateTasks(ctx context.Context, tasks ...model.Task) error {
+	return s.psql.Get().Model(model.Task{}).CreateInBatches(tasks, 100).Error
+}
+
+func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, id int64, status uint8) (err error) {
+	var data model.Task
+	begin := s.psql.Get().WithContext(ctx).Begin()
+
+	defer func() {
+		if err != nil {
+			begin.Rollback()
+		}
+	}()
+
+	err = begin.Model(data).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&data).Error
+	if err != nil {
+		return
+	}
+
+	if err = StatusCheck(uint8(data.Status), status); err != nil {
+		return
+	}
+
+	err = begin.Model(data).Where("id = ?", id).UpdateColumn("status", status).Error
+	if err != nil {
+		return
+	}
+
+	err = begin.Commit().Error
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*model.Task, int64, error) {
+	var (
+		count int64
+		err   error
+	)
+
+	db := s.psql.Get().WithContext(ctx)
+
+	err = db.Model(model.Task{}).Where("status != ?", consts.Unknown).Count(&count).Error
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "get task total count failed")
+	}
+
+	data := make(
+		[]struct {
+			model.Task
+			ScanStrategyName string `gorm:"column:name"`
+		},
+		0,
+		limit,
+	)
+
+	err = db.
+		Model(model.Task{}).
+		Select("tensor_scan_task.*, t.name").
+		Joins("INNER JOIN tensor_scan_strategy as t ON t.id=tensor_scan_task.policy_id").
+		Where("status != ?", consts.Unknown).
+		Limit(limit).
+		Offset(offset).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "started_at"}, Desc: true}).
+		Find(&data).
+		Error
+
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "get task data failed")
+	}
+
+	taskIds := make([]int64, 0, len(data))
+	taskIdsMap := make(map[int64]*model.Task, len(data))
+	var datas = make([]*model.Task, 0, len(data))
+	for i := range data {
+		taskIds = append(taskIds, data[i].ID)
+		taskIdsMap[data[i].ID] = &data[i].Task
+		data[i].Task.ScanStrategyName = data[i].ScanStrategyName
+		datas = append(datas, &data[i].Task)
+	}
+
+	type SubTaskCount struct {
+		SuccessCount int   `gorm:"column:sc"`
+		TaskId       int64 `gorm:"column:task_id"`
+	}
+
+	c := make([]SubTaskCount, 0, len(data))
+
+	err = db.
+		Model(model.SubTask{}).
+		Select("task_id, count(*) as sc").
+		Where("task_id in ?", taskIds).
+		Where("status = ?", consts.ImageScanSuccess).
+		Group("task_id").
+		Find(&c).
+		Error
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "get success subtasks failed")
+	}
+
+	// 数据做聚合
+	for i := range c {
+		taskIdsMap[c[i].TaskId].SuccessSubTaskCount = c[i].SuccessCount
+	}
+
+	return datas, count, nil
+}
+
+func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, limit, offset int) ([]model.SubTask, int64, error) {
+	var (
+		data  = make([]model.SubTask, 0, limit)
+		count int64
+		err   error
+	)
+
+	db := s.psql.Get().WithContext(ctx)
+
+	err = db.Model(model.SubTask{}).
+		Where("task_id = ?", taskId).
+		Count(&count).
+		Error
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "get subtask total count failed")
+	}
+
+	err = db.
+		Model(model.SubTask{}).
+		Where("task_id = ?", taskId).
+		Limit(limit).
+		Offset(offset).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "finished_at"}, Desc: true}).
+		Find(&data).
+		Error
+
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "get subtask data failed")
+	}
+
+	var imagesId = make([]int64, 0, len(data))
+	var imagesInfo = make([]model.ImageList, 0, len(data))
+	var imagesIdMap = make(map[int64]*model.SubTask, len(data))
+
+	for i := range data {
+		imagesId = append(imagesId, data[i].ImageId)
+		imagesIdMap[data[i].ImageId] = &data[i]
+	}
+
+	// 不用join，直接查询吧
+	err = db.
+		Model(model.ImageList{}).
+		Select("id, full_repo_name, tags, node_ip, library, os, node_hostname, from_type").
+		Where("id in ?", imagesId).
+		Find(&imagesInfo).
+		Error
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "get images info failed")
+	}
+
+	for i := range imagesInfo {
+		imagesIdMap[imagesInfo[i].ID].ImageInfo.Tag = imagesInfo[i].Tags
+		if imagesInfo[i].FromType == model.ImageFromSafeNode {
+			split := strings.SplitN(imagesInfo[i].FullRepoName, "/", 6)
+			imagesIdMap[imagesInfo[i].ID].ImageInfo.FullRepoName = split[len(split)-1]
+			imagesIdMap[imagesInfo[i].ID].ImageInfo.Library = fmt.Sprintf("%s(%s)%s",
+				imagesInfo[i].NodeHostname, imagesInfo[i].NodeIp, imagesInfo[i].OS)
+		} else {
+			imagesIdMap[imagesInfo[i].ID].ImageInfo.FullRepoName = imagesInfo[i].FullRepoName
+			imagesIdMap[imagesInfo[i].ID].ImageInfo.Library = imagesInfo[i].Library
+		}
+
+	}
+
+	return data, count, nil
+}
+
+func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, policyId []int64) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	res := []model.ScanStrategy{}
+	err := s.psql.Get().WithContext(ctx).Where("is_default != ? and id in ?", true, policyId).Find(&res).Error
+	if err != nil {
+		return err
+	}
+	for k := range res {
+		var resEnv []string
+		if len(res[k].EnvsJson) != 0 {
+			err = json.Unmarshal([]byte(res[k].EnvsJson), &resEnv)
+			if err != nil {
+				return err
+			}
+		}
+
+		resEnv = append(resEnv, envName)
+		envByte, err := json.Marshal(resEnv)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("marshal env form db error")
+			continue
+		}
+		envStr := string(envByte)
+		err = s.psql.Get().Model(&model.ScanStrategy{}).Where("id = ?", res[k].ID).Update("envs", envStr).Error
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("updata env form db error")
+			continue
+		}
+	}
+	return nil
+}
+
+func (s *ScannerOrm) GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error) { // 这个接口留待下版本优化
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	res := []model.ScanStrategy{}
+	err := s.psql.Get().WithContext(ctx).Select("id", "envs", "name").Where("is_default != ?", true).Find(&res).Error
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }

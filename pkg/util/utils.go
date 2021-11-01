@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 
@@ -194,4 +195,17 @@ func DeepCopy(dst, src interface{}) error {
 		logging.GetLogger().Error().Msgf("deep marshal errror:%+v", err)
 	}
 	return jsoniter.Unmarshal(eventData, &dst)
+}
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path) //os.Stat获取文件信息
+
+	if err != nil {
+		if os.IsExist(err) {
+			return true
+		}
+		return false
+	}
+
+	return true
 }

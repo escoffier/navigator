@@ -184,8 +184,8 @@ func (h *HarborV1) ListRepoTags(repo string) ([]Tag, error) {
 	return tags, nil
 }
 
-func (h *HarborV1) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
-	images := make([]registry.Image, 0)
+func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	res := new(registry.ListImagesRes)
 
 	cnt := 0
 	// get all projects
@@ -244,22 +244,26 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, needToReturnR
 				i.ManifestV2 = string(manifestV2)
 				i.ManifestV1 = string(manifestV1)
 				i.ConfigJson = configBlob
-				if needToReturnRes {
-					images = append(images, *i)
-				}
 
 				cnt++
-				err = extender(*i)
+				im, err := extender(*i)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("HarborV1 Insert imagelist error %v", err)
 					continue
 				}
+				if req.NeedToReturnAll {
+					res.All = append(res.All, im.All...)
+				}
+				if req.NeedToReturnAdded {
+					res.Added = append(res.Added, im.Added...)
+				}
+
 			} // end of for artifacts
 		} // end of for repos
 	}
 	logging.GetLogger().Info().Msgf("harborv1 List images count:%d", cnt)
 
-	return images, nil
+	return res, nil
 }
 
 func (h *HarborV1) Ping() error {

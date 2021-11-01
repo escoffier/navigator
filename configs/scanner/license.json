@@ -1,0 +1,27 @@
+[
+    {
+        "description":"商业软件不能使用GPL协议的代码。GNU General Public License （GPL）的可能是开源项目最常用的许可证。GPL赋予和保证了开源项目开发者广泛的权利。基本上，它允许用户合法复制，分发和修改软件",
+        "value":"GNU GENERAL PUBLIC LICENSE",
+        "name":"GPL"
+    },
+    {
+        "description":"商业软件可以使用，也可以修改使用BSD协议的代码。",
+        "value":"^Copyright",
+        "name":"BSD"
+    },
+    {
+        "description":"商业软件可以使用，也可以修改MIT协议的代码，甚至可以出售MIT协议的代码。MIT是和BSD一样宽松的许可协议,作者只想保留版权,而无任何其他了限制.也就是说,你必须在你的发行版里包含原许可协议的声明,无论你是以二 进制发布的还是以源代码发布的。",
+        "value":"MIT",
+        "name":"MIT"
+    },
+    {
+        "description":"商业软件可以使用，也可以修改MPL协议的代码，但修改后的代码版权归软件的发起者。Mozilla Public License 1.1 (MPL)协议允许免费重发布、免费修改，但要求修改后的代码版权归软件的发起者。这种授权维护了商业软件的利益，，它要求基于这种软件得修改无偿贡献 版权给该软件。这样，围绕该软件得所有代码得版权都集中在发起开发人得手中。但MPL是允许修改，无偿使用得。MPL软件对链接没有要求",
+        "value":"Mozilla Public License",
+        "name":"MPL"
+    },
+    {
+        "description":"商业软件可以使用，也可以修改使用Apache协议的代码。Apache Licence是著名的非盈利开源组织Apache采用的协议。该协议和BSD类似，同样鼓励代码共享和尊重原作者的著作权，同样允许代码修改，再发布 (作为开源或商业软件)",
+        "value":"Apache License",
+        "name":"Apache License"
+    }
+]

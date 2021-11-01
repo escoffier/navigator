@@ -30,7 +30,7 @@ type RegistrySrvInterface interface {
 	GetRegistryType(ctx context.Context) ([]string, error)
 }
 type RegistrySrv struct {
-	RegistryDal store.RegistryDaoInterface
+	RegistryDal store.RegistryDalInterface
 }
 
 type SearchRegistryParam struct {
@@ -155,6 +155,6 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	return nil
 }
 
-func NewRegistrySrv(dal store.RegistryDaoInterface) *RegistrySrv {
+func NewRegistrySrv(dal store.RegistryDalInterface) *RegistrySrv {
 	return &RegistrySrv{RegistryDal: dal}
 }

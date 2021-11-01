@@ -92,10 +92,10 @@ func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 	return db
 }
 
-// 扫描配置
-type ScanConfig struct {
-	Href string `json:"href"`
-}
+// // 扫描配置
+// type ScanConfig struct {
+// 	Href string `json:"href"`
+// }
 
 // 扫描状态
 type ScanStatus struct {

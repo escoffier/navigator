@@ -1,0 +1,40 @@
+#scanner config
+scanner:
+
+#  -
+#    registry:
+#      type: registry-v2
+#      options:
+#        url: http://docker-registry:5000
+#        username: testuser
+#        password: testpassword
+#        skiptlsverify: true
+#        paginationkey:
+#        usetype: 2
+#    -
+#      registry:
+#        type: cnvd
+#        options:
+#          datapath: /configs/scanner-vuln-updata/current_cnvd.tar.gz
+
+    -
+      registry:
+        type: cnnvd
+#        options:
+#          trivypath: /configs/scanner-vuln-updata/trivy_last.db
+
+    -
+      registry:
+        type: trivy
+        options:
+          dbpath: /configs/scanner/
+#  -
+#    registry:
+#      type: harbor-v2.0
+#      options:
+#        url: https://registry.t-appagile.com
+#        username: admin
+#        password: Hrbr12@Tensor.*#)
+#        skiptlsverify: true
+#        paginationkey:
+#        usetype: 1

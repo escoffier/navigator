@@ -14,7 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type RegistryDaoInterface interface {
+type RegistryDalInterface interface {
 	CreateRegistry(ctx context.Context, reg model.Registry) (int64, error)
 	UpdateRegistry(ctx context.Context, param SearchRegistryParam, updater map[string]interface{}) error
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
@@ -30,7 +30,7 @@ func NewRegistryDao(db *rdbtools.GormWrapper) *RegistryDao {
 }
 
 func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(model.Registry{})
 	if param.NoDelete {

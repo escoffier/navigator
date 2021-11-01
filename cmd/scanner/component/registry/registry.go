@@ -5,6 +5,8 @@ package registry
 import (
 	"errors"
 	"fmt"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 // RegistrableComponentConfig is a configuration block that can be used to
@@ -22,7 +24,7 @@ var drivers = make(map[string]Driver)
 type Driver func(RegistrableComponentConfig) (Registry, error)
 
 // ImageListExtender is a function that can do some stuff when sync one image
-type ImageListExtender func(image Image) error
+type ImageListExtender func(image Image) (*ListImagesRes, error)
 
 // Register makes a Constructor available by the provided name.
 //
@@ -48,6 +50,16 @@ func Open(cfg RegistrableComponentConfig) (Registry, error) {
 	return driver(cfg)
 }
 
+type ListImagesRes struct {
+	All   []*model.ImageList // 本次同步的全部镜像
+	Added []*model.ImageList // 本次同步的新增镜像
+}
+
+type ListImagesRequest struct {
+	NeedToReturnAll   bool
+	NeedToReturnAdded bool
+}
+
 // Registry represents the required operations on a registry
 type Registry interface {
 	// // listRepos returns the entire list of repository.
@@ -70,5 +82,5 @@ type Registry interface {
 	DeleteImages(projectName, repoName, digest string) error
 
 	// ListImages return all images
-	ListImages(extender ImageListExtender, needToReturnRes bool) ([]Image, error)
+	ListImages(extender ImageListExtender, req ListImagesRequest) (*ListImagesRes, error)
 }
