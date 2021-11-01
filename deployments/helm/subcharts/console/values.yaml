@@ -40,31 +40,31 @@ persistence:
       resources:
         limits:
           cpu: "0.1"
-          memory: 100Mi
+          memory: 200Mi
         requests:
           cpu: "0.1"
-          memory: 100Mi
+          memory: 200Mi
     hotLogicCronjob:
       cronString: "0 2 * * *"
       nameOverride: "cron-hot-logic-cleaner"
       fullnameOverride: "tensorsec-cron-hot-logic-cleaner"
       resources:
         limits:
-          cpu: "0.3"
-          memory: 300Mi
+          cpu: "0.1"
+          memory: 200Mi
         requests:
-          cpu: "0.3"
-          memory: 300Mi
+          cpu: "0.1"
+          memory: 200Mi
     hotOfflineCronjob:
       cronString: "0 3 * * *"
       nameOverride: "cron-hot-offline-cleaner"
       fullnameOverride: "tensorsec-cron-hot-offline-cleaner"
       resources:
         limits:
-          cpu: "0.2"
+          cpu: "0.1"
           memory: 200Mi
         requests:
-          cpu: "0.2"
+          cpu: "0.1"
           memory: 200Mi
 
 jobs:

@@ -184,10 +184,10 @@ redis:
 
   resources:
     requests:
-      memory: 700Mi
+      memory: 500Mi
       cpu: 200m
     limits:
-      memory: 700Mi
+      memory: 500Mi
       cpu: 200m
 
 ## Sentinel specific configuration options

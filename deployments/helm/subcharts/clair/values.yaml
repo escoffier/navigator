@@ -76,10 +76,10 @@ ingress:
 resources:
   limits:
     cpu: 200m
-    memory: 1500Mi
+    memory: 500Mi
   requests:
     cpu: 200m
-    memory: 1500Mi
+    memory: 500Mi
 config:
   postgresServiceName: "tensorsec-postgresql"
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"

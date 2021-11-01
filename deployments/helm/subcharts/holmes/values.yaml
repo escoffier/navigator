@@ -26,10 +26,10 @@ tensorsecDaemon:
     pullPolicy: Always
   resources:
     requests:
-      memory: "512Mi"
+      memory: "500Mi"
       cpu: "100m"
     limits:
-       memory: "512Mi"
+       memory: "500Mi"
        cpu: "100m"
 
 multicluster:
@@ -53,10 +53,10 @@ resources:
   # to #falco slack channel for more info about it
   requests:
     cpu: 1
-    memory: 512Mi
+    memory: 500Mi
   limits:
     cpu: 1
-    memory: 512Mi
+    memory: 500Mi
 
 extraArgs: []
 nodeSelector: {}
