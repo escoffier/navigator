@@ -63,11 +63,11 @@ scanner:
     replicas: 2
     resources:
       limits:
-        cpu: "300m"
-        memory: "500Mi"
+        cpu: "100m"
+        memory: "200Mi"
       requests:
-        cpu: "300m"
-        memory: "500Mi"
+        cpu: "100m"
+        memory: "200Mi"
 
 console:
   enabled: true
@@ -249,10 +249,10 @@ postgresql-ha:
     maxConnections: "1024"
     resources:
       limits:
-        memory: 512Mi
+        memory: 500Mi
         cpu: 500m
       requests:
-        memory: 512Mi
+        memory: 500Mi
         cpu: 500m
   pgpoolImage:
     name: pgpool
@@ -264,10 +264,10 @@ postgresql-ha:
     maxPool: "15"
     resources:
       limits:
-        memory: 512Mi
+        memory: 500Mi
         cpu: 500m
       requests:
-        memory: 512Mi
+        memory: 500Mi
         cpu: 500m
   volumePermissionsImage:
     name: bitnami-shell
@@ -476,9 +476,9 @@ safenode-image:
   resources:
     limits:
       cpu: "1000m"
-      memory: "1024Mi"
+      memory: "1000Mi"
     requests:
       cpu: "1000m"
-      memory: "1024Mi"
+      memory: "1000Mi"
   multicluster:
     clusterManagerAddr: "http://tensorsec-cluster-manager:9443"

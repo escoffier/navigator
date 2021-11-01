@@ -403,10 +403,10 @@ resources:
   # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 500Mi
   requests:
     cpu: 500m
-    memory: 512Mi
+    memory: 500Mi
 
 ## MongoDB(R) pods' liveness and readiness probes. Evaluated as a template.
 ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
@@ -651,10 +651,10 @@ externalAccess:
       # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
       limits:
         cpu: 100m
-        memory: 128Mi
+        memory: 100Mi
       requests:
         cpu: 100m
-        memory: 128Mi
+        memory: 100Mi
   ## Parameters to configure K8s service(s) used to externally access MongoDB(R)
   ## A new service per broker will be created
   ##
@@ -894,10 +894,10 @@ arbiter:
     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
 
   ## MongoDB(R) Arbiter pods' liveness and readiness probes. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
@@ -1106,10 +1106,10 @@ volumePermissions:
     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
   ## Init container Security Context
   ## Note: the chown of the data folder is done to containerSecurityContext.runAsUser
   ## and not the below volumePermissions.securityContext.runAsUser
@@ -1162,10 +1162,10 @@ metrics:
     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
 
   ## Prometheus exporter container port
   ##
@@ -1397,10 +1397,10 @@ hidden:
     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 100Mi
 
   ## MongoDB(R) Hidden pods' liveness and readiness probes. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes

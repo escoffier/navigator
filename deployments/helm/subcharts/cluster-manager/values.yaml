@@ -25,11 +25,11 @@ fullnameOverride: "tensorsec-cluster-manager"
 
 resources:
   limits:
-    cpu: 500m
-    memory: 256Mi
+    cpu: 100m
+    memory: 200Mi
   requests:
-    cpu: 500m
-    memory: 256Mi
+    cpu: 100m
+    memory: 200Mi
 
 service:
   port: 9443

@@ -36,10 +36,10 @@ replicaCount: 1
 
 resources:
   requests:
-    cpu: "200m"
+    cpu: "100m"
     memory: "200Mi"
   limits:
-    cpu: "200m"
+    cpu: "100m"
     memory: "200Mi"
 
 initContainers:
@@ -74,10 +74,10 @@ webhook:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
     limits:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
 
 eventProcessor:
@@ -90,10 +90,10 @@ eventProcessor:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
     limits:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
 
 loader:
@@ -106,10 +106,10 @@ loader:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
     limits:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
 
 audit:
@@ -122,10 +122,10 @@ audit:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
     limits:
-      cpu: "200m"
+      cpu: "100m"
       memory: "200Mi"
 
 redis:

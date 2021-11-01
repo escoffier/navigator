@@ -22,10 +22,10 @@ dockerregistry:
   resources:
     requests:
       cpu: "200m"
-      memory: "512Mi"
+      memory: "500Mi"
     limits:
       cpu: "200m"
-      memory: "512Mi"
+      memory: "500Mi"
   service:
     type: ClusterIP
     # clusterIP:
@@ -78,11 +78,11 @@ webshell:
   replicas: 2
   resources:
     limits:
-      cpu: "300m"
-      memory: "500Mi" 
+      cpu: "100m"
+      memory: "200Mi" 
     requests:
-      cpu: "300m"
-      memory: "500Mi"
+      cpu: "100m"
+      memory: "200Mi"
   service:
     type: ClusterIP
     # clusterIP:
