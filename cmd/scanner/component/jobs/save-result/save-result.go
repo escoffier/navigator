@@ -133,6 +133,7 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 		for k, trivyDetail := range mp {
 			tmpDetail, err := vulnQuery.GetVulnDetail(k)
 			if err != nil {
+				trivyDetail.CVEID = k
 				scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
 				continue
 			}
