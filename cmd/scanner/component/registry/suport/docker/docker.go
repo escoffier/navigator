@@ -16,6 +16,7 @@ import (
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -36,6 +37,7 @@ type RegistryV2 struct {
 	Ctx            context.Context
 	Config         RegisterConfig
 	RegistryClient *registry2.Registry // client for pull manifest
+	ImageDal       store.ScannerDalInterface
 }
 
 func (r *RegistryV2) ListRepos() ([]string, error) {
@@ -117,9 +119,9 @@ func (r *RegistryV2) ListRepoTags(repo string) ([]string, error) {
 	return tags, nil
 }
 
-func (r *RegistryV2) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
-	images := make([]registry.Image, 0)
+func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
 	cnt := 0
+	res := new(registry.ListImagesRes)
 
 	// get all repos
 	repos, err := r.ListRepos()
@@ -195,19 +197,23 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, needToRetur
 			i.ConfigJson = configBlob
 
 			cnt++
-			if needToReturnRes {
-				images = append(images, *i)
-			}
-			err = extender(*i)
+
+			im, err := extender(*i)
 			if err != nil {
 				logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
 				continue
+			}
+			if req.NeedToReturnAll {
+				res.All = append(res.All, im.All...)
+			}
+			if req.NeedToReturnAdded {
+				res.Added = append(res.Added, im.Added...)
 			}
 		}
 	}
 
 	logging.GetLogger().Info().Msgf("docker-registry List images  count:%d", cnt)
-	return images, nil
+	return res, nil
 }
 
 func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
@@ -380,8 +386,9 @@ func init() {
 	err := registry.Register(Version, openRegistry)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+	} else {
+		logging.GetLogger().Info().Msg("docker driver register success")
 	}
-	logging.GetLogger().Info().Msg("docker dirver register success")
 }
 
 func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry, error) {

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
@@ -97,6 +98,72 @@ type checkSanImageRes struct {
 	ScanImag *model.ScanImage
 }
 
+var (
+	LanguageMap = map[string]string{
+		"gemfile":      "Ruby",
+		"pipfile":      "Python",
+		"poetry":       "Python",
+		"composer":     "PHP",
+		"package-lock": "Node.js",
+		"yarn":         "Node.js",
+		"jar":          "Java",
+		"war":          "Java",
+		"ear":          "Java",
+		"gobinary":     "GO",
+	}
+)
+
+func FilterVulnsFromScanImage(scanDetails []model.SingleScanDetail) []model.RespSingleVulnDetail {
+
+	var result []model.RespSingleVulnDetail
+	for _, v := range scanDetails {
+		if len(v.Vulns) == 0 {
+			continue
+		}
+		if strings.Contains(v.Target, "fastjson") {
+			for _, vuln := range v.Vulns {
+				tmpRespSingle := model.RespSingleVulnDetail{}
+				tmpRespSingle.TargetFileNmae = v.Target
+				tmpRespSingle.Frame = "fastjson"
+				tmpRespSingle.NewVulnDetail = vuln
+				result = append(result, tmpRespSingle)
+			}
+		} else if lang, ok := LanguageMap[strings.ToLower(v.Type)]; ok {
+			if lang != "GO" {
+				for _, vuln := range v.Vulns {
+					tmpRespSingle := model.RespSingleVulnDetail{}
+					tmpRespSingle.TargetFileNmae = v.Target
+					tmpRespSingle.Language = lang
+					tmpRespSingle.NewVulnDetail = vuln
+					result = append(result, tmpRespSingle)
+				}
+			} else {
+				for _, vuln := range v.Vulns {
+					tmpRespSingle := model.RespSingleVulnDetail{}
+					index := strings.LastIndex(v.Target, "/")
+					if index == -1 {
+						tmpRespSingle.TargetFileNmae = "/"
+						tmpRespSingle.Gobinary = v.Target
+					} else {
+						tmpRespSingle.TargetFileNmae = v.Target[0:index] // 文件路径
+						tmpRespSingle.Gobinary = v.Target[index+1:]      // 文件名
+					}
+					tmpRespSingle.NewVulnDetail = vuln
+					result = append(result, tmpRespSingle)
+				}
+			}
+		} else {
+			for _, vuln := range v.Vulns {
+				tmpRespSingle := model.RespSingleVulnDetail{}
+				tmpRespSingle.NewVulnDetail = vuln
+				tmpRespSingle.TargetFileNmae = v.Target
+				result = append(result, tmpRespSingle)
+			}
+		}
+	}
+	return result
+}
+
 func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln) int {
 	// 就先写魔法数字吧，恶心是恶心了点
 	subScore := map[string]int{
@@ -116,14 +183,15 @@ func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln
 		"Negligible": false,
 		"Unknown":    false,
 	}
+	fileterScan := FilterVulnsFromScanImage(imascan.VulnInfo)
 	ans := 50
-	for _, vu := range imascan.VulnInfo {
-		if cu, ok := cus[vu.ID]; ok && cu.RejectPolicy == model.RejectPolicyIgnore {
+	for _, vu := range fileterScan {
+		if cu, ok := cus[vu.CVEID]; ok && cu.RejectPolicy == model.RejectPolicyIgnore {
 			continue
 		}
-		if !exitScore[vu.Severity] {
-			ans = ans - subScore[vu.Severity]
-			exitScore[vu.Severity] = true
+		if !exitScore[vu.Trivy[0].Severity] {
+			ans = ans - subScore[vu.Trivy[0].Severity]
+			exitScore[vu.Trivy[0].Severity] = true
 		}
 	}
 	return ans
@@ -322,7 +390,7 @@ func checkRejectPolicy(po model.RejectPolicy) error {
 	if len(po.RejectVulns) > 0 {
 		for i := range po.RejectVulns {
 			vu := po.RejectVulns[i]
-			if vu.RejectPolicy != model.RejectPolicyIgnore && vu.RejectPolicy != model.RejectPolicyReject {
+			if vu.RejectPolicy != model.RejectPolicyIgnore && vu.RejectPolicy != model.RejectPolicyReject && vu.RejectPolicy != model.RejectPolicyAlarm {
 				return errors.New("no customize vuln policy")
 			}
 			if vu.Name == "" {
@@ -349,6 +417,9 @@ func checkRejectPolicy(po model.RejectPolicy) error {
 
 	if po.PrivilegedBootPolicy != model.RejectPolicyAlarm && po.PrivilegedBootPolicy != model.RejectPolicyReject {
 		return errors.New("no privileged boot policy")
+	}
+	if po.EnvPolicy != model.RejectPolicyAlarm && po.EnvPolicy != model.RejectPolicyReject && po.EnvPolicy != model.RejectPolicyIgnore {
+		return errors.New("no env policy")
 	}
 
 	if po.WebShellScore > 10 || po.WebShellScore < 4 {
@@ -385,7 +456,22 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 		"k8s_enable":             po.K8sEnable,
 		"online_monitor":         po.OnlineMonitor,
 		"mode":                   po.Mode,
+		"env_policy":             po.EnvPolicy,
 	}
+	bys, err := json.Marshal(po.Envs)
+	if err == nil {
+		updater["envs"] = string(bys)
+	} else {
+		logging.GetLogger().Error().Err(err).Msg("rejectPolicyToUpdater")
+	}
+
+	bys, err = json.Marshal(po.SensitiveFile)
+	if err == nil {
+		updater["sensitive_file"] = string(bys)
+	} else {
+		logging.GetLogger().Error().Err(err).Msg("rejectPolicyToUpdater")
+	}
+
 	return updater
 }
 
@@ -487,13 +573,13 @@ func (m ModeImageResponse) Less(i, j int) bool {
 		return false
 	}
 	// 未扫描在前，其次扫描中
-	if m[i].ScanStatus == model.ScanStatusNotScan && m[j].ScanStatus != model.ScanStatusNotScan {
+	if m[i].ScanStatus == consts.NotScan && m[j].ScanStatus != consts.NotScan {
 		return true
-	} else if m[j].ScanStatus == model.ScanStatusNotScan && m[i].ScanStatus != model.ScanStatusNotScan {
+	} else if m[j].ScanStatus == consts.NotScan && m[i].ScanStatus != consts.NotScan {
 		return false
-	} else if m[i].ScanStatus == model.ScanStatusInProgress && m[j].ScanStatus != model.ScanStatusInProgress {
+	} else if m[i].ScanStatus == consts.ImageScanInProgress && m[j].ScanStatus != consts.ImageScanInProgress {
 		return true
-	} else if m[j].ScanStatus == model.ScanStatusInProgress && m[i].ScanStatus != model.ScanStatusInProgress {
+	} else if m[j].ScanStatus == consts.ImageScanInProgress && m[i].ScanStatus != consts.ImageScanInProgress {
 		return false
 	}
 	// 再排序扫描结束时间
@@ -508,4 +594,59 @@ func (m ModeImageResponse) Less(i, j int) bool {
 
 func (m ModeImageResponse) Swap(i, j int) {
 	m[i], m[j] = m[j], m[i]
+}
+
+func InInSlice(v int, vlue []int) bool {
+	for i := range vlue {
+		if v == vlue[i] {
+			return true
+		}
+	}
+	return false
+}
+
+func MergeArtifact(src jobs.Artifact, dst jobs.Artifact) {
+	for k, v := range src {
+		dst[k] = v
+	}
+}
+
+// MatchSuffix 匹配敏感文件的文件名
+func MatchSuffix(pre, rule string) bool {
+	if pre == "" {
+		return false
+	}
+	split := strings.Split(pre, ".")
+	rule = strings.Replace(rule, ".", "", 1)
+	return split[len(split)-1] == rule
+}
+
+func DeDuplicationInt64Slice(va []int64) []int64 {
+	exit := make(map[int64]int64)
+	ans := make([]int64, 0)
+	for i := range va {
+		if exit[va[i]] == 0 {
+			ans = append(ans, va[i])
+			exit[va[i]]++
+		}
+	}
+	return ans
+}
+
+func ParseConfigEnv(env []string) []model.EnvKeyValue {
+	var res []model.EnvKeyValue
+	for _, v := range env {
+		index := strings.Index(v, "=")
+		if index == -1 {
+			continue
+		}
+		tmpEnv := model.EnvKeyValue{}
+		tmpEnv.Key = v[0:index]
+		envLen := len(v)
+		if index+1 < envLen {
+			tmpEnv.Value = v[index+1:]
+		}
+		res = append(res, tmpEnv)
+	}
+	return res
 }

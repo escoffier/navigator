@@ -3,7 +3,10 @@ package model
 import (
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 )
 
 var VulnerabilityInImagesRiskFilters = map[string]int{
@@ -40,22 +43,23 @@ func GetScannedImagesSortableNames() []string {
 }
 
 type ImageScanSummaryResult struct {
-	TopVulns          []VulnerabilityInfo   `json:"topVulnerabilities"`
-	OverallSeverity   string                `json:"overallSeverity"`
-	Repository        string                `json:"repository"`
-	HarborURL         string                `json:"harborURL"`
-	Tag               string                `json:"tag"`
-	Digest            string                `json:"digest"`
-	TaskID            primitive.ObjectID    `json:"taskID"`
-	SensitiveFiles    []Sensitive           `json:"sensitiveFiles"`
-	StartedAt         int64                 `json:"startedAt"`
-	FinishedAt        int64                 `json:"finishedAt"`
-	SeverityHistogram SeverityHistogramInfo `json:"severityHistogram"`
-	RiskScore         float64               `json:"risk_score"`
-	VirusScore        float64               `json:"virus_score"`
-	VulnScore         float64               `json:"vuln_score"`
-	SensitiveScore    float64               `json:"sensitive_score"`
-	WebshellScore     float64               `json:"webshell_score"`
+	TopVulns          []RespSingleVulnDetail `json:"topVulnerabilities"`
+	OverallSeverity   string                 `json:"overallSeverity"`
+	Repository        string                 `json:"repository"`
+	HarborURL         string                 `json:"harborURL"`
+	Tag               string                 `json:"tag"`
+	Digest            string                 `json:"digest"`
+	TaskID            primitive.ObjectID     `json:"taskID"`
+	SensitiveFiles    []Sensitive            `json:"sensitiveFiles"`
+	StartedAt         int64                  `json:"startedAt"`
+	FinishedAt        int64                  `json:"finishedAt"`
+	SeverityHistogram SeverityHistogramInfo  `json:"severityHistogram"`
+	RiskScore         float64                `json:"risk_score"`
+	VirusScore        float64                `json:"virus_score"`
+	VulnScore         float64                `json:"vuln_score"`
+	EnvInfos          []SummaryEnv           `json:"envinfos"`
+	SensitiveScore    float64                `json:"sensitive_score"`
+	WebshellScore     float64                `json:"webshell_score"`
 }
 
 type ImageScanDetailedResult struct {
@@ -102,12 +106,12 @@ const (
 )
 
 const (
-	SeverityCritical   = "Critical"
-	SeverityHigh       = "High"
-	SeverityMedium     = "Medium"
-	SeverityLow        = "Low"
-	SeverityNegligible = "Negligible"
-	SeverityUnknown    = "Unknown"
+	SeverityCritical   = "CRITICAL"
+	SeverityHigh       = "HIGH"
+	SeverityMedium     = "MEDIUM"
+	SeverityLow        = "LOW"
+	SeverityNegligible = "NEGLIGIBLE"
+	SeverityUnknown    = "UNKNOWN"
 )
 
 type VulnInfoEx struct {
@@ -141,7 +145,7 @@ type ImageRiskScore struct {
 }
 
 type ConstMapScore struct {
-	// Severity    string
+	//Severity    string
 	MaxScore    float64
 	SingleScore float64
 }
@@ -159,16 +163,16 @@ type VulnList struct {
 }
 
 type VulnDetailInfo struct {
-	Name        string                   `json:"name"`
-	Severity    string                   `json:"severity"`
-	Pkgname     string                   `json:"pkgname"`
-	Pkgversion  string                   `json:"pkgversion"`
-	Cvss        CVSSVulnerabilityInfo    `json:"cvss,omitempty"`
-	Cnvd        []CNVDVulnerabilityInfo  `json:"cnvds,omitempty"`
-	CNNVDs      []CNNVDVulnerabilityInfo `json:"cnnvds,omitempty"`
-	Links       []string                 `json:"links"`
-	Fixedby     string                   `json:"fixedby"`
-	Description string                   `json:"description"`
+	Name        string                       `json:"name"`
+	Severity    string                       `json:"severity"`
+	Pkgname     string                       `json:"pkgname"`
+	Pkgversion  string                       `json:"pkgversion"`
+	Cvss        CVSSVulnerabilityInfo        `json:"cvss,omitempty"`
+	Cnvd        []cnvd.CnvdMetadata          `json:"cnvds,omitempty"`
+	CNNVDs      cnnvd.CNNVDVulnerabilityInfo `json:"cnnvds,omitempty"`
+	Links       []string                     `json:"links"`
+	Fixedby     string                       `json:"fixedby"`
+	Description string                       `json:"description"`
 }
 
 type VulnDetailContainer struct {
@@ -226,4 +230,104 @@ type ImageVirusSumData struct {
 	MediumNum   int64 `json:"medium_num"`
 	LowNum      int64 `json:"low_num"`
 	UnknownNum  int64 `json:"unknown_num"`
+}
+
+type PerLayerMaliciousResult struct {
+	LayerDigest string
+	VirusInfos  []VirusInfo
+}
+
+type PerLayerSensitiveResult struct {
+	LayerDigest string
+	Sensitives  []Sensitive
+}
+
+type PerLayerWebshellResult struct {
+	LayerDigest   string
+	WebShellInfos []WebShellInfo
+}
+
+type PerLayerLicenseResult struct {
+	LayerDigest  string
+	LicenseInfos []LicenseInfo
+}
+
+type NewVulnDetail struct {
+	CVEID string                        `json:"CVEID"`
+	Cnvd  []cnvd.CnvdMetadata           `json:"cnvd"`
+	Cnnvd cnnvd.CNNVDVulnerabilityInfo  `json:"cnnvd"`
+	Trivy []types.DetectedVulnerability `json:"trivy"`
+}
+
+type LayerVulnDetail struct {
+	Target string                    `json:"target"`
+	Class  string                    `json:"class"`
+	Type   string                    `json:"type"`
+	Vulns  map[string]*NewVulnDetail `json:"vulns"`
+}
+
+type SingleScanDetail struct {
+	Target string          `json:"target"`
+	Class  string          `json:"class"`
+	Type   string          `json:"type"`
+	Vulns  []NewVulnDetail `json:"vulns"`
+}
+
+type ScanDetailScanImage struct {
+	VulnDetails          []SingleScanDetail
+	MaliciousDetails     []Malicious
+	Sentitives           []Sensitive
+	WebshellInfos        []Webshell
+	EnvDetails           []EnvKeyValue
+	Software             []Software
+	LicenseDetail        []LicenseInfo
+	HasFixedVuln         int `json:"has_fixed_vuln"`
+	ScanEnableCollection ScanEnableCollection
+	SeverityHistogram    SeverityHistogramInfo
+	VulnScore            float64
+	MaliciousScore       float64
+	WebShellScore        float64
+	SensitiveScore       float64
+}
+
+type LayerScanDetail struct {
+	//LayerDigest string
+	VulnDetails      []LayerVulnDetail
+	MaliciousDetails []Malicious
+	Sentitives       []Sensitive
+	WebshellInfos    []Webshell
+}
+
+type RespSingleVulnDetail struct {
+	Language       string
+	Frame          string
+	Gobinary       string
+	TargetFileNmae string `json:"target_file_name"`
+	NewVulnDetail  `json:"new_vuln_detail"`
+}
+
+type EnvKeyValue struct {
+	Key        string `json:"key"`
+	Value      string `json:"value"`
+	IsAbnormal int    `json:"is_abnormal"`
+}
+
+type ScanEnableCollection struct {
+	EnvEnable       int `json:"env_enable"`
+	SoftwareEnable  int `json:"software_enable"`
+	SensitiveEnable int `json:"sensitive_enable"`
+	LicenseEnable   int `json:"license_enable"`
+}
+
+type SummaryEnv struct {
+	EnvName    string `json:"env_name"`
+	EnvValue   string `json:"env_value"`
+	IsAbnormal int    `json:"is_abnormal"`  //标记是否异常
+	IsInPolicy int    `json:"is_in_policy"` //标记是否被所有策略引用
+}
+
+type LicenseInfo struct {
+	Value      string `json:"value"`
+	Descripion string `json:"description"`
+	Name       string `json:"name"`
 }

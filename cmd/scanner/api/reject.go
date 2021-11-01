@@ -87,7 +87,7 @@ func (r *RejectApi) ListRejectRecord(ctx *gin.Context) {
 // @Description 获取白名单列表
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageWhitelist{}}}
-// @Router	/api/v1/imagereject/whitelist [ge]t
+// @Router	/api/v1/imagereject/whitelist [get]
 func (r *RejectApi) ListWhitelist(ctx *gin.Context) {
 	search := ctx.Query("search")
 	filter := model.GetFilter(ctx)

@@ -51,6 +51,8 @@ func (api *api) scanner() func(chi.Router) {
 		r.Delete("/images/bases/{imageID}", api.RedirectToScanner())
 		r.Get("/images/app/{imageID}/bases", api.RedirectToScanner())
 		r.Get("/images/base/{imageID}/apps", api.RedirectToScanner())
+		r.Get("/images/env/{envName}", api.RedirectToScanner())
+		r.Put("/images/env/{envName}", api.RedirectToScanner())
 
 		r.Get("/layers/{layerDigest}/info", api.RedirectToScanner())
 
@@ -58,6 +60,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/vulns/statistic", api.RedirectToScanner())
 		r.Get("/vulns/all", api.RedirectToScanner())
 		r.Get("/vulns/relation", api.RedirectToScanner())
+		r.Put("/vulns/updata", api.RedirectToScanner())
 
 		// r.Get("/register/projects/{projectName}", api.RedirectToScanner())
 		r.Get("/register/registries", api.RedirectToScanner())
@@ -67,6 +70,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Delete("/register/registry/{id}", api.RedirectToScanner())
 		r.Get("/register/reg-type", api.RedirectToScanner())
 
+		r.Get("/imagereject/result/file-checker", api.RedirectToScanner())
 		r.Get("/imagereject/overview", api.RedirectToScanner())
 		r.Get("/imagereject/reasons", api.RedirectToScanner())
 		r.Get("/imagereject/images", api.RedirectToScanner())
@@ -84,6 +88,20 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/imagereject/scanone/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/result/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
+
+		r.Put("/tasks/{id}/status", api.RedirectToScanner())
+		r.Get("/tasks/{id}/subtasks", api.RedirectToScanner())
+		r.Get("/tasks", api.RedirectToScanner())
+
+		r.Put("/scan-config/config/{scanConfigID}", api.RedirectToScanner())
+		r.Get("/scan-config/config/global", api.RedirectToScanner())
+		r.Post("/scan-config/strategy", api.RedirectToScanner())
+		r.Put("/scan-config/strategy/{strategyID}", api.RedirectToScanner())
+		r.Delete("/scan-config/strategy/{strategyID}", api.RedirectToScanner())
+		r.Get("/scan-config/strategies", api.RedirectToScanner())
+		r.Get("/scan-config/strategy/{strategyID}", api.RedirectToScanner())
+		r.Get("/scan-config/strategy/open-sources", api.RedirectToScanner())
+		r.Get("/scan-config/strategy/node-hostnames", api.RedirectToScanner())
 
 		r.Get("/imagereject/trustedImages/rsa", api.RedirectToScanner())
 		r.Get("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
@@ -286,7 +304,9 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 				request.URL = u
 			},
 		}
-
+		// ctx, cannel := context.WithTimeout(r.Context(), 600*time.Second)
+		// defer cannel()
+		// r = r.WithContext(ctx)
 		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
 		proxy.ServeHTTP(w, r)
 		log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))

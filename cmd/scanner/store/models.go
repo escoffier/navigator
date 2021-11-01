@@ -26,19 +26,24 @@ type SearchImageParam struct {
 	Fields         []string // 只想要的字端
 	LayersPrefix   string
 	RegistryIds    []int64 // 仓库Id列表
+	NodeHostnames  []string
 }
 
 type SearchImageWithScanParam struct {
-	Library        string
-	SearchWord     string
-	Kind           string
-	ScanStatus     []string // 是否删除等状态
-	FromType       int64
-	ImageType      string
-	InIDs          []int64 //
-	NotInIDs       []int64 //
-	ExistFixedVulu string
-	Trusted        string
+	Library      string
+	SearchWord   string
+	Kind         string
+	ScanStatus   []string // 是否删除等状态
+	FromType     int64
+	ImageType    string
+	InIDs        []int64  //
+	NotInIDs     []int64  //
+	InDigests    []string //
+	NotInDigests []string //
+	NodeHostname string
+
+	HasFixedVulu string
+	IsReinforce  string
 }
 
 type GetImageParam struct {
@@ -186,4 +191,37 @@ type IntervalDateGroup struct {
 }
 
 type SearchBaseImageParam struct {
+}
+
+type SearchTaskParam struct {
+	Ids           []int64 // task id
+	ExcludeStatus []int   // exclude tasks with these statuses
+	Statuses      []int8  // task status
+	StrategyID    int64
+}
+
+type SearchSubTaskParam struct {
+	Ids     []int64 // subtask id
+	TaskIds []int64
+	//TaskId   int64
+	//Status   int   // task status
+	Statuses []int // subtask status
+}
+
+type SearchStrategyParam struct {
+	IsDefault  string
+	StrategyID int64
+}
+type SearchScanConfigParam struct {
+	ScanConfigID int64
+}
+
+type DeleteSoftWareParam struct {
+	StrategyID int64
+	SoftID     int64
+}
+
+type SearchTrustedImageParam struct {
+	Digests   []string
+	IsTrusted string
 }

@@ -88,7 +88,7 @@ type ImageResponse struct {
 	Digest            string         `json:"digest"`
 	Library           string         `json:"library"`
 	NodeIp            string         `json:"node_ip"`
-	ScanStatus        string         `json:"scan_status"`
+	ScanStatus        int            `json:"scan_status"`
 	CompleteTime      string         `json:"complete_time"`
 	Questions         []QuestionInfo `json:"questions"`
 	FullRepoName      string         `json:"full_repo_name"`
@@ -100,10 +100,12 @@ type ImageResponse struct {
 	RegistryDeletedAt int64          `json:"registry_deleted_at"`
 	FromType          int64          `json:"from_type"`
 	Trusted           int64          `json:"trusted"`
-	ExistFixedVulu    bool           `json:"exist_fixed_vulu"`
+	HasFixedVulu      int64          `json:"has_fixed_vulu"`
 	Online            bool           `json:"online"`
 	Os                string         `json:"os"`
 	NodeHostname      string         `json:"node_hostname"`
+	IsReinforce       int64          `json:"is_reinforce"`
+	PrivilegedBoot    int64          `json:"privileged_boot"`
 }
 
 func ImageToImageResponse(img ImageList) ImageResponse {
@@ -123,7 +125,6 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 	}
 	if img.ScanImage != nil {
 		im.RiskScore = img.ScanImage.VulnScore + img.ScanImage.SensitiveScore + math.Min(img.ScanImage.WebshellScore+img.ScanImage.VirusScore, 40)
-		im.ScanStatus = img.ScanImage.Status
 	}
 
 	if img.Registry != nil {
@@ -135,7 +136,7 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 }
 
 type ScanOneStatusResponse struct {
-	ScanStatus         string  `json:"scan_status"`
+	ScanStatus         int     `json:"scan_status"`
 	EndTime            string  `json:"end_time"`
 	HasVulu            bool    `json:"has_vulu"`      // 是否有漏洞
 	HasMalicious       bool    `json:"has_malicious"` // 是否有病毒

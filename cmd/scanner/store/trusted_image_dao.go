@@ -3,15 +3,17 @@ package store
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type TrustedImageInterface interface {
-	TrustedImagesMulti(ctx context.Context, digests []string) ([]model.TrustedImages, error)
+	SearchTrustedImages(ctx context.Context, param SearchTrustedImageParam) ([]model.TrustedImages, error)
 	TrustedImageCreat(ctx context.Context, trustedImage *model.TrustedImages) error
 
 	ImageRsaCreate(ctx context.Context, data *model.ImageRsa) error
@@ -22,21 +24,26 @@ type TrustedImageInterface interface {
 	ImageRsaQueryByPrivateKey(ctx context.Context, privateKey string) (*model.ImageRsa, error)
 }
 
-// TrustedImagesMulti 获取多个镜像的可信信息
-func (s *ScannerOrm) TrustedImagesMulti(ctx context.Context, digests []string) ([]model.TrustedImages, error) {
-	var result = make([]model.TrustedImages, 0, len(digests))
+// SearchTrustedImages 获取多个镜像的可信信息,可能需要查询全部
+func (s *ScannerOrm) SearchTrustedImages(ctx context.Context, param SearchTrustedImageParam) ([]model.TrustedImages, error) {
+	timeOutCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
 
-	err := s.psql.Get().
-		WithContext(ctx).
-		Model(model.TrustedImages{}).
-		Where("digest IN ?", digests).
-		Find(&result).
-		Error
+	var result = make([]model.TrustedImages, 0)
 
-	if err != nil {
-		return nil, err
+	db := s.psql.Get().WithContext(timeOutCtx).Model(model.TrustedImages{})
+	if len(param.Digests) > 0 {
+		db = db.Where("digest IN ?", param.Digests)
+	}
+	if param.IsTrusted == consts.IsTrustedImageString {
+		db = db.Where("is_trusted = ? ", consts.IsTrustedImage)
+	} else if param.IsTrusted == consts.NotTrustedImageString {
+		db = db.Where("is_trusted = ? ", consts.NotTrustedImage)
 	}
 
+	if err := db.Find(&result).Error; err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 

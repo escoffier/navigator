@@ -2,7 +2,9 @@ package component
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -18,8 +20,9 @@ type InitScannerInterface interface {
 }
 
 type InitScanner struct {
-	regDal   store.RegistryDaoInterface
-	imageDal store.ScannerDalInterface
+	regDal        store.RegistryDalInterface
+	imageDal      store.ScannerDalInterface
+	ScanConfigDAl store.ScanConfigDalInterface
 }
 
 func (s *InitScanner) Init(ctx context.Context) error {
@@ -32,7 +35,80 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	if err := s.createSafeNodeBufRegistry(ctx); err != nil {
 		return err
 	}
+	// 一次要在写入默认策略前写入全局配置
+	if err := s.createDefaultScanStrategy(ctx); err != nil {
+		return err
+	}
+	if err := s.createGlobalScanConfig(ctx); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
+	// 先查询默认策略
+	strategies, _, err := s.ScanConfigDAl.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
+	if err != nil {
+		return err
+	}
+	if len(strategies) == 0 {
+		return fmt.Errorf("no default scan strategy")
+	}
+
+	// 先查一下
+	config, _, err := s.ScanConfigDAl.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
+	if err != nil {
+		return err
+	}
+	if len(config) > 0 {
+		return nil
+	}
+
+	defaultConfig := model.ScanConfigSinge{
+		ImageAddTrigEnable: false,
+		Libraries:          []int64{},
+		ScanCycle:          []int64{},
+		ScanTime:           "",
+		ScanAll:            false,
+		StrategyId:         strategies[0].ID,
+	}
+
+	bys, err := json.Marshal(defaultConfig)
+	if err != nil {
+		return err
+	}
+
+	data := model.ScanConfig{
+		VulnFlushTrigEnable:      false,
+		MaliciousFlushTrigEnable: false,
+		LibraryImageJson:         string(bys),
+		NodeImageJson:            string(bys),
+	}
+	return s.ScanConfigDAl.CreateScanConfig(ctx, &data)
+}
+
+func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
+	// 先查一下
+	strategy, _, err := s.ScanConfigDAl.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
+	if err != nil {
+		return err
+	}
+	if len(strategy) > 0 {
+		return nil
+	}
+
+	data := model.ScanStrategy{
+		Name:      "默认扫描策略",
+		Describe:  "系统创建",
+		Operator:  "系统创建",
+		IsDefault: true,
+
+		SensitiveEnable: true,
+		VulEnable:       true,
+		WebshellEnable:  true,
+		MaliciousEnable: true,
+	}
+	return s.ScanConfigDAl.CreateStrategy(ctx, &data)
 }
 
 func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
@@ -185,6 +261,6 @@ func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
 	return nil
 }
 
-func NewInitScanner(regDal store.RegistryDaoInterface, imageDal store.ScannerDalInterface) *InitScanner {
-	return &InitScanner{regDal: regDal, imageDal: imageDal}
+func NewInitScanner(regDal store.RegistryDalInterface, imageDal store.ScannerDalInterface, scanConfigDAl store.ScanConfigDalInterface) *InitScanner {
+	return &InitScanner{regDal: regDal, imageDal: imageDal, ScanConfigDAl: scanConfigDAl}
 }

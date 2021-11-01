@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 type ScannerDB struct {
@@ -36,19 +39,9 @@ func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, ScanImage *model.S
 }
 
 func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	tmpImage := model.ScanImage{ID: tableID}
-	err := scdb.PostgresDB.Get().WithContext(ctx).Model(tmpImage).Select("vuln_score", "sensitive_score", "webshell_score", "virus_score").First(&tmpImage).Error
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("UpdateToScanImage Get Scan_image Error:")
-		return err
-	}
-	ScanImage.RiskScore = ScanImage.SensitiveScore + ScanImage.VulnScore + math.Min(tmpImage.WebshellScore+tmpImage.VirusScore, 40)
-	tmpImage = model.ScanImage{ID: tableID} // 避免一些并发问题（比如病毒扫描此时更新了分数，与数据库中不一样了，model会成为where条件，导致无法更新数据）
-	err = scdb.PostgresDB.Get().WithContext(ctx).Model(tmpImage).Select("*").
-		Omit("virus_score", "webshell_score", "id", "image_id", "started_at", "finish_at", "created_at", "malicious_info_json", "webshell_info_json").
-		Updates(ScanImage).Error
+	err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.ScanImage{}).Where("id = ?", tableID).Select("*").Omit("id").Updates(ScanImage).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateToScanImage Updata Error:")
 		return err
@@ -71,12 +64,20 @@ func (scdb *ScannerDB) GetImageID(ctx context.Context, digest string, fullRepoNa
 func (scdb *ScannerDB) InsertToVuln(ctx context.Context, Vuln *model.Vuln, TableID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	tmp := model.Vuln{}
+	tmp := []model.Vuln{}
 	tmpVulnImage := model.VulnImage{}
-	scdb.PostgresDB.Get().WithContext(ctx).Where("Name = ?", Vuln.Name).First(&tmp)
-	if tmp.Name != "" {
-		//	fmt.Println("VulnName is exist : ", tmp.Name)
-		tmpVulnImage.VulnName = tmp.Name
+	scdb.PostgresDB.Get().WithContext(ctx).Where("Name = ?", Vuln.Name).Find(&tmp)
+	flag := 0
+	key := fmt.Sprintf("%s/%s/%s", Vuln.Name, Vuln.PkgName, Vuln.PkgVersion)
+	for k := range tmp {
+		tmpKey := fmt.Sprintf("%s/%s/%s", tmp[k].Name, tmp[k].PkgName, tmp[k].PkgVersion)
+		if tmpKey == key {
+			flag = 1
+			break
+		}
+	}
+	if flag == 1 {
+		tmpVulnImage.VulnName = Vuln.Name
 		tmpVulnImage.ImageId = TableID
 		scdb.InsertToVulnImage(ctx, &tmpVulnImage)
 		return nil
@@ -260,6 +261,27 @@ func (scdb *ScannerDB) InsertVirusInfo(ctx context.Context, si model.ScanImage, 
 		logging.GetLogger().Err(err).Msg("InsertVirusInfo Updata scan_image Error:")
 		return
 	}
+}
+
+func (scdb *ScannerDB) QueryMaliciousResult(ctx context.Context, layerDigest string, nowTime time.Time) (model.ScanLayer, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	tmpScanLayer := model.ScanLayer{}
+	err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.ScanLayer{}).Where("layer_digest = ?", layerDigest).First(&tmpScanLayer).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tmpScanLayer, nil
+		} else {
+			return tmpScanLayer, err
+		}
+	}
+	oldTime := nowTime.Add(-144 * time.Hour)
+	oldUnix := oldTime.Unix()
+	layerUnix := tmpScanLayer.UpdatedAt.Unix()
+	if oldUnix < layerUnix {
+		return model.ScanLayer{}, nil
+	}
+	return tmpScanLayer, nil
 }
 
 func (scdb *ScannerDB) FailInProgressStatus(ctx context.Context) {

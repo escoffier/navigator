@@ -8,9 +8,11 @@ const (
 	ScanTaskComeFromCICD
 )
 const (
-	TrueString  = "true"
-	FalseString = "false"
-	AllString   = "all"
+	TrustedImage   = 1
+	UnTrustedImage = 0
+	TrueString     = "true"
+	FalseString    = "false"
+	AllString      = "all"
 )
 
 const EncryptPasswordKey = "talkerss"
@@ -55,8 +57,6 @@ const (
 	SensitiveFileType   = "sensitive_file_json"
 	MaliciousInfoType   = "malicious_info_json"
 	WebsellInfoType     = "webshell_info_json"
-	BaseImage           = "base"
-	AppImage            = "app"
 	BaseImageType       = 1
 	AppImageType        = 0
 	BaseImageTypeString = "1"
@@ -76,4 +76,29 @@ const (
 	NodeSafeSalt     = "tensorsecurity"
 	NodeSafeTage     = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s/%s" // 仓库地址/tensorsec/clusterKey/namespace/podName/podIp/os/镜像名
 	NodeSafeFullName = NodeSafeSalt + "/%s/&s/%s/%s/%s/%s"      // tensorsec/hostname/ip/os/镜像名
+)
+
+const (
+	IsTrustedImageString  = "1"
+	NotTrustedImageString = "0"
+	IsTrustedImage        = 1
+	NotTrustedImage       = 0
+
+	NotHasFixedvuln = 0
+	HasFixedvuln    = 1
+
+	NotHasFixedvulnString = "0"
+	HasFixedvulnStringd   = "1"
+
+	PrivilegedBootImage    = 1
+	NotPrivilegedBootImage = 0
+
+	PrivilegedBootString    = "1"
+	NotPrivilegedBootString = "0"
+
+	IsReinforceImage    = 1
+	IsNotReinforceImage = 0
+
+	IsReinforceImageString    = "1"
+	IsNotReinforceImageString = "0"
 )

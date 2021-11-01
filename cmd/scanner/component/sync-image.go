@@ -2,6 +2,7 @@ package component
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -20,14 +22,15 @@ import (
 )
 
 type SyncImageInterface interface {
-	SyncImage(ctx context.Context, wg *sync.WaitGroup) error
+	SyncImage(ctx context.Context) error
 }
 
 // SyncRepoImage sync registry repos and tags to db
 type SyncRepoImage struct {
-	registryDao            store.RegistryDaoInterface
-	scannerDB              *store.ScannerDB
+	registryDao            store.RegistryDalInterface
+	ImageDal               store.ScannerDalInterface
 	podResourceRelationDAl store.PodResourceRelationInterface
+	ScanConfigDal          store.ScanConfigDalInterface
 }
 
 type RegistryWithConf struct {
@@ -36,8 +39,8 @@ type RegistryWithConf struct {
 }
 
 func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf, error) {
-	registries, _, err := s.registryDao.SearchRegistry(context.Background(), store.SearchRegistryParam{NoDelete: true,
-		UseTypes: []int64{model.RegistryUseTypeNormal, model.RegistryUseSafeNode}}, nil)
+	registries, _, err := s.registryDao.SearchRegistry(context.Background(),
+		store.SearchRegistryParam{NoDelete: true, UseTypes: []int64{model.RegistryUseTypeNormal, model.RegistryUseSafeNode}}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -49,11 +52,12 @@ func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf
 		}
 		if err := s.registryDao.UpdateRegistry(ctx, store.SearchRegistryParam{Id: registries[i].ID}, map[string]interface{}{"last_sync_at": time.Now().Unix()}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("UpdateRegistry last_sync_at error")
+			continue
 		}
 
 		drive, err := registry.Open(RegToRegistryConf(registries[i]))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("get no drive")
+			logging.GetLogger().Err(err).Str("name", registries[i].Name).Msg("open registry driver err")
 			return nil, response.NewHttpError(http.StatusInternalServerError, err)
 		}
 		if err := drive.Ping(); err != nil {
@@ -69,32 +73,88 @@ func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf
 	return res, err
 }
 
-func NewSyncRepoImage(registryDao store.RegistryDaoInterface, scannerDB *store.ScannerDB, podResourceRelationDAl store.PodResourceRelationInterface) *SyncRepoImage {
+func NewSyncRepoImage(registryDao store.RegistryDalInterface, imageDal store.ScannerDalInterface, podResourceRelationDAl store.PodResourceRelationInterface, scanConfigDal store.ScanConfigDalInterface) *SyncRepoImage {
 	return &SyncRepoImage{
 		registryDao:            registryDao,
-		scannerDB:              scannerDB,
+		ImageDal:               imageDal,
 		podResourceRelationDAl: podResourceRelationDAl,
+		ScanConfigDal:          scanConfigDal,
 	}
 }
 
-func (s *SyncRepoImage) SyncImage(ctx context.Context, wg *sync.WaitGroup) error {
-	defer wg.Done()
+func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
+	// defer wg.Done()
 	var exitMap sync.Map
+	// 暂时全局只会有一个配置
 
 	worker := func(reg RegistryWithConf, extender registry.ImageListExtender) {
-		_, err := reg.Registry.ListImages(extender, false)
+		res, err := reg.Registry.ListImages(extender, registry.ListImagesRequest{NeedToReturnAdded: true})
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get images err.%v", err)
+			return
+		}
+		logging.GetLogger().Info().Msgf("SyncImage complete, start to generate scan tasks:%d", len(res.Added))
+
+		configs, _, err := s.ScanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("SearchScanConfig")
+			return
+		}
+		if len(configs) == 0 {
+			logging.GetLogger().Info().Msg("SyncImage not fond scan config")
+		}
+		// 下发扫描任务
+		if len(configs) > 0 {
+			if configs[0].NodeImageConfig.ImageAddTrigEnable {
+				imgIds := make([]int64, 0)
+				for i := range res.Added {
+					if res.Added[i].FromType == model.ImageFromSafeNode {
+						imgIds = append(imgIds, res.Added[i].ID)
+					}
+				}
+				if len(imgIds) > 0 {
+					imgIds = DeDuplicationInt64Slice(imgIds)
+					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("send scan tasks")
+					ts := task.NewTaskSrv()
+					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
+						TriggerType: consts.ImageSyncTrigger,
+						StrategyId:  configs[0].NodeImageConfig.StrategyId}); err != nil {
+						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
+					}
+				}
+			}
+			if configs[0].LibraryImageConfig.ImageAddTrigEnable {
+				imgIds := make([]int64, 0)
+				for i := range res.Added {
+					if res.Added[i].FromType == model.ImageFromTypeNormal {
+						imgIds = append(imgIds, res.Added[i].ID)
+					}
+				}
+				if len(imgIds) > 0 {
+					imgIds = DeDuplicationInt64Slice(imgIds)
+
+					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("send scan tasks")
+					ts := task.NewTaskSrv()
+					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
+						Scope:       consts.SingleScan,
+						TriggerType: consts.ImageSyncTrigger,
+						StrategyId:  configs[0].LibraryImageConfig.StrategyId,
+					}); err != nil {
+						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
+					}
+				}
+			}
 		}
 		exitMap.Store(reg.Config.Name, true)
 	}
 
 	for {
 		// 每次都去数据库查询，因为数据增加了用户之后要能感知到
-		// logging.GetLogger().Info().Msg("开始同步镜像")
+		logging.GetLogger().Info().Msg("start sync image")
 		registries, err := s.GetSyncRegistry(context.Background())
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("查询仓库信息出错")
+			time.Sleep(time.Duration(1) * time.Minute)
 			continue
 		}
 
@@ -107,21 +167,34 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context, wg *sync.WaitGroup) error
 			}
 			exitMap.Store(registries[i].Config.Name, false)
 
-			go worker(registries[i], func(image registry.Image) error {
-				img, err := s.TransImageToImagelist(ctx, registries[i].Config, image)
-				if err != nil {
-					logging.GetLogger().Info().Msgf("SyncImage.InsertImageList:%s", err.Error())
-					return err
-				}
+			reg := registries[i]
+			go worker(reg, func(image registry.Image) (*registry.ListImagesRes, error) {
+				res := new(registry.ListImagesRes)
+				img, err := s.TransImageToImagelist(ctx, reg.Config, image)
 
-				_, err = s.scannerDB.InsertImageList(context.Background(), img)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Msgf("SyncImage.InsertImageList")
+					return nil, err
+				}
+				// 先查一下
+				where := fmt.Sprintf("full_repo_name ='%s'  AND tags = '%s' AND from_type = %d AND registry_id = %d", img.FullRepoName, img.Tags, img.FromType, img.RegistryId)
+				searchImage, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{Where: where}, nil)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
-					return err
-				} else {
-					logging.GetLogger().Info().Msgf("SyncImage.InsertImageList:%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
+					return nil, err
 				}
-				return nil
+
+				im, err := s.ImageDal.CreateImage(context.Background(), &img)
+				if err != nil {
+					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
+					return nil, err
+				}
+				if len(searchImage) == 0 {
+					res.Added = append(res.Added, im)
+					logging.GetLogger().Info().Msgf("sync new image:%d %s/%s:%s", im.ID, img.Library, img.FullRepoName, img.Tags)
+				}
+				res.All = append(res.All, im)
+				return res, nil
 			})
 		}
 		time.Sleep(time.Duration(1) * time.Minute) // 每分钟去查一次数据库
@@ -153,19 +226,41 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 	}
 	img.Layers = getLayerString(img)
 	if reg.UseType == model.RegistryUseSafeNode {
-		logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
+		// logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
 		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
 		if err != nil {
+			logging.GetLogger().Info().Msgf("reg.UseType:%d,reg.url:%s", reg.UseType, reg.Url)
 			return img, err
 		}
 		img.NodeIp = newImage.NodeIp
 		img.NodeHostname = newImage.NodeHostname
 		img.OS = newImage.OS
 		img.Library = newImage.Library
+		img.Project = newImage.Project
+		img.RepoName = newImage.RepoName
 
 		img.FromType = model.ImageFromSafeNode
+	} else {
+		split := strings.Split(img.FullRepoName, "/")
+		if len(split) >= 2 {
+			img.Project = split[0]
+			img.RepoName = strings.Join(split[1:], "/")
+		}
 	}
-
+	var config model.ConfigFile
+	err := json.Unmarshal(img.ConfigJson, &config)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("unmarshal config json error")
+	} else {
+		if config.Config.User == "" || strings.Contains(config.Config.User, "root") {
+			img.PrivilegedBoot = 1
+		}
+		for _, v := range config.History {
+			if strings.Contains(v.CreatedBy, "/tmp/tensorsec/file-checker") {
+				img.IsReinforce = 1
+			}
+		}
+	}
 	return img, nil
 }
 
@@ -190,6 +285,7 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 		Type:    reg.RegType,
 		Options: opt,
 	}
+	logging.GetLogger().Debug().Interface("conf", conf).Msg("registry conf")
 	return conf
 }
 
@@ -200,8 +296,8 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 	fullRepoName = strings.Trim(fullRepoName, " ")
 	// fullRepoName = strings.Replace(fullRepoName, "_", ".", -1)
 	split := strings.Split(fullRepoName, "/")
-	if len(split) < 8 {
-		return nil, fmt.Errorf("parse error  %s split is %d", fullRepoName, len(split))
+	if len(split) < 7 {
+		return nil, fmt.Errorf("not node image:%s", fullRepoName)
 	}
 	if split[0] != consts.NodeSafeSalt {
 		return nil, fmt.Errorf("parse error not fond NodeSafeSalt %s", fullRepoName)
@@ -217,14 +313,19 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 	if len(info) == 0 {
 		return nil, fmt.Errorf("not find node info")
 	}
-	logging.GetLogger().Info().Msgf("cluster info:%+v", info[0])
+	// logging.GetLogger().Info().Msgf("cluster info:%+v", info[0])
 
 	im := &model.ImageList{
 		NodeIp:       info[0].HostIP,
 		OS:           split[4],
 		NodeHostname: info[0].NodeName,
 		Library:      split[5],
+		Project:      split[6],
 	}
+	if len(split) >= 8 {
+		im.RepoName = strings.Join(split[7:], "/")
+	}
+	// NodeSafeTage     = NodeSafeSalt + "/%s/%s/%s/%s/%s" // tensorsec/clusterKey/namespace/podName/podIp/os/镜像名
 	if !strings.Contains(im.Library, "http://") && !strings.Contains(im.Library, "https://") {
 		im.Library = "https://" + im.Library
 	}

@@ -1,14 +1,15 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -193,14 +194,27 @@ func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data{}}
 // @Router	/api/v1/scan/harbor/scanAllNow [post]
 func (s *Scanner) ScanAllNow(ctx *gin.Context) {
-	registerUrl := ctx.Query("fromUrl")
+	type tmpRecv struct {
+		Operator   string `json:"operator"`
+		StrategyId int64  `json:"strategy_id"`
+	}
+	tem := tmpRecv{}
+	if err := ctx.BindJSON(&tmpRecv{}); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil {
 		fromType = model.ImageFromTypeNormal
 	}
 	// asynchronous execution, no matter what return no error
+	info := task.UpdateTaskInfo{
+		StrategyId: tem.StrategyId,
+		Operator:   tem.Operator,
+	}
 	go func() {
-		if err := s.Srv.ScanAllNow(ctx, registerUrl, fromType); err != nil {
+		if err := s.Srv.ScanAllNow(ctx, fromType, info); err != nil {
 			log.Err(err).Msg("scan all error")
 		}
 	}()
@@ -222,7 +236,9 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 		Status string `json:"status"`
 	}
 	type tmpRecv struct {
-		ImgId int64 `json:"id"`
+		ImgId      int64  `json:"id"`
+		Operator   string `json:"operator"`
+		StrategyId int64  `json:"strategy_id"`
 	}
 	tmp := tmpRecv{}
 	// json := make(map[string]interface{})
@@ -231,7 +247,12 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 		return
 	}
 	// fmt.Println("收获JSON为:", json)
-	err := s.Srv.TickScanOne(ctx, tmp.ImgId, "", consts.ScanTaskComeFromWeb)
+	err := s.Srv.TickScanOne(ctx, tmp.ImgId, task.UpdateTaskInfo{
+		Scope:       consts.SingleScan,
+		TriggerType: consts.ManualTrigger,
+		Operator:    tmp.Operator,
+		StrategyId:  tmp.StrategyId,
+	})
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -281,7 +302,9 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.TopVulns) > 0 {
 			resp.Vulu = append(resp.Vulu, []string{"漏洞编号", "严重程度", "软件包", "软件版本"})
 			for _, vu := range resp.ImageDetail.ImageScanVuln.TopVulns {
-				resp.Vulu = append(resp.Vulu, []string{vu.ID, vu.Severity, vu.FeatureName, vu.FeatureVersion})
+				for _, vuu := range vu.Trivy {
+					resp.Vulu = append(resp.Vulu, []string{vu.CVEID, vuu.Severity, vuu.PkgName, vuu.InstalledVersion})
+				}
 			}
 		}
 		// 再看敏感文件
@@ -445,30 +468,41 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	online := ctx.Query("online")
 	library := ctx.Query("library")
 	trusted := ctx.Query("trusted")
-	existFixedVulu := ctx.Query("exist_fixed_vulu")
+	hasFixedVulu := ctx.Query("has_fixed_vulu")
+	isReinforce := ctx.Query("is_reinforce")
+	nodeHostname := ctx.Query("node_hostname")
 
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
 		fromType = model.ImageFromTypeNormal
 	}
-	scanStatus := make([]string, 0)
+	scanStatus := make([]int, 0)
 	if ctx.Query("scan_status") != "" {
-		scanStatus = strings.Split(ctx.Query("scan_status"), ",")
+		ss := strings.Split(ctx.Query("scan_status"), ",")
+		for i := range ss {
+			if parseInt, err := strconv.ParseInt(ss[i], 10, 64); err == nil {
+				scanStatus = append(scanStatus, int(parseInt))
+			}
+		}
 	}
 
 	filter := model.GetFilter(ctx)
+	filter.SortFiled = "full_repo_name"
+	filter.SortBy = "asc"
 
 	logging.GetLogger().Info().Msgf("get kind:%s", kind)
 	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{
-		SearchWord:     search,
-		Kind:           kind,
-		Online:         online,
-		Library:        library,
-		ImageType:      imageType,
-		FromType:       fromType,
-		ScanStatus:     scanStatus,
-		Trusted:        trusted,
-		ExistFixedVulu: existFixedVulu,
+		SearchWord:   search,
+		Kind:         kind,
+		Online:       online,
+		Library:      library,
+		ImageType:    imageType,
+		FromType:     fromType,
+		ScanStatus:   scanStatus,
+		Trusted:      trusted,
+		HasFixedVulu: hasFixedVulu,
+		IsReinforce:  isReinforce,
+		NodeHostname: nodeHostname,
 	}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
@@ -574,8 +608,10 @@ func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
 // @Router	/api/v1/images/base [get]
 func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter := model.GetFilter(ctx)
+	filter.SortFiled = "full_repo_name"
+	filter.SortBy = "asc"
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImage, SearchWord: search}, filter)
+	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImageTypeString, SearchWord: search}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -626,6 +662,64 @@ func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset),
 	)
+}
+
+// QueryEnvInStrategy 获取对应环境变量还未被多少策略引用
+// @Summary QueryEnvInStrategy
+// @Title 获取对应环境变量还未被多少策略引用
+// @Author guolingkai@tensorsecurity.cn
+// @Description 获取对应环境变量还未被多少策略引用
+// @Tags image reject
+// @Param envName path string true "环境变量名称"
+// @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ScanStrategy{}}}
+// @Router	/api/v1/images/env/:envName [get]
+func (s *Scanner) QueryEnvInStrategy(ctx *gin.Context) {
+	envName := ctx.Param("envName")
+	if envName == "" {
+		response.JSONError(ctx, fmt.Errorf("envName is null"))
+		return
+	}
+	res, err := s.Srv.GetStrategyForEnv(ctx, envName)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItems(res))
+}
+
+// SetEnvToStrategy 设置环境变量进某个策略
+// @Summary SetEnvToStrategy
+// @Title 设置环境变量进某个策略
+// @Author guolingkai@tensorsecurity.cn
+// @Description 设置环境变量进某个策略
+// @Tags image reject
+// @Param policy path string true "策略ID集合，逗号分隔"
+// @Success 200 {object} ApiWithItem{data=ApiItem{}}
+// @Router	/api/v1/images/env/:envName [put]
+func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
+	envName := ctx.Param("envName")
+	policyStr := ctx.Query("policy")
+	var policyIds []int64
+	policyStrs := strings.Split(policyStr, ",")
+	fmt.Println(policyStr)
+	for k := range policyStrs {
+		tmpId, err := strconv.ParseInt(policyStrs[k], 10, 64)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("ParseInt error SetEnvToStrategy")
+		}
+		policyIds = append(policyIds, tmpId)
+	}
+	if len(policyIds) == 0 {
+		response.JSONError(ctx, fmt.Errorf("has not policyId parse success"))
+		return
+	}
+
+	err := s.Srv.SetEnvToStrategy(ctx, envName, policyIds)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx)
 }
 
 // ListBaseToAppImage 获取基础镜像的应用镜像列表
@@ -712,4 +806,126 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx)
+}
+
+// GetScanTaskList 获取扫描任务记录列表
+// @Summary 扫描任务
+// @Title 获取扫描任务记录列表
+// @Author liuyang@tensorsecurity.cn
+// @Description 获取扫描任务记录列表
+// @Tags scan task
+// @Param offset query integer true "int"
+// @Param limit query integer true "int"
+// @Success 200 {object} ApiWithItem{data=ApiItem{}}
+// @Router	/api/v1/tasks [get]
+func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
+	limit, err := strconv.ParseInt(ctx.Query("limit"), 0, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("无效的limit: %s", ctx.Query("limit")))
+		return
+	}
+
+	offset, err := strconv.ParseInt(ctx.Query("offset"), 0, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("无效的offset: %s", ctx.Query("offset")))
+		return
+	}
+
+	data, count, err := s.Srv.GetScanTaskList(ctx, limit, offset)
+	if err != nil {
+		response.JSONError(ctx, errors.New("获取扫描任务记录失败"))
+		return
+	}
+
+	response.JSONOK(ctx, response.WithTotalItems(count), response.WithItems(data))
+
+}
+
+// GetScanSubTaskList 获取某个任务的子任务列表
+// @Summary 扫描任务
+// @Title 获取某个任务的子任务列表
+// @Author liuyang@tensorsecurity.cn
+// @Description 获取某个任务的子任务列表
+// @Tags scan task
+// @Param offset query integer true "int"
+// @Param limit query integer true "int"
+// @Param id path integer true "任务的ID"
+// @Success 200 {object} ApiWithItem{data=ApiItem{}}
+// @Router	/api/v1/tasks/:id/subtasks [get]
+func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
+	limit, err := strconv.ParseInt(ctx.Query("limit"), 0, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("无效的limit: %s", ctx.Query("limit")))
+		return
+	}
+
+	offset, err := strconv.ParseInt(ctx.Query("offset"), 0, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("无效的offset: %s", ctx.Query("offset")))
+		return
+	}
+
+	taskId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
+		return
+	}
+
+	data, count, err := s.Srv.GetScanSubTaskList(ctx, taskId, limit, offset)
+	if err != nil {
+		response.JSONError(ctx, errors.New("获取扫描子任务记录失败"))
+		return
+	}
+
+	response.JSONOK(ctx, response.WithTotalItems(count), response.WithItems(data))
+}
+
+// UpdateTaskStatus 修改某个任务的状态
+// @Summary 扫描任务
+// @Title 修改某个任务的状态
+// @Author liuyang@tensorsecurity.cn
+// @Description 修改某个任务的状态
+// @Tags scan task
+// @Param id path integer true "任务的ID"
+// @Param status body json true "修改后的状态"
+// @Success 200 {object} ApiWithItem{data=ApiItem{}}
+// @Router	/api/v1/tasks/:id/status [put]
+func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
+	type S struct {
+		Status uint8 `json:"status"`
+	}
+
+	var data S
+	err := ctx.Bind(&data)
+	if err != nil {
+		response.JSONError(ctx, errors.Wrap(err, "获取参数失败"))
+		return
+	}
+
+	taskId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
+		return
+	}
+
+	err = s.Srv.UpdateScanTaskStatus(ctx, taskId, data.Status)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx)
+}
+
+func (s *Scanner) GetFileChecker(ctx *gin.Context) {
+	fileName := ctx.Query("name")
+	if fileName == "file-checker" {
+		ctx.File("/tensorsec/file-checker")
+		return
+	} else if fileName == "dp.so" {
+		ctx.File("/tensorsec/dp.so")
+		return
+	} else {
+		ctx.Status(500)
+		return
+	}
 }

@@ -1,43 +1,48 @@
 package service
 
 import (
-	"container/list"
 	"context"
 	"fmt"
-	logg "log"
-	"net/http"
-	"os/exec"
 	"runtime/debug"
-	"strings"
-	"sync"
-	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/mattn/go-colorable"
-	"github.com/mileusna/crontab"
-	"github.com/patrickmn/go-cache"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
+	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/ti-update"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
+	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
+
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 )
 
 var (
@@ -51,348 +56,136 @@ func init() {
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
-	server          *http.Server
-	ginServer       *http.Server
-	redclair        *component.RedClairService
-	viursScan       *component.VirusScan
-	mongoClient     *mongo.Database
-	ctx             context.Context
-	cancel          context.CancelFunc
-	localLayerMange *layerManage.LocalLayerManageSrv
-	postgresDB      *store.ScannerDB
-	harborOpts      *flag.HarborOpts
-	globalCache     *cache.Cache
-	syncImage       component.SyncImageInterface
+	options      *flag2.ScannerOpts
+	servicesList map[string]register.ScannerService // save all scanner service
 }
 
 // NewScanner is to create a new Scanner struct.
 func NewScanner(
-	httpOpts *flag.HTTPOpts,
-	mongoOpts *flag.MongoOpts,
-	clairOpts *flag.ClairOpts,
-	redisOpts *flag.RedisOpts,
-	updateOpts *flag.UpdateOpts,
-	harborOpts *flag.HarborOpts,
-	webshellAddr string,
+	opts *flag2.ScannerOpts,
 ) (*Scanner, error) {
 
-	// mongo client
-	// TODO: authSource database should be a separate argument.
-	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
-	mongoClientOptions := options.Client().ApplyURI(mongoString)
-	mongoClientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
-	mongoClientOptions.SetReadConcern(readconcern.Majority())
-	mongoClient, err := mongo.NewClient(mongoClientOptions)
-
-	if err != nil {
-		return nil, err
-	}
-	// connect the mongo client
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	err = mongoClient.Connect(ctx)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Msg("error in connecting to the Mongo database")
+	// init db
+	if err := store.InitDb(opts.DbConnectStr); err != nil {
+		log.Error().Err(err).Msg("connect db failed")
 		return nil, err
 	}
 
-	mongodb := mongoClient.Database(mongoOpts.Database)
-	// postgres
-
-	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-		return gorm.Open(postgres.Open(clairOpts.PostgresConnectionString), &gorm.Config{})
-	})
-
-	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+	// init redis client
+	if err := store.InitRedisClient(opts.RedisEndpoint, opts.RedisPassword); err != nil {
+		log.Error().Err(err).Msg("connect redis failed")
 		return nil, err
 	}
 
-	scannerDB := store.NewScannerDB(postgresDB)
-
-	// Redis DB client
-	sa := strings.Split(redisOpts.Endpoint, ",")
-	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ // share data use db 0
-		MasterName:    "mymaster",
-		SentinelAddrs: sa,
-		Password:      redisOpts.Password,
-		DB:            0,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Redis DB1 clinet
-	redisClientOne, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ // image secure use db 1
-		MasterName:    "mymaster",
-		SentinelAddrs: sa,
-		Password:      redisOpts.Password,
-		DB:            1,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// scanner启动之前的初始化动作
-	if err := component.NewInitScanner(store.NewRegistryDao(postgresDB), store.NewScannerOrm(postgresDB)).Init(ctx); err != nil {
-		return nil, err
-	}
-
-	// main function context
-	mainCtx, mainCancel := context.WithCancel(context.Background()) // nolint govet
-	scannerList := component.ScannerList{}
-	scannerList.List = list.New()
-	// redclair
-	redclairSvc, err := component.NewRedClairService(mainCtx, clairOpts, mongodb, scannerDB, redisClientOne, redisClient, updateOpts, &scannerList)
-	if err != nil {
-		return nil, err // nolint govet
-	}
-
-	virusScan, _ := component.NewViursScanService(mainCtx, clairOpts, mongodb, scannerDB, redisClientOne, redisClient, updateOpts, webshellAddr)
-	// local layer manage
-	llms, err := layerManage.NewLocalLayerManageSrv(mainCtx, "0.0.0.0", 5566, clairOpts.EndpointClairPort, clairOpts.EndpointAddress)
-	if err != nil {
-		return nil, err // nolint govet
-	}
-
-	// harbor client
-
-	// callback cache
-	globalCache := cache.New(60*time.Minute, 10*time.Minute)
-
-	scannerSrv := newConScannerSrv(mongoOpts, clairOpts, redclairSvc, virusScan, globalCache, &scannerList)
-	ctab := crontab.New() // create cron table
-
-	// AddJob ,每天0点过2分时运行一次
-	if err := ctab.AddJob("2 0 * * *", scannerSrv.DeleteCICDImage, context.Background()); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("add GC job")
+	// init policy etc
+	regDal := store.NewRegistryDao(store.GetScannerWrapperDb())
+	imageDal := store.GetScannerOrmDb()
+	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
+	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl)
+	if err := dbInit.Init(context.Background()); err != nil {
+		log.Error().Err(err).Msg("db init policy err")
 		return nil, err
 	}
 
 	return &Scanner{
-		ginServer: &http.Server{
-			Addr: httpOpts.HTTPListen, Handler: api.SetupGinRouter(
-				scannerSrv,
-				component.NewImageRejectSrc(store.NewScannerOrm(postgresDB)),
-				component.NewHarborSrc(store.NewScannerOrm(postgresDB), redisClient, redclairSvc),
-				component.NewRegistrySrv(store.NewRegistryDao(postgresDB)),
-			),
-		},
-		globalCache:     globalCache,
-		postgresDB:      scannerDB,
-		redclair:        redclairSvc,
-		viursScan:       virusScan,
-		mongoClient:     mongodb,
-		ctx:             mainCtx,
-		cancel:          mainCancel,
-		localLayerMange: llms,
-		harborOpts:      harborOpts,
-		syncImage:       component.NewSyncRepoImage(store.NewRegistryDao(postgresDB), scannerDB, store.NewPodResourceRelationDao(postgresDB)),
+		options:      opts,
+		servicesList: make(map[string]register.ScannerService),
 	}, nil
 }
 
 // Run is to run the service.
 func (s *Scanner) Run() func() {
-	log.Info().Msg("Vegeta ScannerApi started")
-	cmd := exec.Command("service", "clamav-daemon", "start") // start clamd service
-	if _, err := cmd.Output(); err != nil {
-		logging.GetLogger().Err(err).Msg("Run Server cmd.Output error")
-	}
-	s.postgresDB.FailInProgressStatus(context.Background())
-	var wg sync.WaitGroup
+	log.Info().Msg("scanner started")
 
-	// start NewSyncRepoImage service
-	wg.Add(1)
+	// create all register services
+	s.CreateService()
+
+	// start all service
+	s.StartServices()
+
+	// start flow engine
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("start Layer NewSyncRepoImage error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-
-		defer wg.Done()
-		go s.syncImage.SyncImage(context.Background(), &wg) // nolint errcheck
-		wg.Wait()
-
-	}()
-	// image.NewImageService(s.postgresDB, s.harborClient)
-	// start reject cache
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("start checkGlobalDBTask scanner error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-
-		defer wg.Done()
-		ticker := time.NewTicker(time.Minute * 5)
-		for {
-			<-ticker.C
-			s.checkGlobalDBTask(s.redclair.ScannerList)
+		config := engine.SeqEngineConfig{
+			DeqType:       "db-dequeue",
+			MaxTaskNum:    int64(s.options.ParallelTaskNum),
+			MaxSubTaskNum: int64(s.options.ParallelSubTaskNum),
 		}
-	}()
-
-	// start local layer manage
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("start Layer Manage scanner error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-
-		defer wg.Done()
-		err := s.localLayerMange.Run()
+		flowEngine := engine.NewSequenceEngine(config, nil)
+		err := flowEngine.Run(context.Background())
 		if err != nil {
-			log.Panic().
-				Err(err).
-				Msg("Panic failed to start local layer manage server")
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Htpp.Server error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-
-		defer wg.Done()
-		if err := s.ginServer.ListenAndServe(); err != nil {
-			if err != http.ErrServerClosed {
-				log.Panic().Err(err).Msg("Panic in http.Server.ListenAndServe")
-			}
-		}
-	}()
-
-	// start clair scanner
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Clair error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-
-		defer wg.Done()
-		err := s.redclair.Run(s.ctx, s.localLayerMange)
-		if err != nil {
-			log.Panic().Err(err).Msg("Panic failed to start redclair")
-		}
-	}()
-
-	// start virus scanner
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("ViursScan error : %v. stack: %s", r, debug.Stack())
-				panic(r)
-			}
-		}()
-
-		defer wg.Done()
-		err := s.viursScan.Run(s.ctx, s.localLayerMange)
-		if err != nil {
-			log.Panic().Err(err).Msg("Panic failed to start ViursScan")
+			log.Error().Err(err).Msg("engine run err")
 		}
 	}()
 
 	return func() {
-		s.cancel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := s.server.Shutdown(ctx); err != nil {
-			log.Error().
-				Err(err).
-				Msg("error in shutting down HTTP server")
-		}
-		if err := s.ginServer.Shutdown(ctx); err != nil {
-			log.Error().
-				Err(err).
-				Msg("error in shutting down Gin HTTP server")
-		}
+		s.StopServices(context.Background())
 
-		wg.Wait()
-
-		log.Info().Msg("Vegeta ScannerApi stopped")
+		log.Info().Msg("scanner stopped")
 	}
 }
 
-func newConScannerSrv(
-	mongoOpts *flag.MongoOpts,
-	opts *flag.ClairOpts,
-	redclair *component.RedClairService,
-	virusScan *component.VirusScan,
-	globalCache *cache.Cache,
-	scannerList *component.ScannerList,
-) component.ScannerSrv {
-
-	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
-	mongoClientOptions := options.Client().ApplyURI(mongoString)
-	mongoClientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
-	mongoClientOptions.SetReadConcern(readconcern.Majority())
-	mongoClient, err := mongo.NewClient(mongoClientOptions)
-	if err != nil {
-		panic(err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := mongoClient.Connect(ctx); err != nil {
-		panic(err)
-	}
-
-	newLogger := logger.New(
-		logg.New(colorable.NewColorableStdout(), "\r\n", logg.LstdFlags),
-		logger.Config{
-			SlowThreshold: time.Second,
-			LogLevel:      logger.Info,
-			Colorful:      true,
-		},
-	)
-	// postsql
-	db, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-		return gorm.Open(postgres.Open(opts.PostgresConnectionString), &gorm.Config{Logger: newLogger})
-	})
-	if err != nil {
-		// 数据库在初始化时都出错，就应该直接panic
-		panic(err)
-	}
-	sqlDB, err := db.Get().DB()
-	if err != nil {
-		panic(fmt.Sprintf("get DB error %s", err.Error()))
-	}
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(30)
-	sqlDB.SetConnMaxLifetime(time.Hour)
-	dal := store.NewScannerOrm(db)
-	registryDal := store.NewRegistryDao(db)
-
-	srv := component.NewConScannerSrv(dal, registryDal, redclair, virusScan, store.NewScannerDB(db), globalCache, scannerList)
-
-	return srv
-}
-
-func (s *Scanner) checkGlobalDBTask(list *component.ScannerList) {
-	listLen := list.List.Len()
-	logging.GetLogger().Info().Msgf("In checkGlobalDBTask Have %d To ReUse", listLen)
-	for i := 0; i < listLen; i++ {
-		f := list.ReUpdataDBPop()
-		err := f.Value()
+func (s *Scanner) CreateService() {
+	ss := register.GetServices()
+	for k := range ss {
+		config := register.ScannerServiceConfig{
+			Type:    k,
+			Options: s.options,
+		}
+		srv, err := register.Open(config)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("ReUpdata Db FAILED")
-			list.ReUpdataDBPush(f)
+			log.Error().Err(err).Str("type", k).Msg("create service err")
+			continue
+		}
+		log.Info().Str("type", k).Msg("create service ok")
+		s.servicesList[k] = srv
+	}
+
+	log.Info().Msg("all service created")
+}
+
+func (s *Scanner) StartServices() {
+	// s.DumpServices()
+	for name := range s.servicesList {
+		go func(serviceName string) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Msgf("scanner service error : %v. stack: %s", r, debug.Stack())
+				}
+			}()
+
+			log.Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
+			err := s.servicesList[serviceName].Start(context.Background())
+			if err != nil {
+				log.Error().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
+			}
+		}(name)
+	}
+
+	log.Info().Msg("all service started")
+}
+
+func (s *Scanner) StopServices(ctx context.Context) {
+	for name, srv := range s.servicesList {
+		err := srv.Stop(ctx)
+		if err != nil {
+			log.Error().Err(err).Str("serviceName", name).Msg("scanner service stop err")
+		} else {
+			log.Info().Str("serviceName", name).Msg("scanner service stop ok")
 		}
 	}
+}
+
+func (s *Scanner) DumpServices() {
+	for name := range s.servicesList {
+		log.Info().Str("serviceName", name).Msg("scanner created service")
+	}
+}
+
+func (s *Scanner) GetRunningServiceByName(name string) (register.ScannerService, error) {
+	v, ok := s.servicesList[name]
+	if !ok {
+		return nil, fmt.Errorf("not found running service %s", name)
+	}
+	return v, nil
 }

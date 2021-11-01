@@ -957,12 +957,6 @@ func (virusScan *VirusScan) webShellCall(ctx context.Context, reader io.Reader) 
 	return s, nil
 }
 
-// webshell文件后缀列表
-var extSlice = []string{
-	".php", ".php5", ".php4", ".asp", ".aspx", ".asmx", ".ashx", ".jsp",
-	".jspa", ".jspx", ".jspf", ".cer", ".htaccess",
-}
-
 // 判断webshell文件后缀是否是给定的后缀
 func webshellFileExt(ext string) bool {
 

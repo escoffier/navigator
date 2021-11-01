@@ -39,9 +39,9 @@ const (
 	RejectReasonUntrustedBaseImage = 15 // 基础镜像不可信
 	RejectReasonWebshellScore      = 16 // webshell 评分低于设置值
 
-	RejectReasonUntrustedImage = 17 // 不信任的镜像
-	RejectReasonPrivilegedBoot = 18 // 特权账户启动的镜像
-
+	RejectReasonUntrustedImage  = 17 // 不信任的镜像
+	RejectReasonPrivilegedBoot  = 18 // 特权账户启动的镜像
+	RejectReasonHasUntrustedEnv = 19 // 不信任的环境变量
 )
 
 const (
@@ -85,6 +85,7 @@ var reasonZHMap = map[int64]string{
 	RejectReasonWebshellScore:        "webshell评分高于设置值",
 	RejectReasonUntrustedImage:       "非可信镜像",
 	RejectReasonPrivilegedBoot:       "特权启动镜像",
+	RejectReasonHasUntrustedEnv:      "包含不信任环境变量",
 }
 var reasonENMap = map[int64]string{
 	RejectReasonVuluScore:            "Vulnerability score lower than set value",
@@ -105,6 +106,7 @@ var reasonENMap = map[int64]string{
 	RejectReasonWebshellScore:        "Webshell score more than set value",
 	RejectReasonUntrustedImage:       "Untrusted image",
 	RejectReasonPrivilegedBoot:       "Privileged boot image",
+	RejectReasonHasUntrustedEnv:      "Untrusted envs",
 }
 var reasonChMap = map[string]string{
 	NegligibleVuln: GetRejectReason(LangZh)[RejectReasonHasNegligible],
@@ -153,3 +155,5 @@ func GetVuluRuleKey(vuleLeve string, lag string) string {
 	}
 	return ""
 }
+
+var OpenLicense = []string{"GPL", "MIT", "Apache License", "BSD", "MPL"}

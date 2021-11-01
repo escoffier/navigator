@@ -9,6 +9,10 @@ const (
 	QUESTION_VIRUS     = 1
 	QUESTION_SENSITIVE = 2
 	QUESTION_WEB_SHELL = 3
+	QUESTION_SOFTWARE  = 4
+	QUESTION_ENV       = 5
+	QUESTION_PRIORITY  = 6
+	QUESTION_LICENSE   = 7
 
 	JobNotScan string = "not_scan"
 	// JobPending ...
@@ -48,6 +52,7 @@ type QuestionInfo struct {
 	QID          int    `gorm:"primary_key;AUTO_INCREMENT" json:"-" `
 	ID           int    `gorm:"column:id;index" json:"id"`
 	Digest       string `gorm:"column:digest;index" json:"digest,omitempty"`
+	Info         string `gorm:"-"`
 	LinkObjectId string `gorm:"column:link_object_id" json:"link_object_id,omitempty"` // mongo scantask表的ID
 	Time         string `gorm:"column:time" json:"timem,omitempty"`
 }

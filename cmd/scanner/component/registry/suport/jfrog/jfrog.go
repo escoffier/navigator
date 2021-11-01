@@ -174,8 +174,8 @@ func (c *Jfrog) PullConfigBlob(repo string, configDigest digest.Digest) (string,
 	return configBlob.String(), nil
 }
 
-func (c *Jfrog) ListImages(extender registry.ImageListExtender, needToReturnRes bool) ([]registry.Image, error) {
-	images := make([]registry.Image, 0)
+func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	res := new(registry.ListImagesRes)
 	cnt := 0
 	// get all repos
 	repos, err := c.ListRepos("docker") // 暂时只查docker的repo
@@ -233,20 +233,23 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, needToReturnRes 
 					ConfigJson:  configBlob,
 				}
 
-				if needToReturnRes {
-					images = append(images, img)
-				}
-				cnt++
-				err = extender(img)
+				im, err := extender(img)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("jfrog Insert imagelist")
 					continue
+				}
+				cnt++
+				if req.NeedToReturnAll {
+					res.All = append(res.All, im.All...)
+				}
+				if req.NeedToReturnAdded {
+					res.Added = append(res.Added, im.Added...)
 				}
 			}
 		}
 	}
 	logging.GetLogger().Info().Msgf("jfrog List images count:%d", cnt)
-	return images, nil
+	return res, nil
 }
 
 func init() {

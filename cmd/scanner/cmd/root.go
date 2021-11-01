@@ -2,11 +2,13 @@
 package cmd
 
 import (
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
 	"os"
 
 	"github.com/spf13/cobra"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -15,68 +17,21 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "scanner",
-	Short: "The scanner",
-	Long: `The scanner is responsible in doing five things:
-1. hash checking of known files
-2. malware detection of the executables
-3. credential files detection
-4. vulnerability static analysis
-5. security compliance`,
+	Short: "a cloud native devsecops tool",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		verbose, _ := cmd.Flags().GetBool("verbose")
-		if verbose {
+
+		ScannerRunOpts := flag2.GetScannerOpts(cmd)
+		global.ScannerOpts = ScannerRunOpts
+
+		if ScannerRunOpts.LogLevel == "debug" {
 			logging.SetVerbose()
 		}
-
-		httpOpts := flag.GetHTTPOpts(cmd)
-		logging.GetLogger().Info().
-			Str("listen", httpOpts.HTTPListen).
-			Msg("HTTP options")
-
-		mongoOpts := flag.GetMongoOpts(cmd)
-		logging.GetLogger().Info().
-			Str("endpoint", mongoOpts.Endpoint).
-			Str("username", mongoOpts.Username).
-			Msg("Mongo options")
-
-		clairOpts := flag.GetClairOpts(cmd)
-		logging.GetLogger().Info().
-			Str("clair-address", clairOpts.EndpointAddress).
-			Int("clair-port", clairOpts.EndpointClairPort).
-			Str("clair-remote-address", clairOpts.RemoteClairAddress).
-			Int("clair-remote-port", clairOpts.RemoteClairPort).
-			Str("clair-secretpattern", clairOpts.SecretPattern).
-			Bool("redclair-skipregistrytlsverify", clairOpts.SkipRegistryTLSVerify).
-			Int("redclair-numworkers", clairOpts.NumWorkers).
-			Msg("Clair options")
-
-		redisOpts := flag.GetRedisOpts(cmd)
-		logging.GetLogger().Info().
-			Str("endpoint", redisOpts.Endpoint).
-			Msg("Redis options")
-
-		updateOpts := flag.GetUpdateOpts(cmd)
-		logging.GetLogger().Info().
-			Bool("offline-mode", updateOpts.OfflineMode).
-			Msg("Update options")
-
 		logging.GetLogger().Info().
 			Str("version", Version).
-			Msg("starting Vegeta Scanner")
+			Interface("opts", ScannerRunOpts).
+			Msg("starting scanner")
 
-		harborOpts := flag.GetHarborOpts(cmd)
-		logging.GetLogger().Info().
-			Str("harbor-url", harborOpts.URL).
-			Str("harbor-username", harborOpts.Username).
-			Str("harbor-password", "***").
-			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
-			Msg("Harbor REST client options")
-
-		webshellServerAddr, _ := cmd.Flags().GetString("webshell-server-addr")
-		logging.GetLogger().Info().Str("webshell-server-addr", webshellServerAddr).Msg("webshell options")
-
-		scanner, err := service.NewScanner(
-			httpOpts, mongoOpts, clairOpts, redisOpts, updateOpts, harborOpts, webshellServerAddr)
+		scanner, err := service.NewScanner(ScannerRunOpts)
 		if err != nil {
 			return err
 		}
@@ -97,15 +52,6 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
-	rootCmd.Flags().String("webshell-server-addr", "http://tensorsec-scanner-webshell-server", "webshell server addr")
-
-	flag.AddHTTPFlags(rootCmd)
-	flag.AddMongoFlags(rootCmd)
-	flag.AddClairFlags(rootCmd)
-	flag.AddRedisFlags(rootCmd)
-	flag.AddUpdateFlags(rootCmd)
-	flag.AddHarborFlags(rootCmd)
-
+	flag2.AddScannerFlags(rootCmd)
 	flag.ConfigViper()
 }

@@ -24,14 +24,15 @@ import (
 )
 
 var (
-	image          string
-	maxSecond      int
-	consoleUrl     string
-	bufRegistryUrl string
-	debug          bool
-	apikey         string
-	insecure       bool
-	privateKeyFile string
+	image           string
+	maxSecond       int
+	consoleUrl      string
+	bufRegistryUrl  string
+	debug           bool
+	apikey          string
+	insecure        bool
+	privateKeyFile  string
+	reinforceEnable bool
 )
 
 var rootCmd = &cobra.Command{
@@ -61,6 +62,8 @@ func init() {
 	rootCmd.Flags().BoolVarP(&debug, "debug", "", false, "")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "s", false, "allow insecurity connections when use http")
 	rootCmd.Flags().StringVarP(&privateKeyFile, "private-file", "p", "", "location of private key")
+	rootCmd.Flags().BoolVarP(&reinforceEnable, "reinforce-enbale", "j", false,
+		"reinforce image enable(it shouble use before build and cicd),use env CICDDockerPath and CICDDockerBuildPath")
 }
 
 func main() {
@@ -73,6 +76,17 @@ func main() {
 }
 
 func run(ctx context.Context) {
+	if reinforceEnable {
+		log.Info().Msg("reinforceEnable is true,It will execute reinfroce image,if you need cicd,please set this filed false")
+		err := pkg.ReinforceImage(maxSecond, consoleUrl, apikey)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed reinfoce Image")
+			os.Exit(2)
+		}
+
+		return
+	}
+
 	accountInfo := structures.AccountInfo{}
 	// 获取自己仓库的用户名密码
 	err := util.RetryWithBackoff(ctx, func() error {
@@ -180,11 +194,13 @@ func run(ctx context.Context) {
 		os.Exit(2)
 	}
 
-	//  可信镜像 将镜像的 digest 和 image_name 签名后发送到 scanner
-	err = privateClient.Sign(ctx, image, insecure, bufRegistryUrl)
-	if err != nil {
-		log.Error().Msgf("sign image err.%v", err)
-		os.Exit(2)
+	if privateClient != nil {
+		//  可信镜像 将镜像的 digest 和 image_name 签名后发送到 scanner
+		err = privateClient.Sign(ctx, image, insecure, bufRegistryUrl)
+		if err != nil {
+			log.Error().Msgf("sign image err.%v", err)
+			os.Exit(2)
+		}
 	}
 
 	log.Info().Msgf("scan image vulnerabilities pass.")
@@ -212,9 +228,12 @@ func checkArgs() {
 		os.Exit(2)
 	}
 
-	if privateKeyFile == "" {
-		log.Error().Msg("私钥未提供")
-		os.Exit(2)
+	if privateKeyFile != "" {
+		privateClient, err = trustimage.NewClient(privateKeyFile, httpClient)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to initial private client")
+			os.Exit(1)
+		}
 	}
 
 	if debug {
@@ -227,12 +246,6 @@ func checkArgs() {
 	httpClient, err = request.NewRequest(apikey, consoleUrl, maxSecond)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to initial http client")
-		os.Exit(1)
-	}
-
-	privateClient, err = trustimage.NewClient(privateKeyFile, httpClient)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to initial private client")
 		os.Exit(1)
 	}
 
