@@ -53,7 +53,7 @@ scanner:
         memory: "200Mi"
   persistence:
     enabled: true
-    storageClass: "nfs-client-provisioner"
+    storageClass: ""
     accessModes:
       - ReadWriteOnce
     size: 4Gi
