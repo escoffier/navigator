@@ -43,13 +43,13 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["/tensor-scanner"]
         args:
-        - --image-cache-server-ip={{ include "scanner.fullname" . | quote }}
-        - --image-cache-server-port={{ .Values.service.ImageCacheServerPort | quote}}
-        - --redis-endpoint="tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379"
-        - --http-listen-addr=":8080"
-        - --db-connect-str={{ .Values.postgresql.postgresURI | quote }}
-        - --pvc-path="/root/alldb"
-        - --web-shell-server-addr="http://{{ include "scanner.fullname" . }}-webshell-server:80"
+        - --image-cache-server-ip={{ include "scanner.fullname" . }}
+        - --image-cache-server-port={{ .Values.service.ImageCacheServerPort }}
+        - --redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379
+        - --http-listen-addr=:{{ .Values.service.ApiContainerPort }}
+        - --db-connect-str={{ .Values.postgresql.postgresURI }}
+        - --pvc-path=/root/alldb
+        - --web-shell-server-addr=http://{{ include "scanner.fullname" . }}-webshell-server:80
         env:
           - name: TENSORSEC_REDIS_PASSWORD
             valueFrom:
