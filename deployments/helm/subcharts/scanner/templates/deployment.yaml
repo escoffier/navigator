@@ -120,7 +120,7 @@ spec:
       {{- if .Values.persistence.enabled }}
       - name: vuln-db
         persistentVolumeClaim:
-          claimName: scanner-vuln-db
+          claimName: {{ template "scanner.fullname" . }}-vulndb
       {{- else }}
       - name: vuln-db
         emptyDir: {}
