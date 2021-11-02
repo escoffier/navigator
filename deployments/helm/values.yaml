@@ -8,24 +8,6 @@ global:
       name: tensorsec-certgen
       tag: v1.5.1
 
-clair:
-  enabled: false
-  image:
-    name: tensorsec-clair
-    tag: latest
-    pullSecret: harbor-admin-secret
-  init:
-    loadSql:
-      image:
-        name: tensorsec-postgres
-        tag: latest
-    waitpg:
-      image:
-        name:  postgres
-        tag: 11.3
-  config:
-    postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
-
 scanner:
   enabled: true
   image:
@@ -35,7 +17,7 @@ scanner:
   # TODO: reference below variables from the original setting (maybe Helm enables it?)
   redis:
     redisSecretName: tensorsec-redis-ha
-  clair:
+  postgresql:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   dockerregistry:
     persistence:
@@ -52,6 +34,7 @@ scanner:
       # clusterIP:
       httpPort: 5000
       gcPort: 8081
+
       # httpNodePort:
       # gcNodePort:
   webshell:
@@ -68,6 +51,12 @@ scanner:
       requests:
         cpu: "100m"
         memory: "200Mi"
+  persistence:
+    enabled: true
+    storageClass: "nfs-client-provisioner"
+    accessModes:
+      - ReadWriteOnce
+    size: 4Gi
 
 console:
   enabled: true

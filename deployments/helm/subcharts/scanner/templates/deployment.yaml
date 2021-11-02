@@ -23,7 +23,7 @@ spec:
       {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.image.pullSecret }}
-      {{- else if .Values.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}87
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       {{- end }}
@@ -42,28 +42,15 @@ spec:
         image: {{ include "scanner.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["/tensor-scanner"]
-        args: [
-          "--mongo-endpoint=tensorsec-mongodb-0.tensorsec-mongodb-headless:27017",
-          "--mongo-database={{ .Values.mongo.mongoDatabase }}",
-          "--mongo-username={{ .Values.mongo.mongoUsername }}",
-          "--clair-remote-address=tensorsec-clair",
-          # clair-address and clair-port refer to Scanner Service address. Clair service needs to have access to layers published by Scanner service.
-          # Path to them is sent in Scan request to Clair.
-          # TODO: maybe rename? I spent hours on this because I was confused.
-          "--clair-address=tensorsec-scanner",
-          "--clair-port={{ .Values.service.LayerPort }}",
-          "--clair-postgresconnectionstring={{ .Values.clair.postgresURI }}",
-          "--clair-secretpattern=/config/patterns.json",
-          "--redclair-skipregistrytlsverify", # Insecure
-          "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
-          "--harbor-skiptlsverify", # Insecure
-          "-v"]
+        args:
+        - --image-cache-server-ip={{ include "scanner.fullname" . | quote }}
+        - --image-cache-server-port={{ .Values.service.ImageCacheServerPort | quote}}
+        - --redis-endpoint="tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379"
+        - --http-listen-addr=":8080"
+        - --db-connect-str={{ .Values.postgresql.postgresURI | quote }}
+        - --pvc-path="/root/alldb"
+        - --web-shell-server-addr="http://{{ include "scanner.fullname" . }}-webshell-server:80"
         env:
-          - name: TENSORSEC_MONGO_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.mongo.mongoSecretName }}
-                key: mongodb-password
           - name: TENSORSEC_REDIS_PASSWORD
             valueFrom:
               secretKeyRef:
@@ -88,8 +75,8 @@ spec:
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
             name: {{ include "scanner.name" . }}-api
-          - containerPort: {{ .Values.service.LayerContainerPort }}
-            name: {{ include "scanner.name" . }}-layer
+          - containerPort: {{ .Values.service.ImageCacheServerPort }}
+            name: {{ include "scanner.name" . }}-cache
         volumeMounts:
           - name: scannerfiles
             mountPath: "/config/patterns.json"
@@ -102,6 +89,8 @@ spec:
             name: scanner-eventcenter-config
           - mountPath: /auth/ca
             name: ca-cert
+          - mountPath: /root/alldb
+            name: vuln-db
         resources:
 {{ toYaml .Values.resources | indent 10 }}
       {{- if .Values.hostAliases }}
@@ -128,3 +117,11 @@ spec:
         secret:
           defaultMode: 400
           secretName: eventcenter-tls-ca-secret
+      {{- if .Values.persistence.enabled }}
+      - name: vuln-db
+        persistentVolumeClaim:
+          claimName: scanner-vuln-db
+      {{- else }}
+      - name: vuln-db
+        emptyDir: {}
+      {{- end }}

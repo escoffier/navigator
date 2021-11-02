@@ -14,11 +14,6 @@ dependencies:
     repository: "file://./subcharts/console"
     condition: console.enabled
 
-  - name: clair
-    version: 0.1.3
-    repository: "file://./subcharts/clair"
-    condition: clair.enabled
-
   - name: postgresql-ha
     version: 7.8.3
     repository: "file://./subcharts/postgresql-ha"

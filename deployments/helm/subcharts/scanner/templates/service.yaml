@@ -12,11 +12,10 @@ spec:
       targetPort: {{ .Values.service.ApiContainerPort }}
       protocol: TCP
       name: {{ include "scanner.name" . }}-api
-    - port: {{ .Values.service.LayerPort }}
-      targetPort: {{ .Values.service.LayerContainerPort }}
+    - port: {{ .Values.service.CachePort }}
+      targetPort: {{ .Values.service.ImageCacheServerPort }}
       protocol: TCP
-      name: {{ include "scanner.name" . }}-layer
-
+      name: {{ include "scanner.name" . }}-cache
   selector:
     app.kubernetes.io/name: {{ include "scanner.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
