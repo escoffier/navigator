@@ -42,6 +42,8 @@ spec:
         {{- if .Values.global.multiCluster.isMasterCluster }}
         - mountPath: /etc/tensorsec/config
           name: webhook-config
+        - mountPath: /etc/tensorsec/sidecar
+          name: config-sidecar
         {{- end }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
@@ -54,5 +56,8 @@ spec:
       - name: webhook-config
         configMap:
           name: {{ template "webhook.fullname" . }}
+      - name: config-sidecar
+        configMap:
+          name: {{ template "webhook.fullname" . }}-sidecar
       {{- end }}   
 

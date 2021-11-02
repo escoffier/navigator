@@ -378,9 +378,20 @@ webhook:
     image:
       name: tensorsec-certgen
       tag: v1.5.1
+  sidecar:
+    image:
+      name: tensorsec-proxy
+      tag: latest
+    init:
+      image:
+        name: tensorsec-proxyv2
+        tag: v1.9
   args:
     consoleUrl: "http://tensorsec-console:8889"
     clusterManagerUrl: "http://tensorsec-cluster-manager:9443"
+  nats:
+    natsUrl: "nats://tensorsec-stan-headless:4222"
+    natSubject: "security-api"
 
 stan:
   enabled: true

@@ -1,0 +1,98 @@
+metadata:
+  labels:
+    tensor/canonical-name: testapp
+  annotations:
+    tensor-sidecar-inject/status: injected
+spec:
+  imagePullSecrets:
+  - name: {{ .ProxyConfig.ImagePullSecrets }}
+  initContainers:
+    - name: tensorsec-init
+      image: {{ .ProxyConfig.InitContainerImage }}
+      args:
+        - istio-iptables
+        - "-p"
+        - "15001"
+        - "-z"
+        - "15006"
+        - "-u"
+        - "1337"
+        - "-m"
+        - "{{ annotation .ObjectMeta `sidecar.istio.io/interceptionMode` .ProxyConfig.InterceptionMode }}"
+        - "-i"
+        - "*"
+        - "-x"
+        - ""
+        - "-b"
+        - "{{ annotation .ObjectMeta `traffic.sidecar.istio.io/includeInboundPorts` `*` }}"
+        - "-d"
+        - "15090,15021"
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "10Mi"
+        limits:
+          cpu: "200m"
+          memory: "100Mi"
+      securityContext:
+        capabilities:
+          add:
+          - NET_ADMIN
+          - NET_RAW
+          drop:
+            - ALL
+        privileged: false
+        readOnlyRootFilesystem: false
+        runAsGroup: 0
+        runAsNonRoot: false
+        runAsUser: 0
+  containers:
+    - name: tensorwall-proxy
+      image: {{ .ProxyConfig.ContainerImage }}
+      imagePullPolicy: Always
+      ports:
+        - containerPort: 15090
+          protocol: TCP
+          name: http-envoy-prom
+      env:
+        - name: TS_CLUSTER_KEY
+          value: {{ .ClusterKey }}
+        - name: TS_MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: TS_MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: TS_NATS_URLS
+          value: {{ .ProxyConfig.NatsUrls }}
+        - name: TS_NATS_SUBJECT
+          value: {{ .ProxyConfig.NatsSubject }}
+        - name: TENSORWALL_META_POD_PORTS
+          value: |-
+            [
+            {{- $first := true }}
+            {{- range $index1, $c := .Spec.Containers }}
+              {{- range $index2, $p := $c.Ports }}
+                {{- if (structToJSON $p) }}
+                {{if not $first}},{{end}}{{ structToJSON $p }}
+                {{- $first = false }}
+                {{- end }}
+              {{- end}}
+            {{- end}}
+            ]
+      volumeMounts:
+      - mountPath: /etc/tensorwall/proxy
+        name: tensorwall-proxy
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "40Mi"
+        limits:
+          cpu: "2000m"
+          memory: "1024Mi"
+  volumes:
+  - emptyDir:
+      medium: Memory
+    name: tensorwall-proxy

@@ -10,6 +10,18 @@ Return the proper tensorsec certgen image name
 {{- define "tensorsec.webhook.certgen.image" -}}
 {{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.global.certgen.image "global" .Values.global) }}
 {{- end -}}
+{{/*
+Return the proper tensorsec sidecar image name
+*/}}
+{{- define "tensorsec.webhook.sidecar.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.sidecar.image "global" .Values.global) }}
+{{- end -}}
+{{/*
+Return the proper tensorsec sidecar-init image name
+*/}}
+{{- define "tensorsec.webhook.sidecar.init.image" -}}
+{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.sidecar.init.image "global" .Values.global) }}
+{{- end -}}
 
 {{/*
 Expand the name of the chart.

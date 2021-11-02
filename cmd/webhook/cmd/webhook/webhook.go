@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagevalidator"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	inject "gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/sidecar"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"io/ioutil"
 	v1 "k8s.io/api/admission/v1"
@@ -311,4 +312,6 @@ func init() {
 	microsegmutator.Register()
 	driftprevention.Register()
 	imagetrust.Register()
+	imagetrust.Register()
+	inject.Register()
 }
