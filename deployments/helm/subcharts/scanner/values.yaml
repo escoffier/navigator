@@ -105,8 +105,8 @@ service:
   type: NodePort
   ApiPort: 8888
   ApiContainerPort: 8080
-  LayerPort: 9278
-  LayerContainerPort: 9278
+  CachePort: 9278
+  ImageCacheServerPort: 9278
 
 replicaCount: 1
 
@@ -120,16 +120,11 @@ resources:
     cpu: "1000m"
     memory: "2000Mi"
 
-clair:
+postgresql:
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
 
 redis:
-  redisSecretName: redis-secret
-
-mongo:
-  mongoUsername: redstone
-  mongoDatabase: vegeta
-  mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
+  redisSecretName: tensorsec-redis-ha
 
 init: 
   image:
@@ -144,3 +139,10 @@ init:
     requests:
       cpu: 50m
       memory: 128Mi
+
+persistence:
+  enabled: true
+  storageClass: "nfs-client-provisioner"
+  accessModes:
+    - ReadWriteOnce
+  size: 4Gi

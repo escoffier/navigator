@@ -33,13 +33,6 @@ global:
       
 
 
-
-
-clair:
-  enabled: *isMasterCluster
-  image:
-    tag: *tensorsecVerison
-
 console:
   enabled: *isMasterCluster
   image:
@@ -101,6 +94,9 @@ scanner:
     image:
       tag: *tensorsecVerison
     replicas: 2
+  persistence:
+    enabled: *persistenceStorage
+    size: 4Gi
 #  hostAliases:
 #  - ip: "192.168.3.2"
 #    hostnames:
