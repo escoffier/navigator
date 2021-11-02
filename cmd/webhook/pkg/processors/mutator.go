@@ -94,9 +94,11 @@ func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []by
 func (m *mutatorChain) mutatePod(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) []byte {
 	var patches []*Patch
 	for _, m := range m.podMutators {
-		logging.GetLogger().Debug().Msgf("mutatePod by %s", m.Name())
-		p := m.Mutate(ctx, parameters, pod)
-		patches = append(patches, p...)
+		if m.PreMutate(ctx, pod, parameters) {
+			logging.GetLogger().Debug().Msgf("mutatePod by %s", m.Name())
+			p := m.Mutate(ctx, parameters, pod)
+			patches = append(patches, p...)
+		}
 	}
 	patchData, err := json.Marshal(patches)
 	if err != nil {

@@ -1,0 +1,267 @@
+package inject
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"strings"
+
+	//"github.com/Masterminds/sprig/v3"
+	"github.com/ghodss/yaml"
+	sprig "github.com/go-task/slim-sprig"
+	"gomodules.xyz/jsonpatch/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	//"github.com/gogo/protobuf/types"
+	corev1 "k8s.io/api/core/v1"
+	"text/template"
+)
+
+const SidecarAnnotationStatusKey = "tensor-sidecar-inject/status"
+
+type ProxyConfig struct {
+	InterceptionMode   string   `json:"interception_mode"`
+	NatsUrls           string   `json:"nats_urls"`
+	NatsSubject        string   `json:"nats_subject"`
+	IgnoredNameSpaces  []string `json:"ignored_name_spaces"`
+	InitContainerImage string   `json:"init_container_image"`
+	ContainerImage     string   `json:"container_image"`
+	ImagePullSecrets   string   `json:"image_pull_secrets"`
+}
+
+type SidecarTemplateData struct {
+	ObjectMeta  *metav1.ObjectMeta
+	Spec        corev1.PodSpec
+	ProxyConfig *ProxyConfig
+	ClusterKey  string
+}
+
+type InjectionParameters struct {
+	Template    string
+	ProxyConfig *ProxyConfig
+}
+
+func DefaultProxyConfig() *ProxyConfig {
+	// TODO: include revision based on REVISION env
+	// TODO: set default namespace based on POD_NAMESPACE env
+	return &ProxyConfig{
+		InterceptionMode: "REDIRECT",
+		NatsUrls:         "nats://localhost:4222",
+		NatsSubject:      "api-security",
+	}
+}
+
+type Injector struct {
+	params *InjectionParameters
+}
+
+func (in *Injector) Name() string {
+	return "SidecarInjector"
+}
+
+func (in *Injector) Init() error {
+	var err error
+	in.params, err = loadConfig()
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("load config err")
+		return err
+	}
+	return nil
+}
+
+func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
+	originalPodSpec, err := json.Marshal(pod)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("marshal pod to json")
+		return nil
+	}
+
+	data := SidecarTemplateData{
+		ObjectMeta:  &pod.ObjectMeta,
+		Spec:        pod.Spec,
+		ProxyConfig: in.params.ProxyConfig,
+		ClusterKey:  parameters.Cluster,
+	}
+
+	buf, err := parseTemplate(in.params.Template, data)
+	if err != nil {
+		logging.GetLogger().Warn().Msg("parse template err")
+		return nil
+	}
+
+	templateJSON, err := yaml.YAMLToJSON(buf.Bytes())
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("yaml to json")
+		return nil
+	}
+
+	newPod, err := applyOverlay(pod, templateJSON)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("apply overlay")
+		return nil
+	}
+
+	patches := make([]*processors.Patch, 0)
+	p, err := createPatch(newPod, originalPodSpec)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("create pods path")
+		return patches
+	}
+	for _, v := range p {
+		patches = append(patches, &processors.Patch{
+			Op:    v.Operation,
+			Path:  v.Path,
+			Value: v.Value,
+		})
+	}
+
+	logPatches(patches)
+	return patches
+}
+
+func (in *Injector) PreMutate(ctx context.Context, pod *corev1.Pod, parameters *processors.MutatorParameters) bool {
+	logging.GetLogger().Info().Msgf("checking if need to inject sidecar")
+	for _, ns := range in.params.ProxyConfig.IgnoredNameSpaces {
+		if parameters.Namespace == ns {
+			logging.GetLogger().Info().Msgf("ignored validating for resource %s in namespace %s", parameters.Kind, ns)
+			return false
+		}
+	}
+
+	annotations := pod.ObjectMeta.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	status := annotations[SidecarAnnotationStatusKey]
+	if strings.ToLower(status) == "injected" {
+		logging.GetLogger().Info().Msg("pod has been injected")
+		return false
+	}
+
+	if hasContainerPort(pod.Spec.Containers) && isReplicaSetOwned(pod.ObjectMeta.OwnerReferences) {
+		logging.GetLogger().Info().Msg("pod will be injected")
+		return true
+	}
+
+	labels := pod.ObjectMeta.Labels
+	logging.GetLogger().Info().Msgf("pod labels: %+v", labels)
+	if v, ok := labels["tensor-sidecar-inject"]; ok {
+		if strings.ToLower(v) == "enabled" {
+			return true
+		}
+	}
+	return false
+}
+
+func NewInjector(parameters *InjectionParameters) (*Injector, error) {
+	injector := &Injector{params: parameters}
+	return injector, nil
+}
+
+func createPatch(pod *corev1.Pod, original []byte) ([]jsonpatch.Operation, error) {
+	reinjected, err := json.Marshal(pod)
+	if err != nil {
+		return nil, err
+	}
+	return jsonpatch.CreatePatch(original, reinjected)
+}
+
+func getAnnotation(meta metav1.ObjectMeta, name string, defaultValue interface{}) string {
+	value, ok := meta.Annotations[name]
+	if !ok {
+		value = fmt.Sprint(defaultValue)
+	}
+	return value
+}
+
+func structToJSON(v interface{}) string {
+	if v == nil {
+		return "{}"
+	}
+
+	ba, err := json.Marshal(v)
+	if err != nil {
+		logging.GetLogger().Warn().Msgf("Unable to marshal %v", v)
+		return "{}"
+	}
+
+	return string(ba)
+}
+
+func CreateInjectionFuncmap() template.FuncMap {
+	return template.FuncMap{
+		"annotation":   getAnnotation,
+		"structToJSON": structToJSON,
+	}
+}
+
+func applyOverlay(target *corev1.Pod, overlayJSON []byte) (*corev1.Pod, error) {
+	currentJSON, err := json.Marshal(target)
+	if err != nil {
+		return nil, err
+	}
+
+	pod := corev1.Pod{}
+	// Overlay the injected template onto the original podSpec
+	patched, err := strategicpatch.StrategicMergePatch(currentJSON, overlayJSON, pod)
+	//fmt.Printf("after patch:\n%s\n", string(patched))
+	if err != nil {
+		return nil, fmt.Errorf("strategic merge: %v", err)
+	}
+
+	if err := json.Unmarshal(patched, &pod); err != nil {
+		return nil, fmt.Errorf("unmarshal patched pod: %v", err)
+	}
+	return &pod, nil
+}
+
+func parseTemplate(tmplStr string, data SidecarTemplateData) (bytes.Buffer, error) {
+	var tmpl bytes.Buffer
+	funcMap := CreateInjectionFuncmap()
+	t, err := template.New("inject").Funcs(sprig.TxtFuncMap()).Funcs(funcMap).Parse(tmplStr)
+	if err != nil {
+		logging.GetLogger().Warn().Msgf("Failed to parse template: %v %v\n", err, tmplStr)
+		return bytes.Buffer{}, err
+	}
+
+	if err = t.Execute(&tmpl, &data); err != nil {
+		logging.GetLogger().Warn().Msgf("Invalid template: %v %v\n", err, tmplStr)
+		return bytes.Buffer{}, err
+	}
+	return tmpl, nil
+}
+
+func logPatches(patches []*processors.Patch) {
+	patchData, err := json.Marshal(patches)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("failed to marshal patches")
+		return
+	}
+	logging.GetLogger().Info().Msg(string(patchData))
+}
+
+func hasContainerPort(containers []corev1.Container) bool {
+	for _, c := range containers {
+		if c.Ports != nil || len(c.Ports) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func isReplicaSetOwned(references []metav1.OwnerReference) bool {
+	for _, or := range references {
+		if or.Kind == "ReplicaSet" {
+			return true
+		}
+	}
+	return false
+}
+
+func Register() {
+	injector := Injector{}
+	processors.Registry(injector.Name(), injector)
+}
