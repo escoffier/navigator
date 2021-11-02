@@ -260,8 +260,8 @@ endif
 holmes:     ## Build holmes docker
 	@echo "+ $@"
 	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/update/cmd.Version=$(VERSION)" \
-		-o dist/holmes-rules-update gitlab.com/piccolo_su/vegeta/cmd/holmes/update
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/cmd.Version=$(VERSION)" \
+		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
