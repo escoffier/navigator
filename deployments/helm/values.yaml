@@ -215,12 +215,6 @@ elasticsearch:
              done
 
 
-kibana:
-  image:
-    name: kibana-oss
-    tag: 7.4.2
-    pullSecret: harbor-admin-secret
-
 postgresql-ha:
   # Note for maintainers:
   # Some confusion may appear here because we use docker image created from "official" dockerhub base image postgresql
@@ -277,30 +271,6 @@ postgresql-ha:
     storageClass: ""
     size: 20Gi
 
-
-mongodb:
-  enabled: true
-  image:
-    name: mongodb
-    tag: 4.4.6-debian-10-r8
-    pullSecret: harbor-admin-secret
-  volumePermissions:
-    enabled: true
-    image:
-      name: bitnami-shell
-      tag: 10-debian-10-r91
-  auth:
-    username: redstone
-    password: redstoneMongo123
-    database: vegeta
-    rootPassword: redstoneMongo123
-  architecture: replicaset
-  # https://github.com/helm/charts/issues/18588
-  useStatefulSet: true
-  #
-  persistence:
-    enabled: true
-    storageClass: ""
 
 holmes:
   enabled: true

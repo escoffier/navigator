@@ -183,14 +183,7 @@ postgresql-ha:
   enabled: *isMasterCluster
   persistence:
     enabled: *persistenceStorage
-mongodb:
-  enabled: *isMasterCluster
-  persistence:
-    enabled: *persistenceStorage
 elasticsearch:
   enabled: *isMasterCluster
   persistence:
     enabled: *persistenceStorage
-kibana:
-  enabled: *isMasterCluster
-

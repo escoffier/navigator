@@ -19,11 +19,6 @@ dependencies:
     repository: "file://./subcharts/postgresql-ha"
     condition: postgresql-ha.enabled
 
-  - name: mongodb
-    version: 10.19.0
-    repository: "file://./subcharts/mongodb"
-    condition: mongodb.enabled
-
   - name: redis-ha
     version: 4.4.6
     repository: "file://./subcharts/redis-ha"
@@ -33,11 +28,6 @@ dependencies:
     version: 7.9.1
     repository: "file://./subcharts/elasticsearch"
     condition: elasticsearch.enabled
-
-  - name: kibana 
-    version: 0.1.0
-    repository: "file://./subcharts/kibana"
-    condition: kibana.enabled
 
   - name: holmes
     version: 1.7.4
