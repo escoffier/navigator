@@ -39,7 +39,6 @@ type Service struct {
 	waterlineManager def.WaterlineManager
 	notifyHandler    def.NotifyHandler
 
-	mongoPod   *PodInfo
 	esPod      *PodInfo
 	postgrePod *PodInfo
 	auditPod   *PodInfo
@@ -54,7 +53,6 @@ type PodInfo struct {
 type Conf struct {
 	PostgresDB *rdbtools.GormWrapper
 	EmailConf  *notifyhandler.EmailConf
-	MongoPod   *PodInfo
 	ESPod      *PodInfo
 	PostgrePod *PodInfo
 	AuditPod   *PodInfo
@@ -62,7 +60,6 @@ type Conf struct {
 
 func newService(conf *Conf) *Service {
 	service := &Service{
-		mongoPod:         conf.MongoPod,
 		esPod:            conf.ESPod,
 		postgrePod:       conf.PostgrePod,
 		auditPod:         conf.AuditPod,

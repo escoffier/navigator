@@ -1,17 +1,14 @@
 package main
 
 import (
-	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"os"
 	"testing"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 )
 
 func initDumpHotLogicStorageRequirement(t *testing.T) {
 	var envVars = map[string]string{
-		env.MongoEndpoint:       "127.0.0.1:27017",
-		env.MongoDatabase:       "vegeta",
-		env.MongoReadPreference: "primary",
-
 		env.PostgresHost:     "localhost",
 		env.PostgresUser:     "pguser",
 		env.PostgresDBName:   "tensorsecurity",

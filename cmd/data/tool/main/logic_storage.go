@@ -48,12 +48,6 @@ func NewLogicStorageCleaners() (cleaners []def.Cleaner, err error) {
 
 	logging.GetLogger().Info().Msgf("conf:%+v", dumpConf)
 
-	mongoClient, err := NewMongoClientFromEnv()
-	if err != nil {
-		logging.GetLogger().Error().Msgf("new mongo client fail:%s", err.Error())
-		return nil, err
-	}
-
 	pgClient, err := NewPostgresClientFromEnv()
 	if err != nil {
 		logging.GetLogger().Error().Msgf("new postgres client fail:%s", err.Error())
@@ -62,6 +56,5 @@ func NewLogicStorageCleaners() (cleaners []def.Cleaner, err error) {
 
 	return []def.Cleaner{
 		cleaner.NewPostgresCleaner(pgClient, dumpConf.PGTables),
-		cleaner.NewMongoCleaner(mongoClient, dumpConf.MongoUnifiedConf),
 	}, nil
 }

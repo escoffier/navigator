@@ -63,11 +63,5 @@
       "dataDir": "/audit/posggresql/processingcenter_actions",
       "batch": 1000
     }
-  ],
-  "mongoUnifiedConf": {
-    "batch": 50,
-    "baseDir": "/audit/mongo",
-    "timeField": "historicised_timestamp",
-    "excludedCollections": ["cluster", "podServiceRelation", "podOwnerRefRelation"]
-  }
+  ]
 }

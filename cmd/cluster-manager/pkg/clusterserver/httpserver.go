@@ -29,7 +29,7 @@ type ClusterServer struct {
 	clusterManager *k8s.ClusterManager
 }
 
-func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) { 
+func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
 	cs.clusterManager = cm
 }
 func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +83,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(400)
 		return
 	}
-	
+
 	dataBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("handleWatchCluster read body err")

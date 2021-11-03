@@ -8,13 +8,14 @@ import (
 	"strings"
 
 	"github.com/mozilla/tls-observatory/logger"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 func (s *Service) GetStorageView(ctx context.Context, dataType string) (*model.StorageView, error) {
@@ -31,19 +32,14 @@ func (s *Service) GetStorageView(ctx context.Context, dataType string) (*model.S
 }
 
 func (s *Service) GetLogicHotStorageView(ctx context.Context) (*model.StorageView, error) {
-	mongoHotStorageView, err := s.getStorageView(ctx, s.mongoPod)
-	if err != nil {
-		return nil, err
-	}
-
 	postgreHotStorageView, err := s.getStorageView(ctx, s.postgrePod)
 	if err != nil {
 		return nil, err
 	}
 
 	return &model.StorageView{
-		Total: mongoHotStorageView.Total + postgreHotStorageView.Total,
-		Used:  mongoHotStorageView.Used + postgreHotStorageView.Used}, nil
+		Total: postgreHotStorageView.Total,
+		Used:  postgreHotStorageView.Used}, nil
 }
 
 func (s *Service) GetOfflineHotStorageView(ctx context.Context) (*model.StorageView, error) {

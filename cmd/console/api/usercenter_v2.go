@@ -17,7 +17,6 @@ func (api *api) userCenter() func(chi.Router) {
 		r.Get("/getCaptchaValue", api.getCaptchaValue())
 		r.Post("/forgetpwd", api.forgetPwd())
 		r.Post("/activeuser", api.activeUser())
-		r.Post("/loadUser", api.loadUser())
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
 			r.Post("/logout", api.logout())

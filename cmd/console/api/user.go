@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -21,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 var (
@@ -294,44 +293,6 @@ func (api *api) resetPassword() http.HandlerFunc {
 
 		response.Ok(w, response.WithItem(ResetPwdResponse{
 			Success: true,
-		}))
-	}
-}
-
-func (api *api) loadUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-		defer cancel()
-
-		u, err := dal.GetUserByMongo(ctx, api.mongodb.Get())
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
-			return
-		}
-		for _, v := range u {
-			success, _, _ := dal.SelectUser(ctx, api.postgresDB.Get(), v.UserName)
-			if !success {
-				err = dal.InsertUser(ctx, api.postgresDB, v.UserName, model.RoleNormal, []string{"1"})
-				if err != nil {
-					RespAndLog(w, ctx,
-						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
-					return
-				}
-
-				err = dal.ActiveUser(ctx, api.postgresDB.Get(), v.UserName, v.Pwd)
-				if err != nil {
-					RespAndLog(w, ctx,
-						PostgresError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
-					return
-				}
-			}
-
-		}
-
-		response.Ok(w, response.WithItem(resp{
-			Status: "OK",
 		}))
 	}
 }

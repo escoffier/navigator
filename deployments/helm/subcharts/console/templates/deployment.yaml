@@ -37,13 +37,6 @@ spec:
         image: {{ include "console.image" . }}
         command: ["/tensor-console"]
         args: [
-          "--mongo-endpoint=tensorsec-mongodb-0.tensorsec-mongodb-headless:27017",
-          "--mongo-database={{ .Values.mongo.mongoDatabase }}",
-          "--mongo-username={{ .Values.mongo.mongoUsername }}",
-          "--mongo-k8secretname={{ .Values.mongo.mongoSecretName }}",
-          "--mongo-pvc=datadir-tensorsec-mongodb-0",
-          "--mongo-pod=tensorsec-mongodb-0",
-          "--mongo-data-path={{ .Values.mongo.mongoDataPath }}",
           "--console-postgres=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable",
           "--postgres-pvc=data-tensorsec-db-postgresql-0",
           "--postgres-pod=tensorsec-db-postgresql-0",
@@ -103,11 +96,6 @@ spec:
         - name: TENSORSEC_EMAIL_PASSWORD
           value: {{ .Values.emailCheck.smtpPassword }}
         {{- end }}
-        - name: TENSORSEC_MONGO_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.mongo.mongoSecretName }}
-              key: mongodb-password
         - name: TENSORSEC_ELASTIC_PASSWORD
           valueFrom:
             secretKeyRef:

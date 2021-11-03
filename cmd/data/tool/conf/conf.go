@@ -14,15 +14,7 @@ type PGDumpItem struct {
 	TTL        int32    `json:"ttl"`
 }
 type DumpLogicConf struct {
-	PGTables         []*PGDumpItem  `json:"pgTables"`
-	MongoUnifiedConf *MongoDumpConf `json:"mongoUnifiedConf"`
-}
-
-type MongoDumpConf struct {
-	ExcludedCollections []string `json:"excludedCollections"`
-	Batch               int64    `json:"batch"`
-	BaseDir             string   `json:"baseDir"`
-	TimeField           string   `json:"timeField"`
+	PGTables []*PGDumpItem `json:"pgTables"`
 }
 
 type OfflineConf struct {
