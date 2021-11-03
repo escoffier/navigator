@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -75,9 +77,20 @@ type resourceContainer struct {
 	Image         string `json:"image"`
 	Cluster       string `json:"cluster"`
 	Namespace     string `json:"namespace"`
-	Name          string `json:"name"`
-	Kind          string `json:"kind"`
 	ContainerName string `json:"container_name"`
+
+	ResourceName string               `json:"resource_name"`
+	ClusterKey   string               `json:"cluster_key"`
+	ResourceKind string               `json:"resource_kind"`
+	Ports        model.ContainerPorts `json:"ports"`
+	Type         string               `json:"type"`
+	ImageUUID    uint32               `json:"image_uuid"`
+
+	ImageRepo  string   `json:"image_repo"`
+	ImageName  string   `json:"image_name"`
+	ImageTag   string   `json:"image_tag"`
+	WorkingDir string   `json:"working_dir"`
+	Command    []string `json:"command"`
 }
 
 func (api *api) getResourcesByImage() http.HandlerFunc {
@@ -133,10 +146,20 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 		for i, cont := range containers {
 			ret[i].Cluster = cont.ClusterKey
 			ret[i].Namespace = cont.Namespace
-			ret[i].Name = cont.ResourceName
-			ret[i].Kind = cont.ResourceKind
 			ret[i].ContainerName = cont.Name
+			ret[i].Ports = cont.Ports
+			ret[i].ResourceKind = cont.ResourceKind
+			ret[i].Type = cont.Type
+
+			repo, name, tag := parseImage(cont.Image)
+			ret[i].ImageRepo = repo
+			ret[i].ImageName = name
+			ret[i].ImageTag = tag
 			ret[i].Image = cont.Image
+			if cont.Spec != nil {
+				ret[i].WorkingDir = cont.Spec.WorkingDir
+				ret[i].Command = cont.Spec.Command
+			}
 		}
 
 		response.Ok(w, response.WithItems(ret), response.WithTotalItems(totalCnt))
@@ -178,8 +201,8 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 		for i, cont := range containers {
 			ret[i].Cluster = cont.ClusterKey
 			ret[i].Namespace = cont.Namespace
-			ret[i].Name = cont.ResourceName
-			ret[i].Kind = cont.ResourceKind
+			ret[i].ResourceName = cont.ResourceName
+			ret[i].ResourceKind = cont.ResourceKind
 			ret[i].ContainerName = cont.Name
 			ret[i].Image = cont.Image
 		}
@@ -880,7 +903,7 @@ func (api *api) countContainers() http.HandlerFunc {
 			queryOpt.WithNamespace(namespace)
 		}
 
-		resKind, err := param.QueryString(r, "resourceKind") //chi.URLParam(r, "resourceKind")
+		resKind, err := param.QueryString(r, "resourceKind") // chi.URLParam(r, "resourceKind")
 		if err != nil {
 			resKind = ""
 		}
@@ -888,7 +911,7 @@ func (api *api) countContainers() http.HandlerFunc {
 			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
 		}
 
-		resName, err := param.QueryString(r, "resourceName") //chi.URLParam(r, "resourceName")
+		resName, err := param.QueryString(r, "resourceName") // chi.URLParam(r, "resourceName")
 		if err != nil {
 			resName = ""
 		}
