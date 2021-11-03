@@ -56,7 +56,7 @@ type ScannerSrv interface {
 	ScanAllNow(ctx context.Context, fromType int64, info task.UpdateTaskInfo) error
 	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
-	ListImgLayers(ctx context.Context, imgDigest string, filter *model.Filter) ([]model.ReportImgBackInfo, error)
+	ListImgLayers(ctx context.Context, imgId int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayer, error)
 	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
 	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
@@ -752,9 +752,9 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, layerDigest string, fi
 }
 
 // ListImgLayers List  all layers  information  with  this image. order by created time
-func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imgDigest string, filter *model.Filter) ([]model.ReportImgBackInfo, error) {
+func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error) {
 	// step1 get image info
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Digests: []string{imgDigest}}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imaID}}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("ReportImgBackInfo.SearchImage error:%s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -813,7 +813,9 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imgDigest string, fil
 			for j := range layers {
 				if res[i].ImageDigest == layers[j].LayerDigest {
 					for k := range layers[j].VulnInfo {
-						res[i].Vulus = append(res[i].Vulus, layers[j].VulnInfo[k].ID)
+						for r := range layers[j].VulnInfo[k].Vulns {
+							res[i].Vulus = append(res[i].Vulus, layers[j].VulnInfo[k].Vulns[r].CVEID)
+						}
 					}
 					for k := range layers[j].SensitiveFile {
 						res[i].SensitiveFiles = append(res[i].SensitiveFiles, layers[j].SensitiveFile[k].Name)

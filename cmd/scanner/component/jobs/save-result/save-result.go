@@ -35,7 +35,7 @@ type ScanResultHandle struct {
 }
 
 var (
-	//virusSingleScore   = 40.0
+	// virusSingleScore   = 40.0
 	webshellNineToTen  = 40.0
 	webshellSixToEight = 30.0
 	webshellFourToFive = 20.0
@@ -113,7 +113,7 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 	for i, v := range trivyReport.Results {
 		mp := make(map[string]*model.NewVulnDetail)
 		scanDetails.VulnDetails = append(scanDetails.VulnDetails, model.SingleScanDetail{Class: string(v.Class), Target: v.Target, Type: v.Type})
-		//筛选去重trivy的漏洞
+		// 筛选去重trivy的漏洞
 		for _, vuln := range v.Vulnerabilities {
 			if fixedFlag == 0 && vuln.FixedVersion != "" {
 				fixedFlag = 1
@@ -128,7 +128,7 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 			}
 		}
 
-		//整合漏洞数据
+		// 整合漏洞数据
 		scanDetails.VulnDetails[i].Vulns = make([]model.NewVulnDetail, 0, len(mp))
 		for k, trivyDetail := range mp {
 			tmpDetail, err := vulnQuery.GetVulnDetail(k)
@@ -143,7 +143,7 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 			scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
 		}
 	}
-	//scanDetails对应Vuln_info_json 整合完毕
+	// scanDetails对应Vuln_info_json 整合完毕
 	for _, v := range layers {
 		tmp := &model.LayerScanDetail{}
 		for i := range trivyReport.Results {
@@ -157,10 +157,10 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 		layerMp[v] = tmp
 	}
 
-	//整合层级需要入库的数据
-	for i, v := range scanDetails.VulnDetails { //这一层量级为个位数
-		for _, vuln := range v.Vulns { //漏洞数
-			for _, trivyVvuln := range vuln.Trivy { //个位数
+	// 整合层级需要入库的数据
+	for i, v := range scanDetails.VulnDetails { // 这一层量级为个位数
+		for _, vuln := range v.Vulns { // 漏洞数
+			for _, trivyVvuln := range vuln.Trivy { // 个位数
 				layerVulns, ok := layerMp[trivyVvuln.Layer.Digest].VulnDetails[i].Vulns[vuln.CVEID]
 				if !ok {
 					tmp := &model.NewVulnDetail{CVEID: vuln.CVEID, Cnvd: vuln.Cnvd, Cnnvd: vuln.Cnnvd}
@@ -267,10 +267,10 @@ func (s *ScanResultHandle) arrangeLicense(licenseResult []model.PerLayerLicenseR
 	}
 }
 
-func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
+func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageId int64) {
 	scannerOrm := store.GetScannerDb()
 	for k, v := range layerMp {
-		tmpScanLayer := model.ScanLayer{}
+		tmpScanLayer := model.ScanLayer{ImageId: imageId}
 		tmpScanLayer.LayerDigest = k
 		if v.VulnDetails != nil {
 			vulnJson, err := json.Marshal(v.VulnDetails)
@@ -374,7 +374,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.SeverityHistogramJSON = severityCountJson
 	}
 
-	//计分
+	// 计分
 	tmpScanImage.VirusScore = scanDetails.MaliciousScore
 	tmpScanImage.VulnScore = scanDetails.VulnScore
 	tmpScanImage.WebshellScore = scanDetails.WebShellScore
@@ -527,11 +527,11 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		return nil, errors.New("miss 'layersFilePath' in parameter")
 	}
 
-	//结果集合
+	// 结果集合
 	var scanDetails model.ScanDetailScanImage
 	layerMp := make(map[string]*model.LayerScanDetail)
 
-	//整合漏洞
+	// 整合漏洞
 	scanVuln, ok := scanResult["scan-vuln"].(scan.Artifact)
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-vuln' in parameter")
@@ -556,31 +556,31 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		}
 	}
 
-	//整合病毒
+	// 整合病毒
 	scanMalicious, ok := scanResult["scan-malicious"].(scan.Artifact)
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-malicious' in parameter")
-		//return nil, errors.New("miss 'scan-malicious' in parameter")
+		// return nil, errors.New("miss 'scan-malicious' in parameter")
 	} else {
 		maliciousResult, ok := scanMalicious["result"].([]model.PerLayerMaliciousResult)
 		if !ok {
 			logging.GetLogger().Error().Msg("miss 'maliciousResult' in parameter")
-			//return nil, errors.New("miss 'maliciousResult' in parameter")
+			// return nil, errors.New("miss 'maliciousResult' in parameter")
 		} else {
 			s.arrangeMalicious(maliciousResult, &scanDetails, layerMp)
 		}
 	}
 
-	//整合敏感文件
+	// 整合敏感文件
 	scanSensitive, ok := scanResult["scan-sensitive"].(scan.Artifact)
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-sensitive' in parameter")
-		//return nil, errors.New("miss 'scan-malicious' in parameter")
+		// return nil, errors.New("miss 'scan-malicious' in parameter")
 	} else {
 		sensitivesResult, ok := scanSensitive["result"].([]model.PerLayerSensitiveResult)
 		if !ok {
 			logging.GetLogger().Error().Msg("miss 'sensitivesResult' in parameter")
-			//return nil, errors.New("miss 'maliciousResult' in parameter")
+			// return nil, errors.New("miss 'maliciousResult' in parameter")
 		} else {
 			s.arrangeSensitive(sensitivesResult, &scanDetails, layerMp)
 			if len(scanDetails.Sentitives) > 0 {
@@ -592,7 +592,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		}
 	}
 
-	//整合webshell
+	// 整合webshell
 	scanWebshell, ok := scanResult["scan-webshell"].(scan.Artifact)
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-webshell' in parameter")
@@ -605,7 +605,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		}
 	}
 
-	//整合Env
+	// 整合Env
 	scanEnv, ok := scanResult["scan-env"].(scan.Artifact)
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-env' in parameter")
@@ -624,7 +624,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		}
 	}
 
-	//整合License
+	// 整合License
 	scanLicense, ok := scanResult["scan-license"].(scan.Artifact)
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-license' in parameter")
@@ -640,7 +640,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		}
 	}
 
-	s.logPostgresLayer(ctx, &scanDetails, layerMp)
+	s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
 	s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
 	s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
 	s.updateRiskVulnCacheEntry(ctx, param, &scanDetails)

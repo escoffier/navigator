@@ -928,7 +928,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	// serialize
 	for i := range res {
 		if res[i].VulnInfoJSON != nil {
-			vulns := make([]model.VulnerabilityInfo, 0)
+			vulns := make([]model.SingleScanDetail, 0)
 			if err := json.Unmarshal(res[i].VulnInfoJSON, &vulns); err == nil {
 				res[i].VulnInfo = vulns
 			} else {

@@ -51,7 +51,7 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 
 	v2 := router.Group("/api/v1/images")
 	{
-		v2.GET("/:imgDigest/layers", apiScannerSrv.ListImgLayers)
+		v2.GET("/:imgID/layers", apiScannerSrv.ListImgLayers)
 		v2.POST("/bases", apiScannerSrv.CreateBaseImage)
 		v2.DELETE("/bases/:imageID", apiScannerSrv.DeleteBaseImage)
 		v2.GET("/bases", apiScannerSrv.ListBaseImage)
