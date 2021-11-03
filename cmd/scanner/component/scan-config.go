@@ -315,6 +315,9 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			}
 			libs = lbs
 		}
+		if len(libs) == 0 {
+			logging.GetLogger().Info().Msg("not configured scan library")
+		}
 		// 查找所有的镜像增加任务
 		daoParm := store.SearchImageParam{FromType: model.ImageFromTypeNormal, RegistryIds: libs}
 		imgIds, err := s.getAllImageIds(ctx, daoParm)
@@ -347,6 +350,9 @@ func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanCo
 		daoParm := store.SearchImageParam{FromType: model.ImageFromSafeNode}
 		if !config.NodeImageConfig.ScanAll {
 			daoParm.NodeHostnames = config.NodeImageConfig.NodeHostnames
+		}
+		if len(daoParm.NodeHostnames) == 0 {
+			logging.GetLogger().Info().Msg("not configured scan node")
 		}
 
 		// 查找所有的镜像增加任务

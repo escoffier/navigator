@@ -68,14 +68,14 @@ func (VulnImage) TableName() string {
 }
 
 type ScanLayer struct { // 层级扫描结果
-	ID           uint                `gorm:"primaryKey" json:"id"`
-	CreatedAt    time.Time           `json:"created_at"`
-	UpdatedAt    time.Time           `json:"updated_at"`
-	DeletedAt    int                 `json:"deleted_at"`
-	ImageId      int64               `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
-	LayerDigest  string              `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
-	VulnInfoJSON datatypes.JSON      `gorm:"type:jsonb" json:"-"` // 包含扫描结果的json
-	VulnInfo     []VulnerabilityInfo `gorm:"-" json:"vuln_info"`
+	ID           uint               `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+	DeletedAt    int                `json:"deleted_at"`
+	ImageId      int64              `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
+	LayerDigest  string             `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
+	VulnInfoJSON datatypes.JSON     `gorm:"type:jsonb" json:"-"` // 包含扫描结果的json
+	VulnInfo     []SingleScanDetail `gorm:"-" json:"vuln_info"`
 
 	PkgInfoJSON datatypes.JSON `gorm:"type:jsonb" json:"-"` // 软件包信息
 	PkgInfo     interface{}    `gorm:"-" json:"pkg_info"`

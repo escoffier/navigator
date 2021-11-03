@@ -203,15 +203,24 @@ func (s *Software) Check() error {
 	if s.Version == "" {
 		return fmt.Errorf("no software version")
 	}
+
 	return nil
 }
 
 func (s *ScanStrategy) Serialize() *ScanStrategy {
 	if len(s.SensitiveFile) > 0 {
-		if bys, err := json.Marshal(s.SensitiveFile); err == nil {
-			s.SensitiveFileJson = string(bys)
-		} else {
-			logging.GetLogger().Error().Err(err)
+		ses := make([]SensitiveFileScan, 0)
+		for i := range s.SensitiveFile {
+			if s.SensitiveFile[i].Value != "" {
+				ses = append(ses, s.SensitiveFile[i])
+			}
+		}
+		if len(ses) > 0 {
+			if bys, err := json.Marshal(s.SensitiveFile); err == nil {
+				s.SensitiveFileJson = string(bys)
+			} else {
+				logging.GetLogger().Error().Err(err)
+			}
 		}
 	}
 	if len(s.Envs) > 0 {
@@ -319,6 +328,11 @@ func (s *ScanStrategy) Check() error {
 			return fmt.Errorf("open license:%s is not allowed", s.OpenLicense[i])
 		}
 	}
+	for i := range s.Software {
+		if s.Software[i].Name == "" || s.Software[i].Version == "" {
+			return fmt.Errorf("software name or version can not be empty")
+		}
+	}
 
 	return nil
 }
@@ -376,7 +390,7 @@ func DeDuplicateString(ss []string) []string {
 	ans := make([]string, 0)
 	exit := make(map[string]bool)
 	for i := range ss {
-		if !exit[ss[i]] {
+		if !exit[ss[i]] && ss[i] != "" {
 			exit[ss[i]] = true
 			ans = append(ans, ss[i])
 		}

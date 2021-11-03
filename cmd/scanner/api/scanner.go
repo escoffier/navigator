@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -532,13 +533,17 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 // @Author liuqiang@tensorsecurity.cn
 // @Description 获取镜像各层级的信息
 // @Tags scan image
-// @Param imgDigest query string true "imgDigest"
+// @Param imgDigest query int64 true "imgDigest"
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ReportImgBackInfo}}
-// @Router	/api/v1/images/:imgDigest/layers [get]
+// @Router	/api/v1/images/:imgID/layers [get]
 func (s *Scanner) ListImgLayers(ctx *gin.Context) {
-	imgDigest := ctx.Param("imgDigest")
+	imageId, err := strconv.ParseInt(ctx.Param("imgID"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusExpectationFailed, err))
+		return
+	}
 
-	images, err := s.Srv.ListImgLayers(ctx, imgDigest, nil)
+	images, err := s.Srv.ListImgLayers(ctx, imageId, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -554,7 +559,7 @@ func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 // @Tags scan image
 // @Param layerDigest query string true "layerDigest"
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=model.ScanLayer}}
-// @Router	/api/v1/layers/:imgDigest/layers [get]
+// @Router	/api/v1/layers/:layerDigest/layers [get]
 func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 	layerDigest := ctx.Param("layerDigest")
 
