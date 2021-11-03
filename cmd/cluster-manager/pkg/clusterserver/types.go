@@ -3,6 +3,7 @@ package clusterserver
 const (
 	HostClusterName = "default"
 )
+
 type TensorCluster struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`

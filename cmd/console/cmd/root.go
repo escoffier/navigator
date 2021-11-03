@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -31,17 +32,6 @@ var rootCmd = &cobra.Command{
 			Str("listen", httpOpts.HTTPListen).
 			Str("webhooklisten", httpOpts.HTTPWebHookListen).
 			Msg("HTTP options")
-
-		mongoOpts := flag.GetMongoOpts(cmd)
-		logging.GetLogger().Info().
-			Str("endpoint", mongoOpts.Endpoint).
-			Str("username", mongoOpts.Username).
-			Str("secretname", mongoOpts.SecretName).
-			Str("database", mongoOpts.Database).
-			Str("pvc", mongoOpts.PVC).
-			Str("pod", mongoOpts.Pod).
-			Str("dataPath", mongoOpts.DataPath).
-			Msg("Mongo options")
 
 		postgresOpts := flag.GetPostgresOpts(cmd)
 		logging.GetLogger().Info().
@@ -112,7 +102,7 @@ var rootCmd = &cobra.Command{
 			Int("port", webhookOpts.Port).
 			Msg("webhook options")
 
-		console, err := service.NewConsole(httpOpts, mongoOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts, secProfilesOpts, microsegOpts, webhookOpts)
+		console, err := service.NewConsole(httpOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts, secProfilesOpts, microsegOpts, webhookOpts)
 
 		if err != nil {
 			return err
@@ -139,7 +129,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 
 	flag.AddHTTPFlags(rootCmd)
-	flag.AddMongoFlags(rootCmd)
 	flag.AddPostgresFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)

@@ -191,8 +191,6 @@ func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context,
 		return ap.createAssociationLinks(tctx, evtID, evt, now)
 	}, retry.Attempts(2))
 
-	
-
 	return evtID, err
 }
 

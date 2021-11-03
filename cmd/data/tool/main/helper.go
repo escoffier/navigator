@@ -9,18 +9,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
-
-func NewMongoClientFromEnv() (*mongotools.DatabaseWrapper, error) {
-	return util.NewMongoClient(
-		util2.GetEnvWithDefault(env.MongoUsername, env.DefaultMongoUsername),
-		util2.GetEnvWithDefault(env.MongoPassword, ""),
-		util2.GetEnvWithDefault(env.MongoEndpoint, env.DefaultMongoEndpoint),
-		util2.GetEnvWithDefault(env.MongoDatabase, env.DefaultMongoDatabase))
-}
 
 func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",

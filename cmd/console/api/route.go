@@ -11,8 +11,6 @@ import (
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -20,10 +18,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
+	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 )
 
 var (
@@ -45,7 +44,6 @@ func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
 	tokenAuth *jwtauth.JWTAuth,
-	mongodb *mongotools.DatabaseWrapper,
 	postgresDB *rdbtools.GormWrapper,
 	scannerURL string,
 	secProfileCoreURL string,
@@ -61,7 +59,6 @@ func SetupRoutes(
 
 	api := newAPI(ctx,
 		tokenAuth,
-		mongodb,
 		postgresDB,
 		scannerURL,
 		secProfileCoreURL,

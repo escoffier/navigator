@@ -16,12 +16,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readconcern"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gorm.io/driver/postgres"
@@ -52,7 +46,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/mongotools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -90,8 +83,6 @@ type Console struct {
 	lifecycle.Service
 	server          *http.Server
 	webHookServer   *http.Server
-	monCliWrapper   *mongotools.ClientWrapper
-	mongoDB         *mongotools.DatabaseWrapper
 	postgresDB      *rdbtools.GormWrapper
 	es              *elastic.Client
 	harborClient    *harbor.HarborRESTClient
@@ -104,7 +95,6 @@ type Console struct {
 // NewConsole is to create a new Console struct.
 func NewConsole(
 	httpOpts *flag.HTTPOpts,
-	mongoOpts *flag.MongoOpts,
 	postgresOpts *flag.PostgresOpts,
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
@@ -116,25 +106,6 @@ func NewConsole(
 	clusterManagerOpts *flag.ClusterManagerOpts,
 	webhookOpts *flag.WebHookOpts,
 ) (*Console, error) {
-	// mongo client
-	// TODO: authSource database should be a separate argument.
-	mongoString := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=%s", mongoOpts.Username, mongoOpts.Password, mongoOpts.Endpoint, mongoOpts.Database)
-	mongoClientOptions := options.Client().ApplyURI(mongoString)
-	mongoClientOptions.SetPoolMonitor(&event.PoolMonitor{
-		Event: mongotools.PoolMonitorFunc,
-	})
-	mongoClientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
-	mongoClientOptions.SetReadConcern(readconcern.Majority())
-	mongoClientOptions.SetMaxPoolSize(50)
-	mongoClientOptions.SetMaxConnIdleTime(10 * time.Minute)
-	mongoClientOptions.SetConnectTimeout(1 * time.Second)
-	mongoClientOptions.SetMinPoolSize(5)
-	mongoCliWrapper, wrErr := mongotools.NewMongoClient(mongoClientOptions, 1*time.Second)
-	if wrErr != nil {
-		return nil, wrErr
-	}
-
-	mongoDBWrapper := mongoCliWrapper.Database(mongoOpts.Database)
 	eventGrpcUrl := os.Getenv(eventGrpcUrlEnv)
 	if eventGrpcUrl == "" {
 		eventGrpcUrl = defaultEventGrpcUrl
@@ -232,11 +203,6 @@ func NewConsole(
 			Password: emailOpts.Password,
 			Host:     emailOpts.Host,
 			Port:     emailPort,
-		},
-		MongoPod: &data.PodInfo{
-			PVC:      mongoOpts.PVC,
-			Pod:      mongoOpts.Pod,
-			DataPath: mongoOpts.DataPath,
 		},
 
 		ESPod: &data.PodInfo{
@@ -347,7 +313,6 @@ func NewConsole(
 			Addr: httpOpts.HTTPListen,
 			Handler: setupChiRouter(
 				mainCtx,
-				mongoDBWrapper,
 				postgresDB,
 				es,
 				scannerURL,
@@ -362,8 +327,6 @@ func NewConsole(
 			),
 		},
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},
-		monCliWrapper: mongoCliWrapper,
-		mongoDB:       mongoDBWrapper,
 		postgresDB:    postgresDB,
 		es:            es,
 		ctx:           mainCtx,
@@ -407,18 +370,13 @@ func (c *Console) Run() func() {
 		}
 	}()
 
-	// ctx for initialization steps
 	ctx, mcancel := context.WithTimeout(c.ctx, 60*time.Second)
 	defer mcancel()
-	err := c.monCliWrapper.Connect(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("When in connecting to Mongo database")
-	}
 
 	testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
 	defer testCancel()
 	canDowngrade := true
-	err = c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
+	err := c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
 	if err != nil {
 		log.Error().Err(err).Msg("Harbor connection and admin privilege check failed")
 	}
@@ -426,11 +384,6 @@ func (c *Console) Run() func() {
 	err = postgreCheck(c.postgresDB)
 	if err != nil {
 		log.Error().Err(err).Msg("When check admin data in postgres")
-	}
-
-	err = createMongoIndices(ctx, c.mongoDB)
-	if err != nil {
-		log.Error().Err(err).Msg("When creating mongo indices")
 	}
 
 	clusterManager, ok := k8s.GetClusterManager()
@@ -549,45 +502,6 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 			logging.GetLogger().Err(err).Msgf("init url:%s fail", url.UrlName)
 			return err
 		}
-	}
-
-	return nil
-}
-
-func createMongoIndices(ctx context.Context, mongodb *mongotools.DatabaseWrapper) error {
-	neededIndexesPerCollection := make(map[string][]mongo.IndexModel)
-
-	neededIndexesPerCollection[model.HarborProjectConfigCollection.String()] = []mongo.IndexModel{
-		{
-			Keys: bson.M{
-				"CheckID": 1,
-			}, Options: nil,
-		},
-		{
-			Keys: bson.M{
-				"CreatedAt": 1,
-			}, Options: nil,
-		},
-	}
-
-	for collectionName, indexModel := range neededIndexesPerCollection {
-		indexOpts := options.CreateIndexes().SetMaxTime(60 * time.Second)
-
-		col := mongodb.Get().Collection(collectionName)
-
-		logging.GetLogger().Info().Str("collectionName", collectionName).Msg("Ensuring mongo indices")
-
-		// This operation is idempotent
-		out, err := col.Indexes().CreateMany(ctx, indexModel, indexOpts)
-
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if err != nil {
-			return err
-		}
-
-		log.Info().Str("created-indices", fmt.Sprintf("%+v", out)).Str("collectionName", collectionName).Msg("Created mongo indices")
 	}
 
 	return nil
