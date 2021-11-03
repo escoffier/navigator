@@ -19,6 +19,13 @@ scanner:
     redisSecretName: tensorsec-redis-ha
   postgresql:
     postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4000Mi"
+    limits:
+      cpu: "2000m"
+      memory: "4000Mi"
   dockerregistry:
     persistence:
       enabled: true
@@ -46,10 +53,10 @@ scanner:
     replicas: 2
     resources:
       limits:
-        cpu: "100m"
+        cpu: "200m"
         memory: "200Mi"
       requests:
-        cpu: "100m"
+        cpu: "200m"
         memory: "200Mi"
   persistence:
     enabled: true

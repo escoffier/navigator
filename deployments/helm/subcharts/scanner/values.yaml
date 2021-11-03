@@ -78,10 +78,10 @@ webshell:
   replicas: 2
   resources:
     limits:
-      cpu: "100m"
+      cpu: "200m"
       memory: "200Mi" 
     requests:
-      cpu: "100m"
+      cpu: "200m"
       memory: "200Mi"
   service:
     type: ClusterIP
@@ -114,11 +114,11 @@ apiInstallLabel: "scanner.tensorsec/install"
 
 resources:
   requests:
-    cpu: "1000m"
-    memory: "2000Mi"
+    cpu: "2000m"
+    memory: "4000Mi"
   limits:
-    cpu: "1000m"
-    memory: "2000Mi"
+    cpu: "2000m"
+    memory: "4000Mi"
 
 postgresql:
   postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
