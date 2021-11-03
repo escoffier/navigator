@@ -145,11 +145,6 @@ stan:
   host: tensorsec-stan-headless
   port: "4222"
 
-mongo:
-  mongoUsername: redstone
-  mongoDatabase: vegeta
-  mongoSecretName: tensorsec-mongodb # needs keey mongodb-password
-
 volumes:
   clientName: "client-cert"
   clientSecretName: "eventcenter-tls-client-cert-secret"

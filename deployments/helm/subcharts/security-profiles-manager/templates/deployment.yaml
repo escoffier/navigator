@@ -58,11 +58,6 @@ spec:
           value: {{ .Values.holmes.podLabel }}
         - name: HOLMES_CONFIGMAP
           value: {{ .Values.holmes.rulesConfigMap }}
-        - name: TENSORSEC_MONGO_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.mongo.mongoSecretName }}
-              key: mongodb-password
         - name: TENSORSEC_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
