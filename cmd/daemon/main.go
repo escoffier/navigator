@@ -20,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/ruleMetrics"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -33,7 +34,7 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn stan.Conn) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
@@ -56,10 +57,10 @@ var runes = []rune{
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 }
 
-func getClientID(podName, hostName string) string {
+func getClientID(nodeName string) string {
 	b := strings.Builder{}
-	for _, by := range podName {
-		if (by >= 'a' && by <= 'b') || (by >= 'A' && by <= 'Z') || by == '-' || by == '_' {
+	for _, by := range nodeName {
+		if (by >= 'a' && by <= 'z') || (by >= 'A' && by <= 'Z') || by == '-' || by == '_' {
 			b.WriteRune(by)
 		} else {
 			b.WriteRune(runes[rand.Intn(len(runes))])
@@ -102,14 +103,14 @@ func NetInit(ctx context.Context) error {
 		logging.GetLogger().Warn().Msg("env STAN_CLUSTER_ID not found")
 		stanClusterID = "tensorsec"
 	}
-	nc, err := nats.Connect(fmt.Sprintf("nats://%s", stanURL), nats.MaxReconnects(5), nats.ReconnectBufSize(64*1024), nats.ReconnectWait(500*time.Millisecond))
-	if err != nil {
-		panic("Failed to connect to NATS")
-	}
-	stanConn, err := stan.Connect(stanClusterID, getClientID(podName, hostName), stan.NatsConn(nc))
-	if err != nil {
-		panic("Failed to connect to STAN")
-	}
+	stanConn := mqtools.NewStanConn(func() (stan.Conn, error) {
+		nc, err := nats.Connect(fmt.Sprintf("nats://%s", stanURL), nats.MaxReconnects(5), nats.ReconnectBufSize(64*1024), nats.ReconnectWait(500*time.Millisecond))
+		if err != nil {
+			return nil, err
+		}
+		stanConn, err := stan.Connect(stanClusterID, getClientID(hostName), stan.NatsConn(nc))
+		return stanConn, err
+	})
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 

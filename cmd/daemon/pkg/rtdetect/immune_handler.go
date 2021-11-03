@@ -6,8 +6,8 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/golang/protobuf/proto"
-	"github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -21,11 +21,11 @@ var (
 )
 
 type ImmuneHandler struct {
-	stanConn stan.Conn
+	stanConn *mqtools.StanConn
 }
 
-func NewImmuneHandler(stanConn stan.Conn) *AssociatedEventsHandler {
-	return &AssociatedEventsHandler{stanConn}
+func NewImmuneHandler(stanConn *mqtools.StanConn) *ImmuneHandler {
+	return &ImmuneHandler{stanConn}
 }
 func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 	tctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
@@ -34,6 +34,11 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, e := range events {
 		subject, ok := immuneRules[e.data.Rule]
 		if ok {
+			stannconn, ok := ih.stanConn.Conn()
+			if !ok {
+				logging.GetLogger().WithContext(ctx).Errorf(nil, "connection not available data: %v", e)
+				continue
+			}
 			e.data.OutputFields[rtdetect.KeyClusterKey] = e.clusterKey
 			ebytes, err := proto.Marshal(e.data)
 			if err != nil {
@@ -41,7 +46,7 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 				continue
 			}
 			err = util.RetryWithBackoff(tctx, func() error {
-				return ih.stanConn.Publish(subject, ebytes)
+				return stannconn.Publish(subject, ebytes)
 			}, retry.Attempts(3))
 			if err != nil {
 				logging.GetLogger().WithContext(ctx).Errorf(err, "publish immune events error. data: %s", string(ebytes))
