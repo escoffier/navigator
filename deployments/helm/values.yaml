@@ -261,10 +261,10 @@ postgresql-ha:
     maxConnections: "1024"
     resources:
       limits:
-        memory: 500Mi
+        memory: 1024Mi
         cpu: 500m
       requests:
-        memory: 500Mi
+        memory: 1024Mi
         cpu: 500m
   pgpoolImage:
     name: pgpool
