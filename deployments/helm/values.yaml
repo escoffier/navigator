@@ -391,10 +391,10 @@ webhook:
   resources:
     limits:
       cpu: 50m
-      memory: 100Mi
+      memory: 200Mi
     requests:
       cpu: 50m
-      memory: 100Mi
+      memory: 200Mi
 
 stan:
   enabled: true
