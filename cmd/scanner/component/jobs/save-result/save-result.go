@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	pull_image "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
@@ -105,6 +106,25 @@ func (s *ScanResultHandle) makeSeverityHistogramAndVulnScore(scanDetails *model.
 		scanDetails.VulnScore = maxVulnscore
 	}
 	scanDetails.SeverityHistogram = sevHistorgram
+}
+
+func (s *ScanResultHandle) defalutEnvFill(scanDetails *model.ScanDetailScanImage, param jobs.Param) {
+	configJson, ok := param["configJson"].(string)
+	if !ok {
+		logging.GetLogger().Error().Msg("miss 'configJson' in parameter")
+		return
+	}
+
+	config := model.ConfigFile{}
+	err := json.Unmarshal([]byte(configJson), &config)
+	if err != nil {
+		logging.GetLogger().Error().Msg("ScanEnv can't unmarshal configJson")
+		return
+	}
+	envs := component.ParseConfigEnv(config.Config.Env)
+	if len(envs) != 0 {
+		scanDetails.EnvDetails = append(scanDetails.EnvDetails, envs...)
+	}
 }
 
 func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers []string, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
@@ -608,6 +628,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	// 整合Env
 	scanEnv, ok := scanResult["scan-env"].(scan.Artifact)
 	if !ok {
+		s.defalutEnvFill(&scanDetails, param)
 		logging.GetLogger().Warn().Msg("miss 'scan-env' in parameter")
 	} else {
 		envReuslt, ok := scanEnv["result"].([]model.EnvKeyValue)

@@ -129,7 +129,7 @@ func CompareVersion(vtype string, old string, new string) bool {
 func (s *ScannerVuln) ReadVersion(name string) string {
 	res := "last"
 	if strings.Contains(name, "custom") {
-		offlineVersion := "2006-01-02 15:04:05"
+		offlineVersion := "2006-01-02 15:04:04"
 		CustomVersion := ""
 		if util.FileExists(filepath.Join(s.PvcPath, "custom_version")) {
 			CustomVersionBytes, err := os.ReadFile(filepath.Join(s.PvcPath, "custom_version"))
