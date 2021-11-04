@@ -74,11 +74,11 @@ webhook:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
     limits:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
 
 eventProcessor:
   image:
@@ -90,11 +90,11 @@ eventProcessor:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
     limits:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
 
 loader:
   image:
@@ -106,11 +106,11 @@ loader:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
     limits:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
 
 audit:
   image:
@@ -122,11 +122,11 @@ audit:
     pullSecret: harbor-admin-secret
   resources:
     requests:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
     limits:
-      cpu: "100m"
-      memory: "200Mi"
+      cpu: "50m"
+      memory: "50Mi"
 
 redis:
   redisSecretName: tensorsec-redis-ha
