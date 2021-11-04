@@ -138,14 +138,10 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 	return nil
 }
 
-func (m *ClusterManager) GetSecret(clusterName, namespace, name string) (*DockerConfigJson, error) {
+func (m *ClusterManager) GetSecret(clusterKey, namespace, name string) (*DockerConfigJson, error) {
 	m.RLock()
 	defer m.RUnlock()
-	clusterKey, err := m.getClusterKeybyName(clusterName)
-	if err != nil {
-		return nil, err
-	}
-	logging.GetLogger().Info().Msgf("get secret: %s:%s:%s:%s", clusterName, clusterKey, namespace, name)
+	logging.GetLogger().Info().Msgf("get secret: %s:%s:%s:%s", clusterKey, clusterKey, namespace, name)
 
 	controller, ok := m.secretController[clusterKey]
 	if !ok {

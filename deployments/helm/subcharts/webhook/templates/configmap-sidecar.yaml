@@ -14,7 +14,8 @@ data:
       "ignored_name_spaces": [{{ .Values.sidecar.ignoredNameSpaces  | quote }},{{ .Release.Namespace | quote }}],
       "init_container_image": {{ include "tensorsec.webhook.sidecar.init.image" . | quote }},
       "container_image": {{ include "tensorsec.webhook.sidecar.image" . | quote }},
-      "image_pull_secrets": {{ .Values.image.pullSecret | quote }}
+      "image_pull_secrets": {{ .Values.image.pullSecret | quote }},
+      "pg_addr": "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
     }
   sidecar-template.yaml: |
 {{ .Files.Get "sidecar.yaml" | indent 4}}

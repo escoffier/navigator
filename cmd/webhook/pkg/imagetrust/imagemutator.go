@@ -126,7 +126,7 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 }
 
 func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, originImage string, kubeSecretNames []string) string {
-	secret := m.getSecrets(parameters.Cluster, parameters.Namespace, originImage, kubeSecretNames)
+	secret := m.getSecrets(parameters.ClusterKey, parameters.Namespace, originImage, kubeSecretNames)
 	digest := getImageDigestFromHarbor(ctx, originImage, secret)
 	if digest != "" {
 		imgMap, ok := GetImageDigestMap()

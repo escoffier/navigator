@@ -64,8 +64,8 @@ presets:
     caMountPath: "/auth/ca"
 
 nats:
-  natsUrl: "nats://tensorsec-stan-headless:4222"
-  natSubject: "security-api"
+  natsUrl: "nats://tensorsec-stan-headless.tensorsec.svc:4222"
+  natsSubject: "security-api"
 
 sidecar:
   image:

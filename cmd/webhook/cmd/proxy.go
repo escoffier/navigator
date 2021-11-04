@@ -60,13 +60,13 @@ func getTargetUrl(host, clusterMgr string) *url.URL {
 
 	cluster := utils.GetClusterInfo(clusterMgr)
 
-	if cluster == nil || cluster.Name == "" {
+	if cluster == nil || cluster.Key == "" {
 		return nil
 	}
-	logging.GetLogger().Info().Msgf("current cluster is: %s", cluster.Name)
+	logging.GetLogger().Info().Msgf("current cluster is: %s-%s", cluster.Name, cluster.Key)
 
 	targetUrl.Scheme = "https"
-	targetUrl.RawQuery = "cluster=" + cluster.Name
+	targetUrl.RawQuery = "cluster=" + cluster.Key
 	targetUrl.Path = "/internal/webhook"
 	return targetUrl
 }

@@ -1,10 +1,10 @@
 package inject
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
+	"strings"
 	"testing"
 )
 
@@ -32,33 +32,16 @@ func TestTemplate(t *testing.T) {
 
 }
 
-func TestInjector_Inject(t *testing.T) {
-	tmpl, err := ioutil.ReadFile("testdata/sidecar-template-2.yaml")
-	if err != nil {
-		t.Fatal(err)
+func TestOwnerName(t *testing.T) {
+	name := "vulnweb-test-fc9d89f6f-"
+	n := strings.LastIndex(name, "-")
+	ss := strings.SplitAfter(name, "-")
+	t.Log(ss)
+	rsName := name[:n]
+	n = strings.LastIndex(rsName, "-")
+	deploymentName := rsName[:n]
 
-	}
+	t.Log(rsName)
+	t.Log(deploymentName)
 
-	jsonPod, err := ioutil.ReadFile("testdata/kubeorigin.json")
-
-	var pod corev1.Pod
-	if json.Unmarshal(jsonPod, &pod); err != nil {
-		t.Fatal(err)
-
-	}
-
-	paras := InjectionParameters{
-		Template:    string(tmpl),
-		ProxyConfig: DefaultProxyConfig(),
-	}
-	injector, err := NewInjector(&paras)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err := injector.Inject(&pod, "test-service")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Printf("%+v", string(resp))
 }
