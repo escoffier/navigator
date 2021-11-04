@@ -28,6 +28,7 @@ spec:
         {{- if .Values.global.multiCluster.isMasterCluster }}
         - --validators={{ .Values.validators }}
         - --mutators={{ .Values.mutators }}
+        - --pgAddr=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable
         {{- else if .Values.global.multiCluster.isMemberCluster }}
         - proxy
         - --target-host={{ .Values.args.consoleUrl }}
