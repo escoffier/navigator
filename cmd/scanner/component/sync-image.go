@@ -85,7 +85,6 @@ func NewSyncRepoImage(registryDao store.RegistryDalInterface, imageDal store.Sca
 func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 	// defer wg.Done()
 	var exitMap sync.Map
-	// 暂时全局只会有一个配置
 
 	worker := func(reg RegistryWithConf, extender registry.ImageListExtender) {
 		res, err := reg.Registry.ListImages(extender, registry.ListImagesRequest{NeedToReturnAdded: true})
@@ -114,7 +113,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				}
 				if len(imgIds) > 0 {
 					imgIds = DeDuplicationInt64Slice(imgIds)
-					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("send scan tasks")
+					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("SyncImage send library image scan tasks")
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
 						TriggerType: consts.ImageSyncTrigger,
@@ -133,7 +132,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				if len(imgIds) > 0 {
 					imgIds = DeDuplicationInt64Slice(imgIds)
 
-					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("send scan tasks")
+					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("SyncImage send node image scan tasks")
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 						Scope:       consts.SingleScan,
@@ -173,7 +172,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				img, err := s.TransImageToImagelist(ctx, reg.Config, image)
 
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("SyncImage.InsertImageList")
+					logging.GetLogger().Debug().Msgf("SyncImage.InsertImageList,error:%s", err.Error())
 					return nil, err
 				}
 				// 先查一下
@@ -229,13 +228,12 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		// logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
 		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
 		if err != nil {
-			logging.GetLogger().Info().Msgf("reg.UseType:%d,reg.url:%s", reg.UseType, reg.Url)
+			logging.GetLogger().Debug().Msgf("reg.UseType:%d,reg.url:%s,error:%s", reg.UseType, reg.Url, err.Error())
 			return img, err
 		}
 		img.NodeIp = newImage.NodeIp
 		img.NodeHostname = newImage.NodeHostname
 		img.OS = newImage.OS
-		img.Library = newImage.Library
 		img.Project = newImage.Project
 		img.RepoName = newImage.RepoName
 

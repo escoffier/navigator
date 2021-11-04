@@ -1873,7 +1873,7 @@ func (s *ScannerOrm) UpdateTask(ctx context.Context, task model.Task, param Sear
 func (s *ScannerOrm) UpdateTasksStatus(ctx context.Context, updateIds []int64, status int) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	res := map[string]interface{}{"Status": status}
+	res := map[string]interface{}{"status": status}
 	db := s.psql.Get().WithContext(ctx).Model(model.Task{}).Where("id IN ?", updateIds).Updates(res)
 	return db.Error
 }
