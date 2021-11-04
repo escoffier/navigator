@@ -947,6 +947,42 @@
         "issueDetail":"检测到打开的kubectl代理。kubectl proxy是一个方便的工具，可以从本地机器连接到运行在Kubernetes中的应用程序或Kubernetes API。例如，浏览Kubernetes仪表板是常见的做法。攻击者可以利用离开打开的代理来访问整个集群。",
         "remediation":"以永久、合法的方式公开应用程序，例如通过ingress。"
       }
+    },
+    "Discovery@Instance Metadata API@AWS Metadata Exposure":{
+      "en":{
+        "name":"AWS Metadata Exposure",
+        "category":"Discovery",
+        "subCategory":"Instance Metadata API",
+        "description":"Access to the AWS Metadata API exposes information about the machines associated with the cluster",
+        "issueDetail":"AWS EC2 protitlees an internal HTTP endpoint that exposes information from the cloud platform to workloads running in an instance. The endpoint is accessible to every workload running in the instance. An attacker that is able to execute a pod in the cluster may be able to query the metadata service and discover additional information about the environment.",
+        "remediation":"Limit access to the instance metadata service. Consider using a local firewall such as iptables to disable access from some or all processes/users to the instance metadata service.Disable the metadata service (via instance metadata options or IAM), or at a minimum enforce the use IMDSv2 on an instance to require token-based access to the service.Modify the HTTP PUT response hop limit on the instance to 1. This will only allow access to the service from the instance itself rather than from within a pod.."
+      },
+      "zh":{
+        "name":"AWS元数据泄漏",
+        "category":"信息发现",
+        "subCategory":"实例元数据API",
+        "description":"对AWS元数据API的访问泄露了了与群集关联的计算机的信息",
+        "issueDetail":"AWS EC2提供了一个内部HTTP端点，该端点将来自云平台的信息公开给实例中运行的工作负载。实例中运行的每个工作负载都可以访问端点。能够在群集中执行pod的攻击者可能能够查询元数据服务并发现有关环境的其他信息。",
+        "remediation":"限制对实例元数据服务的访问，考虑使用本地防火墙（例如IPTABLE）禁用某些或所有进程/用户对实例元数据服务的访问。禁用元数据服务（通过实例元数据选项或IAM），或者至少在实例上强制使用IMDSv2以要求基于令牌的服务访问。将实例上的HTTP PUT响应跃点限制修改为1，这将只允许从实例本身而不是从pod内访问服务。"
+      }
+    },
+    "Discovery@Instance Metadata API@Azure Metadata Exposure":{
+      "en":{
+        "name":"Azure Metadata Exposure",
+        "category":"Discovery",
+        "subCategory":"Instance Metadata API",
+        "description":"Access to the Azure Metadata API exposes information about the machines associated with the cluster",
+        "issueDetail":"Microsoft Azure protitlees an internal HTTP endpoint that exposes information from the cloud platform to workloads running in a VM. The endpoint is accessible to every workload running in the VM. An attacker that is able to execute a pod in the cluster may be able to query the metadata service and discover additional information about the environment.",
+        "remediation":"Starting in the 2020.10.15 Azure VHD Release, AKS restricts the pod CIDR access to that internal HTTP endpoint."
+      },
+      "zh":{
+        "name":"Azure元数据泄漏",
+        "category":"信息发现",
+        "subCategory":"实例元数据API",
+        "description":"对Azure元数据API的访问泄露了了与群集关联的计算机的信息",
+        "issueDetail":"Microsoft Azure Protitle提供了一个内部HTTP端点，该端点将来自云平台的信息公开给运行在VM中的工作负载。VM中运行的每个工作负载都可以访问端点。能够在群集中执行pod的攻击者可能能够查询元数据服务并发现有关环境的其他信息。",
+        "remediation":"从2020.10.15 Azure VHD版本开始，AKS限制pod CIDR对该内部HTTP端点的访问。"
+      }
     }
   }
 }
