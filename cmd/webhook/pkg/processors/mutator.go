@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	corev1 "k8s.io/api/core/v1"
 	"time"
 )
@@ -40,9 +41,10 @@ type mutatorChain struct {
 
 type MutatorParameters struct {
 	// Deal with potential empty fields, e.g., when the pod is created by a deployment
-	Namespace string
-	Kind      string
-	Cluster   string
+	Namespace  string
+	Kind       string
+	ClusterKey string
+	rdb        *rdbtools.GormWrapper
 }
 
 func (m *mutatorChain) AddMutator(mutator interface{}) {

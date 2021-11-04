@@ -14,6 +14,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	inject "gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/sidecar"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"io/ioutil"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +27,7 @@ import (
 	"os"
 	"reflect"
 	"sync"
+	"time"
 )
 
 var (
@@ -39,9 +44,11 @@ var (
 )
 
 type webHookServer struct {
-	Server *http.Server
-	URL    string
-	Config *Config
+	Server         *http.Server
+	URL            string
+	Config         *Config
+	rdb            *rdbtools.GormWrapper
+	HostClusterKey string
 }
 
 func NewWebHookServer(config *Config) (*webHookServer, error) {
@@ -72,6 +79,17 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	ws.Server.Handler = mutex
 	ws.Config = config
 	ws.initProcessorChain()
+
+	err = ws.initPG()
+	if err != nil {
+		return nil, err
+	}
+
+	err = ws.loadHostCluster()
+	if err != nil {
+		return nil, err
+	}
+
 	return ws, nil
 }
 
@@ -120,22 +138,22 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read request body err", code)
 		return
 	}
-	cluster, err := param2.QueryString(r, "cluster")
+	clusterKey, err := param2.QueryString(r, "cluster")
 	//host cluster request has no cluster param
 	if err != nil {
 		logging.GetLogger().Info().Msg("no request param")
 	}
 
 	//cluster param is empty mean thant  mutating request comes from api-server of host cluster
-	if cluster == "" {
-		cluster = "default"
+	if clusterKey == "" {
+		clusterKey = s.HostClusterKey
 	}
 
 	kind := ar.Request.Kind.Kind
 	param := &processors.MutatorParameters{
-		Namespace: ar.Request.Namespace,
-		Kind:      kind,
-		Cluster:   cluster,
+		Namespace:  ar.Request.Namespace,
+		Kind:       kind,
+		ClusterKey: clusterKey,
 	}
 
 	var admissionResponse *v1.AdmissionResponse
@@ -249,6 +267,39 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 func (s *webHookServer) initProcessorChain() {
 	initValidatingChain(s.Config)
 	initMutatingChain(s.Config)
+}
+
+func (s *webHookServer) loadHostCluster() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	defer cancel()
+
+	cluster := model.TensorCluster{}
+	err := s.rdb.Get().WithContext(ctx).Where("name = ?", "default").First(&cluster).Error
+	s.HostClusterKey = cluster.Key
+	return err
+}
+
+func (s *webHookServer) initPG() error {
+	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		db, err := gorm.Open(postgres.Open(s.Config.PgAddr), &gorm.Config{})
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			return nil, err
+		}
+		sqlDB, err := db.DB()
+		if err == nil {
+			sqlDB.SetMaxOpenConns(30)
+			sqlDB.SetMaxIdleConns(5)
+			sqlDB.SetConnMaxLifetime(time.Hour)
+		}
+		return db, nil
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("Init postgre error")
+		return err
+	}
+	s.rdb = postgresDB
+	return nil
 }
 
 func initValidatingChain(config *Config) {

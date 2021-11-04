@@ -15,7 +15,7 @@ import (
 var _ Service = (*mutationService)(nil)
 
 func (m *mutationService) MutateLabels(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
-	patches := m.patchPod(ctx, pod, parameters.Cluster, parameters.Namespace)
+	patches := m.patchPod(ctx, pod, parameters.ClusterKey, parameters.Namespace)
 
 	for _, patch := range patches {
 		p := patch.Value.(string)
@@ -92,7 +92,7 @@ func (m *mutationService) MutatePodLabels(ctx context.Context, cluster string, r
 }
 
 func (m *mutationService) MutateNamespaceLabels(ctx context.Context, parameters *processors.MutatorParameters, ns *corev1.Namespace) []*processors.Patch {
-	patches := m.patchNamespace(ctx, ns, parameters.Cluster)
+	patches := m.patchNamespace(ctx, ns, parameters.ClusterKey)
 
 	for _, patch := range patches {
 		p := patch.Value.(string)
@@ -105,7 +105,7 @@ func (m *mutationService) MutateNamespaceLabels(ctx context.Context, parameters 
 	return patches
 }
 
-func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster, namespace string) []*processors.Patch {
+func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, clusterKey, namespace string) []*processors.Patch {
 	var resID uint32
 	var newResLabelValue, newSegLabelValue string
 	resourcePatchOp := "add"
@@ -143,14 +143,8 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 		resName = owner.Name
 	}
 
-	tensorCluster, err := m.backend.GetClusterByName(ctx, cluster)
-	if err != nil {
-		logrus.Errorf("failed to get cluster by name: %s", cluster)
-		return patches
-	}
-	logrus.Infof("cluster key: %s", tensorCluster.Key)
-	resID = util.GenID(tensorCluster.Key, namespace, resKind, resName)
-	logrus.Infof("resource info is %s:%s:%s:%s", cluster, namespace, resKind, resName)
+	resID = util.GenID(clusterKey, namespace, resKind, resName)
+	logrus.Infof("resource info is %s:%s:%s:%s", clusterKey, namespace, resKind, resName)
 
 	newResLabelValue = fmt.Sprintf("%d", resID)
 	patches = append(patches, &processors.Patch{
@@ -183,7 +177,7 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 	return patches
 }
 
-func (m *mutationService) patchNamespace(ctx context.Context, ns *corev1.Namespace, cluster string) []*processors.Patch {
+func (m *mutationService) patchNamespace(ctx context.Context, ns *corev1.Namespace, clusterKey string) []*processors.Patch {
 	var nsID uint32
 	var newNsLabelValue string
 	nsPatchOp := "add"
@@ -199,14 +193,8 @@ func (m *mutationService) patchNamespace(ctx context.Context, ns *corev1.Namespa
 		}
 	}
 
-	tensorCluster, err := m.backend.GetClusterByName(ctx, cluster)
-	if err != nil {
-		logrus.Errorf("failed to get cluster by name: %s", cluster)
-		return patches
-	}
-	logrus.Infof("cluster key: %s", tensorCluster.Key)
-	nsID = util.GenID(tensorCluster.Key, ns.Name)
-	logrus.Infof("namespace info is %s:%s", cluster, ns.Name)
+	nsID = util.GenID(clusterKey, ns.Name)
+	logrus.Infof("namespace info is %s:%s", clusterKey, ns.Name)
 
 	newNsLabelValue = fmt.Sprintf("%d", nsID)
 	patches = append(patches, &processors.Patch{

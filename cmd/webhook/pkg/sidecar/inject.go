@@ -6,8 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"strings"
+	"time"
 
 	//"github.com/Masterminds/sprig/v3"
 	"github.com/ghodss/yaml"
@@ -30,6 +36,7 @@ type ProxyConfig struct {
 	InitContainerImage string   `json:"init_container_image"`
 	ContainerImage     string   `json:"container_image"`
 	ImagePullSecrets   string   `json:"image_pull_secrets"`
+	PgAddr             string   `json:"pg_addr"`
 }
 
 type SidecarTemplateData struct {
@@ -37,11 +44,15 @@ type SidecarTemplateData struct {
 	Spec        corev1.PodSpec
 	ProxyConfig *ProxyConfig
 	ClusterKey  string
+	OwnerName   string
+	OwnerKind   string
 }
 
 type InjectionParameters struct {
 	Template    string
 	ProxyConfig *ProxyConfig
+	OwnerName   string
+	OwnerKind   string
 }
 
 func DefaultProxyConfig() *ProxyConfig {
@@ -56,6 +67,7 @@ func DefaultProxyConfig() *ProxyConfig {
 
 type Injector struct {
 	params *InjectionParameters
+	rdb    *rdbtools.GormWrapper
 }
 
 func (in *Injector) Name() string {
@@ -69,6 +81,26 @@ func (in *Injector) Init() error {
 		logging.GetLogger().Err(err).Msg("load config err")
 		return err
 	}
+
+	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		db, err := gorm.Open(postgres.Open(in.params.ProxyConfig.PgAddr), &gorm.Config{})
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			return nil, err
+		}
+		sqlDB, err := db.DB()
+		if err == nil {
+			sqlDB.SetMaxOpenConns(30)
+			sqlDB.SetMaxIdleConns(5)
+			sqlDB.SetConnMaxLifetime(time.Hour)
+		}
+		return db, nil
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("Init postgre error")
+		return err
+	}
+	in.rdb = postgresDB
 	return nil
 }
 
@@ -79,11 +111,14 @@ func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorPa
 		return nil
 	}
 
+	ownerName, ownerKind := in.getPodOwner(ctx, pod, parameters)
 	data := SidecarTemplateData{
 		ObjectMeta:  &pod.ObjectMeta,
 		Spec:        pod.Spec,
 		ProxyConfig: in.params.ProxyConfig,
-		ClusterKey:  parameters.Cluster,
+		ClusterKey:  parameters.ClusterKey,
+		OwnerKind:   ownerKind,
+		OwnerName:   ownerName,
 	}
 
 	buf, err := parseTemplate(in.params.Template, data)
@@ -259,6 +294,40 @@ func isReplicaSetOwned(references []metav1.OwnerReference) bool {
 		}
 	}
 	return false
+}
+
+func (in *Injector) getPodOwner(ctx context.Context, pod *corev1.Pod, parameters *processors.MutatorParameters) (string, string) {
+	for i := range pod.OwnerReferences {
+		k := pod.OwnerReferences[i].Kind
+		if k == "ReplicaSet" {
+			query := dal.ResourcesQuery()
+			query.WithCluster(parameters.ClusterKey)
+			query.WithNamespace(parameters.Namespace)
+
+			name := pod.OwnerReferences[i].Name
+			n := strings.LastIndex(name, "-")
+			deploymentName := ""
+			if n > 0 {
+				deploymentName = name[:n]
+			}
+			query.WithResourceName(deploymentName)
+			var resources []*model.TensorResource
+			resources, err := dal.GetResources(ctx, in.rdb, query, 0, 1)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("get resource %s", deploymentName)
+				query.WithResourceName(name)
+				resources, err = dal.GetResources(ctx, in.rdb, query, 0, 1)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("get resource %s", name)
+					continue
+				}
+
+				continue
+			}
+			return resources[0].Name, resources[0].Kind
+		}
+	}
+	return "", ""
 }
 
 func Register() {
