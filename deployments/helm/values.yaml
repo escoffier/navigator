@@ -77,6 +77,13 @@ console:
   persistence:
     enabled: true
     storageClass: ""
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "500Mi"
+    limits:
+      cpu: "200m"
+      memory: "500Mi"
   jobs:
     tensorsecCleaner:
       image:
@@ -145,6 +152,13 @@ cluster-manager:
     name: tensorsec-cluster-manager
     tag: latest
     pullSecret: harbor-admin-secret
+  resources:
+    limits:
+      cpu: 50m
+      memory: 200Mi
+    requests:
+      cpu: 50m
+      memory: 200Mi
 #  args:
 #    masterAddr:
 #    clusterName:
@@ -165,6 +179,14 @@ redis-ha:
   persistentVolume:
     enabled: true
     storageClass: ""
+  redis:
+    resources:
+      requests:
+        memory: 500Mi
+        cpu: 200m
+      limits:
+        memory: 500Mi
+        cpu: 200m
 
 elasticsearch:
   enabled: true
@@ -190,13 +212,13 @@ elasticsearch:
   #     node.store.allow_mmap: false
   # antiAffinity: "soft"
   # esJavaOpts: "-Xmx128m -Xms128m"
-  # resources:
-  #   requests:
-  #     cpu: "100m"
-  #     memory: "512M"
-  #   limits:
-  #     cpu: "1000m"
-  #     memory: "512M"
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2000Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2000Mi"
   # volumeClaimTemplate:
   #   accessModes: [ "ReadWriteOnce" ]
   #   resources:
@@ -254,11 +276,11 @@ postgresql-ha:
     maxPool: "15"
     resources:
       limits:
-        memory: 500Mi
-        cpu: 500m
+        memory: 350Mi
+        cpu: 250m
       requests:
-        memory: 500Mi
-        cpu: 500m
+        memory: 350Mi
+        cpu: 250m
   volumePermissionsImage:
     name: bitnami-shell
     tag: 10-debian-10-r125
@@ -287,20 +309,27 @@ holmes:
     pullSecret: harbor-admin-secret
   extraArgs:
     - "-A"
+  resources:
+    requests:
+      cpu: 1
+      memory: 500Mi
+    limits:
+      cpu: 1
+      memory: 500Mi
   tensorsecDaemon:
     image:
       name: tensorsec-daemon
       tag: latest
+    resources:
+      requests:
+        memory: "250Mi"
+        cpu: "100m"
+      limits:
+         memory: "250Mi"
+         cpu: "100m"
   ebpf:
     enabled: true
   falco:
-    resources:
-      requests:
-        cpu: 2
-        memory: 2048Mi
-      limits:
-        cpu: 2
-        memory: 2048Mi
     rulesFile:
       - /etc/holmes/rules.d
       # - /etc/holmes/holmes_rules.yaml
@@ -336,16 +365,6 @@ holmes:
     host: tensorsec-stan-headless
     port: "4222"
 
-image-validator:
-  enabled: false
-  image:
-    name: tensorsec-image-validator
-    tag: latest
-  certgen:
-    image:
-      name: tensorsec-certgen
-      tag: v1.5.1
-
 webhook:
   enabled: true
   image:
@@ -369,6 +388,13 @@ webhook:
   nats:
     natsUrl: "nats://tensorsec-stan-headless:4222"
     natSubject: "security-api"
+  resources:
+    limits:
+      cpu: 50m
+      memory: 100Mi
+    requests:
+      cpu: 50m
+      memory: 100Mi
 
 stan:
   enabled: true
@@ -383,6 +409,13 @@ stan:
     volume:
       enabled: true
       storageClass: ""
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "500Mi"
+    limits:
+      cpu: "500m"
+      memory: "500Mi"
 
 security-profiles-manager:
   enabled: true
@@ -398,46 +431,67 @@ security-profiles-manager:
     image:
       name: alpine
       tag: latest
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "100Mi"
+    limits:
+      cpu: "100m"
+      memory: "100Mi"
   webhook:
     image:
       name: tensorsec-security-profiles-webhook
       tag: latest
       pullSecret: harbor-admin-secret
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "50Mi"
+      limits:
+        cpu: "50m"
+        memory: "50Mi"
   loader:
     image:
       name: tensorsec-security-profiles-loader
       tag: latest
       pullSecret: harbor-admin-secret
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "50Mi"
+      limits:
+        cpu: "50m"
+        memory: "50Mi"
   audit:
     image:
       name: tensorsec-go-audit
       tag: latest
       pullSecret: harbor-admin-secret
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "50Mi"
+      limits:
+        cpu: "50m"
+        memory: "50Mi"
   eventProcessor:
     image:
       name: tensorsec-event-processor
       tag: latest
       pullSecret: harbor-admin-secret
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "50Mi"
+      limits:
+        cpu: "50m"
+        memory: "50Mi"
   holmes:
     rulesConfigMap: tensorsec-holmes-rules
     podLabel: tensorsec-holmes
   stan:
     clientID: sec-profile-manager
     clusterID: tensorsec
-
-holmessidekick:
-  enabled: false
-  replicaCount: 1
-  image:
-    repository: falcosecurity
-    name: falcosidekick
-    tag: "2.22.0"
-    pullSecret: harbor-admin-secret
-  config:
-    stan:
-      hostport:  "nats://tensorsec-stan-headless:4222"
-      clusterid: tensorsec
-      clientid:  falco
 
 safenode-image:
   enabled: true
@@ -452,10 +506,10 @@ safenode-image:
     bufInternal: 10
   resources:
     limits:
-      cpu: "1000m"
-      memory: "1000Mi"
+      cpu: "100m"
+      memory: "100Mi"
     requests:
-      cpu: "1000m"
-      memory: "1000Mi"
+      cpu: "100m"
+      memory: "100Mi"
   multicluster:
     clusterManagerAddr: "http://tensorsec-cluster-manager:9443"

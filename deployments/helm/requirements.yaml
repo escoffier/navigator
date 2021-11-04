@@ -44,16 +44,6 @@ dependencies:
     repository: "file://./subcharts/security-profiles-manager"
     condition: security-profiles-manager.enabled
 
-  - name: holmessidekick
-    version: 0.3.3
-    repository: "file://./subcharts/holmessidekick"
-    condition: holmessidekick.enabled
-
-  - name: image-validator
-    version: 0.1.0
-    repository: "file://./subcharts/image-validator"
-    condition: image-validator.enabled
-
   - name: webhook
     version: 0.1.0
     repository: "file://./subcharts/webhook"
@@ -73,11 +63,6 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/security-profiles-manager"
     condition: security-profiles-manager.enabled
-
-  - name: holmessidekick
-    version: 0.3.3
-    repository: "file://./subcharts/holmessidekick"
-    condition: holmessidekick.enabled
 
   - name: safenode-image
     version: 0.1.0

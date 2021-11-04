@@ -118,11 +118,6 @@ holmes:
     host: *stanHost
     port: *stanPort
 
-image-validator:
-  enabled: false
-  image:
-    tag: *tensorsecVerison
-
 webhook:
   enabled: true
   image:
@@ -164,8 +159,6 @@ stan:
   store:
     volume:
       enabled: *persistenceStorage
-holmessidekick:
-  enabled: false
 
 safenode-image:
   enabled: true
