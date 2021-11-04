@@ -9,6 +9,7 @@ spec:
       labels:
         app: host-bench
     spec:
+      ttlSecondsAfterFinished: 100
       containers:
         - name: host-bench
           image: localhost:32000/host-bench:latest

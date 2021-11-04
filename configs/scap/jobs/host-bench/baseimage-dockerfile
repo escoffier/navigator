@@ -7,15 +7,10 @@ FROM fedora:32
 ARG MIRROR=
 RUN if [ "$MIRROR" == "true" ] ; then /bin/curl -o /etc/yum.repos.d/fedora.repo http://mirrors.aliyun.com/repo/fedora.repo ; fi
 
-# This repo contains mongodb-org-tools (https://docs.mongodb.com/manual/tutorial/install-mongodb-on-red-hat/)
-# Split --nogpgcheck install with the one with gpgcheck
 RUN yum install -y dnf-plugins-core \
-    && dnf config-manager --add-repo https://repo.mongodb.org/yum/redhat/8/mongodb-org/4.4/x86_64/ --nogpgcheck \
-    && dnf install -y mongodb-org-tools --nogpgcheck \
     && dnf install -y \
         openscap-scanner \
         scap-security-guide \
-        mongodb-org-tools \
         python3 \
         python3-pip \
         jq
