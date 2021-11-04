@@ -120,20 +120,18 @@ func FilterVulnsFromScanImage(scanDetails []model.SingleScanDetail) []model.Resp
 		if len(v.Vulns) == 0 {
 			continue
 		}
-		if strings.Contains(v.Target, "fastjson") {
-			for _, vuln := range v.Vulns {
-				tmpRespSingle := model.RespSingleVulnDetail{}
-				tmpRespSingle.TargetFileNmae = v.Target
-				tmpRespSingle.Frame = "fastjson"
-				tmpRespSingle.NewVulnDetail = vuln
-				result = append(result, tmpRespSingle)
-			}
-		} else if lang, ok := LanguageMap[strings.ToLower(v.Type)]; ok {
+		if lang, ok := LanguageMap[strings.ToLower(v.Type)]; ok {
 			if lang != "GO" {
 				for _, vuln := range v.Vulns {
 					tmpRespSingle := model.RespSingleVulnDetail{}
+					if strings.Contains(vuln.Trivy[0].PkgName, "struts2") && lang == "Java" {
+						tmpRespSingle.Frame = "struts2"
+					} else if strings.Contains(vuln.Trivy[0].PkgName, "fastjson") && lang == "Java" {
+						tmpRespSingle.Frame = "fastjson"
+					} else {
+						tmpRespSingle.Language = lang
+					}
 					tmpRespSingle.TargetFileNmae = v.Target
-					tmpRespSingle.Language = lang
 					tmpRespSingle.NewVulnDetail = vuln
 					result = append(result, tmpRespSingle)
 				}
