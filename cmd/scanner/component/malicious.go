@@ -138,7 +138,7 @@ func (m *MaliciousScan) ParseLayerTarWebFrame(tarFileName string) ([]model.WebFr
 			continue
 		}
 		if strings.Contains(header.Name, "Gemfile.lock") {
-			logging.GetLogger().Info().Msg("find Gemfile.lock")
+			// logging.GetLogger().Info().Msg("find Gemfile.lock")
 			content, err := ioutil.ReadAll(tarReader)
 			if err != nil {
 				continue
@@ -159,7 +159,7 @@ func (m *MaliciousScan) ParseLayerTarWebFrame(tarFileName string) ([]model.WebFr
 				tmpInfo.FilePath = header.Name[0 : index+1]
 			}
 			res = append(res, tmpInfo)
-			// logging.GetLogger().Info().Msgf("web res %v", res)
+			logging.GetLogger().Info().Msgf("web res %v", res)
 		}
 
 		if strings.Contains(header.Name, "composer.json") {
@@ -277,7 +277,7 @@ func (m *MaliciousScan) FindInComposer(content string) string {
 
 func (m *MaliciousScan) FindInGemfile(content string) string {
 	index := strings.Index(content, "rails (= ")
-	// logging.GetLogger().Info().Msgf("index is %v", index)
+	logging.GetLogger().Info().Msgf("index is %v", index)
 	version := ""
 	if index == -1 {
 		return ""
