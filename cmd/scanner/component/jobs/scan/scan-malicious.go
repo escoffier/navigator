@@ -76,6 +76,15 @@ func (e *ExecutorScanMalicious) Scan(ctx context.Context, param Param) (Artifact
 		}
 	}
 
+	var webFrameRes []model.WebFrameInfo
+	for i := 1; i < len(layers); i++ {
+		res, err := e.MaliciousScan.ParseLayerTarWebFrame(filepath.Join(layersFilePath[i], "layer.tar"))
+		if err != nil {
+			continue
+		}
+		webFrameRes = append(webFrameRes, res...)
+	}
+	// logging.GetLogger().Info().Msgf("WebFramRes :%v", webFrameRes)
 	// result := make([]model.Malicious, 0, len(virus))
 	// for _, v := range virus {
 	// 	tmpMalicious := model.Malicious{}
@@ -85,6 +94,7 @@ func (e *ExecutorScanMalicious) Scan(ctx context.Context, param Param) (Artifact
 
 	r := make(map[string]interface{})
 	r["result"] = virus
+	r["webFrame"] = webFrameRes
 	logging.GetLogger().Debug().Msgf("Virus detail : %v", virus)
 	return r, nil
 }
