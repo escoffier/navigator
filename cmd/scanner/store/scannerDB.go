@@ -65,17 +65,17 @@ func (scdb *ScannerDB) InsertToWebFrame(ctx context.Context, webFrameScan *model
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.WebFrameScan{}
-	err := scdb.PostgresDB.Get().WithContext(ctx).Where("image_uuid = ?", webFrameScan.ImageUUID).Find(&tmp).Error
+	err := scdb.PostgresDB.Get().WithContext(ctx).Debug().Where("image_uuid = ?", webFrameScan.ImageUUID).Find(&tmp).Error
 	if err != nil {
 		return err
 	}
 	if tmp.ID != 0 {
-		err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.WebFrameScan{}).Where("image_uuid = ?", webFrameScan.ImageUUID).Update("web_frame_info", webFrameScan.WebFrameInfoJSON).Error
+		err := scdb.PostgresDB.Get().WithContext(ctx).Debug().Model(&model.WebFrameScan{}).Where("image_uuid = ?", webFrameScan.ImageUUID).Update("web_frame_info", webFrameScan.WebFrameInfoJSON).Error
 		if err != nil {
 			return err
 		}
 	} else {
-		err := scdb.PostgresDB.Get().WithContext(ctx).Create(webFrameScan).Error
+		err := scdb.PostgresDB.Get().WithContext(ctx).Debug().Create(webFrameScan).Error
 		if err != nil {
 			return err
 		}

@@ -486,6 +486,9 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 		logging.GetLogger().Warn().Msg("miss 'webFrame' in parameter")
 		return
 	}
+	if len(scanWebFrame) == 0 {
+		return
+	}
 	var err error
 	url := strings.Replace(jobUrl, "https://", "", 1)
 	url = strings.Replace(url, "http://", "", 1)
