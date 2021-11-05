@@ -2,7 +2,6 @@ package mock_db_dequeue
 
 import (
 	"context"
-	"encoding/json"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -36,10 +35,10 @@ func transSubTask(st *model.SubTask) *task.SubTask {
 
 func transTask(t *model.Task) (*task.Task, error) {
 	sc := make([]task.ScanConfig, 0)
-	err := json.Unmarshal([]byte(t.ScanType), &sc)
-	if err != nil {
-		return nil, err
-	}
+	//err := json.Unmarshal([]byte(t.ScanType), &sc)
+	//if err != nil {
+	//	return nil, err
+	//}
 	scanType := make(map[task.ScanType]task.ScanPolicy)
 	for _, v := range sc {
 		scanType[task.ScanType(v.Type)] = task.ScanPolicy(v.Policy)

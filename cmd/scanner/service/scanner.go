@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"runtime/debug"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -56,15 +57,13 @@ func init() {
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
+	Id           string // uuid
 	options      *flag2.ScannerOpts
 	servicesList map[string]register.ScannerService // save all scanner service
 }
 
 // NewScanner is to create a new Scanner struct.
-func NewScanner(
-	opts *flag2.ScannerOpts,
-) (*Scanner, error) {
-
+func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init db
 	if err := store.InitDb(opts.DbConnectStr); err != nil {
 		log.Error().Err(err).Msg("connect db failed")
@@ -88,6 +87,7 @@ func NewScanner(
 	}
 
 	return &Scanner{
+		Id:           uuid.GenerateRandomID(),
 		options:      opts,
 		servicesList: make(map[string]register.ScannerService),
 	}, nil

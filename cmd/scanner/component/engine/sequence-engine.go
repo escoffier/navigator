@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	DefaultMaxTaskNum    = 10
-	DefaultMaxSubTaskNum = 10
+	DefaultMaxTaskNum    = 2
+	DefaultMaxSubTaskNum = 2
 	DefaultInterval      = 30
 )
 
@@ -77,7 +77,7 @@ func (s *SequenceEngine) SubTaskHeartBeatFunc() FlowLoopFunc {
 			logging.GetLogger().Warn().
 				Str("msg", err.Error()).
 				Int64("taskId", t.Id).
-				Int64("subTaskId", st.Id).
+				Int64("subtaskId", st.Id).
 				Msg("update subtask heart beat failed")
 		}
 
@@ -87,7 +87,7 @@ func (s *SequenceEngine) SubTaskHeartBeatFunc() FlowLoopFunc {
 			logging.GetLogger().Warn().
 				Str("msg", err2.Error()).
 				Int64("taskId", t.Id).
-				Int64("subTaskId", st.Id).
+				Int64("subtaskId", st.Id).
 				Msg("update task heart beat failed")
 		}
 
@@ -196,7 +196,7 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		// generate job by name
 		logging.GetLogger().Info().
 			Str("jobName", j).
-			Int64("subTaskId", st.Id).
+			Int64("subtaskId", st.Id).
 			Int64("taskId", t.Id).Msg("start job")
 		config := jobs.JobConfig{
 			Type: j,
@@ -229,7 +229,7 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 
 		logging.GetLogger().Info().
 			Str("jobName", j).
-			Int64("subTaskId", st.Id).
+			Int64("subtaskId", st.Id).
 			Int64("taskId", t.Id).
 			Msg("job success")
 	}

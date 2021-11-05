@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"time"
 
 	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
@@ -75,9 +76,10 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 	for i := range imageIds {
 		// generate subtasks
 		subtask := model.SubTask{
-			TaskId:  taskId,
-			ImageId: imageIds[i],
-			Status:  consts.ImageScanPending,
+			TaskId:    taskId,
+			ImageId:   imageIds[i],
+			Status:    consts.ImageScanPending,
+			HeartBeat: time.Now(),
 		}
 		subtasks = append(subtasks, subtask)
 	}
@@ -96,10 +98,11 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 
 func (t *TaskSrv) SetTaskFailed(id int64, msg string) error {
 	dbTask := model.Task{
-		ID:     id,
-		Status: consts.End,
-		Result: consts.ScanFail,
-		Msg:    msg,
+		ID:         id,
+		Status:     consts.End,
+		Result:     consts.ScanFail,
+		Msg:        msg,
+		FinishedAt: time.Now(),
 	}
 	p := store.SearchTaskParam{
 		ExcludeStatus: t.GetTaskSuspendStatus(),
@@ -205,8 +208,33 @@ func (t *TaskSrv) GetPendingSubTasksByTaskId(ctx context.Context, taskId int64) 
 	return pendingSubTasks, nil
 }
 
+// SetTasksInProgress update tasks status and set task scanner id,
+// notice: this function will set task scanner id to current scanner id which will be used for scanner fail over
 func (t *TaskSrv) SetTasksInProgress(ids []int64) error {
-	err := store.GetScannerOrmDb().UpdateTasksStatus(context.Background(), ids, consts.InProgress)
+	search := store.SearchTaskParam{
+		Ids:      ids,
+		Statuses: []int8{consts.Pending},
+	}
+	updateInfo := make(map[string]interface{})
+	updateInfo["heart_beat"] = time.Now()
+	updateInfo["status"] = consts.InProgress
+	updateInfo["scanner_id"] = global.ScannerId
+	err := store.GetScannerOrmDb().UpdateTasksInfo(context.Background(), search, updateInfo)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *TaskSrv) ReScheduleTask(ids []int64) error {
+	search := store.SearchTaskParam{
+		Ids: ids,
+	}
+	updateInfo := make(map[string]interface{})
+	updateInfo["heart_beat"] = time.Now()
+	updateInfo["status"] = consts.Pending
+	updateInfo["scanner_id"] = global.ScannerId
+	err := store.GetScannerOrmDb().UpdateTasksInfo(context.Background(), search, updateInfo)
 	if err != nil {
 		return err
 	}
@@ -275,10 +303,12 @@ func (t *TaskSrv) SetSubTaskSuccess(id int64) error {
 }
 
 func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
+	now := time.Now()
 	dbTask := model.SubTask{
 		ID:        id,
 		Status:    consts.ImageScanInProgress,
-		StartedAt: time.Now(),
+		StartedAt: now,
+		HeartBeat: now,
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {
@@ -466,6 +496,25 @@ func (t *TaskSrv) GetProgressingSubTasks(taskIds []int64) ([]SubTask, error) {
 	return res, nil
 }
 
+func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
+	search := store.SearchSubTaskParam{
+		TaskIds:  taskIds,
+		Statuses: []int{consts.ImageScanPending},
+	}
+	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, nil)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("get pending tasks err")
+		return nil, err
+	}
+
+	res := make([]SubTask, 0)
+	for _, v := range sts {
+		t := transSubTask(v)
+		res = append(res, t)
+	}
+	return res, nil
+}
+
 func transTask(dbTask model.Task) Task {
 	t := Task{
 		Id:        dbTask.ID,
@@ -474,6 +523,7 @@ func transTask(dbTask model.Task) Task {
 		UpdateAt:  dbTask.UpdatedAt,
 		CreateAt:  dbTask.CreatedAt,
 		HeartBeat: dbTask.HeartBeat,
+		ScannerId: dbTask.ScannerId,
 	}
 	return t
 }
