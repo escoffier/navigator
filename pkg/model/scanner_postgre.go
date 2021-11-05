@@ -544,7 +544,8 @@ type Task struct {
 	UpdatedAt           time.Time `gorm:"updated_at" json:"updated_at"`   // task update time
 	HeartBeat           time.Time `gorm:"heart_beat" json:"heart_beat"`
 	Operator            string    `gorm:"operator" json:"operator"`
-	PolicyId            int64     `gorm:"policy_id" json:"policy_id"` // scan type,scan scope,detail policy info in policy table
+	PolicyId            int64     `gorm:"policy_id" json:"policy_id"`   // scan type,scan scope,detail policy info in policy table
+	ScannerId           string    `gorm:"scanner_id" json:"scanner_id"` // scanner uuid
 	ScanStrategyName    string    `gorm:"-" json:"scan_strategy_name"`
 	SuccessSubTaskCount int       `gorm:"-" json:"success_sub_task_count"` // 成功的子任务数量
 }

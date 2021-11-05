@@ -21,6 +21,7 @@ type Task struct {
 	FinishedAt time.Time
 	HeartBeat  time.Time
 	Operator   string
+	ScannerId  string
 }
 
 type ScanScope struct {

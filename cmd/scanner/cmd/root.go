@@ -26,15 +26,17 @@ var rootCmd = &cobra.Command{
 		if ScannerRunOpts.LogLevel == "debug" {
 			logging.SetVerbose()
 		}
-		logging.GetLogger().Info().
-			Str("version", Version).
-			Interface("opts", ScannerRunOpts).
-			Msg("starting scanner")
-
 		scanner, err := service.NewScanner(ScannerRunOpts)
 		if err != nil {
 			return err
 		}
+		global.ScannerId = scanner.Id
+		logging.GetLogger().Info().
+			Str("version", Version).
+			Str("scannerId", global.ScannerId).
+			Interface("opts", ScannerRunOpts).
+			Msg("starting scanner")
+
 		lifecycle.NewApplication(
 			scanner,
 		).Run()

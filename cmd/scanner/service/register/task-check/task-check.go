@@ -7,6 +7,7 @@ package task_check
 import (
 	"context"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"time"
@@ -15,7 +16,7 @@ import (
 const (
 	serviceName                        = "task-check"
 	checkInterval                      = 30
-	defaultTimeOutMin                  = 10
+	defaultTimeOutMin                  = 15
 	HeartBeatTimeOutMsg                = "heart beat time out"
 	TaskStatusInConsistentWithSubtasks = "task in processing status while all subtasks are finished"
 )
@@ -38,12 +39,12 @@ func (t *TaskCheck) checkSubTaskTimeout() error {
 			if err != nil {
 				logging.GetLogger().Err(err).
 					Int64("taskId", st.TaskId).
-					Int64("subTaskId", st.Id).
+					Int64("subtaskId", st.Id).
 					Msg("subtask timeout,but update db failed")
 			} else {
 				logging.GetLogger().Info().
 					Int64("taskId", st.TaskId).
-					Int64("subTaskId", st.Id).
+					Int64("subtaskId", st.Id).
 					Msg("subtask timeout")
 			}
 		}
@@ -51,7 +52,8 @@ func (t *TaskCheck) checkSubTaskTimeout() error {
 	return nil
 }
 
-func (t *TaskCheck) checkIfTaskFinished() error {
+func (t *TaskCheck) checkTaskStatus() error {
+	// only check progressing task
 	pt, err := t.taskSrv.GetProgressingTasks()
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get progressing task err")
@@ -63,8 +65,15 @@ func (t *TaskCheck) checkIfTaskFinished() error {
 			logging.GetLogger().Err(err).Int64("taskId", v.Id).Msg("get progressing subtask err")
 			continue
 		}
-		if len(sts) == 0 {
-			// not processing subtask,so we set task end and result is failed
+
+		pendingSubtasks, err := t.taskSrv.GetPendingSubTasks([]int64{v.Id})
+		if err != nil {
+			logging.GetLogger().Err(err).Int64("taskId", v.Id).Msg("get pending subtask err")
+			continue
+		}
+
+		if len(sts) == 0 && len(pendingSubtasks) == 0 {
+			// not processing subtask,so we set task end and set result failed
 			if err := t.taskSrv.SetTaskFailed(v.Id, TaskStatusInConsistentWithSubtasks); err != nil {
 				logging.GetLogger().Err(err).
 					Int64("taskId", v.Id).
@@ -73,6 +82,21 @@ func (t *TaskCheck) checkIfTaskFinished() error {
 				logging.GetLogger().Info().
 					Int64("taskId", v.Id).
 					Msg("task is processing status while all subtasks are finished.")
+			}
+		}
+
+		if len(pendingSubtasks) != 0 && v.ScannerId != global.ScannerId {
+			// a processing task with pending subtasks,but scanner id not mine
+			// which means original scanner give up control of the task (eg: scanner reboot)
+			// so we take over,reset task status to pending
+			if err := t.taskSrv.ReScheduleTask([]int64{v.Id}); err != nil {
+				logging.GetLogger().Err(err).
+					Int64("taskId", v.Id).
+					Msg("reschedule task err")
+			} else {
+				logging.GetLogger().Info().
+					Int64("taskId", v.Id).
+					Msg("reschedule task ok")
 			}
 		}
 	}
@@ -89,7 +113,7 @@ func (t *TaskCheck) Start(ctx context.Context) error {
 		_ = t.checkSubTaskTimeout()
 
 		// check task status
-		_ = t.checkIfTaskFinished()
+		_ = t.checkTaskStatus()
 
 	}
 }

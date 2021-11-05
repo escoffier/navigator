@@ -2075,7 +2075,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 		Where("status != ?", consts.Unknown).
 		Limit(limit).
 		Offset(offset).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "started_at"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
 		Find(&data).
 		Error
 
