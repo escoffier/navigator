@@ -65,8 +65,12 @@ func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, 
 		tmpLayerResult := model.PerLayerLicenseResult{}
 		tmpLayerResult.LayerDigest = layers[i]
 		for k := range tmpRes {
-			_, ok := customLicenseListMap[tmpRes[k].Name]
+			v, ok := customLicenseListMap[tmpRes[k].Name] //由于这里开源协议没记录路径，所以做一次去重
 			if ok {
+				if v == 2 {
+					continue
+				}
+				customLicenseListMap[tmpRes[k].Name] += 1
 				tmpLayerResult.LicenseInfos = append(tmpLayerResult.LicenseInfos, tmpRes[k])
 				sum++
 			}

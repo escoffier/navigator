@@ -331,3 +331,11 @@ type LicenseInfo struct {
 	Descripion string `json:"description"`
 	Name       string `json:"name"`
 }
+
+type WebFrameInfo struct {
+	FrameName string `json:"frame_name"`
+	Version   string `json:"version"`
+	FilePath  string `json:"file_path"`
+	FileName  string `json:"file_name"`
+	Language  string `json:"language"`
+}

@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -71,7 +70,7 @@ func (l *LicenseScan) parseLayerTar(tarFileName string) ([]model.LicenseInfo, er
 				continue
 			}
 			tmpLincense, ok := l.Find(strContent)
-			logging.GetLogger().Info().Msgf("headerName:%v tmpLicense:%v", fileName, tmpLincense)
+			// logging.GetLogger().Info().Msgf("headerName:%v tmpLicense:%v", fileName, tmpLincense)
 			if ok {
 				res = append(res, tmpLincense)
 			}

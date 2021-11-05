@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
@@ -453,6 +454,57 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 	}
 }
 
+func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.Param) {
+	jobUrl, ok := param["url"].(string)
+	if !ok {
+		logging.GetLogger().Error().Msg("miss 'url' in parameter")
+		return
+	}
+	jobTag, ok := param["tag"].(string)
+	if !ok {
+		logging.GetLogger().Error().Msg("miss 'tag' in parameter")
+		return
+	}
+	jobRepo, ok := param["repoName"].(string)
+	if !ok {
+		logging.GetLogger().Error().Msg("miss 'repoName' in parameter")
+		return
+	}
+	scanResult, ok := param["scanResult"].(map[task.ScanType]interface{})
+	if !ok {
+		logging.GetLogger().Error().Msg("miss 'scanResult' in parameter")
+		return
+	}
+
+	scanMalicious, ok := scanResult["scan-malicious"].(scan.Artifact)
+	if !ok {
+		logging.GetLogger().Warn().Msg("miss 'scan-malicious' in parameter")
+		return
+	}
+	scanWebFrame, ok := scanMalicious["webFrame"].([]model.WebFrameInfo)
+	if !ok {
+		logging.GetLogger().Warn().Msg("miss 'webFrame' in parameter")
+		return
+	}
+	var err error
+	url := strings.Replace(jobUrl, "https://", "", 1)
+	url = strings.Replace(url, "http://", "", 1)
+	imageID := fmt.Sprintf("%s/%s:%s", url, jobRepo, jobTag)
+	imageUUID := util.GenerateUUID(imageID)
+	tmpWebFrame := model.WebFrameScan{}
+	tmpWebFrame.ImageUUID = imageUUID
+	tmpWebFrame.WebFrameInfoJSON, err = json.Marshal(scanWebFrame)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("marshal scanWebFram error")
+		return
+	}
+	scannerOrm := store.GetScannerDb()
+	err = scannerOrm.InsertToWebFrame(ctx, &tmpWebFrame)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("log postgres Web_Frame failed")
+	}
+}
+
 func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
 	jobUrl, ok := param["url"].(string)
 	if !ok {
@@ -666,7 +718,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
 	s.updateRiskVulnCacheEntry(ctx, param, &scanDetails)
 	s.updateRiskVirusCacheEntry(ctx, param, &scanDetails)
-
+	s.logPostgresWebFrame(ctx, param)
 	_, ok = param["pullImageJob"].(pull_image.Config)
 	if ok {
 		client1, err := image_cache.NewLocalLayerManageClientT("/layer")

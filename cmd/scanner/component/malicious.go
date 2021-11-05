@@ -108,6 +108,193 @@ func (m *MaliciousScan) ParseSummrylogs(logPath string, scanPath string) []model
 	return ClamAvVirus
 }
 
+func (m *MaliciousScan) ParseLayerTarWebFrame(tarFileName string) ([]model.WebFrameInfo, error) {
+	tarFile, err := os.Open(tarFileName)
+	res := []model.WebFrameInfo{}
+	if err != nil {
+		return res, fmt.Errorf("Failed to advance tarReader: %w", err)
+	}
+	defer func() { _ = tarFile.Close() }() // close the file
+
+	decompressStreamReader, err := dockerarchive.DecompressStream(tarFile)
+	if err != nil {
+		return res, fmt.Errorf("Failed to DecompressStream: %w", err)
+	}
+
+	defer func() { _ = decompressStreamReader.Close() }() // close the decompressStreamReader
+
+	tarReader := tar.NewReader(decompressStreamReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return res, fmt.Errorf("Failed to advance tarReader: %w", err)
+		}
+
+		// 检查类型，过滤文件夹、软链接和硬链接
+		switch header.Typeflag {
+		case tar.TypeDir, tar.TypeLink, tar.TypeSymlink:
+			continue
+		}
+		if strings.Contains(header.Name, "Gemfile.lock") {
+			logging.GetLogger().Info().Msg("find Gemfile.lock")
+			content, err := ioutil.ReadAll(tarReader)
+			if err != nil {
+				continue
+			}
+			version := m.FindInGemfile(string(content))
+			if version == "" {
+				continue
+			}
+			tmpInfo := model.WebFrameInfo{}
+			tmpInfo.FileName = "Gemfile.lock"
+			tmpInfo.Version = version
+			tmpInfo.FrameName = "rails"
+			tmpInfo.Language = "Ruby"
+			index := strings.LastIndex(header.Name, "/")
+			if index == -1 {
+				tmpInfo.FilePath = header.Name
+			} else {
+				tmpInfo.FilePath = header.Name[0 : index+1]
+			}
+			res = append(res, tmpInfo)
+			// logging.GetLogger().Info().Msgf("web res %v", res)
+		}
+
+		if strings.Contains(header.Name, "composer.json") {
+			content, err := ioutil.ReadAll(tarReader)
+			if err != nil {
+				continue
+			}
+			version := m.FindInComposer(string(content))
+			if version == "" {
+				continue
+			}
+			tmpInfo := model.WebFrameInfo{}
+			tmpInfo.FileName = "composer.json"
+			tmpInfo.Version = version
+			tmpInfo.FrameName = "laravel"
+			tmpInfo.Language = "PHP"
+			index := strings.LastIndex(header.Name, "/")
+			if index == -1 {
+				tmpInfo.FilePath = header.Name
+			} else {
+				tmpInfo.FilePath = header.Name[0 : index+1]
+			}
+			res = append(res, tmpInfo)
+		}
+
+		if strings.Contains(header.Name, "package.json") {
+			content, err := ioutil.ReadAll(tarReader)
+			if err != nil {
+				continue
+			}
+			tmpinfo := m.FindInPackage(string(content))
+			if len(tmpinfo) == 0 {
+				continue
+			}
+			index := strings.LastIndex(header.Name, "/")
+			filePath := ""
+			if index == -1 {
+				filePath = header.Name
+			} else {
+				filePath = header.Name[0 : index+1]
+			}
+			for k := range tmpinfo {
+				tmpinfo[k].FileName = "package.json"
+				tmpinfo[k].FilePath = filePath
+				tmpinfo[k].Language = "node.js"
+			}
+			res = append(res, tmpinfo...)
+		}
+
+	}
+	return res, nil
+}
+
+func (m *MaliciousScan) FindInPackage(content string) []model.WebFrameInfo {
+	indexExpress := strings.Index(content, "\"express\": \"")
+	indexHapi := strings.Index(content, "\"hapi\": \"")
+	lastExpress := indexExpress + 13
+	res := []model.WebFrameInfo{}
+	lastHapi := indexHapi + 10
+	if indexExpress == -1 && indexHapi == -1 {
+		return res
+	} else {
+		if indexExpress != -1 {
+			tmp := m.SubFindInPackage(content, "express", indexExpress, lastExpress)
+			if tmp.Version != "" {
+				res = append(res, tmp)
+			}
+		}
+		if indexHapi != -1 {
+			tmp := m.SubFindInPackage(content, "hapi", indexExpress, lastHapi)
+			if tmp.Version != "" {
+				res = append(res, tmp)
+			}
+		}
+	}
+	return res
+}
+
+func (m *MaliciousScan) SubFindInPackage(content string, ptype string, index int, lastIndex int) model.WebFrameInfo {
+	res := model.WebFrameInfo{}
+
+	if len(content) < lastIndex+13 {
+		return model.WebFrameInfo{}
+	}
+	for k := lastIndex; k < len(content); k++ {
+		if content[k] == '"' {
+			version := content[lastIndex:k]
+			res.Version = version
+			res.FrameName = ptype
+			break
+		}
+	}
+
+	return res
+}
+
+func (m *MaliciousScan) FindInComposer(content string) string {
+	index := strings.Index(content, "laravel/framework\":")
+	version := ""
+	if index == -1 {
+		return ""
+	} else {
+		if len(content) < index+21 {
+			return ""
+		}
+		for k := index + 21; k < len(content); k++ {
+			if content[k] == '"' {
+				version = content[index+21 : k]
+				break
+			}
+		}
+	}
+	return version
+}
+
+func (m *MaliciousScan) FindInGemfile(content string) string {
+	index := strings.Index(content, "rails (= ")
+	// logging.GetLogger().Info().Msgf("index is %v", index)
+	version := ""
+	if index == -1 {
+		return ""
+	} else {
+		if len(content) > index+9 {
+			for k := index + 9; k < len(content); k++ {
+				if content[k] == ')' {
+					version = content[index+9 : k]
+					break
+				}
+
+			}
+		}
+	}
+	return version
+}
+
 func (m *MaliciousScan) parseLayerTar(tarFileName string, dst string) (uint64, error) {
 	tarFile, err := os.Open(tarFileName)
 	if err != nil {

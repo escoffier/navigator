@@ -628,3 +628,13 @@ type TrustedImages struct {
 }
 
 func (TrustedImages) TableName() string { return "trusted_images" }
+
+type WebFrameScan struct {
+	ID               uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+	ImageUUID        uint32         `gorm:"column:image_uuid" json:"-"`
+	WebFrameInfoJSON datatypes.JSON `gorm:"type:jsonb;column:web_frame_info" json:"-"`
+	WebFrameInfos    []WebFrameInfo `gorm:"-" json:"web_frame_info"`
+}
