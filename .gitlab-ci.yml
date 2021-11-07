@@ -53,7 +53,7 @@ all:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - git clone http://10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
+    - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
