@@ -1,4 +1,4 @@
-image: registry.t-appagile.com/library/reviewdog:v5
+image: harbor.tensorsecurity.com/library/reviewdog:v5
 
 variables:
   GOPROXY: "https://goproxy.cn"
@@ -30,8 +30,8 @@ reviewdog:
     - export CI_COMMIT=$(git rev-parse HEAD)
     - export REVIEWDOG_INSECURE_SKIP_VERIFY=true
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -52,28 +52,27 @@ all:
     ## Configuration of Git
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - git clone http://10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
-    - go get -u github.com/swaggo/swag/cmd/swag
-    - go get -u golang.org/x/lint/golint
     ## Configuration of Make
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#GO111MODULE=on#GO111MODULE=on GOPROXY=https://goproxy.cn#g" configs/scap/jobs/kube-bench/Dockerfile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - 'find ./ -name "Dockerfile"|xargs sed -i "s#registry.t-appagile.com#harbor.tensorsecurity.com#g"'
     ## Copy tools
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
-    - cp ~/.docker/helm3 /bin/
+    - cp ~/.docker/helm /bin/
   script:
     - USEMIRROR=true make all
     - make pushimages
-    - kubectl get pod --no-headers -n tensorsec-ci|grep -v "db\|mongodb\|redis\|elasticsearch\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec-ci --force --grace-period=0
+    - kubectl get pod --no-headers -n tensorsec-ci|grep -v "db\|mongodb\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec-ci --force --grace-period=0
 
   rules:
     - changes:
@@ -91,21 +90,24 @@ helm-upgrade:
     ## Configuration of Git
     - git merge origin/master
     ## Configuration of Helm
-    - 'sed -i "s#harbor.local.tensorsecurity.cn#registry.t-appagile.com#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#harbor.local.tensorsecurity.cn#harbor.tensorsecurity.com#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#1.0.0#ci#g" deployments/helm/example-values.yaml'
     - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#console.localhost.com#172.21.0.20:31517#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#https://console-external.localhost.com#https://console-ci.tensorsecurity.cn#g" deployments/helm/example-values.yaml'
+    ## certgen image for k8s v1.22
+    - 'sed -i "s#tensorsec-certgen#kube-webhook-certgen#g" deployments/helm/values.yaml'
+    - 'sed -i "s#v1.5.1#v1.1.1#g" deployments/helm/values.yaml'
     ## Copy tools
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
-    - cp ~/.docker/helm3 /bin/
+    - cp ~/.docker/helm /bin/
   script:
     - cd deployments/helm
-    - helm3 dep up
-    - helm3 upgrade --install tensorsec -f example-values.yaml ./ --namespace tensorsec-ci
+    - helm dep up
+    - helm upgrade --install tensorsec -f example-values.yaml ./ --namespace tensorsec-ci
   rules:
     - changes:
         - deployments/helm/**/*
@@ -126,15 +128,15 @@ cluster-manager:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make cluster-manager
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-cluster-manager:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-cluster-manager:ci
   rules:
     - changes:
         - cmd/cluster-manager/**/*
@@ -157,15 +159,15 @@ console:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make console
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-console:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-console:ci
     - kubectl scale --replicas=0 deploy tensorsec-console -n tensorsec-ci
     - kubectl scale --replicas=1 deploy tensorsec-console -n tensorsec-ci
   rules:
@@ -190,15 +192,15 @@ event-processor:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make event-processor
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-event-processor:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-event-processor:ci
     - kubectl scale --replicas=0 deploy tensorsec-sec-prof-man-processor -n tensorsec-ci
     - kubectl scale --replicas=1 deploy tensorsec-sec-prof-man-processor -n tensorsec-ci
   rules:
@@ -223,16 +225,16 @@ holmes:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true FETCHTAG=latest make daemon holmes
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-daemon:ci
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-holmes:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-daemon:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-holmes:ci
     - kubectl delete pod -n tensorsec-ci -l app=tensorsec-holmes
   rules:
     - changes:
@@ -259,16 +261,16 @@ prof-man-daemon:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make go-audit security-profiles-loader
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-go-audit:ci
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-security-profiles-loader:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-go-audit:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-loader:ci
     - kubectl delete pod -n tensorsec-ci -l app=tensorsec-sec-prof-man-daemon
   rules:
     - changes:
@@ -295,15 +297,15 @@ safe-node-image:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make safe-node-image
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-safe-node-image:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-safe-node-image:ci
     - kubectl delete pod -l app=tensorsec-safenode-image -n tensorsec-ci
   rules:
     - changes:
@@ -327,8 +329,8 @@ scanner:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
@@ -336,7 +338,7 @@ scanner:
   script:
     - go test -v -cover ./cmd/scanner/...
     - USEMIRROR=true make scanner
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-scanner:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-scanner:ci
     - kubectl scale --replicas=0 deploy tensorsec-scanner -n tensorsec-ci
     - kubectl scale --replicas=1 deploy tensorsec-scanner -n tensorsec-ci
   rules:
@@ -361,15 +363,15 @@ security-profiles-manager:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make security-profiles-manager
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-security-profiles-manager:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-manager:ci
     - kubectl scale --replicas=0 deploy/tensorsec-sec-prof-man -n tensorsec-ci
     - kubectl scale --replicas=1 deploy/tensorsec-sec-prof-man -n tensorsec-ci
   rules:
@@ -394,15 +396,15 @@ webhook:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make webhook
-    - docker push registry.t-appagile.com/tensorsecurity/tensorsec-webhook:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-webhook:ci
     - kubectl scale --replicas=0 deploy tensorsec-webhook -n tensorsec-ci
     - kubectl scale --replicas=1 deploy tensorsec-webhook -n tensorsec-ci
   rules:
@@ -427,15 +429,15 @@ webshell-server:
     - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=registry.t-appagile.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=registry.t-appagile.com/tensorsecurity#g" Makefile
+    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make webshell-server
-    - docker push registry.t-appagile.com/tensorsecurity/webshell-server:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/webshell-server:ci
     - kubectl scale --replicas=0 deploy tensorsec-scanner-webshell-server -n tensorsec-ci
     - kubectl scale --replicas=2 deploy tensorsec-scanner-webshell-server -n tensorsec-ci
   rules:
@@ -450,7 +452,7 @@ api-test:
   resource_group: api-test
   retry: 2
   tags:
-    - k8s
+    - k8
   before_script:
     - apt-get update
     - apt-get install python3 python3-pip -y
