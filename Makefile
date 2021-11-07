@@ -136,22 +136,22 @@ scap-jobs:
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "scap-jobs will use mirror"
-	cd configs/scap/jobs/kube-bench && \
+	cd tensor-compliance-check/kube-bench && \
 		docker build -t $(REPOPREFIX)/kube-bench:latest \
 			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
-	cd configs/scap/jobs/docker-bench-security && \
+	cd tensor-compliance-check/docker-bench-security && \
 		docker build -t $(REPOPREFIX)/docker-bench-security:latest \
 			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
-	cd configs/scap/jobs/host-bench && \
+	cd tensor-compliance-check/host-bench && \
 		docker build -t $(REPOPREFIX)/host-bench:latest \
 			--build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
 else
 	@echo "scap-jobs will not use mirror"
-	cd configs/scap/jobs/kube-bench && \
+	cd tensor-compliance-check/kube-bench && \
 		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX)/ VERSION=latest build-docker
-	cd configs/scap/jobs/docker-bench-security && \
+	cd tensor-compliance-check/docker-bench-security && \
 		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
-	cd configs/scap/jobs/host-bench && \
+	cd tensor-compliance-check/host-bench && \
 		docker build --build-arg REPO=$(REPOPREFIX) -t $(REPOPREFIX)/host-bench:latest .
 endif
 
