@@ -1,3 +1,11 @@
+[submodule "configs/tensordig/bcc"]
+	path = configs/tensordig/bcc
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/bcc.git
+	branch = tensordig
+[submodule "configs/tensordig/gobpf"]
+	path = configs/tensordig/gobpf
+	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/gobpf.git
+	branch = tensordig
 [submodule "configs/daemon/netlink"]
 	path = configs/daemon/netlink
 	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/netlink.git
