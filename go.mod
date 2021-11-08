@@ -316,5 +316,4 @@ require (
 replace (
 	github.com/vishvananda/netlink => ./configs/daemon/netlink
 	gitlab.com/tensorsecurity-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.4
-	gitlab.com/tensorsecurity-rd/gobpf => ./configs/tensordig/gobpf
 )

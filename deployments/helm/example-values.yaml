@@ -124,7 +124,10 @@ webhook:
     tag: *tensorsecVerison
   args:
     consoleUrl: *masterAddr
-    
+  sidecar:
+    image:
+      tag: *tensorsecVerison
+
 
 cluster-manager:
   enabled: true
