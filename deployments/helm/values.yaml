@@ -276,10 +276,10 @@ postgresql-ha:
     maxPool: "15"
     resources:
       limits:
-        memory: 350Mi
+        memory: 500Mi
         cpu: 250m
       requests:
-        memory: 350Mi
+        memory: 500Mi
         cpu: 250m
   volumePermissionsImage:
     name: bitnami-shell
