@@ -96,7 +96,7 @@ helm-upgrade:
     - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#console.localhost.com#172.21.0.20:31517#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#console.localhost.com#172.21.3.226:31517#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#https://console-external.localhost.com#https://console-ci.tensorsecurity.cn#g" deployments/helm/example-values.yaml'
     ## certgen image for k8s v1.22
     - 'sed -i "s#tensorsec-certgen#kube-webhook-certgen#g" deployments/helm/values.yaml'
