@@ -122,8 +122,8 @@ cluster-manager:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -153,8 +153,8 @@ console:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -187,8 +187,8 @@ event-processor:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -220,8 +220,8 @@ holmes:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -256,8 +256,8 @@ prof-man-daemon:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -292,8 +292,8 @@ safe-node-image:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -324,8 +324,8 @@ scanner:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -358,8 +358,8 @@ security-profiles-manager:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -391,8 +391,8 @@ webhook:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -424,8 +424,8 @@ webshell-server:
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.77.218.241/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.77.218.241#g' .gitmodules
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -458,7 +458,7 @@ api-test:
   before_script:
     - apt-get update
     - apt-get install python3 python3-pip -y
-    - git clone ssh://git@10.77.218.241/tensorsecurity-rd/tensor-api-test.git
+    - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-api-test.git
     - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r tensor-api-test/requirements.txt
     - cp ~/.docker/tensor-scanner-cicd /root/tensor-scanner-cicd
   script:
