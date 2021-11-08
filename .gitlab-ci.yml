@@ -44,7 +44,6 @@ reviewdog:
 ### build & deploy
 all:
   stage: build
-  retry: 2
   resource_group: all
   tags:
     - k8s
@@ -54,6 +53,7 @@ all:
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
     - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
+    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
@@ -72,7 +72,7 @@ all:
   script:
     - USEMIRROR=true make all
     - make pushimages
-    - kubectl get pod --no-headers -n tensorsec-ci|grep -v "db\|mongodb\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec-ci --force --grace-period=0
+    - kubectl get pod --no-headers -n tensorsec|grep -v "db\|mongodb\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
 
   rules:
     - changes:
@@ -92,6 +92,7 @@ helm-upgrade:
     ## Configuration of Helm
     - 'sed -i "s#harbor.local.tensorsecurity.cn#harbor.tensorsecurity.com#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#1.0.0#ci#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#admin#devops#g" deployments/helm/example-values.yaml'
     - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
@@ -107,7 +108,7 @@ helm-upgrade:
   script:
     - cd deployments/helm
     - helm dep up
-    - helm upgrade --install tensorsec -f example-values.yaml ./ --namespace tensorsec-ci
+    - helm upgrade --install tensorsec -f example-values.yaml ./ --namespace tensorsec
   rules:
     - changes:
         - deployments/helm/**/*
@@ -157,6 +158,7 @@ console:
     - git submodule init
     - git submodule update
     - git submodule update --init --recursive
+    - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -168,8 +170,8 @@ console:
   script:
     - USEMIRROR=true make console
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-console:ci
-    - kubectl scale --replicas=0 deploy tensorsec-console -n tensorsec-ci
-    - kubectl scale --replicas=1 deploy tensorsec-console -n tensorsec-ci
+    - kubectl scale --replicas=0 deploy tensorsec-console -n tensorsec
+    - kubectl scale --replicas=1 deploy tensorsec-console -n tensorsec
   rules:
     - changes:
         - cmd/cluster-manager/**/*
@@ -201,8 +203,8 @@ event-processor:
   script:
     - USEMIRROR=true make event-processor
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-event-processor:ci
-    - kubectl scale --replicas=0 deploy tensorsec-sec-prof-man-processor -n tensorsec-ci
-    - kubectl scale --replicas=1 deploy tensorsec-sec-prof-man-processor -n tensorsec-ci
+    - kubectl scale --replicas=0 deploy tensorsec-sec-prof-man-processor -n tensorsec
+    - kubectl scale --replicas=1 deploy tensorsec-sec-prof-man-processor -n tensorsec
   rules:
     - changes:
         - cmd/event-processor/**/*
@@ -235,7 +237,7 @@ holmes:
     - USEMIRROR=true FETCHTAG=latest make daemon holmes
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-daemon:ci
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-holmes:ci
-    - kubectl delete pod -n tensorsec-ci -l app=tensorsec-holmes
+    - kubectl delete pod -n tensorsec -l app=tensorsec-holmes
   rules:
     - changes:
         - cmd/daemon/**/*
@@ -271,7 +273,7 @@ prof-man-daemon:
     - USEMIRROR=true make go-audit security-profiles-loader
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-go-audit:ci
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-loader:ci
-    - kubectl delete pod -n tensorsec-ci -l app=tensorsec-sec-prof-man-daemon
+    - kubectl delete pod -n tensorsec -l app=tensorsec-sec-prof-man-daemon
   rules:
     - changes:
         - cmd/go-audit/**/*
@@ -306,7 +308,7 @@ safe-node-image:
   script:
     - USEMIRROR=true make safe-node-image
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-safe-node-image:ci
-    - kubectl delete pod -l app=tensorsec-safenode-image -n tensorsec-ci
+    - kubectl delete pod -l app=tensorsec-safenode-image -n tensorsec
   rules:
     - changes:
         - cmd/safe-node-image/**/*
@@ -339,8 +341,8 @@ scanner:
     - go test -v -cover ./cmd/scanner/...
     - USEMIRROR=true make scanner
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-scanner:ci
-    - kubectl scale --replicas=0 deploy tensorsec-scanner -n tensorsec-ci
-    - kubectl scale --replicas=1 deploy tensorsec-scanner -n tensorsec-ci
+    - kubectl scale --replicas=0 deploy tensorsec-scanner -n tensorsec
+    - kubectl scale --replicas=1 deploy tensorsec-scanner -n tensorsec
   rules:
     - changes:
         - cmd/scanner/**/*
@@ -372,8 +374,8 @@ security-profiles-manager:
   script:
     - USEMIRROR=true make security-profiles-manager
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-manager:ci
-    - kubectl scale --replicas=0 deploy/tensorsec-sec-prof-man -n tensorsec-ci
-    - kubectl scale --replicas=1 deploy/tensorsec-sec-prof-man -n tensorsec-ci
+    - kubectl scale --replicas=0 deploy/tensorsec-sec-prof-man -n tensorsec
+    - kubectl scale --replicas=1 deploy/tensorsec-sec-prof-man -n tensorsec
   rules:
     - changes:
         - cmd/security-profiles-manager/**/*
@@ -405,8 +407,8 @@ webhook:
   script:
     - USEMIRROR=true make webhook
     - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-webhook:ci
-    - kubectl scale --replicas=0 deploy tensorsec-webhook -n tensorsec-ci
-    - kubectl scale --replicas=1 deploy tensorsec-webhook -n tensorsec-ci
+    - kubectl scale --replicas=0 deploy tensorsec-webhook -n tensorsec
+    - kubectl scale --replicas=1 deploy tensorsec-webhook -n tensorsec
   rules:
     - changes:
         - cmd/webhook/**/*
@@ -438,8 +440,8 @@ webshell-server:
   script:
     - USEMIRROR=true make webshell-server
     - docker push harbor.tensorsecurity.com/tensorsecurity/webshell-server:ci
-    - kubectl scale --replicas=0 deploy tensorsec-scanner-webshell-server -n tensorsec-ci
-    - kubectl scale --replicas=2 deploy tensorsec-scanner-webshell-server -n tensorsec-ci
+    - kubectl scale --replicas=0 deploy tensorsec-scanner-webshell-server -n tensorsec
+    - kubectl scale --replicas=2 deploy tensorsec-scanner-webshell-server -n tensorsec
   rules:
     - changes:
         - cmd/webshell-server/**/*
