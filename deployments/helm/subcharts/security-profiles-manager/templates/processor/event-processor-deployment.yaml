@@ -26,10 +26,11 @@ spec:
           "for i in $(seq 1 200); do nc -z -w3 {{ .Values.stan.host }} {{ .Values.stan.port }} && exit 0 || sleep 3; done; exit 1"
         ]
         resources:
-{{ toYaml .Values.initContainers.resources | indent 10 }} 
+{{ toYaml .Values.initContainers.resources | indent 10 }}
       containers:
       - name: {{ .Chart.Name }}
         image: {{ include "eventProcessor.image" . }}
+        command: ["/event-processor"]
         env:
         - name: STAN_URL
           value: {{ .Values.stan.host }}:{{ .Values.stan.port }}

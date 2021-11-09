@@ -14,9 +14,9 @@ import (
 
 var (
 	immuneRules = map[string]string{
-		"file integrity management": "falco.warning.file_integrity_management",
-		"command whitelist":         "falco.warning.command_whitelist",
-		"seccomp":                   "falco.warning.seccomp",
+		"File Integrity Management": "falco.warning.file_integrity_management",
+		"Command whitelist":         "falco.warning.command_whitelist",
+		"Seccomp":                   "falco.warning.seccomp",
 	}
 )
 

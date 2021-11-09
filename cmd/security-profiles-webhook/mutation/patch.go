@@ -289,3 +289,30 @@ func PatchVolume(source, added []corev1.Volume, base string) *Patch {
 		Value: volumes,
 	}
 }
+
+func PatchAnnotations(source, added []corev1.Volume, base string) *Patch {
+	idx := make(map[string]bool)
+	for _, src := range source {
+		idx[src.Name] = true
+	}
+
+	volumes := make([]corev1.Volume, 0)
+
+	for _, add := range added {
+		if _, exists := idx[add.Name]; exists {
+			// already exists on source, skip
+			continue
+		}
+		idx[add.Name] = true
+
+		volumes = append(volumes, add)
+	}
+
+	volumes = append(volumes, source...)
+
+	return &Patch{
+		Op:    "add",
+		Path:  base,
+		Value: volumes,
+	}
+}

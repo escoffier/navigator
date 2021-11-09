@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -17,8 +18,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	dp "github.com/novln/docker-parser"
-	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/alert"
-	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/event-processor/pkg/utils/eventcenter-helper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
@@ -82,56 +81,6 @@ func sendMessage(conn stan.Conn, subject string, msg []byte) error {
 	return err
 }
 
-func dealHolmesAlert(m *stan.Msg, r Reporter) {
-
-	var f HolmesAlert
-	err := json.Unmarshal(m.Data, &f)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to unmarshal message")
-		return
-	}
-	podName := "unknown"
-	if val, ok := f.OutputFields["k8s.pod.name"]; ok {
-		if val != nil {
-			podName = val.(string)
-		}
-	}
-
-	podNamespace := "unknown"
-	if val, ok := f.OutputFields["k8s.ns.name"]; ok {
-		if val != nil {
-			podNamespace = val.(string)
-		}
-	}
-	podID := "unknown"
-	if val, ok := f.OutputFields["k8s.pod.id"]; ok {
-		if val != nil {
-			podID = val.(string)
-		}
-	}
-
-	containerID := "unknown"
-	if val, ok := f.OutputFields["container.id"]; ok {
-		if val != nil {
-			containerID = val.(string)
-		}
-	}
-
-	ruleName := f.Rule
-	output := f.Output
-
-	go alert.NotifyEventWithRetry(r.cli, alert.GenerateEvent(r.uuidGenerator, &alert.EventArg{
-		Cluster:     "default",
-		Namespace:   podNamespace,
-		PodName:     podName,
-		PodUID:      podID,
-		RuleName:    ruleName,
-		ContainerID: containerID,
-		Output:      output,
-	}, "ATT&CK"))
-
-}
-
 func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *kubernetes.Clientset, m *stan.Msg, kind model.SecurityKind) {
 	redisCtx, redisCtxCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer redisCtxCancel()
@@ -141,6 +90,7 @@ func updateProfile(ctx context.Context, redisClient *redis.Client, clientset *ku
 		logging.GetLogger().Error().Err(err).Msg("Failed to unmarshal message")
 		return
 	}
+	logging.GetLogger().Debug().Msgf("%+v", f)
 	var resource model.SecurityPolicyResource
 	podName := f.OutputFields["k8s.pod.name"]
 	podNamespace := f.OutputFields["k8s.ns.name"]
@@ -387,6 +337,15 @@ func main() {
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	if redisPassword == "" {
 		panic("REDIS_PASSWORD env variable not set")
+	}
+
+	debug := flag.Bool("debug", false, "sets log level to debug")
+
+	flag.Parse()
+
+	if *debug {
+		logging.SetVerbose()
+		logging.GetLogger().Info().Msg("set debug level")
 	}
 
 	// Redis DB client
@@ -657,6 +616,7 @@ func main() {
 				}
 			}
 			var profileMarshalled []byte
+			logging.GetLogger().Debug().Msgf("%#v", c.Kind)
 			if c.Kind == model.SecurityKindApparmor {
 				newApparmorProfile := make([]model.ApparmorProfileData, 0)
 				if c.Whitelist != nil {
@@ -986,6 +946,7 @@ func main() {
 		}
 	sendMessageInvalidState:
 		if invalidState {
+			logging.GetLogger().Error().Msgf("%+v", c)
 			message := model.SecurityProfileCommand{
 				Command:   model.SecProfileCommandInvalidState,
 				PolicyID:  c.PolicyID,
@@ -1016,11 +977,6 @@ func main() {
 		logging.GetLogger().Error().Err(err).Msg("uuid.NewGenerator fail")
 	}
 
-	rp.cli, err = eventcenter_helper.NewClientFromEnv()
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("eventcenter_helper.NewClientFromEnv fail")
-	}
-
 	_, err = sc.Subscribe("falco.warning.file_integrity_management", func(m *stan.Msg) {
 		logging.GetLogger().Info().Msg("Received new apparmor message")
 		updateProfile(mainCtx, redisClient, clientset, m, model.SecurityKindApparmor)
@@ -1049,13 +1005,4 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, os.Kill)
 	<-sigChan
 	stop <- struct{}{}
-}
-
-func appendIfMissing(slice []string, i string) []string {
-	for _, ele := range slice {
-		if ele == i {
-			return slice
-		}
-	}
-	return append(slice, i)
 }
