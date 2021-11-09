@@ -55,6 +55,9 @@ var (
 )
 
 func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, operator string) error {
+	if srv == nil {
+		return fmt.Errorf("srv is nil")
+	}
 	dal := store.GetScannerOrmDb()
 	scanConfigDal := store.GetScanConfigDao()
 	if dal == nil || scanConfigDal == nil {
@@ -253,10 +256,10 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 			} else {
 				ch <- filePath
 			}
-			err = srv.AutoScanAll(context.Background(), 1, "漏洞库更新触发")
-			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("vuln-updata ticker scanALL failed")
-			}
+			// err = srv.AutoScanAll(context.Background(), 1, "漏洞库更新触发")
+			// if err != nil {
+			// 	logging.GetLogger().Error().Err(err).Msgf("vuln-updata ticker scanALL failed")
+			// }
 			<-ticker.C
 		}
 	}
