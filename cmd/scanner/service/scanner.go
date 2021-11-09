@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"runtime/debug"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 
@@ -20,6 +21,7 @@ import (
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/vulnDbUpdate"
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
 	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/ti-update"
