@@ -490,8 +490,9 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 		return
 	}
 	var err error
-	url := strings.Replace(jobUrl, "https://", "", 1)
-	url = strings.Replace(url, "http://", "", 1)
+	url := strings.TrimPrefix(jobUrl, "http://") // trimPrefix http or https
+	url = strings.TrimPrefix(url, "https://")
+	url = strings.TrimRight(url, "/")
 	imageID := fmt.Sprintf("%s/%s:%s", url, jobRepo, jobTag)
 	imageUUID := util.GenerateUUID(imageID)
 	tmpWebFrame := model.WebFrameScan{}
