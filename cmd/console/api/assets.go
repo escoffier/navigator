@@ -818,7 +818,8 @@ func (api *api) getPods() http.HandlerFunc {
 			query = ""
 		}
 		if query != "" {
-			queryOpt.WithColumnQuery("pod_name", query)
+			//queryOpt.WithColumnQuery("pod_name", query)
+			queryOpt.WithMulColumnQuery([]string{"pod_name"}, query)
 		}
 
 		resSvc, ok := assets.GetResourcesService(ctx)

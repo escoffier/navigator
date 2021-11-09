@@ -147,6 +147,11 @@ type colQuery struct {
 	column string
 	query  string
 }
+
+type mulColQuery struct {
+	columns []string
+	query   string
+}
 type ResourcesQueryOption struct {
 	whereEqCondition map[string]interface{}
 	whereInCondition map[string]interface{}
@@ -952,6 +957,7 @@ type ResPodsQueryOption struct {
 	whereEqCondition map[string]interface{}
 	whereInCondition map[string]interface{}
 	columnQuery      colQuery
+	mulColQuery      mulColQuery
 }
 
 func ResourcePodssQuery() *ResPodsQueryOption {
@@ -1006,6 +1012,12 @@ func (q *ResPodsQueryOption) WithColumnQuery(column, query string) *ResPodsQuery
 	return q
 }
 
+func (q *ResPodsQueryOption) WithMulColumnQuery(column []string, query string) *ResPodsQueryOption {
+	q.mulColQuery.columns = column
+	q.mulColQuery.query = query
+	return q
+}
+
 func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOptions *ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, error) {
 	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
@@ -1018,7 +1030,7 @@ func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOp
 
 		db := rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("status = ?", 0)
 		if len(queryOptions.whereEqCondition) > 0 {
-			db.Where(queryOptions.whereEqCondition)
+			db = db.Debug().Where(queryOptions.whereEqCondition)
 		}
 
 		if len(queryOptions.whereInCondition) > 0 {
@@ -1027,7 +1039,13 @@ func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOp
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+
+		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
+			expr := getLikeExpr(queryOptions.mulColQuery.query)
+			db = db.Where(
+				rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name ILIKE ?", expr).Or("pod_ip ILIKE ?", expr).Or("node_name ILIKE ?", expr))
 		}
 
 		if offset >= 0 && limit >= 0 {
@@ -1050,7 +1068,7 @@ func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOp
 	return rels, nil
 }
 
-func CountPods(ctx context.Context, rdb *rdbtools.GormWrapper, queryOptions *ResPodsQueryOption) (int64, error) {
+func CountPods(ctx context.Context, rdb *rdbtools.GormWrapper, queryOptions *ResPodsQueryOption, offset, limit int) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
@@ -1070,6 +1088,15 @@ func CountPods(ctx context.Context, rdb *rdbtools.GormWrapper, queryOptions *Res
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+
+		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
+			expr := getLikeExpr(queryOptions.mulColQuery.query)
+			db = db.Where(
+				rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name ILIKE ?", expr).Or("pod_ip ILIKE ?", expr).Or("node_name ILIKE ?", expr))
+		}
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
 		}
 
 		return db.Count(&cntNum).Error
