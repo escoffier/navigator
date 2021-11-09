@@ -206,6 +206,7 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 	tmpLib := reg.Url
 	tmpLib = strings.TrimPrefix(tmpLib, "http://") // trimPrefix http or https
 	tmpLib = strings.TrimPrefix(tmpLib, "https://")
+	tmpLib = strings.TrimRight(tmpLib, "/")
 
 	imageID := fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)
 	img := model.ImageList{

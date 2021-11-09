@@ -108,10 +108,10 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			logging.GetLogger().Err(err).Msgf("get library query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no library given in params")))
 			return
-		} else if strings.Index(lib, "http://") == 0 {
-			lib = lib[7:]
-		} else if strings.Index(lib, "https://") == 0 {
-			lib = lib[8:]
+		} else {
+			lib = strings.TrimPrefix(lib, "http://")
+			lib = strings.TrimPrefix(lib, "https://")
+			lib = strings.TrimRight(lib, "/")
 		}
 		repo, err := param.QueryString(r, "repo")
 		if err != nil {
