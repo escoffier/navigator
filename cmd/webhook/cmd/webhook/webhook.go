@@ -317,7 +317,9 @@ func initValidatingChain(config *Config) {
 }
 
 func initMutatingChain(config *Config) {
-	processors.MutatorChain = processors.NewMutatorChain()
+	processors.MutatorChain = processors.NewMutatorChain(&processors.MutatingConfig{
+		IgnoredNameSpaces: config.IgnoredNameSpaces,
+	})
 	for _, processor := range config.Mutators {
 		v := makeProcessor(processor)
 		if v != nil {
