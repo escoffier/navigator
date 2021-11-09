@@ -119,8 +119,12 @@ func main() {
 		return whitelist[i].Name < whitelist[j].Name
 	})
 
+	if _, err := os.Stat("/tmp/tensorsec"); os.IsNotExist(err) {
+		err = os.Mkdir("/tmp/tensorsec", os.FileMode(0777))
+	}
+
 	file, err := os.OpenFile(
-		"/tensorsec/whitelist.txt",
+		"/tmp/tensorsec/whitelist.txt",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Errorf("Failed to open whitelist file: %w\n", err)

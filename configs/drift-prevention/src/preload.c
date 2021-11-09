@@ -83,6 +83,8 @@ static hash_tbl_t *g_command_whitelist_hash; // TODO: this hashtable should have
 
 static unsigned int func_switch = 0;
 
+static unsigned int config_err_flag = 0;
+
 #ifdef DEBUG
 
 #else
@@ -115,7 +117,10 @@ static void init_command_whitelist()
     if (shm_file_size_fd < 0)
     {
         command_whitelist_init(&g_command_whitelist_config, 32);
-        read_command_config(&g_command_whitelist_config);
+        if(read_command_config(&g_command_whitelist_config)){
+            config_err_flag = 1;
+            goto finish;
+        }
         shm_file_size_fd = shmget(SHM_COMMAND_WHITELIST_SIZE, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR);
         if (shm_file_size_fd < 0)
         {
@@ -183,7 +188,10 @@ static void init_command_whitelist()
     }
 read_data_from_file:
     command_whitelist_init(&g_command_whitelist_config, 32);
-    read_command_config(&g_command_whitelist_config);
+    if(read_command_config(&g_command_whitelist_config)){
+        config_err_flag = 1;
+        goto finish;
+    }
 use_data_from_file:
     g_command_whitelist_hash = hashtbl_init(&command_whitelist_hash_config);
     for (int i = 0; i < g_command_whitelist_config.used; i++)
@@ -215,7 +223,10 @@ static void init_whitelist()
     if (shm_file_size_fd < 0)
     {
         whitelist_init(&g_whitelist_config, 32);
-        read_config(&g_whitelist_config);
+        if(read_config(&g_whitelist_config)){
+            config_err_flag = 1;
+            goto finish;
+        }
         shm_file_size_fd = shmget(SHM_WHITELIST_SIZE_NAME, sizeof(size_t), IPC_CREAT | S_IRUSR | S_IWUSR);
         if (shm_file_size_fd < 0)
         {
@@ -283,7 +294,10 @@ static void init_whitelist()
     }
 read_data_from_file:
     whitelist_init(&g_whitelist_config, 32);
-    read_config(&g_whitelist_config);
+    if(read_config(&g_whitelist_config)){
+        config_err_flag = 1;
+        goto finish;
+    }
 use_data_from_file:
     g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
     for (int i = 0; i < g_whitelist_config.used; i++)
@@ -544,6 +558,12 @@ static int splice_cmdline(char *const argv[], char *args)
     static exec_name##_func_t old_##exec_name = NULL;                                    \
     int exec_name(input_str)                                                             \
     {                                                                                    \
+        if(config_err_flag)                                                              \
+        {                                                                                \
+            drift_prevent_write_log(ERROR, "read config file fail, skip detect %u\n",    \
+                        func_switch);                                                    \
+           goto old_ret;                                                                 \
+        }                                                                                \
         if (drift_prevent_init_log() != 0)                                               \
         {                                                                                \
             drift_prevent_write_log(WARN, "Failed to fully initialize log: %s\n",        \

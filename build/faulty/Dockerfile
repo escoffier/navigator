@@ -5,7 +5,8 @@ FROM ${REPO}/baseimage-faulty:${TAG}
 
 ADD configs/faulty /app
 ADD test/ /test
-
+# RUN useradd tomcat
+# USER tomcat
 # WORKDIR /test/ltp
 
 # RUN make autotools
