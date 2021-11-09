@@ -140,7 +140,7 @@ static int read_config(Whitelist *whitelist)
     FILE *fp;
     char line[PATH_MAX + CHECKSUM_LEN + 1];
 
-    char *whitelist_file = "/tensorsec/whitelist.txt";
+    char *whitelist_file = "/tmp/tensorsec/whitelist.txt";
 
     fp = fopen(whitelist_file, "r");
     if (fp == NULL)
