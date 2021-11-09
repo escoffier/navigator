@@ -21,14 +21,15 @@ type Config struct {
 }
 
 type CleanRegistryService struct {
-	//config Config
+	// config Config
 }
 
 func (s *CleanRegistryService) Start(ctx context.Context) error {
 	dal := store.GetScannerOrmDb()
 	sdb := store.GetScannerDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
-	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal)
+	scanConfigDal := store.NewScanConfigDao(store.GetScannerWrapperDb())
+	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal, scanConfigDal)
 	cleanJob := crontab.New() // create cron table
 
 	// AddJob ,每天0点过2分时运行一次

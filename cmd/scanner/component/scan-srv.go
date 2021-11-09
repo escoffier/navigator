@@ -91,7 +91,7 @@ type ConScannerSrv struct {
 	scannerList     *ScannerList
 }
 
-func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.RegistryDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache, scannerList *ScannerList, taskdal store.ScanTaskInterface, trustedImageDal store.TrustedImageInterface) *ConScannerSrv {
+func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.RegistryDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache, scannerList *ScannerList, taskdal store.ScanTaskInterface, trustedImageDal store.TrustedImageInterface, scanConfigDal store.ScanConfigDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:           dbdal,
 		registryDal:     registryDal,
@@ -103,6 +103,7 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.Registr
 		scannerList:     scannerList,
 		taskdal:         taskdal,
 		trustedImageDal: trustedImageDal,
+		scanConfigDal:   scanConfigDal,
 	}
 }
 
