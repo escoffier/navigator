@@ -66,6 +66,9 @@ func (c *validatingChain) validatePod(ctx context.Context, pod *core.Pod, parame
 func (c *validatingChain) Validate(parameters ValidatingParameters, rawObj []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if c.needValidating(parameters) {
+		return nil
+	}
 
 	switch parameters.Kind {
 	case "Pod":
@@ -102,8 +105,8 @@ func (c *validatingChain) needValidating(resource ValidatingParameters) bool {
 	for _, ns := range c.validatingConfig.IgnoredNameSpaces {
 		if resource.Namespace == ns {
 			logging.GetLogger().Debug().Msgf("ingored validating for resource %s in namespace %s", resource.Kind, ns)
-			return false
+			return true
 		}
 	}
-	return true
+	return false
 }

@@ -94,8 +94,8 @@ spec:
           cpu: "10m"
           memory: "40Mi"
         limits:
-          cpu: "2000m"
-          memory: "1024Mi"
+          cpu: "100m"
+          memory: "200Mi"
   volumes:
   - emptyDir:
       medium: Memory

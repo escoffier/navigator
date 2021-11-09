@@ -37,6 +37,7 @@ type mutatorChain struct {
 	podMutators []PodMutator
 	cmMutators  []ConfigMapMutator
 	nsMutators  []NamespaceMutator
+	config      *MutatingConfig
 }
 
 type MutatorParameters struct {
@@ -45,6 +46,10 @@ type MutatorParameters struct {
 	Kind       string
 	ClusterKey string
 	rdb        *rdbtools.GormWrapper
+}
+
+type MutatingConfig struct {
+	IgnoredNameSpaces []string
 }
 
 func (m *mutatorChain) AddMutator(mutator interface{}) {
@@ -64,6 +69,9 @@ func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []by
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	if m.needMutating(parameters) {
+		return nil
+	}
 	var patch []byte
 	switch parameters.Kind {
 	case "Pod":
@@ -141,6 +149,16 @@ func (m *mutatorChain) mutateNamespace(ctx context.Context, parameters *MutatorP
 	return patchData
 }
 
-func NewMutatorChain() *mutatorChain {
-	return &mutatorChain{}
+func (m *mutatorChain) needMutating(resource *MutatorParameters) bool {
+	for _, ns := range m.config.IgnoredNameSpaces {
+		if resource.Namespace == ns {
+			logging.GetLogger().Debug().Msgf("ignored mutating for resource %s in namespace %s", resource.Kind, ns)
+			return true
+		}
+	}
+	return false
+}
+
+func NewMutatorChain(config *MutatingConfig) *mutatorChain {
+	return &mutatorChain{config: config}
 }
