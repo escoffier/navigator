@@ -2,6 +2,10 @@
 
 package consts
 
+import (
+	"fmt"
+)
+
 const (
 	ScanTaskComeFrom = iota
 	ScanTaskComeFromWeb
@@ -102,3 +106,5 @@ const (
 	IsReinforceImageString    = "1"
 	IsNotReinforceImageString = "0"
 )
+
+var NotNodeImageErr = fmt.Errorf("not find node info")

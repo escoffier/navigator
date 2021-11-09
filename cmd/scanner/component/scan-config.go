@@ -3,6 +3,7 @@ package component
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 type SearchStrategyParam struct {
 	IsDefault  string
 	StrategyID int64
+	All        string
 }
 type SearchScanConfigParam struct {
 	ScanConfigID int64
@@ -29,11 +31,11 @@ type SearchSoftWareParam struct {
 
 type ScanConfigSrvInterface interface {
 	CreateStrategy(ctx context.Context, data *model.ScanStrategy) error
-	SearchStrategy(ctx context.Context, parm SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
+	SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
 	UpdateStrategy(ctx context.Context, strategyId int64, data *model.ScanStrategy) error
 	DeleteStrategy(ctx context.Context, strategyId int64) error
 	UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) error
-	SearchScanConfig(ctx context.Context, parm SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
+	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 
 	GetAllNodes(ctx context.Context) ([]string, error)
 	AddTaskByStrategy(ctx context.Context) error
@@ -120,12 +122,45 @@ func (s *ScanConfigSrv) SearchScanConfig(ctx context.Context, param SearchScanCo
 }
 
 func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error) {
-	strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, IsDefault: param.IsDefault}, filter)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
-		return nil, 0, err
+	if param.All == consts.TrueString {
+		// 默认策略永远在最前面,所以查出全部，在程序中分页
+		allFilter := filter.DeepCopy()
+
+		allFilter.Offset = 0
+		allFilter.Limit = math.MaxInt64
+		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.FalseString}, allFilter)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+			return nil, 0, err
+		}
+		defaults, _, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, allFilter)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+			return nil, 0, err
+		}
+		all := append(defaults, strategies...)
+
+		// 应付前端分页
+		if filter != nil && len(all) > 0 {
+			start := int(filter.Offset)
+			end := int(filter.Offset + filter.Limit)
+			if len(all) <= start {
+				return make([]model.ScanStrategy, 0), cnt + 1, nil
+			}
+			if end > len(all) {
+				end = len(all)
+			}
+			return all[start:end], int64(len(all)), nil
+		}
+		return all, cnt + int64(len(defaults)), nil
+	} else {
+		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, IsDefault: param.IsDefault}, filter)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+			return nil, 0, err
+		}
+		return strategies, cnt, nil
 	}
-	return strategies, cnt, nil
 }
 
 func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStrategy) error {

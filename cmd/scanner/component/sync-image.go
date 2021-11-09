@@ -172,7 +172,9 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				img, err := s.TransImageToImagelist(ctx, reg.Config, image)
 
 				if err != nil {
-					logging.GetLogger().Debug().Msgf("SyncImage.InsertImageList,error:%s", err.Error())
+					if err != consts.NotNodeImageErr {
+						logging.GetLogger().Error().Err(err).Msgf("SyncImage.InsertImageList,error:%s", err.Error())
+					}
 					return nil, err
 				}
 				// 先查一下
@@ -212,7 +214,6 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		Digest:         image.ImageDigest,
 		Size:           int(image.Size),
 		Library:        reg.Url,
-		ImageScanVuln:  model.ImageScanSummaryResult{},
 		RegistryId:     reg.ID,
 		FirstPushTime:  image.Created,
 		LastPushTime:   image.LastPushTime,
@@ -228,7 +229,9 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		// logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
 		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
 		if err != nil {
-			logging.GetLogger().Debug().Msgf("reg.UseType:%d,reg.url:%s,error:%s", reg.UseType, reg.Url, err.Error())
+			if err != consts.NotNodeImageErr {
+				logging.GetLogger().Error().Err(err).Msgf("reg.UseType:%d,reg.url:%s,error:%s", reg.UseType, reg.Url, err.Error())
+			}
 			return img, err
 		}
 		img.NodeIp = newImage.NodeIp
@@ -309,7 +312,7 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 		return nil, err
 	}
 	if len(info) == 0 {
-		return nil, fmt.Errorf("not find node info")
+		return nil, consts.NotNodeImageErr
 	}
 	// logging.GetLogger().Info().Msgf("cluster info:%+v", info[0])
 

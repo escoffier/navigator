@@ -190,8 +190,8 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageId int64, f
 	}
 	// 应付前端分页
 	if filter != nil && len(ans) > 0 {
-		start := int(filter.PageSize * (filter.PageIndex - 1))
-		end := int(filter.PageSize * (filter.PageIndex))
+		start := int(filter.Offset)
+		end := int(filter.Offset + filter.Limit)
 
 		if len(ans) <= start {
 			return make([]model.ImageList, 0), int64(len(ans)), nil

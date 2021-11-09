@@ -225,7 +225,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		split := strings.Split(param.Kind, ",")
 		for _, k := range split {
 			if k == strconv.Itoa(model.QUESTION_VULN) {
-				db = db.Where("scan_images.vuln_info_json is not null ")
+				db = db.Where("scan_images.vuln_score != 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
 				db = db.Where("scan_images.sensitive_file_json is not null ")
@@ -1680,7 +1680,7 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 	// 取全表数据
 	records, _, err := s.SearchRejectRecord(ctx, SearchRejectRecordParam{
 		Fields: []string{"reject_reason_json"},
-	}, &model.Filter{PageSize: math.MaxInt64})
+	}, &model.Filter{Limit: math.MaxInt64})
 	if err != nil {
 		return res, err
 	}
