@@ -136,8 +136,8 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 	offset, _ := strconv.ParseInt(ctx.Query("offset"), 10, 64)
 	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
 	vulns, cnt, err := s.Srv.SearchVulns(ctx, search, &model.Filter{
-		PageSize: limit,
-		Offset:   offset,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -610,13 +610,13 @@ func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
 // @Tags image reject
 // @Param search query string false "搜索关键词"
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageResponse{}}}
-// @Router	/api/v1/images/base [get]
+// @Router	/api/v1/images/bases [get]
 func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter := model.GetFilter(ctx)
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImageTypeString, SearchWord: search}, filter)
+	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImageTypeString, SearchWord: search, FromType: model.ImageFromTypeNormal}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -102,7 +103,9 @@ func (sc *ScanConfigApiSrv) DeleteStrategy(ctx *gin.Context) {
 func (sc *ScanConfigApiSrv) ListStrategy(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
-	strategies, cnt, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{}, filter)
+	filter.SortBy = "desc"
+	filter.SortFiled = "updated_at"
+	strategies, cnt, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{All: consts.TrueString}, filter)
 
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("no strategyID for create software"))

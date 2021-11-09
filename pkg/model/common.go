@@ -12,8 +12,6 @@ import (
 )
 
 type Filter struct {
-	PageSize  int64  `json:"page_size"`
-	PageIndex int64  `json:"page_index"`
 	SortBy    string `json:"sort_by"`
 	SortFiled string `json:"sort_filed"`
 	Offset    int64  `json:"offset"`
@@ -26,7 +24,7 @@ func GetFilter(ctx *gin.Context) *Filter {
 	sortBy := ctx.Query("sort_by")
 	sortFiled := ctx.Query("sort_filed")
 
-	filter := &Filter{PageSize: limit, Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
+	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
 	filter = filter.SetDefault()
 	return filter
 }
@@ -34,53 +32,60 @@ func GetFilter(ctx *gin.Context) *Filter {
 // EmptyFilterForTheTotalQuery 查总数所用的Filter
 func EmptyFilterForTheTotalQuery() *Filter {
 	return &Filter{
-		PageSize:  1,
-		PageIndex: 1,
 		Offset:    0,
+		Limit:     math.MaxInt64,
+		SortBy:    "desc",
+		SortFiled: "id",
 	}
 }
 
 func (f *Filter) SetDefault() *Filter {
 	if f == nil {
 		return &Filter{
-			PageSize:  math.MaxInt64,
-			PageIndex: 1,
 			Offset:    0,
+			Limit:     math.MaxInt64,
+			SortBy:    "desc",
+			SortFiled: "id",
 		}
 	}
 	if f.SortBy != "" {
 		f.SortBy = strings.ToLower(f.SortBy)
 	} else {
-		f.SortBy = "id"
+		f.SortBy = "desc"
 	}
 
 	if f.SortBy == "" || (f.SortBy != "desc" && f.SortBy != "asc") {
 		f.SortBy = "desc"
 	}
 
-	if f.Offset == 0 {
-		f.PageIndex = 1 // 取第一页
+	if f.Offset <= 0 {
+		f.Offset = 0 // 取第一页
 	}
-	// 为了兼容,原来的逻辑传的是offset参数
-	if f.Offset > 0 && f.PageIndex <= 0 && f.PageSize > 0 {
-		f.PageIndex = f.Offset/f.PageSize + 1
+	if f.Limit <= 0 {
+		f.Limit = math.MaxInt64 // 没传就表示取全部，这里赋一个最大值
 	}
-	// if f.PageSize <= 0 || f.PageSize > DefaultPageSize {
-	// 	f.PageSize = math.MaxInt64
-	// }
-	if f.Offset <= 0 && f.PageSize > 0 && f.PageIndex > 0 {
-		f.Offset = (f.PageIndex - 1) * f.PageSize
-	}
-
 	return f
+}
+
+func (f *Filter) DeepCopy() *Filter {
+
+	if f == nil {
+		return nil
+	}
+	res := Filter{
+		SortBy:    f.SortBy,
+		SortFiled: f.SortFiled,
+		Offset:    f.Offset,
+		Limit:     f.Limit,
+	}
+	return &res
 }
 
 func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 	if filter != nil {
-		if filter.PageIndex >= 1 && filter.PageSize > 0 {
-			db = db.Offset(int((filter.PageIndex - 1) * filter.PageSize)).Limit(int(filter.PageSize))
+		if filter.Offset >= 0 && filter.Limit > 0 {
+			db = db.Offset(int(filter.Offset)).Limit(int(filter.Limit))
 		}
-
 		if filter.SortFiled != "" && filter.SortBy != "" {
 			db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: filter.SortFiled}, Desc: strings.ToLower(filter.SortBy) == "desc"})
 		}
@@ -91,11 +96,6 @@ func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 	// }
 	return db
 }
-
-// // 扫描配置
-// type ScanConfig struct {
-// 	Href string `json:"href"`
-// }
 
 // 扫描状态
 type ScanStatus struct {
