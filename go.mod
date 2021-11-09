@@ -122,6 +122,7 @@ require (
 )
 
 require (
+	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
