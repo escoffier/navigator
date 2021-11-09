@@ -88,7 +88,6 @@ require (
 	github.com/vishvananda/netlink v1.1.0 //netlink
 	github.com/yeka/zip v0.0.0-20180914125537-d046722c6feb
 	gitlab.com/tensorsecurity-rd/go-pkg v0.1.4
-	gitlab.com/tensorsecurity-rd/gobpf v0.0.0
 	go.mongodb.org/mongo-driver v1.7.3
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
@@ -123,10 +122,10 @@ require (
 )
 
 require (
-	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
+	gitlab.com/tensorsecurity-rd/gobpf v0.0.0-20200614202714-e6b321d32103
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 )
@@ -216,6 +215,7 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/iovisor/gobpf v0.2.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.10.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
