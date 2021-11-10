@@ -150,14 +150,14 @@ func (or OwnerRefs) Value() (driver.Value, error) {
 
 type Labels map[string]string
 
-func (l Labels) Scan(value interface{}) error {
+func (l *Labels) Scan(value interface{}) error {
 	b, ok := value.([]byte)
 	if !ok {
 		return TypeAssertErr
 	}
-	return json.Unmarshal(b, &l)
+	return json.Unmarshal(b, l)
 }
-func (l Labels) Value() (driver.Value, error) {
+func (l *Labels) Value() (driver.Value, error) {
 	return json.Marshal(l)
 }
 
