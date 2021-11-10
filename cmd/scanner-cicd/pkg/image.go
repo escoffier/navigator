@@ -4,5 +4,8 @@ import "strings"
 
 func ImageReTag(old, new string) string {
 	index := strings.Index(old, "/")
-	return new + "/" + old[index+1:]
+	newTag := new + "/" + old[index+1:]
+	newTag = strings.Replace(newTag, "https://", "", 1)
+	newTag = strings.Replace(newTag, "http://", "", 1)
+	return newTag
 }

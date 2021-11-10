@@ -1,9 +1,10 @@
 package output
 
 import (
+	"os"
+
 	"github.com/olekukonko/tablewriter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/structures"
-	"os"
 )
 
 func Terminal(resultInfo structures.ResultInfo) error {
@@ -12,6 +13,7 @@ func Terminal(resultInfo structures.ResultInfo) error {
 	outputTable(resultInfo.Data.Item.Sensitive)
 	outputTable(resultInfo.Data.Item.Virus)
 	outputTable(resultInfo.Data.Item.Webshell)
+	outputTable(resultInfo.Data.Item.Envs)
 
 	return nil
 }

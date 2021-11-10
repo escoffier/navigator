@@ -108,3 +108,5 @@ const (
 )
 
 var NotNodeImageErr = fmt.Errorf("not find node info")
+
+const SpecialImageTypeK8s = "k8s"

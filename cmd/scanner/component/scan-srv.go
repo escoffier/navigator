@@ -28,19 +28,20 @@ import (
 )
 
 type SearchImagesParam struct {
-	SearchWord   string
-	FromType     int64
-	Kind         string
-	Online       string
-	ImageType    string
-	ImageId      int64
-	ImageIds     []int64
-	Library      string
-	ScanStatus   []int
-	Trusted      string
-	HasFixedVulu string
-	IsReinforce  string
-	NodeHostname string
+	SearchWord       string
+	FromType         int64
+	Kind             string
+	Online           string
+	ImageType        string
+	ImageId          int64
+	ImageIds         []int64
+	Library          string
+	ScanStatus       []int
+	Trusted          string
+	HasFixedVulu     string
+	IsReinforce      string
+	NodeHostname     string
+	SpecialImageType string
 }
 
 type ScannerSrv interface {
@@ -1175,14 +1176,15 @@ func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, s
 func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
 
 	daoParam := store.SearchImageWithScanParam{
-		FromType:     param.FromType,
-		ImageType:    param.ImageType,
-		Library:      param.Library,
-		Kind:         param.Kind,
-		HasFixedVulu: param.HasFixedVulu,
-		SearchWord:   param.SearchWord,
-		IsReinforce:  param.IsReinforce, // 是否已加固
-		NodeHostname: param.NodeHostname,
+		FromType:         param.FromType,
+		ImageType:        param.ImageType,
+		Library:          param.Library,
+		Kind:             param.Kind,
+		HasFixedVulu:     param.HasFixedVulu,
+		SearchWord:       param.SearchWord,
+		IsReinforce:      param.IsReinforce, // 是否已加固
+		NodeHostname:     param.NodeHostname,
+		SpecialImageType: param.SpecialImageType,
 	}
 	// 查在线
 	onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", store.ImageTable, store.ImageContainer)
@@ -2565,7 +2567,7 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 	logging.GetLogger().Debug().Msgf("checkPrivilegedBoot, image digest: %s, User: %s, PrivilegedBootPolicy: %s", img.Digest, img.ConfigFile.Config.User, po.PrivilegedBootPolicy)
 	// 当用户不包含root时，说明不是特权用户启动
 	// 这里把User为空时也当作root用户
-	if img.ConfigFile.Config.User != "" && !strings.Contains(img.ConfigFile.Config.User, "root") {
+	if img.PrivilegedBoot == consts.NotPrivilegedBootImage {
 		return true, nil, nil
 	}
 
@@ -2612,6 +2614,9 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 }
 
 func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Debug().Msgf("checkEnv, imageid:%d,envs:%+v", img.ID, img.ScanImage.EnvKeyValue)
+	logging.GetLogger().Debug().Msgf("checkEnv, imageid:%d,envs:%+v", img.ID, img.ScanImage.EnvKeyValue)
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true

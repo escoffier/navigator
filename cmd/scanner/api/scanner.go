@@ -328,12 +328,18 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 		}
 		// 再看websell
 		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanWebshell) > 0 {
-			resp.Virus = append(resp.Virus, []string{"文件名", "文件路径", "评分", "代码详情"})
+			resp.Webshell = append(resp.Webshell, []string{"文件名", "文件路径", "评分", "代码详情"})
 			for _, vu := range resp.ImageDetail.ImageScanWebshell {
 				resp.Webshell = append(resp.Webshell, []string{vu.Filename, vu.Filepath, strconv.Itoa(int(vu.Score)), strings.Join(vu.Codes, ",")})
 			}
 		}
-
+		// 再看环境变量
+		if resp.ImageDetail != nil && resp.ImageDetail.ScanImage != nil && len(resp.ImageDetail.ScanImage.EnvKeyValue) > 0 {
+			resp.Envs = append(resp.Envs, []string{"环境变量名", "环境变量值"})
+			for _, vu := range resp.ImageDetail.ScanImage.EnvKeyValue {
+				resp.Envs = append(resp.Envs, []string{vu.Key, vu.Value})
+			}
+		}
 	} else {
 		resp = &model.ScanOneForCICDResponse{}
 		resp.IsScan = false
@@ -472,6 +478,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	hasFixedVulu := ctx.Query("has_fixed_vulu")
 	isReinforce := ctx.Query("is_reinforce")
 	nodeHostname := ctx.Query("node_hostname")
+	specialImageType := ctx.Query("special_image_type")
 
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
@@ -491,19 +498,19 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 
-	logging.GetLogger().Info().Msgf("get kind:%s", kind)
 	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{
-		SearchWord:   search,
-		Kind:         kind,
-		Online:       online,
-		Library:      library,
-		ImageType:    imageType,
-		FromType:     fromType,
-		ScanStatus:   scanStatus,
-		Trusted:      trusted,
-		HasFixedVulu: hasFixedVulu,
-		IsReinforce:  isReinforce,
-		NodeHostname: nodeHostname,
+		SearchWord:       search,
+		Kind:             kind,
+		Online:           online,
+		Library:          library,
+		ImageType:        imageType,
+		FromType:         fromType,
+		ScanStatus:       scanStatus,
+		Trusted:          trusted,
+		HasFixedVulu:     hasFixedVulu,
+		IsReinforce:      isReinforce,
+		NodeHostname:     nodeHostname,
+		SpecialImageType: specialImageType,
 	}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
