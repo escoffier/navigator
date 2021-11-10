@@ -993,14 +993,19 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				if r := recover(); r != nil {
 					logging.GetLogger().Error().Msgf("panic when wait for cluster %s informers cache synced: %v. stack: %s", cname, r, debug.Stack())
 				}
+
+				// callbacks after sync
+				for _, cb := range callbacks {
+					cb.AfterDataSynced(ctx, syncSucc)
+				}
 			}()
 
 			syncedStatus := ifactory.WaitForCacheSync(stopChan)
 			for _, ift := range informers {
 				ift.synced = syncedStatus[ift.targetType]
-				syncSucc = syncSucc && ift.synced
 				if !ift.synced {
 					logging.GetLogger().Warn().Msgf("cluster %s synced failed for %v", cname, ift.targetType)
+					syncSucc = false
 				}
 			}
 
@@ -1024,11 +1029,6 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			}
 
 			logging.GetLogger().Info().Msgf("cluster %s synced status: %v", clusterKey, syncSucc)
-
-			// callbacks after sync
-			for _, cb := range callbacks {
-				cb.AfterDataSynced(ctx, syncSucc)
-			}
 
 		}(clusterKey, informerFactory, stopChan, informerStatuses)
 
