@@ -204,7 +204,12 @@ func (srv *UpdataService) InitUpdateSvc() {
 		logging.GetLogger().Err(err).Msg("mkdir err")
 		return
 	}
-	srv.cpDB(fp+"/", srv.VolumePath, "last_trivy.db", "trivy.db")
+	res := srv.ReadVersion("trivy")
+	if res != "offline" {
+		srv.cpDB(fp+"/", srv.VolumePath, "last_trivy.db", "trivy.db")
+	} else {
+		srv.cpDB(fp+"/", filepath.Join(srv.VolumePath, "offline"), "init_trivy.db", "trivy.db")
+	}
 }
 
 func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string) {
@@ -222,6 +227,10 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 		ticker := time.NewTicker(time.Hour * 6)
 		defer ticker.Stop()
 		for {
+			res := srv.ReadVersion("custom")
+			if res == "offline" {
+				srv.cpDB(srv.VolumePath, filepath.Join(srv.VolumePath, "offline"), "init_custom.db", "init_custom.db")
+			}
 			logging.GetLogger().Info().Msg("open init DB")
 			db, err = bolt.Open(filepath.Join(volumePath, "init_custom.db"), 0600, &options)
 			if err != nil {
@@ -242,13 +251,13 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 			}
 			wgg.Wait()
 			db.Close()
-			srv.cpDB(volumePath, volumePath, "init_custom.db", "last_custom.db")
-			srv.cpDB(volumePath, volumePath, "last_trivy.db", "init_trivy.db")
+			srv.WriteVersion()
+			srv.cpDB(volumePath, volumePath, "init_custom.db", "last_custom.db") //更新的是init_custom.db
+			srv.cpDB(volumePath, volumePath, "last_trivy.db", "init_trivy.db")   //需要读取的是init_trivy.db
 			srv.cpDB(srv.VolumePath, srv.VolumePath, "trivy_version", "trivy_init_version")
-			srv.cpDB(srv.VolumePath, srv.VolumePath, "custom_init_version", "custom_version")
+			srv.cpDB(srv.VolumePath, srv.VolumePath, "custom_version", "custom_init_version")
 			// srv.cpDB(volumePath, "/configs/scanner-vuln-updata/", "trivy_version", "trivy_version")
 
-			srv.WriteVersion()
 			filePath, err := srv.GenerateDir(volumePath)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msgf("GenerateDir err:%v", err)
@@ -272,8 +281,8 @@ func (srv *UpdataService) ReadVersion(name string) string {
 	if strings.Contains(name, "trivy") {
 		offlineVersion := ""
 		trivyVersion := ""
-		if FileExists(filepath.Join(srv.VolumePath + "trivy_version")) {
-			trivyVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath + "trivy_version"))
+		if FileExists(filepath.Join(srv.VolumePath, "trivy_version")) {
+			trivyVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "trivy_version"))
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msgf("Open now Trivy version Error")
 			} else {
