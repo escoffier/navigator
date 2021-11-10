@@ -397,6 +397,6 @@ func parseMetaInfo(content *model.RawKubeHunterContent) ([]byte, error) {
 	}
 
 	result, err := json.Marshal(meta)
-	logging.GetLogger().Debug().Msgf("metaInfo:%s", string(result))
+	logging.GetLogger().Debug().Msgf("metaInfo:%s", util.Bytes2StringNoCopy(result))
 	return result, err
 }

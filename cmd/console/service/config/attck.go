@@ -11,6 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/go-redsync/redsync/v4"
+	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -20,7 +24,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/serailize"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -32,7 +35,7 @@ type ATTCKHandler struct {
 	cacheLock      sync.RWMutex
 	baseOffset     uint32
 	onlineOffset   uint32
-	serailize.Serializer
+	rs             *redsync.Redsync
 }
 
 type ruleItem struct {
@@ -121,11 +124,11 @@ func parseItems(data []byte) (version string, rules map[string]*ruleItem, err er
 	return version, rules, nil
 }
 
-func NewATTCKHandler(db *rdbtools.GormWrapper) (*ATTCKHandler, error) {
+func NewATTCKHandler(db *rdbtools.GormWrapper, redisCli *redis.Client) (*ATTCKHandler, error) {
 	handler := &ATTCKHandler{
-		db:         db,
-		items:      make(map[string]*ruleItem),
-		Serializer: serailize.NewSerializer(),
+		db:    db,
+		items: make(map[string]*ruleItem),
+		rs:    redsync.New(goredis.NewPool(redisCli)),
 	}
 
 	err := handler.loadFromStore()
@@ -190,57 +193,79 @@ func (h *ATTCKHandler) loadFromStore() error {
 	return nil
 }
 
-func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data []byte) (*model.ATTCKRuleData, error) {
-	select {
-	case h.Obtain() <- struct{}{}:
-		defer h.Release()
-		h.cacheLock.Lock()
-		defer h.cacheLock.Unlock()
-		version, rules, err := parseItems(data)
-		if err != nil {
-			return nil, err
-		}
+const (
+	attckLockKey = "attck-lock"
+)
 
-		var deprecatedRuleMasks []string
-		for _, rule := range h.items {
-			if rule.disabled && rules[rule.name] != nil {
-				// set disabled
-				rules[rule.name].disabled = true
-			}
-
-			if _, ok := rules[rule.name]; !ok && rule.disabled {
-				// deprecated ruleMasks
-				deprecatedRuleMasks = append(deprecatedRuleMasks, rule.name)
-			}
-		}
-
-		nowTime := time.Now()
-		confVersion := model.ATTCKConfVersion{
-			Username:  username,
-			Version:   version,
-			CreatedAt: nowTime,
-		}
-		attckRuleData := &model.ATTCKRuleData{
-			ATTCKConfVersion: confVersion,
-			Content:          data,
-		}
-
-		baseOffset, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attckRuleData, deprecatedRuleMasks)
-		if err != nil {
-			return nil, err
-		}
-
-		h.baseOffset = baseOffset
-		h.currentVersion = &confVersion
-		h.updateRules(rules)
-		if len(deprecatedRuleMasks) > 0 {
-			h.onlineOffset++
-		}
-
-		return attckRuleData, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
+func (h *ATTCKHandler) obtainLock(ctx context.Context, mutex *redsync.Mutex) error {
+	if err := mutex.LockContext(ctx); err != nil {
+		logging.GetLogger().Err(err).Msg("obtain attck lock fail")
+		return err
 	}
+
+	return nil
+}
+
+func (h *ATTCKHandler) releaseLock(mutex *redsync.Mutex) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	if ok, err := mutex.UnlockContext(ctx); err != nil || !ok {
+		logging.GetLogger().Err(err).Msg("release attck lock fail")
+	}
+}
+
+func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data []byte) (*model.ATTCKRuleData, error) {
+	mutex := h.rs.NewMutex(attckLockKey)
+	if err := h.obtainLock(ctx, mutex); err != nil {
+		return nil, err
+	}
+
+	defer h.releaseLock(mutex)
+	h.flushCache()
+	version, rules, err := parseItems(data)
+	if err != nil {
+		return nil, err
+	}
+
+	h.cacheLock.Lock()
+	defer h.cacheLock.Unlock()
+	var deprecatedRuleMasks []string
+	for _, rule := range h.items {
+		if rule.disabled && rules[rule.name] != nil {
+			// set disabled
+			rules[rule.name].disabled = true
+		}
+
+		if _, ok := rules[rule.name]; !ok && rule.disabled {
+			// deprecated ruleMasks
+			deprecatedRuleMasks = append(deprecatedRuleMasks, rule.name)
+		}
+	}
+
+	nowTime := time.Now()
+	confVersion := model.ATTCKConfVersion{
+		Username:  username,
+		Version:   version,
+		CreatedAt: nowTime,
+	}
+	attckRuleData := &model.ATTCKRuleData{
+		ATTCKConfVersion: confVersion,
+		Content:          data,
+	}
+
+	baseOffset, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attckRuleData, deprecatedRuleMasks)
+	if err != nil {
+		return nil, err
+	}
+
+	h.baseOffset = baseOffset
+	h.currentVersion = &confVersion
+	h.updateRules(rules)
+	if len(deprecatedRuleMasks) > 0 {
+		h.onlineOffset++
+	}
+
+	return attckRuleData, nil
 }
 
 func (h *ATTCKHandler) updateRules(rules map[string]*ruleItem) {
@@ -264,6 +289,7 @@ type GetRuleListArg struct {
 }
 
 func (h *ATTCKHandler) GetRuleList(_ context.Context, arg *GetRuleListArg) (int64, []*model.ATTCKRuleDisplay, error) {
+	h.flushCache()
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
 	var items []*ruleItem
@@ -302,53 +328,54 @@ func convertRuleItem(item *ruleItem, lang string) *model.ATTCKRuleDisplay {
 }
 
 func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model.ATTCKRuleSwitch) ([]*model.ATTCKRuleSwitch, error) {
-	select {
-	case h.Obtain() <- struct{}{}:
-		defer h.Release()
-		h.cacheLock.Lock()
-		defer h.cacheLock.Unlock()
-
-		var deletedMasks = make(map[string]struct{})
-		var addMasks = make(map[string]struct{})
-		for _, setting := range settings {
-			item := h.items[setting.Name]
-			if item == nil {
-				return nil, dal.ErrRuleNotExists
-			}
-
-			if item.disabled != setting.Enabled {
-				continue
-			}
-
-			if setting.Enabled {
-				deletedMasks[setting.Name] = struct{}{}
-			} else {
-				addMasks[setting.Name] = struct{}{}
-			}
-		}
-
-		newMasks := util.StringSetToArray(addMasks)
-		var masks = make([]*model.ATTCKRuleMask, 0, len(newMasks))
-		for _, mask := range newMasks {
-			masks = append(masks, &model.ATTCKRuleMask{
-				Name: mask,
-			})
-		}
-
-		if len(deletedMasks) > 0 || len(addMasks) > 0 {
-			if err := dal.UpdateRuleMask(ctx, h.db.Get(), masks, util.StringSetToArray(deletedMasks)); err != nil {
-				return nil, err
-			}
-			for _, setting := range settings {
-				h.items[setting.Name].disabled = !setting.Enabled
-			}
-			h.onlineOffset++
-		}
-
-		return settings, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	mutex := h.rs.NewMutex(attckLockKey)
+	if err := h.obtainLock(ctx, mutex); err != nil {
+		return nil, err
 	}
+	defer h.releaseLock(mutex)
+
+	h.flushCache()
+	h.cacheLock.Lock()
+	defer h.cacheLock.Unlock()
+
+	var deletedMasks = make(map[string]struct{})
+	var addMasks = make(map[string]struct{})
+	for _, setting := range settings {
+		item := h.items[setting.Name]
+		if item == nil {
+			return nil, dal.ErrRuleNotExists
+		}
+
+		if item.disabled != setting.Enabled {
+			continue
+		}
+
+		if setting.Enabled {
+			deletedMasks[setting.Name] = struct{}{}
+		} else {
+			addMasks[setting.Name] = struct{}{}
+		}
+	}
+
+	newMasks := util.StringSetToArray(addMasks)
+	var masks = make([]*model.ATTCKRuleMask, 0, len(newMasks))
+	for _, mask := range newMasks {
+		masks = append(masks, &model.ATTCKRuleMask{
+			Name: mask,
+		})
+	}
+
+	if len(deletedMasks) > 0 || len(addMasks) > 0 {
+		if err := dal.UpdateRuleMask(ctx, h.db.Get(), masks, util.StringSetToArray(deletedMasks)); err != nil {
+			return nil, err
+		}
+		for _, setting := range settings {
+			h.items[setting.Name].disabled = !setting.Enabled
+		}
+		h.onlineOffset++
+	}
+
+	return settings, nil
 }
 
 func checkRuleMatchQuery(rule *ruleItem, query, lang string) bool {
@@ -384,6 +411,7 @@ func checkHthreatsFilter(rule *ruleItem, filter map[uint8]struct{}) bool {
 }
 
 func (h *ATTCKHandler) GetATTCKVersion(_ context.Context) (*model.ATTCKConfVersion, error) {
+	h.flushCache()
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
 	if h.currentVersion != nil {

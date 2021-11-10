@@ -16,5 +16,6 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/assets", api.assets())
 		r.Route("/audit", api.audit())
 		r.Route("/hunter", api.kubeHunter())
+		r.Route("/report", api.platformReport())
 	}
 }

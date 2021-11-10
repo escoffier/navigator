@@ -190,6 +190,13 @@ kube-hunter-report: generate
     		-o dist/tensor-kube-hunter-report gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report
 	docker build -t $(REPOPREFIX)/tensorsec-kube-hunter-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-hunter-report/Dockerfile .
 
+.PHONY: platform-report
+platform-report: generate
+	@echo "+ $@"
+	CGO_ENABLED=0 go build -v \
+    		-o dist/tensor-platform-report gitlab.com/piccolo_su/vegeta/cmd/platform-report
+	docker build -t $(REPOPREFIX)/tensorsec-platform-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/platform-report/Dockerfile .
+
 .PHONY: scanner-base
 scanner-base: ## Build scanner base image
 	@echo "+ $@"
@@ -452,7 +459,7 @@ cluster-manager: generate
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes image-validate daemon  \
 webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
-event-processor go-audit safe-node-image kube-hunter-report
+event-processor go-audit safe-node-image kube-hunter-report platform-report
 
 .PHONY: base
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -522,6 +529,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/tensorsec-webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-cluster-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/tensorsec-platform-report:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/tensorsec-console:latest
@@ -547,6 +555,7 @@ else
 	docker push $(REPOPREFIX)/tensorsec-webhook:latest
 	docker push $(REPOPREFIX)/tensorsec-cluster-manager:latest
 	docker push $(REPOPREFIX)/tensorsec-kube-hunter-report:latest
+	docker push $(REPOPREFIX)/tensorsec-platform-report:latest
 endif
 
 .PHONY: rm-local-images

@@ -31,6 +31,31 @@ func FilterDuplicateIntArray(arr []int) []int {
 	return result
 }
 
+func FilterDuplicateStringArray(arr []string) []string {
+	hash := make(map[string]struct{})
+	for _, v := range arr {
+		hash[v] = struct{}{}
+	}
+	if len(hash) == len(arr) {
+		return arr
+	}
+
+	result := make([]string, 0, len(hash))
+	for v := range hash {
+		result = append(result, v)
+	}
+
+	return result
+}
+
+func StringArrToMap(arr []string) map[string]struct{} {
+	hash := make(map[string]struct{})
+	for _, v := range arr {
+		hash[v] = struct{}{}
+	}
+	return hash
+}
+
 type Bytes []byte
 
 func Bytes2StringNoCopy(buf []byte) string {

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -347,12 +346,4 @@ func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.Mon
 		mongoUserSlice = append(mongoUserSlice, mu)
 	}
 	return mongoUserSlice, nil
-}
-
-func IsPostgresDuplicateError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return strings.Contains(strings.ToLower(err.Error()), "duplicate")
 }

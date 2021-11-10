@@ -413,7 +413,7 @@ func (api *api) addUser() http.HandlerFunc {
 		err = api.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
 			innerErr := dal.InsertUserV2(ctx, tx, req.UserName, req.RoleName, req.ModuleID)
 			if innerErr != nil {
-				if dal.IsPostgresDuplicateError(innerErr) {
+				if util.IsPostgresDuplicateError(innerErr) {
 					return ErrUserAlreadyExists
 				}
 				return innerErr

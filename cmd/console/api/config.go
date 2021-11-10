@@ -69,8 +69,7 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 			return
 		}
 
-		logging.GetLogger().Debug().Msgf("filename:%s, content:%s", header.Filename, string(data))
-
+		logging.GetLogger().Debug().Msgf("filename:%s", header.Filename)
 		item, err := service.UpdateConfig(ctx, username, data)
 		if err != nil {
 			if err == config.ErrInvalidRuleData {

@@ -10,4 +10,6 @@ COPY configs/data/jobs/cold/job.yaml /jobs/cold/job.yaml
 COPY configs/kube-hunter/job.yaml /jobs/kube-hunter/job.yaml
 COPY configs/kube-hunter/translate.json /kube-hunter/translate.json
 
+COPY configs/platform-report/job.yaml /jobs/platform-report/job.yaml
+
 CMD /tensor-console
