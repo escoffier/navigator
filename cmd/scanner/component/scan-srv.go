@@ -532,15 +532,15 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult insert reject record error %s", err.Error())
 		}
 	}
-	if !safe {
-		// 删除记录
-		if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{ImageId: req.ImageID}); err != nil {
-			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete tensor_image_list record error %s", err.Error())
-		}
-		if err := s.dbdal.DeleteScanImage(ctx, store.DeleteScanImageParam{ImageId: req.ImageID}); err != nil {
-			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete scan_image record error %s", err.Error())
-		}
-	}
+	// if !safe {
+	// 不删除记录
+	// if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{ImageId: req.ImageID}); err != nil {
+	// 	logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete tensor_image_list record error %s", err.Error())
+	// }
+	// if err := s.dbdal.DeleteScanImage(ctx, store.DeleteScanImageParam{ImageId: req.ImageID}); err != nil {
+	// 	logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete scan_image record error %s", err.Error())
+	// }
+	// }
 
 	return &model.ScanOneForCICDResponse{
 		IsScan:      true,
@@ -601,7 +601,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		Tags:           image.Tag,
 		Digest:         image.ImageDigest,
 		Size:           int(image.Size),
-		Library:        regs[0].Url,
+		Library:        lib,
 		RegistryId:     regs[0].ID,
 		FirstPushTime:  image.Created,
 		LastPushTime:   image.LastPushTime,
@@ -649,6 +649,9 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 			logging.GetLogger().Err(err).Msgf("CICD SearchScanConfig")
 		} else if len(config) > 0 {
 			if config[0].LibraryImageConfig != nil {
+				if config[0].LibraryImageConfig.ScanAll {
+					scanStrategyId = config[0].LibraryImageConfig.StrategyId
+				}
 				for i := range config[0].LibraryImageConfig.Libraries {
 					if config[0].LibraryImageConfig.Libraries[i] == libs[0].ID {
 						scanStrategyId = config[0].LibraryImageConfig.StrategyId
@@ -674,7 +677,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	// 更新library,这一步的目的是为了下面在做镜像扫描时能通过library找到相关的策略
 	update := map[string]interface{}{"library": lib}
 
-	// 先删除原来的，再更新现在的,不然就会存在更新失败的情况,因为（FullRepoName+tags+library+fromType是唯一索引）
+	// 先尝试删除原来的，再更新现在的,不然就会存在更新失败的情况,因为（FullRepoName+tags+library+fromType是唯一索引）
 	if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{
 		FullRepoName: img.FullRepoName,
 		Tags:         img.Tags,
@@ -1515,6 +1518,8 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 				logging.GetLogger().Info().Msgf("CICD reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
+
+			logging.GetLogger().Info().Msgf("CICD reject policy is enable :name:%s,ID:%d,police is %+v", po.Name, po.ID, po)
 			// 恶意文件
 			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
 			// 敏感文件
@@ -1666,6 +1671,8 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 				logging.GetLogger().Info().Msgf("K8sOnlineMonitor reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
+			logging.GetLogger().Info().Msgf("K8sOnlineMonitor reject policy is enable :name:%s,ID:%d,police is %+v", po.Name, po.ID, po)
+
 			// 恶意文件
 			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
 			// 敏感文件
@@ -2405,6 +2412,8 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 				logging.GetLogger().Info().Msgf("K8sDeployDetect reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
 				continue
 			}
+			logging.GetLogger().Info().Msgf("K8sDeployDetect reject policy is enable :name:%s,ID:%d,police is %+v", po.Name, po.ID, po)
+
 			// 恶意文件
 			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
 			// 敏感文件
@@ -2614,8 +2623,7 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 }
 
 func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Debug().Msgf("checkEnv, imageid:%d,envs:%+v", img.ID, img.ScanImage.EnvKeyValue)
-	logging.GetLogger().Debug().Msgf("checkEnv, imageid:%d,envs:%+v", img.ID, img.ScanImage.EnvKeyValue)
+	logging.GetLogger().Info().Msgf("checkEnv, imageid:%d,envs:%+v,policy env is :%+v,env policy is :%s", img.ID, img.ScanImage.EnvKeyValue, po.Envs, po.EnvPolicy)
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
