@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 )
 
@@ -46,7 +48,10 @@ func TestFlushCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler, err := NewATTCKHandler(dbWrapper)
+	redisCli := redis.NewClient(&redis.Options{
+		Addr: "127.0.0.1:6379",
+	})
+	handler, err := NewATTCKHandler(dbWrapper, redisCli)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +69,10 @@ func TestFlushCache_2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler, err := NewATTCKHandler(dbWrapper)
+	redisCli := redis.NewClient(&redis.Options{
+		Addr: "127.0.0.1:6379",
+	})
+	handler, err := NewATTCKHandler(dbWrapper, redisCli)
 	if err != nil {
 		t.Fatal(err)
 	}

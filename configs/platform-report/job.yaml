@@ -2,24 +2,24 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorsec-hot-logic-cleaner
+  name: tensorsec-platform-report
 spec:
   ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:
-        app: hot-logic-cleaner
+        app: platform-report
     spec:
       containers:
-        - name: hot-logic-cleaner
-          image: localhost:32000/tensorsec-cleaner:latest
-          command: ["/app/tensor-cleaner", "hot-logic-storage-tool"]
+        - name: platform-report
+          image: localhost:32000/tensorsec-platform-report:latest
+          command: ["/tensor-platform-report"]
           imagePullPolicy: Always
           env:
-            - name: CONF_PATH
-              value: /app/hot-logic-conf.json
             - name: PGSQL_HOST
               value: tensorsec-postgresql
+            - name: PGSQL_PORT
+              value: 5432
             - name: PGSQL_USER
               value: postgres
             - name: PGSQL_DBNAME
@@ -33,10 +33,10 @@ spec:
               mountPath: /audit
           resources:
             requests:
-              memory: "200Mi"
-              cpu: "0.5"
+              memory: "100Mi"
+              cpu: "100m"
             limits:
-              memory: "200Mi"
+              memory: "1000Mi"
               cpu: "0.5"
       restartPolicy: Never
       imagePullSecrets:

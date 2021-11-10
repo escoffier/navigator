@@ -62,6 +62,29 @@
       "timeField": "created_at",
       "dataDir": "/audit/posggresql/processingcenter_actions",
       "batch": 1000
+    },
+    {
+      "name": "kube_hunter_records",
+      "primaryKey": ["uuid"],
+      "timeField": "created_at",
+      "dataDir": "/audit/posggresql/kube_hunter_records",
+      "ttl": 30,
+      "batch": 1000
+    },
+    {
+      "name": "report_task_templates",
+      "timeField": "created_at",
+      "dataDir": "/audit/posggresql/report_task_templates",
+      "condition": "type = 'oneTime'",
+      "batch": 1000
+    },
+    {
+      "name": "report_records",
+      "primaryKey": ["uuid"],
+      "timeField": "updated_at",
+      "dataDir": "/audit/posggresql/report_records",
+      "ttl": 30,
+      "batch": 1000
     }
   ]
 }

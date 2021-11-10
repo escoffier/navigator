@@ -752,7 +752,7 @@ func (api *api) CreateLdapGroup() http.HandlerFunc {
 
 		err = dal.CreateLdapGroup(ctx, api.postgresDB.Get(), group)
 		if err != nil {
-			if dal.IsPostgresDuplicateError(err) {
+			if util.IsPostgresDuplicateError(err) {
 				apperror.RespAndLog(w, ctx,
 					apperror.NewCommonError(http.StatusBadRequest, fmt.Errorf("duplicate name:%s", cliReq.Name), "组名已被占用", "group name occupied"))
 				return
@@ -828,7 +828,7 @@ func (api *api) UpdateLdapGroup() http.HandlerFunc {
 
 		err = dal.UpdateLdapGroup(ctx, api.postgresDB.Get(), group)
 		if err != nil {
-			if dal.IsPostgresDuplicateError(err) {
+			if util.IsPostgresDuplicateError(err) {
 				apperror.RespAndLog(w, ctx,
 					apperror.NewCommonError(http.StatusBadRequest, fmt.Errorf("duplicate name:%s", cliReq.Name), "组名已被占用", "group name occupied"))
 				return

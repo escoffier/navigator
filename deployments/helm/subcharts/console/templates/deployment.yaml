@@ -76,7 +76,6 @@ spec:
             readOnly: true
           - mountPath: /audit
             name: audit
-            readOnly: true
         env:
         # Required for managing scap jobs
         - name: MY_POD_NAMESPACE

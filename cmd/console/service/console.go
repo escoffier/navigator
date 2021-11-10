@@ -16,6 +16,12 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -25,6 +31,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/platformreport"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/processingcenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/riskexplorer"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -32,6 +39,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
+	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -43,11 +51,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
 )
@@ -258,7 +261,7 @@ func NewConsole(
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: networkFlowService init error")
 	}
 
-	err = config.Init(postgresDB)
+	err = config.Init(postgresDB, redisClient)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("ERROR: config service init error")
 	}
@@ -290,6 +293,17 @@ func NewConsole(
 	err = session.Init(redisClient, session.DefaultConf)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: session service init error")
+		return nil, err
+	}
+
+	err = platformreport.Init(postgresDB, &def.EmailConf{
+		Username: emailOpts.Username,
+		Password: emailOpts.Password,
+		Host:     emailOpts.Host,
+		Port:     emailPort,
+	})
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: platform report service init error")
 		return nil, err
 	}
 

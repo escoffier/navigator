@@ -4,6 +4,7 @@ kind: Job
 metadata:
   name: tensorsec-kube-hunter-report
 spec:
+  ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:

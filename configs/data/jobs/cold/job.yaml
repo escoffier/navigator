@@ -4,6 +4,7 @@ kind: Job
 metadata:
   name: tensorsec-cold-cleaner
 spec:
+  ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:

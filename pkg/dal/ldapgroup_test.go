@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func initLdapGroupDB(t *testing.T) {
@@ -25,7 +26,7 @@ func TestCreateLdapGroup(t *testing.T) {
 		Modules: "[\"2\",\"3\",\"4\"]",
 	})
 	if err != nil {
-		if IsPostgresDuplicateError(err) {
+		if util.IsPostgresDuplicateError(err) {
 			t.Log("duplicate")
 		} else {
 			t.Fatal(err)
@@ -38,7 +39,7 @@ func TestCreateLdapGroup(t *testing.T) {
 		Modules: "[\"2\",\"3\",\"4\"]",
 	})
 	if err != nil {
-		if IsPostgresDuplicateError(err) {
+		if util.IsPostgresDuplicateError(err) {
 			t.Log("duplicate")
 		} else {
 			t.Fatal(err)
@@ -101,7 +102,7 @@ func TestUpdateLdapGroup(t *testing.T) {
 		Modules: "[\"2\",\"3\",\"4\"]",
 	})
 	if err != nil {
-		if IsPostgresDuplicateError(err) {
+		if util.IsPostgresDuplicateError(err) {
 			t.Log("duplicate")
 		} else {
 			t.Fatal(err)
@@ -115,7 +116,7 @@ func TestUpdateLdapGroup(t *testing.T) {
 		Modules: "[\"2\",\"3\",\"4\"]",
 	})
 	if err != nil {
-		if IsPostgresDuplicateError(err) {
+		if util.IsPostgresDuplicateError(err) {
 			t.Log("duplicate")
 		} else {
 			t.Fatal(err)
