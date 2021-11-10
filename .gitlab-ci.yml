@@ -70,7 +70,7 @@ all:
     - chmod +755 /bin/kubectl
     - cp ~/.docker/helm /bin/
   script:
-    - USEMIRROR=true make all
+    - USEMIRROR=true FETCHTAG=latest make all
     - make pushimages
     - kubectl get pod --no-headers -n tensorsec|grep -v "db\|mongodb\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
 
