@@ -143,6 +143,24 @@ func GetNamespacesByCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clus
 	return namespaces, nil
 }
 
+func GetNamespace(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey, name string) (*model.TensorNamespace, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var namespace model.TensorNamespace
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorNamespace{}).
+			Where("status = ? AND cluster_key = ? AND name = ?", 0, clusterKey, name).First(&namespace).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &namespace, nil
+}
+
 type colQuery struct {
 	column string
 	query  string
@@ -708,7 +726,7 @@ func fromNamespaceToModel(ns *corev1.Namespace, clusterKey string, updateTime ti
 		}
 	}
 
-	if nsModel.Labels != nil {
+	if ns.Labels != nil {
 		nsModel.Labels = make(model.Labels, len(ns.Labels))
 		for key, value := range ns.Labels {
 			nsModel.Labels[key] = value

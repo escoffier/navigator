@@ -159,12 +159,6 @@ func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorPa
 
 func (in *Injector) PreMutate(ctx context.Context, pod *corev1.Pod, parameters *processors.MutatorParameters) bool {
 	logging.GetLogger().Info().Msgf("checking if need to inject sidecar")
-	for _, ns := range in.params.ProxyConfig.IgnoredNameSpaces {
-		if parameters.Namespace == ns {
-			logging.GetLogger().Info().Msgf("ignored validating for resource %s in namespace %s", parameters.Kind, ns)
-			return false
-		}
-	}
 
 	annotations := pod.ObjectMeta.GetAnnotations()
 	if annotations == nil {
@@ -176,18 +170,14 @@ func (in *Injector) PreMutate(ctx context.Context, pod *corev1.Pod, parameters *
 		return false
 	}
 
-	if hasContainerPort(pod.Spec.Containers) && isReplicaSetOwned(pod.ObjectMeta.OwnerReferences) {
-		logging.GetLogger().Info().Msg("pod will be injected")
-		return true
-	}
-
 	labels := pod.ObjectMeta.Labels
-	logging.GetLogger().Info().Msgf("pod labels: %+v", labels)
-	if v, ok := labels["tensor-sidecar-inject"]; ok {
-		if strings.ToLower(v) == "enabled" {
+	if in.isLabeled(labels, parameters.ClusterKey, parameters.Namespace) {
+		if hasContainerPort(pod.Spec.Containers) && isReplicaSetOwned(pod.ObjectMeta.OwnerReferences) {
+			logging.GetLogger().Info().Msg("pod will be injected")
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -290,6 +280,28 @@ func hasContainerPort(containers []corev1.Container) bool {
 func isReplicaSetOwned(references []metav1.OwnerReference) bool {
 	for _, or := range references {
 		if or.Kind == "ReplicaSet" {
+			return true
+		}
+	}
+	return false
+}
+
+func (in *Injector) isLabeled(podLabels map[string]string, clusterKey, namespace string) bool {
+	logging.GetLogger().Info().Msgf("pod labels: %+v", podLabels)
+	if v, ok := podLabels["security-sidecar-inject"]; ok {
+		if strings.ToLower(v) == "enabled" {
+			return true
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	ns, err := dal.GetNamespace(ctx, in.rdb, clusterKey, namespace)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("not found namespace %s", namespace)
+		return false
+	}
+	if v, ok := ns.Labels["security-sidecar-inject"]; ok {
+		if strings.ToLower(v) == "enabled" {
 			return true
 		}
 	}
