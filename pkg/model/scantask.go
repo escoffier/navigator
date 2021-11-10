@@ -317,6 +317,7 @@ type ScanOneForCICDResponse struct {
 	Sensitive [][]string `json:"sensitive"`
 	Virus     [][]string `json:"virus"`
 	Webshell  [][]string `json:"webshell"`
+	Envs      [][]string `json:"envs"`
 }
 
 type ScanOneCICDResultRequest struct {

@@ -30,17 +30,18 @@ type SearchImageParam struct {
 }
 
 type SearchImageWithScanParam struct {
-	Library      string
-	SearchWord   string
-	Kind         string
-	ScanStatus   []string // 是否删除等状态
-	FromType     int64
-	ImageType    string
-	InIDs        []int64  //
-	NotInIDs     []int64  //
-	InDigests    []string //
-	NotInDigests []string //
-	NodeHostname string
+	Library          string
+	SearchWord       string
+	Kind             string
+	ScanStatus       []string // 是否删除等状态
+	FromType         int64
+	ImageType        string
+	InIDs            []int64  //
+	NotInIDs         []int64  //
+	InDigests        []string //
+	NotInDigests     []string //
+	NodeHostname     string
+	SpecialImageType string
 
 	HasFixedVulu string
 	IsReinforce  string

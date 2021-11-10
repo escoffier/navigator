@@ -153,7 +153,7 @@ func run(ctx context.Context) {
 		os.Exit(2)
 	}
 
-	log.Debug().Msgf("返回数据为%v", resInfo)
+	log.Debug().Msgf("返回数据为%+v", resInfo)
 	log.Info().Msgf("触发cicd扫描成功")
 
 	tmpData := resInfo.Data.Item
@@ -176,7 +176,7 @@ func run(ctx context.Context) {
 	}, retryOptions...)
 
 	if err != nil {
-		log.Error().Msgf("get scan result err.%v", err)
+		log.Error().Err(err).Msgf("get scan result err.%v", err)
 		os.Exit(2)
 	}
 

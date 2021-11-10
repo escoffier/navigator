@@ -255,11 +255,11 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		logging.GetLogger().Error().Err(err).Msgf("unmarshal config json error")
 	} else {
 		if config.Config.User == "" || strings.Contains(config.Config.User, "root") {
-			img.PrivilegedBoot = 1
+			img.PrivilegedBoot = consts.PrivilegedBootImage
 		}
 		for _, v := range config.History {
 			if strings.Contains(v.CreatedBy, "/tmp/tensorsec/file-checker") {
-				img.IsReinforce = 1
+				img.IsReinforce = consts.IsReinforceImage
 			}
 		}
 	}

@@ -286,6 +286,20 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		db = db.Where("tensor_image_list.node_hostname =  ? ", param.NodeHostname)
 	}
 
+	if param.SpecialImageType != "" {
+		param.SpecialImageType = strings.ToLower(param.SpecialImageType)
+		if param.SpecialImageType == consts.SpecialImageTypeK8s {
+			k8sMap := []string{"coredns", "etcd", "kube-apiserver", "kube-controller", "kube-proxy", "kube-scheduler", "ingress"}
+			orand := make([]string, 0)
+			for i := range k8sMap {
+				orand = append(orand, fmt.Sprintf("tensor_image_list.full_repo_name LIKE '%%%s%%'", k8sMap[i]))
+			}
+			db = db.Where(strings.Join(orand, " OR "))
+		} else {
+			db = db.Where("tensor_image_list.full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", param.SpecialImageType))
+		}
+	}
+
 	fields := []string{"tensor_image_list.id", "tensor_image_list.privileged_boot", "tensor_image_list.created_at", "tensor_image_list.full_repo_name",
 		"tensor_image_list.tags", "tensor_image_list.digest", "tensor_image_list.os", "tensor_image_list.library",
 		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status", "scan_images.has_fixed_vuln", "tensor_image_list.is_reinforce",
@@ -1379,7 +1393,7 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 
 		envInfo := make([]model.EnvKeyValue, 0)
 		if len(res[i].EnvJSON) > 0 {
-			if err := json.Unmarshal(res[i].EnvJSON, &webShellInfo); err == nil {
+			if err := json.Unmarshal(res[i].EnvJSON, &envInfo); err == nil {
 				res[i].EnvKeyValue = envInfo
 			}
 		}

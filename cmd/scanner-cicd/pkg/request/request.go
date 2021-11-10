@@ -46,9 +46,9 @@ func (r *Request) Do(path, method string, body io.Reader, result interface{}) er
 
 	log.Info().Msgf("request url:%s\n", h.ResolveReference(h1).String())
 
-	request, err := http.NewRequest(method, h.ResolveReference(h1).String(), body) // 2
+	request, err := http.NewRequest(method, h.ResolveReference(h1).String(), body)
 	if err != nil {
-		log.Error().Err(err).Msgf("new http request err")
+		log.Error().Err(err).Msg("new http request err")
 		return err
 	}
 	request.Header.Add("X-Tensorsec-cicd-key", r.appKey)
