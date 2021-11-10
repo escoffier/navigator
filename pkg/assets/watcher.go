@@ -219,6 +219,806 @@ func ShouldResourceBeFiltered(res *TensorResource) bool {
 	return false
 }
 
+func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newClient *kubernetes.Clientset, stopChan chan struct{}) {
+	toWatchedTypes := make(map[WatchedType]struct{}, 4)
+	callbacks := make([]ClusterCallback, len(w.callbacks))
+	for i, cb := range w.callbacks {
+		for t := range cb.WatchedTypes() {
+			toWatchedTypes[t] = struct{}{}
+		}
+		callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterKey, resyncInterval)
+	}
+
+	// whether to watch tensor resources; need pod informer.
+	var tsResEventsChan chan resourceEvent
+	_, toWatchResources := toWatchedTypes[TensorResources2Watch]
+	if toWatchResources {
+		tsResEventsChan = make(chan resourceEvent, 500)
+	}
+
+	informerFactory := informers.NewSharedInformerFactory(newClient, resyncInterval)
+
+	informerStatuses := make([]*informerStatus, 0, 5)
+	if _, podsWatch := toWatchedTypes[Pods2Watch]; podsWatch {
+		logging.GetLogger().Info().Msgf("start watching pods for cluster %s", clusterKey)
+		// inform of pods
+		podInformer := informerFactory.Core().V1().Pods().Informer()
+		var p *corev1.Pod
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &podInformer,
+			targetType: reflect.TypeOf(p),
+		})
+		podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				pod, ok := obj.(*corev1.Pod)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnPodEvent(pod, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+					}
+				}
+
+				// send no owner pods to tensor resources
+				if toWatchResources {
+					if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
+						e := resourceEvent{
+							oldResource: nil,
+							newResource: res,
+							action:      ActionAdd,
+						}
+						timer := time.NewTimer(500 * time.Millisecond)
+						select {
+						case tsResEventsChan <- e:
+						case <-timer.C:
+							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: add", res)
+						}
+					}
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				pod, ok := obj.(*corev1.Pod)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
+					return
+				}
+
+				for _, cb := range callbacks {
+					evtErr := cb.OnPodEvent(nil, pod, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+					}
+				}
+
+				if toWatchResources {
+					if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
+						e := resourceEvent{
+							oldResource: res,
+							newResource: nil,
+							action:      ActionDelete,
+						}
+						timer := time.NewTimer(500 * time.Millisecond)
+						select {
+						case tsResEventsChan <- e:
+						case <-timer.C:
+							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: delete", res)
+						}
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newPod, ok := newObj.(*corev1.Pod)
+				if !ok {
+					return
+				}
+				oldPod, ok := oldObj.(*corev1.Pod)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnPodEvent(newPod, oldPod, ActionUpdate)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+					}
+				}
+
+				if toWatchResources {
+					if len(newPod.OwnerReferences) == 0 || newPod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						newRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, newPod)
+						oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, oldPod)
+						e := resourceEvent{
+							oldResource: oldRes,
+							newResource: newRes,
+							action:      ActionUpdate,
+						}
+						timer := time.NewTimer(500 * time.Millisecond)
+						select {
+						case tsResEventsChan <- e:
+						case <-timer.C:
+							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. old data: %+v. action: update", newRes, oldRes)
+						}
+					}
+				}
+			},
+		})
+	}
+
+	if _, toWatch := toWatchedTypes[Endpoints2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching endpoints for cluster %s", clusterKey)
+		// watch endpoints
+		endPointsInformer := informerFactory.Core().V1().Endpoints().Informer()
+		var ept *corev1.Endpoints
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &endPointsInformer,
+			targetType: reflect.TypeOf(ept),
+		})
+
+		endPointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				ept, ok := newObj.(*corev1.Endpoints)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+					return
+				}
+				for _, cb := range callbacks {
+					eptErr := cb.OnEndPointEvent(ept, nil, ActionAdd)
+					if eptErr != nil {
+						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+					}
+				}
+
+			},
+			DeleteFunc: func(newObj interface{}) {
+				ept, ok := newObj.(*corev1.Endpoints)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+					return
+				}
+				for _, cb := range callbacks {
+					eptErr := cb.OnEndPointEvent(nil, ept, ActionDelete)
+					if eptErr != nil {
+						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newEpt, ok := newObj.(*corev1.Endpoints)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+					return
+				}
+				oldEpt, ok := oldObj.(*corev1.Endpoints)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
+					return
+				}
+				for _, cb := range callbacks {
+					eptErr := cb.OnEndPointEvent(newEpt, oldEpt, ActionUpdate)
+					if eptErr != nil {
+						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	if toWatchResources {
+		logging.GetLogger().Info().Msgf("start watching resources for cluster %s", clusterKey)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.GetLogger().Error().Msgf("Panic for receiving resource events: %v. stack: %s", r, debug.Stack())
+				}
+			}()
+
+			for event := range tsResEventsChan {
+				for _, cb := range callbacks {
+					func(cback ClusterCallback) {
+						defer func() {
+							if r := recover(); r != nil {
+								logging.GetLogger().Error().Msgf("Panic for callback: %v. stack: %s", r, debug.Stack())
+							}
+						}()
+						evtErr := cback.OnTensorResourceEvent(event.newResource, event.oldResource, event.action)
+						if evtErr != nil {
+							logging.GetLogger().Err(evtErr).Msgf("Callback %s for resource events error. ", cback.Name())
+						}
+					}(cb)
+				}
+			}
+		}()
+
+		informerWatchTargets := func(clusterKey string, informer cache.SharedIndexInformer, targetType reflect.Type, resFactory ResourceFactoryFunc) {
+			informerStatuses = append(informerStatuses, &informerStatus{
+				synced:     false,
+				informer:   &informer,
+				targetType: targetType,
+			})
+			informer.AddEventHandler(getInformerFuncForResources(tsResEventsChan, clusterKey, resFactory))
+		}
+		// replicasets
+		rsInformer := informerFactory.Apps().V1().ReplicaSets().Informer()
+		var rs *appsv1.ReplicaSet
+		informerWatchTargets(clusterKey, rsInformer, reflect.TypeOf(rs), func(clusterKey string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*appsv1.ReplicaSet)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromReplicaSet(clusterKey, rs), nil
+		})
+
+		// statefulsets
+		ssInformer := informerFactory.Apps().V1().StatefulSets().Informer()
+		var ss *appsv1.StatefulSet
+		informerWatchTargets(clusterKey, ssInformer, reflect.TypeOf(ss), func(cluster string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*appsv1.StatefulSet)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromStatefulSet(cluster, rs), nil
+		})
+
+		// daemonsets
+		dsInformer := informerFactory.Apps().V1().DaemonSets().Informer()
+		var ds *appsv1.DaemonSet
+		informerWatchTargets(clusterKey, dsInformer, reflect.TypeOf(ds), func(cluster string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*appsv1.DaemonSet)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromDaemonSet(cluster, rs), nil
+		})
+
+		// deployments
+		dmInformer := informerFactory.Apps().V1().Deployments().Informer()
+		var dm *appsv1.Deployment
+		informerWatchTargets(clusterKey, dmInformer, reflect.TypeOf(dm), func(cluster string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*appsv1.Deployment)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromDeployment(cluster, rs), nil
+		})
+
+		// ReplicationControllers
+		rcInformer := informerFactory.Core().V1().ReplicationControllers().Informer()
+		var rc *corev1.ReplicationController
+		informerWatchTargets(clusterKey, rcInformer, reflect.TypeOf(rc), func(cluster string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*corev1.ReplicationController)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromReplicationController(cluster, rs), nil
+		})
+
+		// jobs
+		jobsInformer := informerFactory.Batch().V1().Jobs().Informer()
+		var jb *batchv1.Job
+		informerWatchTargets(clusterKey, jobsInformer, reflect.TypeOf(jb), func(cluster string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*batchv1.Job)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromJob(cluster, rs), nil
+		})
+
+		// cronjobs
+		cjInformer := informerFactory.Batch().V1beta1().CronJobs().Informer()
+		var cj *batchv1beta.CronJob
+		informerWatchTargets(clusterKey, cjInformer, reflect.TypeOf(cj), func(cluster string, obj interface{}) (*TensorResource, error) {
+			if obj == nil {
+				return nil, errors.New("nil obj")
+			}
+			rs, ok := obj.(*batchv1beta.CronJob)
+			if !ok {
+				return nil, errors.New("cast error")
+			}
+			return newResourceFromCronJob(cluster, rs), nil
+		})
+	}
+
+	if _, toWatch := toWatchedTypes[Namespaces2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching namespaces for cluster %s", clusterKey)
+		nsInformer := informerFactory.Core().V1().Namespaces().Informer()
+		var ns *corev1.Namespace
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &nsInformer,
+			targetType: reflect.TypeOf(ns),
+		})
+
+		nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newNs, ok := newObj.(*corev1.Namespace)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnNamespaceEvent(newNs, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldNs, ok := oldObj.(*corev1.Namespace)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnNamespaceEvent(nil, oldNs, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newNs, ok := newObj.(*corev1.Namespace)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				oldNs, ok := oldObj.(*corev1.Namespace)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+
+				for _, cb := range callbacks {
+					eptErr := cb.OnNamespaceEvent(newNs, oldNs, ActionUpdate)
+					if eptErr != nil {
+						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+	if _, toWatch := toWatchedTypes[Services2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching services for cluster %s", clusterKey)
+		servicesInformer := informerFactory.Core().V1().Services().Informer()
+		var svc *corev1.Service
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &servicesInformer,
+			targetType: reflect.TypeOf(svc),
+		})
+
+		servicesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newSvc, ok := newObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnServiceEvent(newSvc, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldSvc, ok := oldObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnServiceEvent(nil, oldSvc, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newSvc, ok := newObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+				oldSvc, ok := oldObj.(*corev1.Service)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
+					return
+				}
+
+				for _, cb := range callbacks {
+					eptErr := cb.OnServiceEvent(newSvc, oldSvc, ActionUpdate)
+					if eptErr != nil {
+						logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	if _, toWatch := toWatchedTypes[Roles2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching roles for cluster %s", clusterKey)
+		rolesInformer := informerFactory.Rbac().V1().Roles().Informer()
+		var role *rbacv1.Role
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &rolesInformer,
+			targetType: reflect.TypeOf(role),
+		})
+
+		rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newRole, ok := newObj.(*rbacv1.Role)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnRoleEvent(newRole, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldRole, ok := oldObj.(*rbacv1.Role)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.Role")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnRoleEvent(nil, oldRole, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on role    event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newRole, ok := newObj.(*rbacv1.Role)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
+					return
+				}
+				oldRole, ok := oldObj.(*rbacv1.Role)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
+					return
+				}
+
+				for _, cb := range callbacks {
+					roleErr := cb.OnRoleEvent(newRole, oldRole, ActionUpdate)
+					if roleErr != nil {
+						logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on role event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	if _, toWatch := toWatchedTypes[ServiceAccounts2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching service accounts for cluster %s", clusterKey)
+		saInformer := informerFactory.Core().V1().ServiceAccounts().Informer()
+		var sa *corev1.ServiceAccount
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &saInformer,
+			targetType: reflect.TypeOf(sa),
+		})
+
+	}
+	if _, toWatch := toWatchedTypes[ClusterRoles2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching clusterroles for cluster %s", clusterKey)
+		rolesInformer := informerFactory.Rbac().V1().ClusterRoles().Informer()
+		var role *rbacv1.ClusterRole
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &rolesInformer,
+			targetType: reflect.TypeOf(role),
+		})
+
+		rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newRole, ok := newObj.(*rbacv1.ClusterRole)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnClusterRoleEvent(newRole, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on clusterrole event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldRole, ok := oldObj.(*rbacv1.ClusterRole)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnClusterRoleEvent(nil, oldRole, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on cluterrole event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newRole, ok := newObj.(*rbacv1.ClusterRole)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+					return
+				}
+				oldRole, ok := oldObj.(*rbacv1.ClusterRole)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
+					return
+				}
+
+				for _, cb := range callbacks {
+					roleErr := cb.OnClusterRoleEvent(newRole, oldRole, ActionUpdate)
+					if roleErr != nil {
+						logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on ClusterRole event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	if _, toWatch := toWatchedTypes[ClusterRoleBindings2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching clusterRoleBindings for cluster %s", clusterKey)
+		bindingsInformer := informerFactory.Rbac().V1().ClusterRoleBindings().Informer()
+		var binding *rbacv1.ClusterRoleBinding
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &bindingsInformer,
+			targetType: reflect.TypeOf(binding),
+		})
+
+		bindingsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newB, ok := newObj.(*rbacv1.ClusterRoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnClusterRoleBindingEvent(newB, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldB, ok := oldObj.(*rbacv1.ClusterRoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnClusterRoleBindingEvent(nil, oldB, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newB, ok := newObj.(*rbacv1.ClusterRoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+					return
+				}
+				oldB, ok := oldObj.(*rbacv1.ClusterRoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
+					return
+				}
+
+				for _, cb := range callbacks {
+					roleErr := cb.OnClusterRoleBindingEvent(newB, oldB, ActionUpdate)
+					if roleErr != nil {
+						logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	if _, toWatch := toWatchedTypes[RoleBindings2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching roleBindings for cluster %s", clusterKey)
+		rolesInformer := informerFactory.Rbac().V1().RoleBindings().Informer()
+		var role *rbacv1.RoleBinding
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &rolesInformer,
+			targetType: reflect.TypeOf(role),
+		})
+
+		rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newB, ok := newObj.(*rbacv1.RoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnRoleBindingEvent(newB, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldB, ok := oldObj.(*rbacv1.RoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnRoleBindingEvent(nil, oldB, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newB, ok := newObj.(*rbacv1.RoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+					return
+				}
+				oldB, ok := oldObj.(*rbacv1.RoleBinding)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
+					return
+				}
+
+				for _, cb := range callbacks {
+					roleErr := cb.OnRoleBindingEvent(newB, oldB, ActionUpdate)
+					if roleErr != nil {
+						logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+	if _, toWatch := toWatchedTypes[Nodes2Watch]; toWatch {
+		logging.GetLogger().Info().Msgf("start watching nodes for cluster %s", clusterKey)
+		nodesInformer := informerFactory.Core().V1().Nodes().Informer()
+		var node *corev1.Node
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &nodesInformer,
+			targetType: reflect.TypeOf(node),
+		})
+
+		nodesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(newObj interface{}) {
+				newNode, ok := newObj.(*corev1.Node)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnNodeEvent(newNode, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on newNode event %s error", cb.Name()))
+					}
+				}
+			},
+			DeleteFunc: func(oldObj interface{}) {
+				oldNode, ok := oldObj.(*corev1.Node)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to (*corev1.Node)")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnNodeEvent(nil, oldNode, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newNode, ok := newObj.(*corev1.Node)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
+					return
+				}
+				oldNode, ok := oldObj.(*corev1.Node)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
+					return
+				}
+
+				for _, cb := range callbacks {
+					roleErr := cb.OnNodeEvent(newNode, oldNode, ActionUpdate)
+					if roleErr != nil {
+						logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	stopChan = make(chan struct{})
+	w.putClusterStopChan(clusterKey, stopChan)
+
+	informerFactory.Start(stopChan)
+
+	// async wait for cache sync
+	go func(cname string, ifactory informers.SharedInformerFactory, stopChan chan struct{}, informers []*informerStatus, clusterCallbacks []ClusterCallback) {
+		syncSucc := true
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("panic when wait for cluster %s informers cache synced: %v. stack: %s", cname, r, debug.Stack())
+			}
+
+			// callbacks after sync
+			for _, cb := range clusterCallbacks {
+				cb.AfterDataSynced(ctx, syncSucc)
+			}
+		}()
+
+		syncedStatus := ifactory.WaitForCacheSync(stopChan)
+		for _, ift := range informers {
+			ift.synced = syncedStatus[ift.targetType]
+			if !ift.synced {
+				logging.GetLogger().Warn().Msgf("cluster %s synced failed for %v", cname, ift.targetType)
+				syncSucc = false
+			}
+		}
+
+		// cutIdx is the check start index from the last failed sync
+		syncedIdx := -1
+		for {
+			// wait for the podInformers and endpoints informers to complete all initial resource listing
+			for i, ifm := range informers {
+				if i <= syncedIdx {
+					continue
+				}
+				if !(*ifm.informer).GetController().HasSynced() {
+					break
+				}
+				syncedIdx = i
+			}
+			if syncedIdx+1 == len(informers) {
+				break
+			}
+			time.Sleep(2 * time.Second)
+		}
+
+		logging.GetLogger().Info().Msgf("cluster %s synced status: %v", cname, syncSucc)
+
+	}(clusterKey, informerFactory, stopChan, informerStatuses, callbacks)
+
+	logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterKey))
+}
 func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kubernetes.Clientset) error {
 	logging.GetLogger().Info().Msg("starts to watch kubernetes informers")
 
@@ -233,807 +1033,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 			logging.GetLogger().Warn().Msg(fmt.Sprintf("The cluster %s is already watched", clusterKey))
 			continue
 		}
-
-		toWatchedTypes := make(map[WatchedType]struct{}, 4)
-		callbacks := make([]ClusterCallback, len(w.callbacks))
-		for i, cb := range w.callbacks {
-			for t := range cb.WatchedTypes() {
-				toWatchedTypes[t] = struct{}{}
-			}
-			callbacks[i] = cb.BeforWatchNewCluster(ctx, clusterKey, resyncInterval)
-		}
-
-		// whether to watch tensor resources; need pod informer.
-		var tsResEventsChan chan resourceEvent
-		_, toWatchResources := toWatchedTypes[TensorResources2Watch]
-		if toWatchResources {
-			tsResEventsChan = make(chan resourceEvent, 500)
-		}
-
-		informerFactory := informers.NewSharedInformerFactory(newClient, resyncInterval)
-
-		informerStatuses := make([]*informerStatus, 0, 5)
-		if _, podsWatch := toWatchedTypes[Pods2Watch]; podsWatch {
-			logging.GetLogger().Info().Msgf("start watching pods for cluster %s", clusterKey)
-			// inform of pods
-			podInformer := informerFactory.Core().V1().Pods().Informer()
-			var p *corev1.Pod
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &podInformer,
-				targetType: reflect.TypeOf(p),
-			})
-			clusterKey := clusterKey
-			podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) {
-					pod, ok := obj.(*corev1.Pod)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnPodEvent(pod, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
-						}
-					}
-
-					// send no owner pods to tensor resources
-					if toWatchResources {
-						if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-							res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
-							e := resourceEvent{
-								oldResource: nil,
-								newResource: res,
-								action:      ActionAdd,
-							}
-							timer := time.NewTimer(500 * time.Millisecond)
-							select {
-							case tsResEventsChan <- e:
-							case <-timer.C:
-								logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: add", res)
-							}
-						}
-					}
-				},
-				DeleteFunc: func(obj interface{}) {
-					pod, ok := obj.(*corev1.Pod)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
-						return
-					}
-
-					for _, cb := range callbacks {
-						evtErr := cb.OnPodEvent(nil, pod, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
-						}
-					}
-
-					if toWatchResources {
-						if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-							res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
-							e := resourceEvent{
-								oldResource: res,
-								newResource: nil,
-								action:      ActionDelete,
-							}
-							timer := time.NewTimer(500 * time.Millisecond)
-							select {
-							case tsResEventsChan <- e:
-							case <-timer.C:
-								logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: delete", res)
-							}
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newPod, ok := newObj.(*corev1.Pod)
-					if !ok {
-						return
-					}
-					oldPod, ok := oldObj.(*corev1.Pod)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnPodEvent(newPod, oldPod, ActionUpdate)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
-						}
-					}
-
-					if toWatchResources {
-						if len(newPod.OwnerReferences) == 0 || newPod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-							newRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, newPod)
-							oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, oldPod)
-							e := resourceEvent{
-								oldResource: oldRes,
-								newResource: newRes,
-								action:      ActionUpdate,
-							}
-							timer := time.NewTimer(500 * time.Millisecond)
-							select {
-							case tsResEventsChan <- e:
-							case <-timer.C:
-								logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. old data: %+v. action: update", newRes, oldRes)
-							}
-						}
-					}
-				},
-			})
-		}
-
-		if _, toWatch := toWatchedTypes[Endpoints2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching endpoints for cluster %s", clusterKey)
-			// watch endpoints
-			endPointsInformer := informerFactory.Core().V1().Endpoints().Informer()
-			var ept *corev1.Endpoints
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &endPointsInformer,
-				targetType: reflect.TypeOf(ept),
-			})
-
-			endPointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					ept, ok := newObj.(*corev1.Endpoints)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
-						return
-					}
-					for _, cb := range callbacks {
-						eptErr := cb.OnEndPointEvent(ept, nil, ActionAdd)
-						if eptErr != nil {
-							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
-						}
-					}
-
-				},
-				DeleteFunc: func(newObj interface{}) {
-					ept, ok := newObj.(*corev1.Endpoints)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
-						return
-					}
-					for _, cb := range callbacks {
-						eptErr := cb.OnEndPointEvent(nil, ept, ActionDelete)
-						if eptErr != nil {
-							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newEpt, ok := newObj.(*corev1.Endpoints)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
-						return
-					}
-					oldEpt, ok := oldObj.(*corev1.Endpoints)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Endpoints")
-						return
-					}
-					for _, cb := range callbacks {
-						eptErr := cb.OnEndPointEvent(newEpt, oldEpt, ActionUpdate)
-						if eptErr != nil {
-							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-
-		if toWatchResources {
-			logging.GetLogger().Info().Msgf("start watching resources for cluster %s", clusterKey)
-
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						logging.GetLogger().Error().Msgf("Panic for receiving resource events: %v. stack: %s", r, debug.Stack())
-					}
-				}()
-
-				for event := range tsResEventsChan {
-					for _, cb := range callbacks {
-						func(cback ClusterCallback) {
-							defer func() {
-								if r := recover(); r != nil {
-									logging.GetLogger().Error().Msgf("Panic for callback: %v. stack: %s", r, debug.Stack())
-								}
-							}()
-							evtErr := cback.OnTensorResourceEvent(event.newResource, event.oldResource, event.action)
-							if evtErr != nil {
-								logging.GetLogger().Err(evtErr).Msgf("Callback %s for resource events error. ", cback.Name())
-							}
-						}(cb)
-					}
-				}
-			}()
-
-			informerWatchTargets := func(clusterKey string, informer cache.SharedIndexInformer, targetType reflect.Type, resFactory ResourceFactoryFunc) {
-				informerStatuses = append(informerStatuses, &informerStatus{
-					synced:     false,
-					informer:   &informer,
-					targetType: targetType,
-				})
-				informer.AddEventHandler(getInformerFuncForResources(tsResEventsChan, clusterKey, resFactory))
-			}
-			// replicasets
-			rsInformer := informerFactory.Apps().V1().ReplicaSets().Informer()
-			var rs *appsv1.ReplicaSet
-			informerWatchTargets(clusterKey, rsInformer, reflect.TypeOf(rs), func(clusterKey string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*appsv1.ReplicaSet)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromReplicaSet(clusterKey, rs), nil
-			})
-
-			// statefulsets
-			ssInformer := informerFactory.Apps().V1().StatefulSets().Informer()
-			var ss *appsv1.StatefulSet
-			informerWatchTargets(clusterKey, ssInformer, reflect.TypeOf(ss), func(cluster string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*appsv1.StatefulSet)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromStatefulSet(cluster, rs), nil
-			})
-
-			// daemonsets
-			dsInformer := informerFactory.Apps().V1().DaemonSets().Informer()
-			var ds *appsv1.DaemonSet
-			informerWatchTargets(clusterKey, dsInformer, reflect.TypeOf(ds), func(cluster string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*appsv1.DaemonSet)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromDaemonSet(cluster, rs), nil
-			})
-
-			// deployments
-			dmInformer := informerFactory.Apps().V1().Deployments().Informer()
-			var dm *appsv1.Deployment
-			informerWatchTargets(clusterKey, dmInformer, reflect.TypeOf(dm), func(cluster string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*appsv1.Deployment)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromDeployment(cluster, rs), nil
-			})
-
-			// ReplicationControllers
-			rcInformer := informerFactory.Core().V1().ReplicationControllers().Informer()
-			var rc *corev1.ReplicationController
-			informerWatchTargets(clusterKey, rcInformer, reflect.TypeOf(rc), func(cluster string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*corev1.ReplicationController)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromReplicationController(cluster, rs), nil
-			})
-
-			// jobs
-			jobsInformer := informerFactory.Batch().V1().Jobs().Informer()
-			var jb *batchv1.Job
-			informerWatchTargets(clusterKey, jobsInformer, reflect.TypeOf(jb), func(cluster string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*batchv1.Job)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromJob(cluster, rs), nil
-			})
-
-			// cronjobs
-			cjInformer := informerFactory.Batch().V1beta1().CronJobs().Informer()
-			var cj *batchv1beta.CronJob
-			informerWatchTargets(clusterKey, cjInformer, reflect.TypeOf(cj), func(cluster string, obj interface{}) (*TensorResource, error) {
-				if obj == nil {
-					return nil, errors.New("nil obj")
-				}
-				rs, ok := obj.(*batchv1beta.CronJob)
-				if !ok {
-					return nil, errors.New("cast error")
-				}
-				return newResourceFromCronJob(cluster, rs), nil
-			})
-		}
-
-		if _, toWatch := toWatchedTypes[Namespaces2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching namespaces for cluster %s", clusterKey)
-			nsInformer := informerFactory.Core().V1().Namespaces().Informer()
-			var ns *corev1.Namespace
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &nsInformer,
-				targetType: reflect.TypeOf(ns),
-			})
-
-			nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newNs, ok := newObj.(*corev1.Namespace)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnNamespaceEvent(newNs, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldNs, ok := oldObj.(*corev1.Namespace)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnNamespaceEvent(nil, oldNs, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newNs, ok := newObj.(*corev1.Namespace)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-					oldNs, ok := oldObj.(*corev1.Namespace)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-
-					for _, cb := range callbacks {
-						eptErr := cb.OnNamespaceEvent(newNs, oldNs, ActionUpdate)
-						if eptErr != nil {
-							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-		if _, toWatch := toWatchedTypes[Services2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching services for cluster %s", clusterKey)
-			servicesInformer := informerFactory.Core().V1().Services().Informer()
-			var svc *corev1.Service
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &servicesInformer,
-				targetType: reflect.TypeOf(svc),
-			})
-
-			servicesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newSvc, ok := newObj.(*corev1.Service)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnServiceEvent(newSvc, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldSvc, ok := oldObj.(*corev1.Service)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnServiceEvent(nil, oldSvc, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newSvc, ok := newObj.(*corev1.Service)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-					oldSvc, ok := oldObj.(*corev1.Service)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Service")
-						return
-					}
-
-					for _, cb := range callbacks {
-						eptErr := cb.OnServiceEvent(newSvc, oldSvc, ActionUpdate)
-						if eptErr != nil {
-							logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on endpoint event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-
-		if _, toWatch := toWatchedTypes[Roles2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching roles for cluster %s", clusterKey)
-			rolesInformer := informerFactory.Rbac().V1().Roles().Informer()
-			var role *rbacv1.Role
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &rolesInformer,
-				targetType: reflect.TypeOf(role),
-			})
-
-			rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newRole, ok := newObj.(*rbacv1.Role)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnRoleEvent(newRole, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on service event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldRole, ok := oldObj.(*rbacv1.Role)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.Role")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnRoleEvent(nil, oldRole, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on role    event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newRole, ok := newObj.(*rbacv1.Role)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
-						return
-					}
-					oldRole, ok := oldObj.(*rbacv1.Role)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.Role")
-						return
-					}
-
-					for _, cb := range callbacks {
-						roleErr := cb.OnRoleEvent(newRole, oldRole, ActionUpdate)
-						if roleErr != nil {
-							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on role event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-
-		if _, toWatch := toWatchedTypes[ServiceAccounts2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching service accounts for cluster %s", clusterKey)
-			saInformer := informerFactory.Core().V1().ServiceAccounts().Informer()
-			var sa *corev1.ServiceAccount
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &saInformer,
-				targetType: reflect.TypeOf(sa),
-			})
-
-		}
-		if _, toWatch := toWatchedTypes[ClusterRoles2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching clusterroles for cluster %s", clusterKey)
-			rolesInformer := informerFactory.Rbac().V1().ClusterRoles().Informer()
-			var role *rbacv1.ClusterRole
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &rolesInformer,
-				targetType: reflect.TypeOf(role),
-			})
-
-			rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newRole, ok := newObj.(*rbacv1.ClusterRole)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnClusterRoleEvent(newRole, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on clusterrole event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldRole, ok := oldObj.(*rbacv1.ClusterRole)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnClusterRoleEvent(nil, oldRole, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on cluterrole event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newRole, ok := newObj.(*rbacv1.ClusterRole)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
-						return
-					}
-					oldRole, ok := oldObj.(*rbacv1.ClusterRole)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRole")
-						return
-					}
-
-					for _, cb := range callbacks {
-						roleErr := cb.OnClusterRoleEvent(newRole, oldRole, ActionUpdate)
-						if roleErr != nil {
-							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on ClusterRole event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-
-		if _, toWatch := toWatchedTypes[ClusterRoleBindings2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching clusterRoleBindings for cluster %s", clusterKey)
-			bindingsInformer := informerFactory.Rbac().V1().ClusterRoleBindings().Informer()
-			var binding *rbacv1.ClusterRoleBinding
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &bindingsInformer,
-				targetType: reflect.TypeOf(binding),
-			})
-
-			bindingsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newB, ok := newObj.(*rbacv1.ClusterRoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnClusterRoleBindingEvent(newB, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldB, ok := oldObj.(*rbacv1.ClusterRoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnClusterRoleBindingEvent(nil, oldB, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newB, ok := newObj.(*rbacv1.ClusterRoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
-						return
-					}
-					oldB, ok := oldObj.(*rbacv1.ClusterRoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.ClusterRoleBinding")
-						return
-					}
-
-					for _, cb := range callbacks {
-						roleErr := cb.OnClusterRoleBindingEvent(newB, oldB, ActionUpdate)
-						if roleErr != nil {
-							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on ClusterRoleBinding event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-
-		if _, toWatch := toWatchedTypes[RoleBindings2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching roleBindings for cluster %s", clusterKey)
-			rolesInformer := informerFactory.Rbac().V1().RoleBindings().Informer()
-			var role *rbacv1.RoleBinding
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &rolesInformer,
-				targetType: reflect.TypeOf(role),
-			})
-
-			rolesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newB, ok := newObj.(*rbacv1.RoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnRoleBindingEvent(newB, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldB, ok := oldObj.(*rbacv1.RoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnRoleBindingEvent(nil, oldB, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newB, ok := newObj.(*rbacv1.RoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
-						return
-					}
-					oldB, ok := oldObj.(*rbacv1.RoleBinding)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *rbacv1.RoleBinding")
-						return
-					}
-
-					for _, cb := range callbacks {
-						roleErr := cb.OnRoleBindingEvent(newB, oldB, ActionUpdate)
-						if roleErr != nil {
-							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-		if _, toWatch := toWatchedTypes[Nodes2Watch]; toWatch {
-			logging.GetLogger().Info().Msgf("start watching nodes for cluster %s", clusterKey)
-			nodesInformer := informerFactory.Core().V1().Nodes().Informer()
-			var node *corev1.Node
-			informerStatuses = append(informerStatuses, &informerStatus{
-				synced:     false,
-				informer:   &nodesInformer,
-				targetType: reflect.TypeOf(node),
-			})
-
-			nodesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-				AddFunc: func(newObj interface{}) {
-					newNode, ok := newObj.(*corev1.Node)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnNodeEvent(newNode, nil, ActionAdd)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on newNode event %s error", cb.Name()))
-						}
-					}
-				},
-				DeleteFunc: func(oldObj interface{}) {
-					oldNode, ok := oldObj.(*corev1.Node)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", oldObj)).Msg("Failed to cast to (*corev1.Node)")
-						return
-					}
-					for _, cb := range callbacks {
-						evtErr := cb.OnNodeEvent(nil, oldNode, ActionDelete)
-						if evtErr != nil {
-							logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on RoleBinding event %s error", cb.Name()))
-						}
-					}
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					newNode, ok := newObj.(*corev1.Node)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
-						return
-					}
-					oldNode, ok := oldObj.(*corev1.Node)
-					if !ok {
-						logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Node")
-						return
-					}
-
-					for _, cb := range callbacks {
-						roleErr := cb.OnNodeEvent(newNode, oldNode, ActionUpdate)
-						if roleErr != nil {
-							logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
-						}
-					}
-				},
-			})
-		}
-
-		stopChan = make(chan struct{})
-		w.putClusterStopChan(clusterKey, stopChan)
-
-		informerFactory.Start(stopChan)
-
-		// async wait for cache sync
-		go func(cname string, ifactory informers.SharedInformerFactory, stopChan chan struct{}, informers []*informerStatus, clusterCallbacks []ClusterCallback) {
-			syncSucc := true
-			defer func() {
-				if r := recover(); r != nil {
-					logging.GetLogger().Error().Msgf("panic when wait for cluster %s informers cache synced: %v. stack: %s", cname, r, debug.Stack())
-				}
-
-				// callbacks after sync
-				for _, cb := range clusterCallbacks {
-					cb.AfterDataSynced(ctx, syncSucc)
-				}
-			}()
-
-			syncedStatus := ifactory.WaitForCacheSync(stopChan)
-			for _, ift := range informers {
-				ift.synced = syncedStatus[ift.targetType]
-				if !ift.synced {
-					logging.GetLogger().Warn().Msgf("cluster %s synced failed for %v", cname, ift.targetType)
-					syncSucc = false
-				}
-			}
-
-			// cutIdx is the check start index from the last failed sync
-			syncedIdx := -1
-			for {
-				// wait for the podInformers and endpoints informers to complete all initial resource listing
-				for i, ifm := range informers {
-					if i <= syncedIdx {
-						continue
-					}
-					if !(*ifm.informer).GetController().HasSynced() {
-						break
-					}
-					syncedIdx = i
-				}
-				if syncedIdx+1 == len(informers) {
-					break
-				}
-				time.Sleep(2 * time.Second)
-			}
-
-			logging.GetLogger().Info().Msgf("cluster %s synced status: %v", clusterKey, syncSucc)
-
-		}(clusterKey, informerFactory, stopChan, informerStatuses, callbacks)
-
-		logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterKey))
-
+		w.watchForCluster(ctx, clusterKey, newClient, stopChan)
 	}
 
 	return nil
