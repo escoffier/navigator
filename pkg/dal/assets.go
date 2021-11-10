@@ -52,6 +52,8 @@ var (
 		"pod_ip",
 		"host_ip",
 		"node_name",
+		"resource_name",
+		"resource_kind",
 	}
 	OnDupUpdatedColsForNodes = []string{
 		"host_name",
@@ -947,7 +949,6 @@ func UpsertPodResourceRelation(ctx context.Context, redisCli *redis.Client, pod 
 			pipe.Set(oneCtx, getRedisKeyForPodResRelByPodIP(clusterKey, rel.PodIP), relStr, ttl)
 		}
 		pipe.Set(oneCtx, getRedisKeyForPodResRelByUID(clusterKey, rel.PodUID), relStr, ttl)
-		// pipe.SAdd(ctx, getRedisKeyForResourceControlled(clusterKey, rel.Namespace, resKind, resourceName), rel.PodUID)
 		_, err := pipe.Exec(oneCtx)
 		return err
 	})
