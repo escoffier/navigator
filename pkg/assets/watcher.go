@@ -987,7 +987,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 		informerFactory.Start(stopChan)
 
 		// async wait for cache sync
-		go func(cname string, ifactory informers.SharedInformerFactory, stopChan chan struct{}, informers []*informerStatus) {
+		go func(cname string, ifactory informers.SharedInformerFactory, stopChan chan struct{}, informers []*informerStatus, clusterCallbacks []ClusterCallback) {
 			syncSucc := true
 			defer func() {
 				if r := recover(); r != nil {
@@ -995,7 +995,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 				}
 
 				// callbacks after sync
-				for _, cb := range callbacks {
+				for _, cb := range clusterCallbacks {
 					cb.AfterDataSynced(ctx, syncSucc)
 				}
 			}()
@@ -1030,7 +1030,7 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kube
 
 			logging.GetLogger().Info().Msgf("cluster %s synced status: %v", clusterKey, syncSucc)
 
-		}(clusterKey, informerFactory, stopChan, informerStatuses)
+		}(clusterKey, informerFactory, stopChan, informerStatuses, callbacks)
 
 		logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterKey))
 
