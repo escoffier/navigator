@@ -229,7 +229,7 @@ func (w *Worker) doManifestTask(wg *sync.WaitGroup) {
 }
 
 func (w *Worker) saveManifest(task RequestLayerInfo) {
-	if w.rc == nil {
+	if w.rc == nil || w.rc.url != task.Url {
 		// create registry client
 		err := w.createRegistryClient(task.Username, task.Password, task.Repository, task.Url, task.SkipTls)
 		// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
