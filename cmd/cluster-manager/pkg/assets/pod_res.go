@@ -98,8 +98,7 @@ func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, cluster
 				logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 			}
 		}()
-		t := time.NewTimer(5 * time.Minute)
-		<-t.C
+		time.Sleep(5 * time.Minute)
 
 		ccb.tryToConsumePods()
 	}()
