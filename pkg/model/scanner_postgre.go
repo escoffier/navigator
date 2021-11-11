@@ -8,10 +8,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/gobwas/glob"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 )
 
 type VulnMatedata struct {
@@ -623,8 +624,7 @@ type TrustedImages struct {
 
 	Digest string `gorm:"column:digest;not null;uniqueIndex:uqi_digest;type:CHAR(71);comment:镜像的digest" json:"digest"`
 	// 是否为可信镜像, 0为不可信, 1为可信
-	IsTrusted   uint8 `gorm:"column:is_trusted;default:0;comment:是否为可信,0为不可信,1为可信" json:"is_trusted"`
-	IsReinforce uint8 `gorm:"column:is_reinforce;default:0" json:"is_reinforce"`
+	IsTrusted uint8 `gorm:"column:is_trusted;default:0;comment:是否为可信,0为不可信,1为可信" json:"is_trusted"`
 }
 
 func (TrustedImages) TableName() string { return "trusted_images" }

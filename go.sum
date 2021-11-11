@@ -2574,6 +2574,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20211012111105-ed1487f4c8a5
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20211012111105-ed1487f4c8a5/go.mod h1:xkVradg2XsyZu9cCsp41vdHMNiDyz2etXtR4/JWp9oQ=
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.4 h1:0FdeiYGqyfVaedIcEvh6MCvbuzu4qCkBVwG/00FtI18=
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.4/go.mod h1:Wmwf305il/Xk8iZB/6v3K3pdgOZN5MCeuw9XwIINti0=
+scm.tensorsecurity.cn/tensorsecurity-rd/gobpf v0.0.0-20200614202714-e6b321d32103 h1:wpZexIbSaq5cpn+NZTA11YJu3+uXIQRZ2DtIhZ0rQow=
+scm.tensorsecurity.cn/tensorsecurity-rd/gobpf v0.0.0-20200614202714-e6b321d32103/go.mod h1:rKG3FbLIghAbHS7vFfd1mEDaSy12kyg6Zu/gZ+aiinw=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.0.0-20211013023834-4d8cd20c2071 h1:Y/8KBmsenA3zt9g+nT2Dn7depVIdSJn4SQK1cJzjES8=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.0.0-20211013023834-4d8cd20c2071/go.mod h1:GxqMrU8UvtACh04r1QhKFMENIvoTiur/jNbtj833qO8=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.15/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
