@@ -35,7 +35,7 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 			cluster = "default"
 		}
 		query := dal.ResourceContainersQuery().WithCluster(cluster)
-		appType, err := param.QueryString(r, "app_type")
+		appType, err := param.QueryString(r, "apptype")
 		if err == nil && len(appType) > 0 {
 			if appType == "*" {
 				query = query.WithAppTypeNotEmpty()
