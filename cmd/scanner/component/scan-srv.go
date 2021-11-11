@@ -499,6 +499,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 		return nil, fmt.Errorf("CICD 镜像正在扫描中")
 	}
 	imgDetail, _ := s.GetImageDetail(ctx, req.ImageID)
+	imgDetail.ScanImage = &scanImage[0]
 
 	safe, records, msgs, err := s.DetectImageForCICD(ctx, &img[0])
 	// 向事件中心发送消息
@@ -603,9 +604,9 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		Size:           int(image.Size),
 		Library:        lib,
 		RegistryId:     regs[0].ID,
-		FirstPushTime:  image.Created,
-		LastPushTime:   image.LastPushTime,
-		LastPullTime:   image.LastPullTime,
+		FirstPushTime:  time.Now(),
+		LastPushTime:   time.Now(),
+		LastPullTime:   time.Now(),
 		ManifestV1JSON: []byte(image.ManifestV1),
 		ManifestV2JSON: []byte(image.ManifestV2),
 		ConfigJson:     []byte(image.ConfigJson),
@@ -633,14 +634,11 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	// 同步镜像到数据库
 	createdImage, err := s.dbdal.CreateImage(ctx, &img)
 	if err != nil {
-		if !strings.Contains(err.Error(), "duplicate key") {
-			logging.GetLogger().Err(err).Msgf("CICD insert image tensor_image_list error image %s/%s:%s", regs[0].Url, img.FullRepoName, tag)
-		}
+		logging.GetLogger().Err(err).Msgf("CICD insert image tensor_image_list error image %s/%s:%s", regs[0].Url, img.FullRepoName, tag)
 		return nil, err
 	}
 	// 下达扫描指令,这里会去拉取镜像，所以只能存中转镜像的library
 	logging.GetLogger().Info().Msgf("CICD start scan,imagId:%d,image:%s/%s:%s", createdImage.ID, regs[0].Url, image.Repository, image.Tag)
-	var globerr error
 	var scanStrategyId int64
 	libs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryUrl: lib}, nil)
 	if err == nil && len(libs) > 0 {
@@ -671,36 +669,36 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		Operator:    consts.CicdOperator,
 	}); err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD TickScanOne failure, imag Id:" + strconv.Itoa(int(createdImage.ID)))
-		globerr = err
-		// 这里不返回，因为后面要删除记录
+		return nil, fmt.Errorf("issuing scan command error:%s", err.Error())
 	}
 	// 更新library,这一步的目的是为了下面在做镜像扫描时能通过library找到相关的策略
-	update := map[string]interface{}{"library": lib}
+
+	// update := map[string]interface{}{"library": lib}
 
 	// 先尝试删除原来的，再更新现在的,不然就会存在更新失败的情况,因为（FullRepoName+tags+library+fromType是唯一索引）
-	if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{
-		FullRepoName: img.FullRepoName,
-		Tags:         img.Tags,
-		Library:      lib,
-		FromType:     model.ImageFromTypeCICD,
-	}); err != nil {
-		logging.GetLogger().Err(err).Msgf("CICD delete pre image error %s", err.Error())
-		return nil, response.NewHttpError(http.StatusExpectationFailed, err)
-	}
+	// if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{
+	// 	FullRepoName: img.FullRepoName,
+	// 	Tags:         img.Tags,
+	// 	Library:      lib,
+	// 	FromType:     model.ImageFromTypeCICD,
+	// }); err != nil {
+	// 	logging.GetLogger().Err(err).Msgf("CICD delete pre image error %s", err.Error())
+	// 	return nil, response.NewHttpError(http.StatusExpectationFailed, err)
+	// }
 
-	if err := s.dbdal.UpdateImage(ctx, fmt.Sprintf("id = %d", createdImage.ID), update); err != nil {
-		globerr = err
-		logging.GetLogger().Err(err).Msgf("CICD update tensor_image_list library error %s", err.Error())
-	}
+	// if err := s.dbdal.UpdateImage(ctx, fmt.Sprintf("id = %d", createdImage.ID), update); err != nil {
+	// 	globerr = err
+	// 	logging.GetLogger().Err(err).Msgf("CICD update tensor_image_list library error %s", err.Error())
+	// }
 
 	if err := s.dbdal.SetImageStatus(ctx, []int64{createdImage.ID}, model.ScanStatusInProgress); err != nil {
-		globerr = err
 		logging.GetLogger().Err(err).Msgf("CICD update SetImageStatus library error %s", err.Error())
+		return nil, fmt.Errorf("initialization scan state error :%s", err.Error())
 	}
 	return &model.ScanOneCICDResultRequest{
 		ImageID: createdImage.ID,
 		Library: lib,
-	}, globerr
+	}, nil
 }
 
 func (s *ConScannerSrv) GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail {
@@ -1916,7 +1914,7 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], msgEN)}})
 		}
 	}
-	return res, nil
+	return res, fmt.Errorf("not fond scanimag")
 }
 
 // 未找到镜像
@@ -1988,6 +1986,8 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 }
 
 func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("CICD checkSensitiveFile, imageid:%d,checkSensitiveFile:%+v,policy env is :%+v,env policy is :%+v", img.ID, scanImage.SensitiveFile, po.Envs, po.SensitiveFile)
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -2623,7 +2623,7 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 }
 
 func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Info().Msgf("checkEnv, imageid:%d,envs:%+v,policy env is :%+v,env policy is :%s", img.ID, img.ScanImage.EnvKeyValue, po.Envs, po.EnvPolicy)
+	logging.GetLogger().Info().Msgf("CICD checkEnv, imageid:%d,envs:%+v,policy env is :%+v,env policy is :%s", img.ID, scanImage.EnvKeyValue, po.Envs, po.EnvPolicy)
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)

@@ -166,16 +166,25 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	tmp := model.ImageList{}
-	res := s.psql.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryId).First(&tmp)
-	if res.Error != nil {
-		err := s.psql.Get().WithContext(ctx).Create(im).Error
-		return im, err
+	tmp := make([]model.ImageList, 0)
+	err := s.psql.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryId).Find(&tmp).Error
+	if err != nil {
+		return nil, err
 	}
-
-	err := s.psql.Get().WithContext(ctx).Model(tmp).Updates(im).Error
-	im.ID = tmp.ID
-	return im, err
+	if len(tmp) == 0 {
+		logging.GetLogger().Info().Msg("CreateImage not fond image")
+		err := s.psql.Get().WithContext(ctx).Create(im).Error
+		if err != nil {
+			return nil, err
+		}
+		return im, nil
+	}
+	logging.GetLogger().Info().Msgf("CreateImage fond image update imageId:%d", tmp[0].ID)
+	if err := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
+		return nil, err
+	}
+	im.ID = tmp[0].ID
+	return im, nil
 }
 
 type ImageListWithScan struct {
@@ -1393,9 +1402,10 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 
 		envInfo := make([]model.EnvKeyValue, 0)
 		if len(res[i].EnvJSON) > 0 {
-			if err := json.Unmarshal(res[i].EnvJSON, &envInfo); err == nil {
-				res[i].EnvKeyValue = envInfo
+			if err := json.Unmarshal(res[i].EnvJSON, &envInfo); err != nil {
+				logging.GetLogger().Err(err).Msg("SearchScanImage Unmarshal")
 			}
+			res[i].EnvKeyValue = envInfo
 		}
 	}
 

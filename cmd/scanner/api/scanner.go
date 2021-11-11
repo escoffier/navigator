@@ -334,10 +334,10 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 			}
 		}
 		// 再看环境变量
-		if resp.ImageDetail != nil && resp.ImageDetail.ScanImage != nil && len(resp.ImageDetail.ScanImage.EnvKeyValue) > 0 {
+		if resp.ImageDetail != nil && resp.ImageDetail.ImageScanEnv != nil {
 			resp.Envs = append(resp.Envs, []string{"环境变量名", "环境变量值"})
-			for _, vu := range resp.ImageDetail.ScanImage.EnvKeyValue {
-				resp.Envs = append(resp.Envs, []string{vu.Key, vu.Value})
+			for _, vu := range resp.ImageDetail.ImageScanEnv {
+				resp.Envs = append(resp.Envs, []string{vu.EnvName, vu.EnvValue})
 			}
 		}
 	} else {
