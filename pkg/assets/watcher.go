@@ -239,116 +239,6 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 	informerFactory := informers.NewSharedInformerFactory(newClient, resyncInterval)
 
 	informerStatuses := make([]*informerStatus, 0, 5)
-	if _, podsWatch := toWatchedTypes[Pods2Watch]; podsWatch {
-		logging.GetLogger().Info().Msgf("start watching pods for cluster %s", clusterKey)
-		// inform of pods
-		podInformer := informerFactory.Core().V1().Pods().Informer()
-		var p *corev1.Pod
-		informerStatuses = append(informerStatuses, &informerStatus{
-			synced:     false,
-			informer:   &podInformer,
-			targetType: reflect.TypeOf(p),
-		})
-		podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				pod, ok := obj.(*corev1.Pod)
-				if !ok {
-					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
-					return
-				}
-				for _, cb := range callbacks {
-					evtErr := cb.OnPodEvent(pod, nil, ActionAdd)
-					if evtErr != nil {
-						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
-					}
-				}
-
-				// send no owner pods to tensor resources
-				if toWatchResources {
-					if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-						res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
-						e := resourceEvent{
-							oldResource: nil,
-							newResource: res,
-							action:      ActionAdd,
-						}
-						timer := time.NewTimer(500 * time.Millisecond)
-						select {
-						case tsResEventsChan <- e:
-						case <-timer.C:
-							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: add", res)
-						}
-					}
-				}
-			},
-			DeleteFunc: func(obj interface{}) {
-				pod, ok := obj.(*corev1.Pod)
-				if !ok {
-					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
-					return
-				}
-
-				for _, cb := range callbacks {
-					evtErr := cb.OnPodEvent(nil, pod, ActionDelete)
-					if evtErr != nil {
-						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
-					}
-				}
-
-				if toWatchResources {
-					if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-						res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
-						e := resourceEvent{
-							oldResource: res,
-							newResource: nil,
-							action:      ActionDelete,
-						}
-						timer := time.NewTimer(500 * time.Millisecond)
-						select {
-						case tsResEventsChan <- e:
-						case <-timer.C:
-							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: delete", res)
-						}
-					}
-				}
-			},
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				newPod, ok := newObj.(*corev1.Pod)
-				if !ok {
-					return
-				}
-				oldPod, ok := oldObj.(*corev1.Pod)
-				if !ok {
-					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
-					return
-				}
-				for _, cb := range callbacks {
-					evtErr := cb.OnPodEvent(newPod, oldPod, ActionUpdate)
-					if evtErr != nil {
-						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
-					}
-				}
-
-				if toWatchResources {
-					if len(newPod.OwnerReferences) == 0 || newPod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
-						newRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, newPod)
-						oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, oldPod)
-						e := resourceEvent{
-							oldResource: oldRes,
-							newResource: newRes,
-							action:      ActionUpdate,
-						}
-						timer := time.NewTimer(500 * time.Millisecond)
-						select {
-						case tsResEventsChan <- e:
-						case <-timer.C:
-							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. old data: %+v. action: update", newRes, oldRes)
-						}
-					}
-				}
-			},
-		})
-	}
 
 	if _, toWatch := toWatchedTypes[Endpoints2Watch]; toWatch {
 		logging.GetLogger().Info().Msgf("start watching endpoints for cluster %s", clusterKey)
@@ -413,29 +303,31 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 	if toWatchResources {
 		logging.GetLogger().Info().Msgf("start watching resources for cluster %s", clusterKey)
 
-		go func() {
+		go func(clusterCallbacks []ClusterCallback, resChan chan resourceEvent) {
 			defer func() {
 				if r := recover(); r != nil {
 					logging.GetLogger().Error().Msgf("Panic for receiving resource events: %v. stack: %s", r, debug.Stack())
 				}
 			}()
 
-			for event := range tsResEventsChan {
-				for _, cb := range callbacks {
+			for event := range resChan {
+				for _, cb := range clusterCallbacks {
 					func(cback ClusterCallback) {
 						defer func() {
 							if r := recover(); r != nil {
 								logging.GetLogger().Error().Msgf("Panic for callback: %v. stack: %s", r, debug.Stack())
 							}
 						}()
+
 						evtErr := cback.OnTensorResourceEvent(event.newResource, event.oldResource, event.action)
 						if evtErr != nil {
 							logging.GetLogger().Err(evtErr).Msgf("Callback %s for resource events error. ", cback.Name())
 						}
 					}(cb)
+
 				}
 			}
-		}()
+		}(callbacks, tsResEventsChan)
 
 		informerWatchTargets := func(clusterKey string, informer cache.SharedIndexInformer, targetType reflect.Type, resFactory ResourceFactoryFunc) {
 			informerStatuses = append(informerStatuses, &informerStatus{
@@ -960,6 +852,117 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 					roleErr := cb.OnNodeEvent(newNode, oldNode, ActionUpdate)
 					if roleErr != nil {
 						logging.GetLogger().Err(roleErr).Msg(fmt.Sprintf("on rolebinding event %s error", cb.Name()))
+					}
+				}
+			},
+		})
+	}
+
+	if _, podsWatch := toWatchedTypes[Pods2Watch]; podsWatch {
+		// inform of pods
+		logging.GetLogger().Info().Msgf("start watching pods for cluster %s", clusterKey)
+		podInformer := informerFactory.Core().V1().Pods().Informer()
+		var p *corev1.Pod
+		informerStatuses = append(informerStatuses, &informerStatus{
+			synced:     false,
+			informer:   &podInformer,
+			targetType: reflect.TypeOf(p),
+		})
+		podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				pod, ok := obj.(*corev1.Pod)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnPodEvent(pod, nil, ActionAdd)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+					}
+				}
+
+				// send no owner pods to tensor resources
+				if toWatchResources {
+					if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
+						e := resourceEvent{
+							oldResource: nil,
+							newResource: res,
+							action:      ActionAdd,
+						}
+						timer := time.NewTimer(500 * time.Millisecond)
+						select {
+						case tsResEventsChan <- e:
+						case <-timer.C:
+							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: add", res)
+						}
+					}
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				pod, ok := obj.(*corev1.Pod)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Pod")
+					return
+				}
+
+				for _, cb := range callbacks {
+					evtErr := cb.OnPodEvent(nil, pod, ActionDelete)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+					}
+				}
+
+				if toWatchResources {
+					if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						res := newResourceFromPodNoOwnerOrStaticPod(clusterKey, pod)
+						e := resourceEvent{
+							oldResource: res,
+							newResource: nil,
+							action:      ActionDelete,
+						}
+						timer := time.NewTimer(500 * time.Millisecond)
+						select {
+						case tsResEventsChan <- e:
+						case <-timer.C:
+							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. action: delete", res)
+						}
+					}
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				newPod, ok := newObj.(*corev1.Pod)
+				if !ok {
+					return
+				}
+				oldPod, ok := oldObj.(*corev1.Pod)
+				if !ok {
+					logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *corev1.Pod")
+					return
+				}
+				for _, cb := range callbacks {
+					evtErr := cb.OnPodEvent(newPod, oldPod, ActionUpdate)
+					if evtErr != nil {
+						logging.GetLogger().Err(evtErr).Msg(fmt.Sprintf("on pod event %s error", cb.Name()))
+					}
+				}
+
+				if toWatchResources {
+					if len(newPod.OwnerReferences) == 0 || newPod.OwnerReferences[0].Kind == "Node" { // for no owner pods, we will watch them for tensor resources.
+						newRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, newPod)
+						oldRes := newResourceFromPodNoOwnerOrStaticPod(clusterKey, oldPod)
+						e := resourceEvent{
+							oldResource: oldRes,
+							newResource: newRes,
+							action:      ActionUpdate,
+						}
+						timer := time.NewTimer(500 * time.Millisecond)
+						select {
+						case tsResEventsChan <- e:
+						case <-timer.C:
+							logging.GetLogger().Warn().Msgf("Timeout for sending events to the event channel. new data: %+v. old data: %+v. action: update", newRes, oldRes)
+						}
 					}
 				}
 			},

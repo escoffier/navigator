@@ -40,7 +40,7 @@ require (
 	github.com/heroku/docker-registry-client v0.0.0-20190909225348-afc9e1acc3d5
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.59
 	github.com/json-iterator/go v1.1.12
-	github.com/lib/pq v1.10.3
+	github.com/lib/pq v1.10.4
 	github.com/mattn/go-colorable v0.1.11
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mileusna/crontab v1.2.0
@@ -61,7 +61,7 @@ require (
 	github.com/quay/clair/v2 v2.1.7
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rogpeppe/go-internal v1.8.0
-	github.com/rs/zerolog v1.25.0
+	github.com/rs/zerolog v1.26.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
@@ -94,9 +94,9 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/datatypes v1.0.2
-	gorm.io/driver/postgres v1.2.0
-	gorm.io/gorm v1.22.0
+	gorm.io/datatypes v1.0.3
+	gorm.io/driver/postgres v1.2.1
+	gorm.io/gorm v1.22.2
 	k8s.io/api v0.19.12
 	k8s.io/apimachinery v0.19.12
 	k8s.io/apiserver v0.19.12
@@ -293,12 +293,12 @@ require (
 	github.com/zclconf/go-cty-yaml v1.0.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
+	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa // indirect
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5 // indirect
 	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.5 // indirect
+	golang.org/x/tools v0.1.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.30.0 // indirect

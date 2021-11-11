@@ -45,6 +45,7 @@ type PodResourcesClusterCallback struct {
 	resyncInterval   time.Duration
 
 	rsToDeploymentCache *sync.Map // string(namespace/name) -> *metav1.OwnerReference
+	rsUpdateUnixTime    int64
 	inputQueue          *util.Queue
 	consumed            int32
 }
@@ -98,9 +99,21 @@ func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, cluster
 				logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 			}
 		}()
-		time.Sleep(5 * time.Minute)
 
-		ccb.tryToConsumePods()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		// wait for the time that the replicasets are not updated for a duration(synced). max wait for 5 minutes
+		for i := 0; i < 30; i++ {
+			now := <-ticker.C
+			if now.Unix()-atomic.LoadInt64(&ccb.rsUpdateUnixTime) >= 30 {
+				break
+			}
+		}
+
+		consumed := ccb.tryToConsumePods()
+		if consumed {
+			logging.GetLogger().Info().Msg("start to consume pods")
+		}
 	}()
 	cb.Lock()
 	defer cb.Unlock()
@@ -134,6 +147,7 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 		} else {
 			pos := strings.LastIndexByte(owner.Name, '-')
 			ownerOwnerName := owner.Name[0:pos]
+
 			cnt, err := dal.CountResources(context.Background(), cb.parent.postgresDB, dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
 			if err == nil && cnt > 0 {
 				return &metav1.OwnerReference{Name: ownerOwnerName, Kind: string(assets.KindDeployment)}, true
@@ -244,8 +258,10 @@ func (cb *PodResourcesClusterCallback) updateReplicaSet(rs *appsv1.ReplicaSet) {
 		return
 	}
 	controller := metav1.GetControllerOf(rs)
+
 	if controller != nil {
 		cb.rsToDeploymentCache.Store(getKeyFromRS(rs.Name, rs.Namespace), controller)
+		atomic.StoreInt64(&cb.rsUpdateUnixTime, time.Now().Unix())
 	}
 }
 func (cb *PodResourcesClusterCallback) getOwnerRefOfRS(name string, namespace string) (*metav1.OwnerReference, bool) {
@@ -284,7 +300,7 @@ func (cb *PodResourcesClusterCallback) OnTensorResourceEvent(newResource, oldRes
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) tryToConsumePods() {
+func (cb *PodResourcesClusterCallback) tryToConsumePods() bool {
 	toConsume := atomic.CompareAndSwapInt32(&cb.consumed, 0, 1)
 	if toConsume {
 		cb.inputQueue.Consume(func(item interface{}) {
@@ -303,14 +319,14 @@ func (cb *PodResourcesClusterCallback) tryToConsumePods() {
 				}
 			}
 		})
+		return true
 	}
+	return false
 }
 func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
 	if dataSynced {
 		cb.inputQueue.Add(syncSignal{})
 	}
-
-	cb.tryToConsumePods()
 }
 
 func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context) error {

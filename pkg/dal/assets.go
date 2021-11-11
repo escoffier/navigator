@@ -52,8 +52,6 @@ var (
 		"pod_ip",
 		"host_ip",
 		"node_name",
-		"resource_name",
-		"resource_kind",
 	}
 	OnDupUpdatedColsForNodes = []string{
 		"host_name",
