@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/cmd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/output"
@@ -228,14 +229,6 @@ func checkArgs() {
 		os.Exit(2)
 	}
 
-	if privateKeyFile != "" {
-		privateClient, err = trustimage.NewClient(privateKeyFile, httpClient)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to initial private client")
-			os.Exit(1)
-		}
-	}
-
 	if debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
@@ -247,6 +240,14 @@ func checkArgs() {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to initial http client")
 		os.Exit(1)
+	}
+
+	if privateKeyFile != "" {
+		privateClient, err = trustimage.NewClient(privateKeyFile, httpClient)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to initial private client")
+			os.Exit(1)
+		}
 	}
 
 	log.Info().Msgf("image=%s maxSecond=%d consoleUrl=%s bufRegistryUrl=%s aki_key=%s \n", image, maxSecond, consoleUrl, bufRegistryUrl, apikey)
