@@ -167,9 +167,13 @@ type OverView struct {
 }
 
 type SafeOver struct {
-	VULN      int `json:"vuln"`
-	VIRUS     int `json:"virus"`
-	SENSITIVE int `json:"sensitive"`
-	Webshell  int `json:"webshell"`
-	Pkg       int `json:"pkg"`
+	VULN           int `json:"vuln"`
+	VIRUS          int `json:"virus"`
+	SENSITIVE      int `json:"sensitive"`
+	Webshell       int `json:"webshell"`
+	Pkg            int `json:"pkg"`
+	Envs           int `json:"envs"`
+	Software       int `json:"software"`
+	License        int `json:"license"`
+	PrivilegedBoot int `json:"privileged_boot"`
 }
