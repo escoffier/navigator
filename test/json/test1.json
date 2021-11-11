@@ -1,0 +1,23 @@
+{
+  "output": "09:15:55.402035397: Warning Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Credential Access,proc_pid=26182,proc_ppid=7361,proc_cmdline=cat /etc/shadow,proc_pname=bash,pod_id=689c8cc4-f8cc-4004-9d8f-87653fecf504,syscall_name=openat,original_info=user=root user_loginuid=-1 program=cat file=/etc/shadow parent=bash gparent=<NA> ggparent=<NA> gggparent=<NA> container_id=3ccbe19807a7 image=harbor-ecs-test.tensorsecurity.com/tensorsecurity/faulty) k8s.ns=tensorsec k8s.pod=faulty-d9965b5c6-7qzm8 container=3ccbe19807a7",
+  "priority": "Warning",
+  "rule": "Read sensitive file untrusted",
+  "time": "2021-11-10T09:15:55.402035397Z",
+  "output_fields": {
+    "container.id": "3ccbe19807a7",
+    "container.image.repository": "harbor-ecs-test.tensorsecurity.com/tensorsecurity/faulty",
+    "evt.time": 1636535755402035500,
+    "fd.name": "/etc/shadow",
+    "k8s.ns.name": "tensorsec",
+    "k8s.pod.id": "689c8cc4-f8cc-4004-9d8f-87653fecf504",
+    "k8s.pod.name": "faulty-58847b48f6-csztb",
+    "proc.cmdline": "cat /etc/shadow",
+    "proc.name": "cat",
+    "proc.pid": 26182,
+    "proc.pname": "bash",
+    "proc.ppid": 7361,
+    "syscall.type": "openat",
+    "user.loginuid": -1,
+    "user.name": "root"
+  }
+}

@@ -674,7 +674,7 @@
   condition: >
     (evt.type=chroot and container)
   output: >
-    container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+    container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Escape to access rule by procfs
@@ -920,8 +920,36 @@
   priority: WARNING
   tags: [filesystem, mitre_credential_access]
 
-- rule: Read sensitive file untrusted
+- rule: Search Private Keys or Passwords
   hid: 42
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: >
+    Detect grep private keys or passwords activity.
+  condition: >
+    (spawned_process and
+     ((grep_commands and private_key_or_password) or
+      (proc.name = "find" and (proc.args contains "id_rsa" or proc.args contains "id_dsa")))
+    )
+  output: >
+    Grep private keys or passwords activities found
+    (zh_msg=查找私钥或密码,rule_type=Credential Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name
+    image=%container.image.repository:%container.image.tag)
+  priority:
+    WARNING
+  tags: [process, mitre_credential_access]
+
+
+
+##attck_rule_type=Discovery
+- rule: Read sensitive file untrusted
+  hid: 43
   hthreats: 1
   suggestion:
     en:
@@ -958,39 +986,11 @@
     and not user_known_read_sensitive_files_activities
     and not user_read_sensitive_file_containers
   output: >
-    Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Credential Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid program=%proc.name
+    Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid program=%proc.name
     file=%fd.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id image=%container.image.repository)
   priority: WARNING
   tags: [filesystem, mitre_credential_access, mitre_discovery]
 
-- rule: Search Private Keys or Passwords
-  hid: 43
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
-  desc: >
-    Detect grep private keys or passwords activity.
-  condition: >
-    (spawned_process and
-     ((grep_commands and private_key_or_password) or
-      (proc.name = "find" and (proc.args contains "id_rsa" or proc.args contains "id_dsa")))
-    )
-  output: >
-    Grep private keys or passwords activities found
-    (zh_msg=查找私钥或密码,rule_type=Credential Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name
-    image=%container.image.repository:%container.image.tag)
-  priority:
-    WARNING
-  tags: [process, mitre_credential_access]
-
-
-
-##attck_rule_type=Discovery
 - rule: Namespaces bypass
   hid: 44
   hthreats: 1

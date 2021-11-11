@@ -1,0 +1,19 @@
+{
+  "output": "17:58:30.919575803: Alert container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege Escalation,proc_pid=32024,proc_ppid=14056,proc_cmdline=chroot /root,proc_pname=bash,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=chroot) k8s.ns=tensorsec k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311",
+  "priority": "Alert",
+  "rule": "Escape to access by chroot",
+  "time": "2021-11-10T17:58:30.919575803Z",
+  "output_fields": {
+    "container.id": "f5870cf63311",
+    "evt.time": 1636567110919575800,
+    "k8s.ns.name": "tensorsec",
+    "k8s.pod.id": "06e075f4-251c-49d8-89ec-25a5025dd7db",
+    "k8s.pod.name": "faulty-58847b48f6-csztb",
+    "proc.cmdline": "chroot /root",
+    "proc.pid": 32024,
+    "proc.pname": "bash",
+    "proc.ppid": 14056,
+    "syscall.type": "chroot",
+    "user.name": "root"
+  }
+}
