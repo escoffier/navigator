@@ -2648,11 +2648,11 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 
 		msgZh := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], strings.Join(rejectEnvs, "，"))
 		msgEN := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], strings.Join(rejectEnvs, "，"))
-		msgLog := fmt.Sprintf("image:%s%s:%s contains malicious file", img.Library, img.FullRepoName, img.Tags)
+		msgLog := fmt.Sprintf("image:%s%s:%s contains env ", img.Library, img.FullRepoName, img.Tags)
 
 		safe = false
 		records = append(records, ReasonAndDetail{
-			RejectReason: model.RejectReasonHasMalicious,
+			RejectReason: model.RejectReasonHasUntrustedEnv,
 			RejectDetail: msgZh,
 		})
 
@@ -2668,7 +2668,7 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 
 		msgZh := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], strings.Join(alterEnvs, "，"))
 		msgEN := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], strings.Join(alterEnvs, "，"))
-		msgLog := fmt.Sprintf("image:%s%s:%s contains malicious file", img.Library, img.FullRepoName, img.Tags)
+		msgLog := fmt.Sprintf("image:%s%s:%s contains env ", img.Library, img.FullRepoName, img.Tags)
 
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
