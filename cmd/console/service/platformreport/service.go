@@ -165,6 +165,12 @@ func (s *Service) handleTask(ctx context.Context, template *model.ReportTaskTemp
 			logging.GetLogger().Info().Msg("not need to generate task")
 			return nil
 		}
+	} else {
+		nowTimestamp := util.GetMillisecondTimestampByTime(time.Now())
+		if nowTimestamp < endTimestamp {
+			logging.GetLogger().Info().Msg("not reach oneTime task endTime")
+			return nil
+		}
 	}
 
 	uuid, err := s.manager.CreateTask(ctx, template.ID, startTimestamp, endTimestamp)
