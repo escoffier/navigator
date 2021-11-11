@@ -1,0 +1,22 @@
+{
+  "output": "20:50:38.634373125: Warning Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=21034,proc_ppid=32707,proc_cmdline=docker -H unix:///custom/docker/docker.sock ps,proc_pname=bash,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=execve,original_info=user=root user_loginuid=-1 k8s.ns=tensorsec k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311 parent=bash image=harbor.tensorsecurity.com/tensorsecurity/faulty:latest)",
+  "priority": "Warning",
+  "rule": "The k8s client is executed in a container",
+  "time": "2021-11-10T20:50:38.634373125Z",
+  "output_fields": {
+    "container.id": "f5870cf63311",
+    "container.image.repository": "harbor.tensorsecurity.com/tensorsecurity/faulty",
+    "container.image.tag": "latest",
+    "evt.time": 1636577438634373000,
+    "k8s.ns.name": "tensorsec",
+    "k8s.pod.id": "06e075f4-251c-49d8-89ec-25a5025dd7db",
+    "k8s.pod.name": "faulty-58847b48f6-csztb",
+    "proc.cmdline": "docker -H unix:///custom/docker/docker.sock ps",
+    "proc.pid": 21034,
+    "proc.pname": "bash",
+    "proc.ppid": 32707,
+    "syscall.type": "execve",
+    "user.loginuid": -1,
+    "user.name": "root"
+  }
+}

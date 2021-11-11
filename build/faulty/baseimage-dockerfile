@@ -21,7 +21,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     strace \
     software-properties-common \
     curl \
-    python3.6 \
+    python3.8 \
     dnsutils \
     tcpdump \
     nmap \
@@ -36,14 +36,15 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     php7.2 \
     libapache2-mod-php7.2 \
     git \
+    jq \
     && curl -o /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-18.09.9.tgz \
     && wget https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz \
     && tar xvzf /jdk-8u151-linux-x64.tar.gz \
     && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
     && rm jdk-8u151-linux-x64.tar.gz \
-    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v8.5.69/bin/apache-tomcat-8.5.69.tar.gz -O /usr/local/tomcat.tar.gz \
+    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v8.5.72/bin/apache-tomcat-8.5.72.tar.gz -O /usr/local/tomcat.tar.gz \
     && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
-    && chmod 755 -R /usr/local/apache-tomcat-8.5.69/ \
+    && chmod 755 -R /usr/local/apache-tomcat-8.5.72/ \
     && rm /usr/local/tomcat.tar.gz \
     && apt upgrade -y \
     && rm -rf /var/lib/apt/lists/ \

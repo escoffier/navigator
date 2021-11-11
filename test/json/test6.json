@@ -1,0 +1,23 @@
+{
+  "output": "17:56:13.074629345: Notice Network tool launched in container (zh_msg=在容器中启动可疑的网络工具,rule_type=Exfiltration,proc_pid=26956,proc_ppid=14056,proc_cmdline=nmap,proc_pname=bash,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=execve,original_info=user=root user_loginuid=-1 parent_process=bash container_id=f5870cf63311 container_name=k8s_faulty_faulty-58847b48f6-csztb_tensorsec_06e075f4-251c-49d8-89ec-25a5025dd7db_0 image=harbor.tensorsecurity.com/tensorsecurity/faulty:latest) k8s.ns=tensorsec k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311",
+  "priority": "Notice",
+  "rule": "Launch Suspicious Network Tool in Container",
+  "time": "2021-11-10T17:56:13.074629345Z",
+  "output_fields": {
+    "container.id": "f5870cf63311",
+    "container.image.repository": "harbor.tensorsecurity.com/tensorsecurity/faulty",
+    "container.image.tag": "latest",
+    "container.name": "k8s_faulty_faulty-58847b48f6-csztb_tensorsec_06e075f4-251c-49d8-89ec-25a5025dd7db_0",
+    "evt.time": 1636566973074629400,
+    "k8s.ns.name": "tensorsec",
+    "k8s.pod.id": "06e075f4-251c-49d8-89ec-25a5025dd7db",
+    "k8s.pod.name": "faulty-58847b48f6-csztb",
+    "proc.cmdline": "nmap",
+    "proc.pid": 26956,
+    "proc.pname": "bash",
+    "proc.ppid": 14056,
+    "syscall.type": "execve",
+    "user.loginuid": -1,
+    "user.name": "root"
+  }
+}

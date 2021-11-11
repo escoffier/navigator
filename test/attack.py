@@ -1,4 +1,4 @@
-import sys, argparse, os, time
+import sys, argparse, os, time, json
 
 attck_dict = {'ca':'credential access', 'def':'defense evasion', 'disc':'discovery', 'exec':'execution', 'exf':'exfiltration', 'move':'lateral movement', 'pers':'persistence', 'priv':'privilege escalation', 'all':'all scripts'}
 
@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument("--rs", help="run Reverse-Shell-Script", action="store_true")
     parser.add_argument("--cm", help="run Crypto-Miner-Script", action="store_true")
     parser.add_argument("--dp", help="run Drift-Prevention-Script", action="store_true")
+    parser.add_argument("--test", help="run ATT&CK test", action="store_true")
     parser.add_argument("--report", help="show attack's results", action="store_true")
     return parser.parse_args()
 
@@ -61,6 +62,18 @@ if args.cm:
 if args.dp:
 	os.system('/test/drift-prevention/script.sh')
 	show_results("\033[31m"+"Successfully exploit drift prevention attacks\033[0m")
+
+if args.test:
+	for i in range(1,9):
+		str = os.popen("cat /test/json/test%d.json" % i).read()
+		data = json.loads(str)
+		data["output_fields"]["k8s.pod.name"] = os.popen("hostname").read()
+		data["output_fields"]["container.id"] = os.popen("cat /proc/1/cgroup | grep pids | awk -F '/' '{print $5}' | awk -F '-' '{print $2}'|cut -b -12").read()
+		data["output_fields"]["k8s.pod.id"] = os.popen("cat /proc/1/mountinfo | grep 'etc-hosts' | awk -F / {'print $6'}").read()
+		new_data = json.dumps(data)
+		with open("/test/json/new.json", "w") as f:
+			f.write(new_data)
+		os.popen("cat /test/json/new.json|/test/json/run.sh").read()
 
 if args.report:
 	with open('/test/results.txt', 'r') as f:
