@@ -8,7 +8,7 @@ const (
 	End
 	Pause
 	Terminate
-	NotScan
+	NotScan // deprecated
 )
 
 // task result
@@ -25,7 +25,6 @@ const (
 	ImageScanInProgress
 	ImageScanSuccess
 	ImageScanFailed
-	ImageScanTerminate
 	ImageNotScan
 )
 

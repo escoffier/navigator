@@ -1,1 +1,1 @@
-{"name":"test","reg_type":"harbor-v2.0","url":"http://192.168.134.26:80","username":"admin","password":"Harbor12345","description":"","sync_interval":5}
+{"name":"localtest","reg_type":"registry-v2","url":"http://localhost:5000","username":"testuser","password":"testpassword","description":"","sync_interval":5}
