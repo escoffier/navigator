@@ -3,12 +3,12 @@ package main
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,25 +19,36 @@ import (
 )
 
 func main() {
+	var bathSize int
+	var bathInterval int
+	var pushInterval int
+	flag.IntVar(&bathSize, "batchSize", 10, "batch size")
+	flag.IntVar(&bathInterval, "batchInterval", 5, "batch interval,default:1(minute)")
+	flag.IntVar(&pushInterval, "pushInterval", 10, "push interval,default:10(minute)")
+	flag.Parse()
 
-	inter := os.Getenv("SAFENODE-BUF-INTERNA")
-	inter1, err := strconv.ParseInt(inter, 10, 64)
-	if err != nil || inter1 <= 5 {
-		inter1 = 5
+	if bathSize < 1 {
+		bathSize = 1
+	}
+	if bathInterval < 1 {
+		bathInterval = 1
+	}
+	if pushInterval < 10 {
+		pushInterval = 10
 	}
 
-	ticker := time.NewTicker(time.Minute * time.Duration(inter1))
+	ticker := time.NewTicker(time.Minute * time.Duration(pushInterval))
 
 	for {
-		if err := worker(); err != nil {
+		if err := worker(bathSize, bathInterval); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("safe-node push node image failure")
 		}
-		ticker.Reset(time.Minute * time.Duration(inter1))
+		ticker.Reset(time.Minute * time.Duration(pushInterval))
 		<-ticker.C
 	}
 }
 
-func worker() error {
+func worker(bathSize, bathInterval int) error {
 	clusterManagerURL := os.Getenv("CLUSTER-MANAGER-ADDR")
 	nameSpace := os.Getenv("MY_POD_NAMESPACE")
 	if clusterManagerURL == "" || nameSpace == "" {
@@ -105,8 +116,8 @@ func worker() error {
 			logging.GetLogger().Error().Err(err).Msgf("safe-node rmImage:imageName:%s", after)
 		}
 		// 传了10个就停一份钟
-		if i%10 == 0 {
-			time.Sleep(time.Minute)
+		if i%bathSize == 0 {
+			time.Sleep(time.Duration(bathInterval) * time.Minute)
 		}
 	}
 	return nil
