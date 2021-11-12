@@ -93,6 +93,7 @@ type ScanTaskInterface interface {
 	UpdateTasksInfo(ctx context.Context, param SearchTaskParam, updateInfo map[string]interface{}) error
 	UpdateTasksStatus(ctx context.Context, updateIds []int64, status int) error
 	UpdateSubTask(ctx context.Context, subtask model.SubTask) error
+	UpdateSubTasksInfo(ctx context.Context, param SearchSubTaskParam, updateInfo map[string]interface{}) error
 	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
 	GetTotalTaskNum(ctx context.Context) (int64, error)
 	GetImageInfo(ctx context.Context, imgId int64) (*model.ImageList, error)

@@ -2568,15 +2568,39 @@ func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskId, limit, o
 }
 
 func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, taskId int64, status uint8) error {
-	if status < consts.Pending || status > consts.NotScan {
-		logging.GetLogger().Error().Msgf("更新扫描子任务记录失败, taskId: %d, status: %d", taskId, status)
+	if status < consts.Pending || status > consts.Terminate {
+		logging.GetLogger().Error().
+			Int64("taskId", taskId).
+			Uint8("status", status).
+			Msg("update task status err")
 		return fmt.Errorf("invailed status enum: %d", status)
 	}
 
 	err := s.dbdal.UpdateTaskStatus(ctx, taskId, status)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("更新扫描子任务记录失败, taskId: %d, status: %d", taskId, status)
+		logging.GetLogger().Err(err).
+			Int64("taskId", taskId).
+			Uint8("status", status).
+			Msg("update task status err")
 		return errors.Wrapf(err, "更新任务%d的状态为%d失败", taskId, status)
+	}
+
+	if status == consts.Terminate {
+		// update pending subtask to terminated status
+		search := store.SearchSubTaskParam{
+			TaskIds:  []int64{taskId},
+			Statuses: []int{consts.ImageScanPending},
+		}
+		updateInfo := make(map[string]interface{})
+		updateInfo["status"] = consts.ImageNotScan
+		err := s.dbdal.UpdateSubTasksInfo(ctx, search, updateInfo)
+		if err != nil {
+			logging.GetLogger().Err(err).
+				Int64("taskId", taskId).
+				Uint8("status", status).
+				Msg("update subtask status to terminated err")
+			return errors.Wrapf(err, "更新子任务%d的状态为%d失败", taskId, consts.ImageNotScan)
+		}
 	}
 
 	return nil
