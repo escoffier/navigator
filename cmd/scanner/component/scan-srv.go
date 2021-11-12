@@ -49,7 +49,7 @@ type ScannerSrv interface {
 	SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 	UpdateImage(ctx context.Context, where SearchImagesParam, update map[string]interface{}) error
 	GetImageDetail(ctx context.Context, imgId int64) (*model.ImageList, error)
-	GetImageOverView(ctx context.Context, registerUrl string, fromType int64) (*model.OverView, error)
+	GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error)
 	GetScanOneStatus(ctx context.Context, imgId int64, fromUrl string) (*model.ScanOneStatusResponse, error)
 	TickScanOne(ctx context.Context, imgId int64, info task.UpdateTaskInfo) error
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
@@ -894,7 +894,7 @@ func (s *ConScannerSrv) TickScanOne(ctx context.Context, imgId int64, info task.
 }
 
 func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromUrl string) (*model.ScanOneStatusResponse, error) {
-	scanStatus := consts.NotScan
+	scanStatus := consts.ImageNotScan
 	res := model.ScanOneStatusResponse{ScanStatus: scanStatus, EndTime: time.Now().Format("2006-01-02 15:04:05")}
 	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Ids: []int64{imgId}, Library: fromUrl}, nil)
 	if err != nil {
@@ -1076,101 +1076,171 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 	return img, nil
 }
 
-func (s *ConScannerSrv) GetImageOverView(ctx context.Context, registerUrl string, fromType int64) (*model.OverView, error) {
+func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error) {
 	overView := new(model.OverView)
 	// 查总数
-	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Library: registerUrl, FromType: fromType}, model.EmptyFilterForTheTotalQuery())
+	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{FromType: fromType}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("GetImageOverView.SearchImage error %s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-	allResMap := make(map[string]map[string]*store.ImageGroup)
+	// map[imageId_uuid][type]*store.ImageGroup
+	allResMap := make(map[string]map[string]int)
 
-	for _, ty := range []string{consts.VulnType, consts.MaliciousInfoType, consts.SensitiveFileType, consts.WebsellInfoType} {
-		if err := s.getOverViewHelper(ctx, fromType, ty, overView, allResMap); err != nil {
-			logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("GetImageOverView.getOverViewHelper error %s", err.Error()))
-			return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-		}
+	if err := s.getOverViewHelper(ctx, fromType, allResMap); err != nil {
+		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("GetImageOverView.getOverViewHelper error %s", err.Error()))
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
 	// 查在线
-	onlineSql := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.from_type = %d  ", store.ImageTable, store.ImageContainer, fromType)
-	if registerUrl != "" {
-		onlineSql = onlineSql + fmt.Sprintf(" AND a.library = %s ; ", registerUrl)
-	} else {
-		onlineSql = onlineSql + " ;"
-	}
+	onlineSql := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.from_type = %d ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), fromType)
 	onlineRes, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("GetImageOverView.GetOnlineImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-
 	// 由于uuid是由不带schema的library生成的，这里需要过滤掉同时拥有http与https头但只有一个扫描另一个未扫描的情况
-	onlineIds := make([]int64, len(onlineRes))
+	onlineMap := make(map[string]*store.OnlineImage)
 	for i := range onlineRes {
-		onlineIds[i] = onlineRes[i].ID
+		key := fmt.Sprintf("%d_%d", onlineRes[i].ID, onlineRes[i].ImageUUID)
+		onlineMap[key] = &onlineRes[i]
 	}
-	onlineScanRes, _, _ := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: onlineIds, Status: model.ScanStatusSucceeded}, nil)
-	onlineScanMap := make(map[int64]struct{}, len(onlineScanRes))
-	for i := range onlineScanRes {
-		onlineScanMap[onlineScanRes[i].ImageId] = struct{}{}
+	// 组装结果
+	for key, resMap := range allResMap {
+		for typ, cnt := range resMap {
+			if _, ok := onlineMap[key]; ok {
+				switch typ {
+				case consts.VulnType:
+					overView.Online.VULN += cnt
+				case consts.SensitiveFileType:
+					overView.Online.SENSITIVE += cnt
+				case consts.MaliciousInfoType:
+					overView.Online.VIRUS += cnt
+				case consts.WebsellInfoType:
+					overView.Online.Webshell += cnt
+				case consts.EnvEnableType:
+					overView.Online.Envs += cnt
+				case consts.SoftWoreType:
+					overView.Online.Software += cnt
+				case consts.LicenseEnableType:
+					overView.Online.License += cnt
+				case consts.PrivilegedEnableType:
+					overView.Online.PrivilegedBoot += cnt
+				}
+			}
+
+			switch typ {
+			case consts.VulnType:
+				overView.Sum.VULN += cnt
+			case consts.SensitiveFileType:
+				overView.Sum.SENSITIVE += cnt
+			case consts.MaliciousInfoType:
+				overView.Sum.VIRUS += cnt
+			case consts.WebsellInfoType:
+				overView.Sum.Webshell += cnt
+			case consts.EnvEnableType:
+				overView.Sum.Envs += cnt
+			case consts.SoftWoreType:
+				overView.Sum.Software += cnt
+			case consts.LicenseEnableType:
+				overView.Sum.License += cnt
+			case consts.PrivilegedEnableType:
+				overView.Sum.PrivilegedBoot += cnt
+			}
+		}
 	}
 
-	for i := range onlineRes {
-		_, ok := onlineScanMap[onlineRes[i].ID]
-		if !ok {
-			continue
-		}
-		on, ok := allResMap[fmt.Sprintf("%d", onlineRes[i].ImageUUID)]
-		if !ok {
-			continue
-		}
-		if on[consts.VulnType] != nil {
-			overView.Online.VULN += on[consts.VulnType].Count
-		}
-		if on[consts.MaliciousInfoType] != nil {
-			overView.Online.VIRUS += on[consts.MaliciousInfoType].Count
-		}
-		if on[consts.SensitiveFileType] != nil {
-			overView.Online.SENSITIVE += on[consts.SensitiveFileType].Count
-		}
-		if on[consts.WebsellInfoType] != nil {
-			overView.Online.Webshell += on[consts.WebsellInfoType].Count
-		}
-	}
 	overView.ImageTotal = total
 	overView.OnlineTotal = int64(len(onlineRes))
 	return overView, nil
 }
 
 // getOverViewHelper 连表查询tensor_image_list和scan_image表，查询各个镜像下漏洞，病毒等的数据
-func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, searchType string, overView *model.OverView, allResMap map[string]map[string]*store.ImageGroup) error {
-	hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.image_uuid,a.digest, a.library from %s a join %s b on a.id = b.image_id where a.from_type = %d and  b.%s is not null group by b.image_id,a.digest,  a.library,a.image_uuid;", store.ImageTable, store.ImageScanTable, fromType, searchType)
+func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, allResMap map[string]map[string]int) error {
+	type ImageGroup struct {
+		ImageId   int64  `json:"image_id"`
+		ImageUUID uint32 `json:"image_uuid"`
+		Count     int    `json:"count"`
+	}
 
-	hasVuluRes, err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasVuluSql})
+	type ScanImageJonin struct {
+		ImageId                  int64                       `json:"image_id"`
+		ImageUUID                uint32                      `json:"image_uuid"`
+		VulnScore                int                         `json:"vuln_score"`
+		ScanEnableCollection     *model.ScanEnableCollection `gorm:"-" json:"-"`
+		ScanEnableCollectionJson string                      `json:"scan_enable_collection_json"`
+	}
+	type ImageSinge struct {
+		Id             int64  `json:"id"`
+		ImageUUID      uint32 `json:"image_uuid"`
+		PrivilegedBoot int64  `gorm:"privileged_boot" json:"privileged_boot"`
+	}
+
+	for _, searchType := range []string{consts.MaliciousInfoType, consts.SensitiveFileType, consts.WebsellInfoType} {
+		hasVuluSql := fmt.Sprintf("select count(b.image_id), b.image_id,a.image_uuid from %s a join %s b on a.id = b.image_id where a.from_type = %d and  b.%s is not null group by b.image_id,a.image_uuid;", model.ImageList{}.TableName(), model.ScanImage{}.TableName(), fromType, searchType)
+
+		res := make([]ImageGroup, 0)
+		err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasVuluSql}, &res)
+		if err != nil {
+			return response.NewHttpError(http.StatusInternalServerError, err)
+		}
+		for i := range res {
+			key := fmt.Sprintf("%d_%d", res[i].ImageId, res[i].ImageUUID)
+			if allResMap[key] == nil {
+				allResMap[key] = make(map[string]int)
+			}
+			allResMap[key][searchType] += res[i].Count
+		}
+	}
+	// 查漏洞，异常环境变量，不允许开源许可,漏洞
+	hasSql := fmt.Sprintf("select  b.image_id,a.image_uuid,b.vuln_score,b.scan_enable_collection_json from %s a join %s b on a.id = b.image_id where a.from_type = %d ;", model.ImageList{}.TableName(), model.ScanImage{}.TableName(), fromType)
+	res := make([]ScanImageJonin, 0)
+	err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasSql}, &res)
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
-	for i := range hasVuluRes {
-		key := fmt.Sprintf("%d", hasVuluRes[i].ImageUUID)
-		if allResMap[key] == nil {
-			allResMap[key] = make(map[string]*store.ImageGroup)
+	for i := range res {
+		sc := new(model.ScanEnableCollection)
+		if err := json.Unmarshal([]byte(res[i].ScanEnableCollectionJson), sc); err != nil {
+			logging.GetLogger().Err(err).Msg("getOverViewHelper Unmarshal")
 		}
-		allResMap[key][searchType] = &hasVuluRes[i]
-		switch searchType {
-		case consts.VulnType:
-			overView.Sum.VULN += hasVuluRes[i].Count
-		case consts.PkgType:
-			overView.Sum.Pkg += hasVuluRes[i].Count
-		case consts.SensitiveFileType:
-			overView.Sum.SENSITIVE += hasVuluRes[i].Count
-		case consts.MaliciousInfoType:
-			overView.Sum.VIRUS += hasVuluRes[i].Count
-		case consts.WebsellInfoType:
-			overView.Sum.Webshell += hasVuluRes[i].Count
+		res[i].ScanEnableCollection = sc
+		key := fmt.Sprintf("%d_%d", res[i].ImageId, res[i].ImageUUID)
+		if allResMap[key] == nil {
+			allResMap[key] = make(map[string]int)
+		}
+
+		if res[i].ScanEnableCollection.LicenseEnable > 0 {
+			allResMap[key][consts.LicenseEnableType]++
+		}
+		if res[i].ScanEnableCollection.EnvEnable > 0 {
+			allResMap[key][consts.EnvEnableType]++
+		}
+		if res[i].ScanEnableCollection.SoftwareEnable > 0 {
+			allResMap[key][consts.SoftWoreType]++
+		}
+		if res[i].VulnScore > 0 {
+			allResMap[key][consts.VulnType]++
 		}
 	}
+
+	// 再查特权启动
+	privilegedSql := fmt.Sprintf("select id,image_uuid ,privileged_boot from %s where from_type = %d", model.ImageList{}.TableName(), fromType)
+	privilegedRes := make([]ImageSinge, 0)
+	if err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: privilegedSql}, &privilegedRes); err != nil {
+		return response.NewHttpError(http.StatusInternalServerError, err)
+	}
+
+	for i := range privilegedRes {
+		key := fmt.Sprintf("%d_%d", privilegedRes[i].Id, privilegedRes[i].ImageUUID)
+		if privilegedRes[i].PrivilegedBoot == consts.PrivilegedBootImage {
+			if allResMap[key] == nil {
+				allResMap[key] = make(map[string]int)
+			}
+			allResMap[key][consts.PrivilegedEnableType]++
+		}
+	}
+
 	return nil
 }
 
@@ -1188,7 +1258,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		SpecialImageType: param.SpecialImageType,
 	}
 	// 查在线
-	onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", store.ImageTable, store.ImageContainer)
+	onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchQuestionInfo")
@@ -1284,7 +1354,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		if sc, ok := statusMap[res[i].ID]; ok && sc > 0 {
 			res[i].ScanStatus = sc
 		} else {
-			res[i].ScanStatus = consts.NotScan
+			res[i].ScanStatus = consts.ImageNotScan
 		}
 		// 是否可信
 		if on, ok := trustedMap[res[i].Digest]; ok {
@@ -1306,39 +1376,34 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 
 		qus := make([]model.QuestionInfo, 0)
 
-		err := json.Unmarshal([]byte(scs[i].ScanEnableCollectionJson), &scs[i].ScanEnableCollection)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("unmarshal ScanEnableCollectionJson")
-		} else {
-			if len(scs[i].VulnInfoJSON) > 0 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VULN})
-			}
+		if scs[i].VulnScore > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VULN})
+		}
 
-			if len(scs[i].SensitiveFileJSON) > 0 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SENSITIVE})
-			}
-			if len(scs[i].MaliciousInfoJSON) > 0 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VIRUS})
-			}
-			if len(scs[i].WebshellInfoJSON) > 0 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_WEB_SHELL})
-			}
+		if len(scs[i].SensitiveFileJSON) > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SENSITIVE})
+		}
+		if len(scs[i].MaliciousInfoJSON) > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VIRUS})
+		}
+		if len(scs[i].WebshellInfoJSON) > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_WEB_SHELL})
+		}
 
-			if len(scs[i].EnvJSON) > 0 && scs[i].ScanEnableCollection.EnvEnable == 1 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_ENV})
-			}
+		if scs[i].ScanEnableCollection.EnvEnable > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_ENV})
+		}
 
-			// if imageMap[scs[i].ImageId].PrivilegedBoot == 1 {
-			// 	qus = append(qus, model.QuestionInfo{ID: model.QUESTION_PRIORITY})
-			// }
+		// if imageMap[scs[i].ImageId].PrivilegedBoot == 1 {
+		// 	qus = append(qus, model.QuestionInfo{ID: model.QUESTION_PRIORITY})
+		// }
 
-			if len(scs[i].LicenseInfoJSON) > 0 && scs[i].ScanEnableCollection.LicenseEnable == 1 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: string(scs[i].LicenseInfoJSON)})
-			}
+		if scs[i].ScanEnableCollection.LicenseEnable > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: string(scs[i].LicenseInfoJSON)})
+		}
 
-			if len(scs[i].SoftwareJSON) > 0 && scs[i].ScanEnableCollection.SoftwareEnable == 1 {
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: string(scs[i].SoftwareJSON)})
-			}
+		if scs[i].ScanEnableCollection.SoftwareEnable > 0 {
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: string(scs[i].SoftwareJSON)})
 		}
 		// 问题类别加上
 		if v, ok := imageMap[scs[i].ImageId]; ok {
@@ -1391,7 +1456,7 @@ func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int) ([]i
 	for i := range scanStatus {
 		scanStatusMap[scanStatus[i].ImageId] = scanStatus[i]
 	}
-	hasNotScan := InInSlice(consts.NotScan, status)
+	hasNotScan := InInSlice(consts.ImageNotScan, status)
 
 	for i := range image {
 		tak, ok := scanStatusMap[image[i].ID]

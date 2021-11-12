@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,19 +18,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"gorm.io/datatypes"
 	"gorm.io/gorm/clause"
-)
-
-const (
-	VegetaDatabase   = "vegeta"
-	TrueString       = "true"
-	ImageTable       = "tensor_image_list"
-	ImageRelateTable = "image_relate"
-	ImageContainer   = "tensor_containers"
-	ImageScanTable   = "scan_images"
 )
 
 type ScannerDalInterface interface {
@@ -46,7 +39,7 @@ type ScannerDalInterface interface {
 	InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
-	GetImageOverView(ctx context.Context, param GetImageOverViewParm) ([]ImageGroup, error)
+	GetImageOverView(ctx context.Context, param GetImageOverViewParm, res interface{}) error
 
 	SearchRejectVuln(ctx context.Context, param SearchRejectRejectVulnParam) ([]model.RejectVuln, error)
 	CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error)
@@ -232,6 +225,33 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 
 	if param.Kind != "" {
 		split := strings.Split(param.Kind, ",")
+		if InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) || InSlice(strconv.Itoa(model.QUESTION_ENV), split) || InSlice(strconv.Itoa(model.QUESTION_LICENSE), split) {
+			// 查漏洞，异常环境变量，不允许开源许可
+			images, _, err := s.SearchScanImage(ctx, SearchScanImageParam{Fields: []string{"id", "scan_enable_collection_json"}}, nil)
+			if err != nil {
+				return nil, 0, response.NewHttpError(http.StatusInternalServerError, err)
+			}
+			softIds, envIds, licenseIds := make([]int64, 0), make([]int64, 0), make([]int64, 0)
+			for i := range images {
+				if InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) && images[i].ScanEnableCollection.SoftwareEnable > 0 {
+					softIds = append(softIds, res[i].ID)
+				}
+				if InSlice(strconv.Itoa(model.QUESTION_ENV), split) && images[i].ScanEnableCollection.EnvEnable > 0 {
+					envIds = append(envIds, images[i].ID)
+				}
+				if InSlice(strconv.Itoa(model.QUESTION_LICENSE), split) && images[i].ScanEnableCollection.LicenseEnable > 0 {
+					licenseIds = append(licenseIds, images[i].ID)
+				}
+			}
+			ids := UnionSlice(softIds, envIds, licenseIds)
+			if len(ids) == 0 {
+				return make([]*model.ImageResponse, 0), 0, nil
+			}
+			if len(ids) > 0 {
+				db = db.Where("scan_images.id IN ?", ids)
+			}
+		}
+
 		for _, k := range split {
 			if k == strconv.Itoa(model.QUESTION_VULN) {
 				db = db.Where("scan_images.vuln_score != 0 ")
@@ -245,18 +265,8 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
 				db = db.Where("scan_images.webshell_info_json is not null ")
 			}
-			if k == strconv.Itoa(model.QUESTION_SOFTWARE) {
-				db = db.Where("scan_images.software_json is not null ")
-			}
-			if k == strconv.Itoa(model.QUESTION_ENV) {
-				db = db.Where("scan_images.env_json is not null ")
-			}
 			if k == strconv.Itoa(model.QUESTION_PRIORITY) {
 				db = db.Where("tensor_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
-			}
-
-			if k == strconv.Itoa(model.QUESTION_LICENSE) {
-				db = db.Where("scan_images.license_info_json is not null ")
 			}
 		}
 	}
@@ -1281,15 +1291,14 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 	return tmpScanImage.Status
 }
 
-func (s *ScannerOrm) GetImageOverView(ctx context.Context, param GetImageOverViewParm) ([]ImageGroup, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+func (s *ScannerOrm) GetImageOverView(ctx context.Context, param GetImageOverViewParm, res interface{}) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	res := make([]ImageGroup, 0)
-	db := s.psql.Get().WithContext(ctx)
-	if err := db.Raw(param.SQL).Scan(&res).Error; err != nil {
-		return nil, err
+	db := s.psql.Get().WithContext(ctx).Debug()
+	if err := db.Raw(param.SQL).Scan(res).Error; err != nil {
+		return err
 	}
-	return res, nil
+	return nil
 }
 
 func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error) {
@@ -1302,7 +1311,7 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 		split := strings.Split(param.Kind, ",")
 		for _, k := range split {
 			if k == strconv.Itoa(model.QUESTION_VULN) {
-				db = db.Where("vuln_info_json is not null ")
+				db = db.Where("vuln_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
 				db = db.Where("sensitive_file_json is not null ")
@@ -1407,6 +1416,14 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			}
 			res[i].EnvKeyValue = envInfo
 		}
+
+		scanEnableCollection := new(model.ScanEnableCollection)
+		if len(res[i].ScanEnableCollectionJson) > 0 {
+			if err := json.Unmarshal([]byte(res[i].ScanEnableCollectionJson), &scanEnableCollection); err != nil {
+				logging.GetLogger().Err(err).Msg("SearchScanImage Unmarshal")
+			}
+		}
+		res[i].ScanEnableCollection = *scanEnableCollection
 	}
 
 	return res, cnt, nil

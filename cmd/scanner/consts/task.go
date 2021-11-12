@@ -25,6 +25,8 @@ const (
 	ImageScanInProgress
 	ImageScanSuccess
 	ImageScanFailed
+	ImageScanTerminate
+	ImageNotScan
 )
 
 const (
