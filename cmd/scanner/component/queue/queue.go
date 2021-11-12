@@ -6,12 +6,11 @@ import (
 )
 
 type Queue struct {
-	que     *lane.Queue
+	que *lane.Queue
 }
 
 func NewQueue() *Queue {
-	q := &Queue{
-	}
+	q := &Queue{}
 	q.que = lane.NewQueue()
 	return q
 }
@@ -21,8 +20,8 @@ func (m *Queue) Enqueue(t *task.Task) error {
 	return nil
 }
 
-func (m *Queue) Dequeue() (task.Task,error) {
+func (m *Queue) Dequeue() (task.Task, error) {
 	item := m.que.Dequeue()
 	t := item.(task.Task)
-	return t,nil
+	return t, nil
 }

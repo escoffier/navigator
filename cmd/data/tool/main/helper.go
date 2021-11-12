@@ -8,7 +8,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -22,7 +21,7 @@ func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
 		util2.GetEnvWithDefault(env.PostgresPassword, ""),
 	)
 
-	return util.NewPostgresClient(postgresqlDSN)
+	return rdbtools.NewPostgresClient(postgresqlDSN)
 }
 
 func getTaskID(ctx context.Context, manager def.TaskManager, taskType def.GCTaskType) (string, error) {

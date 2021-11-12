@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -19,7 +21,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 var (
@@ -411,7 +412,7 @@ func (api *api) addUser() http.HandlerFunc {
 		}
 
 		err = api.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
-			innerErr := dal.InsertUserV2(ctx, tx, req.UserName, req.RoleName, req.ModuleID)
+			innerErr := dal.InsertUser(ctx, tx, req.UserName, req.RoleName, req.ModuleID)
 			if innerErr != nil {
 				if util.IsPostgresDuplicateError(innerErr) {
 					return ErrUserAlreadyExists

@@ -16,7 +16,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -51,7 +50,7 @@ func initPGCleanerRequirement(t *testing.T) {
 	)
 
 	var err error
-	postgresDB, err = util.NewPostgresClient(postgresqlDSN)
+	postgresDB, err = rdbtools.NewPostgresClient(postgresqlDSN)
 	if err != nil {
 		t.Fatal(err)
 	}

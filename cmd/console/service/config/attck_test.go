@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 func TestParseItems(t *testing.T) {
@@ -43,7 +43,7 @@ func TestFlushCache(t *testing.T) {
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
 		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
 
-	dbWrapper, err := util.NewPostgresClient(postgresqlDSN)
+	dbWrapper, err := rdbtools.NewPostgresClient(postgresqlDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestFlushCache_2(t *testing.T) {
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
 		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
 
-	dbWrapper, err := util.NewPostgresClient(postgresqlDSN)
+	dbWrapper, err := rdbtools.NewPostgresClient(postgresqlDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
