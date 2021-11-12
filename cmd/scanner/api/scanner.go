@@ -415,13 +415,12 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiWithItem{item=model.OverView{online=model.SafeOver{}}}}
 // @Router	/api/v1/scan/reportsByImageOverview [get]
 func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
-	registerUrl := ctx.Query("fromUrl")
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil {
 		fromType = model.ImageFromTypeNormal
 	}
 
-	view, err := s.Srv.GetImageOverView(ctx, registerUrl, fromType)
+	view, err := s.Srv.GetImageOverView(ctx, fromType)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

@@ -571,9 +571,9 @@ func (m ModeImageResponse) Less(i, j int) bool {
 		return false
 	}
 	// 未扫描在前，其次扫描中
-	if m[i].ScanStatus == consts.NotScan && m[j].ScanStatus != consts.NotScan {
+	if m[i].ScanStatus == consts.ImageNotScan && m[j].ScanStatus != consts.ImageNotScan {
 		return true
-	} else if m[j].ScanStatus == consts.NotScan && m[i].ScanStatus != consts.NotScan {
+	} else if m[j].ScanStatus == consts.ImageNotScan && m[i].ScanStatus != consts.ImageNotScan {
 		return false
 	} else if m[i].ScanStatus == consts.ImageScanInProgress && m[j].ScanStatus != consts.ImageScanInProgress {
 		return true

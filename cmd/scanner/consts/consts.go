@@ -56,11 +56,16 @@ const (
 )
 
 const (
-	VulnType            = "vuln_info_json"
-	PkgType             = "pkg_info_json"
-	SensitiveFileType   = "sensitive_file_json"
-	MaliciousInfoType   = "malicious_info_json"
-	WebsellInfoType     = "webshell_info_json"
+	VulnType             = "vuln_info_json"
+	PkgType              = "pkg_info_json"
+	SensitiveFileType    = "sensitive_file_json"
+	MaliciousInfoType    = "malicious_info_json"
+	WebsellInfoType      = "webshell_info_json"
+	EnvEnableType        = "env_type"
+	SoftWoreType         = "soft_ware_type"
+	LicenseEnableType    = "licenceType"
+	PrivilegedEnableType = "privileged"
+
 	BaseImageType       = 1
 	AppImageType        = 0
 	BaseImageTypeString = "1"

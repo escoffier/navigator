@@ -24,3 +24,33 @@ func StatusCheck(current, next uint8) error {
 
 	return fmt.Errorf("invalid status change: %d -> %d", current, next)
 }
+
+func InSlice(v string, in []string) bool {
+	for i := range in {
+		if v == in[i] {
+			return true
+		}
+	}
+	return false
+}
+
+// 取并集
+func UnionSlice(vules ...[]int64) []int64 {
+	all := 0
+	ext := make(map[int64]int)
+	for i := range vules {
+		if len(vules[i]) > 0 {
+			all++
+		}
+		for j := range vules[i] {
+			ext[vules[i][j]]++
+		}
+	}
+	ans := make([]int64, 0)
+	for k, v := range ext {
+		if v == all {
+			ans = append(ans, k)
+		}
+	}
+	return ans
+}
