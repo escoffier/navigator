@@ -11,8 +11,8 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 var (
@@ -36,7 +36,7 @@ func initTaskManagerRequirement(t *testing.T) {
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
 		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
 
-	db, err := util.NewPostgresClient(postgresqlDSN)
+	db, err := rdbtools.NewPostgresClient(postgresqlDSN)
 	if err != nil {
 		t.Fatal(err)
 	}

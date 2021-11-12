@@ -66,7 +66,6 @@ func (b *Queue) Consume(consumeFunc ConsumeFunc) {
 			}
 		}()
 
-
 		ticker := time.NewTicker(1000 * time.Millisecond)
 		defer ticker.Stop()
 		for {

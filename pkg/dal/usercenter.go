@@ -7,17 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"time"
 	"unsafe"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
@@ -26,10 +20,9 @@ import (
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const (
-	MongoUserCollectionName = "rbac_user"
-	letterIdxBits           = 6                    // 6 bits to represent a letter index
-	letterIdxMask           = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax            = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 
 	ModuleUserCenter = 1
 )
@@ -187,6 +180,14 @@ func GetAdminModuleGroup(ctx context.Context, db *rdbtools.GormWrapper) []model.
 	return m
 }
 
+func GetAllModules(ctx context.Context, db *rdbtools.GormWrapper) ([]*model.ModuleGroup, error) {
+	var m []*model.ModuleGroup
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	var err = db.Get().WithContext(pgCtx).Find(&m).Error
+	return m, err
+}
+
 func SelectUser(ctx context.Context, postgresDB *gorm.DB, userName string) (bool, *model.User, error) {
 
 	queryUser := model.User{}
@@ -203,19 +204,7 @@ func SelectUser(ctx context.Context, postgresDB *gorm.DB, userName string) (bool
 	return true, &queryUser, nil
 }
 
-func InsertUser(ctx context.Context, postgresDB *rdbtools.GormWrapper, userName, role string, moduleID []string) (err error) {
-	data, err := json.Marshal(moduleID)
-	if err != nil {
-		return err
-	}
-	user := model.User{UserName: userName, Checked: false, CreateAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
-
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	return postgresDB.Get().WithContext(pgCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
-}
-
-func InsertUserV2(ctx context.Context, postgresDB *gorm.DB, userName, role string, moduleID []string) (err error) {
+func InsertUser(ctx context.Context, postgresDB *gorm.DB, userName, role string, moduleID []string) (err error) {
 	data, err := json.Marshal(moduleID)
 	if err != nil {
 		return err
@@ -323,27 +312,4 @@ func GetModules(ctx context.Context, db *gorm.DB, moduleIDs []int) ([]*model.Mod
 	var result []*model.ModuleGroup
 	var err = db.WithContext(ctx).Where("id in (?)", moduleIDs).Find(&result).Error
 	return result, err
-}
-
-func GetUserByMongo(ctx context.Context, mongodb *mongo.Database) (u []model.MongoUser, err error) {
-
-	opt := options.Find().SetMaxTime(time.Second * 2)
-
-	cur, err := mongodb.Collection(MongoUserCollectionName).Find(ctx, bson.M{}, opt)
-	if err != nil {
-		apperror.NewMongoError(http.StatusInternalServerError,
-			fmt.Errorf("couldn't find document: %w", err))
-		return
-	}
-
-	mongoUserSlice := make([]model.MongoUser, 0)
-	for cur.Next(ctx) {
-		var mu model.MongoUser
-		err := cur.Decode(&mu)
-		if err != nil {
-			return nil, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", err))
-		}
-		mongoUserSlice = append(mongoUserSlice, mu)
-	}
-	return mongoUserSlice, nil
 }
