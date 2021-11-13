@@ -74,7 +74,7 @@ type SubTask struct {
 	TaskId     int64
 	Image      ImageInfo
 	Registry   RegistryInfo
-	Status     uint8 // pending,inprogress,end
+	Status     uint8 // ImageScanPending,ImageScanInprogress...
 	Result     int   // success,error
 	ErrMsg     string
 	CreateAt   time.Time
