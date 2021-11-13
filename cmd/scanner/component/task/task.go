@@ -7,7 +7,6 @@ import (
 	"time"
 
 	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"golang.org/x/sync/semaphore"
@@ -67,16 +66,20 @@ func WalkSubTasks(ctx context.Context,
 
 	taskSrv := NewTaskSrv()
 	if err := taskSrv.UpdateTaskStartTime(t.Id, time.Now()); err != nil {
-		// fall through
 		logging.GetLogger().Err(err).Int64("taskId", t.Id).Msg("update task start time err")
+		return err
 	}
 
 	for k, subTask := range subtasks {
-		if subTask.Status == consts.End {
-			// we will rescan failed task which may contain some success subtask in last scan, so we filter these subtasks
-			logging.GetLogger().Info().Int64("subTaskId", subTask.Id).Int64("taskId", t.Id).Msg("skip scanned subtask ")
-			continue
-		}
+		//if !isSubtaskWaitSchedule(subTask.Status) {
+		//	// we will rescan failed task which may contain some success subtask in last scan, so we filter these subtasks
+		//	logging.GetLogger().Info().
+		//		Int64("subTaskId", subTask.Id).
+		//		Int64("taskId", t.Id).
+		//		Uint8("status", subTask.Status).
+		//		Msg("skip scanned subtask ")
+		//	continue
+		//}
 
 		logging.GetLogger().Debug().Int64("subTaskId", subTask.Id).Int64("taskId", t.Id).Msg("subtask wait semaphore")
 		if err := subLimit.Acquire(ctx, 1); err != nil {
@@ -108,3 +111,7 @@ func WalkSubTasks(ctx context.Context,
 
 	return nil
 }
+
+//func isSubtaskWaitSchedule(status uint8) bool {
+//	return status == consts.ImageScanPending || status == consts.ImageNotScan
+//}

@@ -29,6 +29,10 @@ func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 		logging.GetLogger().Err(err).Msg("get pending tasks err")
 		return nil, err
 	}
+	if len(tasks) == 0 {
+		logging.GetLogger().Debug().Msg("pending tasks count is zero")
+		return nil, nil
+	}
 
 	// update task status
 	ids := make([]int64, 0)

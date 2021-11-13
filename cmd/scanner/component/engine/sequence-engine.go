@@ -118,7 +118,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 		// dequeue tasks
 		tasks, err := dequeue.DequeueTasks(context.Background())
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("dequeue tasks err")
+			logging.GetLogger().Err(err).Msg("dequeue tasks err")
 			continue
 		}
 		logging.GetLogger().Info().Int("taskCount", len(tasks)).Msg("dequeue tasks")

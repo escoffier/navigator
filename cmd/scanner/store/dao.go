@@ -166,14 +166,14 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 		return nil, err
 	}
 	if len(tmp) == 0 {
-		logging.GetLogger().Info().Msg("CreateImage not fond image")
+		logging.GetLogger().Info().Msg("CreateImage not found image")
 		err := s.psql.Get().WithContext(ctx).Create(im).Error
 		if err != nil {
 			return nil, err
 		}
 		return im, nil
 	}
-	logging.GetLogger().Info().Msgf("CreateImage fond image update imageId:%d", tmp[0].ID)
+	logging.GetLogger().Info().Msgf("CreateImage found image update imageId:%d", tmp[0].ID)
 	if err := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
 		return nil, err
 	}
@@ -1989,7 +1989,7 @@ func (s *ScannerOrm) GetImageInfo(ctx context.Context, imgId int64) (*model.Imag
 	defer cancelFunc()
 	tmp := model.ImageList{}
 	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgId).First(&tmp).Error; err != nil {
-		return nil, fmt.Errorf("not find image:%v", err)
+		return nil, fmt.Errorf("not find image id :%d,%v", imgId, err)
 	}
 
 	return &tmp, nil
@@ -2184,7 +2184,8 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, 
 		Where("task_id = ?", taskId).
 		Limit(limit).
 		Offset(offset).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "finished_at"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "status"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "started_at"}, Desc: false}).
 		Find(&data).
 		Error
 
