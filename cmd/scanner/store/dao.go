@@ -167,14 +167,14 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 		return nil, err
 	}
 	if len(tmp) == 0 {
-		logging.GetLogger().Info().Msg("CreateImage not found image")
+		logging.GetLogger().Debug().Msg("CreateImage not found image")
 		err := s.psql.Get().WithContext(ctx).Create(im).Error
 		if err != nil {
 			return nil, err
 		}
 		return im, nil
 	}
-	logging.GetLogger().Info().Msgf("CreateImage found image update imageId:%d", tmp[0].ID)
+	logging.GetLogger().Debug().Msgf("CreateImage found image update imageId:%d", tmp[0].ID)
 	if err := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
 		return nil, err
 	}
@@ -210,11 +210,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id").Debug()
 
 	if param.SearchWord != "" {
-		if param.FromType == model.ImageFromTypeNormal {
-			db = db.Where("tensor_image_list.full_repo_name LIKE ? OR tensor_image_list.tags LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
-		} else if param.FromType == model.RegistryUseSafeNode {
-			db = db.Where("tensor_image_list.node_hostname LIKE ?  ", fmt.Sprintf("%%%s%%", param.SearchWord))
-		}
+		db = db.Where("tensor_image_list.full_repo_name LIKE ? OR tensor_image_list.tags LIKE ? OR tensor_image_list.node_hostname LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
 	}
 
 	if param.ImageType != "" {
@@ -307,17 +303,22 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		db = db.Where("tensor_image_list.node_hostname =  ? ", param.NodeHostname)
 	}
 
+	// 多选，以逗号分隔
 	if param.SpecialImageType != "" {
 		param.SpecialImageType = strings.ToLower(param.SpecialImageType)
-		if param.SpecialImageType == consts.SpecialImageTypeK8s {
-			k8sMap := []string{"coredns", "etcd", "kube-apiserver", "kube-controller", "kube-proxy", "kube-scheduler", "ingress"}
-			orand := make([]string, 0)
-			for i := range k8sMap {
-				orand = append(orand, fmt.Sprintf("tensor_image_list.full_repo_name LIKE '%%%s%%'", k8sMap[i]))
+		param.SpecialImageType = strings.Replace(param.SpecialImageType, " ", "", -1)
+		lists := strings.Split(param.SpecialImageType, ",")
+		for i := range lists {
+			if lists[i] == consts.SpecialImageTypeK8s {
+				lists = append(lists, "coredns", "etcd", "kube-apiserver", "kube-controller", "kube-proxy", "kube-scheduler", "ingress")
 			}
+		}
+		orand := make([]string, 0)
+		for i := range lists {
+			orand = append(orand, fmt.Sprintf("tensor_image_list.full_repo_name LIKE '%%%s%%'", lists[i]))
+		}
+		if len(orand) > 0 {
 			db = db.Where(strings.Join(orand, " OR "))
-		} else {
-			db = db.Where("tensor_image_list.full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", param.SpecialImageType))
 		}
 	}
 
