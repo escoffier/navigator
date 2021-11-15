@@ -24,7 +24,7 @@ spec:
               cpu: "500m"
         - name: kube-scanner
           image: localhost:32000/kube-scanner:0.6.2
-          command: [ "kube-scanner" ]
+          command: [ "kube-hunter" ]
           args: ["--pod", "--report", "json", "--dispatch", "http"]
           env:
             - name: KUBEHUNTER_HTTP_DISPATCH_URL
