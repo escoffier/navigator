@@ -11,7 +11,7 @@ import (
 	param "github.com/oceanicdev/chi-param"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
-	"gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report/def"
+	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"

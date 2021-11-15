@@ -123,12 +123,12 @@ data: generate 		## Build cleaner binary
 		-o dist/cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
 	docker build -t $(REPOPREFIX)/cleaner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
 
-.PHONY: kube-hunter-report
-kube-hunter-report: generate
+.PHONY: kube-scanner-report
+kube-scanner-report: generate
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
-    		-o dist/kube-hunter-report gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report
-	docker build -t $(REPOPREFIX)/kube-hunter-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-hunter-report/Dockerfile .
+    		-o dist/kube-scanner-report gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report
+	docker build -t $(REPOPREFIX)/kube-scanner-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-scanner-report/Dockerfile .
 
 .PHONY: platform-report
 platform-report: generate
@@ -383,7 +383,7 @@ scan_report: 		## Build cleaner binary
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes image-validate daemon  \
 webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
-event-processor go-audit safe-node-image kube-hunter-report platform-report scan_report
+event-processor go-audit safe-node-image kube-scanner-report platform-report scan_report
 
 .PHONY: base
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -449,7 +449,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/kube-hunter-report:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 else
@@ -475,7 +475,7 @@ else
 	docker push $(REPOPREFIX)/safe-node-image:latest
 	docker push $(REPOPREFIX)/webhook:latest
 	docker push $(REPOPREFIX)/cluster-manager:latest
-	docker push $(REPOPREFIX)/kube-hunter-report:latest
+	docker push $(REPOPREFIX)/kube-scanner-report:latest
 	docker push $(REPOPREFIX)/platform-report:latest
 	docker push $(REPOPREFIX)/scan-report:latest
 endif
@@ -504,8 +504,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/safe-node-image:latest
 	docker rmi $(REPOPREFIX)/webhook:latest
 	docker rmi $(REPOPREFIX)/cluster-manager:latest
-	docker rmi $(REPOPREFIX)/kube-hunter-report:latest
-	docker rmi $(REPOPREFIX)/platform-report:latest
+	docker rmi $(REPOPREFIX)/kube-scanner-report:latest
 	docker rmi $(REPOPREFIX)/scan-report:latest
 
 .PHONY: retag
@@ -533,8 +532,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webhook:latest $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/kube-hunter-report:latest $(REPOPREFIX)/kube-hunter-report:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/scan-report:latest $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
@@ -558,8 +556,7 @@ else
 	docker tag $(REPOPREFIXOLD)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:latest
 	docker tag $(REPOPREFIXOLD)/webhook:latest $(REPOPREFIX)/webhook:latest
 	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
-	docker tag $(REPOPREFIXOLD)/kube-hunter-report:latest $(REPOPREFIX)/kube-hunter-report:latest
-	docker tag $(REPOPREFIXOLD)/scan-report:latest $(REPOPREFIX)/scan-report:latest
+	docker tag $(REPOPREFIXOLD)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:latest
 endif
 
 CI_CHECK_CACHE_REGISTRY?=harbor.local.cn
@@ -590,7 +587,7 @@ ifeq ($(USERELEASE),true)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
-	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-hunter-report:$(RELEASEVERSION)
+	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 else
 	@echo "ci check all images latest"
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:latest
@@ -614,5 +611,5 @@ else
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/safe-node-image:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webhook:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-manager:latest
-	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-hunter-report:latest
+	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-scanner-report:latest
 endif
