@@ -13,8 +13,9 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "redis-ha.fullname" -}}
+{{- $prefixName := default "csec" .Values.global.prefixName -}}
 {{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" $prefixName .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
@@ -29,25 +30,25 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 Return redis image
 */}}
 {{- define "redis.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return sysctl image
 */}}
 {{- define "redis.sysctl.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.sysctlImage "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.sysctlImage "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return exporter image
 */}}
 {{- define "redis.exporter.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.exporter.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.exporter.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return haproxy image
 */}}
 {{- define "redis.haproxy.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.haproxy.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.haproxy.image "global" .Values.global) }}
 {{- end -}}
 
 {{- /*

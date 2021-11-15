@@ -25,7 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 type api struct {

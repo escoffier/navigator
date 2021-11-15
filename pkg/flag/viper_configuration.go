@@ -8,6 +8,5 @@ import (
 
 func ConfigViper() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.SetEnvPrefix("TENSORSEC")
 	viper.AutomaticEnv()
 }

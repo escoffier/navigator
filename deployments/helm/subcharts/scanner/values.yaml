@@ -4,20 +4,19 @@ global:
     repository: ""
 
 
-## tensorsec scannner image name
 image:
-  registry:  localhost:32000
-  repository: tensorsecurity
-  name: tensorsec-scanner
+  registry: localhost:32000
+  repository: library
+  name: scanner
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
 
 dockerregistry:
   image:
-    registry:  localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-scanner-registry
+    registry: localhost:32000
+    repository: library
+    name: scanner-registry
     tag: latest
   resources:
     requests:
@@ -43,8 +42,8 @@ dockerregistry:
   secrets:
     # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
     # e.g. "htpasswd -nbBC10 $username $password"
-    # Default: tensorsec:TensorSec@Passw0rd
-    htpasswd: "tensorsec:$2y$10$zYHR.AGhdeKnjpxIKU3.3.XH9MeEUdmSJZil9MUWlqB8b2Q3th7PK"
+    # Default: admin:Registry@Passw0rd
+    htpasswd: "admin:$2y$10$yWUFU9JunbmozLTeFEKxsOLnRaf1465xBQ6GWGDcmGy5GBa2WVHs6"
   configData:
     version: 0.1
     log:
@@ -72,7 +71,7 @@ dockerregistry:
 webshell:
   image:
     registry:  localhost:32000
-    repository: tensorsecurity
+    repository: library
     name: webshell-server
     tag: latest
   replicas: 2
@@ -89,6 +88,27 @@ webshell:
     port: 80
     # nodePort:
 
+scanreport:
+  image:
+    registry: localhost:32000
+    repository: library
+    name: scan-report
+    tag: latest
+  replicas: 1
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "300Mi" 
+    requests:
+      cpu: "200m"
+      memory: "300Mi"
+  interval: 5m
+  emailCheck:
+    smtpHost: smtp.feishu.cn
+    smtpPort: 465
+    smtpUsername: console-robot@example.com
+    smtpPassword: password
+
 ## Deployment pod host aliases
 #  hostAliases:
 #  - ip: "192.168.x.x"
@@ -97,7 +117,7 @@ webshell:
 hostAliases: []
 
 nameOverride: "scanner"
-fullnameOverride: "tensorsec-scanner"
+fullnameOverride: "scanner"
 
 restartPolicy: Always
 
@@ -110,7 +130,7 @@ service:
 
 replicaCount: 1
 
-apiInstallLabel: "scanner.tensorsec/install"
+apiInstallLabel: "scanner/install"
 
 resources:
   requests:
@@ -120,16 +140,10 @@ resources:
     cpu: "2000m"
     memory: "4000Mi"
 
-postgresql:
-  postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
-
-redis:
-  redisSecretName: tensorsec-redis-ha
-
 init: 
   image:
-    registry:  localhost:32000
-    repository: tensorsecurity
+    registry: localhost:32000
+    repository: library
     name: alpine
     tag: latest
   resources:

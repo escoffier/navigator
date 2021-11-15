@@ -1,6 +1,6 @@
 ARG TAG=latest
 ARG REPO=registry.t-appagile.com/tensorsecurity
-FROM ${REPO}/tensorsec-drift-prevention-client:${TAG} AS drift-prevention
+FROM ${REPO}/drift-prevention-client:${TAG} AS drift-prevention
 FROM ${REPO}/baseimage-faulty:${TAG}
 
 ADD configs/faulty /app
@@ -13,9 +13,9 @@ ADD test/ /test
 # RUN ./configure
 # RUN make && make install
 
-COPY --from=drift-prevention /drift-prevention/ubuntu/dp.so /tensorsec/dp.so
-COPY --from=drift-prevention /drift-prevention/file-checker /tensorsec/file-checker
+COPY --from=drift-prevention /drift-prevention/ubuntu/dp.so /tmp/dp.so
+COPY --from=drift-prevention /drift-prevention/file-checker /tmp/file-checker
 
-RUN /tensorsec/file-checker
+RUN /tmp/file-checker
 
 CMD ["/app/entrypoint.sh"]

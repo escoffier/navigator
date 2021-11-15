@@ -2,21 +2,28 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
+	"gopkg.in/gomail.v2"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
@@ -254,7 +261,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 
 		emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
 
-		successful := model.SendEmail(rf.Username, r.Host, emailHashCode, api.emailOpts)
+		successful := SendEmail(rf.Username, r.Host, emailHashCode, api.emailOpts)
 		if !successful {
 			RespAndLog(w, ctx,
 				SendmailError(http.StatusBadRequest, fmt.Errorf("send email error")))
@@ -284,4 +291,47 @@ func (api *api) saveJWTToken(username, role string) string {
 
 	_, tokenString, _ := api.tokenAuth.Encode(jwtMC)
 	return tokenString
+}
+
+func SendMails(mailTo []string, subject string, body string, emailOpts *flag.EmailOpts) error {
+
+	mailConn := map[string]string{
+		"user": emailOpts.Username,
+		"pass": emailOpts.Password,
+		"host": emailOpts.Host,
+		"port": emailOpts.Port,
+	}
+
+	port, _ := strconv.Atoi(mailConn["port"])
+
+	m := gomail.NewMessage()
+
+	m.SetHeader("From", m.FormatAddress(mailConn["user"],
+		util.GetEnvWithDefault(env.EmailOfficialName, env.DefaultEmailOfficialName)))
+	m.SetHeader("To", mailTo...)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", body)
+
+	d := gomail.NewDialer(mailConn["host"], port, mailConn["user"], mailConn["pass"])
+	tl := tls.Config{InsecureSkipVerify: true}
+	d.TLSConfig = &tl
+
+	err := d.DialAndSend(m)
+	return err
+
+}
+
+func SendEmail(username, host, emailHashCode string, emailOpts *flag.EmailOpts) bool {
+
+	mailBody := "<div\n      style=\"\n  height:560px; \n    width: 752px;\n        min-width: 752px;\n        margin: 0 auto;\n        overflow-x: scroll;\n        position: relative;\n      \"\n    >\n      <div\n        style=\"\n          border-radius: 4px 4px 0 0;\n          border: 1px solid #9bb1c7;\n          border-bottom: 0px;\n          background-color: #ffffff;\n          height: 100%;\n          z-index: 10;\n          margin: 0 30px;\n          padding: 50px 60px 150px;\n          box-sizing: border-box;\n        \"\n      >\n        <div\n          style=\"width: 100%; border-top: 2px solid #d1d8dc; margin: 20px 0\"\n        ></div>\n        <div style=\"width: 100%; padding: 14px 0; box-sizing: border-box\">\n          <span\n            style=\"\n              display: block;\n              font-size: 16px;e\n              font-family: PingFangSC-Medium, PingFang SC;\n              font-weight: 500;\n              color: #333333;\n            \"\n          >\n            " + username + " ,您好！\n          </span>\n          <span\n            style=\"\n              display: block;\n              font-size: 16px;\n              font-family: PingFangSC-Medium, PingFang SC;\n              font-weight: 400;\n              color: #333333;\n              margin-top: 20px;\n              text-indent: 2em;\n            \"\n          >\n            有人请求激活或者重置您的帐户的密码。\n            如果您没有执行此请求，则可以放心地忽略此电子邮件。\n            否则，请单击下面的链接以完成该过程。\n            <a href=\" http://" + host + "/#/email/password/" + emailHashCode + "\"  \"target=\"_blank\">点击此链接</a>\n          </span>\n        </div>\n        <div\n          style=\"width: 100%; border-top: 2px solid #d1d8dc; margin: 20px 0\"\n        ></div>\n        <span\n          style=\"\n            display: block;\n            font-size: 14px;\n            font-family: PingFangSC-Medium, PingFang SC;\n            font-weight: 400;\n            color: #777777;\n          \"\n          >如有任何问题，可以与我们联系，我们将尽快为你解答。\n        </span>\n        <span\n          style=\"\n            display: block;\n            font-size: 14px;\n            font-family: PingFangSC-Medium, PingFang SC;\n            font-weight: 400;\n            color: #777777;\n            margin-top: 4px;\n          \"\n          >Email：" + util.GetEnvWithDefault(env.ContactEmail, env.DefaultContactEmail) + " \n        </span>\n\n      </div>\n      <div style=\"width: 100%; height: 100%; margin-top: -160px\">\n        </div>\n    </div>"
+	subject := "Account manager"
+
+	err := SendMails([]string{username}, subject, mailBody, emailOpts)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("send email error:%+v", err)
+		return false
+	}
+
+	return true
+
 }

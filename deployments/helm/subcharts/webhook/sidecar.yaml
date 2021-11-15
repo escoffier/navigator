@@ -1,13 +1,13 @@
 metadata:
   labels:
-    tensor/canonical-name: testapp
+    canonical-name: testapp
   annotations:
-    tensor-sidecar-inject/status: injected
+    sidecar-inject/status: injected
 spec:
   imagePullSecrets:
   - name: {{ .ProxyConfig.ImagePullSecrets }}
   initContainers:
-    - name: tensorsec-init
+    - name: init
       image: {{ .ProxyConfig.InitContainerImage }}
       args:
         - istio-iptables
@@ -47,7 +47,7 @@ spec:
         runAsNonRoot: false
         runAsUser: 0
   containers:
-    - name: tensorwall-proxy
+    - name: proxy
       image: {{ .ProxyConfig.ContainerImage }}
       imagePullPolicy: Always
       ports:
@@ -73,7 +73,7 @@ spec:
           value: {{ .OwnerKind }}
         - name: TS_OWNER_NAME
           value: {{ .OwnerName }}
-        - name: TENSORWALL_META_POD_PORTS
+        - name: TS_META_POD_PORTS
           value: |-
             [
             {{- $first := true }}
@@ -87,8 +87,8 @@ spec:
             {{- end}}
             ]
       volumeMounts:
-      - mountPath: /etc/tensorwall/proxy
-        name: tensorwall-proxy
+      - mountPath: /etc/proxy
+        name: proxy
       resources:
         requests:
           cpu: "10m"
@@ -99,4 +99,4 @@ spec:
   volumes:
   - emptyDir:
       medium: Memory
-    name: tensorwall-proxy
+    name: proxy

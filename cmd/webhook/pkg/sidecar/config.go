@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	configFile      = "/etc/tensorsec/sidecar/proxyconfig.json"
-	sidecarTmplFile = "/etc/tensorsec/sidecar/sidecar-template.yaml"
+	configFile      = "/etc/webhook/sidecar/proxyconfig.json"
+	sidecarTmplFile = "/etc/webhook/sidecar/sidecar-template.yaml"
 )
 
 func loadConfig() (*InjectionParameters, error) {

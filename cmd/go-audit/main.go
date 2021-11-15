@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/go-audit/pkg/utils/alert"
 	eventcenter_helper "gitlab.com/piccolo_su/vegeta/cmd/go-audit/pkg/utils/eventcenter-helper"

@@ -1,60 +1,59 @@
 global:
+  prefixName: csec
   image:
-    registry: harbor.local.tensorsecurity.cn
-    repository: tensorsecurity
-  verison: &tensorsecVerison 1.0.0
+    registry: harbor.local.example.com
+    repository: library
+  verison: &Verison 1.0.0
   persistence:
     enabled: &persistenceStorage true
   #storageClass: "nfs-client"
   imagePullSecret:
-    url: &imageRegistryURL harbor.local.tensorsecurity.cn
+    url: &imageRegistryURL harbor.local.example.com
     username: &imageRegistryUsername admin
     password: &imageRegistryPassword Harbor12345
-  bufRegistryUrl: &bufRegistryUrl console.localhost.com
-  consoleExternalAdd: &consoleExternalAdd https://console-external.localhost.com
+  bufRegistryExternalUrl: console.localhost.com
+  consoleExternalAdd: https://console-external.localhost.com
+  emailOfficialName: "Navigator"
+  contactEmail: "info@example.com"
   multiCluster:
-    ## Both 'isMasterCluster' and 'isMemberCluster' all need be modified 
+    ## Both 'isMainCluster' and 'isMemberCluster' all need be modified 
     ## and the values of them must be opposite
-    isMasterCluster: &isMasterCluster true
+    isMainCluster: &isMainCluster true
     isMemberCluster: &isMemberCluster false
     configs:
-      ## console address, use short servicename for MainCluster and exposed address for MemberCluster
-      masterAddr: &masterAddr http://tensorsec-console:8889
       ## Unique cluster name, use "default" for MainCluster and other name for MemberCluster
-      clusterName: &clusterName default
-      ## ApiServer address 
-      apiServerAddr: &apiServerAddr 192.168.0.1:6443
-      ## EventCenter GRPC address, use short servicename for MainCluster and exposed address for MemberCluster
-      eventcenterGrpcAddr: &eventcenterGrpcAddr tensorsec-eventcenter:9090
-      ## MQ stan info, use short servicename for MainCluster and exposed address for MemberCluster
-      stanHost: &stanHost tensorsec-stan-headless
-      stanPort: &stanPort 4222
+      clusterName: default
+      ## ApiServer address of cluster
+      apiServerAddr: 192.168.0.1:6443
+      consoleExternalAdd: https://console-external.localhost.com
+      eventcenterGrpcExternalAddr: 192.168.0.2:30090
+      stanExternalHost: 192.168.0.2
+      stanExternalPort: 30422
       
       
 
 
 console:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   image:
-    tag: *tensorsecVerison
+    tag: *Verison
   scap:
-    tag: *tensorsecVerison
+    tag: *Verison
   persistence:
-    #enabled: false
     enabled: *persistenceStorage
   jobs:
-    tensorsecCleaner:
+    Cleaner:
       image:
-        tag: *tensorsecVerison
-    tensorsecHunter:
+        tag: *Verison
+    Hunter:
       image:
-        tag: *tensorsecVerison
-    tensorsecApiScan:
+        tag: *Verison
+    ApiScan:
       image:
-        tag: *tensorsecVerison
-    tensorsecPlatform:
+        tag: *Verison
+    Platform:
       image:
-        tag: *tensorsecVerison
+        tag: *Verison
   imagePullSecret:
     imageRegistryURL: *imageRegistryURL
     imageRegistryUsername: *imageRegistryUsername
@@ -63,17 +62,16 @@ console:
     smtpEnabled: false
     smtpHost: smtp.feishu.cn
     smtpPort: 465
-    smtpUsername: console-robot@tensorsecurity.cn
+    smtpUsername: console-robot@example.com
     smtpPassword: password
   version:
-    softName: tensor
+    softName: ManagerPlatform
     softVersion: v1.9
-  consoleExternalAdd: *consoleExternalAdd
 
 scanner:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   image:
-    tag: *tensorsecVerison
+    tag: *Verison
   dockerregistry:
     persistence:
       enabled: *persistenceStorage
@@ -81,8 +79,8 @@ scanner:
     secrets:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
       # e.g. "htpasswd -nbBC10 $username $password"
-      # Default: tensorsec:TensorSec@Passw0rd
-      htpasswd: "tensorsec:$2y$10$zYHR.AGhdeKnjpxIKU3.3.XH9MeEUdmSJZil9MUWlqB8b2Q3th7PK"
+      # Default: admin:Registry@Passw0rd
+      htpasswd: "admin:$2y$10$yWUFU9JunbmozLTeFEKxsOLnRaf1465xBQ6GWGDcmGy5GBa2WVHs6"
     service:
       type: ClusterIP
       # clusterIP:
@@ -92,73 +90,65 @@ scanner:
       # gcNodePort:
   webshell:
     image:
-      tag: *tensorsecVerison
+      tag: *Verison
     replicas: 2
+  scanreport:
+    image: 
+      tag: *Verison
+    emailCheck:
+      smtpHost: smtp.feishu.cn
+      smtpPort: 465
+      smtpUsername: console-robot@example.com
+      smtpPassword: password
+    interval: 5m
   persistence:
     enabled: *persistenceStorage
     size: 4Gi
-#  hostAliases:
-#  - ip: "192.168.3.2"
-#    hostnames:
-#    - "harbor.local.tensorsecurity.cn"
 
 holmes:
   enabled: true
   image:
-    tag: *tensorsecVerison
-  tensorsecDaemon:
+    tag: *Verison
+  daemon:
     image:
-      tag: *tensorsecVerison
-  eventcenter:
-    eventGrpcUrl: *eventcenterGrpcAddr
-    eventGrpcCertServerName: tensorsec-eventcenter
-  multicluster:
-    consoleaddr: *masterAddr
-  stan:
-    host: *stanHost
-    port: *stanPort
+      tag: *Verison
 
 webhook:
   enabled: true
   image:
-    tag: *tensorsecVerison
-  args:
-    consoleUrl: *masterAddr
+    tag: *Verison
   sidecar:
     image:
-      tag: *tensorsecVerison
+      tag: *Verison
 
 
 cluster-manager:
   enabled: true
   image:
-    tag: *tensorsecVerison
-  args:
-    masterAddr: *masterAddr
-    clusterName: *clusterName
-    apiServerAddr: *apiServerAddr
+    tag: *Verison
 
 eventcenterAuth:
   enabled: true
 
 security-profiles-manager:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   image:
-    tag: *tensorsecVerison
+    tag: *Verison
   webhook:
     image:
-      tag: *tensorsecVerison
+      tag: *Verison
   loader:
     image:
-      tag: *tensorsecVerison
+      tag: *Verison
   audit:
     image:
-      tag: *tensorsecVerison
+      tag: *Verison
   eventProcessor:
     image:
-      tag: *tensorsecVerison
+      tag: *Verison
+
 stan:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   store:
     volume:
       enabled: *persistenceStorage
@@ -166,20 +156,21 @@ stan:
 safenode-image:
   enabled: true
   image:
-    tag: *tensorsecVerison
-  bufRegistry: 
-    bufRegistryUrl: *bufRegistryUrl
-    bufInternal: 10
+    tag: *Verison
+  pushConfigs:
+    pushInterval: 10
+    batchInterval: 60
+    batchSize: 60
 
 redis-ha:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   persistentVolume:
     enabled: *persistenceStorage
 postgresql-ha:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   persistence:
     enabled: *persistenceStorage
 elasticsearch:
-  enabled: *isMasterCluster
+  enabled: *isMainCluster
   persistence:
     enabled: *persistenceStorage

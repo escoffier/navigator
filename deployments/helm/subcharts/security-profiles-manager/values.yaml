@@ -9,8 +9,8 @@ global:
 
 image:
   registry:  localhost:32000
-  repository: tensorsecurity
-  name: tensorsec-security-profiles-manager
+  repository: library
+  name: security-profiles-manager
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
@@ -18,12 +18,12 @@ image:
 certgen:
   image:
     registry: localhost:32000
-    repository: tensorsecurity
+    repository: library
     name: kube-webhook-certgen
     tag: v1.1.1
 
 nameOverride: "sec-prof-man"
-fullnameOverride: "tensorsec-sec-prof-man"
+fullnameOverride: "sec-prof-man"
 
 restartPolicy: Always
 
@@ -45,7 +45,7 @@ resources:
 initContainers:
   image:
     registry:  localhost:32000
-    repository: tensorsecurity
+    repository: library
     name: alpine
     tag: latest
     pullPolicy: Always
@@ -58,17 +58,11 @@ initContainers:
       memory: "64Mi"
       cpu: "50m"
 
-apiInstallLabel: "console.tensorsec/install"
-
-
-console:
-  httpAddr: tensorsec-console:8889
-
 webhook:
   image:
-    registry:  localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-security-profiles-webhook
+    registry: localhost:32000
+    repository: library
+    name: security-profiles-webhook
     tag: latest
     pullPolicy: Always
     pullSecret: harbor-admin-secret
@@ -82,9 +76,9 @@ webhook:
 
 eventProcessor:
   image:
-    registry:  localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-event-processor
+    registry: localhost:32000
+    repository: library
+    name: event-processor
     tag: latest
     pullPolicy: Always
     pullSecret: harbor-admin-secret
@@ -98,9 +92,9 @@ eventProcessor:
 
 loader:
   image:
-    registry:  localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-security-profiles-loader
+    registry: localhost:32000
+    repository: library
+    name: security-profiles-loader
     tag: latest
     pullPolicy: Always
     pullSecret: harbor-admin-secret
@@ -114,9 +108,9 @@ loader:
 
 audit:
   image:
-    registry:  localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-go-audit
+    registry: localhost:32000
+    repository: library
+    name: go-audit
     tag: latest
     pullPolicy: Always
     pullSecret: harbor-admin-secret
@@ -128,22 +122,13 @@ audit:
       cpu: "50m"
       memory: "50Mi"
 
-redis:
-  redisSecretName: tensorsec-redis-ha
-
 holmes:
-  rulesConfigMap: tensorsec-holmes-rules
-  podLabel: tensorsec-holmes
-
-postgres:
-  host: tensorsec-postgresql
-  port: "5432"
+  rulesConfigMap: holmes-rules
+  podLabel: holmes
 
 stan:
   clientID: sec-profile-manager
-  clusterID: tensorsec
-  host: tensorsec-stan-headless
-  port: "4222"
+  clusterID: manager
 
 volumes:
   clientName: "client-cert"
@@ -154,12 +139,7 @@ volumes:
   caMountPath: "/auth/ca"
 
 eventcenter:
-  addr: tensorsec-eventcenter
+  addr: eventcenter
   port: "8080"
-  eventGrpcUrl: tensorsec-eventcenter:9090
-  eventGrpcCertServerName: tensorsec-eventcenter
-
-redis:
-  redisSecretName: tensorsec-redis-ha
 
 managedServiceAccount: true

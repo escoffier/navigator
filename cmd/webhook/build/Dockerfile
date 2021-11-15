@@ -13,7 +13,7 @@ RUN  go build -o /go/bin/webhook main.go && rm -rf /go/src/gitlab.com/piccolo_su
 
 FROM alpine:3.12
 
-LABEL maintainer="tensorsec"
+LABEL maintainer="webhook"
 
 # copy the go binaries from the building stage
 COPY --from=0 /go/bin /go/bin

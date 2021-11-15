@@ -2,19 +2,14 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ template "falco.fullname" .}}
+  name: {{ include "common.names.fullname" . }}
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ template "falco.fullname" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   {{- if .Values.falco.webserver.nodePort }}
   type: NodePort
   {{- end }}
-  selector:
-    app: {{ template "falco.fullname" .}}
+  selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
   ports:
   - protocol: TCP
     port: {{ .Values.falco.webserver.listenPort }}
@@ -27,17 +22,14 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ template "falco.fullname" .}}-grpc
+  name: {{ include "common.names.fullname" . }}-grpc
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ template "falco.fullname" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: grpc
 spec:
   clusterIP: None
   selector:
-    app: {{ template "falco.fullname" .}}
+    app: {{- include "common.labels.matchLabels" . | nindent 4 }}
   ports:
   - protocol: TCP
     port: {{ .Values.falco.grpc.listenPort }}

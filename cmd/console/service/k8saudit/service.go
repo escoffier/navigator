@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
-	"gitlab.com/tensorsecurity-rd/go-pkg/syslog"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/syslog"
 	"go.uber.org/atomic"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"

@@ -1,21 +1,16 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ template "safenode.fullname" . }}
+  name: {{ include "common.names.fullname" . }}
   namespace: {{ .Release.Namespace }}
-  labels:
-{{ include "safenode.labels" . | indent 4 }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   selector:
-    matchLabels:
-      app: {{ template "safenode.fullname" . }}
-      release: {{ .Release.Name }}
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
   template:
     metadata:
-      name: {{ template "safenode.fullname" . }}
-      labels:
-        app: {{ template "safenode.fullname" . }}
-        release: {{ .Release.Name }}
+      name: {{ include "common.names.fullname" . }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
     spec:
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
@@ -27,7 +22,7 @@ spec:
       - name: {{ .Values.image.pullSecret }}
       {{- end }}
       containers:
-        - name: {{ template "safenode.name" . }}
+        - name: {{ include "common.names.name" . }}
           image: {{ include "safenode.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           volumeMounts:
@@ -36,21 +31,23 @@ spec:
           securityContext:
             privileged: true
             runAsUser: 0
+          args: 
+            - --pushInterval={{ .Values.pushConfigs.pushInterval }}
+            - --batchInterval={{ .Values.pushConfigs.batchInterval }}
+            - --batchSize={{ .Values.pushConfigs.batchSize }}
           env:
             - name: MY_POD_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: SAFENODE-BUF-REGISTRY-URL
-              value: {{ .Values.bufRegistry.bufRegistryUrl }}
+              value: {{ .Values.global.bufRegistryExternalUrl }}
             - name: SAFENODE-BUF-REGISTRY-USER
               value: {{ .Values.bufRegistry.bufRegistryUser }}
             - name: SAFENODE-BUF-REGISTRY-PASSWORD
               value: {{ .Values.bufRegistry.bufRegistryPass }}
-            - name: SAFENODE-BUF-INTERNAL
-              value: {{ .Values.bufRegistry.bufInternal | quote }}
             - name: CLUSTER-MANAGER-ADDR
-              value: {{ .Values.multicluster.clusterManagerAddr }}
+              value: "http://{{ include "common.cluster-manager.defaultName" . }}:9443"
           resources:
 {{ toYaml .Values.resources | trim | indent 12 }}
       volumes:

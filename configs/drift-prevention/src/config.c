@@ -103,7 +103,8 @@ static int read_command_config(CommandWhitelist *whitelist)
     FILE *fp;
     char line[PATH_MAX + CHECKSUM_LEN + 1];
 
-    char *whitelist_file = "/tensorsec/commands.txt";
+    // char *whitelist_file = "/tensorsec/commands.txt";
+    char *whitelist_file = "/tmp/commands.txt";
 
     fp = fopen(whitelist_file, "r");
 
@@ -140,7 +141,8 @@ static int read_config(Whitelist *whitelist)
     FILE *fp;
     char line[PATH_MAX + CHECKSUM_LEN + 1];
 
-    char *whitelist_file = "/tmp/tensorsec/whitelist.txt";
+    // char *whitelist_file = "/tmp/tensorsec/whitelist.txt";
+    char *whitelist_file = "/tmp/whitelist.txt";
 
     fp = fopen(whitelist_file, "r");
     if (fp == NULL)

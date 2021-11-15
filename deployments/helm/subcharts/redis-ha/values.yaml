@@ -23,7 +23,7 @@ image:
 # - name: "image-pull-secret"
 
 nameOverride: "redis-ha"
-fullnameOverride: "tensorsec-redis-ha"
+fullnameOverride: "redis-ha"
 
 ## replicas number for each component
 replicas: 3

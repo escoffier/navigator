@@ -11,7 +11,7 @@ import (
 func NewPostgresClient(postgresDSN string) (*GormWrapper, error) {
 	return GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
 		db, err := gorm.Open(postgres.Open(postgresDSN), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
+			Logger: logger.Discard.LogMode(logger.Silent),
 		})
 		if err != nil {
 			return nil, err

@@ -1,17 +1,13 @@
-apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRoleBinding
 metadata:
-  name: {{ template "console.serviceAccount" . }}-cluster-role-binding
-  labels:
-    app: "{{ template "console.fullname" . }}"
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    heritage: {{ .Release.Service | quote }}
-    release: {{ .Release.Name | quote }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 roleRef:
   kind: ClusterRole
-  name: {{ template "console.serviceAccount" . }}-cluster-role
+  name: {{ include "common.names.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
 subjects:
   - kind: ServiceAccount
-    name: {{ template "console.serviceAccount" . }}-sa
+    name: {{ include "common.names.fullname" . }}
     namespace: {{ .Release.Namespace }}

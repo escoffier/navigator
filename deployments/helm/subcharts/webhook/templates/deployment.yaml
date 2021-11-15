@@ -1,49 +1,44 @@
-apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ template "webhook.fullname" . }}
-  labels:
-{{ include "webhook.labels" . | indent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ include "webhook.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ include "webhook.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
     spec:
-      serviceAccount: {{ template "webhook.fullname" . }}
+      serviceAccount: {{ include "common.names.fullname" . }}
       containers:
-      - name: {{ template "webhook.fullname" . }}
-        image: {{ include "tensorsec.webhook.image" . }}
+      - name: webhook
+        image: {{ include "webhook.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: 9443
           protocol: TCP
         args:
-        {{- if .Values.global.multiCluster.isMasterCluster }}
+        {{- if .Values.global.multiCluster.isMainCluster }}
         - --validators={{ .Values.validators }}
         - --mutators={{ .Values.mutators }}
-        - --pgAddr=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable
+        - --pgAddr={{ include "common.pgpool.DSN" . }}
         {{- else if .Values.global.multiCluster.isMemberCluster }}
         - proxy
-        - --target-host={{ .Values.args.consoleUrl }}
-        - --clusterMgrAddress={{ .Values.args.clusterManagerUrl }}
+        - --target-host={{ .Values.global.multiCluster.configs.consoleExternalAdd }}
+        - --clusterMgrAddress=http://{{ include "common.cluster-manager.defaultName" . }}:9443
         {{- end }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
         volumeMounts:
-        - mountPath: /etc/tensorsec/certs
+        - mountPath: /etc/webhook/certs
           name: webhook-certs
           readOnly: true
-        {{- if .Values.global.multiCluster.isMasterCluster }}
-        - mountPath: /etc/tensorsec/config
+        {{- if .Values.global.multiCluster.isMainCluster }}
+        - mountPath: /etc/webhook/config
           name: webhook-config
-        - mountPath: /etc/tensorsec/sidecar
+        - mountPath: /etc/webhook/sidecar
           name: config-sidecar
         {{- end }}
       imagePullSecrets:
@@ -52,13 +47,13 @@ spec:
       volumes:
       - name: webhook-certs
         secret:
-          secretName: {{ template "webhook.fullname" . }}-certs
-      {{- if .Values.global.multiCluster.isMasterCluster }}
+          secretName: {{ include "common.names.fullname" . }}
+      {{- if .Values.global.multiCluster.isMainCluster }}
       - name: webhook-config
         configMap:
-          name: {{ template "webhook.fullname" . }}
+          name: {{ include "common.names.fullname" . }}
       - name: config-sidecar
         configMap:
-          name: {{ template "webhook.fullname" . }}-sidecar
+          name: {{ printf "%s-sidecar" (include "common.names.fullname" .) }}
       {{- end }}   
 

@@ -1,6 +1,6 @@
 {{- if and .Values.serviceAccount.create .Values.rbac.create }}
 kind: RoleBinding
-apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 metadata:
   name: {{ template "redis-ha.fullname" . }}
   namespace: {{ .Release.Namespace }}

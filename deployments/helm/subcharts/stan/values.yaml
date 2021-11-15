@@ -22,7 +22,7 @@ stan:
 
   # Cluster name, generated into a name from the
   # release name by default.
-  clusterID:
+  clusterID: manager
 
   logging:
     debug:
@@ -77,7 +77,8 @@ stan:
     #     name:
     #     key:
 
-nameOverride: "tensorsec-stan"
+nameOverride: "stan"
+fullnameOverride: "stan"
 # imagePullSecrets: []
 serviceAccountName: ""
 

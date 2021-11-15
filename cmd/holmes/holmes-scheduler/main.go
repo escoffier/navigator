@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	defaultThrPath = "/tensorsec-holmes-rules.thr"
+	// defaultThrPath = "/tensorsec-holmes-rules.thr"
+	defaultThrPath = "/holmes-rules.thr"
 )
 
 func closeRules(streamBytes []byte, closeRules []string) []byte {
@@ -72,7 +73,8 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules []string) e
 
 func main() {
 
-	consoleAddr := "http://tensorsec-console:8889"
+	// consoleAddr := "http://tensorsec-console:8889"
+	consoleAddr := "http://console:8889"
 	if len(os.Getenv("CONSOLE_HTTP_ADDR")) > 0 {
 		consoleAddr = os.Getenv("CONSOLE_HTTP_ADDR")
 	}

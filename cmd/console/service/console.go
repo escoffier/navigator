@@ -21,6 +21,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
@@ -52,7 +53,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 var (
@@ -65,13 +66,13 @@ const (
 
 const (
 	eventGrpcUrlEnv     = "EVENT_GRPC_URL"
-	defaultEventGrpcUrl = "tensorsec-eventcenter:9090"
+	defaultEventGrpcUrl = "eventcenter:9090"
 
 	eventGrpcCertPathEnv     = "EVENT_GRPC_CERT_PATH"
 	defaultEventGrpcCertPath = "/auth/server/tls.crt"
 
 	eventGrpcCertServerNameEnv     = "EVENT_GRPC_CERT_SERVER_NAME"
-	defaultEventGrpcCertServerName = "tensorsec-eventcenter"
+	defaultEventGrpcCertServerName = "eventcenter"
 
 	maxClusterNum = 1000
 )
@@ -153,7 +154,7 @@ func NewConsole(
 
 	PgDsn := postgresOpts.PostgresConnectionString
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
@@ -172,7 +173,7 @@ func NewConsole(
 	}
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
-	microsegURL := os.Getenv("TENSORSEC_MICROSEG_HOST")
+	microsegURL := os.Getenv("MICROSEG_HOST")
 	clusterManagerURL := fmt.Sprintf("http://%s:%d", clusterManagerOpts.Host, clusterManagerOpts.Port)
 
 	// main function context
@@ -185,7 +186,7 @@ func NewConsole(
 	}
 
 	es, err := elastic.NewClient(
-		elastic.SetURL(fmt.Sprintf("http://%s:%s", elasticOpts.Host, elasticOpts.Port)),
+		elastic.SetURL(getElasticURL(elasticOpts.Host, elasticOpts.Port)),
 		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
 	)
 	if err != nil {
@@ -518,4 +519,8 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	}
 
 	return nil
+}
+
+func getElasticURL(host string, port string) string {
+	return fmt.Sprintf("http://%s:%s", host, port)
 }

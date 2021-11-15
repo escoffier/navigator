@@ -47,8 +47,8 @@ func (v *ImageValidator) PreValidate(_ context.Context, _ *v1.Pod, parameters *p
 	return true
 }
 
-func (v *ImageValidator) Validate(_ context.Context, pod *v1.Pod, _ *processors.ValidatingParameters) error {
-	return v.ValidateImage(pod)
+func (v *ImageValidator) Validate(_ context.Context, pod *v1.Pod, params *processors.ValidatingParameters) error {
+	return v.ValidateImage(params, pod)
 }
 
 func (v *ImageValidator) Name() string {

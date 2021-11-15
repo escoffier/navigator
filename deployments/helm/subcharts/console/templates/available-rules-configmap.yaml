@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: available-rules-config
-data:
-{{ tpl (.Files.Glob "rules/*").AsConfig . | indent 4 }}

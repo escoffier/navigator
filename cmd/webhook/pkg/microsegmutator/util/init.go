@@ -3,6 +3,8 @@ package util
 import (
 	"fmt"
 
+	"gorm.io/gorm/logger"
+
 	"github.com/pkg/errors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -23,9 +25,10 @@ func InitPGDB(dbcfg PGMaster) (*gorm.DB, error) {
 	)
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN: dsn,
-	}), &gorm.Config{})
+	}), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connet specified db")
 	}
+	db.Logger = logger.Discard.LogMode(logger.Silent)
 	return db, nil
 }

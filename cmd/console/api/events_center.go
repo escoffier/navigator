@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc/status"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"

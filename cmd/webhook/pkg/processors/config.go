@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	DefaultBasePath = "/etc/tensorsec/config"
+	DefaultBasePath = "/etc/webhook/config"
 )
 
 var ConfigBasePath string

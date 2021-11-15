@@ -21,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func (s *Service) GetGCTask(ctx context.Context, gcTaskID string) (*model.GCTask, error) {
@@ -119,7 +120,48 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 		Value: strconv.Itoa(ttl),
 	}
 
-	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, taskIDEnv, ttlEnv)
+	pgHostEnv := coreV1.EnvVar{
+		Name:  env.PostgresHost,
+		Value: util.GetEnvWithDefault(env.PostgresHost, ""),
+	}
+
+	pgPortEnv := coreV1.EnvVar{
+		Name:  env.PostgresPort,
+		Value: util.GetEnvWithDefault(env.PostgresPort, ""),
+	}
+
+	pgUserEnv := coreV1.EnvVar{
+		Name:  env.PostgresUser,
+		Value: util.GetEnvWithDefault(env.PostgresUser, ""),
+	}
+
+	pgPasswordEnv := coreV1.EnvVar{
+		Name:  env.PostgresPassword,
+		Value: util.GetEnvWithDefault(env.PostgresPassword, ""),
+	}
+
+	pgSSLModeEnv := coreV1.EnvVar{
+		Name:  env.PostgresSSLMode,
+		Value: util.GetEnvWithDefault(env.PostgresSSLMode, ""),
+	}
+
+	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, taskIDEnv, ttlEnv,
+		pgHostEnv, pgPortEnv, pgUserEnv, pgPasswordEnv, pgSSLModeEnv)
+	if taskType == def.GCTaskTypeHotOffline {
+		esURLEnv := coreV1.EnvVar{
+			Name:  env.ElasticURL,
+			Value: util.GetEnvWithDefault(env.ElasticURL, ""),
+		}
+		esUsernameEnv := coreV1.EnvVar{
+			Name:  env.ElasticUsername,
+			Value: util.GetEnvWithDefault(env.ElasticUsername, ""),
+		}
+		esPasswordEnv := coreV1.EnvVar{
+			Name:  env.ElasticPassword,
+			Value: util.GetEnvWithDefault(env.ElasticPassword, ""),
+		}
+		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, esURLEnv, esUsernameEnv, esPasswordEnv)
+	}
 	return nil
 }
 
@@ -132,5 +174,5 @@ func getNamespace() string {
 }
 
 func generateJobName(taskType def.GCTaskType, taskID string) string {
-	return fmt.Sprintf("tensorsec-gc-%s-%s", strings.ToLower(taskType.String()), taskID)
+	return fmt.Sprintf("data-gc-%s-%s", strings.ToLower(taskType.String()), taskID)
 }

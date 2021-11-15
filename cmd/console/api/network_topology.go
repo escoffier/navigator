@@ -97,7 +97,7 @@ func (api *api) listDownstreamInfo() http.HandlerFunc {
 }
 
 // @Summary
-// @Description add multiple net topologies https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
+// @Description add multiple net topologies
 // @Produce json
 // @Method PUT
 // @Router /internal/platform/networkTopo/topologies
@@ -129,7 +129,7 @@ func (api *api) addNetTopologiges() http.HandlerFunc {
 }
 
 // @Summary
-// @Description add a net topology https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
+// @Description add a net topology
 // @Produce json
 // @Method PUT
 // @Router /internal/platform/networkTopo/topology

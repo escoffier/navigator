@@ -22,7 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 var (

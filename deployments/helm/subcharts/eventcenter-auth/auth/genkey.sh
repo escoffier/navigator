@@ -19,7 +19,7 @@
 # 生成客户端私钥
 /opt/homebrew/opt/openssl@1.1/bin/openssl genrsa -out client.key 2048
 # 生成客户端数字证书
-/opt/homebrew/opt/openssl@1.1/bin/openssl req -new -key client.key -subj "/CN=tensorsec-eventcenter" -out client.csr
+/opt/homebrew/opt/openssl@1.1/bin/openssl req -new -key client.key -subj "/CN=eventcenter" -out client.csr
 # # 用ca私钥签发客户端的数字证书
 /opt/homebrew/opt/openssl@1.1/bin/openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -extfile client.ext -out client.crt -days 36500
 

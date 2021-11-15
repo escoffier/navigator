@@ -19,8 +19,17 @@ type ElasticsearchCleaner struct {
 	esCli *elastic.Client
 }
 
-func NewESCleaner(esURL string, items []*conf.ESDumpItem) (*ElasticsearchCleaner, error) {
-	esCli, err := elastic.NewClient(elastic.SetURL(esURL))
+type ESConf struct {
+	URL      string
+	Username string
+	Password string
+}
+
+func NewESCleaner(esConf *ESConf, items []*conf.ESDumpItem) (*ElasticsearchCleaner, error) {
+	esCli, err := elastic.NewClient(
+		elastic.SetURL(esConf.URL),
+		elastic.SetBasicAuth(esConf.Username, esConf.Password),
+	)
 	if err != nil {
 		return nil, err
 	}

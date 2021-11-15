@@ -57,7 +57,8 @@ func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drif
 			Name: volumeName,
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: fmt.Sprintf("/var/lib/kubelet/cw/tensorsec/%s", commandWhitelistProfile),
+					// Path: fmt.Sprintf("/var/lib/kubelet/cw/tensorsec/%s", commandWhitelistProfile),
+					Path: fmt.Sprintf("/var/lib/kubelet/cw/%s", commandWhitelistProfile),
 				},
 			},
 		})
@@ -108,8 +109,9 @@ func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drif
 			})
 		}
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      volumeName,
-			MountPath: "/tensorsec/commands.txt",
+			Name: volumeName,
+			// MountPath: "/tensorsec/commands.txt",
+			MountPath: "/tmp/commands.txt",
 			ReadOnly:  true,
 		})
 	}

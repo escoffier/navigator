@@ -2,10 +2,10 @@ package config
 
 import (
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/util"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -39,11 +39,6 @@ func InitMutationConfig(configName string) error {
 		return errors.Wrap(err, "unable to decode into struct")
 	}
 
-	if MutationCfg.RunMode == "dev" {
-		logrus.SetReportCaller(true)
-		logrus.SetLevel(logrus.DebugLevel)
-	}
-
 	MutationPGDB, err = util.InitPGDB(MutationCfg.PgMaster)
 	if err != nil {
 		return errors.Wrap(err, "failed to init db")
@@ -58,6 +53,6 @@ func InitMutationConfig(configName string) error {
 		return errors.Wrap(err, "failed to init k8s clientset")
 	}
 
-	logrus.Infof("init application with config: %+v", MutationCfg)
+	logging.GetLogger().Info().Msgf("init application with config: %+v", MutationCfg)
 	return nil
 }

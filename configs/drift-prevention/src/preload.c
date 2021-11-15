@@ -380,18 +380,20 @@ static int send_alert(const char *filepath, const char *syscall, const char *rea
 
     char *podnamespace = getenv("MY_POD_NAMESPACE");
 
-    char *host = getenv("TENSORSEC_EVENTCENTER_NEW_ADDR");
+    // char *host = getenv("_EVENTCENTER_NEW_ADDR");
+    char *host = getenv("EVENTCENTER_NEW_ADDR");
     if (host == NULL)
     {
-        drift_prevent_write_log(ERROR, "Env var TENSORSEC_EVENTCENTER_ADDR not found: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Env var EVENTCENTER_ADDR not found: %s\n", strerror(errno));
         errno = 0;
         return 1;
     }
 
-    char *port = getenv("TENSORSEC_EVENTCENTER_NEW_PORT");
+    // char *port = getenv("TENSORSEC_EVENTCENTER_NEW_PORT");
+    char *port = getenv("EVENTCENTER_NEW_PORT");
     if (port == NULL)
     {
-        drift_prevent_write_log(ERROR, "Env var TENSORSEC_EVENTCENTER_NEW_PORT not found: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Env var EVENTCENTER_NEW_PORT not found: %s\n", strerror(errno));
         errno = 0;
         return 1;
     }
@@ -399,31 +401,31 @@ static int send_alert(const char *filepath, const char *syscall, const char *rea
     const int port_int = atoi(port);
     if (port_int == 0)
     {
-        drift_prevent_write_log(ERROR, "Atoi converted port number to 0, check env var TENSORSEC_CONSOLE_PORT: %s\n", strerror(errno));
+        drift_prevent_write_log(ERROR, "Atoi converted port number to 0, check env var CONSOLE_PORT: %s\n", strerror(errno));
         errno = 0;
         return 1;
     }
 
-    char unknow_str[] = "unknow";
+    char unknown_str[] = "unknown";
     if (!podname)
     {
         drift_prevent_write_log(ERROR, "Env var MY_POD_NAME not found: %s\n", strerror(errno));
         errno = 0;
-        podname = unknow_str;
+        podname = unknown_str;
     }
 
     if (!poduid)
     {
         drift_prevent_write_log(ERROR, "Env var MY_POD_UID not found: %s\n", strerror(errno));
         errno = 0;
-        poduid = unknow_str;
+        poduid = unknown_str;
     }
 
     if (!podnamespace)
     {
         drift_prevent_write_log(ERROR, "Env var MY_POD_NAMESPACE not found: %s\n", strerror(errno));
         errno = 0;
-        podnamespace = unknow_str;
+        podnamespace = unknown_str;
     }
 
     struct alert_t alert;

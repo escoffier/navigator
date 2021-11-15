@@ -967,8 +967,6 @@ github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf/go.mod h
 github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NHg9XEKhtSvM=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
-github.com/iovisor/gobpf v0.2.0 h1:34xkQxft+35GagXBk3n23eqhm0v7q0ejeVirb8sqEOQ=
-github.com/iovisor/gobpf v0.2.0/go.mod h1:WSY9Jj5RhdgC3ci1QaacvbFdQ8cbrEjrpiZbLHLt2s4=
 github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07/go.mod h1:co9pwDoBCm1kGxawmb4sPq0cSIOOWNPT4KnHotMP1Zg=
 github.com/jackc/chunkreader v1.0.0 h1:4s39bBR8ByfqH+DKm8rQA3E1LHZWB9XWcrz8fqaZbe0=
 github.com/jackc/chunkreader v1.0.0/go.mod h1:RT6O25fNZIuasFJRyZ4R/Y2BbhasbmZXF9QQ7T3kePo=
@@ -2553,10 +2551,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4 h1:AxbAg/CYDzUe0GZOI7
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4/go.mod h1:vDsqw0i9Urt3k5euCjY+ISnhaCHh8iaCK4Cd2+N1ItU=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20211012111105-ed1487f4c8a5 h1:rsfFspFPshtXiS28axw0Rs0fsybJf7QZ4YVXEVvHlUc=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20211012111105-ed1487f4c8a5/go.mod h1:xkVradg2XsyZu9cCsp41vdHMNiDyz2etXtR4/JWp9oQ=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.4 h1:0FdeiYGqyfVaedIcEvh6MCvbuzu4qCkBVwG/00FtI18=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.4/go.mod h1:Wmwf305il/Xk8iZB/6v3K3pdgOZN5MCeuw9XwIINti0=
-scm.tensorsecurity.cn/tensorsecurity-rd/gobpf v0.0.0-20200614202714-e6b321d32103 h1:wpZexIbSaq5cpn+NZTA11YJu3+uXIQRZ2DtIhZ0rQow=
-scm.tensorsecurity.cn/tensorsecurity-rd/gobpf v0.0.0-20200614202714-e6b321d32103/go.mod h1:rKG3FbLIghAbHS7vFfd1mEDaSy12kyg6Zu/gZ+aiinw=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.6 h1:ntLKn1/ajhB1WLuOBhKVykMtD9OvswnkUSbRZH1Kftg=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.6/go.mod h1:Fu9ZiVVJNhyV9iJBIwz8XBpNTvx7Obp3mmdTYP7bUuk=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.0.0-20211013023834-4d8cd20c2071 h1:Y/8KBmsenA3zt9g+nT2Dn7depVIdSJn4SQK1cJzjES8=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.0.0-20211013023834-4d8cd20c2071/go.mod h1:GxqMrU8UvtACh04r1QhKFMENIvoTiur/jNbtj833qO8=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.15/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=

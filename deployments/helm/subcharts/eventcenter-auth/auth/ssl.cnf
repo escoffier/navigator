@@ -10,16 +10,16 @@ stateOrProvinceName_default = SiChuan
 localityName                = Locality Name (eg, city)
 localityName_default        = Chengdu
 organizationName            = Organization Name (eg, company)
-organizationName_default    = tensorcurity
+organizationName_default    = security
 organizationalUnitName            = Organizational Unit Name (eg, section)
 organizationalUnitName_default    = tech
 commonName                  = Common Name (e.g. server FQDN or YOUR name)
 commonName_max              = 64
-commonName_default          = tensorsec-eventcenter
+commonName_default          = eventcenter
 
 [ req_ext ]
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1   = tensorsec-eventcenter
+DNS.1   = eventcenter
 DNS.2   = localhost

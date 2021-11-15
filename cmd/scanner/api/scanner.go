@@ -929,10 +929,10 @@ func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
 func (s *Scanner) GetFileChecker(ctx *gin.Context) {
 	fileName := ctx.Query("name")
 	if fileName == "file-checker" {
-		ctx.File("/tensorsec/file-checker")
+		ctx.File("/config/file-checker")
 		return
 	} else if fileName == "dp.so" {
-		ctx.File("/tensorsec/dp.so")
+		ctx.File("/config/dp.so")
 		return
 	} else {
 		ctx.Status(500)

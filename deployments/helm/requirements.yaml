@@ -69,7 +69,7 @@ dependencies:
     repository: "file://./subcharts/safenode-image"
     condition: safenode-image.enabled
 
-  - name: tensorsec-common
+  - name: common
     version: 0.1.0
-    repository: "file://./subcharts/tensorsec-common"
-    condition: tensorsec-common.enabled
+    repository: "file://./subcharts/common"
+    condition: common.enabled

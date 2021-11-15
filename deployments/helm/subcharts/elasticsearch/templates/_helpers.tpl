@@ -5,7 +5,7 @@
 Return the elasticsearch image name
 */}}
 {{- define "elasticsearch.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
@@ -27,7 +27,8 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- define "elasticsearch.uname" -}}
 {{- if empty .Values.fullnameOverride -}}
 {{- if empty .Values.nameOverride -}}
-{{ .Values.clusterName }}-{{ .Values.nodeGroup }}
+{{- $prefixName := default "csec" .Values.global.prefixName -}}
+{{- printf "%s-%s-%s" $prefixName .Values.clusterName .Values.nodeGroup | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{ .Values.nameOverride }}-{{ .Values.nodeGroup }}
 {{- end -}}

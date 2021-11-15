@@ -1,0 +1,50 @@
+{{- if .Values.persistence.enabled -}}
+apiVersion: {{ include "common.capabilities.cronjob.apiVersion" . }}
+kind: CronJob
+metadata:
+  name: cron-data-gc-coldcleaner
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: coldcleaner
+spec:
+  schedule: {{ .Values.persistence.Cleaner.coldCronjob.cronString }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      completions: 1
+      template:
+        spec:
+          containers:
+            - command:
+                - /app/cleaner
+                - clear-cold-storage-tool
+              env:
+                - name: PGSQL_HOST
+                  value: {{ include "common.pgpool.defaultName" . }}
+                - name: PGSQL_USER
+                  value: postgres
+                - name: PGSQL_DBNAME
+                  value: postgres
+                - name: PGSQL_SSL_MODE
+                  value: disable
+                - name: PGSQL_PASSWORD
+                  value: password
+                - name: AUDIT_PATH
+                  value: /audit
+              image: {{ include "jobs.cleaner.image" . }}
+              imagePullPolicy: {{ .Values.persistence.Cleaner.image.pullPolicy }}
+              name: coldcleaner
+              resources:
+{{ toYaml .Values.persistence.Cleaner.coldCronjob.resources | indent 16 }}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              volumeMounts:
+                - mountPath: /audit
+                  name: audit
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: {{ .Values.persistence.Cleaner.image.pullSecret }}
+          volumes:
+            - name: audit
+              persistentVolumeClaim:
+                claimName: audit-pvc
+{{- end -}}

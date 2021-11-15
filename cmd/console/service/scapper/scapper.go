@@ -50,6 +50,7 @@ const (
 
 	checkTimeout           = time.Minute * 30
 	historicalChecksToKeep = 3
+	jobLabel               = "SCAPPER"
 )
 
 func newScapper(
@@ -332,7 +333,7 @@ func (s *Scapper) RunExportFileTask(
 func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *kubernetes.Clientset, checkType model.ComplianceCheckType, namespace string) error {
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			"TENSORSEC": "true",
+			jobLabel: "true",
 		},
 	}
 	listOpts := metav1.ListOptions{}
@@ -517,7 +518,7 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Cli
 		jobObj.Labels = make(map[string]string)
 	}
 	jobObj.Labels["CHECK_ID"] = check.CheckUUID
-	jobObj.Labels["TENSORSEC"] = "true"
+	jobObj.Labels[jobLabel] = "true"
 
 	jobObj.Name = jobName
 

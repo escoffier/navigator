@@ -13,6 +13,7 @@ import (
 	"github.com/nats-io/stan.go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -58,7 +59,7 @@ func NewSecProfileManager(
 ) (*SecProfileManager, error) {
 
 	db, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
@@ -193,7 +194,8 @@ func (m *SecProfileManager) Run() func() {
 		}
 	}()
 
-	log.Info().Msg("TensorSecProfileManager started")
+	// log.Info().Msg("TensorSecProfileManager started")
+	log.Info().Msg("ProfileManager started")
 
 	return func() {
 		m.cancel()

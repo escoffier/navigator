@@ -5,23 +5,28 @@ global:
 
 image:
   registry: localhost:32000
-  repository: tensorsecurity
-  name: tensorsec-cluster-manager
+  repository: library
+  name: cluster-manager
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
-
-redis:
-  redisSecretName: tensorsec-redis-ha
   
-postgresql:
-  postgresqlDataDir: /bitnami/postgresql/data
-  postgresqlUsername: postgres
-  postgresqlPassword: password
-  postgresqlDatabase: postgres
+init: 
+  image:
+    registry: localhost:32000
+    repository: library
+    name: alpine
+    tag: latest
+  resources:
+    limits:
+      cpu: 50m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
 
 nameOverride: "cluster-manager"
-fullnameOverride: "tensorsec-cluster-manager"
+fullnameOverride: "cluster-manager"
 
 resources:
   limits:
@@ -35,7 +40,3 @@ service:
   port: 9443
   targetPort: 9443
 
-# args:
-#   masterAddr: 
-#   clusterName: 
-#   apiServerAddr: 

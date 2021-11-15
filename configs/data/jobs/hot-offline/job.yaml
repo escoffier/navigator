@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorsec-hot-offline-cleaner
+  name: hot-offline-cleaner
 spec:
   ttlSecondsAfterFinished: 600
   template:
@@ -12,24 +12,12 @@ spec:
     spec:
       containers:
         - name: hot-offline-cleaner
-          image: localhost:32000/tensorsec-cleaner:latest
-          command: ["/app/tensor-cleaner", "clear-hot-offline-storage-tool"]
+          image: localhost:32000/cleaner:latest
+          command: ["/app/cleaner", "clear-hot-offline-storage-tool"]
           imagePullPolicy: Always
           env:
             - name: CONF_PATH
               value: /app/hot-offline-conf.json
-            - name: PGSQL_HOST
-              value: tensorsec-postgresql
-            - name: PGSQL_USER
-              value: postgres
-            - name: PGSQL_DBNAME
-              value: postgres
-            - name: PGSQL_SSL_MODE
-              value: disable
-            - name: PGSQL_PASSWORD
-              value: password
-            - name: ELASTIC_URL
-              value: "http://tensorsec-elasticsearch-master:9200"
           volumeMounts:
             - name: audit
               mountPath: /audit

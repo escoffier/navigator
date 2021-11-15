@@ -25,7 +25,7 @@ spec:
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
   - metadata:
-      name: {{ template "elasticsearch.uname" . }}
+      name: data
     {{- if .Values.persistence.labels.enabled }}
       labels:
         heritage: {{ .Release.Service | quote }}
@@ -41,7 +41,7 @@ spec:
 {{ toYaml . | indent 8 }}
     {{- end }}
     spec:
-{{ include "tensorsec.common.storage.class" (dict "persistence" .Values.persistence "global" .Values.global) | indent 6 }}
+{{ include "common.storage.class" (dict "persistence" .Values.persistence "global" .Values.global) | indent 6 }}
 {{ toYaml .Values.volumeClaimTemplate | indent 6 }}
   {{- end }}
   template:
@@ -330,7 +330,7 @@ spec:
 {{- end }}
         volumeMounts:
           {{- if .Values.persistence.enabled }}
-          - name: "{{ template "elasticsearch.uname" . }}"
+          - name: "data"
             mountPath: /usr/share/elasticsearch/data
           {{- end }}
 {{ if .Values.keystore }}

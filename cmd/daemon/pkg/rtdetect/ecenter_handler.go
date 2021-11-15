@@ -9,7 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 
-	pb "gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	pb "gitlab.com/security-rd/go-pkg/pb"
 )
 
 var (

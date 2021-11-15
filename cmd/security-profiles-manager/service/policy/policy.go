@@ -30,19 +30,19 @@ const (
 	#include <abstractions/base>
 
 	allow /** ix,
-	network, 
+	network,
 	ptrace,
 	pivot_root,
 	signal,
 	dbus,
 	unix,
 
-	allow /tensorsec/dp.so rm,
+	allow /tmp/dp.so rm,
 	allow /var/log/drift-prevention.log rw,
 	allow /etc/hosts r,
-	allow /tensorsec/whitelist.txt r,
-	allow /tensorsec/commands.txt r,
-	deny /tensorsec/file-checker rwx,
+	allow /tmp/whitelist.txt r,
+	allow /tmp/commands.txt r,
+	deny /tmp/file-checker rwx,
 
 `
 	seccompProfileTemplate = `
@@ -62,7 +62,7 @@ const (
 				"action": "SCMP_ACT_ALLOW"
 			}
 		]
-	}	
+	}
 `
 )
 
@@ -894,7 +894,7 @@ func (s *SecPolicyService) updateProfiles(ctx context.Context, profilesToAdd []p
 			profileContent = profileContent + fmt.Sprintf(apparmorBaseProfile, p.profile)
 
 			for _, file := range p.apparmorData {
-				if file.File != "/tensorsec/dp.so" && file.File != "/var/log/drift-prevention.log" && file.File != "/etc/hosts" {
+				if file.File != "/tmp/dp.so" && file.File != "/var/log/drift-prevention.log" && file.File != "/etc/hosts" && file.File != "/etc/resolv.conf" {
 					profileContent = fmt.Sprintf("%s\nallow %s %s,", profileContent, file.File, file.Access)
 				}
 			}

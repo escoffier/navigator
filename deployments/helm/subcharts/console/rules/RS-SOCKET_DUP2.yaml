@@ -1,8 +1,0 @@
-name_en: RS-SOCKET_DUP2
-name_zh: RS-SOCKET_DUP2
-description_en: "Risk of Reverse Shell exploit (through socket and dup2 syscalls)"
-description_zh: "反向Shell攻击的风险（通过socket和dup2进行系统调用）"
-cvss_3_vector: ""
-cvss_3_score: 0.0
-cvss_2_vector: ""
-cvss_2_score: 0.0

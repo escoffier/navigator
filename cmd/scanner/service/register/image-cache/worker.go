@@ -142,7 +142,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			continue
 		}
 
-		log.Info().Msgf("worker %d get task: %+v", w.id, task)
+		log.Info().Msgf("worker %d get task url: %v, refCount:%v ,username:%v", w.id, task.url, task.refCount, task.username)
 
 		if w.rc == nil {
 			// create registry client

@@ -13,14 +13,14 @@ import (
 )
 
 func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
+	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s port=%d",
 		util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
 		util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
 		util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
 		util2.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
 		util2.GetEnvWithDefault(env.PostgresPassword, ""),
+		util2.GetIntValWithDefault(env.PostgresPort, env.DefaultPostgresPort),
 	)
-
 	return rdbtools.NewPostgresClient(postgresqlDSN)
 }
 

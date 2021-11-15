@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorsec-platform-report
+  name: platform-report
 spec:
   ttlSecondsAfterFinished: 600
   template:
@@ -12,22 +12,9 @@ spec:
     spec:
       containers:
         - name: platform-report
-          image: localhost:32000/tensorsec-platform-report:latest
-          command: ["/tensor-platform-report"]
+          image: localhost:32000/platform-report:latest
+          command: ["/platform-report"]
           imagePullPolicy: Always
-          env:
-            - name: PGSQL_HOST
-              value: tensorsec-postgresql
-            - name: PGSQL_PORT
-              value: 5432
-            - name: PGSQL_USER
-              value: postgres
-            - name: PGSQL_DBNAME
-              value: postgres
-            - name: PGSQL_SSL_MODE
-              value: disable
-            - name: PGSQL_PASSWORD
-              value: password
           volumeMounts:
             - name: audit
               mountPath: /audit

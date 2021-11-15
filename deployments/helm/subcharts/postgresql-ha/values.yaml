@@ -49,10 +49,10 @@ global:
 
 ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
 ##
-nameOverride: "tensorsec-db"
+nameOverride: "postgresql"
 ## @param fullnameOverride String to fully override common.names.fullname template
 ##
-fullnameOverride: "tensorsec-db"
+fullnameOverride: "postgres"
 ## @param clusterDomain Kubernetes Cluster Domain
 ##
 clusterDomain: cluster.local

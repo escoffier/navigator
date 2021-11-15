@@ -6,7 +6,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"reflect"
+	"sync"
+	"time"
+
 	param2 "github.com/oceanicdev/chi-param"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	v1 "k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagetrust"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagevalidator"
@@ -16,18 +31,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"io/ioutil"
-	v1 "k8s.io/api/admission/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"net/http"
-	"os"
-	"reflect"
-	"sync"
-	"time"
 )
 
 var (
@@ -222,12 +225,21 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 	}
+	clusterKey, err := param2.QueryString(r, "cluster")
+	//host cluster request has no cluster param
+	if err != nil {
+		logging.GetLogger().Info().Msg("no request param")
+	}
 
+	if clusterKey == "" {
+		clusterKey = s.HostClusterKey
+	}
 	kind := ar.Request.Kind.Kind
 
 	validateParas := processors.ValidatingParameters{
-		Namespace: ar.Request.Namespace,
-		Kind:      kind,
+		ClusterKey: clusterKey,
+		Namespace:  ar.Request.Namespace,
+		Kind:       kind,
 	}
 	err = processors.ValidationFilterChain.Validate(validateParas, ar.Request.Object.Raw)
 	if err != nil {
@@ -281,7 +293,7 @@ func (s *webHookServer) loadHostCluster() error {
 
 func (s *webHookServer) initPG() error {
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(s.Config.PgAddr), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(s.Config.PgAddr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err

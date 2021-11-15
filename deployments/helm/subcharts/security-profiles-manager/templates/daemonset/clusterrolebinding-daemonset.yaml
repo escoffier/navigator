@@ -1,19 +1,16 @@
 {{- if .Values.managedServiceAccount }}
-apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRoleBinding
 metadata:
-  name: {{ template "secProfilesManager.serviceAccount" . }}-daemon-cluster-role-binding
-  labels:
-    app: "{{ template "secProfilesManager.fullname" . }}"
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    heritage: {{ .Release.Service | quote }}
-    release: {{ .Release.Name | quote }}
+  name: {{ printf "%s-daemon" (include "common.names.fullname" .) }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: sec-prof-man-daemon
 roleRef:
   kind: ClusterRole
-  name: {{ template "secProfilesManager.serviceAccount" . }}-daemon-cluster-role
+  name: {{ printf "%s-daemon" (include "common.names.fullname" .) }}
   apiGroup: rbac.authorization.k8s.io
 subjects:
 - kind: ServiceAccount
-  name: {{ template "secProfilesManager.serviceAccount" . }}-daemon
+  name: {{ printf "%s-daemon" (include "common.names.fullname" .) }}
   namespace: {{ .Release.Namespace }}
 {{- end -}}

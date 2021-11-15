@@ -1,12 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "scanner.fullname" . }}-dockerregistry
-  labels:
-    app: {{ template "scanner.fullname" . }}-dockerregistry
-    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+  name: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: dockerregistry
 spec:
   type: {{ .Values.dockerregistry.service.type }}
   {{- if (and (eq .Values.dockerregistry.service.type "ClusterIP") (not (empty .Values.dockerregistry.service.clusterIP))) }}
@@ -27,6 +24,5 @@ spec:
       {{- if (and (eq .Values.dockerregistry.service.type "NodePort") (not (empty .Values.dockerregistry.service.gcNodePort))) }}
       nodePort: {{ .Values.service.gcNodePort }}
       {{- end }}
-  selector:
-    app: {{ template "scanner.fullname" . }}-dockerregistry
-    release: {{ .Release.Name }}
+  selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
+    app.kubernetes.io/component: dockerregistry

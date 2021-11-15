@@ -7,8 +7,8 @@ global:
 
 image:
   registry: localhost:32000
-  repository: tensorsecurity
-  name: tensorsec-console
+  repository: library
+  name: console
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
@@ -16,7 +16,6 @@ image:
 
 scap:
   tag: latest
-  clusterAddr: "http://tensorsec-cluster-manager:9443"
 
 persistence:
   enabled: true
@@ -25,18 +24,16 @@ persistence:
   accessModes:
     - ReadWriteOnce
   size: 50Gi
-  tensorsecCleaner:
+  Cleaner:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
-      name: tensorsec-cleaner
+      repository: library
+      name: cleaner
       tag: latest
       pullPolicy: Always
       pullSecret: harbor-admin-secret
     coldCronjob:
       cronString: "0 4 * * *"
-      nameOverride: "cron-cold-cleaner"
-      fullnameOverride: "tensorsec-cron-cold-cleaner"
       resources:
         limits:
           cpu: "0.1"
@@ -46,8 +43,6 @@ persistence:
           memory: 200Mi
     hotLogicCronjob:
       cronString: "0 2 * * *"
-      nameOverride: "cron-hot-logic-cleaner"
-      fullnameOverride: "tensorsec-cron-hot-logic-cleaner"
       resources:
         limits:
           cpu: "0.1"
@@ -57,8 +52,6 @@ persistence:
           memory: 200Mi
     hotOfflineCronjob:
       cronString: "0 3 * * *"
-      nameOverride: "cron-hot-offline-cleaner"
-      fullnameOverride: "tensorsec-cron-hot-offline-cleaner"
       resources:
         limits:
           cpu: "0.1"
@@ -68,37 +61,37 @@ persistence:
           memory: 200Mi
 
 jobs:
-  tensorsecCleaner:
+  Cleaner:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
-      name: tensorsec-cleaner
+      repository: library
+      name: cleaner
       tag: latest
       pullPolicy: Always
       pullSecret: harbor-admin-secret
-  tensorsecHunter:
+  Hunter:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
-      name: tensorsec-kube-hunter-report
+      repository: library
+      name: kube-hunter-report
       tag: latest
-  tensorsecHunterOrigin:
+  HunterOrigin:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
+      repository: library
       name: kube-hunter
       tag: 0.6.2
-  tensorsecApiScan:
+  ApiScan:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
-      name: tensorsec-apiscan-job
+      repository: library
+      name: apiscan-job
       tag: latest
-  tensorsecPlatform:
+  Platform:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
-      name: tensorsec-platform-report
+      repository: library
+      name: platform-report
       tag: latest
 
 ## Deployment pod host aliases
@@ -113,14 +106,13 @@ emailCheck:
   smtpEnabled: false
   smtpHost: smtp.feishu.cn
   smtpPort: 465
-  smtpUsername: console-robot@tensorsecurity.cn
+  smtpUsername: console-robot@example.com
   smtpPassword: password
   
 
 
 nameOverride: "console"
-fullnameOverride: "tensorsec-console"
-debugServiceName: "tensorsec-console-debug"
+fullnameOverride: "console"
 
 # Custom service account override that the pod will use
 serviceAccount: ""
@@ -160,32 +152,25 @@ initResources:
 init:
   image:
     registry:  localhost:32000
-    repository: tensorsecurity
+    repository: library
     name: alpine
     tag: latest
   
 
-apiInstallLabel: "console.tensorsec/install"
+apiInstallLabel: "console/install"
 
-consoleInternalAdd: "http://tensorsec-console:8889"
-consoleExternalAdd: "http://tensorsec-console:8889"
-
-eventcenter:
-  eventGrpcUrl: tensorsec-eventcenter:9090
-  eventGrpcCertServerName: tensorsec-eventcenter
+consoleExternalAdd: "http://console.example.com"
 
 elasticsearch:
-  elasticSecretName: elastic-secret
   extraEnvs:
     - name: ELASTIC_PASSWORD
       value: Elastic12345
     - name: ELASTIC_USERNAME
       value: elasticsearch
-elastic:
-  host: tensorsec-elasticsearch-master
   port: 9200
   index: filebeat-*
   elasticDataPath: /usr/share/elasticsearch/data
+
 postgresql:
   postgresqlDataDir: /bitnami/postgresql/data
   postgresqlUsername: postgres
@@ -194,18 +179,15 @@ postgresql:
 
 imagePullSecret:
   imageRegistryURL: https://192.168.1.152:30003
-  imageRegistryUsername: tensorsec
-  imageRegistryPassword: Tensorsec123!
-  
-redis:
-  redisSecretName: tensorsec-redis-ha
+  imageRegistryUsername: 
+  imageRegistryPassword: 123!
 
 version:
-  softName: Navigator
+  softName: ManagerPlatform
   softVersion: v1.11.0
 
 k8sAudit:
   prefix: "audit_"
 
 openapi:
-  guideURL: "https://tensorsecurity.feishu.cn/docs/doccn14Oeay2PwoXy0gq3RvRj2f"
+  guideURL: "https://shimo.im/docs/KyKK86Y6jhwDRCc8"

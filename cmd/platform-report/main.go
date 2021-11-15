@@ -199,9 +199,9 @@ func finishTask(ctx context.Context, templateID int32, uuid string, content []by
 }
 
 func newDBFromEnv() (*rdbtools.GormWrapper, error) {
-	postgresqlDSN := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s password=%s",
+	postgresqlDSN := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=%s password=%s",
 		util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		util.GetEnvWithDefault(env.PostgresPortEnv, env.DefaultPostgresPort),
+		util.GetIntValWithDefault(env.PostgresPort, env.DefaultPostgresPort),
 		util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
 		util.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
 		util.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),

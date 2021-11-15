@@ -6,7 +6,7 @@ COPY ./configs/holmes/docker-entrypoint.sh /
 
 COPY ./dist/holmes-scheduler /
 
-COPY ./dist/tensorsec-holmes-rules.thr /
+COPY ./dist/holmes-rules.thr /
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 

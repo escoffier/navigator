@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	CopyString          = "\nCOPY dp.so /tmp/tensorsec/dp.so \nCOPY file-checker /tmp/tensorsec/file-checker \nRUN /tensorsec/file-checker"
+	CopyString          = "\nCOPY dp.so /tmp/dp.so \nCOPY file-checker /tmp/file-checker \nRUN /tmp/file-checker"
 	LocalFileCheckerUrl = "/api/openapi/scanner/imagereject/result/file-checker"
 )
 
