@@ -26,7 +26,7 @@ const contentFormat = `<div>已为您成功生成一份报告：</div>
 <div>报告类型: %s</div>
 <div>报告名称: %s</div>
 <div>报告周期: %s - %s</div>
-<div>平台链接: https://%s/#/image-scanning/recent-scan?reportId=%d&ctab=4</div>` // todo
+<div>平台链接: https://%s/#/image-scanning/recent-scan?reportId=%d&ctab=4</div>`
 
 type ScanReportSrv struct {
 	dao       store.ScanReportInterface
@@ -43,7 +43,7 @@ func NewScanReportSrv(options ...Option) *ScanReportSrv {
 	}
 
 	if err := srv.checkEmail(); err != nil {
-		log.Fatal().Msgf("email login error: %v", err)
+		log.Error().Msgf("email login error: %v", err)
 	}
 
 	return srv
@@ -53,6 +53,7 @@ func (s *ScanReportSrv) Run() error {
 	tick := time.NewTicker(s.interval)
 	defer tick.Stop()
 	for {
+		log.Info().Msgf("start scan job, time: %s", time.Now().In(util.CSTSh).Format(format))
 		go s.run()
 		<-tick.C
 	}
