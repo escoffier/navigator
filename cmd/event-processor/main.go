@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/event-processor/apiinfo"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -999,6 +1000,13 @@ func main() {
 	}, stan.StartWithLastReceived(), stan.DurableName("tensorsec-event-processor"))
 	if err != nil {
 		logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to seccomp topic")
+	}
+
+	err = apiinfo.InitPG()
+	if err == nil {
+		sc.Subscribe(apiinfo.ApiSubject, func(msg *stan.Msg) {
+			apiinfo.Process(msg)
+		})
 	}
 
 	sigChan := make(chan os.Signal, 1)
