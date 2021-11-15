@@ -64,7 +64,7 @@ func DefaultProxyConfig() *ProxyConfig {
 	return &ProxyConfig{
 		InterceptionMode: "REDIRECT",
 		NatsUrls:         "nats://localhost:4222",
-		NatsSubject:      "api-security",
+		NatsSubject:      "apiinfo",
 	}
 }
 

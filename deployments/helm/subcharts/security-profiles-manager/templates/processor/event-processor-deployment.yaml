@@ -53,6 +53,8 @@ spec:
           value: /auth/server/tls.crt
         - name: EVENT_GRPC_CERT_SERVER_NAME
           value: eventcenter
+        - name: PG_ADDR
+          value: {{ include "common.pgpool.DSN" . }}
         volumeMounts:
         - mountPath: /auth/server
           name: server-cert

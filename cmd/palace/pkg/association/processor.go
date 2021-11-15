@@ -250,7 +250,7 @@ func (ap *AssociationProcessor) asyncLoop() {
 			case aevt := <-ap.eventsChan:
 				err := ap.handleAssocatedEvent(context.Background(), aevt)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("handle association event error. event: %+v", e)
+					logging.GetLogger().Err(err).Msgf("handle association event error. event: %+v", err)
 				}
 			case now := <-ticker.C:
 				ap.cleanUp(now)
