@@ -16,6 +16,7 @@ global:
     console: "console"
     elasticsearch: "elasticsearch-master"
     eventcenter: "eventcenter"
+    holmes: "holmes"
     microseg: "microseg"
     postgresql: "postgres-postgresql"
     pgpool: "postgres-pgpool"

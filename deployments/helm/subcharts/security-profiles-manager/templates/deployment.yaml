@@ -55,7 +55,7 @@ spec:
         - name: HOLMES_LABEL
           value: {{ .Values.holmes.podLabel }}
         - name: HOLMES_CONFIGMAP
-          value: {{ .Values.holmes.rulesConfigMap }}
+          value: {{ printf "%s-rules" (include "common.holmes.defaultName" .) }}
         - name: REDIS_PASSWORD
           valueFrom:
             secretKeyRef:

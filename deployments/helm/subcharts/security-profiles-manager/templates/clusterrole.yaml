@@ -27,7 +27,7 @@ rules:
   resources:
   - configmaps
   resourceNames:
-  - {{ .Values.holmes.rulesConfigMap }}
+  - {{ printf "%s-rules" (include "common.holmes.defaultName" .) }}
   - {{ printf "%s-container" (include "common.names.fullname" .) }}
   verbs:
   - list
