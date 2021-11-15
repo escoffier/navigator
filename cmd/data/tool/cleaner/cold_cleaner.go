@@ -30,12 +30,8 @@ func (c ColdCleaner) Clean(_ context.Context, arg *def.CleanArg) error {
 			return nil
 		}
 
-		t, parseErr := time.ParseInLocation(dumpTimeLayout, info.Name(), time.Local)
-		if parseErr != nil {
-			logging.GetLogger().Info().Msgf("ignore file:%s", path)
-			return nil
-		}
-
+		t := info.ModTime()
+		logging.GetLogger().Info().Msgf("path:%s, modTime:%s", path, t)
 		if t.Before(timeFilter) {
 			removeErr := os.Remove(path)
 			if removeErr != nil {

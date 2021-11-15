@@ -427,7 +427,7 @@ func (api *api) addUser() http.HandlerFunc {
 					return innerErr
 				}
 
-				if !model.SendEmail(req.UserName, r.Host, emailHashCode, api.emailOpts) {
+				if !SendEmail(req.UserName, r.Host, emailHashCode, api.emailOpts) {
 					return ErrSendEmailFail
 				}
 				return nil

@@ -192,7 +192,8 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 
 	for container, profile := range profileMap[model.SecurityKindSeccomp] {
 		logrus.Infof("Applying seccomp profile %v to container %v", profile.name, container)
-		securityContextPatch := PatchSecurityContext(pod, container, fmt.Sprintf("tensorsec/%s", profile.name))
+		// securityContextPatch := PatchSecurityContext(pod, container, fmt.Sprintf("tensorsec/%s", profile.name))
+		securityContextPatch := PatchSecurityContext(pod, container, fmt.Sprintf("%s", profile.name))
 		preVersionFlag := os.Getenv("PRE119")
 
 		if securityContextPatch != nil {
@@ -207,7 +208,8 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 
 		}
 		seccompAnnotationKey := fmt.Sprintf("container.seccomp.security.alpha.kubernetes.io/%s", container)
-		seccompAnnotationValue := fmt.Sprintf("localhost/tensorsec/%s", profile.name)
+		// seccompAnnotationValue := fmt.Sprintf("localhost/tensorsec/%s", profile.name)
+		seccompAnnotationValue := fmt.Sprintf("localhost/%s", profile.name)
 		// annotationKeys = append(annotationKeys, seccompAnnotationKey)
 		// annotationValues = append(annotationValues, seccompAnnotationValue)
 		logrus.Infof("%v %v", seccompAnnotationKey, seccompAnnotationValue)

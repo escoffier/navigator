@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorsec-kube-hunter-report
+  name: kube-hunter-report
 spec:
   ttlSecondsAfterFinished: 600
   template:
@@ -12,8 +12,8 @@ spec:
     spec:
       containers:
         - name: kube-hunter-report
-          image: localhost:32000/tensorsec-kube-hunter-report:latest
-          command: ["/tensor-kube-hunter-report"]
+          image: localhost:32000/kube-hunter-report:latest
+          command: ["/kube-hunter-report"]
           imagePullPolicy: Always
           resources:
             requests:

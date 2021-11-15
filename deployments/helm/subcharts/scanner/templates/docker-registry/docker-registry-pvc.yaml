@@ -2,17 +2,14 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: {{ template "scanner.fullname" . }}-dockerregistry
-  labels:
-    app: {{ template "scanner.fullname" . }}-dockerregistry
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  name: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: dockerregistry
 spec:
   accessModes:
     - {{ .Values.dockerregistry.persistence.accessMode | quote }}
   resources:
     requests:
       storage: {{ .Values.dockerregistry.persistence.size | quote }}
-  {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.dockerregistry.persistence "global" .Values.global) }}
+  {{ include "common.storage.class" (dict "persistence" .Values.dockerregistry.persistence "global" .Values.global) }}
 {{- end -}}

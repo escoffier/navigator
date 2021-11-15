@@ -19,9 +19,9 @@ data:
     env:
       - name: LD_PRELOAD
         value: "/tensorsec/dp.so"
-      - name: TENSORSEC_EVENTCENTER_NEW_ADDR
+      - name: EVENTCENTER_NEW_ADDR
         value: "{{ .Values.eventcenter.addr }}"
-      - name: TENSORSEC_EVENTCENTER_NEW_PORT
+      - name: EVENTCENTER_NEW_PORT
         value: "{{ .Values.eventcenter.port }}"
     volumemounts:
       - name: "{{ .Values.volumes.clientName }}"

@@ -1,23 +1,18 @@
-apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ template "scanner.fullname" . }}-dockerregistry
-  labels:
-    app: {{ template "scanner.fullname" . }}-dockerregistry
-    chart: {{ .Chart.Name }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+  name: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: dockerregistry
 spec:
   selector:
-    matchLabels:
-      app: {{ template "scanner.fullname" . }}-dockerregistry
-      release: {{ .Release.Name }}
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dockerregistry
   replicas: 1
   template:
     metadata:
-      labels:
-        app: {{ template "scanner.fullname" . }}-dockerregistry
-        release: {{ .Release.Name }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dockerregistry
     spec:
       {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
@@ -32,7 +27,7 @@ spec:
         runAsUser: {{ .Values.dockerregistry.securityContext.runAsUser }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}-dockerregistry
+        - name: dockerregistry
           image: {{ include "scanner.docker.registry.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -71,7 +66,7 @@ spec:
             {{- end }}
             - name: data
               mountPath: /var/lib/registry/
-            - name: "{{ template "scanner.fullname" . }}-dockerregistry"
+            - name: "{{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}"
               mountPath: "/etc/docker/registry"
             {{- if .Values.dockerregistry.tlsSecretName }}
             - mountPath: /etc/ssl/docker
@@ -82,7 +77,7 @@ spec:
         {{- if .Values.dockerregistry.secrets.htpasswd }}
         - name: auth
           secret:
-            secretName: {{ template "scanner.fullname" . }}-dockerregistry
+            secretName: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
             items:
             - key: htpasswd
               path: htpasswd
@@ -90,13 +85,13 @@ spec:
         - name: data
           {{- if .Values.dockerregistry.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ template "scanner.fullname" . }}-dockerregistry
+            claimName: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
           {{- else }}
           emptyDir: {}
           {{- end }}
-        - name: {{ template "scanner.fullname" . }}-dockerregistry
+        - name: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
           configMap:
-            name: {{ template "scanner.fullname" . }}-dockerregistry
+            name: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
         {{- if .Values.dockerregistry.tlsSecretName }}
         - name: tls-cert
           secret:

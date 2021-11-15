@@ -52,29 +52,29 @@ Return the NATS cluster routes.
 Return the stan image name
 */}}
 {{- define "stan.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.stan.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.stan.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the stan exporter image name
 */}}
 {{- define "stan.exporter.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.exporter.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.exporter.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the stan reloader image name
 */}}
 {{- define "stan.reloader.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.reloader.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.reloader.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the stan reloader image name
 */}}
 {{- define "stan.initdb.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.store.sql.initdb.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.store.sql.initdb.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the stan reloader image name
 */}}
 {{- define "stan.awsCli.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.awsCli.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.awsCli.image "global" .Values.global) }}
 {{- end -}}

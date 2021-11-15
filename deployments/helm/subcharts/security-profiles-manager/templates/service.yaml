@@ -1,17 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "secProfilesManager.fullname" . }}
-  labels:
-    helm.sh/chart: {{ include "secProfilesManager.chart" . }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: sec-prof-man
 spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.containerPort }}
       protocol: TCP
-      name: {{ include "secProfilesManager.name" . }}
-  selector:
-    app.kubernetes.io/name: {{ include "secProfilesManager.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+      name: sec-prof-man
+  selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
+    app.kubernetes.io/component: sec-prof-man

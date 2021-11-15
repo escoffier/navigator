@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 	"gopkg.in/yaml.v2"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"

@@ -32,7 +32,7 @@ const (
 	RoleNormal         = "normal"
 	UserSuperAdmin     = "SuperAdmin"
 	PasswordSuperAdmin = "9a39820591e511160e9f993d30d92b19"
-	DefaultPassword    = "tanzhen2020"
+	DefaultPassword    = "ksJ@12MczH"
 )
 
 type MongoUser struct {

@@ -48,8 +48,11 @@ func NewOfflineStorageCleaners() (cleaners []def.Cleaner, err error) {
 
 	logging.GetLogger().Info().Msgf("conf:%+v", offlineConf)
 
-	esCleaner, err := cleaner.NewESCleaner(
-		util2.GetEnvWithDefault(env.ElasticURL, env.DefaultElasticURL), offlineConf.ESDumpItems)
+	esCleaner, err := cleaner.NewESCleaner(&cleaner.ESConf{
+		URL:      util2.GetEnvWithDefault(env.ElasticURL, ""),
+		Username: util2.GetEnvWithDefault(env.ElasticUsername, ""),
+		Password: util2.GetEnvWithDefault(env.ElasticPassword, ""),
+	}, offlineConf.ESDumpItems)
 	if err != nil {
 		return nil, err
 	}

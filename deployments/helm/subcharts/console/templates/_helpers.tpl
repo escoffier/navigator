@@ -3,160 +3,46 @@
 Return the console image path
 */}}
 {{- define "console.registryPath" -}}
-{{ include "tensorsec.common.images.registryPath" ( dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "common.images.registryPath" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
-
 
 {{/*
 Return the console image name
 */}}
 {{- define "console.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the console image name
 */}}
 {{- define "console.init.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.init.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.init.image "global" .Values.global) }}
 {{- end -}}
 
 {{/* JOBS IMAGE DEFINE */}}
-{{/* Return the job tensorsec cleaner image name */}}
+{{/* Return the job cleaner image name */}}
 {{- define "jobs.cleaner.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.jobs.tensorsecCleaner.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.jobs.Cleaner.image "global" .Values.global) }}
 {{- end -}}
-{{/* Return the job tensorsec hunter image name */}}
+{{/* Return the job hunter image name */}}
 {{- define "jobs.hunter.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.jobs.tensorsecHunter.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.jobs.Hunter.image "global" .Values.global) }}
 {{- end -}}
-{{/* Return the job tensorsec hunter-origin image name */}}
+{{/* Return the job hunter-origin image name */}}
 {{- define "jobs.hunter.originImage" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.jobs.tensorsecHunterOrigin.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.jobs.HunterOrigin.image "global" .Values.global) }}
 {{- end -}}
-{{/* Return the job tensorsec apiscan image name */}}
+{{/* Return the job apiscan image name */}}
 {{- define "jobs.apiscan.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.jobs.tensorsecApiScan.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.jobs.ApiScan.image "global" .Values.global) }}
 {{- end -}}
-{{/* Return the job tensorsec platform report image name */}}
+{{/* Return the job platform report image name */}}
 {{- define "jobs.platform.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.jobs.tensorsecPlatform.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.jobs.Platform.image "global" .Values.global) }}
 {{- end -}}
-
-
 
 {{- define "console.genImagePullSecret" }}
 {{- with .Values.imagePullSecret }}
 {{- printf "{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}" .imageRegistryURL .imageRegistryUsername .imageRegistryPassword (printf "%s:%s" .imageRegistryUsername .imageRegistryPassword | b64enc) | b64enc }}
 {{- end }}
 {{- end }}
-
-{{/*
-Use the fullname if the serviceAccount value is not set
-*/}}
-{{- define "console.serviceAccount" -}}
-{{- if .Values.serviceAccount }}
-{{- .Values.serviceAccount -}}
-{{- else }}
-{{- $name := default .Chart.Name .Values.fullnameOverride -}}
-{{- printf "%s-%s" $name .Release.Namespace | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-
-
-{{/*
-Expand the name of the chart.
-*/}}
-{{- define "console.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{- define "audit.name" -}}
-{{- default .Chart.Name .Values.audit.nameOverride | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{- define "auditCleanup.name" -}}
-{{- default .Chart.Name .Values.auditCleanup.nameOverride | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
-*/}}
-{{- define "console.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "audit.fullname" -}}
-{{- if .Values.audit.fullnameOverride -}}
-{{- .Values.audit.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.audit.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "auditCleanup.fullname" -}}
-{{- if .Values.auditCleanup.fullnameOverride -}}
-{{- .Values.auditCleanup.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.auditCleanup.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Create chart name and version as used by the chart label.
-*/}}
-{{- define "console.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{- define "audit.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{- define "auditCleanup.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{/*
-Common labels
-*/}}
-{{- define "console.labels" -}}
-app: {{ include "console.name" . }}
-chart: {{ include "console.chart" . }}
-release: {{ .Release.Name }}
-heritage: {{ .Release.Service }}
-{{- end -}}
-
-{{- define "audit.labels" -}}
-app: {{ include "audit.name" . }}
-chart: {{ include "audit.chart" . }}
-release: {{ .Release.Name }}
-heritage: {{ .Release.Service }}
-{{- end -}}
-
-{{- define "auditCleanup.labels" -}}
-app: {{ include "audit.name" . }}
-chart: {{ include "audit.chart" . }}
-release: {{ .Release.Name }}
-heritage: {{ .Release.Service }}
-{{- end -}}

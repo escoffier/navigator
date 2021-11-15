@@ -1,0 +1,42 @@
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ printf "%s-scan-report" (include "common.names.fullname" .) }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: scan-report
+spec:
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scan-report
+  replicas: {{ .Values.scanreport.replicas | default 1 }}
+  template:
+    metadata:
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scan-report
+    spec:
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      containers:
+        - args:
+          - -db-connect-str={{ include "common.pgpool.DSN" . }}
+          - -interval={{ .Values.scanreport.interval }}
+          - -host={{ .Values.global.consoleExternalAdd }}
+          - -email-user={{ .Values.scanreport.emailCheck.smtpUsername }}
+          - -email-host={{ .Values.scanreport.emailCheck.smtpHost }}
+          - -email-port={{ .Values.scanreport.emailCheck.smtpPort }}
+          - -email-passwd={{ .Values.scanreport.emailCheck.smtpPassword }}
+          command:
+          - ./scan_report
+          name: scan-report
+          image: {{ include "scanner.scan-report.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+          - containerPort: 5000
+            protocol: TCP
+          resources:
+{{ toYaml .Values.scanreport.resources | indent 12 }}

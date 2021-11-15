@@ -1,13 +1,9 @@
 {{- if .Values.rbac.create }}
 kind: ClusterRole
-apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 metadata:
-  name: {{ template "falco.serviceAccountName" .}}-cluster-role
-  labels:
-    app: {{ template "falco.fullname" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 rules:
   - apiGroups:
       - ""
@@ -64,9 +60,9 @@ rules:
     resources:
       - podsecuritypolicies
     resourceNames:
-      - {{ template "falco.fullname" . }}
+      - {{ include "common.names.fullname" . }}
 {{- if .Values.fakeEventGenerator.enabled }}
-      - event-generator-{{ template "falco.fullname" . }}
+      - event-generator-{{ include "common.names.fullname" . }}
 {{- end }}
     verbs:
       - use

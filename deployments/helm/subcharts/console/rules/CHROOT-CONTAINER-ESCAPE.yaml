@@ -1,8 +1,0 @@
-name_en: CHROOT-CONTAINER-ESCAPE
-name_zh: CHROOT-CONTAINER-ESCAPE
-description_en: "Risk of container escape to access host system (through chroot)"
-description_zh: "容器逃逸到訪問主機系統的風險（通過chroot）"
-cvss_3_vector: ""
-cvss_3_score: 0.0
-cvss_2_vector: ""
-cvss_2_score: 0.0

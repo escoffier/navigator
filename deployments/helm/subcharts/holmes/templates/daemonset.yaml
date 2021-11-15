@@ -1,24 +1,18 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ template "falco.fullname" . }}
+  name: {{ include "common.names.fullname" . }}
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ template "falco.fullname" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   selector:
-    matchLabels:
-      app: {{ template "falco.fullname" .}}
-      role: security
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: holmes
   template:
     metadata:
-      name: {{ template "falco.fullname" .}}
-      labels:
-        app: {{ template "falco.fullname" .}}
-        role: security
+      name: {{ include "common.names.fullname" . }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+        app.kubernetes.io/component: holmes
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/rules: {{ include (print $.Template.BasePath "/configmap-rules.yaml") . | sha256sum }}
@@ -29,8 +23,8 @@ spec:
 {{ toYaml .Values.daemonset.podAnnotations | indent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ template "falco.serviceAccountName" .}}
-      {{- if or (and .Values.ebpf.enabled .Values.ebpf.settings.hostNetwork) .Values.tensorsecDaemon.enabled }}
+      serviceAccountName: {{ include "common.names.fullname" . }}
+      {{- if or (and .Values.ebpf.enabled .Values.ebpf.settings.hostNetwork) .Values.daemon.enabled }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
@@ -55,9 +49,9 @@ spec:
       - name: {{ .Values.image.pullSecret }}
       {{- end }}
       containers:
-        - name: tensorsec-daemon
+        - name: daemon
           image: {{ include "daemon.image" . }}
-          imagePullPolicy: {{ .Values.tensorsecDaemon.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.daemon.image.pullPolicy }}
           volumeMounts:
             - mountPath: /auth/server
               name: server-cert
@@ -71,18 +65,26 @@ spec:
             runAsUser: 0
           args: []
           resources:
-{{ toYaml .Values.tensorsecDaemon.resources | trim | indent 12 }}
+{{ toYaml .Values.daemon.resources | trim | indent 12 }}
           env:
             - name: RTDETECT_UDS_ADDR
               value: {{ .Values.falco.grpc.unixSocketPath }}
             - name: STAN_CLUSTER_ID
-              value: tensorsec
+              value: manager
             - name: STAN_URL
-              value: {{ .Values.stan.host }}:{{ .Values.stan.port }}
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "{{ include "common.stan.defaultName" . }}-headless:4222"
+              {{- else }}
+              value: "{{ .Values.global.multiCluster.configs.stanExternalHost }}:{{ .Values.global.multiCluster.configs.stanExternalPort }}"
+              {{- end }}
             - name: CONSOLE_ADDR
-              value: {{ .Values.multicluster.consoleaddr }}
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "http://{{ include "common.console.defaultName" . }}:8889"
+              {{- else }}
+              value: "{{ .Values.global.multiCluster.configs.consoleExternalAdd }}"
+              {{- end }}
             - name: CLUSTER_ADDR
-              value: {{ .Values.multicluster.clusterinfo }}
+              value: "http://{{ include "common.cluster-manager.defaultName" . }}:9443"
             - name: MY_POD_IP
               valueFrom:
                 fieldRef:
@@ -96,12 +98,27 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: EVENT_GRPC_URL
-              value: {{ .Values.eventcenter.eventGrpcUrl }}
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "{{ include "common.eventcenter.defaultName" . }}:9090"
+              {{- else }}
+              value: {{ .Values.global.multiCluster.configs.eventcenterGrpcExternalAddr }}
+              {{- end }}
             - name: EVENT_GRPC_CERT_PATH
               value: /auth/server/tls.crt
             - name: EVENT_GRPC_CERT_SERVER_NAME
-              value: {{ .Values.eventcenter.eventGrpcCertServerName }}
-        - name: {{ .Chart.Name }}
+              value: eventcenter
+            - name: REDIS_ADDR
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "{{ include "common.redis.sentinel.address" . }}"
+              {{- else }}
+              value: ""
+              {{- end }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "common.redis-ha.defaultName" . }}
+                  key: auth
+        - name: falco
           image: {{ template "falco.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
@@ -133,13 +150,21 @@ spec:
             periodSeconds: 5
           env:
             - name: CONSOLE_HTTP_ADDR
-              value: {{ .Values.multicluster.consoleaddr }}
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "http://{{ include "common.console.defaultName" . }}:8889"
+              {{- else }}
+              value: "{{ .Values.global.multiCluster.configs.consoleExternalAdd }}"
+              {{- end }}
             - name: EVENT_GRPC_URL
-              value: {{ .Values.eventcenter.eventGrpcUrl }}
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "{{ include "common.eventcenter.defaultName" . }}:9090"
+              {{- else }}
+              value: {{ .Values.global.multiCluster.configs.eventcenterGrpcExternalAddr }}
+              {{- end }}
             - name: EVENT_GRPC_CERT_PATH
               value: /auth/server/tls.crt
             - name: EVENT_GRPC_CERT_SERVER_NAME
-              value: {{ .Values.eventcenter.eventGrpcCertServerName }}
+              value: {{ include "common.eventcenter.defaultName" . }}
           {{- if .Values.ebpf.enabled }}
             - name: HOLMES_BPF_PROBE
               value: {{ .Values.ebpf.path }}
@@ -243,14 +268,14 @@ spec:
             secretName: eventcenter-tls-server-cert-secret
         - name: config-volume
           configMap:
-            name: {{ template "falco.fullname" . }}
+            name: {{ include "common.names.fullname" . }}
             items:
               - key: holmes.yaml
                 path: holmes.yaml
               # - key: falco_rules.yaml
               #   path: falco_rules.yaml
-#              - key: falco_rules.local.yaml
-#                path: falco_rules.local.yaml
+              # - key: falco_rules.local.yaml
+              #   path: falco_rules.local.yaml
               # - key: application_rules.yaml
               #   path: rules.available/application_rules.yaml
               # {{- if .Values.auditLog.enabled }}
@@ -259,7 +284,7 @@ spec:
               # {{- end }}
         - name: rules-volume
           configMap:
-            name: {{ template "falco.fullname" . }}-rules
+            name: {{ include "common.names.fullname" . }}-rules
         {{- if and .Values.falco.grpc.enabled .Values.falco.grpc.unixSocketPath }}
         - name: grpc-socket-dir
           hostPath:
@@ -269,7 +294,7 @@ spec:
         {{- if or .Values.falco.webserver.sslEnabled (and .Values.falco.grpc.enabled (not .Values.falco.grpc.unixSocketPath)) }}
         - name: certs-volume
           secret:
-            secretName: {{ template "falco.fullname" . }}-certs
+            secretName: {{ include "common.names.fullname" . }}-certs
             items:
               - key: server.key
                 path: server.key

@@ -1,19 +1,15 @@
 {{- if .Values.rbac.create }}
 kind: ClusterRoleBinding
-apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 metadata:
-  name: {{ template "falco.serviceAccountName" .}}-cluster-role-binding
-  labels:
-    app: {{ template "falco.fullname" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
-    name: {{ template "falco.serviceAccountName" .}}
+    name: {{ include "common.names.fullname" . }}
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
-  name: {{ template "falco.serviceAccountName" .}}-cluster-role
+  name: {{ include "common.names.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
 {{- end }}

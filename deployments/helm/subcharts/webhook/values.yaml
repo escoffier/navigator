@@ -6,8 +6,8 @@ global:
 
 image:
   registry: localhost:32000
-  repository: tensorsecurity
-  name: tensorsec-webhook
+  repository: library
+  name: webhook
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
@@ -15,16 +15,12 @@ image:
 certgen:
   image:
     registry: localhost:32000
-    repository: tensorsecurity
+    repository: library
     name: kube-webhook-certgen
     tag: v1.1.1
 
 nameOverride: "webhook"
-fullnameOverride: "tensorsec-webhook"
-
-args:
-  consoleUrl: "http://tensorsec-console:8889"
-  clusterManagerUrl: "http://tensorsec-cluster-manager:9443"
+fullnameOverride: "webhook"
 
 service:
   type: ClusterIP
@@ -44,16 +40,6 @@ resources:
 validators: ImageTrustValidator
 mutators: "DriftPreventionMutator,MicroSegMutator,ImageTrustMutator"
 
-microseg:
-  appCfg:
-    pgMaster:
-      host: "tensorsec-postgresql"
-      user: "postgres"
-      password: "password"
-      dbName: "postgres"
-      port: "5432"
-    runMode: "dev"
-
 presets:
   volumes:
     clientName: "client-cert"
@@ -64,20 +50,19 @@ presets:
     caMountPath: "/auth/ca"
 
 nats:
-  natsUrl: "nats://tensorsec-stan-headless.tensorsec.svc:4222"
   natsSubject: "security-api"
 
 sidecar:
   image:
     registry: localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-proxy
+    repository: library
+    name: security-proxy
     tag: latest
   init:
     image:
       registry: localhost:32000
-      repository: tensorsecurity
-      name: tensorsec-proxyv2
+      repository: library
+      name: proxyv2
       tag: v1.9
   ## Specify which namespace of your cluster will not use image-validator webhook
   ## suggestion is "kube-system" and teh namespace which deployed Tensorsec profduct

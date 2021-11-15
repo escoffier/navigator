@@ -15,9 +15,12 @@ const (
 	PostgresSSLMode        = "PGSQL_SSL_MODE"
 	DefaultPostgresSSLMode = "disable"
 	PostgresPassword       = "PGSQL_PASSWORD"
+	PostgresPort           = "PGSQL_PORT"
+	DefaultPostgresPort    = 5432
 
-	ElasticURL        = "ELASTIC_URL"
-	DefaultElasticURL = "http://tensorsec-elasticsearch-master:9200"
+	ElasticURL      = "ELASTIC_URL"
+	ElasticUsername = "ELASTIC_USERNAME"
+	ElasticPassword = "ELASTIC_PASSWORD"
 
 	AuditPath        = "AUDIT_PATH"
 	DefaultAuditPath = "/audit"

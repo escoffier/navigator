@@ -58,16 +58,19 @@ func main() {
 
 	profileRoots := []ProfileRoot{
 		{
-			rootDir: filepath.Join(apparmorDir, "tensorsec"),
-			kind:    model.SecurityKindApparmor,
+			rootDir: apparmorDir,
+			// rootDir: filepath.Join(apparmorDir, "tensorsec"),
+			kind: model.SecurityKindApparmor,
 		},
 		{
-			rootDir: filepath.Join(commandWhitelistDir, "tensorsec"),
-			kind:    model.SecurityKindCommandWhitelist,
+			rootDir: commandWhitelistDir,
+			// rootDir: filepath.Join(commandWhitelistDir, "tensorsec"),
+			kind: model.SecurityKindCommandWhitelist,
 		},
 		{
-			rootDir: filepath.Join(seccompDir, "tensorsec"),
-			kind:    model.SecurityKindSeccomp,
+			rootDir: seccompDir,
+			// rootDir: filepath.Join(seccompDir, "tensorsec"),
+			kind: model.SecurityKindSeccomp,
 		},
 	}
 
@@ -124,11 +127,14 @@ func main() {
 					profileName := k
 					var profilePath string
 					if kind == model.SecurityKindApparmor {
-						profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+						// profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+						profilePath = filepath.Join(apparmorDir, filepath.Base(profileName))
 					} else if kind == model.SecurityKindCommandWhitelist {
-						profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+						// profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+						profilePath = filepath.Join(commandWhitelistDir, filepath.Base(profileName))
 					} else if kind == model.SecurityKindSeccomp {
-						profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+						// profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+						profilePath = filepath.Join(seccompDir, filepath.Base(profileName))
 					} else {
 						logging.GetLogger().Error().Err(err).Str("kind", string(kind)).Msg("Unsupported profile kind")
 						return
@@ -290,7 +296,8 @@ func main() {
 					if !ok {
 						var profilePath string
 						if kind == model.SecurityKindApparmor {
-							profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+							// profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+							profilePath = filepath.Join(apparmorDir, filepath.Base(profileName))
 							logging.GetLogger().Info().Str("path", profilePath).Msg("Unloading apparmor profile")
 							err = unloadProfile(profilePath)
 							if err != nil {
@@ -298,9 +305,11 @@ func main() {
 								continue
 							}
 						} else if kind == model.SecurityKindCommandWhitelist {
-							profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+							// profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+							profilePath = filepath.Join(commandWhitelistDir, filepath.Base(profileName))
 						} else if kind == model.SecurityKindSeccomp {
-							profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+							// profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+							profilePath = filepath.Join(seccompDir, filepath.Base(profileName))
 						} else {
 							logging.GetLogger().Error().Err(err).Str("kind", string(kind)).Msg("Unsupported profile kind")
 							return
@@ -319,7 +328,8 @@ func main() {
 							data := strings.Join(vSplit[1:], "\n")
 							var profilePath string
 							if kind == model.SecurityKindApparmor {
-								profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+								// profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+								profilePath = filepath.Join(apparmorDir, filepath.Base(profileName))
 								logging.GetLogger().Info().Str("path", profilePath).Msg("Unloading apparmor profile")
 								err = unloadProfile(profilePath)
 								if err != nil {
@@ -327,9 +337,11 @@ func main() {
 									continue
 								}
 							} else if kind == model.SecurityKindCommandWhitelist {
-								profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+								// profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+								profilePath = filepath.Join(commandWhitelistDir, filepath.Base(profileName))
 							} else if kind == model.SecurityKindSeccomp {
-								profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+								// profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+								profilePath = filepath.Join(seccompDir, filepath.Base(profileName))
 							} else {
 								logging.GetLogger().Error().Err(err).Str("kind", string(kind)).Msg("Unsupported profile kind")
 								return
@@ -369,11 +381,14 @@ func main() {
 						profileName := k
 						var profilePath string
 						if kind == model.SecurityKindApparmor {
-							profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+							// profilePath = filepath.Join(apparmorDir, "tensorsec", filepath.Base(profileName))
+							profilePath = filepath.Join(apparmorDir, filepath.Base(profileName))
 						} else if kind == model.SecurityKindCommandWhitelist {
-							profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+							// profilePath = filepath.Join(commandWhitelistDir, "tensorsec", filepath.Base(profileName))
+							profilePath = filepath.Join(commandWhitelistDir, filepath.Base(profileName))
 						} else if kind == model.SecurityKindSeccomp {
-							profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+							// profilePath = filepath.Join(seccompDir, "tensorsec", filepath.Base(profileName))
+							profilePath = filepath.Join(seccompDir, filepath.Base(profileName))
 						} else {
 							logging.GetLogger().Error().Err(err).Str("kind", string(kind)).Msg("Unsupported profile kind")
 							return

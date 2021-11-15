@@ -3,18 +3,17 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	logg "log"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/mattn/go-colorable"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 )
 
 var dbInitOnce sync.Once
@@ -26,16 +25,8 @@ var redisClients []*redis.Client = make([]*redis.Client, 2)
 
 func InitDb(dbConnectStr string) (err error) {
 	dbInitOnce.Do(func() {
-		newLogger := logger.New(
-			logg.New(colorable.NewColorableStdout(), "\r\n", logg.LstdFlags),
-			logger.Config{
-				SlowThreshold: time.Second,
-				LogLevel:      logger.Silent,
-				Colorful:      true,
-			},
-		)
 		scannerGormWrapDb, err = rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-			return gorm.Open(postgres.Open(dbConnectStr), &gorm.Config{Logger: newLogger})
+			return gorm.Open(postgres.Open(dbConnectStr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		})
 		if err != nil {
 			err = fmt.Errorf("connect db err:%v", err)

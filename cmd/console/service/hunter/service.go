@@ -231,7 +231,7 @@ func generateReportURL(consoleBaseURL string) (string, error) {
 }
 
 func generateJobName(uuid string) string {
-	return fmt.Sprintf("tensorsec-hunter-%s", uuid)
+	return fmt.Sprintf("k8s-hunter-%s", uuid)
 }
 
 func (s *Service) GetClusterScanResult(ctx context.Context, cluster, lang string) (*model.KubeHunterTotalDisplay, error) {

@@ -9,6 +9,7 @@ import (
 	"gopkg.in/gomail.v2"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
+	env2 "gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -36,8 +37,7 @@ func (h *Handler) Notify(_ context.Context, template *model.ReportTaskTemplateMe
 }
 
 const (
-	subject      = "平台报告提醒"
-	officialName = "探真官方"
+	subject = "平台报告提醒"
 )
 
 func translateDataType(dataType string) string {
@@ -70,7 +70,8 @@ func (h *Handler) makeEmailBody(template *model.ReportTaskTemplateMeta, startTim
 func (h *Handler) sendEmail(emails []string, body string) error {
 	logging.GetLogger().Info().Msgf("emails:%+v, body:%s", emails, body)
 	m := gomail.NewMessage()
-	m.SetHeader("From", m.FormatAddress(h.emailConf.Username, officialName))
+	m.SetHeader("From", m.FormatAddress(h.emailConf.Username,
+		util.GetEnvWithDefault(env2.EmailOfficialName, env2.DefaultEmailOfficialName)))
 	m.SetHeader("To", emails...)
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)

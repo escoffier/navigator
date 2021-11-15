@@ -1,6 +1,6 @@
 FROM busybox:1.31.0-glibc
 
-ADD dist/tensor-console /
+ADD dist/console /
 ADD configs/data/policy /policy
 ADD ./tensor-compliance-check /jobs
 COPY configs/data/jobs/hot-logic/job.yaml /jobs/hot-logic/job.yaml
@@ -12,4 +12,4 @@ COPY configs/kube-hunter/translate.json /kube-hunter/translate.json
 
 COPY configs/platform-report/job.yaml /jobs/platform-report/job.yaml
 
-CMD /tensor-console
+CMD /console

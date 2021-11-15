@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorsec-cold-cleaner
+  name: cold-cleaner
 spec:
   ttlSecondsAfterFinished: 600
   template:
@@ -12,20 +12,10 @@ spec:
     spec:
       containers:
         - name: cold-cleaner
-          image: localhost:32000/tensorsec-cleaner:latest
-          command: ["/app/tensor-cleaner", "clear-cold-storage-tool"]
+          image: localhost:32000/cleaner:latest
+          command: ["/app/cleaner", "clear-cold-storage-tool"]
           imagePullPolicy: Always
           env:
-            - name: PGSQL_HOST
-              value: tensorsec-postgresql
-            - name: PGSQL_USER
-              value: postgres
-            - name: PGSQL_DBNAME
-              value: postgres
-            - name: PGSQL_SSL_MODE
-              value: disable
-            - name: PGSQL_PASSWORD
-              value: password
             - name: AUDIT_PATH
               value: /audit
           volumeMounts:

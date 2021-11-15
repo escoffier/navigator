@@ -6,6 +6,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	app "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
+	"strings"
 	"time"
 )
 
@@ -30,8 +31,11 @@ type validatingChain struct {
 
 type ValidatingParameters struct {
 	// Deal with potential empty fields, e.g., when the pod is created by a deployment
-	Namespace string
-	Kind      string
+	ClusterKey   string
+	Namespace    string
+	ResourceKind string
+	ResourceName string
+	Kind         string
 }
 
 type ValidatingConfig struct {
@@ -50,6 +54,8 @@ func NewValidatorChain(config *ValidatingConfig) *validatingChain {
 }
 
 func (c *validatingChain) validatePod(ctx context.Context, pod *core.Pod, parameters *ValidatingParameters) error {
+	c.getPodOwner(pod, parameters)
+	logging.GetLogger().Info().Msgf("parameters: %+v", *parameters)
 	for _, v := range c.PodValidators {
 		if v.PreValidate(ctx, pod, parameters) {
 			err := v.Validate(ctx, pod, parameters)
@@ -109,4 +115,36 @@ func (c *validatingChain) needValidating(resource ValidatingParameters) bool {
 		}
 	}
 	return false
+}
+
+func isDeploymentOwned(pod *core.Pod) bool {
+	podLabels := pod.Labels
+	if _, ok := podLabels["pod-template-hash"]; ok {
+		return true
+	}
+	return false
+}
+
+func (c validatingChain) getPodOwner(pod *core.Pod, parameters *ValidatingParameters) {
+	if pod.OwnerReferences == nil || len(pod.OwnerReferences) == 0 {
+		parameters.ResourceKind = "Pod"
+		parameters.ResourceName = pod.Name
+		return
+	}
+	for i := range pod.OwnerReferences {
+		k := pod.OwnerReferences[i].Kind
+		name := pod.OwnerReferences[i].Name
+		if k == "ReplicaSet" && isDeploymentOwned(pod) {
+			n := strings.LastIndex(name, "-")
+			deploymentName := ""
+			if n > 0 {
+				deploymentName = name[:n]
+				parameters.ResourceKind = "Deployment"
+				parameters.ResourceName = deploymentName
+			}
+		} else {
+			parameters.ResourceKind = k
+			parameters.ResourceName = name
+		}
+	}
 }

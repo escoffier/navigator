@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -20,6 +21,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
@@ -55,7 +57,7 @@ func main() {
 			}
 
 			db, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-				db, err := gorm.Open(postgres.Open(dbConnectionString), &gorm.Config{})
+				db, err := gorm.Open(postgres.Open(dbConnectionString), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 				if err != nil {
 					logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 					return nil, err

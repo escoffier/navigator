@@ -17,21 +17,21 @@
       "name": "tensor_namespaces",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/posggresql/tensor_namespaces",
+      "dataDir": "/audit/postgresql/tensor_namespaces",
       "batch": 1000
     },
     {
       "name": "tensor_containers",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/posggresql/tensor_containers",
+      "dataDir": "/audit/postgresql/tensor_containers",
       "batch": 1000
     },
     {
       "name": "tensor_resources",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/posggresql/tensor_resources",
+      "dataDir": "/audit/postgresql/tensor_resources",
       "batch": 1000
     },
     {
@@ -40,41 +40,41 @@
       "primaryKey": ["uuid"],
       "condition": "status in (0, 1)",
       "ttl": 30,
-      "dataDir": "/audit/posggresql/tensor_network_flows",
+      "dataDir": "/audit/postgresql/tensor_network_flows",
       "batch": 1000
     },
     {
       "name": "tensor_microseg_resources",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/posggresql/tensor_microseg_resources",
+      "dataDir": "/audit/postgresql/tensor_microseg_resources",
       "batch": 1000
     },
     {
       "name": "reject_record",
       "timeField": "reject_at",
       "condition": "",
-      "dataDir": "/audit/posggresql/reject_record",
+      "dataDir": "/audit/postgresql/reject_record",
       "batch": 1000
     },
     {
       "name": "processingcenter_actions",
       "timeField": "created_at",
-      "dataDir": "/audit/posggresql/processingcenter_actions",
+      "dataDir": "/audit/postgresql/processingcenter_actions",
       "batch": 1000
     },
     {
       "name": "kube_hunter_records",
       "primaryKey": ["uuid"],
       "timeField": "created_at",
-      "dataDir": "/audit/posggresql/kube_hunter_records",
+      "dataDir": "/audit/postgresql/kube_hunter_records",
       "ttl": 30,
       "batch": 1000
     },
     {
       "name": "report_task_templates",
       "timeField": "created_at",
-      "dataDir": "/audit/posggresql/report_task_templates",
+      "dataDir": "/audit/postgresql/report_task_templates",
       "condition": "type = 'oneTime'",
       "batch": 1000
     },
@@ -82,7 +82,7 @@
       "name": "report_records",
       "primaryKey": ["uuid"],
       "timeField": "updated_at",
-      "dataDir": "/audit/posggresql/report_records",
+      "dataDir": "/audit/postgresql/report_records",
       "ttl": 30,
       "batch": 1000
     }

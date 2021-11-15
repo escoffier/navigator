@@ -1,52 +1,52 @@
-apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ template "cluster-manager.fullname" . }}
-  labels:
-{{ include "cluster-manager.labels" . | indent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ include "cluster-manager.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ include "cluster-manager.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
     spec:
-      serviceAccount: {{ template "cluster-manager.fullname" . }}
+      serviceAccount: {{ include "common.names.fullname" . }}
+      initContainers:
+      - name: "postgres-listener"
+        image: {{ include "cluster-manager.init.image" . }}
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 {{ include "common.pgpool.defaultName" . }} 5432 && exit 0 || sleep 3; done; exit 1"
+        ]
+        resources:
+{{ toYaml .Values.init.resources | trim | indent 10 }}
       containers:
-      - name: {{ template "cluster-manager.fullname" . }}
+      - name: cluster-manager
         image: {{ include "clusterManager.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
-        {{- if .Values.global.multiCluster.isMasterCluster }}
+        {{- if .Values.global.multiCluster.isMainCluster }}
         - --cluster-name=default
-        - --master-addr=tensorsec-console:8889
-        - --console-postgres=postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable
-        - --postgres-pvc=data-tensorsec-db-postgresql-0
-        - --postgres-pod=tensorsec-db-postgresql-0
-        - --postgres-data-path={{ .Values.postgresql.postgresqlDataDir }}
-        - --vegeta-scanner-host=tensorsec-scanner
-        - --vegeta-scanner-port=8888
-        - --redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379
+        - --master-addr={{ include "common.console.defaultName" . }}:8889
+        - --console-postgres={{ include "common.pgpool.DSN" . }}
+        - --redis-endpoint={{ include "common.redis.sentinel.address" . }}
         {{- else if .Values.global.multiCluster.isMemberCluster }}
-        - --master-addr={{ .Values.args.masterAddr }}
-        - --cluster-name={{ .Values.args.clusterName }}
-        - --api-server-address={{ .Values.args.apiServerAddr }}
+        - --master-addr={{ .Values.global.multiCluster.configs.consoleExternalAdd }}
+        - --cluster-name={{ .Values.global.multiCluster.configs.clusterName }}
+        - --api-server-address={{ .Values.global.multiCluster.configs.apiServerAddr }}
         {{- end }}
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        {{- if .Values.global.multiCluster.isMasterCluster }}
-        - name: TENSORSEC_REDIS_PASSWORD
+        {{- if .Values.global.multiCluster.isMainCluster }}
+        - name: REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.redis.redisSecretName }}
+              name: {{ include "common.redis-ha.defaultName" . }}
               key: auth
         {{- end }}
         resources:
@@ -61,5 +61,5 @@ spec:
       volumes:
       - name: cluster-admin-secret
         secret:
-          secretName: {{ include "cluster-manager.fullname" . }}
+          secretName: {{ include "common.names.fullname" . }}
 

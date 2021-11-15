@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mattn/go-colorable"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"time"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	logg "log"
-	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 type MockScannerOrm struct {
@@ -20,16 +20,8 @@ type MockScannerOrm struct {
 
 func NewPostgresDb(host, port, username, password string) (*MockScannerOrm, *gorm.DB, error) {
 	connectString := fmt.Sprintf("postgres://%s:%s@%s:%s/postgres?sslmode=disable", username, password, host, port)
-	newLogger := logger.New(
-		logg.New(colorable.NewColorableStdout(), "\r\n", logg.LstdFlags),
-		logger.Config{
-			SlowThreshold: time.Second,
-			LogLevel:      logger.Info,
-			Colorful:      true,
-		},
-	)
 	db, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-		return gorm.Open(postgres.Open(connectString), &gorm.Config{Logger: newLogger})
+		return gorm.Open(postgres.Open(connectString), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 	})
 	if err != nil {
 		return nil, nil, errors.New(fmt.Sprintf("open postgres err:%v", err))

@@ -1,13 +1,10 @@
 {{- if .Values.managedServiceAccount }}
-apiVersion: {{ include "tensorsec.common.capabilities.rbac.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
-  name: {{ template "secProfilesManager.serviceAccount" . }}-cluster-role
-  labels:
-    app: "{{ template "secProfilesManager.fullname" . }}"
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    heritage: {{ .Release.Service | quote }}
-    release: {{ .Release.Name | quote }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: sec-prof-man
 rules:
 - apiGroups:
   - ""
@@ -31,7 +28,7 @@ rules:
   - configmaps
   resourceNames:
   - {{ .Values.holmes.rulesConfigMap }}
-  - {{ template "secProfilesManager.fullname" . }}-container
+  - {{ printf "%s-container" (include "common.names.fullname" .) }}
   verbs:
   - list
   - watch

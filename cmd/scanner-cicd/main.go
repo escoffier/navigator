@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -36,10 +38,19 @@ var (
 	reinforceEnable bool
 )
 
+func OnlyLogFileNameFormat(i interface{}) string {
+	c, ok := i.(string)
+	if !ok {
+		return fmt.Sprintf("%s", i)
+	}
+	_, filename := filepath.Split(c)
+	return filename
+}
+
 var rootCmd = &cobra.Command{
-	Use:   "tensor-scanner-cicd",
-	Short: "tensor-scanner-cicd tool",
-	Long:  `tensor-scanner-cicd tool with scanner use`,
+	Use:   "scanner-cicd",
+	Short: "scanner-cicd tool",
+	Long:  `scanner-cicd tool with scanner use`,
 	Run: func(cmd *cobra.Command, args []string) {
 		checkArgs()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(maxSecond))
@@ -57,8 +68,8 @@ var (
 func init() {
 	rootCmd.Flags().StringVarP(&image, "image-name", "i", "", "[REGISTRY_HOST[:REGISTRY_PORT]/]REPOSITORY[:TAG]") // 1
 	rootCmd.Flags().IntVarP(&maxSecond, "timeout", "t", 300, "timeout(unit:second)")
-	rootCmd.Flags().StringVarP(&consoleUrl, "tensorsec-cloud-url", "c", "", "tensorsec-cloud-url")
-	rootCmd.Flags().StringVarP(&bufRegistryUrl, "tensorsec-remote-cache", "r", "", "tensorsec scanner cache address")
+	rootCmd.Flags().StringVarP(&consoleUrl, "cloud-url", "c", "", "cloud-url")
+	rootCmd.Flags().StringVarP(&bufRegistryUrl, "remote-cache", "r", "", "scanner cache address")
 	rootCmd.Flags().StringVarP(&apikey, "token", "k", "", "for authentication")
 	rootCmd.Flags().BoolVarP(&debug, "debug", "", false, "")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "s", false, "allow insecurity connections when use http")
@@ -70,7 +81,7 @@ func init() {
 func main() {
 
 	if err := rootCmd.Execute(); err != nil {
-		// logging.GetLogger().Error().Err(err).Msg("Failed to startup")
+		// log.Error().Err(err).Msg("Failed to startup")
 		log.Error().Err(err).Msg("Failed to startup")
 		os.Exit(1)
 	}
@@ -210,7 +221,16 @@ func run(ctx context.Context) {
 // 检查参数是否正确
 func checkArgs() {
 	var err error
-	log.Logger = log.With().Caller().Logger()
+	zOutput := zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		NoColor:    true,
+		TimeFormat: time.RFC3339,
+		FormatLevel: func(i interface{}) string {
+			return strings.ToUpper(fmt.Sprintf("%s:", i))
+		},
+		FormatCaller: OnlyLogFileNameFormat,
+	}
+	log.Logger = log.Output(zOutput).With().Caller().Logger()
 
 	if image == "" {
 		log.Error().Msg("镜像参数不得为空")
@@ -234,7 +254,6 @@ func checkArgs() {
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
-
 	outputFunc = output.Terminal
 	httpClient, err = request.NewRequest(apikey, consoleUrl, maxSecond)
 	if err != nil {

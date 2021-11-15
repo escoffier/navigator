@@ -8,12 +8,13 @@ import (
 	"math"
 	"time"
 
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 type ScannerDB struct {
@@ -324,6 +325,6 @@ func (scdb *ScannerDB) DebugAutoMigrate(ctx context.Context) {
 	defer cancelFunc()
 
 	if err := scdb.PostgresDB.Get().WithContext(ctx).AutoMigrate(model.ImageList{}); err != nil {
-		logging.GetLogger().Err(err).Msg("AutoMigrate tensor_image_list")
+		logging.GetLogger().Err(err).Msg("AutoMigrate image_list")
 	}
 }

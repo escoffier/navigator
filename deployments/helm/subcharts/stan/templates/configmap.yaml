@@ -2,10 +2,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "stan.name" . }}-config
-  labels:
-    app: {{ template "stan.name" . }}
-    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 data:
   {{- if .Values.store.backup.enabled }}
   backup.sh: {{ toYaml .Values.store.backup.backupScript | indent 4 }}

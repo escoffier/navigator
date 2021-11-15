@@ -28,6 +28,7 @@ func init() {
 		FormatLevel: func(i interface{}) string {
 			return strings.ToUpper(fmt.Sprintf("%s:", i))
 		},
+		FormatCaller: OnlyLogFileNameFormat,
 	}
 	log = Logger{
 		zerolog.New(output).With().Timestamp().Caller().Logger(),

@@ -88,13 +88,13 @@ func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []by
 			return nil
 		}
 		patch = m.mutateConfigMap(ctx, parameters, cm)
-	case "Namespace":
-		ns := &corev1.Namespace{}
-		if err := json.Unmarshal(rawObj, ns); err != nil {
-			logging.GetLogger().Err(err).Msg("failed to Unmarshal namespace")
-			return nil
-		}
-		patch = m.mutateNamespace(ctx, parameters, ns)
+	//case "Namespace":
+	//	ns := &corev1.Namespace{}
+	//	if err := json.Unmarshal(rawObj, ns); err != nil {
+	//		logging.GetLogger().Err(err).Msg("failed to Unmarshal namespace")
+	//		return nil
+	//	}
+	//	patch = m.mutateNamespace(ctx, parameters, ns)
 	default:
 		logging.GetLogger().Err(errors.New("unsupported resource kind")).Msg(parameters.Kind)
 	}

@@ -53,6 +53,7 @@ type PodInfo struct {
 type Conf struct {
 	PostgresDB *rdbtools.GormWrapper
 	EmailConf  *notifyhandler.EmailConf
+
 	ESPod      *PodInfo
 	PostgrePod *PodInfo
 	AuditPod   *PodInfo

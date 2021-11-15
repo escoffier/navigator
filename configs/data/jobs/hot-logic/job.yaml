@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorsec-hot-logic-cleaner
+  name: hot-logic-cleaner
 spec:
   ttlSecondsAfterFinished: 600
   template:
@@ -12,22 +12,12 @@ spec:
     spec:
       containers:
         - name: hot-logic-cleaner
-          image: localhost:32000/tensorsec-cleaner:latest
-          command: ["/app/tensor-cleaner", "hot-logic-storage-tool"]
+          image: localhost:32000/cleaner:latest
+          command: ["/app/cleaner", "hot-logic-storage-tool"]
           imagePullPolicy: Always
           env:
             - name: CONF_PATH
               value: /app/hot-logic-conf.json
-            - name: PGSQL_HOST
-              value: tensorsec-postgresql
-            - name: PGSQL_USER
-              value: postgres
-            - name: PGSQL_DBNAME
-              value: postgres
-            - name: PGSQL_SSL_MODE
-              value: disable
-            - name: PGSQL_PASSWORD
-              value: password
           volumeMounts:
             - name: audit
               mountPath: /audit

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"gitlab.com/tensorsecurity-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
@@ -18,9 +18,9 @@ const (
 	grpcCertPathEnv           = "GRPC_CERT_PATH"
 	defaultGrpcCertPath       = "/auth/server/tls.crt"
 	grpcCertServerNameEnv     = "GRPC_CERT_SERVER_NAME"
-	defaultGrpcCertServerName = "tensorsec-eventcenter"
+	defaultGrpcCertServerName = "eventcenter"
 	eventGrpcURLEnv           = "EVENT_GRPC_URL"
-	defaultEventGrpcURL       = "tensorsec-eventcenter:9090"
+	defaultEventGrpcURL       = "eventcenter:9090"
 )
 
 const (

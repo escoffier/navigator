@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"net/http"
@@ -32,11 +34,12 @@ type Item struct {
 }
 
 type ImageValidatorReq struct {
-	Images []RejectOnlineMonitorImage
+	Images        []RejectOnlineMonitorImage
+	NotifyContext model.NotifyContext `json:"notify_context"`
 }
 
-func (v *ImageValidator) ValidateImage(pod *v1.Pod) error {
-	reqs := buildRequest(pod)
+func (v *ImageValidator) ValidateImage(params *processors.ValidatingParameters, pod *v1.Pod) error {
+	reqs := buildRequest(params, pod)
 	var err error
 	var data []byte
 	var resp *http.Response
@@ -82,8 +85,30 @@ func (v *ImageValidator) ValidateImage(pod *v1.Pod) error {
 //    imageID: docker-pullable://kennethreitz/httpbin@sha256:599fe5e5073102dbb0ee3dbb65f049dab44fa9fc251f6835c9990f8fb196a72b
 //    lastState: {}
 //    name: httpbin
-func buildRequest(pod *v1.Pod) *ImageValidatorReq {
-	req := &ImageValidatorReq{}
+func buildRequest(params *processors.ValidatingParameters, pod *v1.Pod) *ImageValidatorReq {
+	req := &ImageValidatorReq{
+		NotifyContext: model.NotifyContext{
+			PodUID:    "",
+			PodName:   "",
+			Namespace: params.Namespace,
+			Cluster:   params.ClusterKey,
+			CustomKV: []model.KVHashs{
+				model.KVHashs{KVHash: model.KVHash{
+					EN: model.KeyValue{},
+					ZH: model.KeyValue{},
+				},
+				},
+				model.KVHashs{KVHash: model.KVHash{
+					EN: model.KeyValue{},
+					ZH: model.KeyValue{},
+				}},
+				model.KVHashs{KVHash: model.KVHash{
+					EN: model.KeyValue{},
+					ZH: model.KeyValue{},
+				}},
+			},
+		},
+	}
 	for _, c := range pod.Spec.InitContainers {
 		image := RejectOnlineMonitorImage{
 			Image:    c.Image,

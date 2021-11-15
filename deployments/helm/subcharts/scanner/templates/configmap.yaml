@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "scanner.fullname" . }}-configmap
+  name: {{ include "common.names.fullname" . }}
 data:
   patterns.json: |-
 {{ .Files.Get "patterns.json" | indent 4}}

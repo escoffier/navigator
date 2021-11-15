@@ -189,13 +189,13 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 	tensorsecScannerReq, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
-			fmt.Errorf("Failed to prepare request to tensorsec scanner: %w", err))
+			fmt.Errorf("Failed to prepare request to scanner: %w", err))
 	}
 
 	resp, err := http.DefaultClient.Do(tensorsecScannerReq.WithContext(ctx))
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
-			fmt.Errorf("Failed to send request to tensorsec scanner: %w", err))
+			fmt.Errorf("Failed to send request to scanner: %w", err))
 	}
 	defer util.CloseBodyWithLog(resp.Body)
 
@@ -218,15 +218,15 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 	err = json.NewDecoder(resp.Body).Decode(&envelope)
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
-			fmt.Errorf("Failed to decode response from tensorsec scanner: %w", err))
+			fmt.Errorf("Failed to decode response from scanner: %w", err))
 	}
 
-	logging.GetLogger().Info().Str("envelope", fmt.Sprintf("%+v", envelope)).Msg("Received response from tensorsec scanner")
+	logging.GetLogger().Info().Str("envelope", fmt.Sprintf("%+v", envelope)).Msg("Received response from scanner")
 
 	json.Unmarshal(envelope.Data.Item, outData)
 	if err != nil {
 		return NewAnError(http.StatusInternalServerError,
-			fmt.Errorf("Failed to unmarshal from tensorsec scanner: %w", err))
+			fmt.Errorf("Failed to unmarshal from scanner: %w", err))
 	}
 
 	return nil

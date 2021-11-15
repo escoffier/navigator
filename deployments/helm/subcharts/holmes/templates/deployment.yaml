@@ -1,27 +1,23 @@
 {{- if .Values.fakeEventGenerator.enabled }}
-apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ template "falco.fullname" . }}-event-generator
+  name: {{ printf "%s-event-generator" (include "common.names.fullname" .) }}
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ template "falco.fullname" . }}-event-generator
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   replicas:  {{ .Values.fakeEventGenerator.replicas }}
   selector:
-    matchLabels:
-      app: {{ template "falco.fullname" . }}-event-generator
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: event-generator
   template:
     metadata:
-      labels:
-        app: {{ template "falco.fullname" . }}-event-generator
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+        app.kubernetes.io/component: event-generator
     spec:
       serviceAccountName: {{ template "falco.serviceAccountName" .}}
       containers:
-      - name: {{ template "falco.fullname" . }}-event-generator
+      - name: {{ printf "%s-event-generator" (include "common.names.fullname" .) }}
         securityContext:
             privileged: false
         image: falcosecurity/event-generator:latest

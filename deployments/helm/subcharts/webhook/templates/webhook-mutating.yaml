@@ -1,15 +1,14 @@
-apiVersion: {{ include "tensorsec.common.capabilities.admissionregistration.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.admissionregistration.apiVersion" . }}
 kind: MutatingWebhookConfiguration
 metadata:
-  name: {{ include "webhook.fullname" . }}
-  labels:
-{{ include "webhook.labels" . | indent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 webhooks:
-  - name: mutating.tensorsecurity.cn
+  - name: mutating.example.com
     clientConfig:
       caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURNVENDQWhtZ0F3SUJBZ0lKQVAwTjJmWXpLMDdHTUEwR0NTcUdTSWIzRFFFQkN3VUFNQzh4TFRBckJnTlYKQkFNTUpFRmtiV2x6YzJsdmJpQkRiMjUwY205c2JHVnlJRmRsWW1odmIyc2dSR1Z0YnlCRFFUQWVGdzB5TVRBMwpNRGN4TURVd01UUmFGdzB6TVRBM01EVXhNRFV3TVRSYU1DOHhMVEFyQmdOVkJBTU1KRUZrYldsemMybHZiaUJECmIyNTBjbTlzYkdWeUlGZGxZbWh2YjJzZ1JHVnRieUJEUVRDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVAKQURDQ0FRb0NnZ0VCQUtoeWk5OVNOWnR2VDh3dVFTWUhiUUVWQ0JRRE5HL0xxZEo4MGhqR2ZOYytZdVozcU1JNQpVZ256WVdjVTluUW16Wlk5Ry9GQlgwTTFDQ1ZIQnYvOThLS1ByTU8xZDZiVDljZ1NBczZZTVgwOVJZczYyN29kCk5HMC9RYjdFQlhmd0g5MDU4LzVDTTFza0JFZ09nOUtKa2hCQzNGdzBPSnpiaEV3SnlWZ2xrUXdPbDlQa05YdkoKQkZjd2JoUWhGcGFSazgxa1hEWVVZL2xGdzVocGNEMFV3eE51aHhhN2tWb0dUOXQxaVBQYzVLc1FFd2kzb0dJVgptSG03RkY5c0dGUmlmT3VHeUtsUGEyWGlYdjdPNnQ1ZVpxZHc5SE1JMGp0Z2ZmRDVKWWtwZVpkV0hvV1M3Ry9ECmZVTFAyV2JYZEF4bVVPbTlFSWxyc3NidVRydVRsZW96TkFVQ0F3RUFBYU5RTUU0d0hRWURWUjBPQkJZRUZGZ2MKOGpNVzFvcWRqVmJFNzFSbEQ2RDdTQkhQTUI4R0ExVWRJd1FZTUJhQUZGZ2M4ak1XMW9xZGpWYkU3MVJsRDZENwpTQkhQTUF3R0ExVWRFd1FGTUFNQkFmOHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBRkZXTlk2bEpwU2l5bEcvCmhKcEZMZ3JLZUtFL1g4czJBZ05tYmNiR2lXLzM3MXJoL0dqWUQxQjM0bStPWmlna0VqY3Y4b3NTS3BCWktZd3cKZVZ0d0FpV2NDWDdBNEdVVmdWNHFVc1QvRHNhampzYXRHdVJsaXNvMW9EVkR1WXpSYUkvSFgyZ1VCdmFUSU5xMAppZEQweTFjaWdIRUxScGV2a3pqSWdHdU5Gc1RJMTdZWW4xN1I4NFl2WWlQUEtYQytVVXg3UTByUnMvSGFFbk9pCm5Ed3VxYThLYUtSTExySklQV2ZFbTZUM01ESXQ1MFcwSUpNTmV2WHgrb3ZLanBNSnV4MDNmemJxMlhOd1FFc3UKMkJ2MFpXdEtEUGREOVF0MFFRTlFnSkxhSzlXK3p4VE9oeEdJR2hoK3pPTCsrbEthVGg3MWhUUlNXdWtiN2NTMQpQSGM3eExFPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
       service:
-        name: "{{ include "webhook.fullname" . }}"
+        name: "{{ include "common.names.fullname" . }}"
         namespace: "{{ .Release.Namespace }}"
         path: "/mutating"
     rules:
@@ -17,12 +16,12 @@ webhooks:
         apiGroups: [""]
         apiVersions: ["v1", "v1beta1"]
         resources: [ "pods"]
-        {{- if eq (include "tensorsec.common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
+        {{- if eq (include "common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
         scope: "Namespaced"
         {{- end }}
     sideEffects: None
     failurePolicy: Ignore
-    {{- if eq (include "tensorsec.common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
+    {{- if eq (include "common.capabilities.admissionregistration.apiVersion" .) "admissionregistration.k8s.io/v1" }}
     admissionReviewVersions:
       - v1beta1
       - v1

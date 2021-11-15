@@ -1,29 +1,23 @@
-apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ template "scanner.fullname" . }}
-  labels:
-{{ include "scanner.labels" . | indent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: scanner
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ include "scanner.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scanner
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ include "scanner.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scanner
     spec:
-    # {{- with .Values.imagePullSecrets }}
-    #   imagePullSecrets:
-    #     {{- toYaml . | nindent 8 }}
-    # {{- end }}
       {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.image.pullSecret }}
-      {{- else if .Values.image.pullSecret }}87
+      {{- else if .Values.image.pullSecret }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       {{- end }}
@@ -33,50 +27,50 @@ spec:
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
-          "for i in $(seq 1 200); do nc -z -w3 tensorsec-postgresql 5432 && exit 0 || sleep 3; done; exit 1"
+          "for i in $(seq 1 200); do nc -z -w3 {{ include "common.pgpool.defaultName" . }} 5432 && exit 0 || sleep 3; done; exit 1"
         ]
         resources:
 {{ toYaml .Values.init.resources | trim | indent 10 }}
       containers:
-      - name: {{ .Chart.Name }}
+      - name: scanner
         image: {{ include "scanner.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["/tensor-scanner"]
+        command: ["/scanner"]
         args:
-        - --image-cache-server-ip={{ include "scanner.fullname" . }}
+        - --image-cache-server-ip={{ include "common.names.fullname" . }}
         - --image-cache-server-port={{ .Values.service.ImageCacheServerPort }}
-        - --redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379
+        - --redis-endpoint={{ include "common.redis.sentinel.address" . }}
         - --http-listen-addr=:{{ .Values.service.ApiContainerPort }}
-        - --db-connect-str={{ .Values.postgresql.postgresURI }}
+        - --db-connect-str={{ include "common.pgpool.DSN" . }}
         - --pvc-path=/root/alldb
-        - --web-shell-server-addr=http://{{ include "scanner.fullname" . }}-webshell-server:80
+        - --web-shell-server-addr=http://{{ printf "%s-webshell-server" (include "common.names.fullname" .) }}:80
         env:
-          - name: TENSORSEC_REDIS_PASSWORD
+          - name: REDIS_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ .Values.redis.redisSecretName }}
+                name: {{ include "common.redis-ha.defaultName" . }}
                 key: auth
           - name: CICD-BUF-REGISTRY-URL
-            value: http://{{ template "scanner.fullname" . }}-dockerregistry:{{ .Values.dockerregistry.service.httpPort }}
+            value: "http://{{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}:{{ .Values.dockerregistry.service.httpPort }}"
           - name: CICD-BUF-REGISTRY-USER
-            value: "tensorsec"
+            value: "admin"
           - name: CICD-BUF-REGISTRY-PASSWORD
-            value: "TensorSec@Passw0rd"
+            value: "Registry@Passw0rd"
           - name: REGISTRY_GC_PORT
             value: {{ .Values.dockerregistry.service.gcPort | quote }}
           - name: SAFENODE-BUF-REGISTRY-URL
-            value: http://{{ template "scanner.fullname" . }}-dockerregistry:{{ .Values.dockerregistry.service.httpPort }}
+            value: "http://{{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}:{{ .Values.dockerregistry.service.httpPort }}"
           - name: SAFENODE-BUF-REGISTRY-USER
-            value: "tensorsec"
+            value: "admin"
           - name: SAFENODE-BUF-REGISTRY-PASSWORD
-            value: "TensorSec@Passw0rd"
+            value: "Registry@Passw0rd"
           - name: SAFENODE-BUF-INTERNAL
-            value: "5"
+            value: "60"
         ports:
           - containerPort: {{ .Values.service.ApiContainerPort }}
-            name: {{ include "scanner.name" . }}-api
+            name: scanner-api
           - containerPort: {{ .Values.service.ImageCacheServerPort }}
-            name: {{ include "scanner.name" . }}-cache
+            name: scanner-cache
         volumeMounts:
           - name: scannerfiles
             mountPath: "/config/patterns.json"
@@ -94,7 +88,7 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 10 }}
       {{- if .Values.hostAliases }}
-      hostAliases: {{- include "tensorsec.tplvalues" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      hostAliases: {{- include "common.tplvalues.render" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
       {{- end }}
       volumes:
       - name: dockersock
@@ -105,7 +99,7 @@ spec:
           path: /tmp/
       - name: scannerfiles
         configMap:
-          name: {{ template "scanner.fullname" . }}-configmap
+          name: {{ include "common.names.fullname" . }}
           items:
             - key: patterns.json
               path: patterns.json
@@ -120,7 +114,7 @@ spec:
       {{- if .Values.persistence.enabled }}
       - name: vuln-db
         persistentVolumeClaim:
-          claimName: {{ template "scanner.fullname" . }}-vulndb
+          claimName: {{ printf "%s-vulndb" (include "common.names.fullname" .) }}
       {{- else }}
       - name: vuln-db
         emptyDir: {}

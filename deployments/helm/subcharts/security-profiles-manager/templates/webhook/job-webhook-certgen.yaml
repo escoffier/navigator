@@ -1,28 +1,25 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ template "secProfilesManager.fullname" . }}-webhook-certgen-{{ .Release.Revision }}
-  labels:
-    app: "{{ template "secProfilesManager.fullname" . }}"
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    heritage: {{ .Release.Service | quote }}
-    release: {{ .Release.Name | quote }}
+  name: {{ printf "%s-webhook-certgen" (include "common.names.fullname" .) }}-{{ .Release.Revision }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: sec-prof-man-webhook
 spec:
   template:
     metadata:
-      name: {{ template "secProfilesManager.fullname" . }}-webhook-certgen-{{ .Release.Revision }}
-      labels:
-        app: {{ template "secProfilesManager.fullname" . }}
+      name: {{ printf "%s-webhook-certgen" (include "common.names.fullname" .) }}-{{ .Release.Revision }}
+      labels: {{- include "common.labels.standard" . | nindent 8 }}
+        app: sec-prof-man-webhook
     spec:
       initContainers:
         - name: create
-          image: {{ include "tensorsec.secProfilesManager.certgen.image" . }}
+          image: {{ include "secProfilesManager.certgen.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - create
-            - --host={{ template "secProfilesManager.fullname" . }}-webhook-service,{{ template "secProfilesManager.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc
+            - --host={{ printf "%s-webhook" (include "common.names.fullname" .) }},{{ printf "%s-webhook" (include "common.names.fullname" .) }}.{{ .Release.Namespace }}.svc
             - --namespace={{ .Release.Namespace }}
-            - --secret-name={{ template "secProfilesManager.fullname" . }}-webhook-certs
+            - --secret-name={{ printf "%s-webhook" (include "common.names.fullname" .) }}
             - --cert-name=tls.crt
             - --key-name=tls.key
           resources:
@@ -34,15 +31,15 @@ spec:
               memory: 64Mi
       containers:
         - name: patch
-          image: {{ include "tensorsec.secProfilesManager.certgen.image" . }}
+          image: {{ include "secProfilesManager.certgen.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - patch
-            - --webhook-name={{ template "secProfilesManager.fullname" . }}-webhook
+            - --webhook-name={{ printf "%s-webhook" (include "common.names.fullname" .) }}
             - --namespace={{ .Release.Namespace }}
             - --patch-mutating=true
             - --patch-validating=false
-            - --secret-name={{ template "secProfilesManager.fullname" . }}-webhook-certs
+            - --secret-name={{ printf "%s-webhook" (include "common.names.fullname" .) }}
             - --patch-failure-policy=Ignore
           resources:
             limits:
@@ -54,7 +51,7 @@ spec:
       imagePullSecrets:
         - name: {{ .Values.image.pullSecret }}
       restartPolicy: OnFailure
-      serviceAccountName: {{ template "secProfilesManager.serviceAccount" . }}-webhook-service-account
+      serviceAccountName: {{ printf "%s-webhook" (include "common.names.fullname" .) }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 2000

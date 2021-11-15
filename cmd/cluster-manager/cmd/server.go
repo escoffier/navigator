@@ -10,6 +10,10 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	clusterManager "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/clusterserver"
@@ -20,8 +24,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 type server struct {
@@ -82,7 +84,7 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 		redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
 			MasterName:    "mymaster",
 			SentinelAddrs: sa,
-			Password:      os.Getenv("TENSORSEC_REDIS_PASSWORD"),
+			Password:      os.Getenv("REDIS_PASSWORD"),
 			DB:            0,
 		})
 		if err != nil {
@@ -91,7 +93,7 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 
 		PgDsn := postgresOpts.PostgresConnectionString
 		postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-			db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{})
+			db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 			if err != nil {
 				logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 				return nil, err
@@ -158,8 +160,8 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.StringVar(&ServerConfig.ApiServerAddr, "api-server-address", "127.0.0.1:6443", "api server address of current cluster")
 	fs.BoolVar(&ServerConfig.TlsClient, "tls-client", false, "use https client")
 	fs.IntVar(&ServerConfig.Port, "port", 9443, "The port of inject server to listen.")
-	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/tensorsec/certs/tls.crt", "The path of tls cert")
-	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/tensorsec/certs/tls.key", "The path of tls key")
+	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")
+	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/cluster-manager/certs/tls.key", "The path of tls key")
 	fs.BoolVar(&ServerConfig.TlsServer, "tlsServer", false, "use tls server")
 	flag.AddRedisFlags(rootCmd)
 	flag.AddPostgresFlags(rootCmd)

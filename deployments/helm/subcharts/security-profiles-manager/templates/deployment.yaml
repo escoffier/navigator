@@ -1,29 +1,27 @@
-apiVersion: {{ include "tensorsec.common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ template "secProfilesManager.fullname" . }}
-  labels:
-{{ include "secProfilesManager.labels" . | indent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: sec-prof-man
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ include "secProfilesManager.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sec-prof-man
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ include "secProfilesManager.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sec-prof-man
     spec:
-      serviceAccountName: {{ template "secProfilesManager.serviceAccount" . }}
+      serviceAccountName: {{ include "common.names.fullname" . }}
       initContainers:
       - name: "stan-listener"
         image: {{ include "initContainers.image" . }}
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
-          "for i in $(seq 1 200); do nc -z -w3 {{ .Values.stan.host }} {{ .Values.stan.port }} && exit 0 || sleep 3; done; exit 1"
+          "for i in $(seq 1 200); do nc -z -w3 {{ include "common.stan.defaultName" . }}-headless 4222 && exit 0 || sleep 3; done; exit 1"
         ]
         resources:
 {{ toYaml .Values.initContainers.resources | indent 10 }}
@@ -32,20 +30,20 @@ spec:
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
-          "for i in $(seq 1 200); do nc -z -w3 {{ .Values.postgres.host }} {{ .Values.postgres.port }} && exit 0 || sleep 3; done; exit 1"
+          "for i in $(seq 1 200); do nc -z -w3 {{ include "common.pgpool.defaultName" . }} 5432 && exit 0 || sleep 3; done; exit 1"
         ]
         resources:
 {{ toYaml .Values.initContainers.resources | indent 10 }}
       containers:
       - name: {{ .Chart.Name }}
         image: {{ include "secProfilesManager.image" . }}
-        command: ["/tensor-security-profiles-manager"]
+        command: ["/security-profiles-manager"]
         args: [
-          "--redis-endpoint=tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
+          "--redis-endpoint={{ include "common.redis.sentinel.address" . }}",
           "--stan-client-id={{ .Values.stan.clientID }}",
           "--stan-cluster-id={{ .Values.stan.clusterID }}",
-          "--stan-url={{ .Values.stan.host }}:{{ .Values.stan.port }}",
-          "--console-postgres=postgres://postgres:password@{{ .Values.postgres.host }}:{{ .Values.postgres.port }}/postgres?sslmode=disable"
+          "--stan-url={{ include "common.stan.defaultName" .}}-headless:4222",
+          "--console-postgres={{ include "common.pgpool.DSN" . }}"
         ]
         env:
         - name: MY_POD_NAMESPACE
@@ -53,23 +51,22 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: SEC_PROFILES_CONTAINER_CONFIGMAP
-          value: {{ template "secProfilesManager.fullname" . }}-container
+          value: {{ printf "%s-container" (include "common.names.fullname" .) }}
         - name: HOLMES_LABEL
           value: {{ .Values.holmes.podLabel }}
         - name: HOLMES_CONFIGMAP
           value: {{ .Values.holmes.rulesConfigMap }}
-        - name: TENSORSEC_REDIS_PASSWORD
+        - name: REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.redis.redisSecretName }}
+              name: {{ include "common.redis-ha.defaultName" . }}
               key: auth
-
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         ports:
           - containerPort: {{ .Values.service.containerPort }}
-            name: {{ include "secProfilesManager.name" . }}
+            name: sec-prof-man
       {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.image.pullSecret }}

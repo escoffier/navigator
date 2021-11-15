@@ -636,7 +636,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 			img.PrivilegedBoot = 1
 		}
 		for _, v := range config.History {
-			if strings.Contains(v.CreatedBy, "/tmp/tensorsec/file-checker") {
+			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
 				img.IsReinforce = 1
 			}
 		}
@@ -646,7 +646,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	// 同步镜像到数据库
 	createdImage, err := s.dbdal.CreateImage(ctx, &img)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("CICD insert image tensor_image_list error image %s/%s:%s", regs[0].Url, img.FullRepoName, tag)
+		logging.GetLogger().Err(err).Msgf("CICD insert image image_list error image %s/%s:%s", regs[0].Url, img.FullRepoName, tag)
 		return nil, err
 	}
 	// 下达扫描指令,这里会去拉取镜像，所以只能存中转镜像的library

@@ -1,21 +1,15 @@
 ---
-apiVersion: {{ include "tensorsec.common.capabilities.statefulset.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
-  name: {{ template "stan.name" . }}
-  labels:
-    app: {{ template "stan.name" . }}
-    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   selector:
-    matchLabels:
-      app: {{ template "stan.name" . }}
-
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
   replicas: {{ include "stan.replicaCount" .  | required ".Values.stan.replicas should be greater or equal to 3 in clustered mode" }}
-
   # NATS Streaming service name
-  serviceName: {{ template "stan.name" . }}
-
+  serviceName: {{ include "common.names.fullname" . }}
   template:
     metadata:
       {{- if or .Values.podAnnotations .Values.exporter.enabled }}
@@ -29,12 +23,10 @@ spec:
         {{ $key }}: {{ $value | quote }}
       {{- end }}
       {{- end }}
-      labels:
-        app: {{ template "stan.name" . }}
-        chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
     spec:
       {{- if .Values.stan.nats.serviceRoleAuth.enabled }}
-      serviceAccountName: {{ template "stan.serviceAccountName" . }}
+      serviceAccountName: {{ include "common.names.fullname" . }}
       {{- end }}
       {{- if .Values.global.image.pullSecret }}
       imagePullSecrets:
@@ -50,7 +42,7 @@ spec:
       terminationGracePeriodSeconds: 30
       volumes:
       - configMap:
-          name: {{ template "stan.name".  }}-config
+          name: {{ include "common.names.fullname" . }}
           defaultMode: 0755
         name: config-volume
       {{- with .Values.nats.tls }}
@@ -64,10 +56,9 @@ spec:
         secret:
           secretName: {{ .Values.stan.tls.secretName }}
       {{- end }}
-
       {{- if eq .Values.store.type "file" }}
       {{- if not .Values.store.volume.enabled }}
-      - name: {{ template "stan.name" . }}-pvc
+      - name: {{ include "common.names.fullname" . }}-pvc
         emptyDir: {}
       {{- end }}
       {{- end }}
@@ -81,11 +72,9 @@ spec:
         secret:
           secretName: {{ .Values.stan.auth.nkeySeedFile.secret.name }}
       {{- end }}
-
       # Local volume shared with the reloader.
       - name: pid
         emptyDir: {}
-
       affinity:
         {{- if .Values.affinity }}
           {{- toYaml .Values.affinity | nindent 8 }}
@@ -127,7 +116,7 @@ spec:
           - name: CLUSTER_ADVERTISE
             value: {{ template "nats.clusterAdvertise" . }}
           - name: STAN_SERVICE_NAME
-            value: {{ template "stan.name" . }}
+            value: {{ include "common.names.fullname" . }}
           - name: STAN_REPLICAS
             value: "{{ .Values.stan.replicas }}"
           {{- if .Values.stan.nats.serviceRoleAuth.enabled }}
@@ -154,7 +143,6 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-
           {{- if and .Values.store.cluster.enabled .Values.clusterReadinessProbe.enabled }}
           {{- with .Values.clusterReadinessProbe.probe }}
           readinessProbe:
@@ -172,7 +160,6 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- end }}
-
           volumeMounts:
           {{- with .Values.nats.tls }}
           #######################
@@ -187,7 +174,7 @@ spec:
           - name: config-volume
             mountPath: /etc/stan-config
           {{- if eq .Values.store.type "file" }}
-          - name: {{ template "stan.name" . }}-pvc
+          - name: {{ include "common.names.fullname" . }}-pvc
             mountPath: {{ .Values.store.volume.mount }}
           {{- end }}
           {{- if and .Values.stan.tls.enabled .Values.stan.tls.secretName }}
@@ -205,7 +192,6 @@ spec:
           {{- end }}
           - name: pid
             mountPath: /var/run/stan
-
         {{- if eq .Values.store.type "file" }}
         {{- if .Values.store.backup.enabled }}
         ######################
@@ -252,12 +238,11 @@ spec:
           {{- end }}
           {{- if .Values.store.volume.enabled }}
           volumeMounts:
-            - name: {{ template "stan.name" . }}-pvc
+            - name: {{ include "common.names.fullname" . }}-pvc
               mountPath: {{ .Values.store.volume.mount }}
           {{- end }}
         {{- end }}
         {{- end }}
-
         {{- if .Values.exporter.enabled }}
         #################################
         #                               #
@@ -302,12 +287,11 @@ spec:
               mountPath: /var/run/stan
         {{- end }}
         {{- end }}
-
   {{- if eq .Values.store.type "file" }}
   {{- if .Values.store.volume.enabled }}
   volumeClaimTemplates:
   - metadata:
-      name: {{ template "stan.name" . }}-pvc
+      name: {{ include "common.names.fullname" . }}-pvc
     spec:
       accessModes:
       {{- with .Values.store.volume.accessModes }}
@@ -316,6 +300,6 @@ spec:
       resources:
         requests:
           storage: {{ .Values.store.volume.storageSize }}
-      {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.store.volume "global" .Values.global) }}
+      {{ include "common.storage.class" (dict "persistence" .Values.store.volume "global" .Values.global) }}
   {{- end }}
   {{- end }}

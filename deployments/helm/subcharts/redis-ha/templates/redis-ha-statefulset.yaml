@@ -1,4 +1,4 @@
-apiVersion: {{ include "tensorsec.common.capabilities.statefulset.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
   name: {{ template "redis-ha.fullname" . }}-server
@@ -302,7 +302,7 @@ spec:
       resources:
         requests:
           storage: {{ .Values.persistentVolume.size | quote }}
-      {{ include "tensorsec.common.storage.class" (dict "persistence" .Values.persistentVolume "global" .Values.global) }}
+      {{ include "common.storage.class" (dict "persistence" .Values.persistentVolume "global" .Values.global) }}
     {{- if .Values.persistentVolume.reclaimPolicy }}
     persistentVolumeReclaimPolicy: "{{ .Values.persistentVolume.reclaimPolicy }}"
     {{- end }}

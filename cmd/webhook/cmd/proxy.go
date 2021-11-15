@@ -44,9 +44,9 @@ func NewProxyCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&targetHost, "target-host", "", "set target url")
-	cmd.Flags().StringVar(&clusterMgrAddr, "clusterMgrAddress", "http://tensorsec-cluster-manager:9443", "cluster manager address")
-	cmd.Flags().StringVar(&certFile, "tlsCertPath", "/etc/tensorsec/certs/tls.crt", "The path of tls cert")
-	cmd.Flags().StringVar(&keyFile, "tlsKeyPath", "/etc/tensorsec/certs/tls.key", "The path of tls key")
+	cmd.Flags().StringVar(&clusterMgrAddr, "clusterMgrAddress", "http://cluster-manager:9443", "cluster manager address")
+	cmd.Flags().StringVar(&certFile, "tlsCertPath", "/etc/webhook/certs/tls.crt", "The path of tls cert")
+	cmd.Flags().StringVar(&keyFile, "tlsKeyPath", "/etc/webhook/certs/tls.key", "The path of tls key")
 	return cmd
 }
 

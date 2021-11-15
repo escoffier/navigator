@@ -1,24 +1,38 @@
 global:
+  prefixName: csec
   image:
     registry: localhost:32000
-    repository: tensorsecurity
+    repository: library
     pullSecret: harbor-admin-secret
   certgen:
     image:
-      name: tensorsec-certgen
+      name: certgen
       tag: v1.5.1
+  consoleExternalAdd: "http://console.example.com"
+  emailOfficialName: "Navigator"
+  contactEmail: ""
+  defaultNameOverride:
+    clusterManager: "cluster-manager"
+    console: "console"
+    elasticsearch: "elasticsearch-master"
+    eventcenter: "eventcenter"
+    microseg: "microseg"
+    postgresql: "postgres-postgresql"
+    pgpool: "postgres-pgpool"
+    redis: "redis-ha"
+    scanner: "scanner"
+    securityProfilesManager: "sec-prof-man"
+    stan: "stan"
+    webhook: "webhook"
+
+
 
 scanner:
   enabled: true
   image:
-    name: tensorsec-scanner
+    name: scanner
     tag: latest
     pullSecret: harbor-admin-secret
-  # TODO: reference below variables from the original setting (maybe Helm enables it?)
-  redis:
-    redisSecretName: tensorsec-redis-ha
-  postgresql:
-    postgresURI: "postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable"
   resources:
     requests:
       cpu: "2000m"
@@ -34,20 +48,19 @@ scanner:
     secrets:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
       # e.g. "htpasswd -nbBC10 $username $password"
-      # Default: tensorsec:TensorSec@Passw0rd
-      htpasswd: "tensorsec:$2y$10$9fuDB4Of8Zw.6OVaQvduhe9gsI/T3NTVYBbvvtU2cHeianQH5iLM2"
+      # Default: admin:Registry@Passw0rd
+      htpasswd: "admin:$2y$10$yWUFU9JunbmozLTeFEKxsOLnRaf1465xBQ6GWGDcmGy5GBa2WVHs6"
     service:
       type: ClusterIP
       # clusterIP:
       httpPort: 5000
       gcPort: 8081
-
       # httpNodePort:
       # gcNodePort:
   webshell:
     image:
       registry:  localhost:32000
-      repository: tensorsecurity
+      repository: library
       name: webshell-server
       tag: latest
     replicas: 2
@@ -58,6 +71,26 @@ scanner:
       requests:
         cpu: "200m"
         memory: "200Mi"
+  scanreport:
+    image:
+      registry: localhost:32000
+      repository: library
+      name: scan-report
+      tag: latest
+    replicas: 1
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "300Mi" 
+      requests:
+        cpu: "200m"
+        memory: "300Mi"
+    interval: 5m
+    emailCheck:
+      smtpHost: smtp.feishu.cn
+      smtpPort: 465
+      smtpUsername: console-robot@example.com
+      smtpPassword: password
   persistence:
     enabled: true
     storageClass: ""
@@ -68,10 +101,9 @@ scanner:
 console:
   enabled: true
   image:
-    name: tensorsec-console
+    name: console
     tag: latest
     pullSecret: harbor-admin-secret
-  # TODO: reference below variables from the original setting (maybe Helm enables it?)
   scap:
     tag: latest
   persistence:
@@ -85,71 +117,65 @@ console:
       cpu: "200m"
       memory: "500Mi"
   jobs:
-    tensorsecCleaner:
+    Cleaner:
       image:
         registry: localhost:32000
-        repository: tensorsecurity
-        name: tensorsec-cleaner
+        repository: library
+        name: cleaner
         tag: latest
-    tensorsecHunter:
+    Hunter:
       image:
         registry: localhost:32000
-        repository: tensorsecurity
-        name: tensorsec-kube-hunter-report
+        repository: library
+        name: kube-hunter-report
         tag: latest
-    tensorsecHunterOrigin:
+    HunterOrigin:
       image:
         registry: localhost:32000
-        repository: tensorsecurity
+        repository: library
         name: kube-hunter
         tag: 0.6.2
-    tensorsecApiScan:
+    ApiScan:
       image:
         registry: localhost:32000
-        repository: tensorsecurity
-        name: tensorsec-apiscan-job
+        repository: library
+        name: apiscan-job
         tag: latest
-    tensorsecPlatform:
+    Platform:
       image:
         registry: localhost:32000
-        repository: tensorsecurity
-        name: tensorsec-platform-report
+        repository: library
+        name: platform-report
         tag: latest
   elasticsearch:
-    elasticSecretName: elastic-secret
     extraEnvs:
       - name: ELASTIC_PASSWORD
         value: Elastic12345
       - name: ELASTIC_USERNAME
         value: elasticsearch
-  eventcenter:
-    eventGrpcUrl: tensorsec-eventcenter:9090
-    eventGrpcCertServerName: tensorsec-eventcenter
-  consoleInternalAdd: "http://tensorsec-console:8889"
-  consoleExternalAdd: "http://tensorsec-console:8889"
   postgresql:
     postgresqlDataDir: /bitnami/postgresql/data
     postgresqlUsername: postgres
     postgresqlPassword: password
     postgresqlDatabase: postgres
   imagePullSecret:
-    imageRegistryURL: https://harbor.example
+    imageRegistryURL: https://harbor.example.com
     imageRegistryUsername: admin
     imageRegistryPassword: Harbor12345
   emailCheck:
     smtpEnabled: false
     smtpHost: smtp.feishu.cn
     smtpPort: 465
-    smtpUsername: console-robot@tensorsecurity.cn
+    smtpUsername: console-robot@example.com
     smtpPassword: password
   version:
-    softName: tensor
+    softName: ManagerPlatform
     softVersion: v1.9
 
 cluster-manager:
   enabled: true
   image:
-    name: tensorsec-cluster-manager
+    name: cluster-manager
     tag: latest
     pullSecret: harbor-admin-secret
   resources:
@@ -159,10 +185,6 @@ cluster-manager:
     requests:
       cpu: 50m
       memory: 200Mi
-#  args:
-#    masterAddr:
-#    clusterName:
-#    apiServerAddr:
 
 eventcenterAuth:
   enabled: true
@@ -300,11 +322,10 @@ postgresql-ha:
     storageClass: ""
     size: 20Gi
 
-
 holmes:
   enabled: true
   image:
-    name: tensorsec-holmes
+    name: holmes
     tag: latest
     pullSecret: harbor-admin-secret
   extraArgs:
@@ -316,9 +337,9 @@ holmes:
     limits:
       cpu: 1
       memory: 500Mi
-  tensorsecDaemon:
+  daemon:
     image:
-      name: tensorsec-daemon
+      name: daemon
       tag: latest
     resources:
       requests:
@@ -337,7 +358,7 @@ holmes:
     jsonIncludeOutputProperty: true
     httpOutput:
       enabled: false
-      url: http://tensorsec-holmessidekick:2801
+      url: http://holmessidekick:2801
     grpc:
       enabled: true
       threadiness: 3
@@ -355,38 +376,26 @@ holmes:
       enabled: false
     stdoutOutput:
       enabled: true
-  eventcenter:
-    eventGrpcUrl: tensorsec-eventcenter:9090
-    eventGrpcCertServerName: tensorsec-eventcenter
-  multicluster:
-    clusterinfo: http://tensorsec-cluster-manager:9443
-    consoleaddr: http://tensorsec-console:8889
-  stan:
-    host: tensorsec-stan-headless
-    port: "4222"
 
 webhook:
   enabled: true
   image:
-    name: tensorsec-webhook
+    name: webhook
     tag: latest
   certgen:
     image:
-      name: tensorsec-certgen
+      name: certgen
       tag: v1.5.1
   sidecar:
     image:
-      name: tensorsec-proxy
+      name: proxy
       tag: latest
     init:
       image:
-        name: tensorsec-proxyv2
+        name: proxyv2
         tag: v1.9
-  args:
-    consoleUrl: "http://tensorsec-console:8889"
-    clusterManagerUrl: "http://tensorsec-cluster-manager:9443"
   nats:
-    natsUrl: "nats://tensorsec-stan-headless:4222"
+    natsUrl: "nats://stan-headless:4222"
     natSubject: "security-api"
   resources:
     limits:
@@ -403,7 +412,7 @@ stan:
     tag: 0.21.2
     pullSecret: harbor-admin-secret
   stan:
-    clusterID: tensorsec
+    clusterID: manager
     authToken: ""
   store:
     volume:
@@ -420,12 +429,12 @@ stan:
 security-profiles-manager:
   enabled: true
   image:
-    name: tensorsec-security-profiles-manager
+    name: security-profiles-manager
     tag: latest
     pullSecret: harbor-admin-secret
   certgen:
     image:
-      name: tensorsec-certgen
+      name: certgen
       tag: v1.5.1
   initContainers:
     image:
@@ -440,7 +449,7 @@ security-profiles-manager:
       memory: "100Mi"
   webhook:
     image:
-      name: tensorsec-security-profiles-webhook
+      name: security-profiles-webhook
       tag: latest
       pullSecret: harbor-admin-secret
     resources:
@@ -452,7 +461,7 @@ security-profiles-manager:
         memory: "50Mi"
   loader:
     image:
-      name: tensorsec-security-profiles-loader
+      name: security-profiles-loader
       tag: latest
       pullSecret: harbor-admin-secret
     resources:
@@ -464,7 +473,7 @@ security-profiles-manager:
         memory: "50Mi"
   audit:
     image:
-      name: tensorsec-go-audit
+      name: go-audit
       tag: latest
       pullSecret: harbor-admin-secret
     resources:
@@ -476,7 +485,7 @@ security-profiles-manager:
         memory: "50Mi"
   eventProcessor:
     image:
-      name: tensorsec-event-processor
+      name: event-processor
       tag: latest
       pullSecret: harbor-admin-secret
     resources:
@@ -487,23 +496,21 @@ security-profiles-manager:
         cpu: "50m"
         memory: "50Mi"
   holmes:
-    rulesConfigMap: tensorsec-holmes-rules
-    podLabel: tensorsec-holmes
+    rulesConfigMap: holmes-rules
+    podLabel: holmes
   stan:
     clientID: sec-profile-manager
-    clusterID: tensorsec
+    clusterID: 
 
 safenode-image:
   enabled: true
   image:
-    name: tensorsec-safe-node-image
+    name: safe-node-image
     tag: latest
     pullSecret: harbor-admin-secret
   bufRegistry: 
-    bufRegistryUrl: 10.33.41.205:5000
-    bufRegistryUser: tensorsec
-    bufRegistryPass: TensorSec@Passw0rd
-    bufInternal: 10
+    bufRegistryUser: admin
+    bufRegistryPass: Registry@Passw0rd
   resources:
     limits:
       cpu: "100m"
@@ -511,5 +518,7 @@ safenode-image:
     requests:
       cpu: "100m"
       memory: "100Mi"
-  multicluster:
-    clusterManagerAddr: "http://tensorsec-cluster-manager:9443"
+  pushConfigs:
+    pushInterval: 10
+    batchInterval: 60
+    batchSize: 60

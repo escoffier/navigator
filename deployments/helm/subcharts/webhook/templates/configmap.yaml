@@ -1,30 +1,35 @@
-{{- if .Values.global.multiCluster.isMasterCluster -}}
+{{- if .Values.global.multiCluster.isMainCluster -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "webhook.fullname" . }}
-  labels:
-{{ include "webhook.labels" . | indent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 data:
   image-trust-mutator.yaml: |-
     ignored_name_spaces:
     - kube-system
     - {{ .Release.Namespace }}
-    pg_addr: postgres://postgres:password@tensorsec-postgresql:5432/postgres?sslmode=disable
+    pg_addr: {{ include "common.pgpool.DSN" . }}
   image-trust-validator.yaml: |-
-    image_trust_url: http://tensorsec-scanner.{{ .Release.Namespace }}.svc:8888/api/v1/imagereject/online_moniter
+    image_trust_url: http://{{ include "common.scanner.defaultName" . }}.{{ .Release.Namespace }}.svc:8888/api/v1/imagereject/online_moniter
     ignored_name_spaces:
     - kube-system
     - {{ .Release.Namespace }}
   microseg.yaml: |-
-{{ toYaml .Values.microseg.appCfg | trim | indent 4 }}
+    pgMaster:
+      host: "{{ include "common.pgpool.defaultName" . }}"
+      user: "postgres"
+      password: "password"
+      dbName: "postgres"
+      port: "5432"
+    runMode: "dev"
   presets.yaml: |-
     env:
     - name: LD_PRELOAD
-      value: "/tensorsec/dp.so"
-    - name: TENSORSEC_EVENTCENTER_NEW_ADDR
-      value: "tensorsec-eventcenter.{{ .Release.Namespace }}.svc.cluster.local"
-    - name: TENSORSEC_EVENTCENTER_NEW_PORT
+      value: "/tmp/dp.so"
+    - name: EVENTCENTER_NEW_ADDR
+      value: "eventcenter.{{ .Release.Namespace }}.svc.cluster.local"
+    - name: EVENTCENTER_NEW_PORT
       value: "8080"
     volumemounts:
     - name: "{{ .Values.presets.volumes.clientName }}"

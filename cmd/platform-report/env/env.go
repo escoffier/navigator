@@ -21,8 +21,6 @@ const (
 
 	PostgresHost           = "PGSQL_HOST"
 	DefaultPostgresHost    = "tensorsec-postgresql"
-	PostgresPortEnv        = "PGSQL_PORT"
-	DefaultPostgresPort    = "5432"
 	PostgresUser           = "PGSQL_USER"
 	DefaultPostgresUser    = "postgres"
 	PostgresDBName         = "PGSQL_DBNAME"
@@ -30,4 +28,6 @@ const (
 	PostgresSSLMode        = "PGSQL_SSL_MODE"
 	DefaultPostgresSSLMode = "disable"
 	PostgresPassword       = "PGSQL_PASSWORD"
+	PostgresPort           = "PGSQL_PORT"
+	DefaultPostgresPort    = 5432
 )

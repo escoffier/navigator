@@ -1,8 +1,0 @@
-name_en: RS-NC
-name_zh: RS-NC
-description_en: "Risk of Reverse Shell exploit (through netcat)"
-description_zh: "反向Shell攻击的风险(through netcat)"
-cvss_3_vector: ""
-cvss_3_score: 0.0
-cvss_2_vector: ""
-cvss_2_score: 0.0

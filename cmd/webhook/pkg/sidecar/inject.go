@@ -5,15 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
+	"time"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"strings"
-	"time"
 
 	//"github.com/Masterminds/sprig/v3"
 	"github.com/ghodss/yaml"
@@ -23,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	//"github.com/gogo/protobuf/types"
 	corev1 "k8s.io/api/core/v1"
-	"text/template"
 )
 
 const SidecarAnnotationStatusKey = "tensor-sidecar-inject/status"
@@ -83,7 +86,7 @@ func (in *Injector) Init() error {
 	}
 
 	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(in.params.ProxyConfig.PgAddr), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(in.params.ProxyConfig.PgAddr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err

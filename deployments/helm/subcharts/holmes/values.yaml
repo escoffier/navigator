@@ -5,23 +5,19 @@ global:
     repository: ""
 
 image:
-  registry: registry.t-appagile.com
-  repository: tensorsecurity
-  name: tensorsec-holmes
+  registry: localhost:32000
+  repository: library
+  name: holmes
   tag: latest
   pullPolicy: Always
   pullSecret: harbor-admin-secret
 
-postgres:
-  host: tensorsec-postgresql
-  port: "5432"
-
-tensorsecDaemon:
+daemon:
   enabled: true
   image:
     registry: localhost:32000
-    repository: tensorsecurity
-    name: tensorsec-daemon
+    repository: library
+    name: daemon
     tag: latest
     pullPolicy: Always
   resources:
@@ -32,12 +28,8 @@ tensorsecDaemon:
        memory: "500Mi"
        cpu: "100m"
 
-multicluster:
-  clusterinfo: http://tensorsec-cluster-manager:9443
-  consoleaddr: http://tensorsec-console:8889
-
 nameOverride: "holmes"
-fullnameOverride: "tensorsec-holmes"
+fullnameOverride: "holmes"
 
 docker:
   enabled: true
@@ -376,10 +368,4 @@ falcosidekick:
   enabled: false
   # for configuration values, see https://github.com/falcosecurity/charts/blob/master/falcosidekick/values.yaml
 
-eventcenter:
-  eventGrpcUrl: tensorsec-eventcenter:9090
-  eventGrpcCertServerName: tensorsec-eventcenter
 
-stan:
-  host: tensorsec-stan-headless
-  port: "4222"

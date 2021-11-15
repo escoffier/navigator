@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"net/http"
@@ -26,7 +27,7 @@ func NewProxyServer(targetUrl *url.URL, CertFile, KeyFile string) (*Server, erro
 		keyFile:  KeyFile,
 	}
 
-	logrus.Infof("target url: %s", targetUrl.String())
+	logging.GetLogger().Info().Msgf("target url: %s", targetUrl.String())
 
 	proxy := httputil.NewSingleHostReverseProxy(targetUrl)
 

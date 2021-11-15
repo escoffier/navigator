@@ -4,8 +4,9 @@
 Fully qualified app name for PostgreSQL
 */}}
 {{- define "postgresql-ha.postgresql" -}}
+{{- $prefixName := default "csec" .Values.global.prefixName -}}
 {{- if .Values.fullnameOverride -}}
-{{- printf "%s-postgresql" .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s-postgresql" $prefixName .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
@@ -20,8 +21,9 @@ Fully qualified app name for PostgreSQL
 Fully qualified app name for Pgpool
 */}}
 {{- define "postgresql-ha.pgpool" -}}
+{{- $prefixName := default "csec" .Values.global.prefixName -}}
 {{- if .Values.fullnameOverride -}}
-{{- printf "%s-pgpool" .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s-pgpool" $prefixName .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
@@ -52,25 +54,25 @@ Fully qualified app name for LDAP
 Return the proper PostgreSQL image name
 */}}
 {{- define "postgresql-ha.postgresqlImage" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.postgresqlImage "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.postgresqlImage "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the proper Pgpool image name
 */}}
 {{- define "postgresql-ha.pgpoolImage" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.pgpoolImage "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.pgpoolImage "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the proper PostgreSQL Prometheus exporter image name
 */}}
 {{- define "postgresql-ha.volumePermissionsImage" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.volumePermissionsImage "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.volumePermissionsImage "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the proper PostgreSQL Prometheus exporter image name
 */}}
 {{- define "postgresql-ha.metricsImage" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.metricsImage "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.metricsImage "global" .Values.global) }}
 {{- end -}}
 
 

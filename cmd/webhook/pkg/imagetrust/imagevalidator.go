@@ -9,6 +9,7 @@ import (
 	"github.com/avast/retry-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -34,7 +35,8 @@ type RejectOnlineMonitorImage struct {
 }
 
 type ImageValidatorReq struct {
-	Images []RejectOnlineMonitorImage
+	Images        []RejectOnlineMonitorImage
+	NotifyContext model.NotifyContext `json:"notify_context"`
 }
 type Result struct {
 	ApiVersion string `json:"apiVersion"`
@@ -54,8 +56,37 @@ type ValidatorConfig struct {
 	IgnoredNameSpaces []string `yaml:"ignored_name_spaces"`
 }
 
-func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, _ *processors.ValidatingParameters) error {
-	validation := &ImageValidatorReq{}
+func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *processors.ValidatingParameters) error {
+	validation := &ImageValidatorReq{
+		NotifyContext: model.NotifyContext{
+			PodUID:    "",
+			PodName:   "",
+			Namespace: params.Namespace,
+			Cluster:   params.ClusterKey,
+			CustomKV: []model.KVHashs{
+				{KVHash: model.KVHash{
+					EN: model.KeyValue{
+						Key:   "ResourceKind",
+						Value: params.ResourceKind,
+					},
+					ZH: model.KeyValue{
+						Key:   "ResourceKind",
+						Value: params.ResourceKind,
+					},
+				}},
+				{KVHash: model.KVHash{
+					EN: model.KeyValue{
+						Key:   "ResourceKind",
+						Value: params.ResourceName,
+					},
+					ZH: model.KeyValue{
+						Key:   "ResourceKind",
+						Value: params.ResourceName,
+					},
+				}},
+			},
+		},
+	}
 
 	for _, c := range pod.Spec.InitContainers {
 		buildValidation(validation, c.Image)

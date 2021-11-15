@@ -16,6 +16,7 @@ import (
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/env"
+	env2 "gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -107,6 +108,31 @@ func (s *Service) completeJobInfo(job *batchV1.Job, arg *jobArg) error {
 		Value: strconv.Itoa(int(MaxTaskTime.Seconds())),
 	}
 
+	pgHostEnv := coreV1.EnvVar{
+		Name:  env.PostgresHost,
+		Value: util.GetEnvWithDefault(env.PostgresHost, ""),
+	}
+
+	pgPortEnv := coreV1.EnvVar{
+		Name:  env.PostgresPort,
+		Value: util.GetEnvWithDefault(env.PostgresPort, ""),
+	}
+
+	pgUserEnv := coreV1.EnvVar{
+		Name:  env.PostgresUser,
+		Value: util.GetEnvWithDefault(env.PostgresUser, ""),
+	}
+
+	pgPasswordEnv := coreV1.EnvVar{
+		Name:  env.PostgresPassword,
+		Value: util.GetEnvWithDefault(env.PostgresPassword, ""),
+	}
+
+	pgSSLModeEnv := coreV1.EnvVar{
+		Name:  env.PostgresSSLMode,
+		Value: util.GetEnvWithDefault(env.PostgresSSLMode, ""),
+	}
+
 	emailHostEnv := coreV1.EnvVar{
 		Name:  env.EmailHost,
 		Value: s.emailConf.Host,
@@ -138,14 +164,20 @@ func (s *Service) completeJobInfo(job *batchV1.Job, arg *jobArg) error {
 		Value: notifyBaseURL,
 	}
 
+	emailOfficialNameEnv := coreV1.EnvVar{
+		Name:  env2.EmailOfficialName,
+		Value: util.GetEnvWithDefault(env2.EmailOfficialName, env2.DefaultEmailOfficialName),
+	}
+
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env,
 		uuidEnv, taskIDEnv, startTimestampEnv, endTimestampEnv, maxTaskTimeEnv,
-		emailHostEnv, emailPortEnv, emailUsernameEnv, emailPasswordEnv, notifyBaseURLEnv)
+		emailOfficialNameEnv, emailHostEnv, emailPortEnv, emailUsernameEnv, emailPasswordEnv, notifyBaseURLEnv,
+		pgHostEnv, pgPortEnv, pgUserEnv, pgPasswordEnv, pgSSLModeEnv)
 	return nil
 }
 
 func generateJobName(uuid string) string {
-	return fmt.Sprintf("tensorsec-platform-report-%s", uuid)
+	return fmt.Sprintf("platform-report-%s", uuid)
 }
 
 func getNamespace() string {

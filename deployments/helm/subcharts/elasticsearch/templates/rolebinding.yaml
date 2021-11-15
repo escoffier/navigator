@@ -1,6 +1,6 @@
 {{- if .Values.rbac.create -}}
 {{- $fullName := include "elasticsearch.uname" . -}}
-apiVersion: {{ include "tensorsec.common.capabilities.cronjob.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.cronjob.apiVersion" . }}
 kind: RoleBinding
 metadata:
   name: {{ $fullName | quote }}

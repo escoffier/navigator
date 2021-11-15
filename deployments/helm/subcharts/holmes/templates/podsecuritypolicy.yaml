@@ -1,14 +1,10 @@
 {{- if .Values.podSecurityPolicy.create}}
 ---
-apiVersion: {{ include "tensorsec.common.capabilities.policy.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.policy.apiVersion" . }}
 kind: PodSecurityPolicy
 metadata:
-  name: {{ template "falco.fullname" . }}
-  labels:
-    app: {{ template "falco.fullname" . }}
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
   privileged: true
   hostNetwork: true
@@ -25,15 +21,12 @@ spec:
 {{- end }}
 {{- if (and .Values.podSecurityPolicy.create .Values.fakeEventGenerator.enabled) }}
 ---
-apiVersion: {{ include "tensorsec.common.capabilities.policy.apiVersion" . }}
+apiVersion: {{ include "common.capabilities.policy.apiVersion" . }}
 kind: PodSecurityPolicy
 metadata:
-  name: event-generator-{{ template "falco.fullname" . }}
-  labels:
-    app: {{ template "falco.fullname" . }}-event-generator
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    release: "{{ .Release.Name }}"
-    heritage: "{{ .Release.Service }}"
+  name: {{ printf "%s-event-generator" (include "common.names.fullname" .) }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: event-generator
 spec:
   privileged: false
   hostNetwork: false
