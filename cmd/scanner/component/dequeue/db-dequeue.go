@@ -21,7 +21,6 @@ type DbDequeue struct {
 }
 
 func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
-
 	// get pending tasks
 	ts := task.NewTaskSrv()
 	tasks, err := ts.GetPendingTasks(ctx, int64(d.config.DequeNum))

@@ -16,7 +16,6 @@ const (
 )
 
 type ExecutorScanSensitive struct {
-	//imageCacheUrl string
 	sensitiveScan component.SensitiveScan
 	policy        interface{}
 }

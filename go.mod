@@ -122,8 +122,11 @@ require (
 
 require (
 	github.com/go-redsync/redsync/v4 v4.3.0
+	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/raft v1.3.2 // indirect
+	github.com/smartystreets/goconvey v1.6.4
 	go.uber.org/multierr v1.7.0 // indirect
+	gorm.io/plugin/soft_delete v1.0.4
 )
 
 require (
@@ -190,7 +193,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-restruct/restruct v0.0.0-20191227155143-5734170a48a1 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
@@ -201,6 +203,7 @@ require (
 	github.com/google/wire v0.4.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/googleapis/gnostic v0.4.1 // indirect
+	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -233,6 +236,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
+	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20190725054713-01f96b0aa0cd // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
@@ -271,6 +275,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/saracen/walker v0.0.0-20191201085201-324a081bae7e // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
+	github.com/smartystreets/assertions v1.2.0 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect

@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // the apis that need to be used as REST open API.
@@ -109,6 +110,15 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
 		r.Delete("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
 		r.Post("/imagereject/trustedImages/sign", api.RedirectToScanner())
+
+		r.Post("/scan-report", api.RedirectToScanner())
+		r.Delete("/scan-report/{id}", api.RedirectToScanner())
+		r.Get("/scan-report/{id}", api.RedirectToScanner())
+		r.Get("/scan-report", api.RedirectToScanner())
+		r.Get("/scan-report/{id}/subtask", api.RedirectToScanner())
+		r.Post("/scan-report/{id}/subtask", api.RedirectToScanner())
+		r.Put("/scan-report/{id}", api.RedirectToScanner())
+		r.Get("/scan-report/{id}/file/{sub_task_id}", api.RedirectToScanner())
 	}
 }
 

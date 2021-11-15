@@ -149,5 +149,18 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 		v9.GET("/:id/subtasks", apiScannerSrv.GetScanSubTaskList)
 		v9.GET("", apiScannerSrv.GetScanTaskList)
 	}
+
+	v10 := router.Group("/api/v1/scan-report")
+	{
+		v10.POST("", apiScannerSrv.ScanReportCrate)
+		v10.DELETE("/:id", apiScannerSrv.ScanReportDelete)
+		v10.GET("/:id", apiScannerSrv.ScanReportDetail)
+		v10.GET("", apiScannerSrv.ScanReportList)
+		v10.GET("/:id/subtask", apiScannerSrv.ScanReportFiles)
+		v10.POST("/:id/subtask", apiScannerSrv.ScanReportGenerate)
+		v10.PUT("/:id", apiScannerSrv.ScanReportUpdate)
+		v10.GET("/:id/file/:sub_task_id", apiScannerSrv.ScanReportDownload)
+	}
+
 	return router
 }

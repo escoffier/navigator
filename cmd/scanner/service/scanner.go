@@ -15,15 +15,15 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
+
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/vulnDbUpdate"
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
 
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/vulnDbUpdate"
-
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
 	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/ti-update"
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
@@ -81,6 +81,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init policy etc
 	regDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	imageDal := store.GetScannerOrmDb()
+
 	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
 	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl)
 	if err := dbInit.Init(context.Background()); err != nil {

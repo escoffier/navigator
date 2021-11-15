@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -15,6 +12,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (

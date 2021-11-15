@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "scan_report";
+
+message ScanReportResult {
+  // 开始时间
+  int64 start_timestamp = 1 [(gogoproto.jsontag)="start_timestamp"];
+  // 结束时间
+  int64 end_timestamp = 2 [(gogoproto.jsontag)="end_timestamp"];
+  // 报告名称
+  string name = 3 [(gogoproto.jsontag)="name"];
+  // 报告类型
+  int64 type = 4 [(gogoproto.jsontag)="type"];
+  // 数据类型
+  repeated int64 content_types = 5  [(gogoproto.jsontag) = "content_types"];
+  // 数据
+  ScanReportResultData data = 6 [(gogoproto.jsontag)="data"];
+}
+
+// 报告结果
+message ScanReportResultData {
+  // 镜像计数
+  ImageCount image_count = 1 [(gogoproto.jsontag)="image_count"];
+  // 漏洞计数统计
+  VulnCount vuln_count = 2 [(gogoproto.jsontag)="vuln_count"];
+  // 镜像列表
+  repeated Image images = 3
+    [(gogoproto.jsontag) = "images"];
+  // 镜像漏洞列表
+  repeated ImageVuln image_vulns = 4
+    [(gogoproto.jsontag) = "image_vulns"];
+  // 镜像病毒列表
+  repeated Virus viri= 5
+    [(gogoproto.jsontag) = "viri,omitempty"];
+}
+
+// 镜像计数统计
+message ImageCount {
+  // 镜像总数
+  int64 total_count = 1 [(gogoproto.jsontag)="total_count"];
+  // 在线镜像数
+  int64 online_count = 2 [(gogoproto.jsontag)="online_count"];
+  // 已修复镜像数
+  int64 fixed_count = 3 [(gogoproto.jsontag)="fixed_count"];
+  // 可信镜像数
+  int64 trusted_count = 4 [(gogoproto.jsontag)="trusted_count"];
+  // 可修复镜像数
+  int64 fixable_count = 5 [(gogoproto.jsontag)="fixable_count"];
+  // 存在漏洞的镜像数
+  int64 vuln_count = 6 [(gogoproto.jsontag)="vuln_count"];
+  // 存在敏感文件镜像数
+  int64 sensitive_file_count = 7  [(gogoproto.jsontag)="sensitive_file_count"];
+  // 存在恶意文件的镜像数
+  int64  malicious_count = 8 [(gogoproto.jsontag)="malicious_count"];
+  // 存在webshell的镜像数
+  int64 webshell_count = 9 [(gogoproto.jsontag)="webshell_count"];
+  // 存在异常环境变量的镜像数
+  int64 env_count = 10 [(gogoproto.jsontag)="env_count"];
+  // 存在不允许开源许可的镜像数
+  int64 licence_count = 11 [(gogoproto.jsontag)="licence_count"];
+  // 特权启动的镜像数
+  int64 privileged_count = 12 [(gogoproto.jsontag)="privileged_count"];
+  // 不合规软件的镜像数
+  int64 software_count = 13 [(gogoproto.jsontag)="software_count"];
+}
+
+// 漏洞计数统计
+message VulnCount {
+  // 高危
+  int64 critical_count = 1 [(gogoproto.jsontag)="critical_count"];
+  // 高
+  int64 high_count = 2 [(gogoproto.jsontag)="high_count"];
+  // 中
+  int64 medium_count = 3 [(gogoproto.jsontag)="medium_count"];
+  // 低
+  int64 low_count = 4 [(gogoproto.jsontag)="low_count"];
+  // 可忽略
+  int64 negligible_count = 5 [(gogoproto.jsontag)="negligible_count"];
+  // 未知
+  int64 unknown_count = 6 [(gogoproto.jsontag)="unknown_count"];
+  // 漏洞总数
+  int64 total_count = 7 [(gogoproto.jsontag)="total_count"];
+}
+
+// 风险镜像
+message Image {
+  // 镜像名称
+  string name = 1 [(gogoproto.jsontag)="name"];
+  // 镜像版本
+  string tag = 2 [(gogoproto.jsontag)="tag"];
+  // 镜像评分
+  double score = 3 [(gogoproto.jsontag)="score"];
+
+  repeated Vuln vulns = 4 [(gogoproto.jsontag) = "vulns"];
+
+  // 是否可修复，0:不可修复，1:可修复
+  int64 fixedable = 5 [(gogoproto.jsontag) = "fixedable"];
+}
+
+// 镜像漏洞
+message ImageVuln {
+  // 漏洞信息
+  Vuln vuln = 1 [(gogoproto.jsontag) = "vuln"];
+  // 影响的镜像
+  repeated string images = 2 [(gogoproto.jsontag) = "images"];
+}
+
+// 镜像漏洞
+message Virus {
+  // 病毒名称
+  string name = 1 [(gogoproto.jsontag) = "name"];
+
+  message ImageViru {
+    // 文件路径
+    string path = 1 [(gogoproto.jsontag) = "path"];
+    // 镜像
+    string image = 2 [(gogoproto.jsontag) = "image"];
+  }
+
+  repeated ImageViru images = 2 [(gogoproto.jsontag) = "images"];
+
+}
+
+message Vuln {
+  // 漏洞编号
+  string id = 1 [(gogoproto.jsontag) = "id"];
+  // 漏洞类型
+  string type = 2 [(gogoproto.jsontag) = "type"];
+  // 漏洞级别
+  VlunLevel level = 3 [(gogoproto.jsontag) = "level"];
+  // CNNVD 编号
+  string cnnvd = 4 [(gogoproto.jsontag) = "cnnvd"];
+  // CVSS3.0 评分
+  double cvss3 = 5 [(gogoproto.jsontag) = "cvss3"];
+  // 漏洞介绍
+  string detail = 6 [(gogoproto.jsontag) = "detail"];
+  // 修复建议
+  string fix_suggestion = 7 [(gogoproto.jsontag) = "fix_suggestion"];
+  // 修复版本
+  string fix_versoin = 8 [(gogoproto.jsontag) = "fix_versoin"];
+}
+
+// 漏洞级别
+enum VlunLevel {
+  UNSPECIFIED = 0;
+  // 高危
+  CRITICAL = 1;
+  // 高
+  HIGH = 2;
+  // 中
+  MEDIUM = 3;
+  // 底
+  LOW = 4;
+  // 可忽略
+  NEGLIGIBLE = 5;
+  // 未知
+  UNKNOWN = 6;
+}

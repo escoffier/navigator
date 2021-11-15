@@ -1,10 +1,10 @@
 package store
 
 import (
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
 func Test_TaskStatusCheck(t *testing.T) {

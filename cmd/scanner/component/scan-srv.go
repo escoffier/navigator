@@ -15,16 +15,19 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/cache"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/compress"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type SearchImagesParam struct {
@@ -69,6 +72,15 @@ type ScannerSrv interface {
 	DeleteCICDImage(ctx context.Context)
 	ListBaseImageOfApp(ctx context.Context, imageId int64, filter *model.Filter) ([]model.ImageList, int64, error)
 	ListAppImageOfBase(ctx context.Context, baseImageId int64, filter *model.Filter) ([]model.ImageList, int64, error)
+
+	ScanReportCreate(ctx context.Context, data *scanreport.TensorScanReportTasks) (uint, error)
+	ScanReportUpdate(ctx context.Context, data *scanreport.TensorScanReportTasks) error
+	ScanReportList(ctx context.Context, keyword string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error)
+	ScanReportDetail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error)
+	ScanReportDelete(ctx context.Context, id uint) error
+	ScanReportFiles(ctx context.Context, id uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error)
+	ScanReportDownload(ctx context.Context, taskId, subTaskId uint) (*scanreport.ScanReportResult, error)
+	ScanReportGenerate(ctx context.Context, taskId uint) (uint, error)
 
 	GetScanTaskList(ctx context.Context, limit, offset int64) ([]*model.Task, int64, error)
 	GetScanSubTaskList(ctx context.Context, taskId, limit, offset int64) ([]model.SubTask, int64, error)
@@ -2558,6 +2570,7 @@ func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, limit, offset int64
 }
 
 func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskId, limit, offset int64) ([]model.SubTask, int64, error) {
+
 	data, count, err := s.dbdal.GetSubTaskListWithImage(ctx, taskId, int(limit), int(offset))
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("获取扫描子任务记录失败, taskId: %d, limit: %d, offset: %d", taskId, limit, offset)
@@ -2604,6 +2617,143 @@ func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, taskId int64, 
 	}
 
 	return nil
+}
+
+func (s *ConScannerSrv) ScanReportCreate(ctx context.Context, data *scanreport.TensorScanReportTasks) (uint, error) {
+	if err := data.CheckValid(); err != nil {
+		logging.GetLogger().Err(err).Msgf("创建扫描报告时，数据校验失败，name:%s", data.Name)
+		return 0, err
+	}
+
+	if data.Type == scanreport.TensorScanReportTypeCustomize {
+		data.SubTaskType = scanreport.SubTaskTypeOnce
+	} else {
+		data.SubTaskType = scanreport.SubTaskTypeCircle
+	}
+
+	id, err := s.dbdal.ScanReportCreate(ctx, data)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("创建扫描报告时, 插入数据失败，name:%s", data.Name)
+
+		if strings.Contains(err.Error(), "duplicate") {
+			return 0, fmt.Errorf("名字:<%s>已存在", data.Name)
+		}
+
+		return 0, errors.New("新增失败")
+	}
+	return id, nil
+}
+
+func (s *ConScannerSrv) ScanReportUpdate(ctx context.Context, data *scanreport.TensorScanReportTasks) error {
+	if err := data.CheckValid(); err != nil {
+		logging.GetLogger().Err(err).Msgf("更新扫描报告时，数据校验失败，name:%s", data.Name)
+		return err
+	}
+
+	if data.Type == scanreport.TensorScanReportTypeCustomize {
+		return errors.New("自定义任务无法修改")
+	}
+	data.SubTaskType = scanreport.SubTaskTypeCircle
+
+	if err := s.dbdal.ScanReportUpdate(ctx, data); err != nil {
+		logging.GetLogger().Err(err).Msgf("更新扫描报告时, 更新数据失败，name:%s", data.Name)
+		if strings.Contains(err.Error(), "duplicate") {
+			return fmt.Errorf("名字:<%s>已存在", data.Name)
+		}
+
+		return errors.New("新增失败")
+	}
+	return nil
+}
+
+func (s *ConScannerSrv) ScanReportList(ctx context.Context, keyword string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error) {
+	data, count, err := s.dbdal.ScanReportList(ctx, keyword, limit, offset, _type)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("获取扫描报告列表失败，keyword:%s, limit:%d, offset:%d", keyword, limit, offset)
+		return nil, 0, err
+	}
+
+	return data, count, nil
+}
+
+func (s *ConScannerSrv) ScanReportDetail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error) {
+	data, err := s.dbdal.ScanReportDetail(ctx, id)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("获取扫描报告详情失败，id: %d", id)
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (s *ConScannerSrv) ScanReportDelete(ctx context.Context, id uint) error {
+	err := s.dbdal.ScanReportDelete(ctx, id)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("删除扫描报告失败，id: %d", id)
+		return err
+	}
+
+	return nil
+}
+
+func (s *ConScannerSrv) ScanReportFiles(ctx context.Context, id uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error) {
+	data, count, err := s.dbdal.ScanReportFilesList(ctx, id, limit, offset)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("获取扫描报告文件列表失败，id:%d, limit:%d, offset:%d", id, limit, offset)
+		return nil, 0, err
+	}
+
+	return data, count, nil
+}
+
+func (s *ConScannerSrv) ScanReportDownload(ctx context.Context, taskId, subTaskId uint) (*scanreport.ScanReportResult, error) {
+	r, err := s.dbdal.ScanReportDownload(ctx, taskId, subTaskId)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("查询扫描报告文件失败，taskId:%d, subTask:%d", taskId, subTaskId)
+		return nil, errors.Wrap(err, "查询扫描报告文件失败")
+	}
+
+	result := &scanreport.ScanReportResult{
+		Data: &scanreport.ScanReportResultData{
+			Images:     []*scanreport.Image{},
+			ImageVulns: []*scanreport.ImageVuln{},
+		},
+	}
+
+	data, err := compress.ZlipDecompress(r.File)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("解压数据失败，taskId:%d, subTask:%d", taskId, subTaskId)
+		return nil, errors.Wrap(err, "解压数据失败")
+	}
+	err = result.Unmarshal(data)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("序列化扫描报告文件失败，taskId:%d, subTask:%d", taskId, subTaskId)
+		return nil, errors.Wrap(err, "序列化扫描报告文件失败")
+	}
+
+	return result, nil
+}
+
+func (s *ConScannerSrv) ScanReportGenerate(ctx context.Context, taskId uint) (uint, error) {
+	data, err := s.dbdal.ScanReportDetail(ctx, taskId)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("立即生成失败，查询任务详情失败，taskId:%d", taskId)
+		return 0, errors.New("查询任务详情失败")
+	}
+
+	if data.Type == scanreport.TensorScanReportTypeCustomize {
+		return 0, errors.New("自定义任务不能立即生成")
+	}
+
+	data.SubTaskType = scanreport.SubTaskTypeOnce
+	subtask := data.GenSubtask()
+	subtask.ScanReportId = data.ID
+	id, err := s.dbdal.ScanReportSubTaskCreate(ctx, subtask)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("立即生成失败，生成子任务失败，taskId:%d", taskId)
+		return 0, errors.New("生成子任务失败")
+	}
+	return id, nil
 }
 
 // 检查是否为可信镜像

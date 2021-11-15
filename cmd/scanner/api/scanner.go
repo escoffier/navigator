@@ -849,7 +849,6 @@ func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
 	}
 
 	response.JSONOK(ctx, response.WithTotalItems(count), response.WithItems(data))
-
 }
 
 // GetScanSubTaskList 获取某个任务的子任务列表

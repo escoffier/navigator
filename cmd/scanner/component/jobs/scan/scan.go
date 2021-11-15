@@ -3,12 +3,13 @@ package scan
 import (
 	"context"
 	"errors"
+	"runtime/debug"
+	"sync"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"runtime/debug"
-	"sync"
 )
 
 const (

@@ -2,15 +2,17 @@
 // eg: when db exception,or service restart, processing subtask will not change its status and update its heartbeat
 // task-check will set these subtasks to timeout, and also set task to exception.
 // engine will retry these task
+
 package task_check
 
 import (
 	"context"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"time"
 )
 
 const (

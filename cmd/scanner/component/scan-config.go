@@ -222,6 +222,7 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyId int64) er
 		logging.GetLogger().Err(err).Msg("search strategy err")
 		return err
 	}
+
 	for i := range strategy {
 		if strategy[i].ID == strategyId {
 			return fmt.Errorf("该策略属于默认策略，不能删除")

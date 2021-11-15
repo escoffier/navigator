@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/mileusna/crontab"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
@@ -21,7 +22,7 @@ type Config struct {
 }
 
 type CleanRegistryService struct {
-	// config Config
+	config Config // nolint:structcheck,unused
 }
 
 func (s *CleanRegistryService) Start(ctx context.Context) error {

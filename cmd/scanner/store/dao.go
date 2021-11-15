@@ -84,6 +84,7 @@ type ScannerDalInterface interface {
 	GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectPolicy, error)
 
 	ScanTaskInterface
+	ScanReportInterface
 	TrustedImageInterface
 }
 
@@ -2076,6 +2077,7 @@ func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, id int64, status uint
 	}
 
 	err = begin.Model(data).Where("id = ?", id).UpdateColumn("status", status).Error
+
 	if err != nil {
 		return
 	}
@@ -2127,6 +2129,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 
 	taskIds := make([]int64, 0, len(data))
 	taskIdsMap := make(map[int64]*model.Task, len(data))
+
 	var datas = make([]*model.Task, 0, len(data))
 	for i := range data {
 		taskIds = append(taskIds, data[i].ID)

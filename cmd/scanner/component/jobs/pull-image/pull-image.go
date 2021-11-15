@@ -2,12 +2,13 @@ package pull_image
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+
 	"github.com/docker/distribution/manifest/schema2"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"os"
-	"path/filepath"
 )
 
 const (
