@@ -389,7 +389,7 @@ event-processor go-audit safe-node-image kube-scanner-report platform-report sca
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
 
 .PHONY: deps
-deps: alpine redis elasticsearch mongodb mongo-arbiter mongodb-init postgres-init postgres falcosidekick nats-streaming
+deps: alpine redis elasticsearch mongodb mongo-arbiter mongodb-init postgres-init postgres nats-streaming
 
 .PHONY: pushdeps
 pushdeps:
@@ -399,7 +399,6 @@ pushdeps:
 	docker push ${REPOPREFIX}/bitnami-shell:10-debian-10-r91
 	docker push $(REPOPREFIX)/minideb:buster
 	docker push $(REPOPREFIX)/postgresql:11.6.0-debian-10-r5
-	docker push $(REPOPREFIX)/falcosidekick:2.22.0
 	docker push $(REPOPREFIX)/nats-streaming:0.21.2
 
 .PHONY: pushbase

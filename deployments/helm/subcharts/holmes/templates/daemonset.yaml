@@ -118,7 +118,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "common.redis-ha.defaultName" . }}
                   key: auth
-        - name: falco
+        - name: engine
           image: {{ template "falco.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
