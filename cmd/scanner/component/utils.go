@@ -243,7 +243,7 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
 	// logging.GetLogger().Info().Msg(fmt.Sprintf("send msg to event center：%s", string(JSONBytes)))
 
 	host := consts.TENSORSEC_EVENTCENTER_SERVICE_HOST
-	port := os.Getenv("TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP")
+	port := os.Getenv("EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP")
 	if port == "" {
 		port = consts.TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP
 	}
