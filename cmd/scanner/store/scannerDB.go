@@ -131,7 +131,7 @@ func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, ScanLayer *model.S
 	tmp := model.ScanLayer{}
 	res := scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).First(&tmp)
 	if res.Error == nil {
-		scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).Updates(&ScanLayer)
+		scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).Select("*").Omit("id").Updates(&ScanLayer)
 		return
 	}
 	scdb.PostgresDB.Get().WithContext(ctx).Create(&ScanLayer)

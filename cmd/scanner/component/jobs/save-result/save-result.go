@@ -127,6 +127,28 @@ func (s *ScanResultHandle) defalutEnvFill(scanDetails *model.ScanDetailScanImage
 	}
 }
 
+func (s *ScanResultHandle) AddRHSAAndCnnvd(VulnDetails *model.SingleScanDetail, vulnDetail model.NewVulnDetail, flag int) {
+	tmpDetail := vulnDetail
+	rhsaFlag := 0
+	for _, v := range vulnDetail.Trivy[0].References {
+		if strings.Contains(v, "/errata/RHSA") {
+			index := strings.LastIndex(v, "/")
+			tmpDetail.CVEID = v[index+1:]
+			rhsaFlag = 1
+			break
+		}
+	}
+	if flag == 0 {
+		if rhsaFlag == 1 {
+			VulnDetails.Vulns = append(VulnDetails.Vulns, tmpDetail)
+		}
+		if tmpDetail.Cnnvd.Number != "" {
+			tmpDetail.CVEID = tmpDetail.Cnnvd.Number
+			VulnDetails.Vulns = append(VulnDetails.Vulns, tmpDetail)
+		}
+	}
+}
+
 func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers []string, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
 	vulnQuery := scanner_vuln.GetScannerVuln()
 	fixedFlag := 0
@@ -155,11 +177,13 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 			if err != nil {
 				trivyDetail.CVEID = k
 				scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
+				s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail, 0)
 				continue
 			}
 			trivyDetail.CVEID = k
 			trivyDetail.Cnnvd = tmpDetail.Cnnvd
 			trivyDetail.Cnvd = tmpDetail.Cnvd
+			s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail, 0)
 			scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
 		}
 	}
