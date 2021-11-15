@@ -373,10 +373,17 @@ cluster-manager: generate
 		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
 
+.PHONY: scan_report
+scan_report: 		## Build cleaner binary
+	@echo "+ $@"
+	GOOS=linux GOARCH=amd64 go build -trimpath -v \
+		-o dist/scan_report cmd/scanner/bin/scan-report/main.go
+	docker build -t $(REPOPREFIX)/scan-report:latest -f ./build/scan_report/Dockerfile .
+
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes image-validate daemon  \
 webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
-event-processor go-audit safe-node-image kube-hunter-report platform-report
+event-processor go-audit safe-node-image kube-hunter-report platform-report scan_report
 
 .PHONY: base
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -444,6 +451,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/kube-hunter-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/console:latest
@@ -469,6 +477,7 @@ else
 	docker push $(REPOPREFIX)/cluster-manager:latest
 	docker push $(REPOPREFIX)/kube-hunter-report:latest
 	docker push $(REPOPREFIX)/platform-report:latest
+	docker push $(REPOPREFIX)/scan-report:latest
 endif
 
 .PHONY: rm-local-images
@@ -496,6 +505,8 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/webhook:latest
 	docker rmi $(REPOPREFIX)/cluster-manager:latest
 	docker rmi $(REPOPREFIX)/kube-hunter-report:latest
+	docker rmi $(REPOPREFIX)/platform-report:latest
+	docker rmi $(REPOPREFIX)/scan-report:latest
 
 .PHONY: retag
 retag:
@@ -523,6 +534,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/webhook:latest $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/kube-hunter-report:latest $(REPOPREFIX)/kube-hunter-report:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/scan-report:latest $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
@@ -547,6 +559,7 @@ else
 	docker tag $(REPOPREFIXOLD)/webhook:latest $(REPOPREFIX)/webhook:latest
 	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 	docker tag $(REPOPREFIXOLD)/kube-hunter-report:latest $(REPOPREFIX)/kube-hunter-report:latest
+	docker tag $(REPOPREFIXOLD)/scan-report:latest $(REPOPREFIX)/scan-report:latest
 endif
 
 CI_CHECK_CACHE_REGISTRY?=harbor.local.cn
