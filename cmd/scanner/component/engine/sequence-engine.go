@@ -3,6 +3,10 @@ package engine
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
+	"sync"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
@@ -12,9 +16,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"golang.org/x/sync/semaphore"
-	"runtime/debug"
-	"sync"
-	"time"
 )
 
 const (

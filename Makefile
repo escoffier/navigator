@@ -676,6 +676,12 @@ forwardConsole:			## Use only for development! Creates kubernetes port-forward t
 	- ps aux | grep port-forward | head -1 | awk -c '{print $$2}' | xargs kill
 	kubectl port-forward service/tensorsec-console --address 0.0.0.0 8889:8889 &
 
+.PHONY: scan_report
+scan_report: 		## Build cleaner binary
+	@echo "+ $@"
+	GOOS=linux GOARCH=amd64 go build -trimpath -v \
+		-o dist/scan_report cmd/scanner/bin/tensor-scan-report/main.go
+	docker build -t $(REPOPREFIX)/scan_report:latest -f ./build/scan_report/Dockerfile .
 
 
 

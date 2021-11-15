@@ -167,6 +167,7 @@ func (s *ScannerVuln) getVulnPath() string {
 func (s *ScannerVuln) InitDB() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
 	tmpDir, err := ioutil.TempDir("/root/", "")
 	if err != nil {
 		return err

@@ -136,6 +136,7 @@ func (s *SensitiveScan) InitConfigFiles(filename string) error {
 		s.SensitiveFilenameRegExpMap = GlobalSensitiveFilenameRegExpMap
 		s.SensitiveFilenameRegExp = GlobalSensitiveFilenameRegExp
 	}
+
 	s.SensitiveFilenameRegExpMap = make(map[*regexp.Regexp]*SensitiveDescription)
 	secretPatterns := []SecretPattern{}
 	if err := s.readJSONFile(filename, &secretPatterns); err != nil {

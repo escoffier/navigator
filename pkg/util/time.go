@@ -2,6 +2,11 @@ package util
 
 import "time"
 
+var (
+	// CSTSh 上海时区
+	CSTSh = time.FixedZone("CST", 8*3600)
+)
+
 func GetMillisecondTime(t time.Time) time.Time {
 	return time.Unix(0, t.UnixNano()/1e6*1e6).In(t.Location())
 }

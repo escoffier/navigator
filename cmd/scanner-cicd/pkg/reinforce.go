@@ -75,6 +75,7 @@ func getFileChecker(dockerBuildPath string, filename string, maxSecond int, cons
 		if consoleURL[len(consoleURL)-1] == '/' {
 			consoleURL = consoleURL[:len(consoleURL)-1]
 		}
+
 		request, _ := http.NewRequest("GET", consoleURL+LocalFileCheckerUrl+"?name="+filename, nil)
 		request.Header.Add("X-Tensorsec-cicd-key", apikey)
 		request.Header.Add("Content-Type", "application/json")

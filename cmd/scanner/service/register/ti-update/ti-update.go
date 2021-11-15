@@ -3,10 +3,11 @@ package ti_update
 
 import (
 	"context"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"time"
 )
 
 const (

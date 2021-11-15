@@ -201,10 +201,12 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 				}
 				//fmt.Printf("find %s des:%s\n", id, fixDes)
 				err = bucket.Put([]byte(CVEs[now]), []byte(jsonStr))
+
 				if err != nil {
 					logging.GetLogger().Err(err).Msg("bucket put err")
 					continue
 				}
+
 				now++
 			}
 			return nil

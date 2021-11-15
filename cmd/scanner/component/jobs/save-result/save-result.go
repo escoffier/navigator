@@ -37,7 +37,6 @@ type ScanResultHandle struct {
 }
 
 var (
-	// virusSingleScore   = 40.0
 	webshellNineToTen  = 40.0
 	webshellSixToEight = 30.0
 	webshellFourToFive = 20.0

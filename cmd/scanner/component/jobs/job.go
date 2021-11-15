@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 )
 
