@@ -19,14 +19,14 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
-var Host = "console.tensosecurity.cn"
+var Host = "https://console.tensosecurity.cn"
 
 const format = "2006-01-02 15:04:05 MST"
 const contentFormat = `<div>已为您成功生成一份报告：</div>
 <div>报告类型: %s</div>
 <div>报告名称: %s</div>
 <div>报告周期: %s - %s</div>
-<div>平台链接: https://%s/#/image-scanning/recent-scan?reportId=%d&ctab=4</div>`
+<div>平台链接: %s/#/image-scanning/recent-scan?reportId=%d&ctab=4</div>`
 
 type ScanReportSrv struct {
 	dao       store.ScanReportInterface
