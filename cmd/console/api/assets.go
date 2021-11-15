@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,6 +45,8 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/namespaces/count", api.countNamespaces())
 		r.Get("/nodes/count", api.countNodes())
 		r.Get("/nodes", api.getNodes())
+
+		r.Get("/frameworks", api.getFrameworks())
 	}
 }
 
@@ -659,18 +662,20 @@ func parseImage(image string) (string, string, string) {
 
 func (api *api) getResourceContainers() http.HandlerFunc {
 	type container struct {
-		Cluster      string             `json:"cluster"`
-		Namespace    string             `json:"namespace"`
-		ResourceKind string             `json:"resource_kind"`
-		ResourceName string             `json:"resource_name"`
-		Name         string             `json:"name"`
-		WorkingDir   string             `json:"working_dir"`
-		Command      []string           `json:"command"`
-		Type         string             `json:"type"`
-		ImageRepo    string             `json:"image_repo"`
-		ImageName    string             `json:"image_name"`
-		ImageTag     string             `json:"image_tag"`
-		Ports        []v1.ContainerPort `json:"ports"`
+		Cluster       string               `json:"cluster"`
+		Namespace     string               `json:"namespace"`
+		ResourceKind  string               `json:"resource_kind"`
+		ResourceName  string               `json:"resource_name"`
+		Name          string               `json:"name"`
+		WorkingDir    string               `json:"working_dir"`
+		Command       []string             `json:"command"`
+		Type          string               `json:"type"`
+		ImageRepo     string               `json:"image_repo"`
+		ImageName     string               `json:"image_name"`
+		ImageTag      string               `json:"image_tag"`
+		Ports         []v1.ContainerPort   `json:"ports"`
+		Envs          []v1.EnvVar          `json:"envs"`
+		FrameWorkInfo []model.WebFrameInfo `json:"frame_work_info"`
 	}
 	fromModelToContainer := func(cm *model.TensorContainer) *container {
 		c := new(container)
@@ -684,6 +689,9 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		c.Command = cm.Spec.Command
 		c.Ports = make([]v1.ContainerPort, len(cm.Ports))
 		copy(c.Ports, cm.Ports)
+
+		c.Envs = make([]v1.EnvVar, len(cm.Spec.Env))
+		copy(c.Envs, cm.Spec.Env)
 
 		repo, name, tag := parseImage(cm.Image)
 		c.ImageRepo = repo
@@ -748,6 +756,18 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		items := make([]*container, len(containers))
 		for i, container := range containers {
 			items[i] = fromModelToContainer(container)
+			uuid := util.GenerateUUID(container.Image)
+			webFrameScan, err := resSvc.GetFramework(ctx, uuid)
+			if err != nil || webFrameScan == nil {
+				continue
+			}
+			var infos []model.WebFrameInfo
+			err = json.Unmarshal(webFrameScan.WebFrameInfoJSON, &infos)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("get web frame")
+				continue
+			}
+			items[i].FrameWorkInfo = infos
 		}
 
 		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(items))))
@@ -1057,5 +1077,72 @@ func (api *api) countNodes() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItem(countResp{totalCnt}))
+	}
+}
+
+func (api api) getFrameworks() http.HandlerFunc {
+	type Item struct {
+		Name         string               `json:"name"`
+		ServiceType  string               `json:"service_type"`
+		Version      string               `json:"version"`
+		Managers     []string             `json:"managers"`
+		WebFrameInfo []model.WebFrameInfo `json:"web_frame_info"`
+	}
+	var items []*Item
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = ""
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		query := dal.ResourceContainersQuery()
+		query.WithCluster(clusterKey)
+
+		containers, _, err := resSvc.GetResourceContainers(ctx, query, offset, limit)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("pod get error")))
+			return
+		}
+		frameInfos, err := resSvc.GetFrameworks(ctx)
+
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("frameworks get error")))
+			return
+		}
+
+		for _, c := range containers {
+			uuid := util.GenerateUUID(c.Image)
+			logging.GetLogger().Debug().Msgf("Image %s, uuid: %d", c.Image, uuid)
+			for _, frm := range frameInfos {
+				if frm.ImageUUID == uuid && frm.WebFrameInfoJSON != nil && len(frm.WebFrameInfoJSON) > 0 {
+					var infos []model.WebFrameInfo
+					err = json.Unmarshal(frm.WebFrameInfoJSON, &infos)
+					if err != nil {
+						logging.GetLogger().Err(err).Msg("get web frame")
+						continue
+					}
+					if infos != nil {
+						items = append(items, &Item{WebFrameInfo: infos})
+					}
+				}
+			}
+		}
+		response.Ok(w, response.WithItems(items), response.WithTotalItems(int64(len(items))))
 	}
 }

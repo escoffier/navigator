@@ -297,18 +297,40 @@ func (TensorNamespace) TableName() string {
 	return "tensor_namespaces"
 }
 
+func (sc *PodContainerInfos) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &sc)
+}
+func (sc *PodContainerInfos) Value() (driver.Value, error) {
+	return json.Marshal(sc)
+}
+
+type PodContainerInfos struct {
+	InitContainerInfo []PodContainerInfo `json:"init_container_info"`
+	ContainerInfo     []PodContainerInfo `json:"container_info"`
+}
+
+type PodContainerInfo struct {
+	ImageID     string `json:"image_id"`
+	ContainerID string `json:"container_id"`
+}
+
 type PodResourceRelation struct {
-	TableBase              // id: cluster_key/namespace/resKind/resName/podUID
-	ClusterKey      string `json:"ClusterKey" gorm:"column:cluster_key;index:idx_prr_res,priority:1"`
-	PodIP           string `json:"PodIP,omitempty"`
-	PodUID          string `json:"PodUID" gorm:"column:pod_uid"`
-	HostIP          string `json:"HostIP,omitempty"`
-	Namespace       string `json:"Namespace" gorm:"column:namespace;index:idx_prr_res,priority:2"`
-	PodName         string `json:"PodName"`
-	NodeName        string `json:"NodeName" gorm:"column:node_name"`
-	ResourceName    string `json:"ResourceName" gorm:"column:resource_name;index:idx_prr_res,priority:4"`
-	ResourceKind    string `json:"ResourceKind" gorm:"column:resource_kind;index:idx_prr_res,priority:3"`
-	CreateTimestamp int64  `json:"CreateTimestamp" gorm:"-"`
+	TableBase                            // id: cluster_key/namespace/resKind/resName/podUID
+	ClusterKey        string             `json:"ClusterKey" gorm:"column:cluster_key;index:idx_prr_res,priority:1"`
+	PodIP             string             `json:"PodIP,omitempty"`
+	PodUID            string             `json:"PodUID" gorm:"column:pod_uid"`
+	HostIP            string             `json:"HostIP,omitempty"`
+	Namespace         string             `json:"Namespace" gorm:"column:namespace;index:idx_prr_res,priority:2"`
+	PodName           string             `json:"PodName"`
+	NodeName          string             `json:"NodeName" gorm:"column:node_name"`
+	ResourceName      string             `json:"ResourceName" gorm:"column:resource_name;index:idx_prr_res,priority:4"`
+	ResourceKind      string             `json:"ResourceKind" gorm:"column:resource_kind;index:idx_prr_res,priority:3"`
+	PodContainerInfos *PodContainerInfos `json:"pod_container_infos" gorm:"column:pod_container_infos;type:jsonb"`
+	CreateTimestamp   int64              `json:"CreateTimestamp" gorm:"-"`
 }
 
 func (PodResourceRelation) TableName() string {

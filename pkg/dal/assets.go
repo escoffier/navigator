@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"strings"
 	"time"
 
@@ -52,6 +53,7 @@ var (
 		"pod_ip",
 		"host_ip",
 		"node_name",
+		"pod_container_infos",
 	}
 	OnDupUpdatedColsForNodes = []string{
 		"host_name",
@@ -870,16 +872,36 @@ func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, cluster
 }
 
 func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
+	podContainerInfos := &model.PodContainerInfos{
+		InitContainerInfo: nil,
+		ContainerInfo:     nil,
+	}
+	for i := range pod.Status.InitContainerStatuses {
+		podContainerInfos.InitContainerInfo = append(podContainerInfos.InitContainerInfo, model.PodContainerInfo{
+			ImageID:     pod.Status.InitContainerStatuses[i].ContainerID,
+			ContainerID: pod.Status.InitContainerStatuses[i].ImageID,
+		})
+	}
+
+	for i := range pod.Status.ContainerStatuses {
+		podContainerInfos.ContainerInfo = append(podContainerInfos.ContainerInfo, model.PodContainerInfo{
+			ImageID:     pod.Status.ContainerStatuses[i].ContainerID,
+			ContainerID: pod.Status.ContainerStatuses[i].ImageID,
+		})
+	}
+	logging.GetLogger().Info().Msgf("%+v", pod.Status)
+	logging.GetLogger().Info().Msgf("%+v", *podContainerInfos)
 	rel := model.PodResourceRelation{
-		ClusterKey:   clusterKey,
-		Namespace:    pod.GetNamespace(),
-		PodName:      pod.GetName(),
-		ResourceName: resourceName,
-		ResourceKind: resKind,
-		PodUID:       string(pod.GetUID()),
-		PodIP:        pod.Status.PodIP,
-		HostIP:       pod.Status.HostIP,
-		NodeName:     pod.Spec.NodeName,
+		ClusterKey:        clusterKey,
+		Namespace:         pod.GetNamespace(),
+		PodName:           pod.GetName(),
+		ResourceName:      resourceName,
+		ResourceKind:      resKind,
+		PodUID:            string(pod.GetUID()),
+		PodIP:             pod.Status.PodIP,
+		HostIP:            pod.Status.HostIP,
+		NodeName:          pod.Spec.NodeName,
+		PodContainerInfos: podContainerInfos,
 	}
 	rel.CreatedAt = pod.GetCreationTimestamp().Time
 	rel.UpdatedAt = updateTime
@@ -1472,4 +1494,45 @@ func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption
 		return 0, err
 	}
 	return count, nil
+}
+
+func GetFramework(ctx context.Context, rdb *gorm.DB, imageid uint32) (*model.WebFrameScan, error) {
+	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	var frm model.WebFrameScan
+	notFound := false
+	err := util.RetryWithBackoff(rctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		defer oneCancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.WebFrameScan{})
+		db.Where("image_uuid = ?", imageid)
+		err := db.First(&frm).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+
+	})
+	if notFound {
+		return nil, nil
+	}
+	return &frm, err
+}
+
+func GetFrameworks(ctx context.Context, rdb *gorm.DB) ([]*model.WebFrameScan, error) {
+	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	var frms []*model.WebFrameScan
+	err := util.RetryWithBackoff(rctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		defer oneCancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.WebFrameScan{})
+		return db.Find(&frms).Error
+	})
+	return frms, err
 }
