@@ -12,7 +12,7 @@ import (
 func (s *Service) expireRecordLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when expire kube-hunter record: %v. stack: %s", r, debug.Stack())
+			logging.GetLogger().Error().Msgf("Panic when expire kube-scanner record: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -33,7 +33,7 @@ const (
 )
 
 func (s *Service) expireRecord(t time.Time) {
-	logging.GetLogger().Info().Msgf("expire kube-hunter record run")
+	logging.GetLogger().Info().Msgf("expire kube-scanner record run")
 	ctx, cancel := context.WithTimeout(context.Background(), expireTaskTimeout)
 	defer cancel()
 	retryFunc := func() error {

@@ -15,7 +15,7 @@ type category struct {
 }
 
 func TestLoadConf(t *testing.T) {
-	confPath := "../../../../configs/kube-hunter/translate.json"
+	confPath := "../../../../configs/kube-scanner/translate.json"
 	var conf model.KubeHunterTranslateConf
 	jsonBytes, err := os.ReadFile(confPath)
 	if err != nil {

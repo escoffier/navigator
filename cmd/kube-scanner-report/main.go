@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report/env"
+	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"

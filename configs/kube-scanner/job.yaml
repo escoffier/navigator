@@ -2,18 +2,18 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kube-hunter-report
+  name: kube-scanner-report
 spec:
   ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:
-        app: kube-hunter-report
+        app: kube-scanner-report
     spec:
       containers:
-        - name: kube-hunter-report
-          image: localhost:32000/kube-hunter-report:latest
-          command: ["/kube-hunter-report"]
+        - name: kube-scanner-report
+          image: localhost:32000/kube-scanner-report:latest
+          command: ["/kube-scanner-report"]
           imagePullPolicy: Always
           resources:
             requests:
@@ -22,9 +22,9 @@ spec:
             limits:
               memory: "100Mi"
               cpu: "500m"
-        - name: kube-hunter
-          image: localhost:32000/kube-hunter:0.6.2
-          command: [ "kube-hunter" ]
+        - name: kube-scanner
+          image: localhost:32000/kube-scanner:0.6.2
+          command: [ "kube-scanner" ]
           args: ["--pod", "--report", "json", "--dispatch", "http"]
           env:
             - name: KUBEHUNTER_HTTP_DISPATCH_URL

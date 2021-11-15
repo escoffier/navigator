@@ -22,9 +22,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report/def"
-	"gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report/env"
-	"gitlab.com/piccolo_su/vegeta/cmd/kube-hunter-report/taskmanager"
+	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/def"
+	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/env"
+	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/taskmanager"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -63,16 +63,16 @@ const (
 )
 
 func newService(db *rdbtools.GormWrapper) (*Service, error) {
-	confBytes, err := os.ReadFile("/kube-hunter/translate.json")
+	confBytes, err := os.ReadFile("/kube-scanner/translate.json")
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("load kube-hunter translate conf fail")
+		logging.GetLogger().Err(err).Msg("load kube-scanner translate conf fail")
 		return nil, err
 	}
 
 	var conf model.KubeHunterTranslateConf
 	err = json.Unmarshal(confBytes, &conf)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("parse kube-hunter translate conf fail")
+		logging.GetLogger().Err(err).Msg("parse kube-scanner translate conf fail")
 		return nil, err
 	}
 
@@ -162,7 +162,7 @@ func (s *Service) launchK8sJob(ctx context.Context, client *kubernetes.Clientset
 }
 
 func (s *Service) loadJobTemplate() (*batchV1.Job, error) {
-	var jobYamlPath = "/jobs/kube-hunter/job.yaml"
+	var jobYamlPath = "/jobs/kube-scanner/job.yaml"
 
 	jobContent, err := ioutil.ReadFile(jobYamlPath)
 	if err != nil {

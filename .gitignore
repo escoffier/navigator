@@ -25,5 +25,5 @@ cmd/console/api/testCaptcha.png
 /bin/
 /deployments/helm/requirements.lock
 cmd/console/service/captcha/testCaptcha.png
-cmd/kube-hunter-report/khv_detail.json
+cmd/kube-scanner-report/khv_detail.json
 benchmark/mock-httpserver/mock-httpserver

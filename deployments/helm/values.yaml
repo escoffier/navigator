@@ -128,13 +128,13 @@ console:
       image:
         registry: localhost:32000
         repository: library
-        name: kube-hunter-report
+        name: kube-scanner-report
         tag: latest
     HunterOrigin:
       image:
         registry: localhost:32000
         repository: library
-        name: kube-hunter
+        name: kube-scanner
         tag: 0.6.2
     ApiScan:
       image:
@@ -389,7 +389,7 @@ webhook:
       tag: v1.5.1
   sidecar:
     image:
-      name: proxy
+      name: security-proxy
       tag: latest
     init:
       image:
