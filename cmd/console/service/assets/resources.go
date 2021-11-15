@@ -205,3 +205,11 @@ func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context
 
 	return containers, totalCnt, nil
 }
+
+func (rl *TensorResourcesService) GetFramework(ctx context.Context, imageId uint32) (*model.WebFrameScan, error) {
+	return dal.GetFramework(ctx, rl.rdb.Get(), imageId)
+}
+
+func (rl *TensorResourcesService) GetFrameworks(ctx context.Context) ([]*model.WebFrameScan, error) {
+	return dal.GetFrameworks(ctx, rl.rdb.Get())
+}
