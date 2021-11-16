@@ -11,6 +11,7 @@ data:
       "interception_mode": "REDIRECT",
       "nats_urls": "nats://{{ include "common.stan.defaultName" . }}-headless.{{ .Release.Namespace }}.svc:4222",
       "nats_subject": {{ .Values.nats.natsSubject | quote }},
+      "nats_cluster_id": {{ .Values.nats.clusterId | quote }},
       "ignored_name_spaces": [{{ .Values.sidecar.ignoredNameSpaces  | quote }},{{ .Release.Namespace | quote }}],
       "init_container_image": {{ include "webhook.sidecar.init.image" . | quote }},
       "container_image": {{ include "webhook.sidecar.image" . | quote }},
