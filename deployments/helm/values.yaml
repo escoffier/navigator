@@ -49,8 +49,8 @@ scanner:
     secrets:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
       # e.g. "htpasswd -nbBC10 $username $password"
-      # Default: admin:Registry@Passw0rd
-      htpasswd: "admin:$2y$10$O08vnVTsvddCrSaadfZKA.i5ubglBNK.mntITXmT2Z671K1KhgaGu"
+      # Default: registry:Registry@Passw0rd
+      htpasswd: "registry:$2y$10$lxSxhkgwiq9fyvKBOmOkjuOW6x2Z4krBAJDa4fQV9IBiCoK2aXHRu"
     service:
       type: ClusterIP
       # clusterIP:
@@ -510,7 +510,7 @@ safenode-image:
     tag: latest
     pullSecret: harbor-admin-secret
   bufRegistry: 
-    bufRegistryUser: admin
+    bufRegistryUser: registry
     bufRegistryPass: Registry@Passw0rd
   resources:
     limits:
