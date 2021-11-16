@@ -344,14 +344,6 @@ palace:		## Build event-processor binary
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/palace/cmd.Version=$(VERSION)" \
 		-o dist/palace gitlab.com/piccolo_su/vegeta/cmd/palace
 	docker build -t $(REPOPREFIX)/palace:latest -f ./build/palace/Dockerfile .
-.PHONY: event-processor
-event-processor:		## Build event-processor binary
-	@echo "+ $@"
-	# cat configs/holmes/rules/holmes_rules.yaml| shyaml get-value | grep "rule:\|priority:" > configs/holmes/rules/_rules_list.yaml
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/event-processor/cmd.Version=$(VERSION)" \
-		-o dist/event-processor gitlab.com/piccolo_su/vegeta/cmd/event-processor
-	docker build -t $(REPOPREFIX)/event-processor:latest -f ./build/event-processor/Dockerfile .
 
 .PHONY: migrate
 migrate: generate		## Build migrage binary
@@ -399,7 +391,7 @@ apiscan-job: generate
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes image-validate daemon  \
 webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
-event-processor go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
+palace go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
 
 .PHONY: base
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
