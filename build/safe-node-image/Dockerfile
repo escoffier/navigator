@@ -7,4 +7,5 @@ RUN chmod u+x safe-node-image
 
 ENV GIN_MODE=release
 
-CMD ["./safe-node-image"]
+
+ENTRYPOINT ["./safe-node-image"]

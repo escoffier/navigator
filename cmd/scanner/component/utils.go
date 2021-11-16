@@ -240,17 +240,18 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
 		return err
 	}
 
-	// logging.GetLogger().Info().Msg(fmt.Sprintf("send msg to event center：%s", string(JSONBytes)))
+	logging.GetLogger().Debug().Msg(fmt.Sprintf("send msg to event center：%s", string(JSONBytes)))
 
 	host := consts.TENSORSEC_EVENTCENTER_SERVICE_HOST
 	port := os.Getenv("EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP")
 	if port == "" {
-		port = consts.TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP
+		logging.GetLogger().Debug().Msgf("CICD event center port:%s", port)
+		port = consts.TENSORSEC_EVENTCENTER_SERVICE_PORT
 	}
 
 	uri := fmt.Sprintf("%s:%s%s", host, port, consts.EventcenterURI)
 
-	// logging.GetLogger().WithContext(ctx).Infof("CICD event center URI:%s", uri)
+	logging.GetLogger().Debug().Msgf("CICD event center URI:%s", uri)
 
 	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(JSONBytes))
 	if err != nil {

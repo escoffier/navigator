@@ -330,7 +330,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 			flag = false
 			logging.GetLogger().Info().Msg("K8sDeployDetect Library is empty")
 			// 存储阻断记录
-			s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
+			s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], containerInfo[k])
 			continue
 		}
 
@@ -351,7 +351,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 					tmpImage.Library = "https://" + tmpImage.Library
 				}
 				logging.GetLogger().Info().Msgf("K8sDeployDetect not find the image and the mode is safe mode, digest: %s", containerInfo[k].Digest)
-				s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
+				s.CreateSafeReject(ctx, *tmpImage, msgType, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], containerInfo[k])
 				flag = false
 			} else {
 				logging.GetLogger().Info().Msgf("K8sDeployDetect not find the image and the mode not is safe mode, digest:%s", containerInfo[k].Digest)
@@ -375,7 +375,6 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
 				ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
 			}})
-			notify.ServiceID = ""
 
 			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), notify, generateUUId(img, msgType, consts.EventIntervalUUID))
 			if err := sendMsgToEventCenter(ctx, msg); err != nil {
@@ -443,7 +442,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 		if tmpImageList.Library == "" {
 			logging.GetLogger().Info().Msg("K8sOnlineMonitor Library is empty: image")
 			// 存储阻断记录
-			s.CreateSafeReject(ctx, *tmpImageList, consts.AlertKindOnline, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary])
+			s.CreateSafeReject(ctx, *tmpImageList, consts.AlertKindOnline, model.RejectNoLibrary, model.GetRejectReason(model.LangZh)[model.RejectNoLibrary], containerInfo[k])
 			continue
 		}
 
@@ -1585,6 +1584,9 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 	}
 	records = append(records, scanImageRes.Records...)
 	msgs = append(msgs, scanImageRes.Msg...)
+	if !scanImageRes.Safe {
+		safe = false
+	}
 
 	if scanImageRes.ScanImag != nil {
 		scanImage := *scanImageRes.ScanImag
@@ -1955,6 +1957,7 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 		return res, nil
 	}
 
+	logging.GetLogger().Info().Msgf("checkScanImageExist not fond scan-image:%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
 	if usePattern == model.UsePatternForCICD {
 		// msgZh := fmt.Sprintf("镜像：%s/%s:%s 扫描失败", img.Library, img.FullRepoName, img.Tags)
 		msgZh := "扫描失败"
@@ -1991,7 +1994,7 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], msgEN)}})
 		}
 	}
-	return res, fmt.Errorf("not fond scanimag")
+	return res, nil
 }
 
 // 未找到镜像
@@ -2390,7 +2393,7 @@ func (s *ConScannerSrv) GetImageLibraryNameTag(imageName string) (*model.ImageLi
 	return img, nil
 }
 
-func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.ImageList, msgType string, reason int64, detail string) {
+func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.ImageList, msgType string, reason int64, detail string, coninfo model.RejectOnlineMonitorImage) {
 	defaultKvHash := model.KVHash{}
 	defaultKvHash.ZH.Key = "镜像来源仓库非法"
 	defaultKvHash.ZH.Value = "模式:安全模式 镜像：" + ImageList.Library + "/" + ImageList.FullRepoName + ":" + ImageList.Tags
@@ -2411,11 +2414,24 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 		}
 	}
 	if len(tmpHashs) > 0 {
+		notify := model.NotifyContext{
+			ServiceID: fmt.Sprintf("%s/%s:%s(image)", ImageList.Library, ImageList.FullRepoName, ImageList.Tags),
+			CustomKV:  tmpHashs,
+		}
+
+		notify.PodName = coninfo.NotifyContext.PodName
+		notify.PodUID = coninfo.NotifyContext.PodUID
+		notify.Cluster = coninfo.NotifyContext.Cluster
+		notify.Namespace = coninfo.NotifyContext.Namespace
+		notify.CustomKV = append(notify.CustomKV, coninfo.NotifyContext.CustomKV...)
+		notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
+			EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
+			ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
+		}})
+
 		msg := model.NewReqBody(
 			model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
-			model.NotifyContext{
-				ServiceID: fmt.Sprintf("%s/%s:%s(image)", ImageList.Library, ImageList.FullRepoName, ImageList.Tags),
-				CustomKV:  tmpHashs},
+			notify,
 			generateUUId(img, msgType, consts.EventIntervalUUID),
 		)
 		if err := sendMsgToEventCenter(ctx, msg); err != nil {
