@@ -425,11 +425,15 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	}
 
 	for i := 0; i < len(netflows); i++ {
+		if netflows[i].DstProcess == "" {
+			continue
+		}
 		var res ProcessInfo
 		res.ResourceName = netflows[i].DstName
 		res.ResourceKind = netflows[i].DstKind
 		res.Namespace = netflows[i].DstNamespace
 		res.ContainerName = netflows[i].DstContainerName
+		res.ProcessName = netflows[i].DstProcess
 
 		key := res.CreateUuid()
 		_, ok := uuid[key]
@@ -445,6 +449,10 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	}
 
 	for i := 0; i < len(tmpflows); i++ {
+		if netflows[i].SrcProcess == "" {
+			continue
+		}
+
 		var res ProcessInfo
 		res.ResourceName = tmpflows[i].SrcName
 		res.ResourceKind = tmpflows[i].SrcKind
