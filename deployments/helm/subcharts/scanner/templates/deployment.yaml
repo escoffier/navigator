@@ -53,7 +53,7 @@ spec:
           - name: CICD-BUF-REGISTRY-URL
             value: "http://{{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}:{{ .Values.dockerregistry.service.httpPort }}"
           - name: CICD-BUF-REGISTRY-USER
-            value: "admin"
+            value: "registry"
           - name: CICD-BUF-REGISTRY-PASSWORD
             value: "Registry@Passw0rd"
           - name: REGISTRY_GC_PORT
@@ -61,7 +61,7 @@ spec:
           - name: SAFENODE-BUF-REGISTRY-URL
             value: "http://{{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}:{{ .Values.dockerregistry.service.httpPort }}"
           - name: SAFENODE-BUF-REGISTRY-USER
-            value: "admin"
+            value: "registry"
           - name: SAFENODE-BUF-REGISTRY-PASSWORD
             value: "Registry@Passw0rd"
           - name: SAFENODE-BUF-INTERNAL

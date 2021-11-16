@@ -14,7 +14,7 @@ image:
   pullSecret: harbor-admin-secret
 
 bufRegistry: 
-  bufRegistryUser: admin
+  bufRegistryUser: registry
   bufRegistryPass: Registry@Passw0rd
 
 pushConfigs:
