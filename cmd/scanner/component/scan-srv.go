@@ -1410,11 +1410,37 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		// }
 
 		if scs[i].ScanEnableCollection.LicenseEnable > 0 {
-			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: string(scs[i].LicenseInfoJSON)})
+			var tmpLicensInfo []model.LicenseInfo
+			err := json.Unmarshal(scs[i].LicenseInfoJSON, &tmpLicensInfo)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msgf("unmarshal License error")
+			} else {
+				var infos string
+				for k := range tmpLicensInfo {
+					if k != 0 {
+						infos += ","
+					}
+					infos += tmpLicensInfo[k].Name
+				}
+				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: infos})
+			}
 		}
 
 		if scs[i].ScanEnableCollection.SoftwareEnable > 0 {
-			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: string(scs[i].SoftwareJSON)})
+			var tmpSoftware []model.Software
+			err := json.Unmarshal(scs[i].SoftwareJSON, &tmpSoftware)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msgf("unmarshal Software error")
+			} else {
+				var infos string
+				for k := range tmpSoftware {
+					if k != 0 {
+						infos += ","
+					}
+					infos = infos + tmpSoftware[k].Name + "(" + tmpSoftware[k].Version + ")"
+				}
+				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: infos})
+			}
 		}
 		// 问题类别加上
 		if v, ok := imageMap[scs[i].ImageId]; ok {
