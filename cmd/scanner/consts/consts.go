@@ -42,11 +42,11 @@ const (
 	AlertKindOnline              = "scan online image"
 	AlertModuleContainerSecurity = "ContainerSecurity"
 
-	HTTPS_CLIENT_CERT_PATH                              = "/eventcenter-config/tls.crt"
-	HTTPS_CLIENT_PRIVATE_KEY                            = "/eventcenter-config/tls.key"
-	GRPC_CA_PATH                                        = "/auth/ca/tls.crt"
-	TENSORSEC_EVENTCENTER_SERVICE_HOST                  = "https://eventcenter"
-	TENSORSEC_EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP = ":8080"
+	HTTPS_CLIENT_CERT_PATH             = "/eventcenter-config/tls.crt"
+	HTTPS_CLIENT_PRIVATE_KEY           = "/eventcenter-config/tls.key"
+	GRPC_CA_PATH                       = "/auth/ca/tls.crt"
+	TENSORSEC_EVENTCENTER_SERVICE_HOST = "https://eventcenter"
+	TENSORSEC_EVENTCENTER_SERVICE_PORT = "8080"
 
 	EventIntervalUUID = 2 // 表示每2分钟生成一个uuid
 )

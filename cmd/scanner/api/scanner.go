@@ -33,7 +33,8 @@ type Scanner struct {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyFlagRes{}}}
 // @Router	/api/v1/imagereject/online_moniter [post]
 func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
-	containerInfo := []model.RejectOnlineMonitorImage{}
+	start := time.Now().UnixMicro()
+	containerInfo := make([]model.RejectOnlineMonitorImage, 0)
 	if err := ctx.BindJSON(&containerInfo); err != nil {
 		s.log.WithContext(ctx).Errorf(err, "BindJSON error")
 		return
@@ -43,14 +44,14 @@ func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 		return
 	}
 
-	s.log.WithContext(ctx).Infof("收到TickOnlineScan,from_type:%s,image:%s", containerInfo[0].FromType, containerInfo[0].Image)
+	logging.GetLogger().Debug().Msgf("收到TickOnlineScan,from_type:%s,image:%+v", containerInfo[0].FromType, containerInfo)
 	flag := s.Srv.TickOnlineScan(ctx, containerInfo)
 	type tmpRes struct {
 		Flag bool `json:"flag"`
 	}
 	res := tmpRes{}
 	res.Flag = flag
-	s.log.WithContext(ctx).Infof("查询完成TickOnlineScan,from_type:%s,image:%s", containerInfo[0].FromType, containerInfo[0].Image)
+	logging.GetLogger().Debug().Msgf("查询完成TickOnlineScan,from_type:%s,image:%s,safe:%t cast：%d", containerInfo[0].FromType, containerInfo[0].Image, res.Flag, time.Now().UnixMicro()-start)
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
