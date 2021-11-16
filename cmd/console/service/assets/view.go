@@ -1,8 +1,11 @@
 package assets
 
 import (
+	"bytes"
+	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"hash/fnv"
 )
 
 type OnlineVulnListItem struct {
@@ -50,4 +53,41 @@ type OnlineVulnDetails struct {
 	ResourceKind string                                `json:"resourceKind"`
 	ResourceName string                                `json:"resourceName"`
 	Containers   map[string]OnlineVulnDetailsContainer `json:"containers"`
+}
+
+type ArgumentDetails struct {
+	ClusterKey    string
+	Namespace     string
+	ResourceName  string
+	ResourceKind  string
+	ContainerName string
+	ProcessName   string
+	Route         string
+}
+
+type ProcessInfo struct {
+	ProcessName   string `json:"process_name,omitempty"`
+	ContainerName string `json:"container_name,omitempty"`
+	ResourceName  string `json:"resource_name"`
+	ResourceKind  string `json:"resource_kind"`
+	Namespace     string `json:"namespace"`
+	DstPort       uint16 `json:"dst_port,omitempty"`
+}
+
+func (t *ProcessInfo) CreateUuid() uint32 {
+	bui := bytes.NewBufferString(t.Namespace)
+	bui.WriteByte(',')
+	bui.WriteString(t.ResourceName)
+	bui.WriteByte(',')
+	bui.WriteString(t.ResourceKind)
+	bui.WriteByte(',')
+	bui.WriteString(t.ContainerName)
+	bui.WriteByte(',')
+	bui.WriteString(t.ProcessName)
+	bui.WriteByte(',')
+	bui.WriteString(fmt.Sprintf("%v", t.DstPort))
+
+	h := fnv.New32a()
+	h.Write(bui.Bytes())
+	return h.Sum32()
 }

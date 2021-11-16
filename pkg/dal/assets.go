@@ -1169,7 +1169,6 @@ func GetClustersByKey(ctx context.Context, rdb *rdbtools.GormWrapper, key string
 		defer oneCancel()
 
 		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND key = ?", 0, key).First(&cluster).Error
-
 	})
 	if err != nil {
 		return nil

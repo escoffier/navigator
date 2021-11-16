@@ -23,9 +23,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"gitlab.com/security-rd/go-pkg/pb"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type api struct {

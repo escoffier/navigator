@@ -15,6 +15,10 @@ func GenerateUUID(strs ...string) uint32 {
 	return h.Sum32()
 }
 
+func GenerateUUID64Signed(strs ...string) int64 {
+	return int64(GenerateUUID64(strs...))
+}
+
 func GenerateUUIDHex() string {
 	return hex.EncodeToString(uuid.NewV4().Bytes())
 }

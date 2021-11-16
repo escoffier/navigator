@@ -74,22 +74,6 @@ webhook:
       cpu: "50m"
       memory: "50Mi"
 
-eventProcessor:
-  image:
-    registry: localhost:32000
-    repository: library
-    name: event-processor
-    tag: latest
-    pullPolicy: Always
-    pullSecret: harbor-admin-secret
-  resources:
-    requests:
-      cpu: "50m"
-      memory: "50Mi"
-    limits:
-      cpu: "50m"
-      memory: "50Mi"
-
 loader:
   image:
     registry: localhost:32000

@@ -84,7 +84,7 @@ func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns
 			Namespace: t.DstNamespace,
 			Kind:      t.DstKind,
 			Resource:  t.DstName,
-			Port:      t.DstPort,
+			Port:      int(t.DstPort),
 		}
 		switch t.Proto {
 		case TCP:
@@ -116,7 +116,7 @@ func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, d
 			Namespace: t.SrcNamespace,
 			Kind:      t.SrcKind,
 			Resource:  t.SrcName,
-			Port:      t.DstPort,
+			Port:      int(t.DstPort),
 		}
 		switch t.Proto {
 		case TCP:

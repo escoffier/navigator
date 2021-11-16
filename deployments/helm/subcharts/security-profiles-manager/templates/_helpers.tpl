@@ -26,12 +26,6 @@ Return the security-profiles-manager manager image name
 {{ include "common.images.image" ( dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 {{/*
-Return the eventProcessor image name
-*/}}
-{{- define "eventProcessor.image" -}}
-{{ include "common.images.image" ( dict "imageRoot" .Values.eventProcessor.image "global" .Values.global) }}
-{{- end -}}
-{{/*
 Return the loader image name
 */}}
 {{- define "secProfilesLoader.image" -}}

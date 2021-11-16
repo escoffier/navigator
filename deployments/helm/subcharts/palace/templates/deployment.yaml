@@ -1,0 +1,73 @@
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ include "common.names.fullname" . }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "common.names.fullname" . }}
+      initContainers:
+      - name: "stan-listener"
+        image: {{ include "initContainers.image" . }}
+        imagePullPolicy: "IfNotPresent"
+        command: [
+          "sh", "-c",
+          "for i in $(seq 1 200); do nc -z -w3 {{ include "common.stan.defaultName" .}}-headless 4222 && exit 0 || sleep 3; done; exit 1"
+        ]
+        resources:
+{{ toYaml .Values.initContainers.resources | indent 10 }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ include "palace.image" . }}
+        env:
+        - name: STAN_URL
+          value: "{{ include "common.stan.defaultName" .}}-headless:4222"
+        - name: STAN_CLUSTER_ID
+          value: {{ .Values.stan.clusterID }}
+        - name: POSTGRESQL_DSN
+          value: {{ include "common.pgpool.DSN" . }}
+          value: manager
+        - name: CONSOLE_HTTP_ADDR
+          value: "{{ include "common.console.defaultName" .}}:8889"
+        - name: REDIS_ENDPOINT
+          value: {{ include "common.redis.sentinel.address" . }}
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "common.redis-ha.defaultName" . }}
+              key: auth
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: EVENT_GRPC_URL
+          value: "{{ include "common.eventcenter.defaultName" . }}:9090"
+        - name: EVENT_GRPC_CERT_PATH
+          value: /auth/server/tls.crt
+        - name: EVENT_GRPC_CERT_SERVER_NAME
+          value: eventcenter
+        volumeMounts:
+        - mountPath: /auth/server
+          name: server-cert
+          readOnly: true
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+      {{- if .Values.global.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.image.pullSecret }}
+      {{- else if .Values.image.pullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      volumes:
+      - name: server-cert
+        secret:
+          defaultMode: 400
+          secretName: eventcenter-tls-server-cert-secret

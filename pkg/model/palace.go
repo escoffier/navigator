@@ -5,6 +5,7 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 type Location struct {
@@ -31,8 +32,8 @@ type PalaceAssociatedGraphEvent struct {
 	ID              int64     `gorm:"column:id"`
 	AssociationKind string    `gorm:"column:association_kind"`
 	Locations       Locations `gorm:"column:locations; type:jsonb"`
-	EventsNum       int64     `gorm:"column:events_num"`
-	NodesNum        int64     `gorm:"column:nodes_num"`
+	EventsNum       int       `gorm:"column:events_num"`
+	NodesNum        int       `gorm:"column:nodes_num"`
 	Severity        int32     `gorm:"column:severity"`
 	CreatedAt       time.Time `gorm:"column:created_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
@@ -43,10 +44,10 @@ func (PalaceAssociatedGraphEvent) TableName() string {
 }
 
 type PalaceEventSignalAssociation struct {
-	UUID      uint32    `gorm:"column:uuid"`
+	UUID      int64     `gorm:"column:uuid"`
 	AggrEvtID int64     `gorm:"column:aggr_evt_id"`
 	AggrKey   string    `gorm:"column:aggr_key"`
-	SignalID  string    `gorm:"column:signal"`
+	SignalID  string    `gorm:"column:signal_id"`
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
@@ -55,7 +56,7 @@ func (PalaceEventSignalAssociation) TableName() string {
 }
 
 type PalaceAssociationLink struct {
-	UUID           uint32    `gorm:"column:uuid"`
+	UUID           int64     `gorm:"column:uuid"`
 	AggrEvtID      int64     `gorm:"column:aggr_evt_id"`
 	SrcClusterKey  string    `gorm:"column:src_cluster_key"`
 	SrcLocType     string    `gorm:"column:src_loc_type"`
@@ -68,4 +69,27 @@ type PalaceAssociationLink struct {
 
 func (PalaceAssociationLink) TableName() string {
 	return "palace_assoc_links"
+}
+
+type Signal struct {
+	ID           string                `json:"-"`
+	UUID         int64                 `json:"uuid"`
+	Cluster      string                `json:"cluster"`
+	Namespace    string                `json:"namespace"`
+	NodeType     string                `json:"nodeType"`
+	NodeKey      string                `json:"nodeKey"`
+	RuleName     string                `json:"ruleName"`
+	RuleCategory string                `json:"ruleCategory"`
+	RuleModule   string                `json:"ruleModule"`
+	Severity     uint8                 `json:"severity"`
+	PodUID       string                `json:"podUid"`
+	PodName      string                `json:"podName"`
+	CustomKV     []*pb.MultiLanguageKV `json:"customKV"`
+	Extend       *SignalExtend         `json:"extend,omitempty"`
+	Timestamp    int64                 `json:"timestamp"`
+}
+
+type SignalExtend struct {
+	Hid      string `json:"hid,omitempty"`
+	HThreats string `json:"hThreats,omitempty"`
 }

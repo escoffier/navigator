@@ -143,9 +143,6 @@ security-profiles-manager:
   audit:
     image:
       tag: *Verison
-  eventProcessor:
-    image:
-      tag: *Verison
 
 stan:
   enabled: *isMainCluster
@@ -161,6 +158,11 @@ safenode-image:
     pushInterval: 10
     batchInterval: 60
     batchSize: 60
+
+palace:
+  enabled: *isMainCluster
+  image:
+    tag: *Verison
 
 redis-ha:
   enabled: *isMainCluster
