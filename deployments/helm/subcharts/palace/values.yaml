@@ -41,6 +41,6 @@ initContainers:
       memory: "64Mi"
       cpu: "50m"
 stan:
-  ClusterID: manager
+  clusterID: manager
 
 managedServiceAccount: true
