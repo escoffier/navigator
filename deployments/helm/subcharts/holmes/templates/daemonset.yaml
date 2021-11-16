@@ -53,6 +53,11 @@ spec:
           image: {{ include "daemon.image" . }}
           imagePullPolicy: {{ .Values.daemon.image.pullPolicy }}
           volumeMounts:
+            - mountPath: /var/run/docker.sock
+              name: docker-socket
+            - mountPath: /host/proc
+              name: proc-fs
+              readOnly: true
             - mountPath: /auth/server
               name: server-cert
               readOnly: true
@@ -97,6 +102,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: EVENT_GRPC_URL
               {{- if .Values.global.multiCluster.isMainCluster }}
               value: "{{ include "common.eventcenter.defaultName" . }}:9090"

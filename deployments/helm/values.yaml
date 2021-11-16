@@ -477,25 +477,6 @@ security-profiles-manager:
       name: go-audit
       tag: latest
       pullSecret: harbor-admin-secret
-    resources:
-      requests:
-        cpu: "50m"
-        memory: "50Mi"
-      limits:
-        cpu: "50m"
-        memory: "50Mi"
-  eventProcessor:
-    image:
-      name: event-processor
-      tag: latest
-      pullSecret: harbor-admin-secret
-    resources:
-      requests:
-        cpu: "50m"
-        memory: "50Mi"
-      limits:
-        cpu: "50m"
-        memory: "50Mi"
   holmes:
     rulesConfigMap: holmes-rules
     podLabel: holmes
@@ -523,3 +504,17 @@ safenode-image:
     pushInterval: 10
     batchInterval: 60
     batchSize: 60
+
+palace:
+  image:
+    name: palace
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "500Mi"
+    limits:
+      cpu: "200m"
+      memory: "500Mi"

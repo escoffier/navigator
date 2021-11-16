@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
-	"gitlab.com/security-rd/go-pkg/pb"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 const (
@@ -20,6 +19,7 @@ const (
 	FieldProcessPid        = "proc.pid"
 	FieldProcessName       = "proc.name"
 	FieldParentProcessPid  = "proc.ppid"
+	FieldCmdline           = "proc.cmdline"
 	FieldParentProcessName = "proc.pname"
 	FieldK8sNsName         = "k8s.ns.name"
 	FieldK8sPodName        = "k8s.pod.name"
@@ -172,7 +172,7 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 		ppid = ""
 	}
 
-	procPname, err := model.GetInfoFromOutput("proc_name=", data.Output)
+	procPname, err := model.GetInfoFromOutput("proc_pname=", data.Output)
 	if err == nil {
 		if len(ppid) > 0 {
 			procPname = procPname + fmt.Sprintf("(%s)", ppid)

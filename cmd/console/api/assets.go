@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -45,8 +45,12 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/namespaces/count", api.countNamespaces())
 		r.Get("/nodes/count", api.countNodes())
 		r.Get("/nodes", api.getNodes())
-
 		r.Get("/frameworks", api.getFrameworks())
+
+		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/processlist", api.GetProcessList())
+		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{route}/resource", api.GetResourceAssociate())
+		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{containerName}/{route}/container", api.GetContainerAssociate())
+		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{containerName}/{processName}/{route}/process", api.GetProcessAssociate())
 	}
 }
 
@@ -1079,6 +1083,120 @@ func (api *api) countNodes() http.HandlerFunc {
 		response.Ok(w, response.WithItem(countResp{totalCnt}))
 	}
 }
+func (api *api) GetResourceAssociate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		arguments, err := resSvc.GetArguments(r, "")
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		//print debug log
+		//logging.GetLogger().Info().Msgf("resource argument : %+v", *arguments)
+		//get resource relation
+		res, err := resSvc.GetResourceRelation(arguments)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get resource relations failed, %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(res))
+	}
+}
+
+func (api *api) GetContainerAssociate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		arguments, err := resSvc.GetArguments(r, "container")
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		//print debug log
+		//logging.GetLogger().Info().Msgf("container argument : %+v", *arguments)
+		//get container relation
+		container, err := resSvc.GetContainerRelation(arguments)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get container relations failed, %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(container))
+	}
+}
+
+func (api *api) GetProcessAssociate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		arguments, err := resSvc.GetArguments(r, "process")
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		//print debug log
+		//logging.GetLogger().Info().Msgf("process argument : %+v", *arguments)
+		//get resource relation
+		process, err := resSvc.GetProcessRelation(arguments)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process relations failed, %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(process))
+	}
+}
+
+func (api *api) GetProcessList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		arguments, err := resSvc.GetArguments(r, "process_list")
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		//print debug log
+		//logging.GetLogger().Info().Msgf("process argument : %+v", *arguments)
+		//get resource relation
+		process, err := resSvc.GetAllProcessList(arguments)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process relations failed, %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(process))
+	}
+}
 
 func (api api) getFrameworks() http.HandlerFunc {
 	type Item struct {
@@ -1093,7 +1211,6 @@ func (api api) getFrameworks() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
-
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get limit or offset query error")

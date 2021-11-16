@@ -69,6 +69,11 @@ dependencies:
     repository: "file://./subcharts/safenode-image"
     condition: safenode-image.enabled
 
+  - name: palace
+    version: 0.1.0
+    repository: "file://./subcharts/palace"
+    condition: palace.enabled
+
   - name: common
     version: 0.1.0
     repository: "file://./subcharts/common"

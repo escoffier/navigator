@@ -3,6 +3,7 @@ package association
 import (
 	"context"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -11,21 +12,34 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 // receives events by constant events from the same pods
 type AssociationProcessor struct {
 	aggregators map[string]*ProcessTreeAggregator // key: targetLocation
 
-	inputsChan chan *PodContainerEvent
+	inputsChan chan PodContainerEvent
 	eventsChan chan AssociationEvent
 
 	config AssociationConfiguration
 	rdb    *rdbtools.GormWrapper
 }
 
-func (ap *AssociationProcessor) Send(ctx context.Context, e *PodContainerEvent) error {
+func NewAssociationProcessor(config AssociationConfiguration, rdb *rdbtools.GormWrapper) *AssociationProcessor {
+	proc := AssociationProcessor{
+		aggregators: make(map[string]*ProcessTreeAggregator, 10),
+		inputsChan:  make(chan PodContainerEvent, 50),
+		eventsChan:  make(chan AssociationEvent, 250),
+		config:      config,
+		rdb:         rdb,
+	}
+
+	proc.asyncLoop()
+
+	return &proc
+}
+
+func (ap *AssociationProcessor) Send(ctx context.Context, e PodContainerEvent) error {
 	_, ok := e.Location()
 	if !ok {
 		return nil
@@ -42,8 +56,6 @@ func (ap *AssociationProcessor) Send(ctx context.Context, e *PodContainerEvent) 
 	case <-ctx.Done():
 		return ErrTimeout
 	}
-
-	return nil
 }
 
 func (ap *AssociationProcessor) getOrCreateAggregator(location TargetLocation) *ProcessTreeAggregator {
@@ -56,7 +68,7 @@ func (ap *AssociationProcessor) getOrCreateAggregator(location TargetLocation) *
 
 	return aggr
 }
-func (ap *AssociationProcessor) handleEvent(ctx context.Context, e *PodContainerEvent) (err error) {
+func (ap *AssociationProcessor) handleEvent(ctx context.Context, e PodContainerEvent) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when handle event %v. stack: %s", r, debug.Stack())
@@ -80,11 +92,7 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 	e := new(model.PalaceAssociatedGraphEvent)
 	e.ID = evt.GetID()
 	locationsMap := make(map[string]model.Location, 2)
-	eventsNum := int64(0)
-	aggrKeysMap := make(map[string]struct{}, 10)
 	for _, evt := range evt.GetEvents() {
-		aggrKeysMap[evt.AggregationKey()] = struct{}{}
-		eventsNum++
 		loc, ok := evt.Location()
 		if ok {
 			if _, exist := locationsMap[loc.String()]; exist {
@@ -112,10 +120,11 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 	for _, l := range locationsMap {
 		e.Locations = append(e.Locations, l)
 	}
-	e.NodesNum = int64(len(aggrKeysMap))
-	e.EventsNum = eventsNum
+	e.NodesNum = evt.GetNodesNum()
+	e.EventsNum = evt.GetEventsNum()
 	e.AssociationKind = "process_tree"
 	e.CreatedAt = now
+	e.UpdatedAt = now
 	// TODO missing severity
 
 	return e, nil
@@ -131,43 +140,54 @@ func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt Associati
 
 // createSignalAssociations uses transaction to ensure the consistency.
 func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, agEvtID int64, evt AssociationEvent, now time.Time) error {
-	return ap.rdb.Get().WithContext(ctx).Transaction(func(db *gorm.DB) error {
-		for _, evt := range evt.GetEvents() {
-			asso := new(model.PalaceEventSignalAssociation)
-			asso.AggrEvtID = agEvtID
-			asso.AggrKey = evt.AggregationKey()
-			asso.SignalID = evt.ID()
-			asso.CreatedAt = now
-			_, err := dal.CreateSignalAssociation(ctx, db, asso)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("create signal association error", err)
-			}
+	for _, evt := range evt.GetEvents() {
+		asso := new(model.PalaceEventSignalAssociation)
+		asso.AggrEvtID = agEvtID
+		asso.AggrKey = evt.AggregationKey()
+		asso.SignalID = evt.ID()
+		asso.CreatedAt = now
+		err := util.RetryWithBackoff(ctx, func() error {
+			_, err := dal.CreateSignalAssociation(ctx, ap.rdb.Get(), asso)
+			return err
+		}, retry.Attempts(3))
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("create signal association error", err)
 		}
-		return nil
-	})
+
+	}
+	return nil
 }
 
 func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEvtID int64, evt AssociationEvent, now time.Time) error {
-	return ap.rdb.Get().WithContext(ctx).Transaction(func(db *gorm.DB) error {
-		for _, link := range evt.GetAssociatedLinks() {
-			linkModel := new(model.PalaceAssociationLink)
-			linkModel.AggrEvtID = agEvtID
-			linkModel.CreatedAt = now
-			linkModel.SrcClusterKey = link.SrcLoc.ClusterKey()
-			linkModel.SrcLocType = string(link.SrcLoc.Type())
-			linkModel.SrcLocExpr = link.SrcLoc.String()
-			linkModel.DestClusterKey = link.DestLoc.ClusterKey()
-			linkModel.DestLocType = string(link.DestLoc.Type())
-			linkModel.DestLocExpr = link.DestLoc.String()
-			linkModel.CreatedAt = now
+	for _, link := range evt.GetAssociatedLinks() {
+		linkModel := new(model.PalaceAssociationLink)
+		linkModel.AggrEvtID = agEvtID
+		linkModel.CreatedAt = now
+		linkModel.SrcClusterKey = link.SrcLoc.ClusterKey()
+		linkModel.SrcLocType = string(link.SrcLoc.Type())
+		sb := strings.Builder{}
+		sb.WriteString(link.SrcLoc.String())
+		sb.WriteRune('/')
+		sb.WriteString(link.SrcAggrKey)
+		linkModel.SrcLocExpr = sb.String()
+		linkModel.DestClusterKey = link.DestLoc.ClusterKey()
+		linkModel.DestLocType = string(link.DestLoc.Type())
+		sb = strings.Builder{}
+		sb.WriteString(link.DestLoc.String())
+		sb.WriteRune('/')
+		sb.WriteString(link.DestAggrKey)
+		linkModel.DestLocExpr = sb.String()
+		linkModel.CreatedAt = now
 
-			_, err := dal.CreateAssociationLinks(ctx, db, linkModel)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("create association link error", err)
-			}
+		err := util.RetryWithBackoff(ctx, func() error {
+			_, err := dal.CreateAssociationLinks(ctx, ap.rdb.Get(), linkModel)
+			return err
+		}, retry.Attempts(3))
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("create association link error", err)
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context, evt AssociationEvent) (int64, error) {
@@ -176,6 +196,8 @@ func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context,
 	if err != nil {
 		return 0, err
 	}
+	evt.SetID(evtID)
+
 	tctx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
 	defer cancel()
 	err = util.RetryWithBackoff(tctx, func() error {
@@ -201,12 +223,15 @@ func (ap *AssociationProcessor) handleAssocatedEvent(ctx context.Context, evt As
 		}
 	}()
 
-	evtID, err := ap.upsertAssociationGraphEvent(ctx, evt)
+	tctx, cancel := context.WithTimeout(ctx, ap.config.BuildInterval*9/10)
+	defer cancel()
+
+	evtID, err := ap.upsertAssociationGraphEvent(tctx, evt)
+	evt.PostActionSetting(evtID, err == nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("upsert agraph event err. evt: %+v", evt)
 		return err
 	}
-	evt.SetID(evtID)
 	return nil
 }
 
@@ -219,12 +244,13 @@ func (ap *AssociationProcessor) cleanUp(now time.Time) {
 
 	toClean := make(map[string]struct{}, 5)
 	for key, aggr := range ap.aggregators {
-		if now.Sub(aggr.updatedAt) >= ap.config.SubmitLatency {
+		if now.Sub(aggr.updatedAt) >= ap.config.WindowDivisionLatency {
 			aggr.RequireStop()
 			toClean[key] = struct{}{}
 		}
 	}
 
+	logging.GetLogger().Info().Msgf("to clean aggregators: %v", toClean)
 	for key, _ := range toClean {
 		delete(ap.aggregators, key)
 	}
@@ -250,7 +276,7 @@ func (ap *AssociationProcessor) asyncLoop() {
 			case aevt := <-ap.eventsChan:
 				err := ap.handleAssocatedEvent(context.Background(), aevt)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("handle association event error. event: %+v", err)
+					logging.GetLogger().Err(err).Msgf("handle association event error. event: %+v", aevt)
 				}
 			case now := <-ticker.C:
 				ap.cleanUp(now)

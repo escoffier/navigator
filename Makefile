@@ -193,11 +193,13 @@ daemon: ## Build daemon binary
 ifeq ($(USEMIRROR),true)
 	@echo "daemon will use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
+	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \
         --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "daemon will use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
+	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
 endif
 
@@ -335,6 +337,13 @@ else
 	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) .
 endif
 
+.PHONY: palace
+palace:		## Build event-processor binary
+	@echo "+ $@"
+	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/palace/cmd.Version=$(VERSION)" \
+		-o dist/palace gitlab.com/piccolo_su/vegeta/cmd/palace
+	docker build -t $(REPOPREFIX)/palace:latest -f ./build/palace/Dockerfile .
 .PHONY: event-processor
 event-processor:		## Build event-processor binary
 	@echo "+ $@"

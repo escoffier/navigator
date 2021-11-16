@@ -3,6 +3,7 @@ package association
 import (
 	"container/list"
 	"context"
+	"fmt"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -12,95 +13,114 @@ import (
 )
 
 type ProcessTreeAssociation struct {
-	tree      *processTree
-	sid       uint64
-	aggr      *ProcessTreeAggregator
-	targetLoc TargetLocation
+	tree    *processTree
+	agEvtID uint64
+	aggr    *ProcessTreeAggregator
+	events  []PodContainerEvent
+	links   []Link
 }
 
-func (pte *ProcessTreeAssociation) GetID() uint64 {
-	return pte.sid
+func newProcessTreeAssociation(evtID uint64, tree *processTree, aggr *ProcessTreeAggregator) *ProcessTreeAssociation {
+	pte := ProcessTreeAssociation{
+		agEvtID: evtID,
+		tree:    tree,
+		aggr:    aggr,
+	}
+	pte.generateData()
+	return &pte
 }
-func (pte *ProcessTreeAssociation) GetEvents() []OriginEvent {
-	events := make([]OriginEvent, 0, pte.tree.eventsNum)
+func (pte *ProcessTreeAssociation) GetEventsNum() int {
+	return pte.tree.eventsNum
+}
+func (pte *ProcessTreeAssociation) GetNodesNum() int {
+	return pte.tree.nodesNum
+}
+func (pte *ProcessTreeAssociation) GetID() int64 {
+	return int64(pte.agEvtID)
+}
+
+func (pte *ProcessTreeAssociation) generateData() {
+	pte.events = make([]PodContainerEvent, 0, pte.tree.eventsNum)
+	pte.links = make([]Link, 0, pte.tree.nodesNum-1)
 	pte.tree.bfs(func(node *processNode, level int) {
 		for _, e := range node.events {
-			events = append(events, e)
+			pte.events = append(pte.events, e)
 		}
-	})
-	return events
-}
-func (pte *ProcessTreeAssociation) GetAssociatedLinks() []Link {
-	links := make([]Link, 0, pte.tree.nodesNum-1)
-	pte.tree.bfs(func(node *processNode, level int) {
+		for _, e := range node.historicalEvents {
+			pte.events = append(pte.events, e)
+		}
 		if len(node.parentID) > 0 {
-			links = append(links, Link{
+			pte.links = append(pte.links, Link{
 				SrcAggrKey:  node.parentID,
-				SrcLoc:      pte.targetLoc,
+				SrcLoc:      pte.aggr.targetLoc,
 				DestAggrKey: node.id,
-				DestLoc:     pte.targetLoc,
+				DestLoc:     pte.aggr.targetLoc,
 			})
 		}
 	})
-	return links
 }
 
-func (pte *ProcessTreeAssociation) SetID(id int64) {
-	pte.sid = id
+func (pte *ProcessTreeAssociation) GetEvents() []PodContainerEvent {
+	return pte.events
+}
+func (pte *ProcessTreeAssociation) GetAssociatedLinks() []Link {
+
+	return pte.links
+}
+
+func (pte *ProcessTreeAssociation) PostActionSetting(evtID int64, submitOK bool) {
+	if submitOK && evtID > 0 {
+		pte.agEvtID = uint64(evtID)
+	}
 	if pte.aggr.isStopped() {
 		return
 	}
-	pte.aggr.setIDChan <- *pte
+	pte.aggr.postActonChan <- postAction{
+		agEvent:    pte,
+		submitDone: true,
+		submitOK:   submitOK,
+	}
 }
 
-func getAggID(r *PodContainerEvent) (string, bool) {
-	pid, ok := r.GetPid()
-	if !ok || len(pid) == 0 {
-		return "", false
+func (pte *ProcessTreeAssociation) SetID(id int64) {
+	if id == 0 {
+		return
 	}
-	pname, ok := r.GetPName()
-	if !ok || len(pname) == 0 {
-		return "", false
+	if id > 0 {
+		pte.agEvtID = uint64(id)
 	}
+	if pte.aggr.isStopped() {
+		return
+	}
+	pte.aggr.postActonChan <- postAction{
+		agEvent:    pte,
+		submitDone: false,
+	}
+}
+
+func getAggID(pid, pname string) string {
 	bui := strings.Builder{}
 	bui.WriteString(pid)
 	bui.WriteByte('-')
 	bui.WriteString(pname)
-	return bui.String(), true
-}
-
-func getParentAggID(r *PodContainerEvent) (string, bool) {
-	ppid, ok := r.GetParentPid()
-	if !ok || len(ppid) == 0 {
-		return "", false
-	}
-	ppname, ok := r.GetParentPName()
-	if !ok || len(ppname) == 0 {
-		return "", false
-	}
-	bui := strings.Builder{}
-	bui.WriteString(ppid)
-	bui.WriteByte('-')
-	bui.WriteString(ppname)
-	return bui.String(), true
+	return bui.String()
 }
 
 type processNode struct {
-	id             string // pid:pname->ppid
-	events         []*PodContainerEvent
-	childrenIDs    map[string]struct{}
-	parentID       string // parent process ID
-	lastUpdateTime time.Time
-	createTime     time.Time
+	id               string // pid:pname->ppid
+	events           []PodContainerEvent
+	historicalEvents []PodContainerEvent // stores the events submmited in the last turn
+	childrenIDs      map[string]struct{}
+	parentID         string // parent process ID
+	historicalEvtCnt int
+	lastUpdateTime   time.Time
 
-	asID uint64
+	updateTxid uint64
+	agEvtID    uint64
 }
 
-func (pn *processNode) setAssociationID(asID uint64) {
-	for _, e := range pn.events {
-		e.SetAssociationEventID(asID)
-	}
-	pn.asID = asID
+func (pn *processNode) setAssociationID(evtID uint64) {
+	pn.agEvtID = evtID
 }
 
 func newProcessNode(id string, parentID string, updateTime time.Time) *processNode {
@@ -109,18 +129,21 @@ func newProcessNode(id string, parentID string, updateTime time.Time) *processNo
 		parentID:       parentID,
 		childrenIDs:    make(map[string]struct{}, 2),
 		lastUpdateTime: updateTime,
-		createTime:     time.Now(),
 	}
 }
-func (pn *processNode) addEvent(r *PodContainerEvent) {
+func (pn *processNode) addEvent(r PodContainerEvent, txid uint64) {
+	for _, e := range pn.events {
+		if e.OriginID == r.OriginID {
+			return
+		}
+	}
+
 	pn.events = append(pn.events, r)
-	// save memory
+
 	if r.Time().After(pn.lastUpdateTime) {
 		pn.lastUpdateTime = r.Time()
 	}
-	if r.Time().Before(pn.createTime) {
-		pn.createTime = r.Time()
-	}
+	pn.updateTxid = txid
 }
 
 type processTree struct {
@@ -129,13 +152,15 @@ type processTree struct {
 	nodesNum       int
 	root           *processNode
 	aggr           *ProcessTreeAggregator
+	txid           uint64
 }
 
-func newProcessTree(root *processNode, utime time.Time, aggr *ProcessTreeAggregator) *processTree {
+func newProcessTree(root *processNode, utime time.Time, aggr *ProcessTreeAggregator, txid uint64) *processTree {
 	return &processTree{
 		lastUpdateTime: utime,
 		root:           root,
 		aggr:           aggr,
+		txid:           txid,
 	}
 }
 
@@ -156,16 +181,18 @@ func (pt *processTree) bfs(visitNodeFunc func(node *processNode, level int)) {
 
 	for queue.Len() > 0 {
 		currElem := queue.Front()
+		queue.Remove(currElem)
 		currNode := currElem.Value.(tnode)
 
 		visitNodeFunc(currNode.node, currNode.level)
 
 		for childID := range currNode.node.childrenIDs {
 			child, ok := pt.aggr.getNode(childID)
-			if !ok {
-				logging.GetLogger().Warn().Msgf("Error cannot find child %s for node %+v", childID, currNode)
-			} else {
+			if ok {
 				queue.PushBack(tnode{child, currNode.level + 1})
+			} else {
+				// TODO remove
+				fmt.Println("node not found ", string(debug.Stack()))
 			}
 		}
 	}
@@ -176,23 +203,30 @@ func (pt *processTree) stats() {
 	pt.nodesNum = 0
 
 	pt.bfs(func(node *processNode, level int) {
-		pt.eventsNum += len(node.events)
+		pt.eventsNum += len(node.events) + node.historicalEvtCnt
 		pt.nodesNum++
 	})
 }
 
+type postAction struct {
+	agEvent    *ProcessTreeAssociation
+	submitDone bool
+	submitOK   bool
+}
 type ProcessTreeAggregator struct {
-	config    AssociationConfiguration
+	config AssociationConfiguration
+
 	nodes     map[string]*processNode
 	targetLoc TargetLocation
-
 	updatedAt time.Time
+	txid      uint64 // incr txid after one building of trees
 
-	input     chan *PodContainerEvent
-	output    chan AssociationEvent
-	setIDChan chan ProcessTreeAssociation
-	stopChan  chan struct{}
-	stopped   uint32
+	input         chan PodContainerEvent
+	output        chan AssociationEvent
+	postActonChan chan postAction
+	stopChan      chan struct{}
+	stopped       uint32
+	treeDelBuffer map[*processTree]struct{}
 }
 
 func (ta *ProcessTreeAggregator) AssociationKind() string {
@@ -207,12 +241,14 @@ func (ta *ProcessTreeAggregator) setStopped() {
 
 func NewProcessTreeAggregator(bconf AssociationConfiguration, targetLoc TargetLocation, output chan AssociationEvent) *ProcessTreeAggregator {
 	a := &ProcessTreeAggregator{
-		config:    bconf,
-		nodes:     make(map[string]*processNode, 50),
-		input:     make(chan *PodContainerEvent, 100),
-		output:    output,
-		setIDChan: make(chan ProcessTreeAssociation, 50),
-		stopChan:  make(chan struct{}),
+		config:        bconf,
+		targetLoc:     targetLoc,
+		nodes:         make(map[string]*processNode, 50),
+		input:         make(chan PodContainerEvent, 100),
+		output:        output,
+		postActonChan: make(chan postAction, 50),
+		stopChan:      make(chan struct{}),
+		treeDelBuffer: make(map[*processTree]struct{}, 5),
 	}
 	a.asyncLoop()
 	return a
@@ -220,10 +256,11 @@ func NewProcessTreeAggregator(bconf AssociationConfiguration, targetLoc TargetLo
 
 // RequireStop : It will be blocking till aggregator begins to do stop.
 func (ta *ProcessTreeAggregator) RequireStop() {
+	logging.GetLogger().Info().Msgf("aggr %s is required to stop.", ta.targetLoc.String())
 	ta.stopChan <- struct{}{}
 }
 
-func (ta *ProcessTreeAggregator) AddEvent(ctx context.Context, event *PodContainerEvent) error {
+func (ta *ProcessTreeAggregator) AddEvent(ctx context.Context, event PodContainerEvent) error {
 	if ta.isStopped() {
 		return ErrIsStopped
 	}
@@ -241,6 +278,20 @@ func (ta *ProcessTreeAggregator) AddEvent(ctx context.Context, event *PodContain
 	return nil
 }
 
+func (ta *ProcessTreeAggregator) doCleanBufferOfTree(tree *processTree) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	if tree.txid == ta.txid {
+		return
+	}
+	tree.bfs(func(node *processNode, level int) {
+		node.historicalEvents = nil
+	})
+}
 func (ta *ProcessTreeAggregator) doStop() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -259,7 +310,9 @@ func (ta *ProcessTreeAggregator) doStop() {
 				stop = true
 				break
 			}
-			ta.addEvent(r)
+			if err := ta.addEvent(r); err != nil {
+				logging.GetLogger().Err(err).Msgf("add event err. evt: %+v", r)
+			}
 		default:
 			stop = true
 			break
@@ -269,7 +322,42 @@ func (ta *ProcessTreeAggregator) doStop() {
 	trees := ta.treeBuilding()
 	ta.treeReviews(trees, time.Now())
 
-	close(ta.setIDChan)
+	close(ta.postActonChan)
+
+	logging.GetLogger().Info().Msgf("aggr %s has stopped", ta.targetLoc.String())
+}
+
+func (ta *ProcessTreeAggregator) postAction(action postAction) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	logging.GetLogger().Info().Msgf("receive a postAction msg: %+v. evtID: %d", action, action.agEvent.agEvtID)
+	action.agEvent.tree.setAssociationID(action.agEvent.agEvtID)
+	if action.submitDone && action.submitOK {
+		if _, toDel := ta.treeDelBuffer[action.agEvent.tree]; toDel {
+			ta.cleanTree(action.agEvent.tree, true)
+			delete(ta.treeDelBuffer, action.agEvent.tree)
+		} else {
+			ta.doCleanBufferOfTree(action.agEvent.tree)
+		}
+	}
+
+}
+
+func (ta *ProcessTreeAggregator) periodicallyBuild(now time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	ta.treeDelBuffer = make(map[*processTree]struct{}, len(ta.treeDelBuffer)+5)
+
+	trees := ta.treeBuilding()
+	ta.treeReviews(trees, now)
 }
 func (ta *ProcessTreeAggregator) asyncLoop() {
 	go func() {
@@ -278,13 +366,28 @@ func (ta *ProcessTreeAggregator) asyncLoop() {
 
 		for {
 			select {
-			case now := <-ticker.C:
-				trees := ta.treeBuilding()
-				ta.treeReviews(trees, now)
+			case action := <-ta.postActonChan:
+				ta.postAction(action)
 			case r := <-ta.input:
-				ta.addEvent(r)
-			case setSid := <-ta.setIDChan:
-				setSid.tree.setAssociationID(setSid.sid)
+				if err := ta.addEvent(r); err != nil {
+					logging.GetLogger().Err(err).Msgf("add event err. evt: %+v", r)
+				}
+			case now := <-ticker.C:
+				// when time to build, first consume all buffers of postActions
+				toStop := false
+				for !toStop {
+					select {
+					case action := <-ta.postActonChan:
+						ta.postAction(action)
+					default:
+						toStop = true
+					}
+				}
+
+				ta.periodicallyBuild(now)
+				// increase the txid for the next round of building
+				ta.txid++
+
 			case <-ta.stopChan:
 				ta.doStop()
 				return
@@ -299,39 +402,97 @@ func (ta *ProcessTreeAggregator) getNode(id string) (*processNode, bool) {
 	return node, exist
 }
 
-func (ta *ProcessTreeAggregator) cleanTree(t *processTree) {
+func (ta *ProcessTreeAggregator) cleanTree(t *processTree, cleanBuffer bool) {
+	logging.GetLogger().Info().Msgf("[%d] tree(%s-%s) is cleaned. try to cleanBuffer: %v", t.txid, t.root.id, ta.targetLoc.String(), cleanBuffer)
 	t.bfs(func(node *processNode, level int) {
-		delete(ta.nodes, node.id)
+		if node.updateTxid < ta.txid {
+			delete(ta.nodes, node.id)
+		} else if cleanBuffer {
+			node.agEvtID = 0
+			node.historicalEvents = nil
+		}
 	})
 }
 
-func (ta *ProcessTreeAggregator) outputs(tree *processTree) error {
-	op := ProcessTreeAssociation{
-		tree:      tree,
-		aggr:      ta,
-		targetLoc: ta.targetLoc,
+func (ta *ProcessTreeAggregator) evtIDNegotiation(tree *processTree) uint64 {
+	idCount := make(map[uint64]int, 2)
+	tree.bfs(func(node *processNode, level int) {
+		if node.agEvtID > 0 {
+			cnt := idCount[node.agEvtID]
+			cnt++
+			idCount[node.agEvtID] = cnt
+		}
+	})
+	maxCntSid := uint64(0)
+	maxCnt := 0
+	for sid, cnt := range idCount {
+		if cnt > maxCnt {
+			maxCntSid = sid
+		}
 	}
+	if maxCntSid > 0 {
+		if len(idCount) > 0 {
+			logging.GetLogger().Warn().Msgf("consistent to one sid: %d from: %v", maxCntSid, idCount)
+		}
+
+		tree.bfs(func(node *processNode, level int) {
+			node.setAssociationID(maxCntSid)
+		})
+	}
+	return maxCntSid
+}
+
+func (ta *ProcessTreeAggregator) outputs(tree *processTree) error {
+	if tree.root == nil {
+		return nil
+	}
+	sid := ta.evtIDNegotiation(tree)
+
+	op := newProcessTreeAssociation(sid, tree, ta)
+
+	logging.GetLogger().Info().Msgf("Output a agEvent: %+v. evtID: %d", *tree, op.agEvtID)
+
+	// move the submitted events to historical for the object of cleanning out the previous buffers
+	tree.bfs(func(node *processNode, level int) {
+		node.historicalEvtCnt += len(node.events)
+		node.historicalEvents = node.events
+		node.events = make([]PodContainerEvent, 0, len(node.historicalEvents))
+	})
+
 	select {
-	case ta.output <- &op:
+	case ta.output <- op:
 		return nil
 	default:
 		logging.GetLogger().Warn().Msgf("tree output timeout: tree: %+v", tree)
 		return ErrTimeout
 	}
 }
+func (ta *ProcessTreeAggregator) scheduleDeleteTree(tree *processTree) {
+	ta.treeDelBuffer[tree] = struct{}{}
+}
 func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time) error {
 	for _, tree := range trees {
-		if now.Sub(tree.lastUpdateTime) >= ta.config.SubmitLatency {
+		// for the timeout historical nodes, recover them.
+		tree.bfs(func(node *processNode, level int) {
+			if len(node.historicalEvents) > 0 {
+				logging.GetLogger().Info().Msgf("node %d in %s histEvents not cleaned", node.id, ta.targetLoc.String())
+
+				node.events = append(node.events, node.historicalEvents...)
+				node.historicalEvents = nil
+				node.historicalEvtCnt -= len(node.historicalEvents)
+			}
+		})
+
+		if now.Sub(tree.lastUpdateTime) >= ta.config.WindowDivisionLatency {
 			if tree.eventsNum == 1 {
 				// ignore single events with few relations
-				ta.cleanTree(tree)
-				continue
+				ta.cleanTree(tree, false)
 			} else {
 				ta.outputs(tree)
-				ta.cleanTree(tree)
+				ta.scheduleDeleteTree(tree)
 			}
 		} else {
-			if tree.eventsNum > 0 {
+			if tree.eventsNum > 1 {
 				ta.outputs(tree)
 			}
 		}
@@ -339,12 +500,7 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 	return nil
 }
 
-func (ta *ProcessTreeAggregator) treeBuilding() []*processTree {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v when building trees: %+v. stack: %s", r, r, debug.Stack())
-		}
-	}()
+func (ta *ProcessTreeAggregator) treeBuilding() (treesList []*processTree) {
 	trees := make(map[string]*processTree, len(ta.nodes))
 	for _, node := range ta.nodes {
 		root := node
@@ -356,6 +512,7 @@ func (ta *ProcessTreeAggregator) treeBuilding() []*processTree {
 			if len(root.parentID) > 0 {
 				parent, exist := ta.getNode(root.parentID)
 				if !exist {
+					logging.GetLogger().Warn().Msgf("cannot find parent node of ID: %s for node: %s", root.parentID, root.id)
 					break
 				}
 				parent.childrenIDs[root.id] = struct{}{}
@@ -370,12 +527,12 @@ func (ta *ProcessTreeAggregator) treeBuilding() []*processTree {
 				tree.lastUpdateTime = latest
 			}
 		} else {
-			tree = newProcessTree(root, latest, ta)
+			tree = newProcessTree(root, latest, ta, ta.txid)
 			trees[root.id] = tree
 		}
 	}
 
-	treesList := make([]*processTree, 0, len(trees))
+	treesList = make([]*processTree, 0, len(trees))
 	for _, tree := range trees {
 		tree.stats()
 		treesList = append(treesList, tree)
@@ -384,18 +541,32 @@ func (ta *ProcessTreeAggregator) treeBuilding() []*processTree {
 	return treesList
 }
 
-func (ta *ProcessTreeAggregator) addEvent(r *PodContainerEvent) error {
+func (ta *ProcessTreeAggregator) addEvent(r PodContainerEvent) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic: %v when adding event: %+v. stack: %s", r, r, debug.Stack())
 		}
 	}()
 
-	aggID, ok := getAggID(r)
-	if !ok {
+	pid, exist := r.Pid()
+	if !exist {
 		return ErrMissingSignificantKey
 	}
-	parentAggID, _ := getParentAggID(r)
+	pname, exist := r.ProcessName()
+	if !exist {
+		return ErrMissingSignificantKey
+	}
+	aggID := getAggID(pid, pname)
+	r.SetAggregationKey(aggID)
+
+	var parentAggID string
+	ppid, exist := r.ParentPid()
+	if exist {
+		ppname, exist := r.ParentProcessName()
+		if exist {
+			parentAggID = getAggID(ppid, ppname)
+		}
+	}
 
 	node, exist := ta.getNode(aggID)
 	if !exist {
@@ -406,18 +577,23 @@ func (ta *ProcessTreeAggregator) addEvent(r *PodContainerEvent) error {
 			logging.GetLogger().Warn().Msgf("[inconsistency] parent process ID doesn't match: %s != %s. data: %+v", parentAggID, node.parentID, r)
 		}
 	}
-	node.addEvent(r)
-	r.SetAggregationKey(aggID)
+	node.addEvent(r, ta.txid)
 
 	if parentAggID != "" {
 		parNode, pexist := ta.getNode(parentAggID)
 		if !pexist {
 			parNode = newProcessNode(parentAggID, "", r.Time())
 			ta.nodes[parentAggID] = parNode
+		} else if parNode.agEvtID > 0 {
+			if node.agEvtID == 0 {
+				node.setAssociationID(parNode.agEvtID)
+			} else if node.agEvtID != parNode.agEvtID {
+				logging.GetLogger().Warn().Msg("[inconsistency] node asID %d != parent node asID %d.")
+			}
 		}
 		node.parentID = parentAggID
-		if node.asID == 0 && parNode.asID > 0 {
-			node.asID = parNode.asID
+		if parNode.agEvtID == 0 && node.agEvtID > 0 {
+			parNode.setAssociationID(node.agEvtID)
 		}
 	}
 

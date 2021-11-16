@@ -1,4 +1,0 @@
-[submodule "configs/daemon/netlink"]
-	path = configs/daemon/netlink
-	url = ssh://git@scm.tensorsecurity.cn:30022/tensorsecurity-rd/netlink.git
-    branch = tensorsec
