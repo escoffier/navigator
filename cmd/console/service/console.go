@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -297,6 +298,10 @@ func NewConsole(
 		return nil, err
 	}
 
+	err = apiscan.Init(postgresDB)
+	if err != nil {
+		logging.GetLogger().Err(ntErr).Msgf("ERROR: apiscan service init error")
+	}
 	err = platformreport.Init(postgresDB, &def.EmailConf{
 		Username: emailOpts.Username,
 		Password: emailOpts.Password,

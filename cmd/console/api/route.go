@@ -115,6 +115,7 @@ func SetupRoutes(
 	r.Route("/internal", func(r chi.Router) {
 		r.Route("/platform/assets", api.assets())
 		r.Route("/platform/networkTopo", api.networkTopo())
+		r.Route("/platform/apiscan",api.apiScan())
 		r.Handle("/webhook/*", api.webhook())
 		r.Route("/scap", api.scapInternal())
 	})

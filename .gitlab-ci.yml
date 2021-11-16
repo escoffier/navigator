@@ -67,6 +67,7 @@ all:
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
     - cp ~/.docker/kubectl /bin/
+    - cp ~/.docker/xray ./
     - chmod +755 /bin/kubectl
     - cp ~/.docker/helm /bin/
   script:
