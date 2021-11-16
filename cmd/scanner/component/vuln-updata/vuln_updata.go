@@ -198,7 +198,7 @@ func (srv *UpdataService) InitUpdateSvc() {
 		srv.cpDB(srv.VolumePath, srv.VolumePath, "init_trivy.db", "last_trivy.db")
 		srv.cpDB(srv.VolumePath, srv.VolumePath, "trivy_init_version", "trivy_version")
 	}
-	fp := filepath.Join(srv.VolumePath, "init_trivy", "db")
+	fp := filepath.Join(srv.VolumePath, "init_db", "db")
 	err := os.MkdirAll(fp, 0777)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("mkdir err")
@@ -408,7 +408,7 @@ func UploadOffline(c *gin.Context) {
 	err = vuln.InitDB()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("init db err :%v", err)
-		response.JSONError(c, fmt.Errorf("更新trivy库成功，中文库失败"))
+		response.JSONError(c, fmt.Errorf("更新漏洞库成功，中文库失败"))
 		return
 	}
 	err = scannerVulnUpdata.AutoScanAll(c, 1, "离线更新成功后自动触发")

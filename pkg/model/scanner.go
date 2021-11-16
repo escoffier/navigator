@@ -256,7 +256,7 @@ type NewVulnDetail struct {
 	CVEID string                        `json:"CVEID"`
 	Cnvd  []cnvd.CnvdMetadata           `json:"cnvd"`
 	Cnnvd cnnvd.CNNVDVulnerabilityInfo  `json:"cnnvd"`
-	Trivy []types.DetectedVulnerability `json:"trivy"`
+	Trivy []types.DetectedVulnerability `json:"TVuln"`
 }
 
 type LayerVulnDetail struct {
