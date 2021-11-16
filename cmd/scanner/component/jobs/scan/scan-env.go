@@ -78,15 +78,16 @@ func (e *ExecutorScanEnv) Scan(ctx context.Context, param Param) (Artifact, erro
 
 	resEnv := e.parseConfigEnv(config.Config.Env)
 	if len(envs) > 0 {
-		for _, v := range resEnv {
+		for k := range resEnv {
 			for _, key := range envs { //数量较少，先暴力遍历
-				if key == v.Key {
-					v.IsAbnormal = 1
+				if key == resEnv[k].Key {
+					resEnv[k].IsAbnormal = 1
 					r["customFlag"] = 1
 				}
 			}
 		}
 	}
+	logging.GetLogger().Info().Msgf("after RESENV :%v", resEnv)
 	r["result"] = resEnv
 
 	return r, nil

@@ -317,14 +317,22 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 		tmpScanLayer := model.ScanLayer{ImageId: imageId}
 		tmpScanLayer.LayerDigest = k
 		if v.VulnDetails != nil {
-			vulnJson, err := json.Marshal(v.VulnDetails)
+			var tmpSingleDetails []model.SingleScanDetail
+			for _, t := range v.VulnDetails {
+				var tmpVulnDetails []model.NewVulnDetail
+				for _, tt := range t.Vulns {
+					tmpVulnDetails = append(tmpVulnDetails, *tt)
+				}
+				tmpSingleDetails = append(tmpSingleDetails, model.SingleScanDetail{Class: t.Class, Type: t.Type, Target: t.Target, Vulns: tmpVulnDetails})
+			}
+			vulnJson, err := json.Marshal(tmpSingleDetails)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
 			}
 			tmpScanLayer.VulnInfoJSON = vulnJson
 		}
 
-		if v.MaliciousDetails != nil {
+		if len(v.MaliciousDetails) > 0 {
 			maliciousJson, err := json.Marshal(v.MaliciousDetails)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
@@ -332,7 +340,7 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 			tmpScanLayer.MaliciousInfoJSON = maliciousJson
 		}
 
-		if v.Sentitives != nil {
+		if len(v.Sentitives) > 0 {
 			sensitiveJson, err := json.Marshal(v.Sentitives)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
@@ -340,7 +348,7 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 			tmpScanLayer.SensitiveFileJSON = sensitiveJson
 		}
 
-		if v.WebshellInfos != nil {
+		if len(v.WebshellInfos) > 0 {
 			webshellJson, err := json.Marshal(v.WebshellInfos)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
@@ -355,7 +363,7 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageId int64) {
 	scannerOrm := store.GetScannerDb()
 	tmpScanImage := model.ScanImage{ImageId: imageId}
-	if scanDetails.MaliciousDetails != nil {
+	if len(scanDetails.MaliciousDetails) > 0 {
 		maliciousJson, err := json.Marshal(scanDetails.MaliciousDetails)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
@@ -363,7 +371,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.MaliciousInfoJSON = maliciousJson
 	}
 
-	if scanDetails.Sentitives != nil {
+	if len(scanDetails.Sentitives) > 0 {
 		sensitiveJson, err := json.Marshal(scanDetails.Sentitives)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
@@ -371,7 +379,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.SensitiveFileJSON = sensitiveJson
 	}
 
-	if scanDetails.VulnDetails != nil {
+	if len(scanDetails.VulnDetails) > 0 {
 		vulnJson, err := json.Marshal(scanDetails.VulnDetails)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
@@ -379,7 +387,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.VulnInfoJSON = vulnJson
 	}
 
-	if scanDetails.WebshellInfos != nil {
+	if len(scanDetails.WebshellInfos) > 0 {
 		webshellJson, err := json.Marshal(scanDetails.WebshellInfos)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
@@ -387,7 +395,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.WebshellInfoJSON = webshellJson
 	}
 
-	if scanDetails.EnvDetails != nil {
+	if len(scanDetails.EnvDetails) > 0 {
 		envJson, err := json.Marshal(scanDetails.EnvDetails)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
@@ -395,7 +403,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.EnvJSON = envJson
 	}
 
-	if scanDetails.Software != nil {
+	if len(scanDetails.Software) > 0 {
 		softwareJson, err := json.Marshal(scanDetails.Software)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
@@ -403,7 +411,7 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		tmpScanImage.SoftwareJSON = softwareJson
 	}
 
-	if scanDetails.LicenseDetail != nil {
+	if len(scanDetails.LicenseDetail) > 0 {
 		licenseJson, err := json.Marshal(scanDetails.LicenseDetail)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
