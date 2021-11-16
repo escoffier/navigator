@@ -261,14 +261,27 @@ func (s *ScanStrategy) Serialize() *ScanStrategy {
 
 func (s *ScanStrategy) ToUpdater() map[string]interface{} {
 	updater := map[string]interface{}{
-		"name":           s.Name,
-		"operator":       s.Operator,
-		"is_default":     s.IsDefault,
-		"sensitive_file": s.SensitiveFileJson,
-		"envs":           s.EnvsJson,
-		"open_license":   s.OpenLicenseJson,
-		"software":       s.SoftwareJson,
-		"describe":       s.Describe,
+		"name":                s.Name,
+		"operator":            s.Operator,
+		"is_default":          s.IsDefault,
+		"sensitive_file":      s.SensitiveFileJson,
+		"envs":                s.EnvsJson,
+		"open_license":        s.OpenLicenseJson,
+		"software":            s.SoftwareJson,
+		"describe":            s.Describe,
+		"envs_enable":         s.EnvsEnable,
+		"software_enable":     s.SoftwareEnable,
+		"open_license_enable": s.OpenLicenseEnable,
+		"sensitive_enable":    s.SensitiveEnable,
+		"webshell_enable":     s.WebshellEnable,
+		"vul_enable":          s.VulEnable,
+		"malicious_enable":    s.MaliciousEnable,
+	}
+	if len(s.Envs) == 0 {
+		updater["envs_enable"] = false
+	}
+	if len(s.Software) == 0 {
+		updater["software_enable"] = false
 	}
 	return updater
 }
