@@ -338,7 +338,7 @@ else
 endif
 
 .PHONY: palace
-palace:		## Build event-processor binary
+palace:		## Build palace binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/palace/cmd.Version=$(VERSION)" \
@@ -446,7 +446,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/security-profiles-webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/event-processor:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/palace:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
@@ -473,7 +473,7 @@ else
 	docker push $(REPOPREFIX)/security-profiles-webhook:latest
 	docker push $(REPOPREFIX)/security-profiles-manager:latest
 	docker push $(REPOPREFIX)/security-profiles-loader:latest
-	docker push $(REPOPREFIX)/event-processor:latest
+	docker push $(REPOPREFIX)/palace:latest
 	docker push $(REPOPREFIX)/go-audit:latest
 	docker push $(REPOPREFIX)/holmes:latest
 	docker push $(REPOPREFIX)/daemon:latest
@@ -503,7 +503,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/security-profiles-webhook:latest
 	docker rmi $(REPOPREFIX)/security-profiles-manager:latest
 	docker rmi $(REPOPREFIX)/security-profiles-loader:latest
-	docker rmi $(REPOPREFIX)/event-processor:latest
+	docker rmi $(REPOPREFIX)/palace:latest
 	docker rmi $(REPOPREFIX)/go-audit:latest
 	docker rmi $(REPOPREFIX)/holmes:latest
 	docker rmi $(REPOPREFIX)/daemon:latest
@@ -532,7 +532,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/security-profiles-webhook:latest $(REPOPREFIX)/security-profiles-webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/security-profiles-manager:latest $(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/security-profiles-loader:latest $(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/event-processor:latest $(REPOPREFIX)/event-processor:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/palace:latest $(REPOPREFIX)/palace:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/go-audit:latest $(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/holmes:latest $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/daemon:latest $(REPOPREFIX)/daemon:$(RELEASEVERSION)
@@ -557,7 +557,7 @@ else
 	docker tag $(REPOPREFIXOLD)/security-profiles-webhook:latest $(REPOPREFIX)/security-profiles-webhook:latest
 	docker tag $(REPOPREFIXOLD)/security-profiles-manager:latest $(REPOPREFIX)/security-profiles-manager:latest
 	docker tag $(REPOPREFIXOLD)/security-profiles-loader:latest $(REPOPREFIX)/security-profiles-loader:latest
-	docker tag $(REPOPREFIXOLD)/event-processor:latest $(REPOPREFIX)/event-processor:latest
+	docker tag $(REPOPREFIXOLD)/palace:latest $(REPOPREFIX)/palace:latest
 	docker tag $(REPOPREFIXOLD)/go-audit:latest $(REPOPREFIX)/go-audit:latest
 	docker tag $(REPOPREFIXOLD)/holmes:latest $(REPOPREFIX)/holmes:latest
 	docker tag $(REPOPREFIXOLD)/daemon:latest $(REPOPREFIX)/daemon:latest
@@ -589,7 +589,7 @@ ifeq ($(USERELEASE),true)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-webhook:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
-	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/event-processor:$(RELEASEVERSION)
+	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:$(RELEASEVERSION)
@@ -613,7 +613,7 @@ else
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-webhook:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-manager:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-loader:latest
-	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/event-processor:latest
+	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/go-audit:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:latest
 	tensor-scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:latest
