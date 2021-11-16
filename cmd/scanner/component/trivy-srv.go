@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
-
 	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy"
+	trivylog "scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/log"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
@@ -26,12 +26,13 @@ type TrivyServer struct {
 
 func NewTrivyServer(redis redis.Client, vulnpath string) (*TrivyServer, error) {
 	once.Do(func() {
+		_ = trivylog.InitLogger(false, true)
 		ch := make(chan string)
 		u := vulnupdata.NewUpdataService(vulnpath, ch)
 		u.InitUpdateSvc()
-		t, err := trivy.NewScannerWithRedis(redis, filepath.Join(vulnpath, "init_trivy"))
+		t, err := trivy.NewScannerWithRedis(redis, filepath.Join(vulnpath, "init_db"))
 		if err != nil {
-			panic(fmt.Sprintf("init trivy scanner failed, err: %v\n", err))
+			panic(fmt.Sprintf("init db scannert failed, err: %v\n", err))
 		}
 		TrivyService = &TrivyServer{
 			trivy:  t,
@@ -54,10 +55,10 @@ func (t *TrivyServer) Run(ctx context.Context) error {
 				continue
 			}
 			if err := t.trivy.SetBoltDB(path); err != nil {
-				logging.GetLogger().Err(err).Msg("update trivy db error")
+				logging.GetLogger().Err(err).Msg("update scannert db error")
 				continue
 			}
-			logging.GetLogger().Info().Msg("trivy updata DB success")
+			logging.GetLogger().Info().Msg("scannert updata DB success")
 		}
 	}()
 

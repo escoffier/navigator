@@ -32,7 +32,7 @@ type TrivyConfig struct {
 func init() {
 	err := register.Register("trivy", openRegistry)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("init trivy db updater err")
+		logging.GetLogger().Err(err).Msg("init scannert db updater err")
 	}
 }
 
@@ -57,13 +57,13 @@ func (t *TrivyUpdata) Updata(wg *sync.WaitGroup) {
 			if err.Error() == "equal" {
 				return nil
 			}
-			logging.GetLogger().Error().Err(err).Msgf("Trivy Updata will restart")
+			logging.GetLogger().Error().Err(err).Msgf("scannert Updata will restart")
 			return err
 		}
 		return nil
 	}, retryOptions...)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Trivy Updata error")
+		logging.GetLogger().Error().Err(err).Msgf("scannert Updata error")
 	}
 
 }
@@ -115,17 +115,17 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 
 	request, err := http.NewRequest("GET", jumpUrl, nil) //2
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("new http request err")
-		return fmt.Errorf("NewRequest failed %v", err)
+		logging.GetLogger().Error().Msgf("new http request err")
+		return fmt.Errorf("NewRequest failed from scannert")
 	}
 
 	resp, err := client.Do(request)
 	if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 302) {
 		//fmt.Println(resp)
 		if resp != nil {
-			return fmt.Errorf("Connect version failed %v code is %v", err, resp.StatusCode)
+			return fmt.Errorf("Connect Scannert version  code is %v", resp.StatusCode)
 		} else {
-			return fmt.Errorf("Connect version failed %v", err)
+			return fmt.Errorf("Connect Scannert version failed ")
 		}
 	}
 	respLocation, err := resp.Location()
@@ -161,35 +161,35 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 	dbUrl := "https://github.com/aquasecurity/trivy-db/releases/download/" + trivyVersion + "/trivy.db.gz"
 	request, err = http.NewRequest("GET", dbUrl, nil) //2
 	if err != nil {
-		return fmt.Errorf("NewRequest failed %v", err)
+		return fmt.Errorf("NewRequest failed from scannert")
 	}
 	resp, err = downClient.Do(request)
 	if err != nil {
-		return fmt.Errorf("Connect Body failed %v", err)
+		return fmt.Errorf("Connect Body failed scannert")
 	}
 	defer resp.Body.Close()
 	//reader := io.LimitReader(resp.Body, 1024*1024*100)
-	logging.GetLogger().Info().Msg("trivy download down")
+	logging.GetLogger().Info().Msg("scannert download down")
 	file, _ := os.OpenFile(filepath.Join(t.config.DbPath, "trivy.db.gz"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	defer file.Close()
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return fmt.Errorf("write db file err")
 	}
-	logging.GetLogger().Info().Msg("trivy ReadAll down")
+	logging.GetLogger().Info().Msg("scannert ReadAll down")
 	// err = os.WriteFile(t.config.DbPath+"trivy.db.gz", body, 0777)
 	// if err != nil {
 	// 	logging.GetLogger().Error().Msgf("failed to download %v", err)
 	// 	return err
 	// }
 
-	logging.GetLogger().Info().Msg("trivy WriteFile down")
+	logging.GetLogger().Info().Msg("scannert WriteFile down")
 	osCmd := exec.Command("gunzip", "-f", filepath.Join(t.config.DbPath, "trivy.db.gz"))
 	err = osCmd.Run()
 	if err != nil {
 		return fmt.Errorf("gunzip error %v: ", err)
 	}
-	logging.GetLogger().Info().Msg("trivy gunzip down")
+	logging.GetLogger().Info().Msg("scannert gunzip down")
 	var options bolt.Options
 	options.Timeout = time.Second * 5
 	if CheckDb(filepath.Join(t.config.DbPath, "trivy.db"), "vulnerability", options) == nil {
@@ -203,6 +203,6 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 			return fmt.Errorf("Write Version error %v ", err)
 		}
 	}
-	fmt.Println("trivy down")
+	fmt.Println("scannert down")
 	return nil
 }
