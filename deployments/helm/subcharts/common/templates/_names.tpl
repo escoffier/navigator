@@ -75,8 +75,9 @@ Not use prefixName due to GRPC certificatesSecret imageRegistryUsername.
 Create a default fully qualified app for holmes.
 */}}
 {{- define "common.holmes.defaultName" -}}
+{{- $prefixName := default "csec" .Values.global.prefixName -}}
 {{- $name := default "holmes" .Values.global.defaultNameOverride.holmes -}}
-{{- printf "%s" $name | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" $prefixName $name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
