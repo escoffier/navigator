@@ -50,7 +50,7 @@ scanner:
       # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
       # e.g. "htpasswd -nbBC10 $username $password"
       # Default: admin:Registry@Passw0rd
-      htpasswd: "admin:$2y$10$yWUFU9JunbmozLTeFEKxsOLnRaf1465xBQ6GWGDcmGy5GBa2WVHs6"
+      htpasswd: "admin:$2y$10$O08vnVTsvddCrSaadfZKA.i5ubglBNK.mntITXmT2Z671K1KhgaGu"
     service:
       type: ClusterIP
       # clusterIP:
