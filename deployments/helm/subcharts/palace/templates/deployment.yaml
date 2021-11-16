@@ -32,7 +32,6 @@ spec:
           value: {{ .Values.stan.clusterID }}
         - name: POSTGRESQL_DSN
           value: {{ include "common.pgpool.DSN" . }}
-          value: manager
         - name: CONSOLE_HTTP_ADDR
           value: "{{ include "common.console.defaultName" .}}:8889"
         - name: REDIS_ENDPOINT
