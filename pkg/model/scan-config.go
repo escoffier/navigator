@@ -346,6 +346,12 @@ func (s *ScanStrategy) Check() error {
 			return fmt.Errorf("software name or version can not be empty")
 		}
 	}
+	// 敏感文件类型赋默认值
+	for i := range s.SensitiveFile {
+		if s.SensitiveFile[i].SecretType == "" {
+			s.SensitiveFile[i].SecretType = "Filename"
+		}
+	}
 
 	return nil
 }
