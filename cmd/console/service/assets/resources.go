@@ -449,7 +449,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	}
 
 	for i := 0; i < len(tmpflows); i++ {
-		if netflows[i].SrcProcess == "" {
+		if tmpflows[i].SrcProcess == "" {
 			continue
 		}
 
