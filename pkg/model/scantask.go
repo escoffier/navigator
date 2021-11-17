@@ -338,16 +338,16 @@ type RejectReasonMap struct {
 }
 
 type ScanLayerResponse struct { // 层级扫描结果
-	ID            uint               `gorm:"primaryKey" json:"id"`
-	CreatedAt     time.Time          `json:"created_at"`
-	UpdatedAt     time.Time          `json:"updated_at"`
-	DeletedAt     int                `json:"deleted_at"`
-	ImageId       int64              `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
-	LayerDigest   string             `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
-	VulnInfo      []SingleScanDetail `gorm:"-" json:"vuln_info"`
-	PkgInfo       interface{}        `gorm:"-" json:"pkg_info"`
-	MaliciousInfo []VirusInfo        `gorm:"-" json:"malicious_info"` // 恶意文件
-	WebshellInfo  []WebShellInfo     `gorm:"-" json:"webshell_info"`  // webshell
-	SensitiveFile []Sensitive        `gorm:"-" json:"sensitive_file"`
-	IsBasic       int                `json:"is_basic"`
+	ID            uint                   `json:"id"`
+	CreatedAt     time.Time              `json:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
+	DeletedAt     int                    `json:"deleted_at"`
+	ImageId       int64                  `json:"image_id"`
+	LayerDigest   string                 `json:"layer_digest"`
+	VulnInfo      []RespSingleVulnDetail `json:"vuln_info"`
+	PkgInfo       interface{}            `json:"pkg_info"`
+	MaliciousInfo []VirusInfo            `json:"malicious_info"` // 恶意文件
+	WebshellInfo  []WebShellInfo         `json:"webshell_info"`  // webshell
+	SensitiveFile []Sensitive            `json:"sensitive_file"`
+	IsBasic       int                    `json:"is_basic"`
 }

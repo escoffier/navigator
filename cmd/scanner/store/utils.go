@@ -34,7 +34,7 @@ func InSlice(v string, in []string) bool {
 	return false
 }
 
-// 取并集
+// 取交集
 func UnionSlice(vules ...[]int64) []int64 {
 	all := 0
 	ext := make(map[int64]int)

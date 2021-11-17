@@ -140,7 +140,7 @@ func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds 
 		}
 	}
 
-	sql := "select  a.task_id,  a.image_id, a.status, a.created_at from tensor_scan_subtask as a where (a.image_id, a.created_at) in (select b.image_id, max(b.created_at) from tensor_scan_subtask b group by b.image_id) "
+	sql := fmt.Sprintf("select * from %s as a where (a.image_id, a.created_at) in (select b.image_id, max(b.created_at) from %s b group by b.image_id) ", model.SubTask{}.TableName(), model.SubTask{}.TableName())
 
 	if len(status) > 0 {
 		sql = sql + fmt.Sprintf("AND a.status IN ( %s )", in)
@@ -167,14 +167,12 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 		return nil, err
 	}
 	if len(tmp) == 0 {
-		logging.GetLogger().Debug().Msg("CreateImage not found image")
 		err := s.psql.Get().WithContext(ctx).Create(im).Error
 		if err != nil {
 			return nil, err
 		}
 		return im, nil
 	}
-	logging.GetLogger().Debug().Msgf("CreateImage found image update imageId:%d", tmp[0].ID)
 	if err := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
 		return nil, err
 	}
@@ -232,7 +230,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			softIds, envIds, licenseIds := make([]int64, 0), make([]int64, 0), make([]int64, 0)
 			for i := range images {
 				if InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) && images[i].ScanEnableCollection.SoftwareEnable > 0 {
-					softIds = append(softIds, res[i].ID)
+					softIds = append(softIds, images[i].ID)
 				}
 				if InSlice(strconv.Itoa(model.QUESTION_ENV), split) && images[i].ScanEnableCollection.EnvEnable > 0 {
 					envIds = append(envIds, images[i].ID)
@@ -241,6 +239,12 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 					licenseIds = append(licenseIds, images[i].ID)
 				}
 			}
+			if (InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) && len(softIds) == 0) ||
+				(InSlice(strconv.Itoa(model.QUESTION_ENV), split) && len(envIds) == 0) ||
+				(InSlice(strconv.Itoa(model.QUESTION_LICENSE), split) && len(licenseIds) == 0) {
+				return make([]*model.ImageResponse, 0), 0, nil
+			}
+
 			ids := UnionSlice(softIds, envIds, licenseIds)
 			if len(ids) == 0 {
 				return make([]*model.ImageResponse, 0), 0, nil

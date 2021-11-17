@@ -390,7 +390,7 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 // @Description 获取单个镜像的扫描状态
 // @Tags scan image
 // @Param id query int true "Image ID"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ScanOneStatusResponse{}}}
+// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageResponse{}}}
 // @Router	/api/v1/scan/harbor/scanOneStatus [get]
 func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 	imgId, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
@@ -575,31 +575,7 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	res := model.ScanLayerResponse{
-		ID:            info.ID,
-		CreatedAt:     info.CreatedAt,
-		UpdatedAt:     info.UpdatedAt,
-		DeletedAt:     info.DeletedAt,
-		ImageId:       info.ImageId,
-		LayerDigest:   info.LayerDigest,
-		VulnInfo:      info.VulnInfo,
-		PkgInfo:       info.PkgInfo,
-		SensitiveFile: info.SensitiveFile,
-		IsBasic:       info.IsBasic,
-	}
-	malic := make([]model.VirusInfo, 0)
-	for i := range info.MaliciousInfo {
-		malic = append(malic, info.MaliciousInfo[i].VirusInfo)
-	}
-	res.MaliciousInfo = malic
-
-	webshell := make([]model.WebShellInfo, 0)
-	for i := range info.WebshellInfo {
-		webshell = append(webshell, info.WebshellInfo[i].WebShellInfo)
-	}
-	res.WebshellInfo = webshell
-
-	response.JSONOK(ctx, response.WithItem(res))
+	response.JSONOK(ctx, response.WithItem(*info))
 }
 
 func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
