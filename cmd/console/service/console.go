@@ -179,11 +179,12 @@ func NewConsole(
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 
-	// harbor client
-	harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
-	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
-	}
+	// harbor client for tensor harbor adapter
+	// temperately comment,need refactor
+	//harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
+	//if err != nil {
+	//	logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
+	//}
 
 	es, err := elastic.NewClient(
 		elastic.SetURL(getElasticURL(elasticOpts.Host, elasticOpts.Port)),
@@ -196,7 +197,7 @@ func NewConsole(
 	if err = palace.Init(postgresDB, es); err != nil {
 		logging.GetLogger().Err(err).Msg("Init palace error")
 	}
-	
+
 	// data service
 	emailPort, err := strconv.Atoi(emailOpts.Port)
 	if err != nil {
@@ -343,7 +344,7 @@ func NewConsole(
 				fmt.Sprintf("https://%s:%d", webhookOpts.Host, webhookOpts.Port),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
-				harborClient,
+				nil, //harborClient,
 				emailOpts,
 				ecBuzCli,
 			),
@@ -353,7 +354,7 @@ func NewConsole(
 		es:            es,
 		ctx:           mainCtx,
 		cancel:        mainCancel,
-		harborClient:  harborClient,
+		harborClient:  nil, //harborClient,
 		scannerURL:    scannerURL,
 	}, nil
 }
@@ -395,15 +396,15 @@ func (c *Console) Run() func() {
 	ctx, mcancel := context.WithTimeout(c.ctx, 60*time.Second)
 	defer mcancel()
 
-	testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
-	defer testCancel()
-	canDowngrade := true
-	err := c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
-	if err != nil {
-		log.Error().Err(err).Msg("Harbor connection and admin privilege check failed")
-	}
+	//testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
+	//defer testCancel()
+	//canDowngrade := true
+	//err := c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
+	//if err != nil {
+	//	log.Error().Err(err).Msg("Harbor connection and admin privilege check failed")
+	//}
 
-	err = postgreCheck(c.postgresDB)
+	err := postgreCheck(c.postgresDB)
 	if err != nil {
 		log.Error().Err(err).Msg("When check admin data in postgres")
 	}
