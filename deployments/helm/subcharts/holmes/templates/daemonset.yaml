@@ -133,8 +133,8 @@ spec:
                   name: {{ include "common.redis-ha.defaultName" . }}
                   {{- else if .Values.global.multiCluster.isMemberCluster }}
                   name: {{ include "common.cluster-manager.defaultName" . }}-redis
-                  key: auth
                   {{- end }}
+                  key: auth
         - name: engine
           image: {{ template "falco.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
