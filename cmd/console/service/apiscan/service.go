@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,15 @@ const (
 	ApiScanJobValue         = "apiscan"
 	ApiScanJobPrefix        = "security-apiscan"
 )
+
+var vulMap = map[string]string{
+	"dirscan":        "目录扫描漏洞",
+	"path-traversal": "路径穿越漏洞",
+	"sqldet":         "sql注入漏洞",
+	"xss":            "xss攻击漏洞",
+	"cors":           "cors配置漏洞",
+	"sensitive":      "敏感信息泄漏风险",
+}
 
 type SingleApiResponse struct {
 	ID          int64  `json:"id"`
@@ -167,6 +177,16 @@ func (s *Service) GetApiScanResult(ctx context.Context, apiID int64) ([]SingleAp
 			return sr, err
 		}
 	}
+	for i := range sr {
+		p := strings.Split(sr[i].Plugin, "/")
+		if mv, ok := vulMap[p[0]]; ok {
+			sr[i].Plugin = mv
+		} else if len(p) >= 2 {
+			if mv, ok = vulMap[p[1]]; ok {
+				sr[i].Plugin = mv
+			}
+		}
+	}
 	return sr, nil
 }
 
@@ -178,15 +198,20 @@ func (s *Service) CountApis(ctx context.Context) (int64, error) {
 	return nsCount, err
 }
 
-func (s *Service) ListApis(ctx context.Context, clusterKey string, limit, offset int) ([]SingleApiResponse, int64, error) {
+func (s *Service) ListApis(ctx context.Context, clusterKey, search string, limit, offset int) ([]SingleApiResponse, int64, error) {
 	var tensorApis []model.TensorApi
 	var total int64
 	err := s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&model.TensorApi{}).Where("cluster = ?", clusterKey).Count(&total).Error
+		tx = tx.Model(&model.TensorApi{}).Where("cluster = ?", clusterKey)
+		if len(strings.TrimSpace(search)) != 0 {
+			search = "%" + strings.TrimSpace(search) + "%"
+			tx = tx.Where("path like ? or namespace like ? or resource like ?", search, search, search)
+		}
+		err := tx.Count(&total).Error
 		if err != nil {
 			return err
 		}
-		err = tx.Where("cluster = ?", clusterKey).Order("id ASC").Offset(offset).Limit(limit).Find(&tensorApis).Error
+		err = tx.Order("id ASC").Offset(offset).Limit(limit).Find(&tensorApis).Error
 		return err
 	})
 	if err != nil {
