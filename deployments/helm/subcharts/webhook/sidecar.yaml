@@ -69,6 +69,8 @@ spec:
           value: {{ .ProxyConfig.NatsUrls }}
         - name: TS_NATS_SUBJECT
           value: {{ .ProxyConfig.NatsSubject }}
+        - name: TS_NATS_CLUSTERID
+          value: {{ .ProxyConfig.NatsClusterId }}
         - name: TS_OWNER_KIND
           value: {{ .OwnerKind }}
         - name: TS_OWNER_NAME

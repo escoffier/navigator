@@ -51,6 +51,7 @@ presets:
 
 nats:
   natsSubject: "security-api"
+  clusterId: "manager"
 
 sidecar:
   image:

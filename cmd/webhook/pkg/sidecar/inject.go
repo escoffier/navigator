@@ -35,6 +35,7 @@ type ProxyConfig struct {
 	InterceptionMode   string   `json:"interception_mode"`
 	NatsUrls           string   `json:"nats_urls"`
 	NatsSubject        string   `json:"nats_subject"`
+	NatsClusterId      string   `json:"nats_cluster_id"`
 	IgnoredNameSpaces  []string `json:"ignored_name_spaces"`
 	InitContainerImage string   `json:"init_container_image"`
 	ContainerImage     string   `json:"container_image"`
@@ -64,7 +65,7 @@ func DefaultProxyConfig() *ProxyConfig {
 	return &ProxyConfig{
 		InterceptionMode: "REDIRECT",
 		NatsUrls:         "nats://localhost:4222",
-		NatsSubject:      "apiinfo",
+		NatsSubject:      "security-api",
 	}
 }
 
