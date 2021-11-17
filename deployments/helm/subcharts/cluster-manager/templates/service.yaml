@@ -9,4 +9,11 @@ spec:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
+      name: cm
+    {{- if .Values.global.multiCluster.isMemberCluster }}
+    - port: {{ .Values.redis.service.port }}
+      targetPort: {{ .Values.redis.service.targetPort }}
+      protocol: TCP
+      name: redis
+    {{- end }}
   selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
