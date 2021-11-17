@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-chi/chi"
+	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -172,12 +173,18 @@ func (api *api) listApis() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
+		search, err := param.QueryString(r, "search")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get search query error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no search given in params")))
+			return
+		}
 		service, ok := apiscan.GetService(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
 		}
-		result, totoalItems, err := service.ListApis(ctx, cluster, limit, offset)
+		result, totoalItems, err := service.ListApis(ctx, cluster,search, limit, offset)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
