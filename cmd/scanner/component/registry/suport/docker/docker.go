@@ -16,6 +16,7 @@ import (
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -200,7 +201,9 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 
 			im, err := extender(*i)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
+				if err != consts.NotNodeImageErr {
+					logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
+				}
 				continue
 			}
 			if req.NeedToReturnAll {
