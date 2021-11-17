@@ -186,7 +186,23 @@ cluster-manager:
     requests:
       cpu: 50m
       memory: 200Mi
-
+  init: 
+    image:
+      name: alpine
+      tag: latest
+  redis:
+    image:
+      name: redis
+      tag: 5.0
+    resources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    password: Redis12345
+  
 eventcenterAuth:
   enabled: true
 

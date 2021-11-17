@@ -13,6 +13,13 @@ Return the init container image name
 {{- end -}}
 
 {{/*
+Return the redis image name
+*/}}
+{{- define "cluster-manager.redis.image" -}}
+{{ include "common.images.image" ( dict "imageRoot" .Values.redis.image "global" .Values.global) }}
+{{- end -}}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "cluster-manager.chart" -}}

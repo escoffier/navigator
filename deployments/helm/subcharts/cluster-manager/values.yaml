@@ -25,6 +25,24 @@ init:
       cpu: 50m
       memory: 128Mi
 
+redis:
+  image:
+    registry: localhost:32000
+    repository: library
+    name: redis
+    tag: 5.0
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  password: Redis12345
+  service:
+    port: 6379
+    targetPort: 6379
+
 nameOverride: "cluster-manager"
 fullnameOverride: "cluster-manager"
 
