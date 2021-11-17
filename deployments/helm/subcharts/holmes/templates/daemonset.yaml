@@ -123,14 +123,18 @@ spec:
             - name: REDIS_ADDR
               {{- if .Values.global.multiCluster.isMainCluster }}
               value: "{{ include "common.redis.sentinel.address" . }}"
-              {{- else }}
-              value: ""
+              {{- else if .Values.global.multiCluster.isMemberCluster }}
+              value: "{{ include "common.cluster-manager.defaultName" . }}-redis:6379"
               {{- end }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.global.multiCluster.isMainCluster }}
                   name: {{ include "common.redis-ha.defaultName" . }}
+                  {{- else if .Values.global.multiCluster.isMemberCluster }}
+                  name: {{ include "common.cluster-manager.defaultName" . }}-redis
                   key: auth
+                  {{- end }}
         - name: engine
           image: {{ template "falco.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
