@@ -12,6 +12,7 @@ spec:
       labels: {{- include "common.labels.matchLabels" . | nindent 8 }}
     spec:
       serviceAccount: {{ include "common.names.fullname" . }}
+      {{- if .Values.global.multiCluster.isMainCluster }}
       initContainers:
       - name: "postgres-listener"
         image: {{ include "cluster-manager.init.image" . }}
@@ -22,6 +23,7 @@ spec:
         ]
         resources:
 {{ toYaml .Values.init.resources | trim | indent 10 }}
+      {{- end }}
       containers:
       - name: cluster-manager
         image: {{ include "clusterManager.image" . }}
@@ -36,7 +38,6 @@ spec:
         - --master-addr={{ .Values.global.multiCluster.configs.consoleExternalAdd }}
         - --cluster-name={{ .Values.global.multiCluster.configs.clusterName }}
         - --api-server-address={{ .Values.global.multiCluster.configs.apiServerAddr }}
-        - --redis-endpoint={{ include "common.names.fullname" . }}:6379
         {{- end }}
         env:
         - name: MY_POD_NAMESPACE
@@ -47,11 +48,7 @@ spec:
         - name: REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
-              {{- if .Values.global.multiCluster.isMemberCluster }}
-              name: {{ include "common.names.fullname" . }}-redis
-              {{- else if .Values.global.multiCluster.isMainCluster }}
               name: {{ include "common.redis-ha.defaultName" . }}
-              {{- end }}
               key: auth
         {{- end }}
         resources:
@@ -94,7 +91,7 @@ spec:
           items:
           - key: redis.conf
             path: redis.conf
-          name: redis-conf
+          name: {{ include "common.names.fullname" . }}-redis
       - name: redis-data
         emptyDir: {}
       {{- end }}
