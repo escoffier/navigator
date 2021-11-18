@@ -55,7 +55,7 @@ const (
 	ManualTrigger
 )
 
-const CheckTaskInterval = 60 * 5 // 检查是否加扫描任务的时间间隔，单位：妙
+const CheckTaskInterval = 60 * 1 // 检查是否加扫描任务的时间间隔，单位：秒
 
 const (
 	CicdOperator        = "CICD触发扫描"

@@ -23,7 +23,7 @@ func main() {
 	var bathInterval int
 	var pushInterval int
 	flag.IntVar(&bathSize, "batchSize", 10, "batch size")
-	flag.IntVar(&bathInterval, "batchInterval", 5, "batch interval,default:1(minute)")
+	flag.IntVar(&bathInterval, "batchInterval", 1, "batch interval,default:1(minute)")
 	flag.IntVar(&pushInterval, "pushInterval", 10, "push interval,default:10(minute)")
 	flag.Parse()
 
