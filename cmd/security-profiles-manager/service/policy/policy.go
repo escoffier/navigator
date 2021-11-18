@@ -161,7 +161,7 @@ func (s *SecPolicyService) AddResoruceToPolicy(ctx context.Context, policyID, re
 	var p model.SecurityPolicy
 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
@@ -202,7 +202,7 @@ func (s *SecPolicyService) AddResoruceToPolicy(ctx context.Context, policyID, re
 		return nil, txErr
 	}
 	var err error
-	policy, err := s.GetPolicy(ctx, policyID)
+	policy, err := s.GetPolicy(ctx, s.db.Get(), policyID)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (s *SecPolicyService) RemoveResourceFromPolicy(ctx context.Context, policyI
 	var p model.SecurityPolicy
 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
@@ -261,20 +261,23 @@ func (s *SecPolicyService) RemoveResourceFromPolicy(ctx context.Context, policyI
 		return nil, txErr
 	}
 	var err error
-	policy, err := s.GetPolicy(ctx, policyID)
+	policy, err := s.GetPolicy(ctx, s.db.Get(), policyID)
 	if err != nil {
 		return nil, err
 	}
 	return policy, nil
 }
 
-func (s *SecPolicyService) GetPolicy(ctx context.Context, policyID int) (*model.SecurityPolicy, error) {
+func (s *SecPolicyService) GetPolicy(ctx context.Context, db *gorm.DB, policyID int) (*model.SecurityPolicy, error) {
+	if db == nil {
+		db = s.db.Get()
+	}
 	var policy model.SecurityPolicy
 
 	dbctx, dbcancel := context.WithTimeout(ctx, 5*time.Second)
 	defer dbcancel()
 
-	result := s.db.Get().WithContext(dbctx).
+	result := db.WithContext(dbctx).
 		Preload(clause.Associations).
 		First(&policy, policyID)
 	if result.Error != nil {
@@ -316,7 +319,10 @@ func (s *SecPolicyService) GetPolicy(ctx context.Context, policyID int) (*model.
 	return &policy, nil
 }
 
-func (s *SecPolicyService) SetSecurityMode(ctx context.Context, policyID int, data model.SecurityPolicyModeChangeRequest, username string) (*model.SecurityPolicy, error) {
+func (s *SecPolicyService) SetSecurityMode(ctx context.Context, db *gorm.DB, policyID int, data model.SecurityPolicyModeChangeRequest, username string) (*model.SecurityPolicy, error) {
+	if db == nil {
+		db = s.db.Get()
+	}
 	dbctx, dbcancel := context.WithTimeout(ctx, 10*time.Second)
 	defer dbcancel()
 
@@ -324,10 +330,10 @@ func (s *SecPolicyService) SetSecurityMode(ctx context.Context, policyID int, da
 		return nil, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("Missing required fields"))
 	}
 
-	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
+	txErr := db.Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).
+		result := tx.WithContext(dbctx).
 			Preload("CommandWhitelistProfile.CommandWhitelistProfileData").
 			Preload("SeccompProfile.SeccompProfileData").
 			Preload("ApparmorProfile.ApparmorProfileData").
@@ -401,14 +407,17 @@ func (s *SecPolicyService) SetSecurityMode(ctx context.Context, policyID int, da
 	if txErr != nil {
 		return nil, txErr
 	}
-	policy, err := s.GetPolicy(ctx, policyID)
+	policy, err := s.GetPolicy(ctx, db, policyID)
 	if err != nil {
 		return nil, err
 	}
 	return policy, nil
 }
 
-func (s *SecPolicyService) SetStatus(ctx context.Context, policyID int, data model.SecurityPolicyStatusChangeRequest, username string) (*model.SecurityPolicy, error) {
+func (s *SecPolicyService) SetStatus(ctx context.Context, db *gorm.DB, policyID int, data model.SecurityPolicyStatusChangeRequest, username string) (*model.SecurityPolicy, error) {
+	if db == nil {
+		db = s.db.Get()
+	}
 	dbctx, dbcancel := context.WithTimeout(ctx, 10*time.Second)
 	defer dbcancel()
 
@@ -416,9 +425,9 @@ func (s *SecPolicyService) SetStatus(ctx context.Context, policyID int, data mod
 		return nil, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("Missing required fields"))
 	}
 
-	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
+	txErr := db.Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
-		result := s.db.Get().WithContext(dbctx).
+		result := tx.WithContext(dbctx).
 			Preload("CommandWhitelistProfile.CommandWhitelistProfileData").
 			Preload("SeccompProfile.SeccompProfileData").
 			Preload("ApparmorProfile.ApparmorProfileData").
@@ -529,7 +538,7 @@ func (s *SecPolicyService) SetStatus(ctx context.Context, policyID int, data mod
 		return nil, txErr
 	}
 	logging.GetLogger().Info().Str("status", fmt.Sprintf("%v", data)).Int("policy", policyID).Msg("Status changed")
-	policy, err := s.GetPolicy(ctx, policyID)
+	policy, err := s.GetPolicy(ctx, db, policyID)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +550,7 @@ func (s *SecPolicyService) DeletePolicy(ctx context.Context, secPolicyID int, us
 	defer dbcancel()
 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		p, err := s.GetPolicy(ctx, secPolicyID)
+		p, err := s.GetPolicy(ctx, tx, secPolicyID)
 		if err != nil {
 			return err
 		}
@@ -683,7 +692,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 
 	logging.GetLogger().Info().Int("policy", p.ID).Msg("Policy created")
 
-	policy, err := s.GetPolicy(ctx, p.ID)
+	policy, err := s.GetPolicy(ctx, s.db.Get(), p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -707,7 +716,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 	}
 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
@@ -786,7 +795,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 	}
 	logging.GetLogger().Info().Int("policy", p.ID).Str("profile", string(profileKind)).Msg("Policy profile patched")
 
-	policy, err := s.GetPolicy(ctx, p.ID)
+	policy, err := s.GetPolicy(ctx, s.db.Get(), p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -804,7 +813,7 @@ func (s *SecPolicyService) UpdatePolicy(ctx context.Context, policyID int, data 
 	}
 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		result := s.db.Get().WithContext(dbctx).First(&p, policyID)
+		result := tx.WithContext(dbctx).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
@@ -828,7 +837,7 @@ func (s *SecPolicyService) UpdatePolicy(ctx context.Context, policyID int, data 
 	}
 	logging.GetLogger().Info().Int("policy", p.ID).Msg("Policy updated")
 
-	policy, err := s.GetPolicy(ctx, p.ID)
+	policy, err := s.GetPolicy(ctx, s.db.Get(), p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1072,7 +1081,7 @@ func (s *SecPolicyService) AddResource(ctx context.Context, resource model.Secur
 			}
 			if secresource.SecurityPolicyID != nil {
 				var p model.SecurityPolicy
-				result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, *secresource.SecurityPolicyID)
+				result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, *secresource.SecurityPolicyID)
 				if result.Error != nil {
 					if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 						return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
@@ -1082,7 +1091,7 @@ func (s *SecPolicyService) AddResource(ctx context.Context, resource model.Secur
 				if p.ResourceImageChangeAction == model.ResourceImageChangeActionChangeToAudit {
 					newMode := model.SecurityModeDetection
 					if p.Mode == model.SecurityModePrevention {
-						_, err := s.SetSecurityMode(ctx, p.ID, model.SecurityPolicyModeChangeRequest{
+						_, err := s.SetSecurityMode(ctx, tx, p.ID, model.SecurityPolicyModeChangeRequest{
 							Mode: &newMode,
 						}, "system")
 						if err != nil {
@@ -1092,7 +1101,7 @@ func (s *SecPolicyService) AddResource(ctx context.Context, resource model.Secur
 				} else if p.ResourceImageChangeAction == model.ResourceImageChangeActionPolicyDisable {
 					if p.Active {
 						enabled := false
-						_, err := s.SetStatus(ctx, p.ID, model.SecurityPolicyStatusChangeRequest{
+						_, err := s.SetStatus(ctx, tx, p.ID, model.SecurityPolicyStatusChangeRequest{
 							Enabled: &enabled,
 						}, "system")
 						if err != nil {
