@@ -2,13 +2,13 @@ package builder
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/queue"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
