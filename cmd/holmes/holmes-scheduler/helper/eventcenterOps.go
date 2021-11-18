@@ -2,7 +2,6 @@ package holmeshelper
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"time"
 
@@ -70,7 +69,7 @@ func SendRulesToEventCenter(rulesData []byte) error {
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						string(lang.LanguageEN): {Key: internalAttributePrefix + "hid", Value: strconv.Itoa(int(item.HID))},
+						string(lang.LanguageEN): {Key: internalAttributePrefix + "hid", Value: item.HID},
 					},
 				},
 			},
