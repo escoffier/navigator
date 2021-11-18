@@ -46,6 +46,10 @@ spec:
           "--console-postgres={{ include "common.pgpool.DSN" . }}"
         ]
         env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         - name: MY_POD_NAMESPACE
           valueFrom:
             fieldRef:
