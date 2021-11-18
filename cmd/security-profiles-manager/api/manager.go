@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,12 +13,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/builder"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/policy"
@@ -28,6 +24,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var (
@@ -50,6 +51,29 @@ type SecProfileManager struct {
 	cancel context.CancelFunc
 }
 
+var runes = []rune{
+	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+}
+
+func getClientID(name string) string {
+	b := strings.Builder{}
+	for _, by := range name {
+		if (by >= 'a' && by <= 'z') || (by >= 'A' && by <= 'Z') || (by >= '0' && by <= '9') || by == '-' || by == '_' {
+			b.WriteRune(by)
+		} else {
+			b.WriteRune(runes[rand.Intn(len(runes))])
+		}
+	}
+	b.WriteRune('_')
+	randNum := 5 + rand.Intn(5)
+	for i := 0; i < randNum; i++ {
+		b.WriteRune(runes[rand.Intn(len(runes))])
+	}
+	return b.String()
+}
+
 // NewSecProfileManager is to create a new SecProfileManager struct.
 func NewSecProfileManager(
 	httpOpts *flag.HTTPOpts,
@@ -57,6 +81,7 @@ func NewSecProfileManager(
 	stanOpts *flag.StanOpts,
 	postgresOpts *flag.PostgresOpts,
 ) (*SecProfileManager, error) {
+	podName := os.Getenv("MY_POD_NAME")
 
 	db, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
 		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
@@ -99,7 +124,7 @@ func NewSecProfileManager(
 		logging.GetLogger().Error().Err(err).Msg("Failed to connect to NATS MQ")
 		return nil, err
 	}
-	sc, err := stan.Connect(stanOpts.ClusterID, stanOpts.ClientID, stan.NatsConn(nc))
+	sc, err := stan.Connect(stanOpts.ClusterID, getClientID(podName), stan.NatsConn(nc))
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to connect to STAN MQ")
 		return nil, err
@@ -118,6 +143,7 @@ func NewSecProfileManager(
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
+	defer mainCancel()
 
 	// security policy service
 	err = profile.Init(db, clientset)
