@@ -11,6 +11,7 @@ import (
 
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
@@ -35,7 +36,7 @@ func init() {
 	flag.DurationVar(&internal, "interval", 5*time.Minute, "job interval")
 	flag.StringVar(&dbStr, "db-connect-str", "", "db address")
 	flag.BoolVar(&debug, "debug", false, "debug model")
-	flag.IntVar(&batchSize, "batch-size", 200, "the batch size of data")
+	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
 
 	flag.StringVar(&scanreport.Host, "host", scanreport.Host, "console host")
 
@@ -57,6 +58,11 @@ func main() {
 
 	if emailUser == "" {
 		emailUser = DefaultEmailUser
+	}
+
+	if debug {
+		logging.SetVerbose()
+		logging.GetLogger().Warn().Msg("debug model!!! please close debug model when release.")
 	}
 
 	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {

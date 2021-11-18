@@ -307,7 +307,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		"s.sensitive_file_json",
 
 		"ti.is_trusted",
-		"tc.image_uuid",
+		"tc.image_uuid as imageuuid",
 	}
 
 	db := s.psql.Get().

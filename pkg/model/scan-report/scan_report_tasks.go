@@ -28,6 +28,19 @@ const (
 
 func (t TensorScanReportType) Value() (driver.Value, error) { return uint8(t), nil }
 
+func (t TensorScanReportType) String() string {
+	switch t {
+	case TensorScanReportTypeWeek:
+		return "week"
+	case TensorScanReportTypeMonth:
+		return "month"
+	case TensorScanReportTypeCustomize:
+		return "customize"
+	default:
+		return ""
+	}
+}
+
 // TensorScanReportContentType 报告内容
 type TensorScanReportContentType uint8
 

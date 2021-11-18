@@ -9,10 +9,10 @@ import (
 )
 
 type ImageInfo struct {
-	model.ImageList        // 镜像信息
-	model.ScanImage        // 扫描信息
-	IsTrusted       uint8  `gorm:"column:is_trusted"`    // 是否可信
-	ContainerUUID   string `gorm:"column:tc.image_uuid"` // left join tensor_containers 的image_uuid
+	model.ImageList       // 镜像信息
+	model.ScanImage       // 扫描信息
+	IsTrusted       uint8 `gorm:"column:is_trusted"` // 是否可信
+	ContainerUUID   int64 `gorm:"column:imageuuid"`  // left join tensor_containers 的image_uuid
 }
 
 func (t *ImageInfo) AfterFind(_ *gorm.DB) error {
