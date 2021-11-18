@@ -79,19 +79,17 @@ func (o *SortOption) String() string {
 	return sb.String()
 }
 
-func GetAssociatedGraphEvents(ctx context.Context, rdb *gorm.DB, offsetTime time.Time, limit int) ([]*model.PalaceAssociatedGraphEvent, error) {
+func GetAssociatedGraphEvents(ctx context.Context, rdb *gorm.DB, offsetID int64, limit int) ([]*model.PalaceAssociatedGraphEvent, error) {
 	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
 	db := rdb.WithContext(tctx).Model(&model.PalaceAssociatedGraphEvent{})
-	db = db.Order("updated_at DESC")
+	db = db.Order("id DESC")
 	if limit > 0 {
 		db = db.Limit(limit)
 	}
-	if offsetTime.IsZero() {
-		db = db.Offset(0)
-	} else {
-		db = db.Where("updated_at < ?", offsetTime)
+	if offsetID > 0 {
+		db = db.Where("id < ?", offsetID)
 	}
 
 	events := make([]*model.PalaceAssociatedGraphEvent, 0, limit)
