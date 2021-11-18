@@ -52,6 +52,23 @@ var (
 	}
 )
 
+func (s *ScanResultHandle) transSeverityInt(level string) int {
+	switch level {
+	case "CRITICAL":
+		return 5
+	case "HIGH":
+		return 4
+	case "MEDIUM":
+		return 3
+	case "LOW":
+		return 2
+	case "UNKNOWN":
+		return 1
+	default:
+		return 0
+	}
+}
+
 func (s *ScanResultHandle) caculateScore(severity string, num int64) float64 {
 	score := constMapScore[severity].SingleScore * float64(num)
 	if score >= constMapScore[severity].MaxScore {
@@ -475,7 +492,7 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 
 				tmpVuln := model.Vuln{Name: vuln.CVEID, Namespace: v.Type, Target: v.Target, Description: trivyVuln.Description,
 					MetadataJSON: mateDateJson, PkgName: trivyVuln.PkgName, PkgVersion: trivyVuln.InstalledVersion,
-					LinkJSON: linkjson, FixedBy: trivyVuln.FixedVersion, Severity: trivyVuln.Severity}
+					LinkJSON: linkjson, FixedBy: trivyVuln.FixedVersion, Severity: trivyVuln.Severity, SeverityInt: s.transSeverityInt(trivyVuln.Severity)}
 				err = scannerOrm.InsertToVuln(ctx, &tmpVuln, imageId)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msgf("InsertoVuln failed ")
