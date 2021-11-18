@@ -82,7 +82,7 @@ const (
 )
 
 const (
-	NodeSafeSalt     = "tensorsecurity"
+	NodeSafeSalt     = "nodemirroringsalt"
 	NodeSafeTage     = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s/%s" // 仓库地址/tensorsec/clusterKey/namespace/podName/podIp/os/镜像名
 	NodeSafeFullName = NodeSafeSalt + "/%s/&s/%s/%s/%s/%s"      // tensorsec/hostname/ip/os/镜像名
 )

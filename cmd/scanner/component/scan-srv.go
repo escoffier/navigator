@@ -988,8 +988,10 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 		ans.Trusted = consts.TrustedImage
 	}
 	if len(status) > 0 {
-		ans.CompleteTime = status[0].FinishedAt.Unix()
 		ans.ScanStatus = int(status[0].Status)
+		if !status[0].FinishedAt.IsZero() {
+			ans.CompleteTime = status[0].FinishedAt.UnixMilli()
+		}
 	}
 
 	if len(scs) == 0 {
@@ -1442,8 +1444,10 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		}
 		// 加上扫描状态
 		if sc, ok := statusMap[res[i].ID]; ok {
-			res[i].CompleteTime = sc.FinishedAt.Unix()
 			res[i].ScanStatus = int(sc.Status)
+			if !sc.FinishedAt.IsZero() {
+				res[i].CompleteTime = sc.FinishedAt.UnixMilli()
+			}
 		} else {
 			res[i].ScanStatus = consts.ImageNotScan
 		}
