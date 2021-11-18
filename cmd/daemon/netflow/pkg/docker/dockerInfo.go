@@ -81,6 +81,10 @@ func (nse NsenterData) GetPodContainerID(namespace, podname, nodeIp string) (map
 
 	containers := make(map[string]string, 0)
 	for _, container := range pod.Status.ContainerStatuses {
+		if container.Started == nil {
+			continue
+		}
+
 		state := *container.Started
 		if !state {
 			continue

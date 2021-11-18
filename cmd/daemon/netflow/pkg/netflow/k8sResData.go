@@ -91,7 +91,7 @@ func (kri *K8sResInfos) UpdateK8sResDataWithEndpoints(ip, name, kind, namespace,
 	}
 }
 
-func (kri *K8sResInfos) UpdateK8sResData(ip, name, kind, namespace, service, hostIp string) {
+func (kri *K8sResInfos) UpdateK8sResData(ip, name, kind, namespace, service, podname, hostIp string) {
 	kri.mutex.Lock()
 	defer kri.mutex.Unlock()
 
@@ -105,5 +105,6 @@ func (kri *K8sResInfos) UpdateK8sResData(ip, name, kind, namespace, service, hos
 	resData.Kind = kind
 	resData.NodeIp = hostIp
 	resData.Namespace = namespace
+	resData.PodName = podname
 	kri.ResInfos[ip] = &resData
 }

@@ -151,13 +151,13 @@ func (rs K8sResClient) GetOwnerReferences(ctx context.Context, pod *corev1.Pod) 
 		}
 
 		owners := rps.GetOwnerReferences()
-		for _, owner := range owners {
+		for _, o := range owners {
 			//log.Infof("pod name : %s, ns : %s, Controller : %v, kind : %v, name : %v.", pod.GetName(), namespace, *owner.Controller, owner.Kind, owner.Name)
-			if *owner.Controller != true {
+			if *o.Controller != true {
 				continue
 			}
 
-			return owner.Name, owner.Kind
+			return o.Name, o.Kind
 		}
 	}
 
@@ -328,7 +328,7 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 			name, kind := rs.GetOwnerReferences(ctx, pod)
 			namespace := pod.GetNamespace()
 			//log.Infof("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
-			rs.K8sPods.UpdateK8sResData(podIp, name, kind, namespace, "", hostIp)
+			rs.K8sPods.UpdateK8sResData(podIp, name, kind, namespace, "", pod.GetName(), hostIp)
 		},
 	})
 }
