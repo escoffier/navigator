@@ -3,6 +3,7 @@ package netflow
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -12,6 +13,13 @@ import (
 )
 
 func GetSubmitFunc(url string) SubmitFunc {
+	//
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	//http client
+	client := &http.Client{Transport: tr}
+	//http put
 	return func(ctx context.Context, flows []*model.TensorNetworkFlow) error {
 		tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
@@ -29,7 +37,7 @@ func GetSubmitFunc(url string) SubmitFunc {
 		req.Header.Set("Content-Type", "application/json")
 
 		// Send request
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return errors.Errorf("Error reading response, %v", err)
 		}
