@@ -83,6 +83,10 @@ func (s *SensitiveScan) FindSensitiveFileNamesInImage(tarFileName string, sensit
 		} else if err != nil {
 			return sensitiveFiles, fmt.Errorf("Failed to advance tarReader: %w", err)
 		}
+		switch header.Typeflag {
+		case tar.TypeDir:
+			continue
+		}
 		if s.SensitiveFilenameRegExp.FindString(header.Name) != "" {
 			if err == nil {
 				sensitiveFilenames = append(sensitiveFilenames, header.Name)
