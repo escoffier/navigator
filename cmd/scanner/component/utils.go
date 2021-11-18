@@ -649,3 +649,27 @@ func ParseConfigEnv(env []string) []model.EnvKeyValue {
 	}
 	return res
 }
+
+func ParseSoftWare(softs []model.Software) string {
+	if len(softs) == 0 {
+		return ""
+	}
+	lit := make([]string, 0)
+	for i := range softs {
+		lit = append(lit, fmt.Sprintf("%s(%s)", softs[i].Name, softs[i].Version))
+	}
+
+	return strings.Join(lit, ",")
+}
+
+func ParseLicense(softs []model.LicenseInfo) string {
+	if len(softs) == 0 {
+		return ""
+	}
+	lit := make([]string, 0)
+	for i := range softs {
+		lit = append(lit, softs[i].Name)
+	}
+
+	return strings.Join(lit, ",")
+}

@@ -89,7 +89,7 @@ type ImageResponse struct {
 	Library           string         `json:"library"`
 	NodeIp            string         `json:"node_ip"`
 	ScanStatus        int            `json:"scan_status"`
-	CompleteTime      string         `json:"complete_time"`
+	CompleteTime      int64          `json:"complete_time"`
 	Questions         []QuestionInfo `json:"questions"`
 	FullRepoName      string         `json:"full_repo_name"`
 	Tags              string         `json:"tags"`
@@ -114,7 +114,6 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		Digest:       img.Digest,
 		Library:      img.Library,
 		ScanStatus:   img.ScanStatus,
-		CompleteTime: img.CompleteTime,
 		Questions:    img.Questions,
 		FullRepoName: img.FullRepoName,
 		Tags:         img.Tags,
@@ -124,6 +123,7 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		Os:           img.OS,
 	}
 	if img.ScanImage != nil {
+		im.CompleteTime = img.ScanImage.FinishAt
 		im.RiskScore = img.ScanImage.VulnScore + img.ScanImage.SensitiveScore + math.Min(img.ScanImage.WebshellScore+img.ScanImage.VirusScore, 40)
 	}
 

@@ -184,6 +184,7 @@ type ImageListWithScan struct {
 	ID             int64     `json:"id"`
 	CreatedAt      time.Time `json:"created_at"`
 	FullRepoName   string    `json:"full_repo_name"`
+	FinishAt       int64     `json:"finish_at"`
 	Tags           string    `json:"tags"`
 	Digest         string    `json:"digest"`
 	OS             string    `json:"os"`
@@ -329,7 +330,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	fields := []string{"tensor_image_list.id", "tensor_image_list.privileged_boot", "tensor_image_list.created_at", "tensor_image_list.full_repo_name",
 		"tensor_image_list.tags", "tensor_image_list.digest", "tensor_image_list.os", "tensor_image_list.library",
 		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status", "scan_images.has_fixed_vuln", "tensor_image_list.is_reinforce",
-		"tensor_image_list.registry_id", "tensor_image_list.from_type",
+		"tensor_image_list.registry_id", "tensor_image_list.from_type", "scan_images.finish_at",
 		"tensor_image_list.node_ip", "tensor_image_list.node_hostname", "tensor_image_list.image_type"}
 
 	db = db.Select(fields)
@@ -351,8 +352,8 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			Digest:         res[i].Digest,
 			Library:        res[i].Library,
 			NodeIp:         res[i].NodeIp,
-			CompleteTime:   res[i].CompleteTime,
 			FullRepoName:   res[i].FullRepoName,
+			CompleteTime:   res[i].FinishAt,
 			Tags:           res[i].Tags,
 			ImageType:      res[i].ImageType,
 			RegistryId:     res[i].RegistryId,
@@ -362,9 +363,6 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			NodeHostname:   res[i].NodeHostname,
 			IsReinforce:    res[i].IsReinforce,
 			PrivilegedBoot: res[i].PrivilegedBoot,
-		}
-		if ir.CompleteTime == "" {
-			ir.CompleteTime = res[i].CreatedAt.Format("2006-01-02 15:04:05")
 		}
 
 		ans = append(ans, &ir)
@@ -1401,6 +1399,13 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 				res[i].SensitiveFile = sensitiveFile
 			}
 		}
+		softs := make([]model.Software, 0)
+		if len(res[i].SoftwareJSON) > 0 {
+			if err := json.Unmarshal(res[i].SoftwareJSON, &softs); err != nil {
+				logging.GetLogger().Error().Err(err).Msgf("Unmarshal SoftWare")
+			}
+		}
+		res[i].Software = softs
 
 		maliciousInfo := make([]model.Malicious, 0)
 		if len(res[i].MaliciousInfoJSON) > 0 {
@@ -1423,6 +1428,14 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 			}
 			res[i].EnvKeyValue = envInfo
 		}
+
+		license := make([]model.LicenseInfo, 0)
+		if len(res[i].LicenseInfoJSON) > 0 {
+			if err := json.Unmarshal(res[i].LicenseInfoJSON, &license); err != nil {
+				logging.GetLogger().Error().Err(err).Msgf("Unmarshal LicenseInfo")
+			}
+		}
+		res[i].LicenseInfo = license
 
 		scanEnableCollection := new(model.ScanEnableCollection)
 		if len(res[i].ScanEnableCollectionJson) > 0 {

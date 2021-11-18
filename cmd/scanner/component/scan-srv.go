@@ -988,8 +988,8 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 		ans.Trusted = consts.TrustedImage
 	}
 	if len(status) > 0 {
+		ans.CompleteTime = status[0].FinishedAt.Unix()
 		ans.ScanStatus = int(status[0].Status)
-		ans.CompleteTime = status[0].FinishedAt.String()
 	}
 
 	if len(scs) == 0 {
@@ -1018,11 +1018,11 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 	}
 
 	if scs[0].ScanEnableCollection.LicenseEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: string(scs[0].LicenseInfoJSON)})
+		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: ParseLicense(scs[0].LicenseInfo)})
 	}
 
 	if scs[0].ScanEnableCollection.SoftwareEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: string(scs[0].SoftwareJSON)})
+		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: ParseSoftWare(scs[0].Software)})
 	}
 
 	ans.Questions = append(ans.Questions, qus...)
@@ -1424,7 +1424,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		imageMap[res[i].ID].Questions = make([]model.QuestionInfo, 0)
 	}
 
-	statusMap := make(map[int64]int)
+	statusMap := make(map[int64]model.SubTask)
 	subtasks, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, imagesIds, param.ScanStatus)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchSubTasksWithStatusFilter")
@@ -1432,7 +1432,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	}
 
 	for i := range subtasks {
-		statusMap[subtasks[i].ImageId] = int(subtasks[i].Status)
+		statusMap[subtasks[i].ImageId] = subtasks[i]
 	}
 
 	for i := range res {
@@ -1441,8 +1441,9 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 			res[i].Online = true
 		}
 		// 加上扫描状态
-		if sc, ok := statusMap[res[i].ID]; ok && sc > 0 {
-			res[i].ScanStatus = sc
+		if sc, ok := statusMap[res[i].ID]; ok {
+			res[i].CompleteTime = sc.FinishedAt.Unix()
+			res[i].ScanStatus = int(sc.Status)
 		} else {
 			res[i].ScanStatus = consts.ImageNotScan
 		}
@@ -1461,7 +1462,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 
 	for i := range scs {
 		if _, ok := imageMap[scs[i].ImageId]; ok && scs[i].FinishAt > 0 {
-			imageMap[scs[i].ImageId].CompleteTime = time.Unix(scs[i].FinishAt, 0).Format("2006-01-02 15:04:05")
+			imageMap[scs[i].ImageId].CompleteTime = scs[i].FinishAt
 		}
 
 		qus := make([]model.QuestionInfo, 0)
@@ -1484,42 +1485,12 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_ENV})
 		}
 
-		// if imageMap[scs[i].ImageId].PrivilegedBoot == 1 {
-		// 	qus = append(qus, model.QuestionInfo{ID: model.QUESTION_PRIORITY})
-		// }
-
 		if scs[i].ScanEnableCollection.LicenseEnable > 0 {
-			var tmpLicensInfo []model.LicenseInfo
-			err := json.Unmarshal(scs[i].LicenseInfoJSON, &tmpLicensInfo)
-			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("unmarshal License error")
-			} else {
-				var infos string
-				for k := range tmpLicensInfo {
-					if k != 0 {
-						infos += ","
-					}
-					infos += tmpLicensInfo[k].Name
-				}
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: infos})
-			}
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_LICENSE, Info: ParseLicense(scs[i].LicenseInfo)})
 		}
 
 		if scs[i].ScanEnableCollection.SoftwareEnable > 0 {
-			var tmpSoftware []model.Software
-			err := json.Unmarshal(scs[i].SoftwareJSON, &tmpSoftware)
-			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("unmarshal Software error")
-			} else {
-				var infos string
-				for k := range tmpSoftware {
-					if k != 0 {
-						infos += ","
-					}
-					infos = infos + tmpSoftware[k].Name + "(" + tmpSoftware[k].Version + ")"
-				}
-				qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: infos})
-			}
+			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: ParseSoftWare(scs[i].Software)})
 		}
 		// 问题类别加上
 		if v, ok := imageMap[scs[i].ImageId]; ok {
@@ -1544,6 +1515,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	}
 
 	for i := range res {
+
 		if res[i].PrivilegedBoot == consts.PrivilegedBootImage {
 			res[i].Questions = append(res[i].Questions, model.QuestionInfo{ID: model.QUESTION_PRIORITY})
 		}
