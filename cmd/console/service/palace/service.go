@@ -48,8 +48,8 @@ func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) *Service {
 	return &Service{rdb: rdb, elasticCli: esCli, rulesManager: rm}
 }
 
-func (s *Service) GetAssociatedEvents(ctx context.Context, offsetTime time.Time, limit int) ([]*model.PalaceAssociatedGraphEvent, int64, error) {
-	events, err := dal.GetAssociatedGraphEvents(ctx, s.rdb.Get(), offsetTime, limit)
+func (s *Service) GetAssociatedEvents(ctx context.Context, offsetID int64, limit int) ([]*model.PalaceAssociatedGraphEvent, int64, error) {
+	events, err := dal.GetAssociatedGraphEvents(ctx, s.rdb.Get(), offsetID, limit)
 	if err != nil {
 		return nil, 0, err
 	}

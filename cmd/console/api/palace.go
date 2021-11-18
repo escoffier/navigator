@@ -36,17 +36,13 @@ func (api *api) getAssocGraphEvents() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(400, errors.New("error limit")))
 			return
 		}
-		offsetStr, err := param.QueryString(r, "offset_ts")
+		offsetStr, err := param.QueryString(r, "offset")
 		if err != nil {
 			offsetStr = "0"
 		}
-		offsetTS, err := strconv.ParseInt(offsetStr, 10, 64)
+		offsetID, err := strconv.ParseInt(offsetStr, 10, 64)
 		if err != nil {
-			offsetTS = 0
-		}
-		var offsetTime time.Time
-		if offsetTS > 0 {
-			offsetTime = time.Unix(offsetTS, 0)
+			offsetID = 0
 		}
 
 		palaceSvc, ok := palace.Get()
@@ -54,7 +50,7 @@ func (api *api) getAssocGraphEvents() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("init palace error")))
 			return
 		}
-		events, totalCnt, err := palaceSvc.GetAssociatedEvents(ctx, offsetTime, limit)
+		events, totalCnt, err := palaceSvc.GetAssociatedEvents(ctx, offsetID, limit)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
