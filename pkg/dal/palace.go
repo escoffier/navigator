@@ -15,15 +15,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var (
-	onDupUpdatedColsForAGEvent = []string{
-		"severity",
-		"nodes_num",
-		"events_num",
-		"updated_at",
-	}
-)
-
 func UpsertAssociatedGraphEvent(ctx context.Context, rdb *gorm.DB, e *model.PalaceAssociatedGraphEvent) (int64, error) {
 	tctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
@@ -31,8 +22,13 @@ func UpsertAssociatedGraphEvent(ctx context.Context, rdb *gorm.DB, e *model.Pala
 		oneCtx, cancel := context.WithTimeout(tctx, 500*time.Millisecond)
 		defer cancel()
 		return rdb.WithContext(oneCtx).Model(e).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForAGEvent),
+			Columns: []clause.Column{{Name: "id"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"nodes_num":  e.NodesNum,
+				"events_num": e.EventsNum,
+				"updated_at": e.UpdatedAt,
+				"severity":   gorm.Expr("GREATEST(palace_assoc_graph_events.severity, excluded.severity)"), // TODO FIXIME special grammar for Postgres. take care for MySQL
+			}),
 		}).Create(e).Error
 	})
 	if err != nil {
@@ -83,18 +79,26 @@ func (o *SortOption) String() string {
 	return sb.String()
 }
 
-func GetAssociatedGraphEvents(ctx context.Context, rdb *gorm.DB, sortOpt SortOption, offset, limit int) ([]*model.PalaceAssociatedGraphEvent, error) {
+func GetAssociatedGraphEvents(ctx context.Context, rdb *gorm.DB, offsetTime time.Time, limit int) ([]*model.PalaceAssociatedGraphEvent, error) {
 	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
 	db := rdb.WithContext(tctx).Model(&model.PalaceAssociatedGraphEvent{})
-	if sortOpt.Ok() {
-		db = db.Order(sortOpt.String())
+	db = db.Order("updated_at DESC")
+	if limit > 0 {
+		db = db.Limit(limit)
 	}
+	if offsetTime.IsZero() {
+		db = db.Offset(0)
+	} else {
+		db = db.Where("updated_at < ?", offsetTime)
+	}
+
 	events := make([]*model.PalaceAssociatedGraphEvent, 0, limit)
-	err := db.Limit(limit).Offset(offset).Find(&events).Error
+	err := db.Find(&events).Error
 	return events, err
 }
+
 func CountAssociatedGraphEvents(ctx context.Context, rdb *gorm.DB) (int64, error) {
 	tctx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
 	defer cancel()
@@ -128,7 +132,7 @@ func (q *SignalsQuery) WithAggrKeys(keys []string) *SignalsQuery {
 	return q
 }
 
-func GetOriginSignalsOfEvent(ctx context.Context, rdb *gorm.DB, eventID int64, query *SignalsQuery, offset, limit int) ([]*model.PalaceEventSignalAssociation, error) {
+func GetOriginSignalsOfEvent(ctx context.Context, rdb *gorm.DB, eventID int64, query *SignalsQuery, offsetTime time.Time, limit int) ([]*model.PalaceEventSignalAssociation, error) {
 	tctx, cancel := context.WithTimeout(ctx, 600*time.Millisecond)
 	defer cancel()
 
@@ -137,20 +141,29 @@ func GetOriginSignalsOfEvent(ctx context.Context, rdb *gorm.DB, eventID int64, q
 		db = db.Where("aggr_key IN ?", query.aggrKeys)
 	}
 	if limit > 0 {
-		db = db.Offset(offset).Limit(limit)
+		db = db.Limit(limit)
+	}
+	if !offsetTime.IsZero() {
+		db = db.Where("created_at < ?", offsetTime)
+	} else {
+		db = db.Offset(0)
 	}
 	signals := make([]*model.PalaceEventSignalAssociation, 0, limit)
-	err := db.Find(&signals).Error
+	err := db.Order("created_at DESC").Find(&signals).Error
 	return signals, err
 }
 
 func GetSignals(ctx context.Context, esCli *elastic.Client, signalUuids []string) ([]*model.Signal, error) {
 	queries := make([]elastic.Query, 0, len(signalUuids))
 	for _, signalUuid := range signalUuids {
-		queries = append(queries, elastic.NewTermQuery("uuid", signalUuid))
+		uuidInt, err := strconv.ParseInt(signalUuid, 10, 64)
+		if err == nil {
+			queries = append(queries, elastic.NewMatchQuery("uuid", uuidInt))
+
+		}
 	}
 	searchSvc := esCli.Search("signal_*").Sort("timestamp", false)
-	searchSvc.Query(elastic.NewBoolQuery().Should(queries...))
+	searchSvc.Query(elastic.NewBoolQuery().Should(queries...).MinimumNumberShouldMatch(1))
 
 	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

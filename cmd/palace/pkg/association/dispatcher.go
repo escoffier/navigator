@@ -4,6 +4,7 @@ import (
 	"context"
 	"hash/fnv"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
@@ -14,15 +15,17 @@ type EventDispatcher struct {
 	config            DispatchConfig
 	associationConfig AssociationConfiguration
 	rdb               *rdbtools.GormWrapper
+	rulesManager      *echelper.RulesManager
 
 	processors []*AssociationProcessor
 }
 
-func NewEventDispatcher(config DispatchConfig, associationConfig AssociationConfiguration, rdb *rdbtools.GormWrapper) (*EventDispatcher, error) {
+func NewEventDispatcher(config DispatchConfig, associationConfig AssociationConfiguration, rdb *rdbtools.GormWrapper, rulesManager *echelper.RulesManager) (*EventDispatcher, error) {
 	disp := new(EventDispatcher)
 	disp.config = config
 	disp.associationConfig = associationConfig
 	disp.rdb = rdb
+	disp.rulesManager = rulesManager
 	disp.initProcessors()
 
 	return disp, nil
@@ -31,7 +34,7 @@ func NewEventDispatcher(config DispatchConfig, associationConfig AssociationConf
 func (d *EventDispatcher) initProcessors() {
 	d.processors = make([]*AssociationProcessor, d.config.ParallelNum)
 	for i := 0; uint32(i) < d.config.ParallelNum; i++ {
-		d.processors[i] = NewAssociationProcessor(d.associationConfig, d.rdb)
+		d.processors[i] = NewAssociationProcessor(d.associationConfig, d.rdb, d.rulesManager)
 	}
 }
 

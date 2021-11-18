@@ -11,10 +11,15 @@ import (
 
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+)
+
+const (
+	loadRulesInterval = 5 * time.Minute
 )
 
 var (
@@ -33,16 +38,18 @@ func Get() (*Service, bool) {
 }
 
 type Service struct {
-	rdb        *rdbtools.GormWrapper
-	elasticCli *elastic.Client
+	rdb          *rdbtools.GormWrapper
+	elasticCli   *elastic.Client
+	rulesManager *echelper.RulesManager
 }
 
 func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) *Service {
-	return &Service{rdb: rdb, elasticCli: esCli}
+	rm := echelper.NewRulesManager(rdb, loadRulesInterval)
+	return &Service{rdb: rdb, elasticCli: esCli, rulesManager: rm}
 }
 
-func (s *Service) GetAssociatedEvents(ctx context.Context, sortOpt dal.SortOption, offset, limit int) ([]*model.PalaceAssociatedGraphEvent, int64, error) {
-	events, err := dal.GetAssociatedGraphEvents(ctx, s.rdb.Get(), sortOpt, offset, limit)
+func (s *Service) GetAssociatedEvents(ctx context.Context, offsetTime time.Time, limit int) ([]*model.PalaceAssociatedGraphEvent, int64, error) {
+	events, err := dal.GetAssociatedGraphEvents(ctx, s.rdb.Get(), offsetTime, limit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -67,7 +74,7 @@ func splitLocExpr(locExpr string) (clusterKey, namespace, podName, containerName
 		err = fmt.Errorf("decode loc expr %s error", locExpr)
 		return
 	}
-	procArr := strings.Split(elems[4], "-")
+	procArr := strings.Split(elems[4], "|")
 	if len(procArr) != 2 {
 		err = fmt.Errorf("process %s decode error", locExpr)
 		return
@@ -79,7 +86,7 @@ func splitLocExpr(locExpr string) (clusterKey, namespace, podName, containerName
 	return elems[0], elems[1], elems[2], elems[3], pid, procArr[1], nil
 }
 
-func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal.SignalsQuery, offset, limit int) ([]*model.Signal, int64, error) {
+func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal.SignalsQuery, offsetTime time.Time, limit int, language string) ([]*SignalElem, int64, error) {
 	tctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
@@ -87,16 +94,22 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 	if err != nil {
 		return nil, 0, err
 	}
+	if totalCnt == 0 {
+		return nil, 0, nil
+	}
 
 	var signals []*model.PalaceEventSignalAssociation
 	err = util.RetryWithBackoff(tctx, func() error {
 		var err error
-		signals, err = dal.GetOriginSignalsOfEvent(ctx, s.rdb.Get(), evtID, query, offset, limit)
+		signals, err = dal.GetOriginSignalsOfEvent(ctx, s.rdb.Get(), evtID, query, offsetTime, limit)
 		return err
 	})
 
 	if err != nil {
 		return nil, 0, err
+	}
+	if len(signals) == 0 {
+		return nil, 0, nil
 	}
 
 	signalUUIDs := make([]string, len(signals))
@@ -104,7 +117,18 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 		signalUUIDs[i] = signal.SignalID
 	}
 	signalsFinals, err := dal.GetSignals(tctx, s.elasticCli, signalUUIDs)
-	return signalsFinals, totalCnt, err
+
+	signalElems := make([]*SignalElem, 0, len(signalsFinals))
+	for _, signal := range signalsFinals {
+		se := toApiSignal(signal, language)
+		rule, _ := s.rulesManager.GetRule(signal.RuleModule, signal.RuleCategory, signal.RuleName)
+		if rule != nil {
+			se.Rule = toApiRule(rule, language)
+
+		}
+		signalElems = append(signalElems, se)
+	}
+	return signalElems, totalCnt, err
 }
 
 func (s *Service) GetProcessTree(ctx context.Context, evtID int64) (*TreeNode, error) {

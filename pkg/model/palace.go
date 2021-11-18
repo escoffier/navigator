@@ -17,7 +17,7 @@ type Location struct {
 
 type Locations []Location
 
-func (l Locations) Scan(value interface{}) error {
+func (l *Locations) Scan(value interface{}) error {
 	b, ok := value.([]byte)
 	if !ok {
 		return TypeAssertErr
@@ -34,7 +34,7 @@ type PalaceAssociatedGraphEvent struct {
 	Locations       Locations `gorm:"column:locations; type:jsonb"`
 	EventsNum       int       `gorm:"column:events_num"`
 	NodesNum        int       `gorm:"column:nodes_num"`
-	Severity        int32     `gorm:"column:severity"`
+	Severity        uint32    `gorm:"column:severity"`
 	CreatedAt       time.Time `gorm:"column:created_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
 }
@@ -92,4 +92,50 @@ type Signal struct {
 type SignalExtend struct {
 	Hid      string `json:"hid,omitempty"`
 	HThreats string `json:"hThreats,omitempty"`
+}
+
+type CustomKVs []*pb.MultiLanguageKV
+
+func (l *CustomKVs) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &l)
+}
+func (l CustomKVs) Value() (driver.Value, error) {
+	return json.Marshal(l)
+}
+
+type LangKV struct {
+	ValueHash map[string]string `json:"ValueHash"`
+}
+
+type MultiLanguage map[string]LangKV
+
+func (l *MultiLanguage) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &l)
+}
+func (l MultiLanguage) Value() (driver.Value, error) {
+	return json.Marshal(l)
+}
+
+type EvtCenterRule struct {
+	ID            int32         `gorm:"primaryKey; autoIncrement; column:id"`
+	Name          string        `gorm:"uniqueIndex:rules_key; column:name; size:255"`
+	Module        string        `gorm:"uniqueIndex:rules_key; column:module; size:32"`
+	Category      string        `gorm:"uniqueIndex:rules_key; column:category; size:32"`
+	Description   string        `gorm:"column:description"`
+	Severity      uint32        `gorm:"column:severity"`
+	CustomKV      CustomKVs     `gorm:"column:custom_kv"`
+	MultiLanguage MultiLanguage `gorm:"column:multi_language"`
+	Status        uint8         `gorm:"column:status"`
+}
+
+func (EvtCenterRule) TableName() string {
+	return "rules"
 }
