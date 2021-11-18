@@ -86,7 +86,7 @@ func (api *api) setPolicyStatus() http.HandlerFunc {
 			username = "unknown"
 		}
 
-		p, err := secPolicyService.SetStatus(ctx, policyID, data, username)
+		p, err := secPolicyService.SetStatus(ctx, nil, policyID, data, username)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't change security policy status: %w", err))
 			return
@@ -142,7 +142,7 @@ func (api *api) setPolicyMode() http.HandlerFunc {
 			username = "unknown"
 		}
 
-		p, err := secPolicyService.SetSecurityMode(ctx, policyID, data, username)
+		p, err := secPolicyService.SetSecurityMode(ctx, nil, policyID, data, username)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't change security policy mode: %w", err))
 			return
@@ -224,7 +224,7 @@ func (api *api) getPolicy() http.HandlerFunc {
 			return
 		}
 
-		policy, err := secPolicyService.GetPolicy(ctx, policyID)
+		policy, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get security policy: %w", err))
 			return
@@ -664,7 +664,7 @@ func (api *api) listPolicyProfileData() http.HandlerFunc {
 				response.WithStartIndex(offset),
 				response.WithApiVersion(apiVersion))
 		} else if profileKind == model.SecurityKindCommandWhitelist {
-			docNum = int64(len((*profileData).CommandWhitelistProfileData))
+			docNum = int64(len(profileData.CommandWhitelistProfileData))
 			results := make([]*model.CommandWhitelistProfileData, len(profileData.CommandWhitelistProfileData))
 			for i := range profileData.CommandWhitelistProfileData {
 				results[i] = &profileData.CommandWhitelistProfileData[i]
@@ -842,7 +842,7 @@ func (api *api) startTraining() http.HandlerFunc {
 			return
 		}
 
-		policy, err := secPolicyService.GetPolicy(ctx, policyID)
+		policy, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get security policy: %w", err))
 			return
@@ -892,7 +892,7 @@ func (api *api) stopTraining() http.HandlerFunc {
 			return
 		}
 
-		p, err := secPolicyService.GetPolicy(ctx, policyID)
+		p, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get policy: %w", err))
 			return
@@ -924,7 +924,7 @@ func (api *api) stopTraining() http.HandlerFunc {
 			return
 		}
 
-		policy, err := secPolicyService.GetPolicy(ctx, policyID)
+		policy, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get security policy: %w", err))
 			return
@@ -974,7 +974,7 @@ func (api *api) abortTraining() http.HandlerFunc {
 			return
 		}
 
-		p, err := secPolicyService.GetPolicy(ctx, policyID)
+		p, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get policy: %w", err))
 			return
@@ -1006,7 +1006,7 @@ func (api *api) abortTraining() http.HandlerFunc {
 			return
 		}
 
-		policy, err := secPolicyService.GetPolicy(ctx, policyID)
+		policy, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get security policy: %w", err))
 			return
@@ -1056,7 +1056,7 @@ func (api *api) suspendTraining() http.HandlerFunc {
 			return
 		}
 
-		p, err := secPolicyService.GetPolicy(ctx, policyID)
+		p, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get policy: %w", err))
 			return
@@ -1088,7 +1088,7 @@ func (api *api) suspendTraining() http.HandlerFunc {
 			return
 		}
 
-		policy, err := secPolicyService.GetPolicy(ctx, policyID)
+		policy, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get security policy: %w", err))
 			return
@@ -1138,7 +1138,7 @@ func (api *api) resumeTraining() http.HandlerFunc {
 			return
 		}
 
-		p, err := secPolicyService.GetPolicy(ctx, policyID)
+		p, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to get policy: %w", err))
 			return
@@ -1170,7 +1170,7 @@ func (api *api) resumeTraining() http.HandlerFunc {
 			return
 		}
 
-		policy, err := secPolicyService.GetPolicy(ctx, policyID)
+		policy, err := secPolicyService.GetPolicy(ctx, nil, policyID)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Couldn't get security policy: %w", err))
 			return

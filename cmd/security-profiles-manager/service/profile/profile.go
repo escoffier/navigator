@@ -12,10 +12,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/client-go/kubernetes"
@@ -71,7 +70,7 @@ func (s *SecProfileService) ListProfileData(ctx context.Context, policyID int, p
 	var p model.SecurityPolicy
 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		intermediateQuery := s.db.Get().WithContext(dbctx)
+		intermediateQuery := tx.WithContext(dbctx)
 
 		if profileKind == model.SecurityKindApparmor {
 			intermediateQuery = intermediateQuery.Preload("ApparmorProfile.ApparmorProfileData")
@@ -124,7 +123,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).
+		result := tx.WithContext(dbctx).
 			Preload("CommandWhitelistProfile.CommandWhitelistProfileData").
 			Preload("SeccompProfile.SeccompProfileData").
 			Preload("ApparmorProfile.ApparmorProfileData").
@@ -296,7 +295,7 @@ func (s *SecProfileService) ReplacePolicyProfile(ctx context.Context, policyID i
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).
+		result := tx.WithContext(dbctx).
 			Preload("CommandWhitelistProfile.CommandWhitelistProfileData").
 			Preload("SeccompProfile.SeccompProfileData").
 			Preload("ApparmorProfile.ApparmorProfileData").

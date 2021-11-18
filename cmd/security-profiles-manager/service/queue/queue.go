@@ -2,7 +2,6 @@ package queue
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/go-redis/redis/v8"
 	stan "github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
@@ -724,7 +724,7 @@ func (s *QueueService) setTrainingStartedStatus(ctx context.Context, policyID in
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
@@ -795,7 +795,7 @@ func (s *QueueService) setTrainingStoppedStatus(ctx context.Context, policyID in
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
@@ -865,7 +865,7 @@ func (s *QueueService) setTrainingAbortedStatus(ctx context.Context, policyID in
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
@@ -935,7 +935,7 @@ func (s *QueueService) setTrainingResumedStatus(ctx context.Context, policyID in
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
@@ -986,7 +986,7 @@ func (s *QueueService) setTrainingSuspendedStatus(ctx context.Context, policyID 
 	txErr := s.db.Get().Transaction(func(tx *gorm.DB) error {
 		var p model.SecurityPolicy
 
-		result := s.db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
+		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
