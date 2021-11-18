@@ -87,6 +87,9 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 	var exitMap sync.Map
 
 	worker := func(reg RegistryWithConf, extender registry.ImageListExtender) {
+		start := time.Now().Unix()
+		logging.GetLogger().Info().Msgf("start sync image,library name is :%s,url is:%s", reg.Config.Name, reg.Config.Url)
+
 		res, err := reg.Registry.ListImages(extender, registry.ListImagesRequest{NeedToReturnAdded: true})
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get images err.%v", err)
@@ -145,6 +148,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 			}
 		}
 		exitMap.Store(reg.Config.Name, true)
+		logging.GetLogger().Info().Msgf("end sync image,library name is :%s,url is:%s,cost:%d second", reg.Config.Name, reg.Config.Url, time.Now().Unix()-start)
 	}
 
 	for {
