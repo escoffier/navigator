@@ -85,6 +85,40 @@
       "dataDir": "/audit/postgresql/report_records",
       "ttl": 30,
       "batch": 1000
+    },
+    {
+      "name": "palace_assoc_graph_events",
+      "primaryKey": [
+        "id"
+      ],
+      "timeField": "updated_at",
+      "dataDir": "/audit/postgresql/palace_assoc_graph_events",
+      "batch": 1000
+    },
+    {
+      "name": "palace_assoc_links",
+      "primaryKey": [
+        "uuid"
+      ],
+      "timeField": "created_at",
+      "dataDir": "/audit/postgresql/palace_assoc_links",
+      "batch": 1000
+    },
+    {
+      "name": "palace_evt_signal_assocs",
+      "primaryKey": [
+        "uuid"
+      ],
+      "timeField": "created_at",
+      "dataDir": "/audit/postgresql/palace_evt_signal_assocs",
+      "batch": 1000
+    },
+    {
+      "name": "tensor_nodes",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "dataDir": "/audit/postgresql/tensor_nodes",
+      "batch": 1000
     }
   ]
 }

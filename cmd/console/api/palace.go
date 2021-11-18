@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
@@ -26,10 +27,26 @@ func (api *api) getAssocGraphEvents() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 
-		limit, offset, err := getLimitAndOffset(r)
+		limitStr, err := param.QueryString(r, "limit")
 		if err != nil {
-			limit = 10
-			offset = 0
+			limitStr = "10"
+		}
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error limit")))
+			return
+		}
+		offsetStr, err := param.QueryString(r, "offset_ts")
+		if err != nil {
+			offsetStr = "0"
+		}
+		offsetTS, err := strconv.ParseInt(offsetStr, 10, 64)
+		if err != nil {
+			offsetTS = 0
+		}
+		var offsetTime time.Time
+		if offsetTS > 0 {
+			offsetTime = time.Unix(offsetTS, 0)
 		}
 
 		palaceSvc, ok := palace.Get()
@@ -37,7 +54,7 @@ func (api *api) getAssocGraphEvents() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("init palace error")))
 			return
 		}
-		events, totalCnt, err := palaceSvc.GetAssociatedEvents(ctx, *dal.Sort().With("updated_at"), offset, limit)
+		events, totalCnt, err := palaceSvc.GetAssociatedEvents(ctx, offsetTime, limit)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
@@ -75,13 +92,30 @@ func (api *api) getProcessTree() http.HandlerFunc {
 }
 
 func (api *api) getAGEventSignals() http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 
-		limit, offset, err := getLimitAndOffset(r)
+		limitStr, err := param.QueryString(r, "limit")
 		if err != nil {
-			limit = 10
-			offset = 0
+			limitStr = "10"
+		}
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error limit")))
+			return
+		}
+		offsetStr, err := param.QueryString(r, "offset_ts")
+		if err != nil {
+			offsetStr = "0"
+		}
+		offsetTS, err := strconv.ParseInt(offsetStr, 10, 64)
+		if err != nil {
+			offsetTS = 0
+		}
+		var offsetTime time.Time
+		if offsetTS > 0 {
+			offsetTime = time.Unix(offsetTS, 0)
 		}
 
 		evtIDStr := chi.URLParam(r, "evtID")
@@ -99,6 +133,10 @@ func (api *api) getAGEventSignals() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("no limit or offset given in params")))
 			return
 		}
+		language := r.Header.Get("Accept-Language")
+		if language == "" {
+			language = "zh"
+		}
 
 		query := dal.NewSignalsQuery()
 		selections, err := param.QueryStringArray(r, "selection")
@@ -106,7 +144,7 @@ func (api *api) getAGEventSignals() http.HandlerFunc {
 			query = query.WithAggrKeys(selections)
 		}
 
-		signals, totalCnt, err := palaceSvc.GetSignalsOfEvent(ctx, evtID, query, offset, limit)
+		signals, totalCnt, err := palaceSvc.GetSignalsOfEvent(ctx, evtID, query, offsetTime, limit, language)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return

@@ -2,12 +2,14 @@ package association
 
 import (
 	"context"
+	"fmt"
 	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/avast/retry-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
@@ -21,17 +23,19 @@ type AssociationProcessor struct {
 	inputsChan chan PodContainerEvent
 	eventsChan chan AssociationEvent
 
-	config AssociationConfiguration
-	rdb    *rdbtools.GormWrapper
+	config       AssociationConfiguration
+	rdb          *rdbtools.GormWrapper
+	rulesManager *echelper.RulesManager
 }
 
-func NewAssociationProcessor(config AssociationConfiguration, rdb *rdbtools.GormWrapper) *AssociationProcessor {
+func NewAssociationProcessor(config AssociationConfiguration, rdb *rdbtools.GormWrapper, rulesManager *echelper.RulesManager) *AssociationProcessor {
 	proc := AssociationProcessor{
-		aggregators: make(map[string]*ProcessTreeAggregator, 10),
-		inputsChan:  make(chan PodContainerEvent, 50),
-		eventsChan:  make(chan AssociationEvent, 250),
-		config:      config,
-		rdb:         rdb,
+		aggregators:  make(map[string]*ProcessTreeAggregator, 10),
+		inputsChan:   make(chan PodContainerEvent, 50),
+		eventsChan:   make(chan AssociationEvent, 250),
+		config:       config,
+		rdb:          rdb,
+		rulesManager: rulesManager,
 	}
 
 	proc.asyncLoop()
@@ -92,6 +96,8 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 	e := new(model.PalaceAssociatedGraphEvent)
 	e.ID = evt.GetID()
 	locationsMap := make(map[string]model.Location, 2)
+	maxSeverity := uint32(0)
+	maxCnt := 0
 	for _, evt := range evt.GetEvents() {
 		loc, ok := evt.Location()
 		if ok {
@@ -115,6 +121,16 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 			}
 			locationsMap[loc.String()] = locModel
 		}
+
+		rule, exist := ap.rulesManager.GetRule(evt.module, evt.category, evt.rule)
+		if exist {
+			if rule.Severity > maxSeverity {
+				maxSeverity = rule.Severity
+				maxCnt = 1
+			} else if rule.Severity == maxSeverity {
+				maxCnt++
+			}
+		}
 	}
 	e.Locations = make([]model.Location, 0, len(locationsMap))
 	for _, l := range locationsMap {
@@ -125,8 +141,13 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 	e.AssociationKind = "process_tree"
 	e.CreatedAt = now
 	e.UpdatedAt = now
-	// TODO missing severity
-
+	if maxCnt > 2 {
+		maxSeverity += 2
+		if maxSeverity > 10 {
+			maxSeverity = 10
+		}
+	}
+	e.Severity = maxSeverity
 	return e, nil
 }
 func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt AssociationEvent, now time.Time) (int64, error) {
@@ -143,13 +164,19 @@ func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, ag
 	for _, evt := range evt.GetEvents() {
 		asso := new(model.PalaceEventSignalAssociation)
 		asso.AggrEvtID = agEvtID
-		asso.AggrKey = evt.AggregationKey()
+		l, ok := evt.Location()
+
+		if ok && l != nil {
+			asso.AggrKey = fmt.Sprintf("%s/%s", l.String(), evt.AggregationKey())
+		} else {
+			asso.AggrKey = evt.AggregationKey()
+		}
 		asso.SignalID = evt.ID()
 		asso.CreatedAt = now
 		err := util.RetryWithBackoff(ctx, func() error {
 			_, err := dal.CreateSignalAssociation(ctx, ap.rdb.Get(), asso)
 			return err
-		}, retry.Attempts(3))
+		}, retry.Attempts(2))
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("create signal association error", err)
 		}
@@ -182,7 +209,7 @@ func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEv
 		err := util.RetryWithBackoff(ctx, func() error {
 			_, err := dal.CreateAssociationLinks(ctx, ap.rdb.Get(), linkModel)
 			return err
-		}, retry.Attempts(3))
+		}, retry.Attempts(2))
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("create association link error", err)
 		}
@@ -198,21 +225,15 @@ func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context,
 	}
 	evt.SetID(evtID)
 
-	tctx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	tctx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
 	defer cancel()
-	err = util.RetryWithBackoff(tctx, func() error {
-		return ap.createSignalAssociations(tctx, evtID, evt, now)
-	}, retry.Attempts(2))
+
+	err = ap.createSignalAssociations(tctx, evtID, evt, now)
 	if err != nil {
 		return 0, err
 	}
 
-	tctx, cancel = context.WithTimeout(ctx, 5000*time.Millisecond)
-	defer cancel()
-	err = util.RetryWithBackoff(tctx, func() error {
-		return ap.createAssociationLinks(tctx, evtID, evt, now)
-	}, retry.Attempts(2))
-
+	err = ap.createAssociationLinks(tctx, evtID, evt, now)
 	return evtID, err
 }
 

@@ -73,7 +73,7 @@ func (pcl PodContainerLoc) String() string {
 
 type PodContainerEvent struct {
 	OriginID string
-	loc      PodContainerLoc
+	loc      *PodContainerLoc
 	aggrKey  string
 	module   string
 	category string
@@ -116,25 +116,25 @@ func (pce *PodContainerEvent) ID() string {
 	return pce.OriginID
 }
 func (pce *PodContainerEvent) Location() (TargetLocation, bool) {
-	return pce.loc, pce.loc.ckey != ""
+	return pce.loc, pce.loc != nil
 }
-func getLocation(resp *outputs.Response) (PodContainerLoc, bool) {
+func getLocation(resp *outputs.Response) (*PodContainerLoc, bool) {
 
 	namespace, ok := resp.OutputFields[rtdetect.FieldK8sNsName]
 	if !ok {
-		return PodContainerLoc{}, false
+		return nil, false
 	}
 	podName, ok := resp.OutputFields[rtdetect.FieldK8sPodName]
 	if !ok {
-		return PodContainerLoc{}, false
+		return nil, false
 	}
 	clusterKey, ok := resp.OutputFields[rtdetect.KeyClusterKey]
 	if !ok {
-		return PodContainerLoc{}, false
+		return nil, false
 	}
 	containerID, ok := resp.OutputFields[rtdetect.FieldContainerId]
 	if !ok {
-		return PodContainerLoc{}, false
+		return nil, false
 	}
 	loc := PodContainerLoc{
 		ckey:       clusterKey,
@@ -150,7 +150,7 @@ func getLocation(resp *outputs.Response) (PodContainerLoc, bool) {
 		}
 	}
 	loc.str = sb.String()
-	return loc, true
+	return &loc, true
 }
 
 func (pce *PodContainerEvent) Time() time.Time {

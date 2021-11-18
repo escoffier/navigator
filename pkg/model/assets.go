@@ -137,7 +137,7 @@ type OwnerReference struct {
 }
 type OwnerRefs []OwnerReference
 
-func (or OwnerRefs) Scan(value interface{}) error {
+func (or *OwnerRefs) Scan(value interface{}) error {
 	b, ok := value.([]byte)
 	if !ok {
 		return TypeAssertErr
@@ -155,7 +155,7 @@ func (l *Labels) Scan(value interface{}) error {
 	if !ok {
 		return TypeAssertErr
 	}
-	return json.Unmarshal(b, l)
+	return json.Unmarshal(b, &l)
 }
 func (l *Labels) Value() (driver.Value, error) {
 	return json.Marshal(l)
@@ -368,7 +368,7 @@ func (TensorCluster) TableName() string {
 
 type ContainerImages []corev1.ContainerImage
 
-func (sc ContainerImages) Scan(value interface{}) error {
+func (sc *ContainerImages) Scan(value interface{}) error {
 	b, ok := value.([]byte)
 	if !ok {
 		return TypeAssertErr
@@ -386,7 +386,7 @@ type NodeVolume struct {
 }
 type Volumes []NodeVolume
 
-func (sc Volumes) Scan(value interface{}) error {
+func (sc *Volumes) Scan(value interface{}) error {
 	b, ok := value.([]byte)
 	if !ok {
 		return TypeAssertErr

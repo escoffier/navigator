@@ -3,7 +3,6 @@ package association
 import (
 	"container/list"
 	"context"
-	"fmt"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -101,7 +100,7 @@ func (pte *ProcessTreeAssociation) SetID(id int64) {
 func getAggID(pid, pname string) string {
 	bui := strings.Builder{}
 	bui.WriteString(pid)
-	bui.WriteByte('-')
+	bui.WriteByte('|')
 	bui.WriteString(pname)
 	return bui.String()
 }
@@ -190,9 +189,6 @@ func (pt *processTree) bfs(visitNodeFunc func(node *processNode, level int)) {
 			child, ok := pt.aggr.getNode(childID)
 			if ok {
 				queue.PushBack(tnode{child, currNode.level + 1})
-			} else {
-				// TODO remove
-				fmt.Println("node not found ", string(debug.Stack()))
 			}
 		}
 	}
@@ -334,7 +330,6 @@ func (ta *ProcessTreeAggregator) postAction(action postAction) {
 		}
 	}()
 
-	logging.GetLogger().Info().Msgf("receive a postAction msg: %+v. evtID: %d", action, action.agEvent.agEvtID)
 	action.agEvent.tree.setAssociationID(action.agEvent.agEvtID)
 	if action.submitDone && action.submitOK {
 		if _, toDel := ta.treeDelBuffer[action.agEvent.tree]; toDel {

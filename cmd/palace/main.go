@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/immune"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
@@ -42,6 +43,7 @@ var (
 
 func initAssociationDispatchers(rdb *rdbtools.GormWrapper) error {
 	var err error
+	rulesManager := echelper.NewRulesManager(rdb, 5*time.Minute)
 	associationDispatcher, err = association.NewEventDispatcher(association.DispatchConfig{
 		ParallelNum: 2,
 	},
@@ -50,6 +52,7 @@ func initAssociationDispatchers(rdb *rdbtools.GormWrapper) error {
 			BuildInterval:         1 * time.Minute,
 		},
 		rdb,
+		rulesManager,
 	)
 	return err
 }
