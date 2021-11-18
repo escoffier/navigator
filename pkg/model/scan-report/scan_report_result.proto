@@ -134,12 +134,10 @@ message Vuln {
   string cnnvd = 4 [(gogoproto.jsontag) = "cnnvd"];
   // CVSS3.0 评分
   double cvss3 = 5 [(gogoproto.jsontag) = "cvss3"];
-  // 漏洞介绍
-  string detail = 6 [(gogoproto.jsontag) = "detail"];
   // 修复建议
-  string fix_suggestion = 7 [(gogoproto.jsontag) = "fix_suggestion"];
+  string fix_suggestion = 6 [(gogoproto.jsontag) = "fix_suggestion"];
   // 修复版本
-  string fix_versoin = 8 [(gogoproto.jsontag) = "fix_versoin"];
+  string fix_versoin = 7 [(gogoproto.jsontag) = "fix_versoin"];
 }
 
 // 漏洞级别

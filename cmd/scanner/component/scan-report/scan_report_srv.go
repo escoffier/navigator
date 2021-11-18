@@ -3,11 +3,9 @@ package scan_report
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"runtime/debug"
 	"time"
-
-	"github.com/rs/zerolog/log"
-	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/compress"
@@ -17,6 +15,7 @@ import (
 
 	"github.com/pkg/errors"
 	"gopkg.in/gomail.v2"
+	"gorm.io/gorm"
 )
 
 var Host = "https://console.tensosecurity.cn"
@@ -43,7 +42,7 @@ func NewScanReportSrv(options ...Option) *ScanReportSrv {
 	}
 
 	if err := srv.checkEmail(); err != nil {
-		log.Error().Msgf("email login error: %v", err)
+		logging.GetLogger().Error().Msgf("email login error: %v", err)
 	}
 
 	return srv
@@ -53,7 +52,7 @@ func (s *ScanReportSrv) Run() error {
 	tick := time.NewTicker(s.interval)
 	defer tick.Stop()
 	for {
-		log.Info().Msgf("start scan job, time: %s", time.Now().In(util.CSTSh).Format(format))
+		logging.GetLogger().Info().Msg("start scan job")
 		go s.run()
 		<-tick.C
 	}
@@ -74,6 +73,14 @@ func (s *ScanReportSrv) run() {
 
 	// 循环遍历可执行的任务
 	for _, v := range tasks {
+		logging.GetLogger().Info().Msgf(
+			"run task, name:%s, type: %s, start: %d, end: %d",
+			v.TensorScanReportTasks.Name,
+			v.TensorScanReportTasks.Type,
+			v.StartTimeStamp,
+			v.EndTimeStamp,
+		)
+
 		s.handleSubTask(ctx, v)
 	}
 }
@@ -81,7 +88,12 @@ func (s *ScanReportSrv) run() {
 func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorScanReportSubTasks) {
 	defer func() {
 		if e := recover(); e != nil {
-			logging.GetLogger().Error().Msgf("scanner report execute failed, err: %v, subtask: %d, stack: %s", e, v.ID, debug.Stack())
+			logging.GetLogger().Error().Msgf(
+				"scanner report execute failed, err: %v, subtask: %d, stack: %s",
+				e,
+				v.ID,
+				debug.Stack(),
+			)
 		}
 	}()
 
@@ -117,8 +129,9 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 		return
 	}
 
+	result = nil
 	// 压缩数据
-	data, err = compress.ZlipCompress(data)
+	data1, err := compress.ZlipCompress(data)
 	if err != nil {
 		logging.GetLogger().Err(err).
 			Msgf("compress scan report date failed, id: %d", v.ID)
@@ -126,8 +139,19 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 		return
 	}
 
+	//nolint:ineffassign
+	data = nil
+
+	logging.GetLogger().Info().Msgf(
+		"report<%s>, time：%d-%d, generate successfully，size: %.2f",
+		v.TensorScanReportTasks.Name,
+		v.StartTimeStamp,
+		v.EndTimeStamp,
+		float64(len(data1))/1024,
+	)
+
 	// 存储数据
-	err = s.dao.SaveScanReportFile(ctx, v, data)
+	err = s.dao.SaveScanReportFile(ctx, v, data1)
 	if err != nil {
 		logging.GetLogger().Err(err).
 			Msgf("save scan report date failed, id: %d", v.ID)
@@ -138,10 +162,24 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 	// 发送邮件
 	err = s.sendEmails(ctx, v)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("报告<%s>, 时间：%d-%d, 发送失败", v.TensorScanReportTasks.Name, v.StartTimeStamp, v.EndTimeStamp)
+		logging.GetLogger().Err(err).Msgf(
+			"report<%s>, time：%d-%d, emails send failed",
+			v.TensorScanReportTasks.Name,
+			v.StartTimeStamp,
+			v.EndTimeStamp,
+		)
 	} else {
-		logging.GetLogger().Info().Msgf("报告<%s>, 时间：%d-%d, 发送成功", v.TensorScanReportTasks.Name, v.StartTimeStamp, v.EndTimeStamp)
+		logging.GetLogger().Info().Msgf(
+			"report<%s>, time：%d-%d, emails send success",
+			v.TensorScanReportTasks.Name,
+			v.StartTimeStamp,
+			v.EndTimeStamp,
+		)
 	}
+
+	//nolint:ineffassign
+	data1 = nil
+	runtime.GC()
 }
 
 func (s *ScanReportSrv) sendEmails(ctx context.Context, data *scanreport.TensorScanReportSubTasks) error {
@@ -205,9 +243,16 @@ func (s *ScanReportSrv) getImagesInfo(ctx context.Context, data *scanreport.Tens
 		}
 
 		offset += s.batchSize
+		//nolint:ineffassign
+		imageInfo = nil // for gc
+		runtime.GC()    // gc manual
 	}
 
-	return resultBuilder.GetResult(), nil
+	result := resultBuilder.GetResult()
+	resultBuilder = nil
+	runtime.GC()
+
+	return result, nil
 }
 
 func (s *ScanReportSrv) checkEmail() error {
