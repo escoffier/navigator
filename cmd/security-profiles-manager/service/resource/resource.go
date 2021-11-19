@@ -34,7 +34,6 @@ const (
 )
 
 type SecResourceService struct {
-	ctx         context.Context
 	db          *rdbtools.GormWrapper
 	k8sClient   *kubernetes.Clientset
 	myNamespace string
@@ -56,7 +55,6 @@ func Init(
 	}
 	once.Do(func() {
 		instance = &SecResourceService{
-			ctx:         ctx,
 			db:          db,
 			k8sClient:   k8sClient,
 			myNamespace: myNamespace,
@@ -523,7 +521,10 @@ func (s *SecResourceService) Init() {
 			}
 			owner := metav1.GetControllerOf(resource)
 			if owner != nil {
-				deployment, err := s.k8sClient.AppsV1().Deployments(resource.Namespace).Get(s.ctx, owner.Name, metav1.GetOptions{})
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				deployment, err := s.k8sClient.AppsV1().Deployments(resource.Namespace).Get(ctx, owner.Name, metav1.GetOptions{})
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to get owner of *v1.ReplicaSet")
 					return
@@ -551,7 +552,10 @@ func (s *SecResourceService) Init() {
 			}
 			owner := metav1.GetControllerOf(resource)
 			if owner != nil {
-				deployment, err := s.k8sClient.AppsV1().Deployments(resource.Namespace).Get(s.ctx, owner.Name, metav1.GetOptions{})
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				deployment, err := s.k8sClient.AppsV1().Deployments(resource.Namespace).Get(ctx, owner.Name, metav1.GetOptions{})
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to get owner of *v1.ReplicaSet")
 					return
@@ -579,7 +583,10 @@ func (s *SecResourceService) Init() {
 			}
 			owner := metav1.GetControllerOf(resource)
 			if owner != nil {
-				deployment, err := s.k8sClient.AppsV1().Deployments(resource.Namespace).Get(s.ctx, owner.Name, metav1.GetOptions{})
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				deployment, err := s.k8sClient.AppsV1().Deployments(resource.Namespace).Get(ctx, owner.Name, metav1.GetOptions{})
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to get owner of *v1.ReplicaSet")
 					return
@@ -631,7 +638,10 @@ func (s *SecResourceService) addResource(name string, namespace string, kind mod
 			ImageName:     reference.ShortName(),
 			ImageTag:      reference.Tag(),
 		}
-		err = policyService.AddResource(s.ctx, resource)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err = policyService.AddResource(ctx, resource)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("resource", fmt.Sprintf("%v", resource)).Msg("Failed to add resource")
 			continue
@@ -663,7 +673,10 @@ func (s *SecResourceService) removeResource(name string, namespace string, kind 
 			ImageName:     reference.ShortName(),
 			ImageTag:      reference.Tag(),
 		}
-		err = policyService.RemoveResource(s.ctx, resource)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err = policyService.RemoveResource(ctx, resource)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Str("resource", fmt.Sprintf("%v", resource)).Msg("Failed to remove resource")
 			continue
