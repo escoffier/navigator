@@ -38,14 +38,12 @@ spec:
           resources:
 {{ toYaml .Values.dockerregistry.resources | indent 12 }}
           env:
-            {{- if .Values.dockerregistry.secrets.htpasswd }}
             - name: REGISTRY_AUTH
               value: "htpasswd"
             - name: REGISTRY_AUTH_HTPASSWD_REALM
               value: "Registry Realm"
             - name: REGISTRY_AUTH_HTPASSWD_PATH
               value: "/auth/htpasswd"
-            {{- end }}
             {{- if .Values.dockerregistry.tlsSecretName }}
             - name: REGISTRY_HTTP_TLS_CERTIFICATE
               value: /etc/ssl/docker/tls.crt
@@ -59,11 +57,9 @@ spec:
               value: "true"
             {{- end }}
           volumeMounts:
-            {{- if .Values.dockerregistry.secrets.htpasswd }}
             - name: auth
               mountPath: /auth
               readOnly: true
-            {{- end }}
             - name: data
               mountPath: /var/lib/registry/
             - name: "{{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}"
@@ -74,14 +70,12 @@ spec:
               readOnly: true
             {{- end }}
       volumes:
-        {{- if .Values.dockerregistry.secrets.htpasswd }}
         - name: auth
           secret:
-            secretName: {{ printf "%s-dockerregistry" (include "common.names.fullname" .) }}
+            secretName: {{ printf "%s-dockerregistry-htpasswd" (include "common.names.fullname" .) }}
             items:
             - key: htpasswd
               path: htpasswd
-        {{- end }}
         - name: data
           {{- if .Values.dockerregistry.persistence.enabled }}
           persistentVolumeClaim:
