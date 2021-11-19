@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"strings"
 	"time"
 
@@ -889,8 +888,6 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapp
 			ContainerID: pod.Status.ContainerStatuses[i].ImageID,
 		})
 	}
-	logging.GetLogger().Info().Msgf("%+v", pod.Status)
-	logging.GetLogger().Info().Msgf("%+v", *podContainerInfos)
 	rel := model.PodResourceRelation{
 		ClusterKey:        clusterKey,
 		Namespace:         pod.GetNamespace(),
