@@ -55,7 +55,7 @@ func main() {
 		logrus.Fatalf("new db fail, err:%s", err)
 	}
 
-	manager = taskmanager.NewManager(db, maxTaskTime, def.ReportPath)
+	manager = taskmanager.NewManager(db, maxTaskTime)
 	handler = notifyhandler.NewHandler(emailConf)
 
 	if err = handleTask(); err != nil {

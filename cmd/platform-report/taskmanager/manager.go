@@ -3,17 +3,13 @@ package taskmanager
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path"
 	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -22,14 +18,12 @@ import (
 type Manager struct {
 	db          *rdbtools.GormWrapper
 	maxTaskTime time.Duration
-	reportPath  string
 }
 
-func NewManager(db *rdbtools.GormWrapper, maxTaskTime time.Duration, reportPath string) *Manager {
+func NewManager(db *rdbtools.GormWrapper, maxTaskTime time.Duration) *Manager {
 	return &Manager{
 		db:          db,
 		maxTaskTime: maxTaskTime,
-		reportPath:  reportPath,
 	}
 }
 
@@ -87,13 +81,6 @@ func (m *Manager) DeleteTaskTemplate(ctx context.Context, id int32) error {
 		err = tx.WithContext(ctx).Delete(&model.ReportTaskTemplateMeta{}, "id = ?", id).Error
 		if err != nil {
 			return err
-		}
-
-		for _, uuid := range uuidList {
-			filename := path.Join(m.reportPath, uuid)
-			if _err := os.Remove(filename); _err != nil && !errors.Is(err, os.ErrNotExist) {
-				logging.GetLogger().Err(_err).Msgf("remove file fail, filename:%s", filename)
-			}
 		}
 
 		return tx.WithContext(ctx).Delete(&model.ReportRecord{}, "template_id = ?", id).Error
@@ -169,21 +156,12 @@ func (m *Manager) UpdateTaskFailed(ctx context.Context, uuid string) error {
 }
 
 func (m *Manager) FinishTask(ctx context.Context, id int32, uuid string, content []byte) error {
-	var err = os.MkdirAll(m.reportPath, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("mkdir fail, err:%s", err)
-	}
-
-	err = os.WriteFile(path.Join(m.reportPath, uuid), content, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("write file faile")
-	}
-
 	return m.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		nowTime := time.Now()
 		err := tx.Model(&model.ReportRecord{}).Where("uuid = ?", uuid).Updates(map[string]interface{}{
 			"status":     model.ReportRecordStatusComplete,
 			"updated_at": nowTime,
+			"content":    content,
 		}).Error
 		if err != nil {
 			return err
@@ -220,18 +198,19 @@ func (m *Manager) GetTemplateReports(ctx context.Context, templateID int32, offs
 	return records, count, err
 }
 
-func (m *Manager) GetReport(_ context.Context, uuid string) (*model.ReportDetail, error) {
-	filename := path.Join(m.reportPath, uuid)
-	content, err := os.ReadFile(filename)
+func (m *Manager) GetReport(ctx context.Context, uuid string) (*model.ReportDetail, error) {
+	var record model.ReportRecord
+	var err = m.db.Get().WithContext(ctx).Where("uuid = ?", uuid).
+		Select("content").First(&record).Error
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if err == gorm.ErrRecordNotFound {
 			return nil, def.ErrReportNotFound
 		}
 		return nil, err
 	}
 
 	var detail model.ReportDetail
-	err = json.Unmarshal(content, &detail)
+	err = json.Unmarshal(record.Content, &detail)
 	if err != nil {
 		return nil, fmt.Errorf("parse report fail, err:%s", err)
 	}

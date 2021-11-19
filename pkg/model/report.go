@@ -106,6 +106,7 @@ type ReportRecord struct {
 	StartTimestamp int64     `json:"startTimestamp" gorm:"column:start_timestamp"`
 	EndTimestamp   int64     `json:"endTimestamp" gorm:"column:end_timestamp"`
 	Status         uint8     `json:"-" gorm:"column:status"`
+	Content        []byte    `json:"-" gorm:"column:content"`
 	CreatedAt      time.Time `json:"-" gorm:"column:created_at"`
 	UpdatedAt      time.Time `json:"-" gorm:"column:updated_at"`
 }

@@ -41,7 +41,6 @@ type Service struct {
 
 	esPod      *PodInfo
 	postgrePod *PodInfo
-	auditPod   *PodInfo
 }
 
 type PodInfo struct {
@@ -56,14 +55,12 @@ type Conf struct {
 
 	ESPod      *PodInfo
 	PostgrePod *PodInfo
-	AuditPod   *PodInfo
 }
 
 func newService(conf *Conf) *Service {
 	service := &Service{
 		esPod:            conf.ESPod,
 		postgrePod:       conf.PostgrePod,
-		auditPod:         conf.AuditPod,
 		taskManager:      taskmanager.NewManager(conf.PostgresDB, def.TaskMaxTime+time.Hour),
 		ttlManager:       ttlmanager.NewManager(conf.PostgresDB),
 		waterlineManager: waterlinemanager.NewManager(conf.PostgresDB),

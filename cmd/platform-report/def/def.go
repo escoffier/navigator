@@ -15,10 +15,6 @@ var (
 	ErrReportNotFound            = errors.New("report not found")
 )
 
-const (
-	ReportPath = "/audit/report/platform"
-)
-
 type TaskManager interface {
 	GetTaskTemplate(ctx context.Context, id int32) (*model.ReportTaskTemplateMeta, error)
 	CreateTaskTemplate(ctx context.Context, template *model.ReportTaskTemplateMeta) (id int32, err error)

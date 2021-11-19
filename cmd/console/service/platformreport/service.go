@@ -53,7 +53,7 @@ const (
 
 func newService(db *rdbtools.GormWrapper, emailConf *def.EmailConf) (*Service, error) {
 	service := &Service{
-		manager:   taskmanager.NewManager(db, MaxTaskTime, def.ReportPath),
+		manager:   taskmanager.NewManager(db, MaxTaskTime),
 		emailConf: emailConf,
 	}
 
