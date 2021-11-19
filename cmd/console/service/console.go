@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -14,9 +13,19 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
@@ -47,13 +56,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -223,12 +225,6 @@ func NewConsole(
 			PVC:      postgresOpts.PVC,
 			Pod:      postgresOpts.Pod,
 			DataPath: postgresOpts.DataPath,
-		},
-
-		AuditPod: &data.PodInfo{
-			PVC:      os.Getenv("AUDIT_PVC"),
-			Pod:      os.Getenv("MY_POD_NAME"),
-			DataPath: os.Getenv("AUDIT_PATH"),
 		},
 	})
 	if err != nil {

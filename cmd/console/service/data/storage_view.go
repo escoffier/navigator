@@ -46,8 +46,16 @@ func (s *Service) GetOfflineHotStorageView(ctx context.Context) (*model.StorageV
 	return s.getStorageView(ctx, s.esPod)
 }
 
-func (s *Service) GetColdStorageView(ctx context.Context) (*model.StorageView, error) {
-	return s.getStorageView(ctx, s.auditPod)
+func (s *Service) GetColdStorageView(_ context.Context) (*model.StorageView, error) {
+	// TODO just for test
+	const (
+		total = 50 * 1024 * 1024 * 1024
+		used  = 50 * 1024 * 1024
+	)
+	return &model.StorageView{
+		Total: total,
+		Used:  used,
+	}, nil
 }
 
 func (s *Service) getStorageView(ctx context.Context, pod *PodInfo) (*model.StorageView, error) {

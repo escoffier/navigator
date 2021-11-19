@@ -28,7 +28,7 @@ func initManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	manager = NewManager(db, time.Hour*2, "./")
+	manager = NewManager(db, time.Hour*2)
 }
 
 func TestManager_CreateTaskTemplate(t *testing.T) {

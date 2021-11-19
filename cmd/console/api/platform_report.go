@@ -401,7 +401,7 @@ func (api *api) getReportRecordDetail() http.HandlerFunc {
 			if err == def.ErrReportNotFound {
 				apperror.RespAndLog(w, ctx,
 					apperror.NewCommonError(http.StatusBadRequest, err,
-						"报告不存在", "report not found"))
+						"报告不存在或已过期", "report not found"))
 				return
 			}
 			apperror.RespAndLog(w, ctx, err)
