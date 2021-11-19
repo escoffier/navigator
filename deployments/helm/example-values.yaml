@@ -112,6 +112,7 @@ holmes:
   daemon:
     image:
       tag: *Verison
+  dockerApiVersion: "1.40"
 
 webhook:
   enabled: true

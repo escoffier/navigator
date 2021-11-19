@@ -72,6 +72,8 @@ spec:
           resources:
 {{ toYaml .Values.daemon.resources | trim | indent 12 }}
           env:
+            - name: DOCKER_API_VERSION
+              value: {{ .Values.daemon.dockerApiVersion | quote }}
             - name: RTDETECT_UDS_ADDR
               value: {{ .Values.falco.grpc.unixSocketPath }}
             - name: STAN_CLUSTER_ID

@@ -27,6 +27,7 @@ daemon:
     limits:
        memory: "500Mi"
        cpu: "100m"
+  dockerApiVersion: "1.40"
 
 nameOverride: "holmes"
 fullnameOverride: "holmes"

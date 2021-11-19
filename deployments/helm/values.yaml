@@ -365,6 +365,7 @@ holmes:
       limits:
          memory: "250Mi"
          cpu: "100m"
+    dockerApiVersion: "1.40"
   ebpf:
     enabled: true
   falco:
