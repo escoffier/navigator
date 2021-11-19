@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	stan "github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	profileService "gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/profile"
@@ -58,7 +58,7 @@ func Init(
 			db:        db,
 		}
 
-		go instance.init(ctx, redisClient)
+		go instance.init(redisClient)
 	})
 
 	return nil
@@ -302,7 +302,8 @@ func (s *QueueService) profileController(ctx context.Context, updatedBy string, 
 	}
 }
 
-func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) error {
+func (s *QueueService) init(redisClient *redis.Client) error {
+	ctx := context.Background()
 	falcoTicker := time.NewTicker(1 * time.Hour)
 	falcoQuit := make(chan struct{})
 	go func() {
@@ -362,10 +363,11 @@ func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) erro
 		suspendMap[profileKey] = suspend
 
 		timer := time.After((time.Duration(profile.Timeout-int(time.Now().Sub(profile.StartTime).Seconds())) - time.Duration(profile.ElapsedTime)) * time.Second)
-		go s.profileController(ctx, "system", redisClient, string(profileKey), timer, ticker, suspend)
+		go s.profileController(context.Background(), "system", redisClient, string(profileKey), timer, ticker, suspend)
 	}
 
 	_, err := (*s.conn).Subscribe("commandResult", func(m *stan.Msg) {
+		ctx := context.Background()
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 		logging.GetLogger().Info().Str("msg", string(m.Data)).Msg("Received a message")
@@ -386,7 +388,7 @@ func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) erro
 
 		profileKey := model.SecProfileRedisKey + string(param.Kind) + fmt.Sprintf("%d", param.PolicyID)
 
-		redisCtx, redisCtxCancel := context.WithTimeout(ctx, 30*time.Second)
+		redisCtx, redisCtxCancel := context.WithTimeout(ctx, 1*time.Second)
 		defer redisCtxCancel()
 		profileRaw, err := redisClient.Get(redisCtx, profileKey).Result()
 		if err == redis.Nil {
@@ -427,6 +429,8 @@ func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) erro
 				return
 			}
 
+			redisCtx, redisCtxCancel := context.WithTimeout(ctx, 1*time.Second)
+			defer redisCtxCancel()
 			err = redisClient.Del(redisCtx, profileKey).Err()
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Int("policyID", param.PolicyID).Msg("Failed to remove profile key from cache")
@@ -505,6 +509,8 @@ func (s *QueueService) init(ctx context.Context, redisClient *redis.Client) erro
 
 			logging.GetLogger().Info().Int("policyID", param.PolicyID).Msg("Profile successfully updated")
 
+			redisCtx, redisCtxCancel := context.WithTimeout(ctx, 1*time.Second)
+			defer redisCtxCancel()
 			err = redisClient.Del(redisCtx, profileKey).Err()
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Int("policyID", param.PolicyID).Msg("Failed to remove profile key from cache")

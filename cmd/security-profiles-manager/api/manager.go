@@ -143,7 +143,6 @@ func NewSecProfileManager(
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
-	defer mainCancel()
 
 	// security policy service
 	err = profile.Init(db, clientset)
