@@ -82,6 +82,11 @@ spec:
         - name: cluster-admin-secret
           readOnly: true
           mountPath: "/etc/secrets/cluster-admin"
+        {{- if .Values.global.multiCluster.isMainCluster }}
+        - mountPath: /auth/server
+          name: server-cert
+          readOnly: true
+        {{- end }}
       {{- if .Values.global.multiCluster.isMemberCluster }}
       - name: redis
         args:
@@ -101,18 +106,17 @@ spec:
           subPath: redis.conf
         - mountPath: /data
           name: redis-data
-        - mountPath: /auth/server
-          name: server-cert
-          readOnly: true
       {{- end }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       restartPolicy: Always
       volumes:
+      {{- if .Values.global.multiCluster.isMainCluster }}
       - name: server-cert
         secret:
           defaultMode: 400
           secretName: eventcenter-tls-server-cert-secret
+      {{- end }}
       - name: cluster-admin-secret
         secret:
           secretName: {{ include "common.names.fullname" . }}
