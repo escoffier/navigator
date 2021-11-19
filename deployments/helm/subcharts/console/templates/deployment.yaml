@@ -63,8 +63,6 @@ spec:
           - mountPath: /auth/server
             name: server-cert
             readOnly: true
-          - mountPath: /audit
-            name: audit
         env:
         # Required for managing scap jobs
         - name: MY_POD_NAMESPACE
@@ -174,26 +172,3 @@ spec:
         secret:
           defaultMode: 400
           secretName: eventcenter-tls-server-cert-secret
-{{- if not .Values.persistence.enabled }}
-      - name: audit
-        emptyDir: {}
-{{- else }}
-      - name: audit
-        persistentVolumeClaim:
-          claimName: {{ .Values.persistence.claimName }}
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ .Values.persistence.claimName }}
-spec:
-  accessModes:
-  {{- range .Values.persistence.accessModes }}
-    - {{ . | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.persistence.size | quote }}
-  {{ include "common.storage.class" (dict "persistence" .Values.persistence "global" .Values.global) }}
-{{- end }}

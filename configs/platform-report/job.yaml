@@ -15,22 +15,14 @@ spec:
           image: localhost:32000/platform-report:latest
           command: ["/platform-report"]
           imagePullPolicy: Always
-          volumeMounts:
-            - name: audit
-              mountPath: /audit
           resources:
             requests:
-              memory: "100Mi"
-              cpu: "100m"
+              memory: "1000Mi"
+              cpu: "500m"
             limits:
               memory: "1000Mi"
-              cpu: "0.5"
+              cpu: "500m"
       restartPolicy: Never
       imagePullSecrets:
         - name: harbor-admin-secret
-      volumes:
-        - name: audit
-          persistentVolumeClaim:
-            claimName: audit-pvc
-
   backoffLimit: 0
