@@ -68,6 +68,13 @@ func NewService() (*Service, error) {
 	}
 	svc.asyncRiskMonitor()
 
+	err = svc.doRegisterEventsCenterRules(context.Background())
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
+		svc.asyncRegisterEventsCenterRules()
+	}
+	svc.asyncRiskMonitor()
+
 	return svc, nil
 }
 
@@ -316,18 +323,17 @@ func (s *Service) asyncRiskMonitor() {
 			}
 		}()
 
-		var eclientErr error
+		ecenterColCli, eclientErr := echelper.NewGRPCClientFromEnv()
 		for eclientErr != nil {
-			var ecenterColCli pb.EventsCenterCollectionServiceClient
 			ecenterColCli, eclientErr = echelper.NewGRPCClientFromEnv()
 			if eclientErr != nil {
 				logging.GetLogger().Err(eclientErr).Msg("init events center error")
 				time.Sleep(1 * time.Second)
 			} else {
-				s.eventsCenterCli = ecenterColCli
 				break
 			}
 		}
+		s.eventsCenterCli = ecenterColCli
 
 		err := s.doRegisterEventsCenterRules(context.Background())
 		if err != nil {
