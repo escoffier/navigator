@@ -50,6 +50,8 @@ type ImageReject struct {
 }
 
 func (s *ImageReject) UpdateSinglePolicy(ctx context.Context, id int64, policy model.RejectPolicy) error {
+	// 漏洞阻断级别全是大写了，兼容前端
+	policy.VulnLevel = strings.ToUpper(policy.VulnLevel)
 	if err := checkRejectPolicy(policy); err != nil {
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
@@ -295,6 +297,8 @@ func (s *ImageReject) DeleteImageWhitelist(ctx context.Context, imageWhiteId int
 }
 
 func (s *ImageReject) CreateSinglePolicy(ctx context.Context, policy model.RejectPolicy) error {
+	policy.VulnLevel = strings.ToUpper(policy.VulnLevel)
+
 	if err := checkRejectPolicy(policy); err != nil {
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
