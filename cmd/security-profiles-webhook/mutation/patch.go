@@ -45,7 +45,7 @@ func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drif
 			})
 		}
 	}
-	volumes := spec.DeepCopy().Volumes
+	volumes := make([]corev1.Volume, 0)
 	volumeName := fmt.Sprintf("cw-%s", commandWhitelistProfile)
 	if commandWhitelist {
 		configMapItems := make([]corev1.KeyToPath, 0)

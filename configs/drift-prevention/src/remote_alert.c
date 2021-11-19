@@ -48,9 +48,9 @@ typedef struct alert_t
     uint32_t crc32_actual;
 } alert_t;
 
-static char const CAFile[] = "/auth/ca/tls.crt";
-static char const CertFile[] = "/auth/client/tls.crt";
-static const char KeyFile[] = "/auth/client/tls.key";
+// static char const CAFile[] = "/auth/ca/tls.crt";
+// static char const CertFile[] = "/auth/client/tls.crt";
+// static const char KeyFile[] = "/auth/client/tls.key";
 
 static int generate_random_uuid(char *uuid)
 {
@@ -178,11 +178,11 @@ static int send_https_request(const char *host, int port, const char *method, co
         goto cleanup_ctx;
     }
 
-    if (load_certificates(ctx, CAFile, CertFile, KeyFile))
-    {
-        drift_prevent_write_log(ERROR, "When load cert : %s\n", strerror(errno));
-        goto cleanup_ctx;
-    }
+    // if (load_certificates(ctx, CAFile, CertFile, KeyFile))
+    // {
+    //     drift_prevent_write_log(ERROR, "When load cert : %s\n", strerror(errno));
+    //     goto cleanup_ctx;
+    // }
 
     // get hostname
     const int sockfd = socket(AF_INET, SOCK_STREAM, 0);
