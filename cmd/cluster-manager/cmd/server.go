@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,20 +11,18 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
 	clusterManager "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type server struct {
@@ -60,40 +59,40 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 	s.httpserver = httpserver
 
 	if s.config.Name == clusterserver.HostClusterName {
-		postgresOpts := flag.GetPostgresOpts(cmd)
-		logging.GetLogger().Info().
-			Str("postgres connection", postgresOpts.PostgresConnectionString).
-			Str("pvc", postgresOpts.PVC).
-			Str("pod", postgresOpts.Pod).
-			Str("dataPath", postgresOpts.DataPath).
-			Msg("Postgres options")
-
-		scannerOpts := flag.GetVegetaScannerOpts(cmd)
-		logging.GetLogger().Info().
-			Str("host", scannerOpts.Host).
-			Int("port", scannerOpts.Port).
-			Msg("Vegeta Scanner options")
-
-		redisOpts := flag.GetRedisOpts(cmd)
-		logging.GetLogger().Info().
-			Str("endpoint", redisOpts.Endpoint).
-			Msg("Redis options")
 
 		// Redis DB client
-		sa := strings.Split(redisOpts.Endpoint, ",")
+		redisEndpoints := os.Getenv("REDIS_ENDPOINTS")
+		if redisEndpoints == "" {
+			return nil, errors.New("missing REDIS_ENDPOINTS")
+		}
+		redisPassword := os.Getenv("REDIS_PASSWORD")
+		if redisPassword == "" {
+			return nil, errors.New("missing REDIS_PASSWORD")
+		}
+		sa := strings.Split(redisEndpoints, ",")
 		redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
 			MasterName:    "mymaster",
 			SentinelAddrs: sa,
-			Password:      os.Getenv("REDIS_PASSWORD"),
+			Password:      redisPassword,
 			DB:            0,
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		PgDsn := postgresOpts.PostgresConnectionString
+		rdbUser := os.Getenv("RDB_USER")
+		rdbPassword := os.Getenv("RDB_PASSWORD")
+		rdbHost := os.Getenv("RDB_HOST")
+		rdbPort := os.Getenv("RDB_PORT")
+		rdbDBName := os.Getenv("RDB_DBNAME")
+		rdbSSLMode := os.Getenv("RDB_SSLMODE")
+		if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
+			return nil, errors.New("missing RDB env")
+		}
+
+		pgDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", rdbUser, rdbPassword, rdbHost, rdbPort, rdbDBName, rdbSSLMode)
 		postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-			db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+			db, err := gorm.Open(postgres.Open(pgDSN), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 			if err != nil {
 				logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 				return nil, err
@@ -111,7 +110,9 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return nil, err
 		}
 
-		scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
+		scannerHost := os.Getenv("SCANNER_HOST")
+		scannerPort := os.Getenv("SCANNER_PORT")
+		scannerURL := fmt.Sprintf("http://%s:%s", scannerHost, scannerPort)
 
 		err = k8s.InitClusterManager(postgresDB, func(ctx context.Context) (*pkgassets.Watcher, error) {
 			return assets.Watcher(postgresDB, redisClient, scannerURL)
@@ -163,7 +164,4 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")
 	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/cluster-manager/certs/tls.key", "The path of tls key")
 	fs.BoolVar(&ServerConfig.TlsServer, "tlsServer", false, "use tls server")
-	flag.AddRedisFlags(rootCmd)
-	flag.AddPostgresFlags(rootCmd)
-	flag.AddVegetaScannerFlags(rootCmd)
 }
