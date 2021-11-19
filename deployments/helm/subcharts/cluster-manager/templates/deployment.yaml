@@ -101,11 +101,18 @@ spec:
           subPath: redis.conf
         - mountPath: /data
           name: redis-data
+        - mountPath: /auth/server
+          name: server-cert
+          readOnly: true
       {{- end }}
       imagePullSecrets:
       - name: {{ .Values.image.pullSecret }}
       restartPolicy: Always
       volumes:
+      - name: server-cert
+        secret:
+          defaultMode: 400
+          secretName: eventcenter-tls-server-cert-secret
       - name: cluster-admin-secret
         secret:
           secretName: {{ include "common.names.fullname" . }}
