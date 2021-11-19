@@ -3,8 +3,9 @@ package task
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -14,10 +15,10 @@ import (
 )
 
 type UpdateTaskInfo struct {
-	Scope       int
-	TriggerType int
-	StrategyId  int64
-	Operator    string
+	Scope       int    `json:"scope"`
+	TriggerType int    `json:"trigger_type"`
+	StrategyId  int64  `json:"strategy_id"`
+	Operator    string `json:"operator"`
 }
 
 type TaskSrv struct {

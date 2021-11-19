@@ -196,27 +196,61 @@ func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data{}}
 // @Router	/api/v1/scan/harbor/scanAllNow [post]
 func (s *Scanner) ScanAllNow(ctx *gin.Context) {
-	type tmpRecv struct {
-		Operator   string `json:"operator"`
-		StrategyId int64  `json:"strategy_id"`
+	type tem struct {
+		SearchWord       string  `json:"search"`
+		FromType         int64   `json:"from_type"`
+		Kind             string  `json:"kind"`
+		Online           string  `json:"online"`
+		ImageType        string  `json:"image_type"`
+		ImageId          int64   `json:"image_id"`
+		ImageIds         []int64 `json:"image_ids"`
+		Library          string  `json:"library"`
+		ScanStatus       []int   `json:"scan_status"`
+		Trusted          string  `json:"trusted"`
+		HasFixedVulu     string  `json:"has_fixed_vulu"`
+		IsReinforce      string  `json:"is_reinforce"`
+		NodeHostname     string  `json:"node_hostname"`
+		SpecialImageType string  `json:"special_image_type"`
+		JustReturnImage  bool    `json:"just_return_image"`
+		Scope            int     `json:"scope"`
+		TriggerType      int     `json:"trigger_type"`
+		StrategyId       int64   `json:"strategy_id"`
+		Operator         string  `json:"operator"`
 	}
-	tem := tmpRecv{}
-	if err := ctx.BindJSON(&tmpRecv{}); err != nil {
+
+	t := new(tem)
+	if err := ctx.BindJSON(t); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 
-	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
-	if err != nil {
-		fromType = model.ImageFromTypeNormal
+	search := component.SearchImagesParam{
+		SearchWord:       t.SearchWord,
+		FromType:         t.FromType,
+		Kind:             t.Kind,
+		Online:           t.Online,
+		ImageType:        t.ImageType,
+		ImageId:          t.ImageId,
+		ImageIds:         t.ImageIds,
+		Library:          t.Library,
+		ScanStatus:       t.ScanStatus,
+		Trusted:          t.Trusted,
+		HasFixedVulu:     t.HasFixedVulu,
+		IsReinforce:      t.IsReinforce,
+		NodeHostname:     t.NodeHostname,
+		SpecialImageType: t.SpecialImageType,
+		JustReturnImage:  true,
 	}
-	// asynchronous execution, no matter what return no error
-	info := task.UpdateTaskInfo{
-		StrategyId: tem.StrategyId,
-		Operator:   tem.Operator,
+
+	scanInfo := task.UpdateTaskInfo{
+		Scope:       t.Scope,
+		TriggerType: t.TriggerType,
+		StrategyId:  t.StrategyId,
+		Operator:    t.Operator,
 	}
+
 	go func() {
-		if err := s.Srv.ScanAllNow(ctx, fromType, info); err != nil {
+		if err := s.Srv.ScanAllNow(ctx, scanInfo, search); err != nil {
 			log.Err(err).Msg("scan all error")
 		}
 	}()

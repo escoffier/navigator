@@ -31,20 +31,21 @@ import (
 )
 
 type SearchImagesParam struct {
-	SearchWord       string
-	FromType         int64
-	Kind             string
-	Online           string
-	ImageType        string
-	ImageId          int64
-	ImageIds         []int64
-	Library          string
-	ScanStatus       []int
-	Trusted          string
-	HasFixedVulu     string
-	IsReinforce      string
-	NodeHostname     string
-	SpecialImageType string
+	SearchWord       string  `json:"search_word"`
+	FromType         int64   `json:"from_type"`
+	Kind             string  `json:"kind"`
+	Online           string  `json:"online"`
+	ImageType        string  `json:"image_type"`
+	ImageId          int64   `json:"image_id"`
+	ImageIds         []int64 `json:"image_ids"`
+	Library          string  `json:"library"`
+	ScanStatus       []int   `json:"scan_status"`
+	Trusted          string  `json:"trusted"`
+	HasFixedVulu     string  `json:"has_fixed_vulu"`
+	IsReinforce      string  `json:"is_reinforce"`
+	NodeHostname     string  `json:"node_hostname"`
+	SpecialImageType string  `json:"special_image_type"`
+	JustReturnImage  bool    `json:"just_return_image"`
 }
 
 type ScannerSrv interface {
@@ -57,7 +58,7 @@ type ScannerSrv interface {
 	TickScanOne(ctx context.Context, imgId int64, info task.UpdateTaskInfo) error
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
 	ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error)
-	ScanAllNow(ctx context.Context, fromType int64, info task.UpdateTaskInfo) error
+	ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImagesParam) error
 	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
 	ListImgLayers(ctx context.Context, imgId int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
@@ -544,15 +545,6 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult insert reject record error %s", err.Error())
 		}
 	}
-	// if !safe {
-	// 不删除记录
-	// if err := s.dbdal.DeleteImage(ctx, store.DeleteImageParam{ImageId: req.ImageID}); err != nil {
-	// 	logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete tensor_image_list record error %s", err.Error())
-	// }
-	// if err := s.dbdal.DeleteScanImage(ctx, store.DeleteScanImageParam{ImageId: req.ImageID}); err != nil {
-	// 	logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult delete scan_image record error %s", err.Error())
-	// }
-	// }
 
 	return &model.ScanOneForCICDResponse{
 		IsScan:      true,
@@ -858,8 +850,14 @@ func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context, fromType int64) ha
 	return s.dbdal.SearchScanAllStatus(ctx, fromType)
 }
 
-func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromType int64, info task.UpdateTaskInfo) error {
-	logging.GetLogger().Info().Int64("fromType", fromType).Msg("start full scan")
+func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImagesParam) error {
+	logging.GetLogger().Info().Int64("fromType", search.FromType).Msg("start full scan")
+
+	images, _, err := s.SearchImages(ctx, search, model.EmptyFilterForTheTotalQuery())
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("ScanAllNow find image error")
+		return err
+	}
 
 	// 先查询当前时刻已存在的仓库列表
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
@@ -867,28 +865,17 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, fromType int64, info tas
 		logging.GetLogger().Error().Err(err).Msg("not found registry info")
 		return err
 	}
-	registryIds := make([]int64, len(registries))
+	registryMap := make(map[int64]bool)
 	for i := range registries {
-		registryIds[i] = registries[i].ID
+		registryMap[registries[i].ID] = true
 	}
 
 	imgIds := make([]int64, 0)
-
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{FromType: fromType, RegistryIds: registryIds, Fields: []string{"id"}}, nil)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("query images error")
-		return err
+	for i := range images {
+		if registryMap[images[i].RegistryId] {
+			imgIds = append(imgIds, images[i].ID)
+		}
 	}
-
-	for i := range imgs {
-		imgIds = append(imgIds, imgs[i].ID)
-	}
-
-	if len(imgIds) == 0 {
-		logging.GetLogger().Info().Msg("full image scan not found match images")
-		return nil
-	}
-
 	ts := task.NewTaskSrv()
 	if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 		TriggerType: consts.ManualTrigger, Scope: consts.FullScan,
@@ -1415,6 +1402,9 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
+	if param.JustReturnImage {
+		return res, cnt, nil
+	}
 	if len(res) == 0 {
 		return res, 0, nil
 	}
@@ -1925,7 +1915,7 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img *model.ImageList
 
 		msgZh := "非基础镜像构建的应用镜像"
 		msgEN := "The application image is not built with a verified base image"
-		msgLog := fmt.Sprintf("image:%s%s:%s untrusted base image", img.Library, img.FullRepoName, img.Tags)
+		msgLog := fmt.Sprintf("image:%s/%s:%s untrusted base image", img.Library, img.FullRepoName, img.Tags)
 
 		switch po.BaseImagePolicy {
 		case model.RejectPolicyReject:
@@ -1955,6 +1945,8 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img *model.ImageList
 // checkWebshell 检查websell的扫描结果
 func (s *ConScannerSrv) checkWebshell(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	logging.GetLogger().Info().Msg("checkWebshell,start ")
+	logging.GetLogger().Info().Msgf("CICD checkWebshell, imageid:%d,websell policy  is:%s,webshell has :%d", img.ID, po.WebShellPolicy, len(scanImage.WebshellInfo))
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -2109,6 +2101,7 @@ func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, 
 }
 
 func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("start checkMaliciousInfo, imageid:%d malic police is %s,malic:%d", img.ID, po.MaliciousPolicy, len(scanImage.MaliciousInfo))
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -2147,7 +2140,7 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 }
 
 func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Info().Msgf("CICD checkSensitiveFile, imageid:%d,checkSensitiveFile:%+v,policy env is :%+v,env policy is :%+v", img.ID, scanImage.SensitiveFile, po.Envs, po.SensitiveFile)
+	logging.GetLogger().Info().Msgf("CICD checkSensitiveFile, imageid:%d,Sensitive policy  is:%s, custom Sensitive police is %+v, Sensitive is :%d", img.ID, po.SensitiveFilePolicy, po.SensitiveFile, len(scanImage.SensitiveFile))
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
@@ -2217,6 +2210,8 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 }
 
 func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("CICD checkCustomizeVulu, imageid:%d,customizeVulu policy  is:%+v,vulu has :%d", img.ID, po.RejectVulns, len(scanImage.VulnInfo))
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -2274,6 +2269,8 @@ func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.
 }
 
 func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("CICD checkVulnSeverity, imageid:%d,vulu policy is:%s ,vulnSeverity is :%d ,vulu has :%d", img.ID, po.VulnPolicy, po.VulnScore, len(scanImage.VulnInfo))
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
@@ -2328,6 +2325,8 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 }
 
 func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("CICD checkVulnScore, imageid:%d,vulnScore policy  is:%s,vulnScore is :%g", img.ID, po.VulnPolicy, scanImage.VulnScore)
+
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true

@@ -165,21 +165,21 @@ func FilterVulnsFromScanImage(scanDetails []model.SingleScanDetail) []model.Resp
 func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln) int {
 	// 就先写魔法数字吧，恶心是恶心了点
 	subScore := map[string]int{
-		"Critical":   25,
-		"High":       20,
-		"Medium":     15,
-		"Low":        10,
-		"Negligible": 5,
-		"Unknown":    5,
+		model.SeverityCritical:   25,
+		model.SeverityHigh:       20,
+		model.SeverityMedium:     15,
+		model.SeverityLow:        10,
+		model.SeverityNegligible: 5,
+		model.SeverityUnknown:    5,
 	}
 
 	exitScore := map[string]bool{
-		"Critical":   false,
-		"High":       false,
-		"Medium":     false,
-		"Low":        false,
-		"Negligible": false,
-		"Unknown":    false,
+		model.SeverityCritical:   false,
+		model.SeverityHigh:       false,
+		model.SeverityMedium:     false,
+		model.SeverityLow:        false,
+		model.SeverityNegligible: false,
+		model.SeverityUnknown:    false,
 	}
 	fileterScan := FilterVulnsFromScanImage(imascan.VulnInfo)
 	ans := 50
@@ -197,12 +197,12 @@ func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln
 
 func compareSeverity(s1, s2 string) bool {
 	subScore := map[string]int64{
-		"Critical":   6,
-		"High":       5,
-		"Medium":     4,
-		"Low":        3,
-		"Negligible": 2,
-		"Unknown":    1,
+		model.SeverityCritical:   6,
+		model.SeverityHigh:       5,
+		model.SeverityMedium:     4,
+		model.SeverityLow:        3,
+		model.SeverityNegligible: 2,
+		model.SeverityUnknown:    1,
 	}
 	return subScore[s1] >= subScore[s2]
 }

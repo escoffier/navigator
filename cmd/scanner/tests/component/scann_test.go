@@ -1,4 +1,5 @@
-//+build local
+//go:build local
+// +build local
 
 // nolint
 package component
@@ -390,7 +391,7 @@ func (m *mockdal) SearchRejectPolicy(ctx context.Context, param store.SearchReje
 		Name:                "hello",
 		Library:             []string{"https://registry.t-appagile.com"},
 		VulnScore:           50,
-		VulnLevel:           model.NegligibleVuln,
+		VulnLevel:           model.SeverityNegligible,
 		WebShellScore:       2,
 		WebShellPolicy:      model.RejectPolicyReject,
 		SensitiveFilePolicy: model.RejectPolicyReject,

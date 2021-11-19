@@ -7,15 +7,6 @@ const (
 
 	RejectPolicyBaseModel = "base" // 基本模式
 	RejectPolicySafeModel = "safe" // 安全模式
-
-	// 漏洞级别
-	NegligibleVuln = "Negligible" // 可忽略
-	UnknownVuln    = "Unknown"    // 未知
-	LowVuln        = "Low"        // 低
-	MediumVuln     = "Medium"     // 中
-	HighVuln       = "High"       // 危
-	CriticalVuln   = "Critical"   // 高危
-
 )
 const (
 	// TOP5 统计类别
@@ -108,21 +99,22 @@ var reasonENMap = map[int64]string{
 	RejectReasonPrivilegedBoot:       "Privileged boot image",
 	RejectReasonHasUntrustedEnv:      "Untrusted envs",
 }
+
 var reasonChMap = map[string]string{
-	NegligibleVuln: GetRejectReason(LangZh)[RejectReasonHasNegligible],
-	UnknownVuln:    GetRejectReason(LangZh)[RejectReasonHasUnknown],
-	LowVuln:        GetRejectReason(LangZh)[RejectReasonHasLow],
-	MediumVuln:     GetRejectReason(LangZh)[RejectReasonHasMedium],
-	HighVuln:       GetRejectReason(LangZh)[RejectReasonHasHigh],
-	CriticalVuln:   GetRejectReason(LangZh)[RejectReasonHasCritical],
+	SeverityNegligible: GetRejectReason(LangZh)[RejectReasonHasNegligible],
+	SeverityUnknown:    GetRejectReason(LangZh)[RejectReasonHasUnknown],
+	SeverityLow:        GetRejectReason(LangZh)[RejectReasonHasLow],
+	SeverityMedium:     GetRejectReason(LangZh)[RejectReasonHasMedium],
+	SeverityHigh:       GetRejectReason(LangZh)[RejectReasonHasHigh],
+	SeverityCritical:   GetRejectReason(LangZh)[RejectReasonHasCritical],
 }
 var reasonEnMap = map[string]string{
-	NegligibleVuln: GetRejectReason(LangEn)[RejectReasonHasNegligible],
-	UnknownVuln:    GetRejectReason(LangEn)[RejectReasonHasUnknown],
-	LowVuln:        GetRejectReason(LangEn)[RejectReasonHasLow],
-	MediumVuln:     GetRejectReason(LangEn)[RejectReasonHasMedium],
-	HighVuln:       GetRejectReason(LangEn)[RejectReasonHasHigh],
-	CriticalVuln:   GetRejectReason(LangEn)[RejectReasonHasCritical],
+	SeverityNegligible: GetRejectReason(LangEn)[RejectReasonHasNegligible],
+	SeverityUnknown:    GetRejectReason(LangEn)[RejectReasonHasUnknown],
+	SeverityLow:        GetRejectReason(LangEn)[RejectReasonHasLow],
+	SeverityMedium:     GetRejectReason(LangEn)[RejectReasonHasMedium],
+	SeverityHigh:       GetRejectReason(LangEn)[RejectReasonHasHigh],
+	SeverityCritical:   GetRejectReason(LangEn)[RejectReasonHasCritical],
 }
 
 func GetRejectReason(lag string) map[int64]string {
@@ -136,12 +128,12 @@ func GetRejectReason(lag string) map[int64]string {
 
 func GetSeverityRejectReason(severity string) int64 {
 	subScore := map[string]int64{
-		CriticalVuln:   RejectReasonHasCritical,
-		HighVuln:       RejectReasonHasHigh,
-		MediumVuln:     RejectReasonHasMedium,
-		LowVuln:        RejectReasonHasLow,
-		NegligibleVuln: RejectReasonHasNegligible,
-		UnknownVuln:    RejectReasonHasUnknown,
+		SeverityCritical:   RejectReasonHasCritical,
+		SeverityHigh:       RejectReasonHasHigh,
+		SeverityMedium:     RejectReasonHasMedium,
+		SeverityLow:        RejectReasonHasLow,
+		SeverityNegligible: RejectReasonHasNegligible,
+		SeverityUnknown:    RejectReasonHasUnknown,
 	}
 	return subScore[severity]
 }
