@@ -82,10 +82,10 @@ scanner:
     resources:
       limits:
         cpu: "200m"
-        memory: "300Mi" 
+        memory: "600Mi" 
       requests:
         cpu: "200m"
-        memory: "300Mi"
+        memory: "600Mi"
     interval: 5m
     emailCheck:
       smtpHost: smtp.feishu.cn
