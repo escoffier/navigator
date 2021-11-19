@@ -108,8 +108,8 @@ func (m *Mutator) Init() error {
 }
 
 func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
-	digests := &ImageDigest{}
 
+	digests := &ImageDigest{}
 	var kubeSecretNames []string
 	for _, secs := range pod.Spec.ImagePullSecrets {
 		kubeSecretNames = append(kubeSecretNames, secs.Name)
@@ -117,18 +117,22 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 
 	for index := range pod.Spec.InitContainers {
 		digests.InitContainerImages = append(digests.InitContainerImages,
-			m.buildDigestImage(ctx, parameters, pod.Spec.InitContainers[index].Image, kubeSecretNames))
+			m.buildDigestImage(ctx, parameters, &pod.Spec.InitContainers[index], kubeSecretNames))
 	}
 
 	for index := range pod.Spec.Containers {
 		digests.ContainerImages = append(digests.ContainerImages,
-			m.buildDigestImage(ctx, parameters, pod.Spec.Containers[index].Image, kubeSecretNames))
+			m.buildDigestImage(ctx, parameters, &pod.Spec.Containers[index], kubeSecretNames))
 	}
 
 	return patchImageDigest(digests)
 }
 
-func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, originImage string, kubeSecretNames []string) string {
+func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, container *corev1.Container, kubeSecretNames []string) string {
+	originImage := container.Image
+	if strings.Contains(originImage, "@sha256") || container.ImagePullPolicy != "Always" {
+		return ""
+	}
 	secret := m.getSecrets(parameters.ClusterKey, parameters.Namespace, originImage, kubeSecretNames)
 	digest := getImageDigestFromHarbor(ctx, originImage, secret)
 	if digest != "" {
@@ -142,7 +146,7 @@ func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.M
 	return ""
 }
 
-func (m *Mutator) PreMutate(_ context.Context, pod *corev1.Pod, parameters *processors.MutatorParameters) bool {
+func (m *Mutator) PreMutate(_ context.Context, _ *corev1.Pod, parameters *processors.MutatorParameters) bool {
 	for _, ns := range m.IgnoredNameSpaces {
 		if parameters.Namespace == ns {
 			logging.GetLogger().Info().Msgf("ingored mutating for resource %s in namespace %s", parameters.Kind, ns)
