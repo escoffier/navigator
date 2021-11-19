@@ -40,10 +40,8 @@ dockerregistry:
   # Set this to name of secret for tls certs
   # tlsSecretName: registry.docker.example.com
   secrets:
-    # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
-    # e.g. "htpasswd -nbBC10 $username $password"
-    # Default: registry:Registry@Passw0rd
-    htpasswd: "registry:$2y$10$lxSxhkgwiq9fyvKBOmOkjuOW6x2Z4krBAJDa4fQV9IBiCoK2aXHRu"
+    username: "registry"
+    password: "Registry@Passw0rd"
   configData:
     version: 0.1
     log:

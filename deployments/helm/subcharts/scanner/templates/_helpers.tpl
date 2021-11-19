@@ -31,6 +31,13 @@ Return the init container image name
 {{ include "common.images.image" ( dict "imageRoot" .Values.init.image "global" .Values.global) }}
 {{- end -}}
 
+{{/*
+Return the dockerregistry htpasswd
+*/}}
+{{- define "scanner.docker.registry.htpasswd" -}}
+{{- $htpasswd := htpasswd .Values.dockerregistry.secrets.username .Values.dockerregistry.secrets.password -}}
+{{- print $htpasswd -}}
+{{- end -}}
 
 {{/*
 Expand the name of the chart.

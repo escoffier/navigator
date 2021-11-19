@@ -11,6 +11,7 @@ global:
     url: &imageRegistryURL harbor.local.example.com
     username: &imageRegistryUsername admin
     password: &imageRegistryPassword Harbor12345
+  webhookMutators: &webhookMutators "DriftPreventionMutator,MicroSegMutator,ImageTrustMutator,SidecarInjector"
   bufRegistryExternalUrl: console.localhost.com
   consoleExternalAdd: https://console-external.localhost.com
   emailOfficialName: "Navigator"
@@ -77,10 +78,8 @@ scanner:
       enabled: *persistenceStorage
       size: 50Gi
     secrets:
-      # If you update the username or password of registry, make sure use cli tool htpasswd to generate the bcrypt hash
-      # e.g. "htpasswd -nbBC10 $username $password"
-      # Default: registry:Registry@Passw0rd
-      htpasswd: "registry:$2y$10$lxSxhkgwiq9fyvKBOmOkjuOW6x2Z4krBAJDa4fQV9IBiCoK2aXHRu"
+      username: "registry"
+      password: "Registry@Passw0rd"
     service:
       type: ClusterIP
       # clusterIP:
@@ -116,6 +115,7 @@ holmes:
 
 webhook:
   enabled: true
+  mutators: *webhookMutators
   image:
     tag: *Verison
   sidecar:

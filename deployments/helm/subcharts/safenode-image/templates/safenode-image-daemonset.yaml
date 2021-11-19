@@ -45,7 +45,10 @@ spec:
             - name: SAFENODE-BUF-REGISTRY-USER
               value: {{ .Values.bufRegistry.bufRegistryUser }}
             - name: SAFENODE-BUF-REGISTRY-PASSWORD
-              value: {{ .Values.bufRegistry.bufRegistryPass }}
+              valueFrom:
+              secretKeyRef:
+                name: {{ printf "%s-dockerregistry-normal" (include "common.scanner.defaultName" .) }}
+                key: pass
             - name: CLUSTER-MANAGER-ADDR
               value: "http://{{ include "common.cluster-manager.defaultName" . }}:9443"
           resources:
