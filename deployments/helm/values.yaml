@@ -200,6 +200,13 @@ cluster-manager:
         cpu: 100m
         memory: 256Mi
     password: Redis12345
+  scanner:
+    port: 8888
+  postgres:
+    username: postgres
+    port: "5432"
+    dbName: postgres
+    sslMode: disable
   
 eventcenterAuth:
   enabled: true
