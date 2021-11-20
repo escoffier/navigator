@@ -95,7 +95,8 @@ func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drif
 		},
 	}
 	envs = append(envs, myPodUIDEnvVar)
-	volumeMounts := spec.DeepCopy().VolumeMounts
+	// volumeMounts := spec.DeepCopy().VolumeMounts
+	volumeMounts := make([]corev1.VolumeMount, 0)
 	if commandWhitelist {
 		if commandWhitelistMode == model.SecurityModeDetection {
 			envs = append(envs, corev1.EnvVar{
