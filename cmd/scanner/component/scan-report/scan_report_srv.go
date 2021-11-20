@@ -111,6 +111,14 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 		return
 	}
 
+	logging.GetLogger().Info().Msgf(
+		"mark current task is doing success, name:%s, type: %s, start: %d, end: %d",
+		v.TensorScanReportTasks.Name,
+		v.TensorScanReportTasks.Type,
+		v.StartTimeStamp,
+		v.EndTimeStamp,
+	)
+
 	// 读取数据
 	result, err := s.getImagesInfo(ctx, v)
 	if err != nil {
@@ -121,23 +129,47 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 		return
 	}
 
+	logging.GetLogger().Info().Msgf(
+		"get scanner report result success, name:%s, type: %s, start: %d, end: %d",
+		v.TensorScanReportTasks.Name,
+		v.TensorScanReportTasks.Type,
+		v.StartTimeStamp,
+		v.EndTimeStamp,
+	)
+
 	data, err := result.Marshal()
 	if err != nil {
 		logging.GetLogger().Err(err).
-			Msgf("marshal scan report date failed, id: %d", v.ID)
+			Msgf("marshal scan report data failed, id: %d", v.ID)
 		_ = s.dao.UpdateSubTaskStatus(ctx, v.ID, scanreport.SubTasksStatusFailed)
 		return
 	}
+
+	logging.GetLogger().Info().Msgf(
+		"marshal scan report data success, name:%s, type: %s, start: %d, end: %d",
+		v.TensorScanReportTasks.Name,
+		v.TensorScanReportTasks.Type,
+		v.StartTimeStamp,
+		v.EndTimeStamp,
+	)
 
 	result = nil
 	// 压缩数据
 	data1, err := compress.ZlipCompress(data)
 	if err != nil {
 		logging.GetLogger().Err(err).
-			Msgf("compress scan report date failed, id: %d", v.ID)
+			Msgf("compress scan report data failed, id: %d", v.ID)
 		_ = s.dao.UpdateSubTaskStatus(ctx, v.ID, scanreport.SubTasksStatusFailed)
 		return
 	}
+
+	logging.GetLogger().Info().Msgf(
+		"compress scan report data success, name:%s, type: %s, start: %d, end: %d",
+		v.TensorScanReportTasks.Name,
+		v.TensorScanReportTasks.Type,
+		v.StartTimeStamp,
+		v.EndTimeStamp,
+	)
 
 	//nolint:ineffassign
 	data = nil
@@ -154,10 +186,18 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 	err = s.dao.SaveScanReportFile(ctx, v, data1)
 	if err != nil {
 		logging.GetLogger().Err(err).
-			Msgf("save scan report date failed, id: %d", v.ID)
+			Msgf("save scan report data failed, id: %d", v.ID)
 		_ = s.dao.UpdateSubTaskStatus(ctx, v.ID, scanreport.SubTasksStatusFailed)
 		return
 	}
+
+	logging.GetLogger().Info().Msgf(
+		"save scan report data success, name:%s, type: %s, start: %d, end: %d",
+		v.TensorScanReportTasks.Name,
+		v.TensorScanReportTasks.Type,
+		v.StartTimeStamp,
+		v.EndTimeStamp,
+	)
 
 	// 发送邮件
 	err = s.sendEmails(ctx, v)
@@ -182,7 +222,7 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 	runtime.GC()
 }
 
-func (s *ScanReportSrv) sendEmails(ctx context.Context, data *scanreport.TensorScanReportSubTasks) error {
+func (s *ScanReportSrv) sendEmails(_ context.Context, data *scanreport.TensorScanReportSubTasks) error {
 	var content string
 	var (
 		start = time.Unix(0, data.StartTimeStamp*int64(time.Millisecond)).In(util.CSTSh).Format(format)

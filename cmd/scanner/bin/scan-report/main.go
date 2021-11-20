@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -66,6 +67,7 @@ func main() {
 	}
 
 	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
+
 		db, err := gorm.Open(postgres.Open(dbStr), &gorm.Config{})
 		if err != nil {
 			return nil, err
@@ -74,13 +76,16 @@ func main() {
 		if err != nil {
 			return nil, errors.Wrap(err, "set connection params error")
 		}
-
 		sqlDB.SetMaxOpenConns(30)
 		sqlDB.SetMaxIdleConns(5)
 		sqlDB.SetConnMaxLifetime(time.Hour)
 
 		if debug {
 			db = db.Debug()
+		} else {
+			db = db.Session(&gorm.Session{
+				Logger: db.Logger.LogMode(logger.Error),
+			})
 		}
 
 		return db, nil
