@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+const DEFAULT_PROCESS = 20
+
 var STATE = map[string]string{
 	"01": "ESTABLISHED",
 	"02": "SYN_SENT",
@@ -198,7 +200,7 @@ func GetNetFile(proto uint8, pid int) ([]string, error) {
 		}
 	}
 
-	if len(files) > 10 {
+	if len(files) > DEFAULT_PROCESS {
 		return nil, errors.Errorf("process number : %v, this number is error, pid : %v", len(files), pid)
 	}
 

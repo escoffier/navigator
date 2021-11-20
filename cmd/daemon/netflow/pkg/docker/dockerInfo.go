@@ -3,15 +3,17 @@ package docker
 import (
 	"context"
 	"encoding/json"
-	"github.com/docker/docker/client"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/docker/docker/client"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 )
 
 type NsenterData struct {
@@ -81,14 +83,13 @@ func (nse NsenterData) GetPodContainerID(namespace, podname, nodeIp string) (map
 
 	containers := make(map[string]string, 0)
 	for _, container := range pod.Status.ContainerStatuses {
-		if container.Started == nil {
-			continue
+		if len(pod.Status.ContainerStatuses) != 1 {
+			running := container.State.Running
+			if running == nil {
+				continue
+			}
 		}
 
-		state := *container.Started
-		if !state {
-			continue
-		}
 		//log.Infof("container id : %v.", container.ContainerID)
 		id := strings.TrimPrefix(container.ContainerID, "docker://")
 		name := container.Name
