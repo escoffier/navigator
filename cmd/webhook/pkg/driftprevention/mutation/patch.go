@@ -15,9 +15,9 @@ import (
 //}
 
 const (
-	envPatchTemplate          = "/spec/containers/%d/env"
-	volumeMountsPatchTemplate = "/spec/containers/%d/volumeMounts"
-	volumesPatchTemplate      = "/spec/volumes"
+	envPatchTemplate = "/spec/containers/%d/env"
+	// volumeMountsPatchTemplate = "/spec/containers/%d/volumeMounts"
+	// volumesPatchTemplate      = "/spec/volumes"
 )
 
 // PatchPod patches a single pod with the provided preset spec
@@ -49,8 +49,8 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*processors.Patch
 
 	if driftDetect || driftPrevent || commandWhitelistPrevent || commnadWhitelistDetect {
 		envs := spec.DeepCopy().Env
-		volumeMounts := spec.DeepCopy().VolumeMounts
-		volumes := spec.DeepCopy().Volumes
+		// volumeMounts := spec.DeepCopy().VolumeMounts
+		// volumes := spec.DeepCopy().Volumes
 		if driftDetect {
 			envs = append(envs, corev1.EnvVar{
 				Name:  "DRIFT_DETECT",
@@ -104,14 +104,14 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*processors.Patch
 		}
 		envs = append(envs, myPodUIDEnvVar)
 
-		volumesPatch := PatchVolumesVar(pod.Spec.Volumes, volumes, volumesPatchTemplate)
-		patches = append(patches, volumesPatch)
+		// volumesPatch := PatchVolumesVar(pod.Spec.Volumes, volumes, volumesPatchTemplate)
+		// patches = append(patches, volumesPatch)
 		for i, container := range pod.Spec.Containers {
 			envPatch := PatchEnvVar(container.Env, envs, fmt.Sprintf(envPatchTemplate, i))
 			patches = append(patches, envPatch)
 
-			volumeMountsPatch := PatchVolumeMountsVar(container.VolumeMounts, volumeMounts, fmt.Sprintf(volumeMountsPatchTemplate, i))
-			patches = append(patches, volumeMountsPatch)
+			// volumeMountsPatch := PatchVolumeMountsVar(container.VolumeMounts, volumeMounts, fmt.Sprintf(volumeMountsPatchTemplate, i))
+			// patches = append(patches, volumeMountsPatch)
 		}
 
 	}
