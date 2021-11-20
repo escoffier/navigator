@@ -34,7 +34,7 @@ func NewCmd() *cobra.Command {
 				return errors.New("api ID must be greater than 0")
 			}
 			subModule := "webscan"
-			oscmd := exec.Command("xray", "--config", "config.yaml", subModule, "--url", apiUrl, "--json-output", outputFile)
+			oscmd := exec.Command("xray", "--config", "config.yaml", subModule, "--basic", apiUrl, "--json-output", outputFile)
 			oscmd.Stdout = os.Stdout
 			err := oscmd.Run()
 			if err != nil {
@@ -80,8 +80,8 @@ func NewCmd() *cobra.Command {
 		},
 	}
 	flags := cmd.Flags()
-	flags.StringVar(&apiUrl, "url", "https://vulnweb.tensorsecurity.cn/", "api url")
-	flags.StringVar(&consoleUrl, "console", "https://vulnweb.tensorsecurity.cn/", "console url")
+	flags.StringVar(&apiUrl, "url", "http://vulnweb.test.cn/", "api url")
+	flags.StringVar(&consoleUrl, "console", "http://vulnweb.test.cn/", "console url")
 	flags.StringVar(&outputFile, "output", "/app/result.json", "json output file name")
 	flags.StringVar(&clusterKey, "cluster", "", "cluster key")
 	flags.Int64Var(&apiID, "api", 0, "api ID")
