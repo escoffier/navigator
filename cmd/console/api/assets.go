@@ -680,6 +680,7 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		Ports         []v1.ContainerPort   `json:"ports"`
 		Envs          []v1.EnvVar          `json:"envs"`
 		FrameWorkInfo []model.WebFrameInfo `json:"frame_work_info"`
+		VolumeMounts  []v1.VolumeMount     `json:"volume_mounts"`
 	}
 	fromModelToContainer := func(cm *model.TensorContainer) *container {
 		c := new(container)
@@ -696,6 +697,9 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 
 		c.Envs = make([]v1.EnvVar, len(cm.Spec.Env))
 		copy(c.Envs, cm.Spec.Env)
+
+		c.VolumeMounts = make([]v1.VolumeMount, len(cm.Spec.VolumeMounts))
+		copy(c.VolumeMounts, cm.Spec.VolumeMounts)
 
 		repo, name, tag := parseImage(cm.Image)
 		c.ImageRepo = repo
@@ -1198,20 +1202,17 @@ func (api *api) GetProcessList() http.HandlerFunc {
 	}
 }
 
-func (api api) getFrameworks() http.HandlerFunc {
+func (api *api) getFrameworks() http.HandlerFunc {
 	type Item struct {
-		Name         string               `json:"name"`
-		ServiceType  string               `json:"service_type"`
-		Version      string               `json:"version"`
-		Managers     []string             `json:"managers"`
-		WebFrameInfo []model.WebFrameInfo `json:"web_frame_info"`
+		Managers     []string           `json:"managers"`
+		WebFrameInfo model.WebFrameInfo `json:"web_frame_info"`
 	}
-	var items []*Item
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		var items []*Item
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
-		limit, offset, err := getLimitAndOffset(r)
+		_, offset, err := getLimitAndOffset(r)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
@@ -1231,7 +1232,7 @@ func (api api) getFrameworks() http.HandlerFunc {
 		query := dal.ResourceContainersQuery()
 		query.WithCluster(clusterKey)
 
-		containers, _, err := resSvc.GetResourceContainers(ctx, query, offset, limit)
+		containers, _, err := resSvc.GetResourceContainers(ctx, query, offset, -1)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("pod get error")))
 			return
@@ -1243,10 +1244,10 @@ func (api api) getFrameworks() http.HandlerFunc {
 			return
 		}
 
-		for _, c := range containers {
-			uuid := util.GenerateUUID(c.Image)
-			logging.GetLogger().Debug().Msgf("Image %s, uuid: %d", c.Image, uuid)
-			for _, frm := range frameInfos {
+		logging.GetLogger().Debug().Msgf("frames : %d,  containers : %d", len(frameInfos), len(containers))
+		for _, frm := range frameInfos {
+			for _, c := range containers {
+				uuid := util.GenerateUUID(c.Image)
 				if frm.ImageUUID == uuid && frm.WebFrameInfoJSON != nil && len(frm.WebFrameInfoJSON) > 0 {
 					var infos []model.WebFrameInfo
 					err = json.Unmarshal(frm.WebFrameInfoJSON, &infos)
@@ -1254,9 +1255,13 @@ func (api api) getFrameworks() http.HandlerFunc {
 						logging.GetLogger().Err(err).Msg("get web frame")
 						continue
 					}
-					if infos != nil {
-						items = append(items, &Item{WebFrameInfo: infos})
+					if len(infos) > 0 {
+						for i := range infos {
+							items = append(items, &Item{WebFrameInfo: infos[i]})
+							logging.GetLogger().Debug().Msgf("frame infos %+v", infos[i])
+						}
 					}
+					break
 				}
 			}
 		}

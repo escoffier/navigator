@@ -877,17 +877,18 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapp
 	}
 	for i := range pod.Status.InitContainerStatuses {
 		podContainerInfos.InitContainerInfo = append(podContainerInfos.InitContainerInfo, model.PodContainerInfo{
-			ImageID:     pod.Status.InitContainerStatuses[i].ContainerID,
-			ContainerID: pod.Status.InitContainerStatuses[i].ImageID,
+			ImageID:     pod.Status.InitContainerStatuses[i].ImageID,
+			ContainerID: pod.Status.InitContainerStatuses[i].ContainerID,
 		})
 	}
 
 	for i := range pod.Status.ContainerStatuses {
 		podContainerInfos.ContainerInfo = append(podContainerInfos.ContainerInfo, model.PodContainerInfo{
-			ImageID:     pod.Status.ContainerStatuses[i].ContainerID,
-			ContainerID: pod.Status.ContainerStatuses[i].ImageID,
+			ImageID:     pod.Status.ContainerStatuses[i].ImageID,
+			ContainerID: pod.Status.ContainerStatuses[i].ContainerID,
 		})
 	}
+
 	rel := model.PodResourceRelation{
 		ClusterKey:        clusterKey,
 		Namespace:         pod.GetNamespace(),
