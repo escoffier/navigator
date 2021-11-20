@@ -137,6 +137,14 @@ platform-report: generate
     		-o dist/platform-report gitlab.com/piccolo_su/vegeta/cmd/platform-report
 	docker build -t $(REPOPREFIX)/platform-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/platform-report/Dockerfile .
 
+.PHONY: immune-test
+immune-test: generate
+	@echo "+ $@"
+	CGO_ENABLED=0 go build -v \
+    		-o dist/immune-test gitlab.com/piccolo_su/vegeta/cmd/immune-test
+	docker build -t $(REPOPREFIX)/immune-test:latest --build-arg REPO=$(REPOPREFIX) -f ./build/immune-test/Dockerfile .
+
+
 .PHONY: scanner-base
 scanner-base: ## Build scanner base image
 	@echo "+ $@"
@@ -391,7 +399,7 @@ apiscan-job: generate
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes image-validate daemon  \
 webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
-palace go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
+palace go-audit safe-node-image kube-scanner-report platform-report immune-test scan_report apiscan-job
 
 .PHONY: base
 base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -458,6 +466,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/immune-test:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
 else
@@ -485,6 +494,7 @@ else
 	docker push $(REPOPREFIX)/cluster-manager:latest
 	docker push $(REPOPREFIX)/kube-scanner-report:latest
 	docker push $(REPOPREFIX)/platform-report:latest
+	docker push $(REPOPREFIX)/immune-test:latest
 	docker push $(REPOPREFIX)/scan-report:latest
 	docker push $(REPOPREFIX)/apiscan-job:latest
 endif
