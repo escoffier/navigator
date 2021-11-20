@@ -9,6 +9,7 @@ type ExportTask struct {
 	UserName   string `gorm:"column:username"`
 	CreatedAt  int64  `gorm:"column:created_at"`
 	FinishedAt int64  `gorm:"column:finished_at"`
+	Content    []byte `gorm:"column:content"`
 }
 
 func (ExportTask) TableName() string {

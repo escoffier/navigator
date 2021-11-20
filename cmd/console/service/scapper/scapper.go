@@ -8,6 +8,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
 	"runtime/debug"
 	"sort"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
-	"github.com/tealeg/xlsx"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -296,19 +296,12 @@ func (s *Scapper) RunComplianceCheck(
 	return checkUUID, nil
 }
 
-func (s *Scapper) RunExportFileTask(
-	ctx context.Context,
-	checkType model.ComplianceCheckType,
-	task *model.ExportTask,
-	language lang.LanguageType,
-) error {
+func (s *Scapper) RunExportFileTask(ctx context.Context, task *model.ExportTask, language lang.LanguageType) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	file := xlsx.NewFile()
-	defer file.Save(task.FileName)
 	// export file to xlsx
-	err := s.ScapService.GetScanResultToFile(pgCtx, file, task, language)
+	err := s.ScapService.GetScanResultToFile(pgCtx, task, language)
 	//update task status
 	finishedAt := time.Now().Unix()
 	task.Status = 0
@@ -316,15 +309,22 @@ func (s *Scapper) RunExportFileTask(
 		task.Status = 2
 		finishedAt = 0
 		logging.GetLogger().Error().Msgf("run export file task failed! %v.", err)
+	} else {
+		task.Content, err = s.ScapService.GetFileData(task.FileName)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get file content failed, %v.", err)
+		}
+		//remove file
+		os.Remove(task.FileName)
 	}
 	task.FinishedAt = finishedAt
 	//update mongo data
 	tbname := task.TableName()
 	query := "task_id = ? and username = ?"
-	errdb := s.PostgresDB.Get().WithContext(pgCtx).Table(tbname).Select("status", "finishedAt").Where(query, task.CheckId, task.UserName).Updates(&task).Error
-	if errdb != nil {
-		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", errdb)
-		return errors.Errorf("update status failed, %v", errdb)
+	err = s.PostgresDB.Get().WithContext(pgCtx).Table(tbname).Select("status", "finished_at", "content").Where(query, task.CheckId, task.UserName).Updates(&task).Error
+	if err != nil {
+		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", err)
+		return errors.Errorf("update status failed, %v", err)
 	}
 
 	return err

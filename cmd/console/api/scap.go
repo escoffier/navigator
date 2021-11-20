@@ -2,19 +2,17 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"io"
 	"math"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -586,26 +584,17 @@ func (api *api) exportFile() http.HandlerFunc {
 		query := "task_id = ? and username = ?"
 		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err == nil {
-
-			if task.Status == 1 {
-				var nowtime int64
-				nowtime = time.Now().Unix()
-				if nowtime-task.CreatedAt > 120 {
-					os.Remove(task.FileName)
-				}
+			if task.Status == 1 && (time.Now().Unix()-task.CreatedAt > 300) {
+				task.Status = 2
 			}
 
-			_, err = os.Stat(task.FileName)
-			if task.Status == 2 || err != nil {
-				task.Status = 2
-				if err == nil {
-					os.Remove(task.FileName)
-				}
+			if task.Status == 2 {
 				delErr := api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 				if delErr != nil {
 					logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
 				}
 			}
+
 			response.Ok(w, response.WithExportFileStatus(task.Status))
 			return
 		}
@@ -623,7 +612,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		} else {
 			//run export file task
 			scapper, _ := scapper.GetScapper(ctx)
-			go scapper.RunExportFileTask(api.ctx, checkType, &task, language)
+			go scapper.RunExportFileTask(api.ctx, &task, language)
 		}
 
 		response.Ok(w, response.WithExportFileStatus(task.Status))
@@ -647,7 +636,7 @@ func (api *api) getFile() http.HandlerFunc {
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing")))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("checkID param missing")))
 			return
 		}
 		var task model.ExportTask
@@ -655,48 +644,38 @@ func (api *api) getFile() http.HandlerFunc {
 		query := "task_id = ? and username = ?"
 		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("%v", err)))
+			logging.GetLogger().Error().Msgf("get export task failed, taskId : %v, username : %v, %v", checkID, username, err)
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("get export task failed, %v", err)))
 			return
 		}
 		//task status
 		if task.Status == 1 {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Please wait while the file is being exported.")))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("Please wait while the file is being exported.")))
 			return
 		}
 		//delete record
-		delErr := api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
-		if delErr != nil {
-			logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
+		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
+		if err != nil {
+			logging.GetLogger().WithContext(ctx).Errorf(err, "delete export tasks error")
 		}
+
 		if task.Status == 2 {
-			os.Remove(task.FileName)
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("export file failed.")))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("export file failed.")))
 			return
 		}
-		//open file
-		file, err := os.Open(task.FileName)
-		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("%v", err)))
-			return
-		}
-		defer file.Close()
-		//file stat
-		info, err := file.Stat()
-		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("%v", err)))
-			return
-		}
+
+		dataLen := len(task.Content)
 		data := strings.Split(task.FileName, "/")
 		filename := data[len(data)-1]
 		//set header
 		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
-		//file seek
-		file.Seek(0, 0)
-		io.Copy(w, file)
-		//remove file
-		os.Remove(task.FileName)
+		w.Header().Set("Content-Length", strconv.Itoa(dataLen))
+		dataLen, err = w.Write(task.Content[:dataLen])
+		if err != nil {
+			logging.GetLogger().Error().Msgf("download file failed, %v", err)
+		}
+		logging.GetLogger().Info().Msgf("file bytes : %v.", dataLen)
 	}
 }
 

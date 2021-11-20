@@ -754,7 +754,16 @@ func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *m
 	return nil
 }
 
-func (s *ScapService) GetScanResultToFile(ctx context.Context, file *xlsx.File, task *model.ExportTask, language lang.LanguageType) error {
+func (s *ScapService) GetFileData(filename string) ([]byte, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, errors.Errorf("get data from %v failed, %v", filename, err)
+	}
+	logging.GetLogger().Info().Msgf("file content length : %v", len(data))
+	return data, nil
+}
+
+func (s *ScapService) GetScanResultToFile(ctx context.Context, task *model.ExportTask, language lang.LanguageType) error {
 	var scanRet []model.ScanResult
 	query := "task_id = ?"
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, task.CheckId).Error
@@ -763,12 +772,16 @@ func (s *ScapService) GetScanResultToFile(ctx context.Context, file *xlsx.File, 
 	}
 
 	var exfile model.ScapRetData
-
+	//new xlsx file
+	file := xlsx.NewFile()
+	//save data
+	defer file.Save(task.FileName)
+	//add sheet
 	sheet, err := file.AddSheet("Sheet1")
 	if err != nil {
 		return fmt.Errorf("add sheet failed, %v", err)
 	}
-
+	//add row
 	row := sheet.AddRow()
 	title := model.GetTitleEn()
 	if language == lang.LanguageZH {
