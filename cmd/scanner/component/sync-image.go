@@ -262,7 +262,7 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 			img.PrivilegedBoot = consts.PrivilegedBootImage
 		}
 		for _, v := range config.History {
-			if strings.Contains(v.CreatedBy, "/tmp/tensorsec/file-checker") {
+			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
 				img.IsReinforce = consts.IsReinforceImage
 			}
 		}

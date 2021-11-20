@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -66,6 +67,9 @@ func (e *ExecutorScanMalicious) Scan(ctx context.Context, param Param) (Artifact
 					e.scanMalicious(layers[i], layersFilePath[i], &tmpvirus, &virus)
 				} else {
 					for _, v := range scanLayer.MaliciousInfo {
+						if v.VirusInfo.FileName != "" {
+							v.VirusInfo.FileName = strings.TrimLeft(v.VirusInfo.FileName, " ")
+						}
 						tmpvirus.VirusInfos = append(tmpvirus.VirusInfos, v.VirusInfo)
 					}
 					if len(tmpvirus.VirusInfos) != 0 {
