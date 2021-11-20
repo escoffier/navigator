@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -82,10 +81,6 @@ func main() {
 
 		if debug {
 			db = db.Debug()
-		} else {
-			db = db.Session(&gorm.Session{
-				Logger: db.Logger.LogMode(logger.Error),
-			})
 		}
 
 		return db, nil
