@@ -85,7 +85,7 @@ func (s *ScanReportResultBuilder) BuildByImagesInfo(info []*ImageInfo) {
 			for i := range v.MaliciousInfo {
 				vi := &Virus_ImageViru{
 					Path:  filepath.Join(v.MaliciousInfo[i].VirusInfo.FilePath, v.MaliciousInfo[i].VirusInfo.FileName),
-					Image: fmt.Sprintf("%s%s%s", v.Library, v.FullRepoName, v.Tags),
+					Image: fmt.Sprintf("%s/%s:%s", v.Library, v.FullRepoName, v.Tags),
 				}
 
 				virus, ok := s.viri[v.MaliciousInfo[i].VirusInfo.VirusName]
@@ -94,7 +94,8 @@ func (s *ScanReportResultBuilder) BuildByImagesInfo(info []*ImageInfo) {
 						Name:   v.MaliciousInfo[i].VirusInfo.VirusName,
 						Images: nil,
 					}
-					s.viri[v.MaliciousInfo[i].VirusInfo.VirusName] = virus
+					s.viri[v.MaliciousInfo[i].VirusInfo.VirusName] = virus // 通过病毒名称建立索引
+					data.Viri = append(data.Viri, virus)
 				}
 
 				virus.Images = append(virus.Images, vi)
