@@ -629,10 +629,10 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		for _, v := range config.History {
 			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
 				img.IsReinforce = 1
+				break
 			}
 		}
 	}
-
 	img.Layers = getLayerString(img)
 	// 同步镜像到数据库
 	createdImage, err := s.dbdal.CreateImage(ctx, &img)
