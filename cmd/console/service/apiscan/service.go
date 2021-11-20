@@ -339,8 +339,8 @@ func genScanJob(tensorApi *model.TensorApi, namespace, jobName, clusterID string
 	var completions int32 = 1
 	var parallelism int32 = 1
 	var ttlSecondsAfterFinished int32 = 60
-	cpuRequest := "100m"
-	memRequest := "200M"
+	cpuRequest := "500m"
+	memRequest := "1000M"
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName,
@@ -361,7 +361,7 @@ func genScanJob(tensorApi *model.TensorApi, namespace, jobName, clusterID string
 						{
 							Resources: corev1.ResourceRequirements{
 								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse(cpuRequest),
+									corev1.ResourceCPU:    resource.MustParse("2000m"),
 									corev1.ResourceMemory: resource.MustParse(memRequest),
 								},
 								Requests: corev1.ResourceList{
