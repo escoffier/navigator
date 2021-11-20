@@ -1,0 +1,32 @@
+global:
+  image: 
+    registry: ""
+    repository: ""
+
+
+##  immune-test image name
+image:
+  registry: localhost:32000
+  repository: library
+  name: immune-test
+  tag: latest
+  pullPolicy: Always
+  pullSecret: harbor-admin-secret
+
+service:
+  type: ClusterIP
+  httpPort: 8080
+  httpTargetPort: 8080
+
+resources:
+  limits:
+    cpu: "100m"
+    memory: "200Mi"
+  requests:
+    cpu: "100m"
+    memory: "200Mi"
+
+nameOverride: "immune-test"
+fullnameOverride: "immune-test"
+
+restartPolicy: Always

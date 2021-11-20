@@ -165,6 +165,13 @@ palace:
   image:
     tag: *Verison
 
+immune-test:
+  enabled: *isMainCluster
+  image:
+    tag: *Verison
+  service:
+    type: NodePort
+
 redis-ha:
   enabled: *isMainCluster
   persistentVolume:
