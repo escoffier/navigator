@@ -515,7 +515,7 @@ safenode-image:
     pullSecret: harbor-admin-secret
   bufRegistry: 
     bufRegistryUser: registry
-    bufRegistryPass: Registry@Passw0rd
+    bufRegistryPass: "Registry@Passw0rd"
   resources:
     limits:
       cpu: "100m"
