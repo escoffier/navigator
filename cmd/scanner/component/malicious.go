@@ -86,7 +86,7 @@ func (m *MaliciousScan) clamavScan(ctx context.Context, scanPath string, digestN
 }
 
 func (m *MaliciousScan) ParseSummrylogs(logPath string, scanPath string) []model.VirusInfo {
-	replaceString := scanPath[0 : len(scanPath)-1]
+	replaceString := scanPath
 	ClamAvVirus := []model.VirusInfo{}
 	reader, err := ioutil.ReadFile(logPath)
 	if err != nil {
@@ -101,8 +101,10 @@ func (m *MaliciousScan) ParseSummrylogs(logPath string, scanPath string) []model
 			if len(tmpResult) < 2 {
 				continue
 			}
-			fileName := tmpResult[0][strings.LastIndex(tmpResult[0], "/")+1:]
-			ClamAvVirus = append(ClamAvVirus, model.VirusInfo{FileName: fileName, FilePath: strings.Replace(tmpResult[0], replaceString, "", 1), VirusName: tmpResult[1]})
+			lastIndex := strings.LastIndex(tmpResult[0], "/")
+			fileName := tmpResult[0][lastIndex+1:]
+			filePath := tmpResult[0][:lastIndex+1]
+			ClamAvVirus = append(ClamAvVirus, model.VirusInfo{FileName: fileName, FilePath: strings.Replace(filePath, replaceString, "", 1), VirusName: tmpResult[1]})
 		}
 	}
 	return ClamAvVirus

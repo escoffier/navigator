@@ -1060,7 +1060,7 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 }
 
 func (s *ScannerOrm) GetVulnSeverityCount(ctx context.Context) (model.SeverityCount, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := []string{}
 	err := s.psql.Get().WithContext(ctx).Model(model.Vuln{}).Select("severity").Scan(&tmp).Error
@@ -1086,7 +1086,7 @@ func (s *ScannerOrm) GetVulnSeverityCount(ctx context.Context) (model.SeverityCo
 	return res, nil
 }
 func (s *ScannerOrm) GetVulnTotal(ctx context.Context) (int, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
 	var total int
