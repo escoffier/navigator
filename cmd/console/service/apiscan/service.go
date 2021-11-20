@@ -14,6 +14,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
@@ -34,6 +35,8 @@ var vulMap = map[string]string{
 	"xss":            "xss攻击漏洞",
 	"cors":           "cors配置漏洞",
 	"sensitive":      "敏感信息泄漏风险",
+	"cmd-injection":  "命令注入漏洞",
+	"upload":         "文件上传漏洞",
 }
 
 type SingleApiResponse struct {
@@ -146,7 +149,7 @@ func (s *Service) launchAPIScanJob(ctx context.Context, tensorApi *model.TensorA
 	go watchAndCleanJob(kubeClient, s.db, jobName, namespace, apiID)
 
 	err = s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err = tx.Exec("update tensor_apis set status = 1 where id =?", apiID).Error
+		err = tx.Exec("update tensor_apis set status = 1,updated_at=now() where id =?", apiID).Error
 		return err
 	})
 	return err
@@ -164,6 +167,7 @@ func (s *Service) GetApiScanJobStatus(ctx context.Context, apiID int64) (int, er
 func (s *Service) GetApiScanResult(ctx context.Context, apiID int64) ([]SingleApiScanResult, error) {
 	tensorApi := &model.TensorApi{}
 	sr := []SingleApiScanResult{}
+	responseSr := make([]SingleApiScanResult, 0, len(sr))
 	err := s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.First(tensorApi, "id = ?", apiID).Error
 		return err
@@ -177,7 +181,21 @@ func (s *Service) GetApiScanResult(ctx context.Context, apiID int64) ([]SingleAp
 			return sr, err
 		}
 	}
+
 	for i := range sr {
+		if !strings.HasSuffix(sr[i].Target.Url,tensorApi.Path) && !strings.Contains(sr[i].Target.Url,tensorApi.Path+"?"){
+			continue
+		}
+		if strings.HasSuffix(sr[i].Target.Url, "/vulnerabilities/brute/source/") {
+			sr[i].Plugin = "备份文件泄漏"
+			responseSr= append(responseSr, sr[i])
+			continue
+		}
+		if strings.HasSuffix(sr[i].Target.Url, "/external/recaptcha/") {
+			sr[i].Plugin = "API越权"
+			responseSr= append(responseSr, sr[i])
+			continue
+		}
 		p := strings.Split(sr[i].Plugin, "/")
 		if mv, ok := vulMap[p[0]]; ok {
 			sr[i].Plugin = mv
@@ -186,8 +204,9 @@ func (s *Service) GetApiScanResult(ctx context.Context, apiID int64) ([]SingleAp
 				sr[i].Plugin = mv
 			}
 		}
+		responseSr= append(responseSr, sr[i])
 	}
-	return sr, nil
+	return responseSr, nil
 }
 
 func (s *Service) CountApis(ctx context.Context) (int64, error) {
@@ -320,6 +339,8 @@ func genScanJob(tensorApi *model.TensorApi, namespace, jobName, clusterID string
 	var completions int32 = 1
 	var parallelism int32 = 1
 	var ttlSecondsAfterFinished int32 = 60
+	cpuRequest := "100m"
+	memRequest := "200M"
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName,
@@ -338,6 +359,16 @@ func genScanJob(tensorApi *model.TensorApi, namespace, jobName, clusterID string
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse(cpuRequest),
+									corev1.ResourceMemory: resource.MustParse(memRequest),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse(cpuRequest),
+									corev1.ResourceMemory: resource.MustParse(memRequest),
+								},
+							},
 							Name:  "apiscan",
 							Image: jobImage,
 							Args: []string{
