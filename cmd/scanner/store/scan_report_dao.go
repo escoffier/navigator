@@ -313,6 +313,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 	db := s.psql.Get().
 		WithContext(ctx).
 		Table("tensor_image_list AS t").
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "t.id"}}).
 		Limit(limit).
 		Offset(offset).
 		Select(selectFiled).
@@ -324,7 +325,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 	{ //报告对象
 		var fromType []uint8
 		if task.TensorScanReportTasks.ImageTypeEnum&scanreport.TensorScanReportImageTypeRegistry == scanreport.TensorScanReportImageTypeRegistry {
-			fromType = append(fromType, model.RegistryUseTypeNormal)
+			fromType = append(fromType, model.ImageFromTypeNormal)
 
 			switch task.TensorScanReportTasks.RegistryImageType {
 			case scanreport.TensorScanReportRegistryImageTypeProject: // 项目
