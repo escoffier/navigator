@@ -328,7 +328,8 @@ func (in *Injector) getPodOwner(ctx context.Context, pod *corev1.Pod, parameters
 			}
 			query.WithResourceName(deploymentName)
 			var resources []*model.TensorResource
-			resources, err := dal.GetResources(ctx, in.rdb, query, 0, 1)
+			var err error
+			resources, err = dal.GetResources(ctx, in.rdb, query, 0, 1)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("get resource %s", deploymentName)
 				query.WithResourceName(name)
@@ -340,7 +341,10 @@ func (in *Injector) getPodOwner(ctx context.Context, pod *corev1.Pod, parameters
 
 				continue
 			}
-			return resources[0].Name, resources[0].Kind
+			if len(resources) > 0 {
+				return resources[0].Name, resources[0].Kind
+			}
+			return "", ""
 		}
 	}
 	return "", ""
