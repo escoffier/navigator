@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1050,6 +1051,8 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 		return img, nil
 	}
 	respVuln := FilterVulnsFromScanImage(scs[0].VulnInfo)
+	sort.Sort(model.RespSingleVulnDetails(respVuln))
+
 	// 增加漏洞和敏感文件信息
 	scanTaskId, _ := primitive.ObjectIDFromHex(scs[0].ScanTaskId)
 	imageScanResult := model.ImageScanSummaryResult{
