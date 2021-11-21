@@ -66,11 +66,11 @@ func (rl *TensorResourcesService) DeleteCluster(ctx context.Context, clusterKey 
 }
 
 func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
-	resources, err := dal.GetResources(ctx, rl.rdb, queryOptions, offset, limit)
+	resources, err := dal.GetResources(ctx, rl.rdb.Get(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-	resCnt, err := dal.CountResources(ctx, rl.rdb, queryOptions)
+	resCnt, err := dal.CountResources(ctx, rl.rdb.Get(), queryOptions)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -78,7 +78,7 @@ func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions
 }
 
 func (rl *TensorResourcesService) CountResource(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (int64, error) {
-	resCnt, err := dal.CountResources(ctx, rl.rdb, queryOptions)
+	resCnt, err := dal.CountResources(ctx, rl.rdb.Get(), queryOptions)
 	if err != nil {
 		return 0, err
 	}
@@ -91,7 +91,7 @@ func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, re
 }
 
 func (rl *TensorResourcesService) GetResourceMap(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (map[dal.ResourceKey]*model.TensorResource, error) {
-	res, err := dal.GetResources(ctx, rl.rdb, queryOptions, -1, -1)
+	res, err := dal.GetResources(ctx, rl.rdb.Get(), queryOptions, -1, -1)
 	if err != nil {
 		return nil, err
 	}
@@ -151,17 +151,17 @@ func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *d
 }
 
 func (rl *TensorResourcesService) GetResourceContainers(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*model.TensorContainer, int64, error) {
-	containers, err := dal.GetResourceContainers(ctx, rl.rdb, queryOptions, offset, limit)
+	containers, err := dal.GetResourceContainers(ctx, rl.rdb.Get(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	cnt, err := dal.CountResourceContainers(ctx, rl.rdb, queryOptions)
+	cnt, err := dal.CountResourceContainers(ctx, rl.rdb.Get(), queryOptions)
 	return containers, cnt, err
 }
 
 func (rl *TensorResourcesService) CountContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption) (int64, error) {
-	cnt, err := dal.CountResourceContainers(ctx, rl.rdb, queryOptions)
+	cnt, err := dal.CountResourceContainers(ctx, rl.rdb.Get(), queryOptions)
 	if err != nil {
 		return 0, err
 	}

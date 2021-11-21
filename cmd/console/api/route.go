@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
-	httpSwagger "github.com/swaggo/http-swagger"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -69,7 +68,8 @@ func SetupRoutes(
 		ecCli,
 	)
 	r.Get("/ping", response.Pong)
-	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
+	// disable swagger APIs
+	// r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
 	// Open Api
 	r.Route(InternalAPIURLPrefix, func(r chi.Router) {
@@ -114,7 +114,7 @@ func SetupRoutes(
 	r.Route("/internal", func(r chi.Router) {
 		r.Route("/platform/assets", api.assets())
 		r.Route("/platform/networkTopo", api.networkTopo())
-		r.Route("/platform/apiscan",api.apiScan())
+		r.Route("/platform/apiscan", api.apiScan())
 		r.Handle("/webhook/*", api.webhook())
 		r.Route("/scap", api.scapInternal())
 	})

@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/PuerkitoBio/goquery v1.6.0
-	github.com/ReneKroon/ttlcache/v2 v2.8.1
+	github.com/ReneKroon/ttlcache/v2 v2.9.0
 	github.com/agnivade/levenshtein v1.1.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/armon/go-metrics v0.3.10 // indirect

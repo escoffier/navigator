@@ -1,0 +1,452 @@
+package immune
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"runtime/debug"
+	"sync"
+	"time"
+
+	"github.com/avast/retry-go"
+	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
+)
+
+var (
+	instance *Service
+	once     sync.Once
+)
+
+func Init(rdb *rdbtools.GormWrapper) error {
+	once.Do(func() {
+		instance = newService(rdb)
+	})
+	return nil
+}
+func Get() (*Service, bool) {
+	return instance, instance != nil
+}
+
+type Service struct {
+	rdb *rdbtools.GormWrapper
+}
+
+func newService(rdb *rdbtools.GormWrapper) *Service {
+	return &Service{
+		rdb: rdb,
+	}
+}
+
+func (s *Service) ListPolicies(ctx context.Context, queryOpt *dal.ImmunePoliciesQueryOption, offset, limit int) ([]*PolicyView, int64, error) {
+	policies, err := dal.ListImmunePolicies(ctx, s.rdb.Get(), queryOpt, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	IDs := make([]uint32, 0, len(policies))
+	for _, p := range policies {
+		IDs = append(IDs, p.ResourceUUID)
+	}
+
+	resources, err := dal.GetResources(ctx, s.rdb.Get(), dal.ResourcesQuery().WithInConditionCustom("id", IDs), 0, len(IDs))
+	if err != nil {
+		return nil, 0, err
+	}
+	policyViews := make([]*PolicyView, 0, len(policies))
+	for _, p := range policies {
+		pview := new(PolicyView)
+		pview.ImmunePolicy = p
+		pview.RelatedResource = new(Resource)
+
+		for _, res := range resources {
+			if res.ID == pview.ResourceUUID {
+				pview.RelatedResource.ClusterKey = res.ClusterKey
+				pview.RelatedResource.Kind = res.Kind
+				pview.RelatedResource.Namespace = res.Namespace
+				pview.RelatedResource.Name = res.Name
+			}
+		}
+		policyViews = append(policyViews, pview)
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var totalCount int64
+	err = util.RetryWithBackoff(tctx, func() error {
+		var oneErr error
+		totalCount, oneErr = dal.CountImmunePolicies(ctx, s.rdb.Get(), queryOpt)
+		return oneErr
+	})
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "count immune polices error. query: %+v", queryOpt)
+		return policyViews, int64(len(policies)), nil
+	}
+	return policyViews, totalCount, nil
+}
+
+func (s *Service) fetchResource(ctx context.Context, policy *model.ImmunePolicy) (*Resource, error) {
+	var resources []*model.TensorResource
+	err := util.RetryWithBackoff(ctx, func() error {
+		var err error
+		resources, err = dal.GetResources(ctx, s.rdb.Get(), dal.ResourcesQuery().WithID(policy.ResourceUUID), 0, 1)
+		return err
+	}, retry.Attempts(2))
+	if err != nil {
+		return nil, err
+	} else if len(resources) == 0 {
+		return nil, errors.New("not found")
+	} else {
+		resView := new(Resource)
+		resView.ClusterKey = resources[0].ClusterKey
+		resView.Kind = resources[0].Kind
+		resView.Name = resources[0].Name
+		resView.Namespace = resources[0].Namespace
+		if resources[0].PodTemplate != nil {
+			resView.Containers = make([]*ContainerInfo, len(resources[0].PodTemplate.Containers))
+			for i := range resources[0].PodTemplate.Containers {
+				resView.Containers[i] = new(ContainerInfo)
+				resView.Containers[i].ContainerName = resources[0].PodTemplate.Containers[i].Name
+				resView.Containers[i].ImageID = resources[0].PodTemplate.Containers[i].Image
+			}
+		}
+		return resView, nil
+	}
+}
+
+func (s *Service) fetchProfiles(ctx context.Context, policy *model.ImmunePolicy) ([]*ContainerProfile, error) {
+	var profiles []*model.ImmuneProfile
+	err := util.RetryWithBackoff(ctx, func() error {
+		var err error
+		profiles, err = dal.GetProfilesOfPolicy(ctx, s.rdb.Get(), policy.ID, "")
+		return err
+	}, retry.Attempts(2))
+
+	if err != nil {
+		return nil, err
+	} else {
+		switch policy.Kind {
+		case model.PolicyKindSyscalls:
+			contMap := make(map[string]model.SyscallsConfigurations, 5)
+			for _, p := range profiles {
+				syscallConfs, exist := contMap[p.ContainerName]
+				if !exist {
+					syscallConfs = make(model.SyscallsConfigurations, 0, len(profiles))
+				}
+				syscallConfs = append(syscallConfs, string(p.Value))
+				contMap[p.ContainerName] = syscallConfs
+			}
+			profiles := make([]*ContainerProfile, 0, len(contMap))
+			for containerName, syscallConfs := range contMap {
+				cprof := new(ContainerProfile)
+				cprof.ContainerName = containerName
+				bytes, err := json.Marshal(syscallConfs)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("marshal syscall confs error. containerName: %s data: %+v", containerName, syscallConfs)
+					continue
+				}
+				cprof.Configuration = string(bytes)
+				profiles = append(profiles, cprof)
+			}
+			return profiles, nil
+		case model.PolicyKindFileRW:
+			contMap := make(map[string]model.FileRWConfigurations, 5)
+			for _, p := range profiles {
+				rwConfs, exist := contMap[p.ContainerName]
+				if !exist {
+					rwConfs = make(model.FileRWConfigurations, 0, len(profiles))
+				}
+				var elem model.FRWElement
+				err := json.Unmarshal(p.Value, &elem)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("unmarshal fileRW confs error. data: %s. profile: %+v", string(p.Value), p)
+					continue
+				}
+				rwConfs = append(rwConfs, elem)
+				contMap[p.ContainerName] = rwConfs
+			}
+			profiles := make([]*ContainerProfile, 0, len(contMap))
+			for containerName, fileRWConfs := range contMap {
+				cprof := new(ContainerProfile)
+				cprof.ContainerName = containerName
+				bytes, err := json.Marshal(fileRWConfs)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("marshal PolicyKindFileRW confs error. containerName: %s data: %+v", containerName, fileRWConfs)
+					continue
+				}
+				cprof.Configuration = string(bytes)
+				profiles = append(profiles, cprof)
+			}
+			return profiles, nil
+		case model.PolicyKindBinaryExec:
+			return make([]*ContainerProfile, 0), nil
+		case model.PolicyKindCmdExec:
+			contMap := make(map[string]model.CmdLineExecConfigurations, 5)
+			for _, p := range profiles {
+				cmdConfs, exist := contMap[p.ContainerName]
+				if !exist {
+					cmdConfs = make(model.CmdLineExecConfigurations, 0, len(profiles))
+				}
+				var elem model.CmdExecElement
+				err := json.Unmarshal(p.Value, &elem)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("unmarshal fileRW confs error. data: %s. profile: %+v", string(p.Value), p)
+					continue
+				}
+				cmdConfs = append(cmdConfs, elem)
+				contMap[p.ContainerName] = cmdConfs
+			}
+			profiles := make([]*ContainerProfile, 0, len(contMap))
+			for containerName, cmdConfs := range contMap {
+				cprof := new(ContainerProfile)
+				cprof.ContainerName = containerName
+				bytes, err := json.Marshal(cmdConfs)
+				if err != nil {
+					logging.GetLogger().Err(err).Msgf("marshal PolicyKindCmdExec confs error. containerName: %s data: %+v", containerName, cmdConfs)
+					continue
+				}
+				cprof.Configuration = string(bytes)
+				profiles = append(profiles, cprof)
+			}
+			return profiles, nil
+		default:
+			return nil, fmt.Errorf("error policy kind %d", policy.Kind)
+		}
+	}
+}
+func (s *Service) GetPolicy(ctx context.Context, policyID int64) (*PolicyView, error) {
+	pctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer cancel()
+	var policy *model.ImmunePolicy
+	err := util.RetryWithBackoff(pctx, func() error {
+		var err error
+		policy, err = dal.GetPolicy(ctx, s.rdb.Get(), policyID)
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
+	}, retry.Attempts(2))
+	if err != nil {
+		return nil, err
+	}
+	if policy == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	pview := new(PolicyView)
+	pview.ImmunePolicy = policy
+
+	// concurrent fetch data
+	resourceChan := make(chan interface{})
+	profilesChan := make(chan interface{})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().WithContext(ctx).Errorf(nil, "Panic when fetching policy's resource: %v. stack: %s", r, debug.Stack())
+				resourceChan <- errors.New("panic")
+			}
+		}()
+		resView, err := s.fetchResource(ctx, policy)
+		if err != nil {
+			resourceChan <- err
+		} else {
+			resourceChan <- resView
+		}
+	}()
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().WithContext(ctx).Errorf(nil, "Panic when fetching policy's profiles: %v. stack: %s", r, debug.Stack())
+				profilesChan <- errors.New("panic")
+			}
+		}()
+
+		profiles, err := s.fetchProfiles(ctx, policy)
+		if err != nil {
+			profilesChan <- err
+		} else {
+			profilesChan <- profiles
+		}
+	}()
+
+	resourceObj := <-resourceChan
+	switch val := resourceObj.(type) {
+	case error:
+		logging.GetLogger().WithContext(ctx).Errorf(val, "fetch resources error for policy %+v", pview)
+		return nil, val
+	case *Resource:
+		pview.RelatedResource = val
+	default:
+		logging.GetLogger().WithContext(ctx).Errorf(nil, "fetch resources return invalid value %v for policy %+v", val, pview)
+		return nil, errors.New("invalid result")
+	}
+
+	profilesObj := <-profilesChan
+	switch val := profilesObj.(type) {
+	case error:
+		logging.GetLogger().WithContext(ctx).Errorf(val, "fetch profiles error for policy %+v", pview)
+		return nil, val
+	case []*ContainerProfile:
+		pview.Profiles = val
+	default:
+		logging.GetLogger().WithContext(ctx).Errorf(nil, "fetch profiles return invalid value %v for policy %+v", val, pview)
+		return nil, errors.New("invalid result")
+	}
+
+	return pview, nil
+}
+
+func (s *Service) AddPolicy(ctx context.Context, policy *PolicyView) (int64, error) {
+	if policy == nil {
+		return 0, errors.New("nil policy")
+	}
+
+	now := time.Now()
+	userName := util.GetUsernameFromContext(ctx)
+	policyModel := policy.ImmunePolicy
+	policyModel.Creator = userName
+	policyModel.Updater = userName
+	policyModel.UpdatedAt = now
+	policyModel.CreatedAt = now
+
+	if policy.RelatedResource == nil || policy.RelatedResource.ClusterKey == "" || policy.RelatedResource.Namespace == "" || policy.RelatedResource.Kind == "" || policy.RelatedResource.Name == "" {
+		return 0, errors.New("lack of resource")
+	}
+	policyModel.ResourceUUID = dal.GetResourceUUID(policy.RelatedResource.ClusterKey, policy.RelatedResource.Namespace, policy.RelatedResource.Kind, policy.RelatedResource.Name)
+	policyModel.ClusterKey = policy.RelatedResource.ClusterKey
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		policyModel, err = dal.CreateImmunePolicy(ctx, tx, policyModel)
+		if err != nil {
+			return err
+		}
+
+		profiles := make([]*model.ImmuneProfile, 0, 50)
+		for _, profile := range policy.Profiles {
+			profileModels, err := getModelsFromProfile(profile, policyModel, now, userName)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("get model from profile error. profile: %+v", profile)
+				continue
+			}
+			profiles = append(profiles, profileModels...)
+		}
+
+		for _, profileModel := range profiles {
+			err := util.RetryWithBackoff(ctx, func() error {
+				_, err := dal.CreateImmuneProfile(ctx, tx, profileModel)
+				return err
+			}, retry.Attempts(3))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("createImmuneProfile submit policy and profiles error", err)
+		return 0, err
+	}
+
+	return policyModel.ID, nil
+}
+
+func (s *Service) EditPolicy(ctx context.Context, policyView *PolicyView, readStamp int64) error {
+	// temporarily ignore stamp version check
+
+	now := time.Now()
+	userName := util.GetUsernameFromContext(ctx)
+	policy := policyView.ImmunePolicy
+	policy.Updater = userName
+	policy.UpdatedAt = now
+
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var upErr error
+		reErr := util.RetryWithBackoff(ctx, func() error {
+
+			uperr := dal.UpdateImmunePolicy(ctx, tx, policy.ID, policy)
+			if uperr == gorm.ErrRecordNotFound {
+				upErr = uperr
+				return nil
+			}
+			return uperr
+		}, retry.Attempts(3))
+		if reErr != nil {
+			return reErr
+		}
+		if upErr != nil {
+			return upErr
+		}
+
+		if policyView.ProfilesChanges != nil {
+			if len(policyView.ProfilesChanges.Add) > 0 {
+				for _, toAdd := range policyView.ProfilesChanges.Add {
+					models, err := getModelsFromProfile(toAdd, policy, now, userName)
+					if err != nil {
+						logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toAdd)
+						continue
+					}
+					for _, model := range models {
+						err := util.RetryWithBackoff(ctx, func() error {
+							_, err := dal.CreateImmuneProfile(ctx, tx, model)
+							return err
+						}, retry.Attempts(3))
+						if err != nil {
+							return err
+						}
+					}
+				}
+			}
+			if len(policyView.ProfilesChanges.Delete) > 0 {
+				for _, toDel := range policyView.ProfilesChanges.Delete {
+					models, err := getModelsFromProfile(toDel, policy, now, userName)
+					if err != nil {
+						logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toDel)
+						continue
+					}
+					for _, model := range models {
+						err := util.RetryWithBackoff(ctx, func() error {
+							return dal.DeleteImmuneProfile(ctx, tx, model)
+						}, retry.Attempts(3))
+						if err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("editImmuneProfile submit policy and profiles error", err)
+		return err
+	}
+	return nil
+}
+
+func (s *Service) PolicyStatusAction(ctx context.Context, action model.PolicyStatus, policyID, readStamp int64) error {
+	// TODO temporarily ignore stamp check
+
+	// TODO distribute policies
+	var nfErr error
+	err := util.RetryWithBackoff(ctx, func() error {
+		err := dal.SetImmunePolicyStatus(ctx, s.rdb.Get(), policyID, action)
+		if err == gorm.ErrRecordNotFound {
+			nfErr = err
+			return nil
+		}
+		return err
+	}, retry.Attempts(3))
+	if nfErr != nil {
+		return nfErr
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}

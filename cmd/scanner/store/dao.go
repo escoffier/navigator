@@ -149,7 +149,7 @@ func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds 
 		sql = sql + fmt.Sprintf("AND a.image_id IN ( %s )", idin)
 	}
 	sql = sql + ";"
-	db := s.psql.Get().WithContext(ctx).Debug()
+	db := s.psql.Get().WithContext(ctx)
 	res := make([]model.SubTask, 0)
 	if err := db.Raw(sql).Find(&res).Error; err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := make([]ImageListWithScan, 0)
-	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id").Debug()
+	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id")
 
 	if param.SearchWord != "" {
 		db = db.Where("tensor_image_list.full_repo_name LIKE ? OR tensor_image_list.tags LIKE ? OR tensor_image_list.node_hostname LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
@@ -1299,7 +1299,7 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 func (s *ScannerOrm) GetImageOverView(ctx context.Context, param GetImageOverViewParm, res interface{}) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	db := s.psql.Get().WithContext(ctx).Debug()
+	db := s.psql.Get().WithContext(ctx)
 	if err := db.Raw(param.SQL).Scan(res).Error; err != nil {
 		return err
 	}
@@ -1688,7 +1688,7 @@ func (s *ScannerOrm) CreateRejectRecord(ctx context.Context, data model.RejectRe
 		}
 	}
 
-	err := s.psql.Get().WithContext(ctx).Create(&data).Debug().Error
+	err := s.psql.Get().WithContext(ctx).Create(&data).Error
 	return &data, err
 }
 
@@ -1720,7 +1720,7 @@ func (s *ScannerOrm) OverviewForInterval(ctx context.Context, interval int, inte
 
 	logging.GetLogger().WithContext(ctx).Infof("OverviewForInterval sql:%s", sql)
 	res := make([]IntervalDateGroup, 0)
-	err := s.psql.Get().Debug().Raw(sql, now, startAt).Scan(&res).Error
+	err := s.psql.Get().Raw(sql, now, startAt).Scan(&res).Error
 	if err != nil {
 		return res, err
 	}
@@ -1776,7 +1776,7 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.RejectRecord)).WithContext(ctx).Debug()
+	db := s.psql.Get().Model(new(model.RejectRecord)).WithContext(ctx)
 	if !param.StartAt.IsZero() {
 		db = db.Where("reject_at >= ?", param.StartAt)
 	}

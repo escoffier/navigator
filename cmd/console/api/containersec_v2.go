@@ -12,8 +12,6 @@ func (api *api) containerSec() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/scap", api.scap())
 		r.Route("/scanner", api.scanner())
-
-		// proxy to security profiles management
-		r.Handle("/secprofiles/*", api.secProfiles())
+		r.Route("/immune", api.immune())
 	}
 }
