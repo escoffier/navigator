@@ -541,3 +541,19 @@ palace:
     limits:
       cpu: "200m"
       memory: "500Mi"
+
+immune-test:
+  image:
+    name: immune-test
+    tag: latest
+    pullPolicy: Always
+    pullSecret: harbor-admin-secret
+  service:
+    type: ClusterIP
+  resources:
+    limits:
+      cpu: "100m"
+      memory: "200Mi"
+    requests:
+      cpu: "100m"
+      memory: "200Mi"
