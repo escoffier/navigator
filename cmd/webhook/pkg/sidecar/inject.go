@@ -9,24 +9,20 @@ import (
 	"text/template"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
+	"github.com/ghodss/yaml"
+	sprig "github.com/go-task/slim-sprig"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-
-	//"github.com/Masterminds/sprig/v3"
-	"github.com/ghodss/yaml"
-	sprig "github.com/go-task/slim-sprig"
 	"gomodules.xyz/jsonpatch/v3"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	//"github.com/gogo/protobuf/types"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const SidecarAnnotationStatusKey = "tensor-sidecar-inject/status"
@@ -329,11 +325,11 @@ func (in *Injector) getPodOwner(ctx context.Context, pod *corev1.Pod, parameters
 			query.WithResourceName(deploymentName)
 			var resources []*model.TensorResource
 			var err error
-			resources, err = dal.GetResources(ctx, in.rdb, query, 0, 1)
+			resources, err = dal.GetResources(ctx, in.rdb.Get(), query, 0, 1)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("get resource %s", deploymentName)
 				query.WithResourceName(name)
-				resources, err = dal.GetResources(ctx, in.rdb, query, 0, 1)
+				resources, err = dal.GetResources(ctx, in.rdb.Get(), query, 0, 1)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("get resource %s", name)
 					continue
