@@ -153,11 +153,11 @@ func mockCommandWhiteList(_ http.ResponseWriter, _ *http.Request) {
 					KVHash: map[string]*pb.KV{
 						"en": {
 							Key:   "command",
-							Value: "/bin/cat /test.log",
+							Value: "/bin/cat /test.sh",
 						},
 						"zh": {
 							Key:   "命令",
-							Value: "/bin/cat /test.log",
+							Value: "/bin/cat /test.sh",
 						},
 					},
 				},
