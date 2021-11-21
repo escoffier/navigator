@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	v1 "k8s.io/api/core/v1"
 	"net/http"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 )
 
 type RejectOnlineMonitorImage struct {
@@ -40,7 +41,6 @@ func (v *PodValidator) ValidateImage(pod *v1.Pod) error {
 	var data []byte
 	var resp *http.Response
 	data, err = json.Marshal(reqs.Images)
-	log.Info(string(data))
 	if err != nil {
 		return err
 	}

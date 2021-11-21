@@ -11,8 +11,6 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
-	"gopkg.in/gomail.v2"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
@@ -24,12 +22,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gopkg.in/gomail.v2"
 )
 
 const (
 	JWTKeyUsername = "user_name"
 	JWTKeyUserRole = "user_role"
-	JWTExpiration  = time.Hour * 24
+	JWTExpiration  = 60 * time.Minute
 )
 
 // LoginResponse is the response of the login API
