@@ -18,7 +18,7 @@ import (
 const (
 	serviceName                        = "task-check"
 	checkInterval                      = 30
-	defaultTimeOutMin                  = 15
+	defaultTimeOutMin                  = 30
 	HeartBeatTimeOutMsg                = "heart beat time out"
 	TaskStatusInConsistentWithSubtasks = "task in processing status while all subtasks are finished"
 )
