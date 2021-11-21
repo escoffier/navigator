@@ -23,6 +23,21 @@ spec:
           value: "{{ include "common.eventcenter.defaultName" . }}:9090"
         - name: HTTP_ADDR
           value: ":{{ .Values.service.httpTargetPort}}"
+        - name: RDB_USER
+          value: {{ .Values.postgres.username }}
+        - name: RDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "common.postgresql.defaultName" . }}
+              key: postgresql-password
+        - name: RDB_HOST
+          value: {{ include "common.pgpool.defaultName" . }}
+        - name: RDB_PORT
+          value: {{ .Values.postgres.port | quote }}
+        - name: RDB_DBNAME
+          value: {{ .Values.postgres.dbName }}
+        - name: RDB_SSLMODE
+          value: {{ .Values.postgres.sslMode }}
         - name: MY_POD_NAME
           valueFrom:
             fieldRef:

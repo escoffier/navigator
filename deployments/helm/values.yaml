@@ -550,6 +550,11 @@ immune-test:
     pullSecret: harbor-admin-secret
   service:
     type: ClusterIP
+  postgres:
+    username: postgres
+    port: "5432"
+    dbName: postgres
+    sslMode: disable
   resources:
     limits:
       cpu: "100m"
