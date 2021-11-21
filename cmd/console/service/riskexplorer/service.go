@@ -149,6 +149,13 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 		return nil, err
 	}
 
+	frameInfos, err := resSvc.GetFrameworks(ctx)
+	//TODO: may be removed later
+	appType := queryOpt.WhereEqCondition["app_type"]
+	if appType != "" {
+		delete(queryOpt.WhereEqCondition, "app_type")
+	}
+
 	nsMap := make(map[string]*NamespaceSummary, 10)
 	for offset < totalCount {
 		containers, tcount, err := resSvc.GetResourceContainers(ctx, queryOpt, offset, limit)
@@ -166,6 +173,36 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 		offset += len(containers)
 
 		for _, container := range containers {
+			if appType == "web" {
+				// not web application
+				if container.AppTargetName != nil && *container.AppTargetName != "web" {
+					continue
+				}
+				if frameInfos != nil && container.AppTargetName == nil {
+					for _, frm := range frameInfos {
+						if frm.ImageUUID == container.ImageUUID && frm.WebFrameInfoJSON != nil && len(frm.WebFrameInfoJSON) > 0 {
+							var infos []model.WebFrameInfo
+							err = json.Unmarshal(frm.WebFrameInfoJSON, &infos)
+							if err != nil {
+								logging.GetLogger().Err(err).Msg("get web frame")
+								continue
+							}
+							if len(infos) > 0 {
+								cAppType := "web"
+								container.AppType = &cAppType
+								container.AppTargetName = &infos[0].FrameName
+								container.AppTargetVersion = &infos[0].Version
+								logging.GetLogger().Info().Msgf("AppType: %s", *container.AppType)
+							}
+							break
+						}
+					}
+				}
+				if container.AppTargetName == nil {
+					continue
+				}
+			}
+
 			nsItem, nsExist := nsMap[container.Namespace]
 			if !nsExist {
 				nsItem = new(NamespaceSummary)

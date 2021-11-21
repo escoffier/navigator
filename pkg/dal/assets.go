@@ -301,7 +301,7 @@ func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption
 }
 
 type ResContainersQueryOption struct {
-	whereEqCondition      map[string]interface{}
+	WhereEqCondition      map[string]interface{}
 	whereNotNullCondition map[string]struct{}
 	whereInCondition      map[string]interface{}
 	columnQuery           colQuery
@@ -309,14 +309,14 @@ type ResContainersQueryOption struct {
 
 func ResourceContainersQuery() *ResContainersQueryOption {
 	return &ResContainersQueryOption{
-		whereEqCondition:      make(map[string]interface{}, 3),
+		WhereEqCondition:      make(map[string]interface{}, 3),
 		whereInCondition:      make(map[string]interface{}, 2),
 		whereNotNullCondition: make(map[string]struct{}, 2),
 	}
 }
 
 func (q *ResContainersQueryOption) GetClusterOption() (string, bool) {
-	v, ok := q.whereEqCondition["cluster_key"]
+	v, ok := q.WhereEqCondition["cluster_key"]
 	if !ok {
 		return "", false
 	}
@@ -324,7 +324,7 @@ func (q *ResContainersQueryOption) GetClusterOption() (string, bool) {
 }
 
 func (q *ResContainersQueryOption) WithAppType(appType string) *ResContainersQueryOption {
-	q.whereEqCondition["app_type"] = appType
+	q.WhereEqCondition["app_type"] = appType
 	return q
 }
 func (q *ResContainersQueryOption) WithAppTypeNotEmpty() *ResContainersQueryOption {
@@ -332,27 +332,27 @@ func (q *ResContainersQueryOption) WithAppTypeNotEmpty() *ResContainersQueryOpti
 	return q
 }
 func (q *ResContainersQueryOption) WithCluster(clusterKey string) *ResContainersQueryOption {
-	q.whereEqCondition["cluster_key"] = clusterKey
+	q.WhereEqCondition["cluster_key"] = clusterKey
 	return q
 }
 func (q *ResContainersQueryOption) WithNamespace(ns string) *ResContainersQueryOption {
-	q.whereEqCondition["namespace"] = ns
+	q.WhereEqCondition["namespace"] = ns
 	return q
 }
 func (q *ResContainersQueryOption) WithResourceKind(kind assets.ResourceKind) *ResContainersQueryOption {
-	q.whereEqCondition["resource_kind"] = kind
+	q.WhereEqCondition["resource_kind"] = kind
 	return q
 }
 func (q *ResContainersQueryOption) WithResourceName(name string) *ResContainersQueryOption {
-	q.whereEqCondition["resource_name"] = name
+	q.WhereEqCondition["resource_name"] = name
 	return q
 }
 func (q *ResContainersQueryOption) WithContainerName(cname string) *ResContainersQueryOption {
-	q.whereEqCondition["name"] = cname
+	q.WhereEqCondition["name"] = cname
 	return q
 }
 func (q *ResContainersQueryOption) WithCustom(column string, value interface{}) *ResContainersQueryOption {
-	q.whereEqCondition[column] = value
+	q.WhereEqCondition[column] = value
 	return q
 }
 func (q *ResContainersQueryOption) WithInConditionCustom(column string, value interface{}) *ResContainersQueryOption {
@@ -375,8 +375,8 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
-		if len(query.whereEqCondition) > 0 {
-			db = db.Where(query.whereEqCondition)
+		if len(query.WhereEqCondition) > 0 {
+			db = db.Where(query.WhereEqCondition)
 		}
 		if len(query.whereInCondition) > 0 {
 			for column, val := range query.whereInCondition {
@@ -407,8 +407,8 @@ func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContaine
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
-		if len(query.whereEqCondition) > 0 {
-			db = db.Where(query.whereEqCondition)
+		if len(query.WhereEqCondition) > 0 {
+			db = db.Where(query.WhereEqCondition)
 		}
 		if len(query.whereInCondition) > 0 {
 			for column, val := range query.whereInCondition {
@@ -564,7 +564,7 @@ func UpdateResourceUserData(ctx context.Context, rdb *rdbtools.GormWrapper, reso
 func GetContainerUUID(cluster, namespace, kind, resourceName, containerName string) uint32 {
 	return util.GenerateUUID(cluster, namespace, string(kind), resourceName, containerName)
 }
-func fromContainerToModel(container corev1.Container, resource *assets.TensorResource, updateTime time.Time, conType string) *model.TensorContainer {
+func fromContainerToModel(ctx context.Context, rdb *gorm.DB, container corev1.Container, resource *assets.TensorResource, updateTime time.Time, conType string) *model.TensorContainer {
 	contModel := new(model.TensorContainer)
 	contModel.ID = GetContainerUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, container.Name)
 	contModel.Name = container.Name
@@ -599,10 +599,23 @@ func fromContainerToModel(container corev1.Container, resource *assets.TensorRes
 		}
 	}
 
+	//TODO: may be removed later
+	webFrameScan, err := GetFramework(ctx, rdb, contModel.ImageUUID)
+	if err == nil && webFrameScan != nil {
+		var infos []model.WebFrameInfo
+		err = json.Unmarshal(webFrameScan.WebFrameInfoJSON, &infos)
+		if err == nil {
+			contModel.AppType = &model.AppTypeWeb
+			if len(infos) > 0 {
+				contModel.AppTargetName = &infos[0].FrameName
+				contModel.AppTargetVersion = &infos[0].Version
+			}
+		}
+	}
 	return contModel
 }
 
-func newModelContainersFromResource(resource *assets.TensorResource, updateTime time.Time) []*model.TensorContainer {
+func newModelContainersFromResource(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) []*model.TensorContainer {
 	if resource.PodTemplate == nil {
 		return nil
 	}
@@ -611,12 +624,12 @@ func newModelContainersFromResource(resource *assets.TensorResource, updateTime 
 
 	for _, initCon := range resource.PodTemplate.Spec.InitContainers {
 		containers = append(containers,
-			fromContainerToModel(initCon, resource, updateTime, "InitContainer"),
+			fromContainerToModel(ctx, rdb, initCon, resource, updateTime, "InitContainer"),
 		)
 	}
 	for _, con := range resource.PodTemplate.Spec.Containers {
 		containers = append(containers,
-			fromContainerToModel(con, resource, updateTime, "Container"),
+			fromContainerToModel(ctx, rdb, con, resource, updateTime, "Container"),
 		)
 	}
 	return containers
@@ -634,7 +647,7 @@ func upsertOneContainer(ctx context.Context, rdb *gorm.DB, containerModel *model
 	return nil
 }
 func doUpsertResourceContainers(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) ([]*model.TensorContainer, error) {
-	contModels := newModelContainersFromResource(resource, updateTime)
+	contModels := newModelContainersFromResource(ctx, rdb, resource, updateTime)
 
 	for _, contModel := range contModels {
 		err := upsertOneContainer(ctx, rdb, contModel)
