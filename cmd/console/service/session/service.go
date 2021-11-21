@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -31,7 +30,7 @@ type Conf struct {
 
 var (
 	DefaultConf = &Conf{
-		SessionExpiration: time.Hour * 24,
+		SessionExpiration: 60 * time.Minute,
 	}
 )
 
