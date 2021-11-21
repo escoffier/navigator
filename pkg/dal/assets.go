@@ -134,7 +134,7 @@ func GetNamespacesByCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clus
 			db = db.Offset(offset).Limit(limit)
 		}
 		if nameQuery != "" {
-			db = db.Debug().Where("name ILIKE ?", getLikeExpr(nameQuery))
+			db = db.Where("name ILIKE ?", getLikeExpr(nameQuery))
 		}
 		return db.Order("id ASC").Find(&namespaces).Error
 	})
@@ -184,6 +184,10 @@ func ResourcesQuery() *ResourcesQueryOption {
 	}
 }
 
+func (q *ResourcesQueryOption) WithID(id uint32) *ResourcesQueryOption {
+	q.whereEqCondition["id"] = id
+	return q
+}
 func (q *ResourcesQueryOption) GetClusterOption() (string, bool) {
 	v, ok := q.whereEqCondition["cluster_key"]
 	return v.(string), ok
@@ -234,7 +238,7 @@ func getLikeExpr(s string) string {
 	return sb.String()
 }
 
-func CountResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *ResourcesQueryOption) (int64, error) {
+func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption) (int64, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -243,7 +247,7 @@ func CountResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resou
 		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 		defer cancel()
 
-		db := rdb.Get().WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
+		db := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
 		if len(query.whereEqCondition) > 0 {
 			db = db.Where(query.whereEqCondition)
 		}
@@ -253,7 +257,7 @@ func CountResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resou
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 
 		return db.Count(&resCount).Error
@@ -264,7 +268,7 @@ func CountResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resou
 	return resCount, nil
 }
 
-func GetResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *ResourcesQueryOption, offset, limit int) (resources []*model.TensorResource, err error) {
+func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption, offset, limit int) (resources []*model.TensorResource, err error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -272,7 +276,7 @@ func GetResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resourc
 		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
-		db := rdb.Get().WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
+		db := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
 		if len(query.whereEqCondition) > 0 {
 			db = db.Where(query.whereEqCondition)
 		}
@@ -282,7 +286,7 @@ func GetResources(ctx context.Context, rdb *rdbtools.GormWrapper, query *Resourc
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -361,7 +365,7 @@ func (q *ResContainersQueryOption) WithColumnQuery(column, query string) *ResCon
 	return q
 }
 
-func CountResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query *ResContainersQueryOption) (int64, error) {
+func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption) (int64, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -370,7 +374,7 @@ func CountResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, que
 		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 		defer cancel()
 
-		db := rdb.Get().WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
+		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
 		if len(query.whereEqCondition) > 0 {
 			db = db.Where(query.whereEqCondition)
 		}
@@ -385,7 +389,7 @@ func CountResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, que
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		return db.Count(&cntNum).Error
 	})
@@ -394,7 +398,7 @@ func CountResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, que
 	}
 	return cntNum, nil
 }
-func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query *ResContainersQueryOption, offset, limit int) (containers []*model.TensorContainer, err error) {
+func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offset, limit int) (containers []*model.TensorContainer, err error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -402,7 +406,7 @@ func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query
 		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
-		db := rdb.Get().WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
+		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
 		if len(query.whereEqCondition) > 0 {
 			db = db.Where(query.whereEqCondition)
 		}
@@ -417,7 +421,7 @@ func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -430,7 +434,7 @@ func GetResourceContainers(ctx context.Context, rdb *rdbtools.GormWrapper, query
 	return containers, nil
 }
 
-func getResourceUUID(clusterKey, namespace, kind, name string) uint32 {
+func GetResourceUUID(clusterKey, namespace, kind, name string) uint32 {
 	return util.GenerateUUID(clusterKey, namespace, kind, name)
 }
 
@@ -446,7 +450,7 @@ func doSoftDeleteResource(ctx context.Context, db *gorm.DB, uuid uint32, updateT
 
 // SoftDeleteResource will delete the resources and related containers using transactions.
 func SoftDeleteResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource *assets.TensorResource, updateTime time.Time) error {
-	uuid := getResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
+	uuid := GetResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -463,7 +467,7 @@ func SoftDeleteResource(ctx context.Context, rdb *rdbtools.GormWrapper, resource
 
 func newModelFromTensorResource(resource *assets.TensorResource, updateTime time.Time) *model.TensorResource {
 	m := new(model.TensorResource)
-	m.ID = getResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
+	m.ID = GetResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
 	m.Name = resource.Name
 	m.Namespace = resource.Namespace
 	m.ClusterKey = resource.Cluster
@@ -557,9 +561,12 @@ func UpdateResourceUserData(ctx context.Context, rdb *rdbtools.GormWrapper, reso
 		Updates(data).Error
 }
 
+func GetContainerUUID(cluster, namespace, kind, resourceName, containerName string) uint32 {
+	return util.GenerateUUID(cluster, namespace, string(kind), resourceName, containerName)
+}
 func fromContainerToModel(container corev1.Container, resource *assets.TensorResource, updateTime time.Time, conType string) *model.TensorContainer {
 	contModel := new(model.TensorContainer)
-	contModel.ID = util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, container.Name)
+	contModel.ID = GetContainerUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, container.Name)
 	contModel.Name = container.Name
 	contModel.ClusterKey = resource.Cluster
 	contModel.Namespace = resource.Namespace
@@ -1067,7 +1074,7 @@ func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOp
 
 		db := rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("status = ?", 0)
 		if len(queryOptions.whereEqCondition) > 0 {
-			db = db.Debug().Where(queryOptions.whereEqCondition)
+			db = db.Where(queryOptions.whereEqCondition)
 		}
 
 		if len(queryOptions.whereInCondition) > 0 {
@@ -1124,7 +1131,7 @@ func CountPods(ctx context.Context, rdb *rdbtools.GormWrapper, queryOptions *Res
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
@@ -1430,7 +1437,7 @@ func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, 
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Debug().Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if offset >= 0 && limit >= 0 {

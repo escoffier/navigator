@@ -13,11 +13,9 @@ import (
 	"reflect"
 	"strings"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/golang/gddo/httputil/header"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/rs/zerolog/log"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 

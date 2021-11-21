@@ -148,7 +148,7 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 			pos := strings.LastIndexByte(owner.Name, '-')
 			ownerOwnerName := owner.Name[0:pos]
 
-			cnt, err := dal.CountResources(context.Background(), cb.parent.postgresDB, dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
+			cnt, err := dal.CountResources(context.Background(), cb.parent.postgresDB.Get(), dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
 			if err == nil && cnt > 0 {
 				return &metav1.OwnerReference{Name: ownerOwnerName, Kind: string(assets.KindDeployment)}, true
 			}

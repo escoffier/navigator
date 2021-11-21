@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -25,7 +24,7 @@ var rootCmd = &cobra.Command{
 
 		logging.GetLogger().Info().
 			Str("version", Version).
-			Msg("starting Vegeta Console")
+			Msg("starting Console")
 
 		httpOpts := flag.GetHTTPOpts(cmd)
 		logging.GetLogger().Info().
@@ -35,7 +34,6 @@ var rootCmd = &cobra.Command{
 
 		postgresOpts := flag.GetPostgresOpts(cmd)
 		logging.GetLogger().Info().
-			Str("postgres connection", postgresOpts.PostgresConnectionString).
 			Str("pvc", postgresOpts.PVC).
 			Str("pod", postgresOpts.Pod).
 			Str("dataPath", postgresOpts.DataPath).
@@ -54,7 +52,7 @@ var rootCmd = &cobra.Command{
 		logging.GetLogger().Info().
 			Str("host", scannerOpts.Host).
 			Int("port", scannerOpts.Port).
-			Msg("Vegeta Scanner options")
+			Msg("Scanner options")
 
 		scapOpts := flag.GetScapOpts(cmd)
 		logging.GetLogger().Info().
@@ -72,7 +70,6 @@ var rootCmd = &cobra.Command{
 		logging.GetLogger().Info().
 			Str("harbor-url", harborOpts.URL).
 			Str("harbor-username", harborOpts.Username).
-			Str("harbor-password", "***").
 			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
 			Msg("Harbor REST client options")
 
@@ -94,7 +91,7 @@ var rootCmd = &cobra.Command{
 		logging.GetLogger().Info().
 			Str("host", microsegOpts.Host).
 			Int("port", microsegOpts.Port).
-			Msg("microsegmentation options")
+			Msg("microseg options")
 
 		webhookOpts := flag.GetWebHookOpts(cmd)
 		logging.GetLogger().Info().

@@ -428,7 +428,6 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get query param error.")
 			query = ""
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -557,7 +556,6 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get query param error.")
 			query = ""
 		}
 
@@ -577,7 +575,7 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		if namespace != "" {
 			rquery = rquery.WithNamespace(namespace)
 		}
-		if kind != "" {
+		if kind != "" && kind != "_" {
 			rquery = rquery.WithResourceKind(assetsPkg.ResourceKind(kind))
 		}
 		if query != "" {
@@ -725,7 +723,6 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get query param error.")
 			query = ""
 		}
 
@@ -746,7 +743,8 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		if namespace != "" {
 			rquery = rquery.WithNamespace(namespace)
 		}
-		if kind != "" {
+
+		if kind != "" && kind != "_" {
 			rquery = rquery.WithResourceKind(assetsPkg.ResourceKind(kind))
 		}
 		if resourceName != "" {

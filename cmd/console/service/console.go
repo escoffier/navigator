@@ -13,25 +13,17 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
-
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
@@ -56,6 +48,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 var (
@@ -196,6 +195,9 @@ func NewConsole(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
 	}
 
+	if err = immune.Init(postgresDB); err != nil {
+		logging.GetLogger().Err(err).Msg("Init immune error")
+	}
 	if err = palace.Init(postgresDB, es); err != nil {
 		logging.GetLogger().Err(err).Msg("Init palace error")
 	}

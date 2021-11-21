@@ -8,13 +8,12 @@ import (
 	"math"
 	"time"
 
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 type ScannerDB struct {
@@ -66,17 +65,17 @@ func (scdb *ScannerDB) InsertToWebFrame(ctx context.Context, webFrameScan *model
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.WebFrameScan{}
-	err := scdb.PostgresDB.Get().WithContext(ctx).Debug().Where("image_uuid = ?", webFrameScan.ImageUUID).Find(&tmp).Error
+	err := scdb.PostgresDB.Get().WithContext(ctx).Where("image_uuid = ?", webFrameScan.ImageUUID).Find(&tmp).Error
 	if err != nil {
 		return err
 	}
 	if tmp.ID != 0 {
-		err := scdb.PostgresDB.Get().WithContext(ctx).Debug().Model(&model.WebFrameScan{}).Where("image_uuid = ?", webFrameScan.ImageUUID).Update("web_frame_info", webFrameScan.WebFrameInfoJSON).Error
+		err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.WebFrameScan{}).Where("image_uuid = ?", webFrameScan.ImageUUID).Update("web_frame_info", webFrameScan.WebFrameInfoJSON).Error
 		if err != nil {
 			return err
 		}
 	} else {
-		err := scdb.PostgresDB.Get().WithContext(ctx).Debug().Create(webFrameScan).Error
+		err := scdb.PostgresDB.Get().WithContext(ctx).Create(webFrameScan).Error
 		if err != nil {
 			return err
 		}
@@ -185,7 +184,7 @@ func (scdb *ScannerDB) InsertToRegistry(ctx context.Context, Registry *model.Reg
 	res := scdb.PostgresDB.Get().WithContext(ctx).Model(Registry).Where("url = ?", Registry.Url).First(&tmpRegistry)
 	Registry.ID = tmpRegistry.ID
 	if res.Error == nil {
-		if err := scdb.PostgresDB.Get().WithContext(ctx).Updates(&Registry).Debug().Error; err != nil {
+		if err := scdb.PostgresDB.Get().WithContext(ctx).Updates(&Registry).Error; err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "InsertToRegistry Updates Registry error%s ", err.Error())
 		}
 		return
