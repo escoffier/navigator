@@ -145,7 +145,7 @@ type ImageRiskScore struct {
 }
 
 type ConstMapScore struct {
-	//Severity    string
+	// Severity    string
 	MaxScore    float64
 	SingleScore float64
 }
@@ -291,7 +291,7 @@ type ScanDetailScanImage struct {
 }
 
 type LayerScanDetail struct {
-	//LayerDigest string
+	// LayerDigest string
 	VulnDetails      []LayerVulnDetail
 	MaliciousDetails []Malicious
 	Sentitives       []Sensitive
@@ -322,8 +322,8 @@ type ScanEnableCollection struct {
 type SummaryEnv struct {
 	EnvName    string `json:"env_name"`
 	EnvValue   string `json:"env_value"`
-	IsAbnormal int    `json:"is_abnormal"`  //标记是否异常
-	IsInPolicy int    `json:"is_in_policy"` //标记是否被所有策略引用
+	IsAbnormal int    `json:"is_abnormal"`  // 标记是否异常
+	IsInPolicy int    `json:"is_in_policy"` // 标记是否被所有策略引用
 }
 
 type LicenseInfo struct {
@@ -338,4 +338,32 @@ type WebFrameInfo struct {
 	FilePath  string `json:"file_path"`
 	FileName  string `json:"file_name"`
 	Language  string `json:"language"`
+}
+
+type RespSingleVulnDetails []RespSingleVulnDetail
+
+func (rvs RespSingleVulnDetails) Len() int {
+	return len(rvs)
+}
+
+func (rvs RespSingleVulnDetails) Less(i, j int) bool {
+	if len(rvs[i].NewVulnDetail.Trivy) > 0 && len(rvs[j].NewVulnDetail.Trivy) == 0 {
+		return true
+	} else if len(rvs[i].NewVulnDetail.Trivy) == 0 && len(rvs[j].NewVulnDetail.Trivy) > 0 {
+		return false
+	}
+	subScore := map[string]int64{
+		SeverityCritical:   6,
+		SeverityHigh:       5,
+		SeverityMedium:     4,
+		SeverityLow:        3,
+		SeverityNegligible: 2,
+		SeverityUnknown:    1,
+	}
+	// 降序排列
+	return subScore[rvs[i].NewVulnDetail.Trivy[0].Severity] >= subScore[rvs[j].NewVulnDetail.Trivy[0].Severity]
+}
+
+func (rvs RespSingleVulnDetails) Swap(i, j int) {
+	rvs[i], rvs[j] = rvs[j], rvs[i]
 }
