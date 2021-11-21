@@ -67,6 +67,9 @@ func (e *ExecutorScanMalicious) Scan(ctx context.Context, param Param) (Artifact
 					e.scanMalicious(layers[i], layersFilePath[i], &tmpvirus, &virus)
 				} else {
 					for _, v := range scanLayer.MaliciousInfo {
+						if strings.Contains(v.VirusInfo.VirusName, "Unix.Packed.Coinminer-6856324-0") {
+							continue
+						}
 						if v.VirusInfo.FileName != "" {
 							v.VirusInfo.FileName = strings.TrimLeft(v.VirusInfo.FileName, " ")
 						}
