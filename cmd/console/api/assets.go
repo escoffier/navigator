@@ -154,6 +154,7 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			ret[i].ContainerName = cont.Name
 			ret[i].Ports = cont.Ports
 			ret[i].ResourceKind = cont.ResourceKind
+			ret[i].ResourceName = cont.ResourceName
 			ret[i].Type = cont.Type
 
 			repo, name, tag := parseImage(cont.Image)
