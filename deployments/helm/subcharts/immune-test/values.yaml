@@ -18,6 +18,12 @@ service:
   httpPort: 8080
   httpTargetPort: 8080
 
+postgres:
+  username: postgres
+  port: "5432"
+  dbName: postgres
+  sslMode: disable
+
 resources:
   limits:
     cpu: "100m"
