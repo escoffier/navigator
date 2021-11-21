@@ -19,12 +19,16 @@ type Config struct {
 type VulnDbUpdateService struct {
 }
 
+func (s *VulnDbUpdateService) Vuln_updata_fn() {
+	err := vuln_updata.GetUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发")
+	logging.GetLogger().Error().Err(err).Msg("VulnDb auto Updata error")
+}
+
 func (s *VulnDbUpdateService) Start(ctx context.Context) error {
 
 	cleanJob := crontab.New() // create cron table
-
 	// AddJob ,每天1点过2分时运行一次
-	if err := cleanJob.AddJob("2 1 * * *", vuln_updata.GetUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发"), context.Background()); err != nil {
+	if err := cleanJob.AddJob("2 1 * * *", s.Vuln_updata_fn); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("VulnDb auto Updata error")
 		return err
 	}
