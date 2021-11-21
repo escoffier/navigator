@@ -103,6 +103,7 @@ console: generate 		## Build console binary
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
+	upx dist/console
 	docker build -t $(REPOPREFIX)/console:latest -f ./build/console/Dockerfile .
 
 .PHONY: data-base
@@ -121,6 +122,7 @@ data: generate 		## Build cleaner binary
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
 		-o dist/cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
+	upx dist/cleaner
 	docker build -t $(REPOPREFIX)/cleaner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
 
 .PHONY: kube-scanner-report
@@ -128,6 +130,7 @@ kube-scanner-report: generate
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
     		-o dist/kube-scanner-report gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report
+	upx dist/kube-scanner-report
 	docker build -t $(REPOPREFIX)/kube-scanner-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-scanner-report/Dockerfile .
 
 .PHONY: platform-report
@@ -135,6 +138,7 @@ platform-report: generate
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
     		-o dist/platform-report gitlab.com/piccolo_su/vegeta/cmd/platform-report
+	upx dist/platform-report
 	docker build -t $(REPOPREFIX)/platform-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/platform-report/Dockerfile .
 
 .PHONY: immune-test
@@ -142,6 +146,7 @@ immune-test: generate
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
     		-o dist/immune-test gitlab.com/piccolo_su/vegeta/cmd/immune-test
+	upx dist/immune-test
 	docker build -t $(REPOPREFIX)/immune-test:latest --build-arg REPO=$(REPOPREFIX) -f ./build/immune-test/Dockerfile .
 
 
@@ -161,6 +166,7 @@ webshell-server: 		## Build cleaner binary
 	@echo "+ $@"
 	CGO_ENABLED=1 go build -v \
 		-o dist/webshell-server cmd/webshell-server/cmd/main.go
+	upx dist/webshell-server
 	docker build -t $(REPOPREFIX)/webshell-server:latest -f ./build/webshell-server/Dockerfile .
 
 .PHONY: scanner-cicd
@@ -169,11 +175,13 @@ scanner-cicd: generate
 	go build -v \
                 --ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/cmd.Version=$(VERSION)" \
                 -o dist/scanner-cicd gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd
+	upx dist/scanner-cicd
 
 .PHONY: safe-node-image
 safe-node-image: generate
 	echo "+ $@"
 	go build -v  -o dist/safe-node-image  cmd/scripts/safe-node-image/main.go
+	upx dist/safe-node-image
 	docker build -t $(REPOPREFIX)/safe-node-image:latest -f ./build/safe-node-image/Dockerfile .
 
 .PHONY: scanner
@@ -182,6 +190,7 @@ scanner: generate		## Build scanner binary
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-o dist/scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
+	upx dist/scanner
 	docker build -t $(REPOPREFIX)/scanner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/Dockerfile .
 
 .PHONY: faulty-base
@@ -202,12 +211,16 @@ ifeq ($(USEMIRROR),true)
 	@echo "daemon will use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
 	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
+	upx bin/daemon
+	upx bin/ns-mnt
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \
         --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
 	@echo "daemon will use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
 	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
+	upx bin/daemon
+	upx bin/ns-mnt
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
 endif
 
@@ -256,6 +269,7 @@ drift-prevention-client:	## Build drift prevention client binary
 ifeq ($(USEMIRROR),true)
 	(cd configs/drift-prevention && ./run.sh mirrors.aliyun.com)
 	go build -v -a -o dist/file-checker cmd/file-checker/main.go
+	upx dist/file-checker
 	@echo "drift-prevention-client will use mirror"
 	docker build -t $(REPOPREFIX)/drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile \
 		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
@@ -265,6 +279,7 @@ else
 	@echo "drift-prevention-client will not use mirror"
 	(cd configs/drift-prevention && ./run.sh)
 	go build -v -a -o dist/file-checker cmd/file-checker/main.go
+	upx dist/file-checker
 	docker build -t $(REPOPREFIX)/drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile --build-arg REPO=$(REPOPREFIX) .
 	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
@@ -276,6 +291,7 @@ security-profiles-webhook:     ## Build security-profiles-webhook docker
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook/cmd.Version=$(VERSION)" \
 		-o dist/security-profiles-webhook gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook
+	upx dist/security-profiles-webhook
 	docker build -t $(REPOPREFIX)/security-profiles-webhook:latest -f ./build/security-profiles-webhook/Dockerfile .
 
 .PHONY: go-audit
@@ -284,6 +300,7 @@ go-audit:     ## Build go-audit docker
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/go-audit/cmd.Version=$(VERSION)" \
 		-o dist/go-audit gitlab.com/piccolo_su/vegeta/cmd/go-audit
+	upx dist/go-audit
 	docker build -t $(REPOPREFIX)/go-audit:latest -f ./build/go-audit/Dockerfile .
 
 .PHONY: security-profiles-manager
@@ -293,6 +310,7 @@ security-profiles-manager:	## Build security-profiles-manager binary
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/cmd.Version=$(VERSION)" \
 		-o dist/security-profiles-manager gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager
+	upx dist/security-profiles-manager
 	docker build -t $(REPOPREFIX)/security-profiles-manager:latest -f ./build/security-profiles-manager/Dockerfile .
 
 .PHONY: security-profiles-loader-base
@@ -312,6 +330,7 @@ security-profiles-loader:     ## Build security-profiles-loader docker
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-loader/cmd.Version=$(VERSION)" \
 		-o dist/security-profiles-loader gitlab.com/piccolo_su/vegeta/cmd/security-profiles-loader
+	upx dist/security-profiles-loader
 	docker build -t $(REPOPREFIX)/security-profiles-loader:latest -f ./build/security-profiles-loader/Dockerfile \
 		--build-arg REPO=$(REPOPREFIX) .
 
@@ -332,9 +351,11 @@ holmes:     ## Build holmes docker
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/cmd.Version=$(VERSION)" \
 		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler
+	upx dist/holmes-scheduler
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
+	upx dist/holmes-rules-pack
 	./dist/holmes-rules-pack --input configs/holmes/rules/holmes_rules.yaml --output ./dist/holmes-rules.thr
 ifeq ($(USEMIRROR),true)
 	@echo "holmes will use mirror"
@@ -351,6 +372,7 @@ palace:		## Build palace binary
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/palace/cmd.Version=$(VERSION)" \
 		-o dist/palace gitlab.com/piccolo_su/vegeta/cmd/palace
+	upx dist/palace
 	docker build -t $(REPOPREFIX)/palace:latest -f ./build/palace/Dockerfile .
 
 .PHONY: migrate
@@ -359,12 +381,14 @@ migrate: generate		## Build migrage binary
 	go build -v \
 		--ldflags "$(LDFLAGS)" \
 		-o dist/migrate gitlab.com/piccolo_su/vegeta/cmd/migrate
+	upx dist/migrate
 
 .PHONY: image-validate
 image-validate: generate
 	@echo "build image-validate"
 	go build -v \
 		-o dist/image-validator gitlab.com/piccolo_su/vegeta/cmd/image-validate
+	upx dist/image-validator
 	docker build -t $(REPOPREFIX)/image-validator:latest -f ./build/image-validate/Dockerfile .
 
 
@@ -373,6 +397,7 @@ webhook: generate
 	@echo "build webhook"
 	go build -v \
 		-o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
+	upx dist/webhook
 	docker build -t $(REPOPREFIX)/webhook:latest -f ./build/webhook/Dockerfile .
 
 .PHONY: cluster-manager
@@ -380,6 +405,7 @@ cluster-manager: generate
 	@echo "build webhook"
 	go build -v \
 		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/cluster-manager
+	upx dist/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
 
 .PHONY: scan_report
@@ -387,6 +413,7 @@ scan_report: 		## Build cleaner binary
 	@echo "+ $@"
 	GOOS=linux GOARCH=amd64 go build -trimpath -v \
 		-o dist/scan_report cmd/scanner/bin/scan-report/main.go
+	upx dist/scan_report
 	docker build -t $(REPOPREFIX)/scan-report:latest -f ./build/scan_report/Dockerfile .
 
 .PHONY: apiscan-job
@@ -394,6 +421,7 @@ apiscan-job: generate
 	@echo "build apiscan-job"
 	go build -v \
 		-o dist/apiscan gitlab.com/piccolo_su/vegeta/cmd/apiscan-job
+	upx dist/apiscan
 	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
 
 .PHONY: all
