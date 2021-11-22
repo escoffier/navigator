@@ -278,16 +278,16 @@ ifeq ($(USEMIRROR),true)
 	@echo "drift-prevention-client will use mirror"
 	docker build -t $(REPOPREFIX)/drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile \
 		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
-	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
+	#docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/drift-prevention-client:latest
 else
 	@echo "drift-prevention-client will not use mirror"
 	(cd configs/drift-prevention && ./run.sh)
 	go build -v -a -o dist/file-checker cmd/file-checker/main.go
 	upx dist/file-checker
 	docker build -t $(REPOPREFIX)/drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile --build-arg REPO=$(REPOPREFIX) .
-	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
+	#docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/drift-prevention-client:latest
 endif
 
 .PHONY: security-profiles-webhook
