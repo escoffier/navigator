@@ -28,7 +28,7 @@ import (
 const (
 	JWTKeyUsername = "user_name"
 	JWTKeyUserRole = "user_role"
-	JWTExpiration  = 60 * time.Minute
+	JWTExpiration  = 12 * time.Hour
 )
 
 // LoginResponse is the response of the login API

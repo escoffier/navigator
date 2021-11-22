@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -137,7 +138,6 @@ func queryResourcePolicyStatus(ctx context.Context, clusterKey string, policyKin
 		}
 		return nil
 	})
-	fmt.Println("res_uuid:", resourceUUID)
 	var policies []*model.ImmunePolicy
 	err := util.RetryWithBackoff(tctx, func() error {
 		var err error
@@ -155,6 +155,7 @@ func queryResourcePolicyStatus(ctx context.Context, clusterKey string, policyKin
 		return nil, err
 	}
 
+	fmt.Println("policies: ", policies)
 	return policies, nil
 }
 
@@ -255,6 +256,7 @@ func checkCmdExec(ctx context.Context, clusterKey string, cmd string, env string
 					fmt.Println("json unmarshal error: ", err, "data: ", string(p.Value))
 					continue
 				}
+				fmt.Println("cmd prof: ", string(p.Value), p, cmd, env)
 				if cmd == elem.CommandLine && env == elem.Env {
 					return true, false
 				}
@@ -306,6 +308,7 @@ func checkFileRW(ctx context.Context, clusterKey string, path string, rw string)
 					fmt.Println("json unmarshal error: ", err, "data: ", string(p.Value))
 					continue
 				}
+				fmt.Println("frw prof: ", string(p.Value), p, path, rw)
 				if path == fileRWVal.FilePath && rw == fileRWVal.RW {
 					return true, false
 				}
@@ -343,9 +346,11 @@ func mockFileRW(_ http.ResponseWriter, r *http.Request) {
 			log.Errorf("create file error", err)
 		}
 	}
+	fmt.Println("fileRW: ", path, rw)
 
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkFileRW(ctx, clusterKey, path, rw)
+	fmt.Println("check file rw: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -360,7 +365,6 @@ func mockFileRW(_ http.ResponseWriter, r *http.Request) {
 		NotifyContext: &pb.Context{
 			Cluster:   clusterKey,
 			Namespace: util.GetEnvWithDefault(namespaceEnv, defaultNamespace),
-			ServiceID: "immute-test",
 			PodName:   util.GetEnvWithDefault(podNameEnv, defaultPodName),
 			PodUID:    util.GetEnvWithDefault(podUidEnv, defaultPodUID),
 			CustomKV: []*pb.MultiLanguageKV{
@@ -419,10 +423,17 @@ func mockCmdLineExec(_ http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := r.URL.Query().Get("cmd")
+	var cmd string
+	bytes, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		fmt.Println("error body")
+		cmd = "/bin/cat /tdata/1.txt"
+	}
+	cmd = string(bytes)
 	if cmd == "" {
 		cmd = "/bin/cat /tdata/1.txt"
 	}
+	fmt.Println("cmd line exec: ", cmd)
 	splits := strings.Split(cmd, " ")
 	cmdExec := exec.Command(splits[0], splits[1:]...)
 	stdout, err := cmdExec.Output()
@@ -439,6 +450,7 @@ func mockCmdLineExec(_ http.ResponseWriter, r *http.Request) {
 func handleCmdExec(ctx context.Context, cmd string) {
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkCmdExec(ctx, clusterKey, cmd, "")
+	fmt.Println("handleCmdExec: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -453,7 +465,6 @@ func handleCmdExec(ctx context.Context, cmd string) {
 		NotifyContext: &pb.Context{
 			Cluster:   clusterKey,
 			Namespace: util.GetEnvWithDefault(namespaceEnv, defaultNamespace),
-			ServiceID: "immute-test",
 			PodName:   util.GetEnvWithDefault(podNameEnv, defaultPodName),
 			PodUID:    util.GetEnvWithDefault(podUidEnv, defaultPodUID),
 			CustomKV: []*pb.MultiLanguageKV{
@@ -517,6 +528,7 @@ func handleCmdExec(ctx context.Context, cmd string) {
 func handleBinaryExec(ctx context.Context, binary string) {
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkBinaryExec(ctx, clusterKey)
+	fmt.Println("handleBinaryExec: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -531,7 +543,6 @@ func handleBinaryExec(ctx context.Context, binary string) {
 		NotifyContext: &pb.Context{
 			Cluster:   clusterKey,
 			Namespace: util.GetEnvWithDefault(namespaceEnv, defaultNamespace),
-			ServiceID: "immute-test",
 			PodName:   util.GetEnvWithDefault(podNameEnv, defaultPodName),
 			PodUID:    util.GetEnvWithDefault(podUidEnv, defaultPodUID),
 			CustomKV: []*pb.MultiLanguageKV{
@@ -618,6 +629,7 @@ func mockSyscalls(_ http.ResponseWriter, _ *http.Request) {
 
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkSyscall(ctx, clusterKey, "getppid")
+	fmt.Println("mockSyscalls: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -632,7 +644,6 @@ func mockSyscalls(_ http.ResponseWriter, _ *http.Request) {
 		NotifyContext: &pb.Context{
 			Cluster:   clusterKey,
 			Namespace: util.GetEnvWithDefault(namespaceEnv, defaultNamespace),
-			ServiceID: "immute-test",
 			PodName:   util.GetEnvWithDefault(podNameEnv, defaultPodName),
 			PodUID:    util.GetEnvWithDefault(podUidEnv, defaultPodUID),
 			CustomKV: []*pb.MultiLanguageKV{

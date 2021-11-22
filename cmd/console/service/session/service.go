@@ -30,7 +30,7 @@ type Conf struct {
 
 var (
 	DefaultConf = &Conf{
-		SessionExpiration: 60 * time.Minute,
+		SessionExpiration: 12 * time.Hour,
 	}
 )
 
