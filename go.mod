@@ -50,7 +50,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.6.3 // indirect
 	github.com/nats-io/nats-streaming-server v0.23.0 // indirect
 	github.com/nats-io/nats.go v1.13.1-0.20211018182449-f2416a8b1483
-	github.com/nats-io/stan.go v0.10.0
+	github.com/nats-io/stan.go v0.10.2
 	github.com/novln/docker-parser v1.0.0
 	github.com/oceanicdev/chi-param v1.1.0
 	github.com/oleiade/lane v1.0.1
@@ -71,7 +71,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
 	github.com/swaggo/gin-swagger v1.2.0
-	github.com/swaggo/http-swagger v0.0.0-20190614090009-c2865af9083e
 	github.com/swaggo/swag v1.6.7
 	github.com/tealeg/xlsx v1.0.5
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
@@ -228,7 +227,7 @@ require (
 	github.com/jackc/pgproto3/v2 v2.2.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.9.0 // indirect
-	github.com/jackc/pgx/v4 v4.13.0 // indirect
+	github.com/jackc/pgx/v4 v4.14.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.3 // indirect
