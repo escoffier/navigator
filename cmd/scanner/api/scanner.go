@@ -613,9 +613,15 @@ func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=model.ScanLayer}}
 // @Router	/api/v1/layers/:layerDigest/layers [get]
 func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
+	imageId, err := strconv.ParseInt(ctx.Param("imageId"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, fmt.Errorf("not fond imageID"))
+		return
+	}
+
 	layerDigest := ctx.Param("layerDigest")
 
-	info, err := s.Srv.ImgLayerInfo(ctx, layerDigest, nil)
+	info, err := s.Srv.ImgLayerInfo(ctx, imageId, layerDigest, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

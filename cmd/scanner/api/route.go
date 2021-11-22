@@ -63,7 +63,7 @@ func SetupGinRouter(scannerSvc component.ScannerSrv, rejectSvc component.ImageRe
 
 	v3 := router.Group("/api/v1/layers")
 	{
-		v3.GET("/:layerDigest/info", apiScannerSrv.ImgLayerInfo)
+		v3.GET("/images/:imageId/layers/:layerDigest/info", apiScannerSrv.ImgLayerInfo)
 	}
 
 	v4 := router.Group("/api/v1/vulns")
