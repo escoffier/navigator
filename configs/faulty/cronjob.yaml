@@ -10,11 +10,11 @@ spec:
       template:
         metadata:
           labels:
-            tensorsec.driftprevent: "prevent"
+            driftprevent: "prevent"
         spec:
           containers:
             - name: faulty
-              image: registry.t-appagile.com/tensorsecurity/faulty:test
+              image: harbor-test.example.com/test/faulty:test
               imagePullPolicy: Always
               args:
                 - /bin/bash
