@@ -209,6 +209,7 @@ type ReportImgBackInfo struct {
 	Malicious      []string  `json:"malicious"`
 	SensitiveFiles []string  `json:"sensitive_files"`
 	WebshellInfo   []string  `json:"webshell_info"`
+	ImageId        int64     `json:"image_id"`
 }
 
 type SimpleImageDetail struct {

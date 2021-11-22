@@ -63,7 +63,7 @@ type ScannerSrv interface {
 	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
 	ListImgLayers(ctx context.Context, imgId int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
-	ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
+	ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
 	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
 	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
 	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
@@ -726,8 +726,8 @@ func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (model.VulnOverview
 }
 
 // ImgLayerInfo Get detailed information about  the layer
-func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error) {
-	layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: []string{layerDigest}}, filter)
+func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, imageId int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error) {
+	layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: []string{layerDigest}, ImageIds: []int64{imageId}}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ReportImgBackInfo.SearchScanLayer")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -759,7 +759,10 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, layerDigest string, fi
 		webshell = append(webshell, layers[0].WebshellInfo[i].WebShellInfo)
 	}
 	res.WebshellInfo = webshell
-	res.VulnInfo = FilterVulnsFromScanImage(layers[0].VulnInfo)
+
+	vulnInfo := FilterVulnsFromScanImage(layers[0].VulnInfo)
+	sort.Sort(model.RespSingleVulnDetails(vulnInfo))
+	res.VulnInfo = vulnInfo
 
 	return &res, nil
 }
@@ -787,6 +790,7 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 			re := model.ReportImgBackInfo{
 				Created:   history[i].Created,
 				CreatedBy: history[i].CreatedBy,
+				ImageId:   imaID,
 			}
 			res = append(res, re)
 		}
