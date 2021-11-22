@@ -1,9 +1,0 @@
-apiVersion: v1
-appVersion: "0.1.0"
-description: |
-  A Helm chart for Tensorsec seccomp profile generator. Ensure that in kubelet config. Ensure that in kubelet.
-  - security-profiles-operator namespace and deps are installed
-  - --root-dir=/var/lib/kubelet
-  - --seccomp-profile-root={KUBELET_ROOT_DIR}/seccomp
-name: seccomp-generator
-version: 0.1.0

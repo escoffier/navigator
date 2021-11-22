@@ -12,5 +12,5 @@ Create chart name and version as used by the chart label.
 
 {{/* Return the init container image name */}}
 {{- define "palace.init.image" -}}
-{{ include "tensorsec.common.images.image" ( dict "imageRoot" .Values.initContainers.image "global" .Values.global) }}
+{{ include "common.images.image" ( dict "imageRoot" .Values.initContainers.image "global" .Values.global) }}
 {{- end -}}
