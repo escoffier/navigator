@@ -5,7 +5,7 @@ metadata:
   name: {{ include "common.names.fullname" . }}
   labels: {{- include "common.labels.standard" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
   template:
