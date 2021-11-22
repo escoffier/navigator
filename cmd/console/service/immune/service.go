@@ -368,8 +368,6 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 	policy.Updater = userName
 	policy.UpdatedAt = now
 
-	// TODO
-	fmt.Printf("pview: %+v\n", policyView)
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var upErr error
 		reErr := util.RetryWithBackoff(ctx, func() error {
@@ -399,39 +397,32 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 			return err
 		}
 
-		// TODO
-		fmt.Printf("changes: %+v\n", policyView.ProfilesChanges)
 		if policyView.ProfilesChanges != nil {
 			toAddModels := make(map[int64]*model.ImmuneProfile, len(policyView.ProfilesChanges.Add))
 			toDelModels := make(map[int64]*model.ImmuneProfile, len(policyView.ProfilesChanges.Delete))
 			for _, toAdd := range policyView.ProfilesChanges.Add {
-				fmt.Println("toadd: ", toAdd)
 				profiles, err := getModelsFromProfile(toAdd, newPolicy, now, userName)
 				if err != nil {
 					logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toAdd)
 					continue
 				}
 				for _, profile := range profiles {
-					fmt.Println("profile: ", profile)
 					profile.UUID = dal.GetUUIDOfProfile(profile)
 					toAddModels[profile.UUID] = profile
 				}
 
 			}
 			for _, toDelete := range policyView.ProfilesChanges.Delete {
-				fmt.Println("todelete: ", toDelete)
 				profiles, err := getModelsFromProfile(toDelete, newPolicy, now, userName)
 				if err != nil {
 					logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toDelete)
 					continue
 				}
 				for _, profile := range profiles {
-					fmt.Println("to del profile: ", profile)
 					profile.UUID = dal.GetUUIDOfProfile(profile)
 					toDelModels[profile.UUID] = profile
 				}
 			}
-			fmt.Printf("changes: add : %+v del: %+v \n", toAddModels, toDelModels)
 
 			toDelArr := make([]*model.ImmuneProfile, 0, len(toDelModels))
 			for _, p := range toDelModels {
@@ -446,7 +437,6 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 				}
 			}
 			for _, model := range toDelArr {
-				fmt.Println("finally del: ", model)
 				err := util.RetryWithBackoff(ctx, func() error {
 					return dal.DeleteImmuneProfile(ctx, tx, model)
 				}, retry.Attempts(3))
@@ -455,7 +445,6 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 				}
 			}
 			for _, model := range toAddArr {
-				fmt.Println("finally add: ", model)
 				err := util.RetryWithBackoff(ctx, func() error {
 					_, err := dal.CreateImmuneProfile(ctx, tx, model)
 					return err

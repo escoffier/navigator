@@ -17,7 +17,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print out the software version",
 	Long:  `Print out the software version`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Vegeta Console v%s\n", Version)
+		fmt.Printf("Console v%s\n", Version)
 	},
 }
 

@@ -282,7 +282,6 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	// fmt.Println("收获JSON为:", json)
 	err := s.Srv.TickScanOne(ctx, tmp.ImgId, task.UpdateTaskInfo{
 		Scope:       consts.SingleScan,
 		TriggerType: consts.ManualTrigger,
@@ -312,7 +311,6 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	fmt.Printf("接收到的信息为%v\n", tmp)
 	resp, err := s.Srv.ScanOneForCICDResult(ctx, tmp)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -740,7 +738,6 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 	policyStr := ctx.Query("policy")
 	var policyIds []int64
 	policyStrs := strings.Split(policyStr, ",")
-	fmt.Println(policyStr)
 	for k := range policyStrs {
 		tmpId, err := strconv.ParseInt(policyStrs[k], 10, 64)
 		if err != nil {

@@ -333,7 +333,6 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 			return err
 		}
 
-		fmt.Printf("p: %+v t: %+v r: %s\n", policy, task, resources[0].Name)
 		var profiles []*model.ImmuneProfile
 		if resources[0].PodTemplate != nil {
 			for _, cont := range resources[0].PodTemplate.Containers {

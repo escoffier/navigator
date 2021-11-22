@@ -4,11 +4,13 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/falcosecurity/client-go/pkg/client"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"google.golang.org/grpc"
 )
@@ -99,6 +101,10 @@ func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 		data:       res,
 		uuid:       s.generateUUID(res),
 		clusterKey: ckey,
+	}
+	// filter out safenode image detections
+	if podName, exist := res.OutputFields[rtdetect.FieldK8sPodName]; exist && strings.Contains(podName, "safenode-image") {
+		return nil
 	}
 
 	for _, ah := range s.handlers {

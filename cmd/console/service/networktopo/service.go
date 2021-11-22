@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -168,7 +169,7 @@ func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.Ten
 	}
 
 	// TODO tmp code remove immune-test flows
-	if flow.SrcName == "immune-test" {
+	if strings.Contains(flow.SrcName, "immune-test") {
 		return nil
 	}
 

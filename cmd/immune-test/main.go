@@ -150,12 +150,9 @@ func queryResourcePolicyStatus(ctx context.Context, clusterKey string, policyKin
 	}, retry.Attempts(3))
 
 	if err != nil {
-		// TODO rm
-		fmt.Println("get policies err: ", err)
 		return nil, err
 	}
 
-	fmt.Println("policies: ", policies)
 	return policies, nil
 }
 
@@ -183,8 +180,6 @@ func checkSyscall(ctx context.Context, clusterKey string, syscall string) (bool,
 			}, retry.Attempts(3))
 
 			if err != nil {
-				// TODO rm
-				fmt.Println("get profiles err: ", err)
 				return false, false
 			}
 
@@ -242,8 +237,6 @@ func checkCmdExec(ctx context.Context, clusterKey string, cmd string, env string
 			}, retry.Attempts(3))
 
 			if err != nil {
-				// TODO rm
-				fmt.Println("get profiles err: ", err)
 
 				return false, false
 			}
@@ -252,11 +245,8 @@ func checkCmdExec(ctx context.Context, clusterKey string, cmd string, env string
 				var elem model.CmdExecElement
 				err := json.Unmarshal(p.Value, &elem)
 				if err != nil {
-					// TODO rm
-					fmt.Println("json unmarshal error: ", err, "data: ", string(p.Value))
 					continue
 				}
-				fmt.Println("cmd prof: ", string(p.Value), p, cmd, env)
 				if cmd == elem.CommandLine && env == elem.Env {
 					return true, false
 				}
@@ -296,7 +286,6 @@ func checkFileRW(ctx context.Context, clusterKey string, path string, rw string)
 
 			if err != nil {
 				// TODO rm
-				fmt.Println("get profiles err: ", err)
 				return false, false
 			}
 
@@ -305,10 +294,8 @@ func checkFileRW(ctx context.Context, clusterKey string, path string, rw string)
 				err := json.Unmarshal(p.Value, &fileRWVal)
 				if err != nil {
 					// TODO rm
-					fmt.Println("json unmarshal error: ", err, "data: ", string(p.Value))
 					continue
 				}
-				fmt.Println("frw prof: ", string(p.Value), p, path, rw)
 				if path == fileRWVal.FilePath && rw == fileRWVal.RW {
 					return true, false
 				}
@@ -346,11 +333,9 @@ func mockFileRW(_ http.ResponseWriter, r *http.Request) {
 			log.Errorf("create file error", err)
 		}
 	}
-	fmt.Println("fileRW: ", path, rw)
 
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkFileRW(ctx, clusterKey, path, rw)
-	fmt.Println("check file rw: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -433,7 +418,6 @@ func mockCmdLineExec(_ http.ResponseWriter, r *http.Request) {
 	if cmd == "" {
 		cmd = "/bin/cat /tdata/1.txt"
 	}
-	fmt.Println("cmd line exec: ", cmd)
 	splits := strings.Split(cmd, " ")
 	cmdExec := exec.Command(splits[0], splits[1:]...)
 	stdout, err := cmdExec.Output()
@@ -450,7 +434,6 @@ func mockCmdLineExec(_ http.ResponseWriter, r *http.Request) {
 func handleCmdExec(ctx context.Context, cmd string) {
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkCmdExec(ctx, clusterKey, cmd, "")
-	fmt.Println("handleCmdExec: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -528,7 +511,6 @@ func handleCmdExec(ctx context.Context, cmd string) {
 func handleBinaryExec(ctx context.Context, binary string) {
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkBinaryExec(ctx, clusterKey)
-	fmt.Println("handleBinaryExec: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
@@ -629,7 +611,6 @@ func mockSyscalls(_ http.ResponseWriter, _ *http.Request) {
 
 	clusterKey, _ := clusterManager.ClusterKey()
 	notToSend, policyID := checkSyscall(ctx, clusterKey, "getppid")
-	fmt.Println("mockSyscalls: ", notToSend, policyID)
 	if notToSend {
 		return
 	}
