@@ -152,7 +152,7 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 	frameInfos, err := resSvc.GetFrameworks(ctx)
 	//TODO: may be removed later
 	appType := queryOpt.WhereEqCondition["app_type"]
-	if appType != "" {
+	if appType == "web" {
 		delete(queryOpt.WhereEqCondition, "app_type")
 	}
 
@@ -175,7 +175,7 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 		for _, container := range containers {
 			if appType == "web" {
 				// not web application
-				if container.AppTargetName != nil && *container.AppTargetName != "web" {
+				if container.AppType != nil && *container.AppType != "web" {
 					continue
 				}
 				if frameInfos != nil && container.AppTargetName == nil {
