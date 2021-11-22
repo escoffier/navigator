@@ -31,14 +31,14 @@ func PatchPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod) []*processors.Patch
 
 	//TODO: Optimization codes or remove
 	for k, v := range pod.Labels {
-		if k == "tensorsec.driftprevent" {
+		if k == "driftprevent" {
 			if v == "prevent" {
 				driftPrevent = true
 			} else if v == "detect" {
 				driftDetect = true
 			}
 		}
-		if k == "tensorsec.commandprevent" {
+		if k == "commandprevent" {
 			if v == "prevent" {
 				commandWhitelistPrevent = true
 			} else if v == "detect" {
