@@ -60,7 +60,7 @@ func NewService() (*Service, error) {
 		monitor:  monitor,
 		dupCache: newDupCache(24 * time.Hour),
 	}
-	
+
 	err = svc.doRegisterEventsCenterRules(context.Background())
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
