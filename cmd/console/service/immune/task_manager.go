@@ -382,7 +382,7 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 						profile.CreatedAt = now
 						profile.Creator = fmt.Sprintf("System-task-%d", task.ID)
 						var v model.CmdExecElement
-						v.CommandLine = "ls -al /tdata"
+						v.CommandLine = "/bin/cat /tdata/1.txt"
 						v.Env = ""
 						valBytes, err := json.Marshal(&v)
 						if err != nil {
