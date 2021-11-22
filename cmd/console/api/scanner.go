@@ -283,7 +283,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /api/v2/containerSec/scanner/reportsByImageOverview
 		// /api/v1/scan/reportsByImageOverview?offset=1
-		start := time.Now()
+
 		pre := r.URL.String()
 		log.WithContext(api.ctx).Infof("preUrl:%s", pre)
 		var newUrl string
@@ -300,8 +300,6 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
 				strings.Replace(pre, "/api/openapi/scanner", "/api/v1", 1))
 		}
-		log.WithContext(api.ctx).Infof("newUrl:%s", newUrl)
-		log.WithContext(api.ctx).Infof("scannerURL:%s", api.scannerURL)
 
 		u, err := url.Parse(newUrl)
 		if nil != err {
@@ -317,8 +315,6 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 		// ctx, cannel := context.WithTimeout(r.Context(), 600*time.Second)
 		// defer cannel()
 		// r = r.WithContext(ctx)
-		log.WithContext(api.ctx).Infof(fmt.Sprintf("生成URL时间:%f秒\n", time.Since(start).Seconds()))
 		proxy.ServeHTTP(w, r)
-		log.WithContext(api.ctx).Infof(fmt.Sprintf("请求完成总共所用时间:%f秒\n", time.Since(start).Seconds()))
 	}
 }
