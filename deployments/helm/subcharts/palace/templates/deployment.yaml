@@ -14,7 +14,7 @@ spec:
       serviceAccountName: {{ include "common.names.fullname" . }}
       initContainers:
       - name: "stan-listener"
-        image: {{ include "initContainers.image" . }}
+        image: {{ include "palace.init.image" . }}
         imagePullPolicy: "IfNotPresent"
         command: [
           "sh", "-c",
