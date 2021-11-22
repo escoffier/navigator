@@ -27,3 +27,4 @@ cmd/console/api/testCaptcha.png
 cmd/console/service/captcha/testCaptcha.png
 cmd/kube-scanner-report/khv_detail.json
 benchmark/mock-httpserver/mock-httpserver
+tool/db/db-tool

@@ -183,17 +183,17 @@ func (s *Service) GetApiScanResult(ctx context.Context, apiID int64) ([]SingleAp
 	}
 
 	for i := range sr {
-		if !strings.HasSuffix(sr[i].Target.Url,tensorApi.Path) && !strings.Contains(sr[i].Target.Url,tensorApi.Path+"?"){
+		if !strings.HasSuffix(sr[i].Target.Url, tensorApi.Path) && !strings.Contains(sr[i].Target.Url, tensorApi.Path+"?") {
 			continue
 		}
 		if strings.HasSuffix(sr[i].Target.Url, "/vulnerabilities/brute/source/") {
 			sr[i].Plugin = "备份文件泄漏"
-			responseSr= append(responseSr, sr[i])
+			responseSr = append(responseSr, sr[i])
 			continue
 		}
 		if strings.HasSuffix(sr[i].Target.Url, "/external/recaptcha/") {
 			sr[i].Plugin = "API越权"
-			responseSr= append(responseSr, sr[i])
+			responseSr = append(responseSr, sr[i])
 			continue
 		}
 		p := strings.Split(sr[i].Plugin, "/")
@@ -204,7 +204,7 @@ func (s *Service) GetApiScanResult(ctx context.Context, apiID int64) ([]SingleAp
 				sr[i].Plugin = mv
 			}
 		}
-		responseSr= append(responseSr, sr[i])
+		responseSr = append(responseSr, sr[i])
 	}
 	return responseSr, nil
 }

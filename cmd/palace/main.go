@@ -14,6 +14,12 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
+	_ "go.uber.org/automaxprocs"
+	"google.golang.org/protobuf/proto"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/immune"
@@ -23,10 +29,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	_ "go.uber.org/automaxprocs"
-	"google.golang.org/protobuf/proto"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 const (
@@ -87,7 +89,7 @@ func initDB() error {
 		return errors.New("no env POSTGRESQL_DSN given")
 	}
 	postgresDB, err := rdbtools.GormWrapperOpen(5*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(pgDsn), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(pgDsn), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			logging.GetLogger().Error().Msgf("postgresDB client init error :%v. pgDsn: %s", err, pgDsn)
 			return nil, err
