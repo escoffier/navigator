@@ -528,7 +528,6 @@ ALTER SEQUENCE public.image_whitelist_id_seq OWNED BY public.image_whitelist.id;
 --
 
 CREATE TABLE public.immune_policies (
-    id integer NOT NULL,
     name character varying(128) NOT NULL,
     description character varying(255) DEFAULT ''::character varying,
     kind smallint NOT NULL,
@@ -540,7 +539,8 @@ CREATE TABLE public.immune_policies (
     creator character varying(128) NOT NULL,
     updater character varying(128) NOT NULL,
     created_at timestamp without time zone NOT NULL,
-    updated_at timestamp without time zone NOT NULL
+    updated_at timestamp without time zone NOT NULL,
+    id bigint NOT NULL
 );
 
 
@@ -551,7 +551,6 @@ ALTER TABLE public.immune_policies OWNER TO postgres;
 --
 
 CREATE SEQUENCE public.immune_policies_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -590,7 +589,6 @@ ALTER TABLE public.immune_profiles OWNER TO postgres;
 --
 
 CREATE TABLE public.immune_tasks (
-    id bigint NOT NULL,
     resource_uuid bigint NOT NULL,
     pod_name character varying(128),
     container_id character varying(128),
@@ -601,11 +599,33 @@ CREATE TABLE public.immune_tasks (
     creator character varying(128) NOT NULL,
     updater character varying(128) NOT NULL,
     created_at timestamp without time zone NOT NULL,
-    updated_at timestamp without time zone NOT NULL
+    updated_at timestamp without time zone NOT NULL,
+    id bigint NOT NULL
 );
 
 
 ALTER TABLE public.immune_tasks OWNER TO postgres;
+
+--
+-- Name: immune_tasks_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.immune_tasks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.immune_tasks_id_seq OWNER TO postgres;
+
+--
+-- Name: immune_tasks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.immune_tasks_id_seq OWNED BY public.immune_tasks.id;
+
 
 --
 -- Name: kube_hunter_records; Type: TABLE; Schema: public; Owner: postgres
@@ -2787,6 +2807,13 @@ ALTER TABLE ONLY public.image_whitelist ALTER COLUMN id SET DEFAULT nextval('pub
 --
 
 ALTER TABLE ONLY public.immune_policies ALTER COLUMN id SET DEFAULT nextval('public.immune_policies_id_seq'::regclass);
+
+
+--
+-- Name: immune_tasks id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.immune_tasks ALTER COLUMN id SET DEFAULT nextval('public.immune_tasks_id_seq'::regclass);
 
 
 --
