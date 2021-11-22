@@ -92,8 +92,11 @@ func (s *SequenceEngine) SubTaskHeartBeatFunc() FlowLoopFunc {
 				Msg("update task heart beat failed")
 		}
 
-		if err != nil || err2 != nil {
-			return fmt.Errorf("%s,%s", err.Error(), err2.Error())
+		if err != nil {
+			return fmt.Errorf("update subtask heatbeat %v", err)
+		}
+		if err2 != nil {
+			return fmt.Errorf("update task heatbeat %v", err2)
 		}
 		return nil
 	}
