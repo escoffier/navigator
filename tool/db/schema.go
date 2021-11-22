@@ -4262,9 +4262,9 @@ ALTER TABLE ONLY public.tensor_scan_report_sub_tasks
     ADD CONSTRAINT fk_tensor_scan_report_sub_tasks_tensor_scan_report_tasks FOREIGN KEY (scan_report_id) REFERENCES public.tensor_scan_report_tasks(id);
 
 
-DELETE FROM event_notify_settings;
+DELETE FROM public.event_notify_settings;
 
-INSERT INTO event_notify_settings (email_notification, emails, threshold_severity) VALUES (FALSE, '{}', 0);
+INSERT INTO public.event_notify_settings (email_notification, emails, threshold_severity) VALUES (FALSE, '{}', 0);
 
 --
 -- PostgreSQL database dump complete
