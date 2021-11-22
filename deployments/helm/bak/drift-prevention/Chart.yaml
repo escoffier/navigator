@@ -1,8 +1,0 @@
-apiVersion: v1
-appVersion: "0.1.0"
-description: |
-  A Helm chart for drift-prevention. Please make sure to add additional configuration to kubernetes cluster to enabled
-  pod presets (https://v1-18.docs.kubernetes.io/docs/concepts/workloads/pods/podpreset/#enable-pod-preset and
-  https://nutbutterfly.medium.com/how-to-enable-podpreset-in-microk8s-795a90aea1a5)
-name: drift-prevention
-version: 0.1.0
