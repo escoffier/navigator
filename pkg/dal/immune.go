@@ -24,6 +24,7 @@ var (
 type ImmunePoliciesQueryOption struct {
 	whereEqCondition map[string]interface{}
 	whereInCondition map[string]interface{}
+	columnQuery      colQuery
 }
 
 func NewImmunePoliciesQuery() *ImmunePoliciesQueryOption {
@@ -44,7 +45,15 @@ func (opt *ImmunePoliciesQueryOption) WithClusterKey(ckey string) *ImmunePolicie
 	opt.whereEqCondition["cluster_key"] = ckey
 	return opt
 }
-
+func (opt *ImmunePoliciesQueryOption) WithResourceUUID(resourceUUID uint32) *ImmunePoliciesQueryOption {
+	opt.whereEqCondition["resource_uuid"] = resourceUUID
+	return opt
+}
+func (opt *ImmunePoliciesQueryOption) WithQuery(query string) *ImmunePoliciesQueryOption {
+	opt.columnQuery.column = "name"
+	opt.columnQuery.query = query
+	return opt
+}
 func ListImmunePolicies(ctx context.Context, rdb *gorm.DB, opt *ImmunePoliciesQueryOption, offset, limit int) ([]*model.ImmunePolicy, error) {
 	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
@@ -62,7 +71,10 @@ func ListImmunePolicies(ctx context.Context, rdb *gorm.DB, opt *ImmunePoliciesQu
 			db = db.Where(fmt.Sprintf("%s in ?", column), val)
 		}
 	}
-	err := db.Order("updated_at DESC").Find(&policies).Error
+	if len(opt.columnQuery.column) > 0 && len(opt.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s ILIKE ?", opt.columnQuery.column), getLikeExpr(opt.columnQuery.query))
+	}
+	err := db.Where("status != ?", 1).Order("updated_at DESC").Find(&policies).Error
 	return policies, err
 }
 
@@ -79,6 +91,9 @@ func CountImmunePolicies(ctx context.Context, rdb *gorm.DB, opt *ImmunePoliciesQ
 		for column, val := range opt.whereInCondition {
 			db = db.Where(fmt.Sprintf("%s in ?", column), val)
 		}
+	}
+	if len(opt.columnQuery.column) > 0 && len(opt.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s ILIKE ?", opt.columnQuery.column), getLikeExpr(opt.columnQuery.query))
 	}
 	err := db.Count(&count).Error
 	return count, err
@@ -102,10 +117,23 @@ func GetProfilesOfPolicy(ctx context.Context, rdb *gorm.DB, policyID int64, cont
 	if len(containerName) > 0 {
 		db = db.Where("container_name = ?", containerName)
 	}
-	err := db.Find(&profiles).Error
+	err := db.Order("created_at asc").Find(&profiles).Error
 	return profiles, err
 }
 
+func GetImmunePolicy(ctx context.Context, rdb *gorm.DB, id int64) (*model.ImmunePolicy, error) {
+	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	var p model.ImmunePolicy
+	err := rdb.WithContext(tctx).Model(&model.ImmunePolicy{}).Where("id = ?", id).First(&p).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, err
+	} else if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
 func CreateImmunePolicy(ctx context.Context, rdb *gorm.DB, policy *model.ImmunePolicy) (*model.ImmunePolicy, error) {
 	tctx, cancel := context.WithTimeout(ctx, 600*time.Millisecond)
 	defer cancel()
@@ -131,9 +159,13 @@ func UpdateImmunePolicy(ctx context.Context, rdb *gorm.DB, policyID int64, polic
 	return err
 }
 
+func GetUUIDOfProfile(profile *model.ImmuneProfile) int64 {
+	return util.GenerateUUID64Signed(strconv.FormatInt(profile.PolicyID, 10), profile.ContainerName, string(profile.Value))
+}
 func CreateImmuneProfile(ctx context.Context, rdb *gorm.DB, profile *model.ImmuneProfile) (int64, error) {
-	uuid := util.GenerateUUID64Signed(strconv.FormatInt(profile.PolicyID, 10), profile.ContainerName, string(profile.Value))
-	profile.UUID = uuid
+	if profile.UUID == 0 {
+		profile.UUID = GetUUIDOfProfile(profile)
+	}
 
 	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
@@ -142,12 +174,12 @@ func CreateImmuneProfile(ctx context.Context, rdb *gorm.DB, profile *model.Immun
 		Columns:   []clause.Column{{Name: "uuid"}},
 		DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForImmuneProfiles),
 	}).Create(profile).Error
-	return uuid, err
+	return profile.UUID, err
 }
 
 func DeleteImmuneProfile(ctx context.Context, rdb *gorm.DB, profile *model.ImmuneProfile) error {
 	if profile.UUID == 0 {
-		profile.UUID = util.GenerateUUID64Signed(strconv.FormatInt(profile.PolicyID, 10), profile.ContainerName, string(profile.Value))
+		profile.UUID = GetUUIDOfProfile(profile)
 	}
 
 	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
@@ -165,4 +197,69 @@ func SetImmunePolicyStatus(ctx context.Context, rdb *gorm.DB, policyID int64, st
 	defer cancel()
 
 	return rdb.WithContext(tctx).Model(&model.ImmunePolicy{}).Where("id = ?", policyID).Update("status", status).Error
+}
+
+type ImmuneTasksQuery struct {
+	whereEqCondition map[string]interface{}
+}
+
+func NewImmuneTasksQuery() *ImmuneTasksQuery {
+	return &ImmuneTasksQuery{
+		whereEqCondition: make(map[string]interface{}, 3),
+	}
+}
+func (q *ImmuneTasksQuery) WithResourceUUID(uuid uint32) *ImmuneTasksQuery {
+	q.whereEqCondition["resource_uuid"] = uuid
+	return q
+}
+func (q *ImmuneTasksQuery) WithState(state model.TaskState) *ImmuneTasksQuery {
+	q.whereEqCondition["state"] = state
+	return q
+}
+
+func CountImmuneTasks(ctx context.Context, rdb *gorm.DB, queryOpt *ImmuneTasksQuery) (int64, error) {
+	tctx, cancel := context.WithTimeout(ctx, 600*time.Millisecond)
+	defer cancel()
+
+	db := rdb.WithContext(tctx).Model(&model.ImmuneTask{}).Where("status = ?", 0)
+	if queryOpt != nil && len(queryOpt.whereEqCondition) > 0 {
+		db = db.Where(queryOpt.whereEqCondition)
+	}
+	var cnt int64
+	err := db.Count(&cnt).Error
+	return cnt, err
+}
+
+func SetImmuneTaskState(ctx context.Context, rdb *gorm.DB, id int64, state model.TaskState) error {
+	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	return rdb.WithContext(tctx).Model(&model.ImmuneTask{}).Where("id = ?", id).Update("state", state).Error
+}
+
+func GetImmuneTasks(ctx context.Context, rdb *gorm.DB, queryOpt *ImmuneTasksQuery, offset, limit int) ([]*model.ImmuneTask, error) {
+	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	db := rdb.WithContext(tctx).Model(&model.ImmuneTask{}).Where("status = ?", 0)
+	if limit > 0 {
+		db = db.Limit(limit).Offset(offset)
+	}
+	if queryOpt != nil && len(queryOpt.whereEqCondition) > 0 {
+		db = db.Where(queryOpt.whereEqCondition)
+	}
+	tasks := make([]*model.ImmuneTask, 0, limit)
+	err := db.Order("id desc").Find(&tasks).Error
+	return tasks, err
+}
+
+func CreateImmuneTask(ctx context.Context, rdb *gorm.DB, t *model.ImmuneTask) (int64, error) {
+	if t == nil {
+		return 0, errors.New("nil")
+	}
+	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	err := rdb.WithContext(tctx).Model(t).Create(t).Error
+	return t.ID, err
 }

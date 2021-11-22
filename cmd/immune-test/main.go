@@ -4,17 +4,30 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/avast/retry-go"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const (
@@ -34,9 +47,14 @@ const (
 )
 
 var (
-	cli           pb.EventsCenterCollectionServiceClient
-	uuidGenerator *uuid.Generator
-	clusterKey    string
+	cli            pb.EventsCenterCollectionServiceClient
+	uuidGenerator  *uuid.Generator
+	clusterManager *k8s.ClusterInfoManager
+	psql           *rdbtools.GormWrapper
+
+	pid       = os.Getpid()
+	namespace = "default"
+	podName   = "immune-test-xak8Khz"
 )
 
 func main() {
@@ -51,26 +69,286 @@ func main() {
 		log.Fatal(err)
 	}
 
-	clusterManager := k8s.NewClusterInfoManager(util.GetEnvWithDefault(clusterManagerURL, ""))
-	clusterKey, _ = clusterManager.ClusterKey()
+	namespace = util.GetEnvWithDefault(namespaceEnv, defaultNamespace)
+	podName = util.GetEnvWithDefault(podNameEnv, defaultPodName)
+	rdbUser := os.Getenv("RDB_USER")
+	rdbPassword := os.Getenv("RDB_PASSWORD")
+	rdbHost := os.Getenv("RDB_HOST")
+	rdbPort := os.Getenv("RDB_PORT")
+	rdbDBName := os.Getenv("RDB_DBNAME")
+	rdbSSLMode := os.Getenv("RDB_SSLMODE")
+	if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
+		log.Fatal(errors.New("missing rdb envs"))
+	}
+
+	pgDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", rdbUser, rdbPassword, rdbHost, rdbPort, rdbDBName, rdbSSLMode)
+	psql, err = rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		db, err := gorm.Open(postgres.Open(pgDSN), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			return nil, err
+		}
+		sqlDB, err := db.DB()
+		if err == nil {
+			sqlDB.SetMaxOpenConns(30)
+			sqlDB.SetMaxIdleConns(5)
+			sqlDB.SetConnMaxLifetime(time.Hour)
+		}
+		return db, nil
+	})
+	if err != nil {
+		log.Fatal(errors.New("missing rdb envs"))
+	}
+
+	clusterManager = k8s.NewClusterInfoManager(util.GetEnvWithDefault(clusterManagerURL, ""))
 
 	cli = pb.NewEventsCenterCollectionServiceClient(conn)
-	http.HandleFunc("/apparmor", mockApparmor)
-	http.HandleFunc("/commandWhiteList", mockCommandWhiteList)
-	http.HandleFunc("/driftPrevention", mockDriftPrevention)
-	http.HandleFunc("/seccomp", mockSeccomp)
+	http.HandleFunc("/fileReadWrite", mockFileRW)
+	http.HandleFunc("/cmdlineExec", mockCmdLineExec)
+	http.HandleFunc("/binaryExec", mockBinaryExec)
+	http.HandleFunc("/syscalls", mockSyscalls)
 	if err := http.ListenAndServe(util.GetEnvWithDefault(httpAddrEnv, defaultHttpAddr), nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
 const (
-	timeout = time.Second * 10
+	timeout = time.Second * 30
 )
 
-func mockApparmor(_ http.ResponseWriter, _ *http.Request) {
+func queryResourcePolicyStatus(ctx context.Context, clusterKey string, policyKind model.PolicyKind) ([]*model.ImmunePolicy, error) {
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var resourceUUID uint32
+	util.RetryWithBackoff(tctx, func() error {
+		q := dal.ResourcesQuery().WithCluster(clusterKey).WithColumnQuery("name", "immune-test")
+		if namespace != "default" {
+			q = q.WithNamespace(namespace)
+		}
+		resources, err := dal.GetResources(ctx, psql.Get(), q, 0, 10)
+		if err != nil {
+			return err
+		}
+		for _, r := range resources {
+			if strings.Contains(r.Name, "immune-test") {
+				resourceUUID = r.ID
+				break
+			}
+		}
+		return nil
+	})
+	fmt.Println("res_uuid:", resourceUUID)
+	var policies []*model.ImmunePolicy
+	err := util.RetryWithBackoff(tctx, func() error {
+		var err error
+		policies, err = dal.ListImmunePolicies(ctx, psql.Get(),
+			dal.NewImmunePoliciesQuery().WithClusterKey(clusterKey).WithKinds([]model.PolicyKind{policyKind}).WithResourceUUID(resourceUUID).WithStatuses([]model.PolicyStatus{model.StatusEnable}),
+			0,
+			10,
+		)
+		return err
+	}, retry.Attempts(3))
+
+	if err != nil {
+		// TODO rm
+		fmt.Println("get policies err: ", err)
+		return nil, err
+	}
+
+	return policies, nil
+}
+
+func checkSyscall(ctx context.Context, clusterKey string, syscall string) (bool, int64) {
+	policies, err := queryResourcePolicyStatus(ctx, clusterKey, model.PolicyKindSyscalls)
+	if err != nil {
+		return false, 0
+	}
+	if len(policies) == 0 {
+		return true, 0
+	}
+
+	var policyID int64
+	for _, policy := range policies {
+		policyID = policy.ID
+		hit, toContinue := func() (bool, bool) {
+			tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+
+			var profiles []*model.ImmuneProfile
+			err := util.RetryWithBackoff(tctx, func() error {
+				var oneErr error
+				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, psql.Get(), policy.ID, "immune-test")
+				return oneErr
+			}, retry.Attempts(3))
+
+			if err != nil {
+				// TODO rm
+				fmt.Println("get profiles err: ", err)
+				return false, false
+			}
+
+			for _, p := range profiles {
+				syscallVal := string(p.Value)
+				if syscall == syscallVal {
+					return true, false
+				}
+			}
+			return false, true
+		}()
+		if hit {
+			return true, policyID
+		}
+		if !toContinue {
+			break
+		}
+	}
+	return false, policyID
+}
+
+// returns whether in profile & policyID
+func checkBinaryExec(ctx context.Context, clusterKey string) (bool, int64) {
+	policies, err := queryResourcePolicyStatus(ctx, clusterKey, model.PolicyKindBinaryExec)
+	if err != nil {
+		return false, 0
+	}
+	if len(policies) == 0 {
+		return true, 0
+	}
+	return false, policies[0].ID
+}
+
+// returns whether in profile & policyID
+func checkCmdExec(ctx context.Context, clusterKey string, cmd string, env string) (bool, int64) {
+	policies, err := queryResourcePolicyStatus(ctx, clusterKey, model.PolicyKindCmdExec)
+	if err != nil {
+		return false, 0
+	}
+	if len(policies) == 0 {
+		return true, 0
+	}
+	var policyID int64
+	for _, policy := range policies {
+		policyID = policy.ID
+		hit, toContinue := func() (bool, bool) {
+			tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+
+			var profiles []*model.ImmuneProfile
+			err := util.RetryWithBackoff(tctx, func() error {
+				var oneErr error
+				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, psql.Get(), policy.ID, "immune-test")
+				return oneErr
+			}, retry.Attempts(3))
+
+			if err != nil {
+				// TODO rm
+				fmt.Println("get profiles err: ", err)
+
+				return false, false
+			}
+
+			for _, p := range profiles {
+				var elem model.CmdExecElement
+				err := json.Unmarshal(p.Value, &elem)
+				if err != nil {
+					// TODO rm
+					fmt.Println("json unmarshal error: ", err, "data: ", string(p.Value))
+					continue
+				}
+				if cmd == elem.CommandLine && env == elem.Env {
+					return true, false
+				}
+			}
+			return false, true
+		}()
+		if hit {
+			return true, policyID
+		}
+		if !toContinue {
+			break
+		}
+	}
+	return false, policyID
+}
+func checkFileRW(ctx context.Context, clusterKey string, path string, rw string) (bool, int64) {
+	policies, err := queryResourcePolicyStatus(ctx, clusterKey, model.PolicyKindFileRW)
+	if err != nil {
+		return false, 0
+	}
+	if len(policies) == 0 {
+		return true, 0
+	}
+	var policyID int64
+	for _, policy := range policies {
+		policyID = policy.ID
+		hit, toContinue := func() (bool, bool) {
+			tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+
+			var profiles []*model.ImmuneProfile
+			err := util.RetryWithBackoff(tctx, func() error {
+				var oneErr error
+				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, psql.Get(), policy.ID, "immune-test")
+				return oneErr
+			}, retry.Attempts(3))
+
+			if err != nil {
+				// TODO rm
+				fmt.Println("get profiles err: ", err)
+				return false, false
+			}
+
+			for _, p := range profiles {
+				var fileRWVal model.FRWElement
+				err := json.Unmarshal(p.Value, &fileRWVal)
+				if err != nil {
+					// TODO rm
+					fmt.Println("json unmarshal error: ", err, "data: ", string(p.Value))
+					continue
+				}
+				if path == fileRWVal.FilePath && rw == fileRWVal.RW {
+					return true, false
+				}
+			}
+			return false, true
+		}()
+		if hit {
+			return true, policyID
+		}
+		if !toContinue {
+			break
+		}
+	}
+	return false, policyID
+}
+
+func mockFileRW(_ http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "/tdata/2.txt"
+	}
+	rw := r.URL.Query().Get("rw")
+	if rw == "" {
+		rw = "w"
+	}
+	if rw == "w" {
+		f, err := os.Create(path)
+		if err == nil {
+			defer f.Close()
+			f.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
+		} else {
+			log.Errorf("create file error", err)
+		}
+	}
+
+	clusterKey, _ := clusterManager.ClusterKey()
+	notToSend, policyID := checkFileRW(ctx, clusterKey, path, rw)
+	if notToSend {
+		return
+	}
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
 			Module:   "ContainerSecurity",
@@ -94,8 +372,8 @@ func mockApparmor(_ http.ResponseWriter, _ *http.Request) {
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {Key: "profileName", Value: "apparmor-1"},
-						"zh": {Key: "名称", Value: "apparmor-1"},
+						"en": {Key: "PolicyName", Value: fmt.Sprintf("FileRWPolicy-%d", policyID)},
+						"zh": {Key: "策略", Value: fmt.Sprintf("FileRWPolicy-%d", policyID)},
 					},
 				},
 				{
@@ -106,20 +384,26 @@ func mockApparmor(_ http.ResponseWriter, _ *http.Request) {
 						},
 						"zh": {
 							Key:   "行为",
-							Value: "告警",
+							Value: "预警",
 						},
 					},
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {Key: "filePath", Value: "/test.sh"},
-						"zh": {Key: "文件路径", Value: "/test.sh"},
+						"en": {Key: "filePath", Value: path},
+						"zh": {Key: "文件路径", Value: path},
 					},
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {Key: "pid", Value: "2"},
-						"zh": {Key: "进程号", Value: "2"},
+						"en": {Key: "Read or Write", Value: rw},
+						"zh": {Key: "读/写", Value: rw},
+					},
+				},
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {Key: "pid", Value: strconv.Itoa(pid)},
+						"zh": {Key: "进程号", Value: strconv.Itoa(pid)},
 					},
 				},
 			},
@@ -131,9 +415,33 @@ func mockApparmor(_ http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func mockCommandWhiteList(_ http.ResponseWriter, _ *http.Request) {
+func mockCmdLineExec(_ http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	cmd := r.URL.Query().Get("cmd")
+	if cmd == "" {
+		cmd = "/bin/cat /tdata/1.txt"
+	}
+	splits := strings.Split(cmd, " ")
+	cmdExec := exec.Command(splits[0], splits[1:]...)
+	stdout, err := cmdExec.Output()
+	if err != nil {
+		log.Errorf("execute %s error: %v", cmd, err)
+	} else {
+		log.Infof("execute %s success: %s", cmd, string(stdout))
+	}
+
+	handleCmdExec(ctx, cmd)
+	handleBinaryExec(ctx, splits[0])
+}
+
+func handleCmdExec(ctx context.Context, cmd string) {
+	clusterKey, _ := clusterManager.ClusterKey()
+	notToSend, policyID := checkCmdExec(ctx, clusterKey, cmd, "")
+	if notToSend {
+		return
+	}
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
 			Module:   "ContainerSecurity",
@@ -153,23 +461,29 @@ func mockCommandWhiteList(_ http.ResponseWriter, _ *http.Request) {
 					KVHash: map[string]*pb.KV{
 						"en": {
 							Key:   "command",
-							Value: "/bin/cat /test.sh",
+							Value: cmd,
 						},
 						"zh": {
 							Key:   "命令",
-							Value: "/bin/cat /test.sh",
+							Value: cmd,
 						},
+					},
+				},
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {Key: "PolicyName", Value: fmt.Sprintf("CmdExec-%d", policyID)},
+						"zh": {Key: "策略", Value: fmt.Sprintf("CmdExec-%d", policyID)},
 					},
 				},
 				{
 					KVHash: map[string]*pb.KV{
 						"en": {
 							Key:   "reason",
-							Value: "CommandNotInWhitelist",
+							Value: "CommandNotInProfile",
 						},
 						"zh": {
 							Key:   "原因",
-							Value: "命令不在白名单中",
+							Value: "命令不在模型中",
 						},
 					},
 				},
@@ -181,20 +495,14 @@ func mockCommandWhiteList(_ http.ResponseWriter, _ *http.Request) {
 						},
 						"zh": {
 							Key:   "行为",
-							Value: "告警",
+							Value: "预警",
 						},
 					},
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {
-							Key:   "syscall",
-							Value: "execve",
-						},
-						"zh": {
-							Key:   "系统调用",
-							Value: "execve",
-						},
+						"en": {Key: "pid", Value: strconv.Itoa(pid)},
+						"zh": {Key: "进程", Value: strconv.Itoa(pid)},
 					},
 				},
 			},
@@ -206,9 +514,12 @@ func mockCommandWhiteList(_ http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func mockDriftPrevention(_ http.ResponseWriter, _ *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+func handleBinaryExec(ctx context.Context, binary string) {
+	clusterKey, _ := clusterManager.ClusterKey()
+	notToSend, policyID := checkBinaryExec(ctx, clusterKey)
+	if notToSend {
+		return
+	}
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
 			Module:   "ContainerSecurity",
@@ -227,24 +538,30 @@ func mockDriftPrevention(_ http.ResponseWriter, _ *http.Request) {
 				{
 					KVHash: map[string]*pb.KV{
 						"en": {
-							Key:   "filepath",
-							Value: "/test.sh",
+							Key:   "binary",
+							Value: binary,
 						},
 						"zh": {
-							Key:   "文件路径",
-							Value: "/test.sh",
+							Key:   "binary",
+							Value: binary,
 						},
+					},
+				},
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {Key: "PolicyName", Value: fmt.Sprintf("BinaryExec-%d", policyID)},
+						"zh": {Key: "策略", Value: fmt.Sprintf("BinaryExec-%d", policyID)},
 					},
 				},
 				{
 					KVHash: map[string]*pb.KV{
 						"en": {
 							Key:   "reason",
-							Value: "CommandNotInWhitelist",
+							Value: "CommandNotInProfile",
 						},
 						"zh": {
 							Key:   "原因",
-							Value: "命令不在白名单中",
+							Value: "命令不在模型中",
 						},
 					},
 				},
@@ -262,14 +579,8 @@ func mockDriftPrevention(_ http.ResponseWriter, _ *http.Request) {
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {
-							Key:   "syscall",
-							Value: "execve",
-						},
-						"zh": {
-							Key:   "系统调用",
-							Value: "execve",
-						},
+						"en": {Key: "pid", Value: strconv.Itoa(pid)},
+						"zh": {Key: "进程", Value: strconv.Itoa(pid)},
 					},
 				},
 			},
@@ -280,10 +591,36 @@ func mockDriftPrevention(_ http.ResponseWriter, _ *http.Request) {
 		log.Errorf("send events fail, err:%s", err)
 	}
 }
-
-func mockSeccomp(_ http.ResponseWriter, _ *http.Request) {
+func mockBinaryExec(_ http.ResponseWriter, _ *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	cmd := "/bin/cat /tdata/1.txt"
+	splits := strings.Split(cmd, " ")
+	cmdExec := exec.Command(splits[0], splits[1:]...)
+	stdout, err := cmdExec.Output()
+	if err != nil {
+		log.Errorf("execute %s error: %v", cmd, err)
+	} else {
+		log.Infof("execute %s success: %s", cmd, string(stdout))
+	}
+
+	handleBinaryExec(ctx, "/bin/cat")
+	handleCmdExec(ctx, cmd)
+}
+
+func mockSyscalls(_ http.ResponseWriter, _ *http.Request) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	_ = os.Getppid()
+
+	clusterKey, _ := clusterManager.ClusterKey()
+	notToSend, policyID := checkSyscall(ctx, clusterKey, "getppid")
+	if notToSend {
+		return
+	}
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
 			Module:   "ContainerSecurity",
@@ -307,14 +644,14 @@ func mockSeccomp(_ http.ResponseWriter, _ *http.Request) {
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {Key: "profileName", Value: "seccomp-1"},
-						"zh": {Key: "名称", Value: "seccomp-1"},
+						"en": {Key: "policyName", Value: fmt.Sprintf("syscalls-%d", policyID)},
+						"zh": {Key: "策略", Value: fmt.Sprintf("syscalls-%d", policyID)},
 					},
 				},
 				{
 					KVHash: map[string]*pb.KV{
-						"en": {Key: "syscall", Value: "execve"},
-						"zh": {Key: "系统调用", Value: "execve"},
+						"en": {Key: "syscall", Value: "getppid"},
+						"zh": {Key: "系统调用", Value: "getppid"},
 					},
 				},
 				{
@@ -325,8 +662,14 @@ func mockSeccomp(_ http.ResponseWriter, _ *http.Request) {
 						},
 						"zh": {
 							Key:   "行为",
-							Value: "告警",
+							Value: "预警",
 						},
+					},
+				},
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {Key: "pid", Value: strconv.Itoa(pid)},
+						"zh": {Key: "进程号", Value: strconv.Itoa(pid)},
 					},
 				},
 			},
@@ -339,8 +682,6 @@ func mockSeccomp(_ http.ResponseWriter, _ *http.Request) {
 }
 
 func sendEvents(ctx context.Context, req *pb.SendNotificationReq) error {
-	jsonContents, _ := json.Marshal(req)
-	log.Infof("request:%s", util.Bytes2StringNoCopy(jsonContents))
 	send := func() error {
 		_, err := cli.SendNotification(ctx, req)
 		return err

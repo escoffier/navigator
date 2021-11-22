@@ -11,11 +11,32 @@ const (
 	PolicyKindCmdExec    PolicyKind = 4
 )
 
+var (
+	kindNames = []string{"", "SyscallsProfile", "FileRWProfile", "BinExecProfile", "CmdExecProfile"}
+)
+
+func GetNameOfPolicyKind(k PolicyKind) string {
+	if k > 4 || k < 1 {
+		return ""
+	}
+	return kindNames[int(k)]
+}
+
 type Decision int32
 
 const (
 	DecisionAlert   Decision = 1
 	DecisionDefense Decision = 2
+)
+
+type TaskState int32
+
+const (
+	TStateNoLearning TaskState = 0
+	TStatePending    TaskState = 1
+	TStateLearning   TaskState = 2
+	TStateLearned    TaskState = 3
+	TStateErr        TaskState = 4
 )
 
 type PolicyStatus int32
@@ -70,4 +91,23 @@ type CmdLineExecConfigurations []CmdExecElement
 type CmdExecElement struct {
 	CommandLine string `json:"commandLine"`
 	Env         string `json:"env"`
+}
+
+type ImmuneTask struct {
+	ID           int64      `gorm:"column:id"`
+	ResourceUUID uint32     `gorm:"column:resource_uuid"`
+	PodName      string     `gorm:"column:pod_name"`
+	ContainerID  string     `gorm:"column:"container_id"`
+	PolicyKind   PolicyKind `gorm:"policy_kind"`
+	TerminatedAt time.Time  `gorm:"terminated_at"`
+	State        TaskState  `gorm:"state"`
+	Status       int32      `gorm:"status"`
+	Creator      string     `gorm:"column:creator" json:"creator"`
+	Updater      string     `gorm:"column:updater" json:"updater"`
+	CreatedAt    time.Time  `gorm:"created_at" json:"created_at"`
+	UpdatedAt    time.Time  `gorm:"updated_at" json:"updated_at"`
+}
+
+func (ImmuneTask) TableName() string {
+	return "immune_tasks"
 }

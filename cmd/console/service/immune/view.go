@@ -1,9 +1,10 @@
 package immune
 
 import (
+	"encoding/json"
 	"time"
 
-	json "github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -13,8 +14,7 @@ type PolicyView struct {
 
 	RelatedResource *Resource           `json:"relatedResource"`
 	Profiles        []*ContainerProfile `json:"profiles,omitempty"`
-
-	ProfilesChanges *ProfilesChanges `json:"profilesChanges,omitempty"`
+	ProfilesChanges *ProfilesChanges    `json:"profilesChanges,omitempty"`
 }
 
 type ProfilesChanges struct {
@@ -33,11 +33,14 @@ type ContainerInfo struct {
 }
 
 type Resource struct {
-	Name       string           `json:"name"`
-	Kind       string           `json:"kind"`
-	Namespace  string           `json:"namespace"`
-	ClusterKey string           `json:"clusterKey"`
-	Containers []*ContainerInfo `json:"containers"`
+	UUID        uint32           `json:"uuid,omitempty"`
+	Name        string           `json:"name"`
+	Kind        string           `json:"kind"`
+	Namespace   string           `json:"namespace"`
+	ClusterKey  string           `json:"clusterKey"`
+	Containers  []*ContainerInfo `json:"containers"`
+	State       model.TaskState  `json:"state"`
+	PoliciesNum int64            `json:"policiesNum,omitempty"`
 }
 
 func getModelsFromProfile(cprof *ContainerProfile, policy *model.ImmunePolicy, now time.Time, creator string) ([]*model.ImmuneProfile, error) {
@@ -45,7 +48,7 @@ func getModelsFromProfile(cprof *ContainerProfile, policy *model.ImmunePolicy, n
 	switch policy.Kind {
 	case model.PolicyKindSyscalls:
 		var conf model.SyscallsConfigurations
-		err := json.Unmarshal([]byte(cprof.Configuration), &conf)
+		err := jsoniter.Unmarshal([]byte(cprof.Configuration), &conf)
 		if err != nil {
 			return nil, err
 		}
@@ -60,7 +63,7 @@ func getModelsFromProfile(cprof *ContainerProfile, policy *model.ImmunePolicy, n
 		}
 	case model.PolicyKindFileRW:
 		var conf model.FileRWConfigurations
-		err := json.Unmarshal([]byte(cprof.Configuration), &conf)
+		err := jsoniter.Unmarshal([]byte(cprof.Configuration), &conf)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +82,7 @@ func getModelsFromProfile(cprof *ContainerProfile, policy *model.ImmunePolicy, n
 		}
 	case model.PolicyKindCmdExec:
 		var conf model.CmdLineExecConfigurations
-		err := json.Unmarshal([]byte(cprof.Configuration), &conf)
+		err := jsoniter.Unmarshal([]byte(cprof.Configuration), &conf)
 		if err != nil {
 			return nil, err
 		}

@@ -28,6 +28,10 @@ func (api *api) immune() func(chi.Router) {
 		r.Post("/policy/{policyID}/disable", api.disablePolicy())
 
 		// resources
+		r.Get("/resources", api.getImmuneResources())
+		r.Put("/resource/{resourceUUID}/learning/kind/{policyKind}/start", api.startImmuneTask())
+		// tmp
+		r.Get("/resource/{resourceUUID}/learning/state", api.getStateOfResourceTask())
 	}
 }
 
@@ -42,6 +46,134 @@ func toInt32Array(strArr []string) ([]int32, error) {
 	}
 	return res, nil
 }
+
+func (api *api) getImmuneResources() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error offset limit")))
+			return
+		}
+
+		query := dal.ResourcesQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err == nil && clusterKey != "" {
+			query = query.WithCluster(clusterKey)
+		}
+		queryStr, err := param.QueryString(r, "query")
+		if err == nil && queryStr != "" {
+			query = query.WithColumnQuery("name", queryStr)
+		}
+
+		svc, ok := immune.Get()
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("error get service")))
+			return
+		}
+		resources, totalCnt, err := svc.GetResources(ctx, query, offset, limit)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(resources), response.WithTotalItems(totalCnt))
+	}
+}
+
+func (api *api) startImmuneTask() http.HandlerFunc {
+	type req struct {
+		DurationSec int64 `json:"durationSec"`
+	}
+	type resp struct {
+		TaskID int64 `json:"taskID"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		rStr := chi.URLParam(r, "resourceUUID")
+		if len(rStr) == 0 {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error url param resourceUUID")))
+			return
+		}
+		resourceUUID64, err := strconv.ParseUint(rStr, 10, 32)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error url param resourceUUID")))
+			return
+		}
+		resourceUUID := uint32(resourceUUID64)
+
+		policyKindStr := chi.URLParam(r, "policyKind")
+		if len(policyKindStr) == 0 {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error url param policyKind")))
+			return
+		}
+		policyKindI, err := strconv.ParseInt(policyKindStr, 10, 64)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error url param policyKind")))
+			return
+		}
+		policyKind := model.PolicyKind(policyKindI)
+
+		var req req
+		err = util.DecodeJSONBody(w, r, &req)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("decode req payload err")))
+			return
+		}
+
+		svc, ok := immune.Get()
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("error get service")))
+			return
+		}
+		taskID, err := svc.StartTask(ctx, resourceUUID, policyKind, time.Second*time.Duration(req.DurationSec))
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItem(resp{taskID}))
+	}
+}
+
+func (api *api) getStateOfResourceTask() http.HandlerFunc {
+	type resp struct {
+		State model.TaskState `json:"state"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		rStr := chi.URLParam(r, "resourceUUID")
+		if len(rStr) == 0 {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error url param resourceUUID")))
+			return
+		}
+		resourceUUID64, err := strconv.ParseUint(rStr, 10, 32)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error url param resourceUUID")))
+			return
+		}
+		resourceUUID := uint32(resourceUUID64)
+
+		svc, ok := immune.Get()
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("error get service")))
+			return
+		}
+
+		state, err := svc.CheckTaskState(ctx, resourceUUID)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItem(resp{state}))
+	}
+}
+
 func (api *api) listImmunePolicies() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -64,6 +196,14 @@ func (api *api) listImmunePolicies() http.HandlerFunc {
 		kinds, err := param.QueryInt32Array(r, "kind")
 		if err == nil && len(kinds) > 0 {
 			query = query.WithKinds(kinds)
+		}
+		resourceUUID, err := param.QueryUint32(r, "resource_uuid")
+		if err == nil && resourceUUID > 0 {
+			query = query.WithResourceUUID(resourceUUID)
+		}
+		queryStr, err := param.QueryString(r, "query")
+		if err == nil && len(queryStr) > 0 {
+			query = query.WithQuery(queryStr)
 		}
 
 		svc, ok := immune.Get()
@@ -172,7 +312,7 @@ func (api *api) editPolicy() http.HandlerFunc {
 			return
 		}
 
-		err = svc.EditPolicy(ctx, &policy, readUpdateStamp)
+		err = svc.EditPolicy(ctx, policyID, &policy, readUpdateStamp)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return

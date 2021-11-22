@@ -144,6 +144,11 @@ platform-report: generate
 .PHONY: immune-test
 immune-test: generate
 	@echo "+ $@"
+	mkdir -p dist
+	echo "initial" > dist/immune-test-1.txt
+	echo "initial" > dist/immune-test-2.txt
+	chmod 777 dist/immune-test-1.txt
+	chmod 777 dist/immune-test-2.txt
 	CGO_ENABLED=0 go build -v \
     		-o dist/immune-test gitlab.com/piccolo_su/vegeta/cmd/immune-test
 	upx dist/immune-test

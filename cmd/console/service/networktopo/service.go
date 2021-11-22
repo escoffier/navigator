@@ -163,6 +163,15 @@ func (n *NetworkTopoService) addNetworkTopo(ctx context.Context, flow *model.Ten
 	return err
 }
 func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.TensorNetworkFlow) error {
+	if flow == nil {
+		return errors.New("nil")
+	}
+
+	// TODO tmp code remove immune-test flows
+	if flow.SrcName == "immune-test" {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
 	defer cancel()
 	err := util.RetryWithBackoff(ctx, func() error {

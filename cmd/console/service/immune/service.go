@@ -34,12 +34,15 @@ func Get() (*Service, bool) {
 }
 
 type Service struct {
-	rdb *rdbtools.GormWrapper
+	rdb         *rdbtools.GormWrapper
+	taskManager *TaskManager
 }
 
 func newService(rdb *rdbtools.GormWrapper) *Service {
+	taskManager := newTaskManager(rdb)
 	return &Service{
-		rdb: rdb,
+		rdb:         rdb,
+		taskManager: taskManager,
 	}
 }
 
@@ -356,7 +359,7 @@ func (s *Service) AddPolicy(ctx context.Context, policy *PolicyView) (int64, err
 	return policyModel.ID, nil
 }
 
-func (s *Service) EditPolicy(ctx context.Context, policyView *PolicyView, readStamp int64) error {
+func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *PolicyView, readStamp int64) error {
 	// temporarily ignore stamp version check
 
 	now := time.Now()
@@ -365,6 +368,8 @@ func (s *Service) EditPolicy(ctx context.Context, policyView *PolicyView, readSt
 	policy.Updater = userName
 	policy.UpdatedAt = now
 
+	// TODO
+	fmt.Printf("pview: %+v\n", policyView)
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var upErr error
 		reErr := util.RetryWithBackoff(ctx, func() error {
@@ -383,42 +388,83 @@ func (s *Service) EditPolicy(ctx context.Context, policyView *PolicyView, readSt
 			return upErr
 		}
 
+		var newPolicy *model.ImmunePolicy
+		err := util.RetryWithBackoff(ctx, func() error {
+			var err error
+			newPolicy, err = dal.GetImmunePolicy(ctx, tx, policyID)
+			return err
+		})
+
+		if err != nil {
+			return err
+		}
+
+		// TODO
+		fmt.Printf("changes: %+v\n", policyView.ProfilesChanges)
 		if policyView.ProfilesChanges != nil {
-			if len(policyView.ProfilesChanges.Add) > 0 {
-				for _, toAdd := range policyView.ProfilesChanges.Add {
-					models, err := getModelsFromProfile(toAdd, policy, now, userName)
-					if err != nil {
-						logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toAdd)
-						continue
-					}
-					for _, model := range models {
-						err := util.RetryWithBackoff(ctx, func() error {
-							_, err := dal.CreateImmuneProfile(ctx, tx, model)
-							return err
-						}, retry.Attempts(3))
-						if err != nil {
-							return err
-						}
-					}
+			toAddModels := make(map[int64]*model.ImmuneProfile, len(policyView.ProfilesChanges.Add))
+			toDelModels := make(map[int64]*model.ImmuneProfile, len(policyView.ProfilesChanges.Delete))
+			for _, toAdd := range policyView.ProfilesChanges.Add {
+				fmt.Println("toadd: ", toAdd)
+				profiles, err := getModelsFromProfile(toAdd, newPolicy, now, userName)
+				if err != nil {
+					logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toAdd)
+					continue
+				}
+				for _, profile := range profiles {
+					fmt.Println("profile: ", profile)
+					profile.UUID = dal.GetUUIDOfProfile(profile)
+					toAddModels[profile.UUID] = profile
+				}
+
+			}
+			for _, toDelete := range policyView.ProfilesChanges.Delete {
+				fmt.Println("todelete: ", toDelete)
+				profiles, err := getModelsFromProfile(toDelete, newPolicy, now, userName)
+				if err != nil {
+					logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toDelete)
+					continue
+				}
+				for _, profile := range profiles {
+					fmt.Println("to del profile: ", profile)
+					profile.UUID = dal.GetUUIDOfProfile(profile)
+					toDelModels[profile.UUID] = profile
 				}
 			}
-			if len(policyView.ProfilesChanges.Delete) > 0 {
-				for _, toDel := range policyView.ProfilesChanges.Delete {
-					models, err := getModelsFromProfile(toDel, policy, now, userName)
-					if err != nil {
-						logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toDel)
-						continue
-					}
-					for _, model := range models {
-						err := util.RetryWithBackoff(ctx, func() error {
-							return dal.DeleteImmuneProfile(ctx, tx, model)
-						}, retry.Attempts(3))
-						if err != nil {
-							return err
-						}
-					}
+			fmt.Printf("changes: add : %+v del: %+v \n", toAddModels, toDelModels)
+
+			toDelArr := make([]*model.ImmuneProfile, 0, len(toDelModels))
+			for _, p := range toDelModels {
+				if _, exist := toAddModels[p.UUID]; !exist {
+					toDelArr = append(toDelArr, p)
 				}
 			}
+			toAddArr := make([]*model.ImmuneProfile, 0, len(toAddModels))
+			for _, p := range toAddModels {
+				if _, exist := toDelModels[p.UUID]; !exist {
+					toAddArr = append(toAddArr, p)
+				}
+			}
+			for _, model := range toDelArr {
+				fmt.Println("finally del: ", model)
+				err := util.RetryWithBackoff(ctx, func() error {
+					return dal.DeleteImmuneProfile(ctx, tx, model)
+				}, retry.Attempts(3))
+				if err != nil {
+					return err
+				}
+			}
+			for _, model := range toAddArr {
+				fmt.Println("finally add: ", model)
+				err := util.RetryWithBackoff(ctx, func() error {
+					_, err := dal.CreateImmuneProfile(ctx, tx, model)
+					return err
+				}, retry.Attempts(3))
+				if err != nil {
+					return err
+				}
+			}
+
 		}
 		return nil
 	})
@@ -449,4 +495,106 @@ func (s *Service) PolicyStatusAction(ctx context.Context, action model.PolicySta
 		return err
 	}
 	return nil
+}
+
+func (s *Service) CheckTaskState(ctx context.Context, resourceUUID uint32) (model.TaskState, error) {
+	query := dal.NewImmuneTasksQuery().WithResourceUUID(resourceUUID)
+	tasks, err := dal.GetImmuneTasks(ctx, s.rdb.Get(), query, 0, 4)
+	if err != nil {
+		return 0, err
+	}
+
+	state := model.TStateNoLearning
+	for _, t := range tasks {
+		if t.State == model.TStateLearning || t.State == model.TStatePending {
+			return t.State, nil
+		}
+		if t.State == model.TStateLearned {
+			state = t.State
+		}
+	}
+	return state, nil
+}
+
+func (s *Service) StartTask(ctx context.Context, resourceUUID uint32, policyKind model.PolicyKind, ttl time.Duration) (int64, error) {
+	now := time.Now()
+	userName := util.GetUsernameFromContext(ctx)
+
+	t := new(model.ImmuneTask)
+	t.ResourceUUID = resourceUUID
+	t.PolicyKind = policyKind
+	t.State = model.TStateLearning // TODO mock state
+	t.CreatedAt = now
+	t.Creator = userName
+	t.TerminatedAt = now.Add(ttl)
+	t.Status = 0
+
+	var taskID int64
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// TODO start real jobs to learn
+
+		var err error
+		taskID, err = dal.CreateImmuneTask(ctx, tx, t)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return taskID, nil
+}
+
+func (s *Service) fromResourceToView(ctx context.Context, res *model.TensorResource) *Resource {
+	r := new(Resource)
+	r.UUID = res.ID
+	r.Namespace = res.Namespace
+	r.Name = res.Name
+	r.Kind = res.Kind
+	r.ClusterKey = res.ClusterKey
+	if res.PodTemplate != nil {
+		r.Containers = make([]*ContainerInfo, len(res.PodTemplate.Containers))
+		for i, c := range res.PodTemplate.Containers {
+			r.Containers[i] = new(ContainerInfo)
+			r.Containers[i].ContainerName = c.Name
+			r.Containers[i].ImageID = c.Image
+		}
+	}
+
+	var err error
+	r.State, err = s.CheckTaskState(ctx, res.ID)
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "check task state error for resource: %+v", r)
+		r.State = model.TStateNoLearning
+	}
+	r.PoliciesNum, err = dal.CountImmunePolicies(ctx, s.rdb.Get(), dal.NewImmunePoliciesQuery().WithResourceUUID(r.UUID))
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "get policies num error for resource: %+v", r)
+		r.PoliciesNum = 0
+	}
+	return r
+}
+func (s *Service) GetResources(ctx context.Context, query *dal.ResourcesQueryOption, offset, limit int) ([]*Resource, int64, error) {
+	resources, err := dal.GetResources(ctx, s.rdb.Get(), query, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var totalCnt int64
+	err = util.RetryWithBackoff(ctx, func() error {
+		var err error
+		totalCnt, err = dal.CountResources(ctx, s.rdb.Get(), query)
+		return err
+	}, retry.Attempts(3))
+	if err != nil {
+		logging.GetLogger().WithContext(ctx).Errorf(err, "count resources error. query: %+v", query)
+		totalCnt = int64(limit)
+	}
+
+	resViews := make([]*Resource, len(resources))
+	for i, res := range resources {
+		resViews[i] = s.fromResourceToView(ctx, res)
+	}
+	return resViews, totalCnt, nil
 }

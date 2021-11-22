@@ -89,7 +89,7 @@ function alert() {
 
   url=$EVENTCENTER_HTTP_URL
   if [[ -z $url ]]; then
-    url=https://tensorsec-eventcenter:8080/eventcenter/sendNotification
+    url=https://prod-eventcenter:8080/eventcenter/sendNotification
   fi
 
   ca_path=$EVENTCENTER_CA_PATH
