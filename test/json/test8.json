@@ -1,14 +1,14 @@
 {
-  "output": "18:20:34.665004926: Warning Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除,rule_type=Persistence,proc_pid=15706,proc_ppid=14056,proc_cmdline=shred /tmp/thisistest,proc_pname=bash,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=execve,original_info=user=root user_loginuid=-1 file=<NA> container_id=f5870cf63311 image=harbor.tensorsecurity.com/tensorsecurity/faulty) k8s.ns=tensorsec k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311",
+  "output": "18:20:34.665004926: Warning Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除,rule_type=Persistence,proc_pid=15706,proc_ppid=14056,proc_cmdline=shred /tmp/thisistest,proc_pname=bash,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=execve,original_info=user=root user_loginuid=-1 file=<NA> container_id=f5870cf63311 image=harbor.security.com/security/faulty) k8s.ns=security k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311",
   "priority": "Warning",
   "rule": "Remove Bulk Data from Disk",
   "time": "2021-11-10T18:20:34.665004926Z",
   "output_fields": {
     "container.id": "f5870cf63311",
-    "container.image.repository": "harbor.tensorsecurity.com/tensorsecurity/faulty",
+    "container.image.repository": "harbor.security.com/security/faulty",
     "evt.time": 1636568434665004800,
     "fd.name": "/tmp/thisistest",
-    "k8s.ns.name": "tensorsec",
+    "k8s.ns.name": "security",
     "k8s.pod.id": "06e075f4-251c-49d8-89ec-25a5025dd7db",
     "k8s.pod.name": "faulty-58847b48f6-csztb",
     "proc.cmdline": "shred /tmp/thisistest",

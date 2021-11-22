@@ -1,14 +1,14 @@
 {
-  "output": "15:26:10.162623281: Warning Log files were tampered (zh_msg=日志文件被篡改,rule_type=Defense Evasion,proc_pid=14056,proc_ppid=14051,proc_cmdline=bash,proc_pname=runc,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=openat,original_info=user=root user_loginuid=-1 file=/tmp/thisistest/syslog container_id=f5870cf63311 image=harbor.tensorsecurity.com/tensorsecurity/faulty) k8s.ns=tensorsec k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311",
+  "output": "15:26:10.162623281: Warning Log files were tampered (zh_msg=日志文件被篡改,rule_type=Defense Evasion,proc_pid=14056,proc_ppid=14051,proc_cmdline=bash,proc_pname=runc,pod_id=06e075f4-251c-49d8-89ec-25a5025dd7db,syscall_name=openat,original_info=user=root user_loginuid=-1 file=/tmp/thisistest/syslog container_id=f5870cf63311 image=harbor.security.com/security/faulty) k8s.ns=security k8s.pod=faulty-58847b48f6-csztb container=f5870cf63311",
   "priority": "Warning",
   "rule": "Clear Log Activities",
   "time": "2021-11-10T15:26:10.162623281Z",
   "output_fields": {
     "container.id": "f5870cf63311",
-    "container.image.repository": "harbor.tensorsecurity.com/tensorsecurity/faulty",
+    "container.image.repository": "harbor.mysecurity.com/mysecurity/faulty",
     "evt.time": 1636557970162623200,
     "fd.name": "",
-    "k8s.ns.name": "tensorsec",
+    "k8s.ns.name": "security",
     "k8s.pod.id": "06e075f4-251c-49d8-89ec-25a5025dd7db",
     "k8s.pod.name": "faulty-58847b48f6-csztb",
     "proc.cmdline": "bash",

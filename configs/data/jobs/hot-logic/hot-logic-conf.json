@@ -119,6 +119,29 @@
       "condition": "status = 1",
       "dataDir": "/audit/postgresql/tensor_nodes",
       "batch": 1000
+    },
+    {
+      "name": "immune_profiles",
+      "timeField": "created_at",
+      "condition": "status = 1",
+      "ttl": 30,
+      "dataDir": "/audit/postgresql/immune_profiles",
+      "batch": 1000
+    },
+    {
+      "name": "immune_tasks",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "ttl": 30,
+      "dataDir": "/audit/postgresql/immune_tasks",
+      "batch": 1000
+    },
+    {
+      "name": "immune_policies",
+      "timeField": "updated_at",
+      "condition": "status = 1",
+      "dataDir": "/audit/postgresql/immune_policies",
+      "batch": 1000
     }
   ]
 }
