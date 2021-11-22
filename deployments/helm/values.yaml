@@ -451,7 +451,7 @@ stan:
       memory: "500Mi"
 
 security-profiles-manager:
-  enabled: true
+  enabled: false
   image:
     name: security-profiles-manager
     tag: latest

@@ -132,7 +132,7 @@ eventcenterAuth:
   enabled: true
 
 security-profiles-manager:
-  enabled: *isMainCluster
+  enabled: false
   image:
     tag: *Verison
   webhook:
