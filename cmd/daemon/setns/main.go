@@ -132,54 +132,61 @@ func main() {
 	for {
 		rsp := daemon.ProcessInfo{
 			Pid:      0,
-			ProcName: "",
+			ProcName: "-",
 		}
+
+		var name string
+		var pidMnt daemon.PidAssociateMnt
 		var dataBuf [1024]byte
-		length, addr, err := udpConn.ReadFromUDP(dataBuf[:])
-		if err != nil {
-			fmt.Printf("read udp data failed, %v\n", err)
+		//read udp data
+		length, addr, udpErr := udpConn.ReadFromUDP(dataBuf[:])
+		if udpErr != nil {
+			fmt.Printf("read udp data failed, %v\n", udpErr)
 			continue
 		}
-		//
-		var pidMnt daemon.PidAssociateMnt
-		//fmt.Printf("%v\n", string(dataBuf[:length]))
 		//json
 		err = json.Unmarshal(dataBuf[:length], &pidMnt)
-		if err != nil {
-			fmt.Printf("json unmarshal failed, %v\n", err)
+		if err != nil || pidMnt.Pid <= 0 {
+			if err != nil {
+				fmt.Printf("json unmarshal failed, %v\n", err)
+			} else {
+				fmt.Printf("pid is error, pid : %v\n", pidMnt.Pid)
+			}
+			//send response data
 			err = SendResponse(&rsp, udpConn, addr)
 			if err != nil {
 				fmt.Printf("send response failed, %v\n", err)
 			}
 			continue
 		}
+		//get process name by comm
 		comm := GetComm(pidMnt.Pid)
-		//
-		name, err := GetProcessName(&pidMnt)
+		//get process name by set mnt
+		name, err = GetProcessName(&pidMnt)
 		if err != nil {
-			fmt.Printf("get process name failed, %s, %v\n", string(dataBuf[:length]), err)
+			fmt.Printf("get process name failed, %s, comm : %v, %v\n", string(dataBuf[:length]), comm, err)
 		}
 
 		if len(name) == 0 || name == "-" {
 			name = comm
 		}
-
+		//fill value
 		rsp.Pid = pidMnt.Pid
 		rsp.ProcName = name
-
+		//send response data
 		err = SendResponse(&rsp, udpConn, addr)
 		if err != nil {
 			fmt.Printf("send response failed, %v\n", err)
 		}
-
+		//Unshare
 		err = UnshareInit()
 		if err != nil {
 			fmt.Printf("unshare failed, %v\n", err)
 		}
-
+		//set local mnt
 		err = SetLocalNs(filename)
 		if err != nil {
-			fmt.Errorf("set local ns failed, %v", err)
+			fmt.Printf("set local ns failed, %v\n", err)
 		}
 	}
 }

@@ -55,6 +55,10 @@ func (nse NsenterData) GetContainerPid(containerId string) (int, error) {
 		return 0, errors.Errorf("container inspace failed, %v", err)
 	}
 
+	if container.State.Pid <= 0 {
+		return 0, errors.Errorf("get container's pid failed, pid : %v", container.State.Pid)
+	}
+
 	return container.State.Pid, nil
 }
 
