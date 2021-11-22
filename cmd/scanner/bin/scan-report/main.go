@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -67,7 +68,7 @@ func main() {
 
 	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
 
-		db, err := gorm.Open(postgres.Open(dbStr), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(dbStr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			return nil, err
 		}

@@ -184,7 +184,7 @@ func (api *api) listApis() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
 		}
-		result, totoalItems, err := service.ListApis(ctx, cluster,search, limit, offset)
+		result, totoalItems, err := service.ListApis(ctx, cluster, search, limit, offset)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
