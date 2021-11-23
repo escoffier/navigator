@@ -291,7 +291,6 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 		Type:    reg.RegType,
 		Options: opt,
 	}
-	logging.GetLogger().Debug().Interface("conf", conf).Msg("registry conf")
 	return conf
 }
 
