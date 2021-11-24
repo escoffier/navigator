@@ -1,9 +1,180 @@
 - required_engine_version: 7
 
+##honeypot
+- rule: Gaining sensitive information in tensorScarecrow
+  hid: hp_01
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Gaining sensitive information in tensorScarecrow
+  condition: >
+    (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "scarecrow"
+  output: >
+    Gaining sensitive information in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到web目录文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Other containers establish new connections to the redis-server in tensorScarecrow
+  hid: hp_02
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the redis-server in tensorScarecrow
+  condition: >
+   (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "scarecrow"
+  output: >
+    Other containers establish new connections to the redis-server in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到redis-server未授权访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Other containers establish new connections to the ElasticSearch
+  hid: hp_03
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the ElasticSearch
+  condition: >
+   (inbound_outbound) and fd.sport=9200 and k8s.pod.name contains "vul-elasticsearch"
+  output: >
+    Other containers establish new connections to the ElasticSearch (zh_msg=探真稻草人：通过主动防御检测到与elasticsearch通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Execute sensitive commands via ElasticSearch
+  hid: hp_04
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute sensitive commands via ElasticSearch
+  condition: >
+   evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "vul-elasticsearch"
+  output: >
+    Execute sensitive commands via ElasticSearch (zh_msg=探真稻草人：通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
+  priority: ALERT
+
+- rule: Other containers establish new connections to the tomcat
+  hid: hp_05
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the tomcat
+  condition: >
+   (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "vul-tomcat"
+  output: >
+    Other containers establish new connections to the tomcat (zh_msg=探真稻草人：通过主动防御检测到与tomcat通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Reading local files via tomcat
+  hid: hp_06
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute sensitive commands via tomcat
+  condition: >
+   (inbound_outbound) and fd.sport = 8009 and k8s.pod.name contains "vul-tomcat"
+  output: >
+    Other containers establish new connections to the tomcat (zh_msg=探真稻草人：通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Other containers establish new connections to the Jenkins
+  hid: hp_07
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the Jenkins
+  condition: >
+   (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "vul-jenkins"
+  output: >
+    Other containers establish new connections to the jenkins (zh_msg=探真稻草人：通过主动防御检测到与jenkins通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Execute sensitive commands via Jenkins
+  hid: hp_08
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute sensitive commands via Jenkins
+  condition: >
+   evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "vul-jenkins"
+  output: >
+    Execute sensitive commands via Jenkins (zh_msg=探真稻草人：通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
+  priority: ALERT
+
+- rule: Other containers establish new connections to the Jupyter
+  hid: hp_09
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the Jupyter
+  condition: >
+   (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "vul-jupyter"
+  output: >
+    Other containers establish new connections to the jenkins (zh_msg=探真稻草人：通过主动防御检测到与jupyter通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
+- rule: Execute sensitive commands via Jupyter
+  hid: hp_10
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute sensitive commands via Jupyter
+  condition: >
+    evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "vul-jupyter"
+  output: >
+    Execute sensitive commands via Jenkins (zh_msg=探真稻草人：通过主动防御检测到Jupyter执行命令,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+
 #attck_rules
 ##attck_rule_type=Execution
 - rule: DB program spawned process
-  hid: 1
+  hid: exec_01
   hthreats: 0
   suggestion:
     en:
@@ -30,7 +201,7 @@
   tags: [process, database, mitre_execution]
 
 - rule: Run shell untrusted
-  hid: 2
+  hid: exec_02
   hthreats: 0
   suggestion:
     en:
@@ -79,7 +250,7 @@
   tags: [shell, mitre_execution]
 
 - rule: Terminal shell in container
-  hid: 3
+  hid: exec_03
   hthreats: 0
   suggestion:
     en:
@@ -102,7 +273,7 @@
   tags: [container, shell, mitre_execution]
 
 - rule: Running netcat in a container
-  hid: 4
+  hid: exec_04
   hthreats: 1
   suggestion:
     en:
@@ -123,7 +294,7 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through telnet
-  hid: 5
+  hid: exec_05
   hthreats: 1
   suggestion:
     en:
@@ -143,7 +314,7 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through ruby
-  hid: 6
+  hid: exec_06
   hthreats: 1
   suggestion:
     en:
@@ -163,7 +334,7 @@
   tags: [network, process, mitre_execution]
 
 - rule: Reverse shell through awk
-  hid: 7
+  hid: exec_07
   hthreats: 1
   suggestion:
     en:
@@ -183,7 +354,7 @@
   tags: [network, process, mitre_execution]
 
 - rule: Run attacks through socket and dup
-  hid: 8
+  hid: exec08
   hthreats: 1
   suggestion:
     en:
@@ -203,7 +374,7 @@
 
 ##attck_rule_type=Persistence
 - rule: Schedule Cron Jobs
-  hid: 9
+  hid: pers_01
   hthreats: 0
   suggestion:
     en:
@@ -226,7 +397,7 @@
   tags: [file, mitre_persistence]
 
 - rule: User mgmt binaries
-  hid: 10
+  hid: pers_02
   hthreats: 0
   suggestion:
     en:
@@ -261,7 +432,7 @@
   tags: [host, users, mitre_persistence]
 
 - rule: Launch Package Management Process in Container
-  hid: 11
+  hid: pers_03
   hthreats: 0
   suggestion:
     en:
@@ -285,7 +456,7 @@
   tags: [process, mitre_persistence]
 
 - rule: Update Package Repository
-  hid: 12
+  hid: pers_04
   hthreats: 0
   suggestion:
     en:
@@ -308,7 +479,7 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Write below rpm database
-  hid: 13
+  hid: pers_05
   hthreats: 0
   suggestion:
     en:
@@ -333,7 +504,7 @@
   tags: [filesystem, software_mgmt, mitre_persistence]
 
 - rule: Remove Bulk Data from Disk
-  hid: 14
+  hid: pers_06
   hthreats: 1
   suggestion:
     en:
@@ -350,7 +521,7 @@
   tags: [process, mitre_persistence]
 
 - rule: Modify Shell Configuration File
-  hid: 15
+  hid: pers_07
   hthreats: 1
   suggestion:
     en:
@@ -374,7 +545,7 @@
   tags: [file, mitre_persistence]
 
 - rule: Create files below dev
-  hid: 16
+  hid: pers_08
   hthreats: 0
   suggestion:
     en:
@@ -398,7 +569,7 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Write below etc
-  hid: 17
+  hid: pers_09
   hthreats: 1
   suggestion:
     en:
@@ -416,7 +587,7 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Create Hidden Files or Directories
-  hid: 18
+  hid: pers_10
   hthreats: 0
   suggestion:
     en:
@@ -440,7 +611,7 @@
   tags: [file, mitre_persistence]
 
 - rule: Write below monitored dir
-  hid: 19
+  hid: pers_11
   hthreats: 1
   suggestion:
     en:
@@ -468,7 +639,7 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Write below binary dir
-  hid: 20
+  hid: pers_12
   hthreats: 0
   suggestion:
     en:
@@ -493,7 +664,7 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Modify binary dirs
-  hid: 21
+  hid: pers_13
   hthreats: 0
   suggestion:
     en:
@@ -512,7 +683,7 @@
   tags: [filesystem, mitre_persistence]
 
 - rule: Mkdir binary dirs
-  hid: 22
+  hid: pers_14
   hthreats: 0
   suggestion:
     en:
@@ -540,7 +711,7 @@
 
 ##attck_rule_type=Privilege Escalation
 - rule: Launch Privileged Container
-  hid: 23
+  hid: priv_01
   hthreats: 0
   suggestion:
     en:
@@ -562,7 +733,7 @@
   tags: [container, cis, mitre_privilege_escalation, mitre_lateral_movement]
 
 - rule: Non sudo setuid
-  hid: 24
+  hid: priv_02
   hthreats: 1
   suggestion:
     en:
@@ -592,7 +763,7 @@
   tags: [users, mitre_privilege_escalation]
 
 - rule: System user interactive
-  hid: 25
+  hid: priv_03
   hthreats: 0
   suggestion:
     en:
@@ -609,7 +780,7 @@
   tags: [users, mitre_remote_access_tools]
 
 - rule: Set Setuid or Setgid bit
-  hid: 26
+  hid: priv_04
   hthreats: 1
   suggestion:
     en:
@@ -634,7 +805,7 @@
   tags: [process, mitre_persistence]
 
 - rule: Delete or rename shell history
-  hid: 27
+  hid: priv_05
   hthreats: 1
   suggestion:
     en:
@@ -654,7 +825,7 @@
   tags: [process, mitre_defense_evasion]
 
 - rule: Escape to access by chroot
-  hid: 28
+  hid: priv_06
   hthreats: 1
   suggestion:
     en:
@@ -671,7 +842,7 @@
   priority: ALERT
 
 - rule: Escape to access rule by procfs
-  hid: 29
+  hid: priv_07
   hthreats: 1
   suggestion:
     en:
@@ -688,7 +859,7 @@
   priority: ALERT
 
 - rule: Escape to access rule by debugfs
-  hid: 30
+  hid: priv_08
   hthreats: 1
   suggestion:
     en:
@@ -705,7 +876,7 @@
   priority: ALERT
 
 - rule: Escape to access rule by cgroup
-  hid: 31
+  hid: priv_09
   hthreats: 1
   suggestion:
     en:
@@ -722,7 +893,7 @@
   priority: ALERT
 
 - rule: CVE-2021-3156(Linux sudo Privilege Escalation)
-  hid: 32
+  hid: priv_10
   hthreats: 1
   suggestion:
     en:
@@ -738,7 +909,7 @@
   priority: ALERT
 
 - rule: CVE-2019-5736(Modify Container Entrypoint)
-  hid: 33
+  hid: priv_11
   hthreats: 1
   suggestion:
     en:
@@ -755,7 +926,7 @@
   priority: ALERT
 
 - rule: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
-  hid: 34
+  hid: priv_12
   hthreats: 1
   suggestion:
     en:
@@ -774,45 +945,9 @@
   priority: ALERT
   tags: [filesystem, mitre_privilege_escalation]
 
-- rule: Gaining sensitive information in tensorScarecrow
-  hid: 35
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Gaining sensitive information in tensorScarecrow
-  condition: >
-    (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "scarecrow"
-  output: >
-    Gaining sensitive information in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到web目录文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: ALERT
-
-- rule: Other containers establish new connections to the redis-server in tensorScarecrow
-  hid: 36
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Other containers establish new connections to the redis-server in tensorScarecrow
-  condition: >
-   (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "scarecrow"
-  output: >
-    Other containers establish new connections to the redis-server in tensorScarecrow (zh_msg=探真稻草人：通过主动防御检测到redis-server未授权访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: ALERT
-
-
-
 ##attck_rule_type=Defense Evasion
 - rule: Clear Log Activities
-  hid: 37
+  hid: def_01
   hthreats: 0
   suggestion:
     en:
@@ -834,7 +969,7 @@
   tags: [file, mitre_defense_evasion]
 
 - rule: Delete Bash History
-  hid: 38
+  hid: def_02
   hthreats: 1
   suggestion:
     en:
@@ -853,7 +988,7 @@
   tags: [process, mitre_defense_evasion]
 
 - rule: Create Symlink Over Sensitive Files
-  hid: 39
+  hid: def_03
   hthreats: 0
   suggestion:
     en:
@@ -874,7 +1009,7 @@
 
 ##attck_rule_type=Credential Access
 - rule: Gaining environment information
-  hid: 40
+  hid: ca_01
   hthreats: 1
   suggestion:
     en:
@@ -891,7 +1026,7 @@
   priority: WARNING
 
 - rule: Read sensitive file trusted after startup
-  hid: 41
+  hid: ca_02
   hthreats: 1
   suggestion:
     en:
@@ -912,7 +1047,7 @@
   tags: [filesystem, mitre_credential_access]
 
 - rule: Search Private Keys or Passwords
-  hid: 42
+  hid: ca_03
   hthreats: 1
   suggestion:
     en:
@@ -939,7 +1074,7 @@
 
 ##attck_rule_type=Discovery
 - rule: Read sensitive file untrusted
-  hid: 43
+  hid: disc_01
   hthreats: 1
   suggestion:
     en:
@@ -982,7 +1117,7 @@
   tags: [filesystem, mitre_credential_access, mitre_discovery]
 
 - rule: Namespaces bypass
-  hid: 44
+  hid: disc_02
   hthreats: 1
   suggestion:
     en:
@@ -999,7 +1134,7 @@
   priority: ALERT
 
 - rule: Read Shell Configuration File
-  hid: 45
+  hid: disc_03
   hthreats: 1
   suggestion:
     en:
@@ -1022,7 +1157,7 @@
   tags: [file, mitre_discovery]
 
 - rule: Read ssh information
-  hid: 46
+  hid: disc_04
   hthreats: 1
   suggestion:
     en:
@@ -1045,7 +1180,7 @@
   tags: [filesystem, mitre_discovery]
 
 - rule: Contact K8S API Server From Container
-  hid: 47
+  hid: disc_05
   hthreats: 0
   suggestion:
     en:
@@ -1069,7 +1204,7 @@
   tags: [network, k8s, container, mitre_discovery]
 
 - rule: Launch Suspicious Network Tool on Host
-  hid: 48
+  hid: disc_06
   hthreats: 0
   suggestion:
     en:
@@ -1094,7 +1229,7 @@
 
 ##attck_rule_type=Lateral Movement
 - rule: Launch Sensitive Mount Container
-  hid: 49
+  hid: move_01
   hthreats: 0
   suggestion:
     en:
@@ -1118,7 +1253,7 @@
   tags: [container, cis, mitre_lateral_movement]
 
 - rule: Change thread namespace
-  hid: 50
+  hid: move_02
   hthreats: 0
   suggestion:
     en:
@@ -1156,7 +1291,7 @@
   tags: [process, mitre_privilege_escalation, mitre_lateral_movement]
 
 - rule: The k8s client is executed in tensorScarecrow
-  hid: 51
+  hid: move_03
   hthreats: 1
   suggestion:
     en:
@@ -1173,7 +1308,7 @@
   priority: ALERT
 
 - rule: The k8s client is executed in a container
-  hid: 52
+  hid: move_04
   hthreats: 1
   suggestion:
     en:
@@ -1190,7 +1325,7 @@
   tags: [container, mitre_execution]
 
 - rule: Launch Disallowed Container
-  hid: 53
+  hid: move_05
   hthreats: 1
   suggestion:
     en:
@@ -1211,7 +1346,7 @@
 
 ##attck_rule_type=Exfiltration
 - rule: System procs network activity
-  hid: 54
+  hid: exf_01
   hthreats: 0
   suggestion:
     en:
@@ -1234,7 +1369,7 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Interpreted procs inbound network activity
-  hid: 55
+  hid: exf_02
   hthreats: 0
   suggestion:
     en:
@@ -1254,7 +1389,7 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Interpreted procs outbound network activity
-  hid: 56
+  hid: exf_03
   hthreats: 0
   suggestion:
     en:
@@ -1274,7 +1409,7 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Unexpected outbound connection destination
-  hid: 57
+  hid: exf_04
   hthreats: 0
   suggestion:
     en:
@@ -1297,7 +1432,7 @@
 # metadata about the instance. It may be desirable to prevent access
 # to this IP from containers.
 - rule: Contact EC2 Instance Metadata Service From Container
-  hid: 58
+  hid: exf_05
   hthreats: 0
   suggestion:
     en:
@@ -1316,7 +1451,7 @@
 # On GCP, AWS and Azure, 169.254.169.254 is a special IP used to fetch
 # metadata about the instance. The metadata could be used to get credentials by attackers.
 - rule: Contact cloud metadata service from container
-  hid: 59
+  hid: exf_06
   hthreats: 0
   suggestion:
     en:
@@ -1333,7 +1468,7 @@
   tags: [network, container, mitre_discovery]
 
 - rule: Program run with disallowed http proxy env
-  hid: 60
+  hid: exf_07
   hthreats: 0
   suggestion:
     en:
@@ -1355,7 +1490,7 @@
   tags: [host, users]
 
 - rule: Unexpected K8s NodePort Connection
-  hid: 61
+  hid: exf_08
   hthreats: 0
   suggestion:
     en:
@@ -1371,7 +1506,7 @@
   tags: [network, k8s, container, mitre_port_knocking]
 
 - rule: Launch Remote File Copy Tools in Container
-  hid: 62
+  hid: exf_09
   hthreats: 0
   suggestion:
     en:
@@ -1393,7 +1528,7 @@
   tags: [network, process, mitre_lateral_movement, mitre_exfiltration]
 
 - rule: Unexpected UDP Traffic
-  hid: 63
+  hid: exf_10
   hthreats: 0
   suggestion:
     en:
@@ -1411,7 +1546,7 @@
   tags: [network, mitre_exfiltration]
 
 - rule: Launch Suspicious Network Tool in Container
-  hid: 64
+  hid: exf_11
   hthreats: 0
   suggestion:
     en:
@@ -1430,7 +1565,7 @@
   tags: [network, process, mitre_discovery, mitre_exfiltration]
 
 - rule: Detect outbound connections to common miner pool ports
-  hid: 65
+  hid: exf_12
   hthreats: 1
   suggestion:
     en:
@@ -1448,7 +1583,7 @@
   tags: [network, mitre_execution]
 
 - rule: Detect crypto miners using the Stratum protocol
-  hid: 66
+  hid: exf_13
   hthreats: 1
   suggestion:
     en:
@@ -1465,7 +1600,7 @@
   tags: [process, mitre_execution]
 
 - rule: CVE-2020-14386(Packet socket created in container)
-  hid: 67
+  hid: exf_14
   hthreats: 1
   suggestion:
     en:
@@ -1482,7 +1617,7 @@
   tags: [network, mitre_discovery]
 
 - rule: CVE-2019-3874(Memory cgroups escape via sctp)
-  hid: 68
+  hid: exf_15
   hthreats: 1
   suggestion:
     en:
@@ -1499,7 +1634,7 @@
   priority: ALERT
 
 - rule: Network scanning through interpreted language
-  hid: 69
+  hid: exf_16
   hthreats: 1
   suggestion:
     en:
@@ -1516,7 +1651,7 @@
   priority: WARNING
 
 - rule: Detected connection to container through ssh
-  hid: 70
+  hid: exf_17
   hthreats: 1
   suggestion:
     en:
@@ -1533,7 +1668,7 @@
   priority: WARNING
 
 - rule: Disallowed SSH Connection
-  hid: 71
+  hid: exf_18
   hthreats: 0
   suggestion:
     en:
@@ -1548,143 +1683,6 @@
     Disallowed SSH Connection (zh_msg=检测到尝试通过ssh连接到主机,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)
   priority: NOTICE
   tags: [network, mitre_remote_service]
-
-
-##honeypot
-- rule: Other containers establish new connections to the ElasticSearch
-  hid: 72
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Other containers establish new connections to the ElasticSearch
-  condition: >
-   (inbound_outbound) and fd.sport=9200 and k8s.pod.name contains "vul-elasticsearch"
-  output: >
-    Other containers establish new connections to the ElasticSearch (zh_msg=探真稻草人：通过主动防御检测到与elasticsearch通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: WARNING
-
-- rule: Execute sensitive commands via ElasticSearch
-  hid: 73
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Execute sensitive commands via ElasticSearch
-  condition: >
-   evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "vul-elasticsearch"
-  output: >
-    Execute sensitive commands via ElasticSearch (zh_msg=探真稻草人：通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
-  priority: ALERT
-
-- rule: Other containers establish new connections to the tomcat
-  hid: 74
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Other containers establish new connections to the tomcat
-  condition: >
-   (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "vul-tomcat"
-  output: >
-    Other containers establish new connections to the tomcat (zh_msg=探真稻草人：通过主动防御检测到与tomcat通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: ALERT
-
-- rule: Reading local files via tomcat
-  hid: 75
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Execute sensitive commands via tomcat
-  condition: >
-   (inbound_outbound) and fd.sport = 8009 and k8s.pod.name contains "vul-tomcat"
-  output: >
-    Other containers establish new connections to the tomcat (zh_msg=探真稻草人：通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: ALERT
-
-- rule: Other containers establish new connections to the Jenkins
-  hid: 76
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Other containers establish new connections to the Jenkins
-  condition: >
-   (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "vul-jenkins"
-  output: >
-    Other containers establish new connections to the jenkins (zh_msg=探真稻草人：通过主动防御检测到与jenkins通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: ALERT
-
-- rule: Execute sensitive commands via Jenkins
-  hid: 77
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Execute sensitive commands via Jenkins
-  condition: >
-   evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "vul-jenkins"
-  output: >
-    Execute sensitive commands via Jenkins (zh_msg=探真稻草人：通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
-  priority: ALERT
-
-- rule: Other containers establish new connections to the Jupyter
-  hid: 78
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Other containers establish new connections to the Jupyter
-  condition: >
-   (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "vul-jupyter"
-  output: >
-    Other containers establish new connections to the jenkins (zh_msg=探真稻草人：通过主动防御检测到与jupyter通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: WARNING
-
-- rule: Execute sensitive commands via Jupyter
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Execute sensitive commands via Jupyter
-  condition: >
-    evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "vul-jupyter"
-  output: >
-    Execute sensitive commands via Jenkins (zh_msg=探真稻草人：通过主动防御检测到Jupyter执行命令,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
-  priority: ALERT
 
 ##Rules that might be used
 #- rule: Write below root
