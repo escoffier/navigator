@@ -100,6 +100,8 @@ type checkSanImageRes struct {
 
 var (
 	LanguageMap = map[string]string{
+		"bundler":      "Ruby",
+		"pipenv":       "Python",
 		"gemfile":      "Ruby",
 		"pipfile":      "Python",
 		"poetry":       "Python",
