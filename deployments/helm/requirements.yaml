@@ -73,11 +73,6 @@ dependencies:
     version: 0.1.0
     repository: "file://./subcharts/palace"
     condition: palace.enabled
-  
-  - name: immune-test
-    version: 0.1.0
-    repository: "file://./subcharts/immune-test"
-    condition: immune-test.enabled
 
   - name: common
     version: 0.1.0

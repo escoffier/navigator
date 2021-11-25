@@ -541,24 +541,3 @@ palace:
     limits:
       cpu: "200m"
       memory: "500Mi"
-
-immune-test:
-  image:
-    name: immune-test
-    tag: latest
-    pullPolicy: Always
-    pullSecret: harbor-admin-secret
-  service:
-    type: ClusterIP
-  postgres:
-    username: postgres
-    port: "5432"
-    dbName: postgres
-    sslMode: disable
-  resources:
-    limits:
-      cpu: "100m"
-      memory: "200Mi"
-    requests:
-      cpu: "100m"
-      memory: "200Mi"
