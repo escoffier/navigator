@@ -1,5 +1,0 @@
-apiVersion: v1
-appVersion: "0.1.0"
-description: A Helm chart for immune-test
-name: immune-test
-version: 0.1.0
