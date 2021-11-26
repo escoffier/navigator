@@ -524,11 +524,14 @@ func (api *api) countNamespaces() http.HandlerFunc {
 
 func (api *api) getResourcesInNamespace() http.HandlerFunc {
 	type resource struct {
-		Cluster   string `json:"cluster"`
-		Namespace string `json:"namespace"`
-		Kind      string `json:"kind"`
-		Name      string `json:"name"`
-		UID       string `json:"uid"`
+		Cluster   string   `json:"cluster"`
+		Namespace string   `json:"namespace"`
+		Kind      string   `json:"kind"`
+		Name      string   `json:"name"`
+		UID       string   `json:"uid"`
+		Alias     string   `json:"alias"`
+		Managers  []string `json:"managers"`
+		Authority string   `json:"authority"`
 	}
 	modelToResource := func(rm *model.TensorResource) *resource {
 		r := new(resource)
@@ -537,6 +540,9 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		r.Kind = rm.Kind
 		r.Name = rm.Name
 		r.UID = rm.UID
+		r.Alias = rm.Alias
+		r.Managers = rm.Managers
+		r.Authority = rm.Authority
 		return r
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
