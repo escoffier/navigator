@@ -108,6 +108,7 @@ func main() {
 	http.HandleFunc("/cmdlineExec", mockCmdLineExec)
 	http.HandleFunc("/binaryExec", mockBinaryExec)
 	http.HandleFunc("/syscalls", mockSyscalls)
+	http.HandleFunc("/network", mockNetworkSeg)
 	if err := http.ListenAndServe(util.GetEnvWithDefault(httpAddrEnv, defaultHttpAddr), nil); err != nil {
 		log.Fatal(err)
 	}
@@ -602,6 +603,103 @@ func mockBinaryExec(_ http.ResponseWriter, _ *http.Request) {
 	handleCmdExec(ctx, cmd)
 }
 
+func mockNetworkSeg(_ http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	rtype := r.URL.Query().Get("rtype")
+	podName := r.URL.Query().Get("podname")
+	ns := r.URL.Query().Get("ns")
+	targetRes := r.URL.Query().Get("tname")
+	targetKind := r.URL.Query().Get("tkind")
+	targetNS := r.URL.Query().Get("tns")
+	mode := r.URL.Query().Get("mode")
+
+	action := "alerts"
+	actionZh := "预警"
+	if mode == "defense" {
+		action = "defense"
+		actionZh = "阻断"
+	}
+	ruleName := "IngressPolicy"
+	if rtype == "ingress" {
+		ruleName = "IngressPolicy"
+	} else if rtype == "egress" {
+		ruleName = "EgressPolicy"
+	}
+	clusterKey, _ := clusterManager.ClusterKey()
+	req := &pb.SendNotificationReq{
+		RuleKey: &pb.RuleKey{
+			Module:   "MicroSeg",
+			Category: "Policies",
+			Name:     ruleName,
+		},
+		Timestamp: time.Now().Unix(),
+		UUID:      uuidGenerator.GenerateUUID(),
+		NotifyContext: &pb.Context{
+			Cluster:   clusterKey,
+			Namespace: ns,
+			PodName:   podName,
+			CustomKV: []*pb.MultiLanguageKV{
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {
+							Key:   "action",
+							Value: action,
+						},
+						"zh": {
+							Key:   "行为",
+							Value: actionZh,
+						},
+					},
+				},
+				{
+					KVHash: map[string]*pb.KV{
+						"en": {
+							Key:   "reason",
+							Value: "Network connections violating the policy",
+						},
+						"zh": {
+							Key:   "原因",
+							Value: "发生策略外网络访问行为",
+						},
+					},
+				},
+			},
+		},
+	}
+	if rtype == "ingress" {
+		req.NotifyContext.CustomKV = append(req.NotifyContext.CustomKV, &pb.MultiLanguageKV{
+			KVHash: map[string]*pb.KV{
+				"en": {
+					Key:   "downstreamResource",
+					Value: fmt.Sprintf("%s/%s/%s", targetNS, targetKind, targetRes),
+				},
+				"zh": {
+					Key:   "下游资源",
+					Value: fmt.Sprintf("%s/%s/%s", targetNS, targetKind, targetRes),
+				},
+			},
+		})
+	} else if rtype == "egress" {
+		req.NotifyContext.CustomKV = append(req.NotifyContext.CustomKV, &pb.MultiLanguageKV{
+			KVHash: map[string]*pb.KV{
+				"en": {
+					Key:   "uptreamResource",
+					Value: fmt.Sprintf("%s/%s/%s", targetNS, targetKind, targetRes),
+				},
+				"zh": {
+					Key:   "上游资源",
+					Value: fmt.Sprintf("%s/%s/%s", targetNS, targetKind, targetRes),
+				},
+			},
+		})
+	}
+
+	if err := sendEvents(ctx, req); err != nil {
+		log.Errorf("send events fail, err:%s", err)
+	}
+}
 func mockSyscalls(_ http.ResponseWriter, _ *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
