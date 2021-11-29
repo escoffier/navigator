@@ -16,10 +16,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 )
 
+const unixSockFile = "/tmp/setns.sock"
+
 type NsenterData struct {
-	udpConn   *net.UDPConn
-	dockerCli *client.Client
-	k8sClient *kubernetes.Clientset
+	sockClient *net.UnixConn
+	dockerCli  *client.Client
+	k8sClient  *kubernetes.Clientset
 }
 
 func DockerNewClient(k8sClient *kubernetes.Clientset) (*NsenterData, error) {
@@ -27,22 +29,28 @@ func DockerNewClient(k8sClient *kubernetes.Clientset) (*NsenterData, error) {
 	if err != nil {
 		return nil, errors.Errorf("docker new client failed, %v", err)
 	}
-
-	udpConn, err := net.DialUDP("udp", nil, &net.UDPAddr{
-		IP:   net.IPv4(0, 0, 0, 0),
-		Port: 59090,
-	})
+	//create unix socket
+	addr, err := net.ResolveUnixAddr("unix", unixSockFile)
 	if err != nil {
-		return nil, errors.Errorf("create udp client failed, %v", err)
+		return nil, errors.Errorf("create unix socket client failed, %v", err)
+	}
+	//unix socket dial
+	sockClient, err := net.DialUnix("unix", nil, addr)
+	if err != nil {
+		return nil, errors.Errorf("unix socket client dial failed, %v", err)
 	}
 	//print log
 	log.Infof("docker new client success!")
-	return &NsenterData{udpConn: udpConn, dockerCli: dockerCli, k8sClient: k8sClient}, nil
+	return &NsenterData{sockClient: sockClient, dockerCli: dockerCli, k8sClient: k8sClient}, nil
 }
 
 func (nse NsenterData) Close() {
 	if nse.dockerCli != nil {
 		nse.dockerCli.Close()
+	}
+
+	if nse.sockClient != nil {
+		nse.sockClient.Close()
 	}
 }
 
@@ -108,7 +116,7 @@ func (nse NsenterData) GetPodContainerID(namespace, podname, nodeIp string) (map
 }
 
 func (nse NsenterData) GetProcessName(netinfo *daemon.PidAssociateMnt) (string, error) {
-	if nse.udpConn == nil {
+	if nse.sockClient == nil {
 		return "", errors.Errorf("udp client is nil")
 	}
 
@@ -117,7 +125,7 @@ func (nse NsenterData) GetProcessName(netinfo *daemon.PidAssociateMnt) (string, 
 		return "", errors.Errorf("json marshal failed, %v", err)
 	}
 
-	_, err = nse.udpConn.Write(data)
+	_, err = nse.sockClient.Write(data)
 	if err != nil {
 		return "", errors.Errorf("send net info to setns process failed, %v", err)
 	}
@@ -126,9 +134,9 @@ func (nse NsenterData) GetProcessName(netinfo *daemon.PidAssociateMnt) (string, 
 	rcvBuf := make([]byte, 128)
 	timeout := make(chan struct{})
 	go func() {
-		length, _, err = nse.udpConn.ReadFromUDP(rcvBuf)
+		length, err = nse.sockClient.Read(rcvBuf)
 		if err != nil {
-			log.Errorf("read udp response data failed, %v", err)
+			log.Errorf("read unix socket response data failed, %v", err)
 			return
 		}
 		timeout <- struct{}{}

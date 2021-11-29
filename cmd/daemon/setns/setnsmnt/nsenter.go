@@ -3,7 +3,7 @@ package setnsmnt
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"golang.org/x/sys/unix"
 	"io/ioutil"
@@ -171,7 +171,7 @@ func GetPidByInode(inode string) string {
 
 	path, err := FilterSocketInode(fmt.Sprintf("socket:[%s]", inode))
 	if err != nil {
-		log.Errorf("get all inode failed! %v.", err)
+		logging.GetLogger().Error().Msgf("get all inode failed! %v.", err)
 		return ""
 	}
 
