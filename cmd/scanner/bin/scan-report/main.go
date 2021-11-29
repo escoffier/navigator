@@ -68,7 +68,7 @@ func main() {
 
 	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
 
-		db, err := gorm.Open(postgres.Open(dbStr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+		db, err := gorm.Open(postgres.Open(dbStr), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 		if err != nil {
 			return nil, err
 		}

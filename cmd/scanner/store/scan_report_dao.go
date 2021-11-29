@@ -299,6 +299,7 @@ func (s *ScannerOrm) UpdateSubTaskStatus(ctx context.Context, id uint, status sc
 
 func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, task *scanreport.TensorScanReportSubTasks) ([]*scanreport.ImageInfo, error) {
 	var selectFiled = []string{
+		"t.id",
 		"t.library", "t.full_repo_name", "t.tags", "t.privileged_boot", "t.is_reinforce",
 
 		"s.risk_score", "s.vuln_score", "s.has_fixed_vuln", "s.sensitive_score", "s.virus_score",
@@ -323,15 +324,15 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		Joins("LEFT JOIN (SELECT DISTINCT image_uuid FROM tensor_containers) as tc ON t.image_uuid = tc.image_uuid AND t.from_type != 2")
 
 	{ //报告对象
-		var fromType []uint8
+		var db1, db2 *gorm.DB
+
 		if task.TensorScanReportTasks.ImageTypeEnum&scanreport.TensorScanReportImageTypeRegistry == scanreport.TensorScanReportImageTypeRegistry {
-			fromType = append(fromType, model.ImageFromTypeNormal)
 
 			switch task.TensorScanReportTasks.RegistryImageType {
 			case scanreport.TensorScanReportRegistryImageTypeProject: // 项目
-				db = db.Where("project IN ?", task.TensorScanReportTasks.RegistryImageObjects)
+				db1 = s.psql.Get().Where("project IN ?", task.TensorScanReportTasks.RegistryImageObjects)
 			case scanreport.TensorScanReportRegistryImageTypeRegistry: // 仓库
-				db = db.
+				db1 = s.psql.Get().
 					Where(
 						"registry_id IN (?)",
 						s.psql.Get().Model(model.Registry{}).Select("id").
@@ -349,27 +350,39 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 					}
 				}
 
-				db = db.Where("project IN ?", project)
+				db1 = s.psql.Get().Where("project IN ?", project)
 
-				db = db.
+				db1 = db1.
 					Where(
 						"registry_id IN (?)",
 						s.psql.Get().Model(model.Registry{}).Select("id").
 							Where("name IN ?", registies),
 					)
 			}
+
+			db1 = db1.Where("t.from_type = ?", model.ImageFromTypeNormal)
 		}
 
 		if task.TensorScanReportTasks.ImageTypeEnum&scanreport.TensorScanReportImageTypeNode == scanreport.TensorScanReportImageTypeNode {
-			fromType = append(fromType, model.ImageFromSafeNode)
-			db = db.Where(
-				"node_hostname IN (?)",
-				s.psql.Get().Model(model.PodResourceRelation{}).
-					Distinct("node_name").
-					Where("cluster_key IN ?", task.TensorScanReportTasks.NodeImageObjects))
+			db2 = s.psql.Get().
+				Where(
+					"node_hostname IN (?)",
+					s.psql.Get().Model(model.PodResourceRelation{}).
+						Distinct("node_name").
+						Where("cluster_key IN ?", task.TensorScanReportTasks.NodeImageObjects),
+				).
+				Where("t.from_type = ?", model.ImageFromSafeNode)
 		}
 
-		db = db.Where("t.from_type IN (?)", fromType)
+		if db1 != nil && db2 != nil {
+			db = db.Where(s.psql.Get().Where(db1).Or(db2))
+		} else if db1 != nil && db2 == nil {
+			db = db.Where(db1)
+		} else if db1 == nil && db2 != nil {
+			db = db.Where(db2)
+		} else {
+			return nil, errors.New("unknown image object type")
+		}
 	}
 
 	var data = make([]*scanreport.ImageInfo, 0, limit)
