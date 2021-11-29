@@ -597,7 +597,23 @@ func (m ModeImageResponse) Swap(i, j int) {
 	m[i], m[j] = m[j], m[i]
 }
 
-func InInSlice(v int, vlue []int) bool {
+func InIntSlice(v int, vlue []int) bool {
+	for i := range vlue {
+		if v == vlue[i] {
+			return true
+		}
+	}
+	return false
+}
+func InStringSlice(v string, vlue []string) bool {
+	for i := range vlue {
+		if v == vlue[i] {
+			return true
+		}
+	}
+	return false
+}
+func InInt64Slice(v int64, vlue []int64) bool {
 	for i := range vlue {
 		if v == vlue[i] {
 			return true

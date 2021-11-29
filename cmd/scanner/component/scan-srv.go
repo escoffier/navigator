@@ -1158,6 +1158,16 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 		}
 		img.FullRepoName = fmt.Sprintf("%s-%s-%s", img.NodeHostname, img.NodeIp, strings.Join(split[5:], "/"))
 	}
+	// docker-registry(GET /v2/<name>/tags/list)入库是没有这三个时间，做一步兼容
+	if img.LastPullTime.IsZero() {
+		img.LastPullTime = img.UpdatedAt
+	}
+	if img.FirstPushTime.IsZero() {
+		img.FirstPushTime = img.CreatedAt
+	}
+	if img.LastPushTime.IsZero() {
+		img.LastPushTime = img.CreatedAt
+	}
 
 	return img, nil
 }
@@ -1545,14 +1555,14 @@ func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int) ([]i
 	for i := range scanStatus {
 		scanStatusMap[scanStatus[i].ImageId] = scanStatus[i]
 	}
-	hasNotScan := InInSlice(consts.ImageNotScan, status)
+	hasNotScan := InIntSlice(consts.ImageNotScan, status)
 
 	for i := range image {
 		tak, ok := scanStatusMap[image[i].ID]
 		if hasNotScan && !ok {
 			inIds = append(inIds, image[i].ID)
 		}
-		if InInSlice(int(tak.Status), status) {
+		if InIntSlice(int(tak.Status), status) {
 			inIds = append(inIds, image[i].ID)
 		}
 	}
@@ -1711,13 +1721,13 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 		msgs = append(msgs, ms6...)
 
 		// 可信镜像
-		sa7, red7, ms7 := s.checkTrustedImage(ctx, img, po)
-		if !sa7 {
-			safe = false
-		}
+		// sa7, red7, ms7 := s.checkTrustedImage(ctx, img, po)
+		// if !sa7 {
+		// 	safe = false
+		// }
 
-		records = append(records, red7...)
-		msgs = append(msgs, ms7...)
+		// records = append(records, red7...)
+		// msgs = append(msgs, ms7...)
 
 		// 特权账户
 		sa8, red8, ms8 := s.checkPrivilegedBoot(ctx, img, po)
