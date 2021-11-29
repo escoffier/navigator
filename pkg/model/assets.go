@@ -16,13 +16,14 @@ var (
 )
 
 const (
-	WebTypeNginx     = "nginx"
-	WebTypeApache    = "httpd"
-	WebTypeTomcat    = "tomcat"
-	WebTypeKong      = "kong"
-	WebTypeOpenResty = "openresty"
-	WebTypeTraefik   = "traefik"
-	WebTypeApisix    = "apisix"
+	WebTypeNginx      = "nginx"
+	WebTypeApache     = "httpd"
+	WebTypeApacheName = "apache"
+	WebTypeTomcat     = "tomcat"
+	WebTypeKong       = "kong"
+	WebTypeOpenResty  = "openresty"
+	WebTypeTraefik    = "traefik"
+	WebTypeApisix     = "apisix"
 
 	DBTypeRedis       = "redis"
 	DBTypePostgres    = "postgres"
@@ -105,7 +106,7 @@ func GetWebType(imageID string) (bool, string, string, error) {
 	} else if strings.Index(repoName, WebTypeApisix) >= 0 {
 		return true, WebTypeApisix, version, nil
 	} else if strings.Index(repoName, WebTypeApache) >= 0 {
-		return true, WebTypeTraefik, version, nil
+		return true, WebTypeApacheName, version, nil
 	}
 	return false, "", "", nil
 }
