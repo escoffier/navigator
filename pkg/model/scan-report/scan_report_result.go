@@ -3,6 +3,7 @@ package scan_report
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -30,6 +31,7 @@ func (s *ScanReportResultBuilder) BuildByImagesInfo(info []*ImageInfo) {
 	data.ImageCount.TotalCount += int64(len(info)) // 增加镜像总数
 
 	for _, v := range info {
+		logging.GetLogger().Debug().Msgf("build image info, image id: %d", v.ImageList.ID)
 		// 可信镜像
 		if v.IsTrusted == 1 {
 			data.ImageCount.TrustedCount++
@@ -118,6 +120,11 @@ func (s *ScanReportResultBuilder) BuildByImagesInfo(info []*ImageInfo) {
 
 			LOOP:
 				for k := range v.VulnInfo[i].Vulns[j].Trivy {
+					logging.GetLogger().Debug().Msgf("image_id: %d, vuln id: %s", v.ImageList.ID, v.VulnInfo[i].Vulns[j].CVEID)
+
+					if !strings.Contains(v.VulnInfo[i].Vulns[j].CVEID, "CVE") {
+						continue
+					}
 
 					imageVuln, ok := s.vulns[fmt.Sprintf(
 						"%s%s",
@@ -158,6 +165,7 @@ func (s *ScanReportResultBuilder) BuildByImagesInfo(info []*ImageInfo) {
 						}
 
 						// 只记录高危或者高的漏洞
+						// 当漏洞编号没有CVE时，不展示漏洞编号
 						if level != VlunLevel_CRITICAL && level != VlunLevel_HIGH {
 							s.vulns[fmt.Sprintf(
 								"%s%s",
