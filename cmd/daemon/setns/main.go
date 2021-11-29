@@ -10,11 +10,16 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"runtime/debug"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var filename *os.File
 
-const BasePath = "/host"
+const (
+	BasePath     = "/host"
+	unixSockFile = "/tmp/setns.sock"
+)
 
 func init() {
 	//log.SetLevel(log.InfoLevel)
@@ -33,7 +38,7 @@ func GetComm(pid int) string {
 	path := fmt.Sprintf("%s/proc/%v/comm", BasePath, pid)
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		fmt.Printf("read data failed, %v, %v\n", path, err)
+		logging.GetLogger().Error().Msgf("read data failed, %v, %v.", path, err)
 		return "-"
 	}
 
@@ -97,14 +102,14 @@ func SetLocalNs(f *os.File) error {
 	return nil
 }
 
-func SendResponse(data *daemon.ProcessInfo, udpConn *net.UDPConn, addr *net.UDPAddr) error {
+func SendResponse(data *daemon.ProcessInfo, client net.Conn) error {
 	//json marshal
 	ret, err := json.Marshal(data)
 	if err != nil {
 		return errors.Errorf("json marshal failed, %v", err)
 	}
 	//send response data
-	_, err = udpConn.WriteToUDP(ret, addr)
+	_, err = client.Write(ret)
 	if err != nil {
 		return errors.Errorf("write to udp failed, %v\n", err)
 	}
@@ -112,23 +117,24 @@ func SendResponse(data *daemon.ProcessInfo, udpConn *net.UDPConn, addr *net.UDPA
 	return nil
 }
 
-func main() {
-	err := OpenLocalMnt()
+func CreateUnixSocket() (*net.UnixListener, error) {
+	//remove unix socket file
+	os.Remove(unixSockFile)
+	addr, err := net.ResolveUnixAddr("unix", unixSockFile)
 	if err != nil {
-		fmt.Printf("open local mnt failed, %v\n", err)
-		return
+		return nil, errors.Errorf("create unix socket failed, %v", err)
 	}
-
-	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.IPv4(0, 0, 0, 0),
-		Port: 59090,
-	})
-
+	//listen
+	server, err := net.ListenUnix("unix", addr)
 	if err != nil {
-		fmt.Printf("listen udp failed, %v\n", err)
-		return
+		return nil, errors.Errorf("unix socket listen failed, %v", err)
 	}
+	//return
+	return server, nil
+}
 
+func ProcessRcvData(client net.Conn) {
+	//process data
 	for {
 		rsp := daemon.ProcessInfo{
 			Pid:      0,
@@ -139,23 +145,23 @@ func main() {
 		var pidMnt daemon.PidAssociateMnt
 		var dataBuf [1024]byte
 		//read udp data
-		length, addr, udpErr := udpConn.ReadFromUDP(dataBuf[:])
-		if udpErr != nil {
-			fmt.Printf("read udp data failed, %v\n", udpErr)
+		length, err := client.Read(dataBuf[:])
+		if err != nil {
+			logging.GetLogger().Error().Msgf("read udp data failed, %v.", err)
 			continue
 		}
 		//json
 		err = json.Unmarshal(dataBuf[:length], &pidMnt)
 		if err != nil || pidMnt.Pid <= 0 {
 			if err != nil {
-				fmt.Printf("json unmarshal failed, %v\n", err)
+				logging.GetLogger().Error().Msgf("json unmarshal failed, %v.", err)
 			} else {
-				fmt.Printf("pid is error, pid : %v\n", pidMnt.Pid)
+				logging.GetLogger().Error().Msgf("pid is error, pid : %v.", pidMnt.Pid)
 			}
 			//send response data
-			err = SendResponse(&rsp, udpConn, addr)
+			err = SendResponse(&rsp, client)
 			if err != nil {
-				fmt.Printf("send response failed, %v\n", err)
+				logging.GetLogger().Error().Msgf("send response failed, %v.", err)
 			}
 			continue
 		}
@@ -164,7 +170,7 @@ func main() {
 		//get process name by set mnt
 		name, err = GetProcessName(&pidMnt)
 		if err != nil {
-			fmt.Printf("get process name failed, %s, comm : %v, %v\n", string(dataBuf[:length]), comm, err)
+			logging.GetLogger().Error().Msgf("get process name failed, %s, comm : %v, %v.", string(dataBuf[:length]), comm, err)
 		}
 
 		if len(name) == 0 || name == "-" {
@@ -174,19 +180,53 @@ func main() {
 		rsp.Pid = pidMnt.Pid
 		rsp.ProcName = name
 		//send response data
-		err = SendResponse(&rsp, udpConn, addr)
+		err = SendResponse(&rsp, client)
 		if err != nil {
-			fmt.Printf("send response failed, %v\n", err)
+			logging.GetLogger().Error().Msgf("send response failed, %v", err)
 		}
 		//Unshare
 		err = UnshareInit()
 		if err != nil {
-			fmt.Printf("unshare failed, %v\n", err)
+			logging.GetLogger().Error().Msgf("unshare failed, %v", err)
 		}
 		//set local mnt
 		err = SetLocalNs(filename)
 		if err != nil {
-			fmt.Printf("set local ns failed, %v\n", err)
+			logging.GetLogger().Error().Msgf("set local ns failed, %v", err)
 		}
+	}
+}
+
+func main() {
+	unixSvr, err := CreateUnixSocket()
+	if err != nil {
+		logging.GetLogger().Error().Msgf("create unix server failed, %v", err)
+		return
+	}
+	//defer
+	defer unixSvr.Close()
+	//open local mnt
+	err = OpenLocalMnt()
+	if err != nil {
+		logging.GetLogger().Error().Msgf("open local mnt failed, %v", err)
+		return
+	}
+	//accept
+	for {
+		fd, err := unixSvr.Accept()
+		if err != nil {
+			logging.GetLogger().Error().Msgf("unix socket accept error, %v", err)
+			continue
+		}
+		//process data
+		go func(client net.Conn) {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				}
+			}()
+			//process data
+			ProcessRcvData(client)
+		}(fd)
 	}
 }

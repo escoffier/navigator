@@ -1,8 +1,11 @@
-FROM busybox:1.31.0-glibc
+FROM centos:7
+
+RUN yum -y update
+RUN yum install -y epel-release
+RUN yum install -y supervisor
 
 COPY bin/daemon /
 COPY bin/ns-mnt /
+COPY ./configs/holmes/supervisord.conf /etc/
 
-COPY ./configs/holmes/runnet.sh /
-
-CMD ["sh", "/runnet.sh"]
+CMD ["supervisord"]
