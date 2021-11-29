@@ -60,7 +60,7 @@ func init() {
 		logging.GetLogger().Error().Err(err).Str("executorName", executorScanWebshellName).Msg("int executor err")
 	}
 }
-func newScanWebshell(config ExecutorConfig) (Executor, error) { //Open时调用
+func newScanWebshell(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanWebshell{}
 	e.WebshellScan = component.WebshellScan{}
 	return e, nil

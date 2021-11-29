@@ -105,15 +105,20 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 		if len(configs) == 0 {
 			logging.GetLogger().Info().Msg("SyncImage not fond scan config")
 		}
+
 		// 下发扫描任务
 		if len(configs) > 0 {
+			logging.GetLogger().Info().Interface("scan config", configs[0]).Msg("SyncImage")
 			if configs[0].NodeImageConfig.ImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
-					if res.Added[i].FromType == model.ImageFromSafeNode {
-						imgIds = append(imgIds, res.Added[i].ID)
+					if configs[0].NodeImageConfig.ScanAll || InStringSlice(res.Added[i].NodeHostname, configs[0].NodeImageConfig.NodeHostnames) {
+						if res.Added[i].FromType == model.ImageFromSafeNode {
+							imgIds = append(imgIds, res.Added[i].ID)
+						}
 					}
 				}
+
 				if len(imgIds) > 0 {
 					imgIds = DeDuplicationInt64Slice(imgIds)
 					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("SyncImage send library image scan tasks")
@@ -128,8 +133,10 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 			if configs[0].LibraryImageConfig.ImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
-					if res.Added[i].FromType == model.ImageFromTypeNormal {
-						imgIds = append(imgIds, res.Added[i].ID)
+					if configs[0].LibraryImageConfig.ScanAll || InInt64Slice(res.Added[i].RegistryId, configs[0].LibraryImageConfig.Libraries) {
+						if res.Added[i].FromType == model.ImageFromTypeNormal {
+							imgIds = append(imgIds, res.Added[i].ID)
+						}
 					}
 				}
 				if len(imgIds) > 0 {
