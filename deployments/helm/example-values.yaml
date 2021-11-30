@@ -33,7 +33,6 @@ global:
       
       
 
-
 console:
   enabled: *isMainCluster
   image:
