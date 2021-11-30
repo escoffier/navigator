@@ -33,6 +33,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/namespaces", api.getNamespaces())
 		r.Post("/namespace", api.updateNamespace())
 		r.Get("/namespace/{namespace}/kind/{kind}/resources", api.getResourcesInNamespace())
+		r.Get("/resources", api.getResources())
 		r.Post("/resource/userData", api.updateResourceUserData())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
 		r.Get("/resources/byImage", api.getResourcesByImage())
@@ -557,7 +558,7 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.GetLogger().Info().Msg("cluster_key param is empty.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -590,6 +591,98 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		resources, totalCnt, err := resSvc.GetResources(ctx, rquery, offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rquery, offset, limit)
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
+			return
+		}
+
+		items := make([]*resource, len(resources))
+		for i, resource := range resources {
+			items[i] = modelToResource(resource)
+		}
+
+		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(items))))
+	}
+}
+
+func (api *api) getResources() http.HandlerFunc {
+	type resource struct {
+		Cluster   string   `json:"cluster"`
+		Namespace string   `json:"namespace"`
+		Kind      string   `json:"kind"`
+		Name      string   `json:"name"`
+		UID       string   `json:"uid"`
+		Alias     string   `json:"alias"`
+		Managers  []string `json:"managers"`
+		Authority string   `json:"authority"`
+	}
+	modelToResource := func(rm *model.TensorResource) *resource {
+		r := new(resource)
+		r.Cluster = rm.ClusterKey
+		r.Namespace = rm.Namespace
+		r.Kind = rm.Kind
+		r.Name = rm.Name
+		r.UID = rm.UID
+		r.Alias = rm.Alias
+		r.Managers = rm.Managers
+		r.Authority = rm.Authority
+		return r
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Info().Msg("cluster_key param is empty.")
+			clusterKey = ""
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Info().Msg("namespace param is empty.")
+			namespace = ""
+		}
+
+		kind, err := param.QueryString(r, "kind")
+		if err != nil {
+			logging.GetLogger().Info().Msg("kind param is empty.")
+			kind = ""
+		}
+
+		query, err := param.QueryString(r, "query")
+		if err != nil {
+			query = ""
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		rQuery := dal.ResourcesQuery()
+		if clusterKey != "" {
+			rQuery = rQuery.WithCluster(clusterKey)
+		}
+		if namespace != "" {
+			rQuery = rQuery.WithNamespace(namespace)
+		}
+		if kind != "" && kind != "_" {
+			rQuery = rQuery.WithResourceKind(assetsPkg.ResourceKind(kind))
+		}
+		if query != "" {
+			rQuery = rQuery.WithColumnQuery("name", query)
+		}
+		resources, totalCnt, err := resSvc.GetResources(ctx, rQuery, offset, limit)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, offset, limit)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
