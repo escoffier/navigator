@@ -31,10 +31,6 @@ reviewdog:
     - export REVIEWDOG_INSECURE_SKIP_VERIFY=true
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
   script:
     - reviewdog -reporter=gitlab-mr-discussion -debug -tee
   rules:
@@ -53,10 +49,6 @@ all:
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
     - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     ## Configuration of Make
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
@@ -73,7 +65,8 @@ all:
   script:
     - USEMIRROR=true FETCHTAG=latest make all
     - make pushimages
-    - kubectl get pod --no-headers -n tensorsec|grep -v "db\|mongodb\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
+    - make rm-local-images
+    - kubectl get pod --no-headers -n tensorsec|grep -v "postrgres\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
 
   rules:
     - changes:
@@ -93,15 +86,20 @@ helm-upgrade:
     ## Configuration of Helm
     - 'sed -i "s#harbor.local.tensorsecurity.cn#harbor.tensorsecurity.com#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#1.0.0#ci#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#admin#devops#g" deployments/helm/example-values.yaml'
     - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#admin#devops#" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#console-robot@example.com#console-robot@tensorsecurity.cn#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#console.localhost.com#172.21.3.226:31517#g" deployments/helm/example-values.yaml'
     - 'sed -i "s#https://console-external.localhost.com#https://console-ci.tensorsecurity.cn#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#harbor.local.example.com#harbor.tensorsecurity.com#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#prefixName: csec#prefixName: ci#g" deployments/helm/example-values.yaml'
+    - 'sed -i "s#repository: library#repository: tensorsecurity#g" deployments/helm/example-values.yaml'
     ## certgen image for k8s v1.22
-    - 'sed -i "s#tensorsec-certgen#kube-webhook-certgen#g" deployments/helm/values.yaml'
+    - 'sed -i "s#name: certgen#name: kube-webhook-certgen#g" deployments/helm/values.yaml'
     - 'sed -i "s#v1.5.1#v1.1.1#g" deployments/helm/values.yaml'
+
     ## Copy tools
     - mkdir ~/.kube/
     - cp ~/.docker/config-ci ~/.kube/config
@@ -116,7 +114,6 @@ helm-upgrade:
 
 cluster-manager:
   stage: build
-  retry: 2
   resource_group: cluster-manager
   tags:
     - k8s
@@ -124,10 +121,6 @@ cluster-manager:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -138,7 +131,8 @@ cluster-manager:
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make cluster-manager
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-cluster-manager:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/cluster-manager:ci
+    - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=cluster-manager
   rules:
     - changes:
         - cmd/cluster-manager/**/*
@@ -148,17 +142,12 @@ cluster-manager:
 console:
   stage: build
   resource_group: console
-  retry: 2
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
@@ -170,62 +159,23 @@ console:
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make console
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-console:ci
-    - kubectl scale --replicas=0 deploy tensorsec-console -n tensorsec
-    - kubectl scale --replicas=1 deploy tensorsec-console -n tensorsec
+    - docker push harbor.tensorsecurity.com/tensorsecurity/console:ci
+    - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=console
   rules:
     - changes:
-        - cmd/cluster-manager/**/*
-        - build/cluster-manager/**/*
-        - configs/cluster-manager/**/*
-
-event-processor:
-  stage: build
-  resource_group: event-processor
-  retry: 2
-  tags:
-    - k8s
-  before_script:
-    - git merge origin/master
-    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
-    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-    - sed -i "s#latest#ci#g" Makefile
-    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
-    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
-    - mkdir ~/.kube/
-    - cp ~/.docker/config-ci ~/.kube/config
-    - cp ~/.docker/kubectl /bin/
-    - chmod +755 /bin/kubectl
-  script:
-    - USEMIRROR=true make event-processor
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-event-processor:ci
-    - kubectl scale --replicas=0 deploy tensorsec-sec-prof-man-processor -n tensorsec
-    - kubectl scale --replicas=1 deploy tensorsec-sec-prof-man-processor -n tensorsec
-  rules:
-    - changes:
-        - cmd/event-processor/**/*
-        - build/event-processor/**/*
-        - configs/event-processor/**/*
+        - cmd/console/**/*
+        - build/console/**/*
+        - configs/console/**/*
 
 holmes:
   stage: build
   resource_group: holmes
-  retry: 2
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -236,9 +186,9 @@ holmes:
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true FETCHTAG=latest make daemon holmes
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-daemon:ci
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-holmes:ci
-    - kubectl delete pod -n tensorsec -l app=tensorsec-holmes
+    - docker push harbor.tensorsecurity.com/tensorsecurity/daemon:ci
+    - docker push harbor.tensorsecurity.com/tensorsecurity/holmes:ci
+    - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=holmes
   rules:
     - changes:
         - cmd/daemon/**/*
@@ -248,20 +198,16 @@ holmes:
         - build/holmes/**/*
         - configs/holmes/**/*
 
-prof-man-daemon:
+palace:
   stage: build
-  resource_group: prof-man-daemon
-  retry: 2
+  resource_group: palace
+  retry: 1
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -271,18 +217,46 @@ prof-man-daemon:
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
-    - USEMIRROR=true make go-audit security-profiles-loader
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-go-audit:ci
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-loader:ci
-    - kubectl delete pod -n tensorsec -l app=tensorsec-sec-prof-man-daemon
+    - USEMIRROR=true make palace
+    - docker push harbor.tensorsecurity.com/tensorsecurity/palace:ci
+    - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=palace
   rules:
     - changes:
-        - cmd/go-audit/**/*
-        - build/go-audit/**/*
-        - configs/go-audit/**/*
-        - cmd/security-profiles-loader/**/*
-        - build/security-profiles-loader/**/*
-        - configs/security-profiles-loader/**/*
+        - cmd/palace/**/*
+        - build/palace/**/*
+        - configs/palace/**/*
+
+#prof-man-daemon:
+#  stage: build
+#  resource_group: prof-man-daemon
+#  retry: 1
+#  tags:
+#    - k8s
+#  before_script:
+#    - git merge origin/master
+#    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+#    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+#    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+#    - sed -i "s#latest#ci#g" Makefile
+#    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+#    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+#    - mkdir ~/.kube/
+#    - cp ~/.docker/config-ci ~/.kube/config
+#    - cp ~/.docker/kubectl /bin/
+#    - chmod +755 /bin/kubectl
+#  script:
+#    - USEMIRROR=true make go-audit security-profiles-loader
+#    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-go-audit:ci
+#    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-loader:ci
+#    - kubectl delete pod -n tensorsec -l app=tensorsec-sec-prof-man-daemon
+#  rules:
+#    - changes:
+#        - cmd/go-audit/**/*
+#        - build/go-audit/**/*
+#        - configs/go-audit/**/*
+#        - cmd/security-profiles-loader/**/*
+#        - build/security-profiles-loader/**/*
+#        - configs/security-profiles-loader/**/*
 
 safe-node-image:
   stage: build
@@ -294,10 +268,6 @@ safe-node-image:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -308,8 +278,8 @@ safe-node-image:
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make safe-node-image
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-safe-node-image:ci
-    - kubectl delete pod -l app=tensorsec-safenode-image -n tensorsec
+    - docker push harbor.tensorsecurity.com/tensorsecurity/safe-node-image:ci
+    - kubectl delete pod -l app.kubernetes.io/name=safe-node-image -n tensorsec
   rules:
     - changes:
         - cmd/safe-node-image/**/*
@@ -319,17 +289,12 @@ safe-node-image:
 scanner:
   stage: build
   resource_group: scanner
-  retry: 2
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -341,29 +306,23 @@ scanner:
   script:
     - go test -v -cover ./cmd/scanner/...
     - USEMIRROR=true make scanner
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-scanner:ci
-    - kubectl scale --replicas=0 deploy tensorsec-scanner -n tensorsec
-    - kubectl scale --replicas=1 deploy tensorsec-scanner -n tensorsec
+    - docker push harbor.tensorsecurity.com/tensorsecurity/scanner:ci
+    - kubectl delete pod -l app.kubernetes.io/name=scanner -n tensorsec
   rules:
     - changes:
         - cmd/scanner/**/*
         - build/scanner/**/*
         - configs/scanner/**/*
 
-security-profiles-manager:
+scan-report:
   stage: build
-  resource_group: security-profiles-manage
-  retry: 2
+  resource_group: scan-report
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -373,30 +332,58 @@ security-profiles-manager:
     - cp ~/.docker/kubectl /bin/
     - chmod +755 /bin/kubectl
   script:
-    - USEMIRROR=true make security-profiles-manager
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-manager:ci
-    - kubectl scale --replicas=0 deploy/tensorsec-sec-prof-man -n tensorsec
-    - kubectl scale --replicas=1 deploy/tensorsec-sec-prof-man -n tensorsec
+    - USEMIRROR=true make scan_report
+    - docker push harbor.tensorsecurity.com/tensorsecurity/scan-report:ci
+    - kubectl delete pod -l app.kubernetes.io/name=scan-report -n tensorsec
   rules:
     - changes:
-        - cmd/security-profiles-manager/**/*
-        - build/security-profiles-manager/**/*
-        - configs/security-profiles-manager/**/*
+        - cmd/scan_report/**/*
+        - build/scan_report/**/*
+        - configs/scan_report/**/*
+
+
+#security-profiles-manager:
+#  stage: build
+#  resource_group: security-profiles-manage
+#  retry: 2
+#  tags:
+#    - k8s
+#  before_script:
+#    - git merge origin/master
+#    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+#    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+#    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
+#    - git submodule init
+#    - git submodule update
+#    - git submodule update --init --recursive
+#    - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+#    - sed -i "s#latest#ci#g" Makefile
+#    - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+#    - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
+#    - mkdir ~/.kube/
+#    - cp ~/.docker/config-ci ~/.kube/config
+#    - cp ~/.docker/kubectl /bin/
+#    - chmod +755 /bin/kubectl
+#  script:
+#    - USEMIRROR=true make security-profiles-manager
+#    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-security-profiles-manager:ci
+#    - kubectl scale --replicas=0 deploy/tensorsec-sec-prof-man -n tensorsec
+#    - kubectl scale --replicas=1 deploy/tensorsec-sec-prof-man -n tensorsec
+#  rules:
+#    - changes:
+#        - cmd/security-profiles-manager/**/*
+#        - build/security-profiles-manager/**/*
+#        - configs/security-profiles-manager/**/*
 
 webhook:
   stage: build
   resource_group: webhook
-  retry: 2
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -407,9 +394,8 @@ webhook:
     - chmod +755 /bin/kubectl
   script:
     - USEMIRROR=true make webhook
-    - docker push harbor.tensorsecurity.com/tensorsecurity/tensorsec-webhook:ci
-    - kubectl scale --replicas=0 deploy tensorsec-webhook -n tensorsec
-    - kubectl scale --replicas=1 deploy tensorsec-webhook -n tensorsec
+    - docker push harbor.tensorsecurity.com/tensorsecurity/webhook:ci
+    - kubectl delete pod -l app.kubernetes.io/name=webhook -n tensorsec
   rules:
     - changes:
         - cmd/webhook/**/*
@@ -419,17 +405,12 @@ webhook:
 webshell-server:
   stage: build
   resource_group: webshell-server
-  retry: 2
   tags:
     - k8s
   before_script:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - sed -i 's#scm.tensorsecurity.cn:30022#10.99.201.85#g' .gitmodules
-    - git submodule init
-    - git submodule update
-    - git submodule update --init --recursive
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
@@ -441,8 +422,7 @@ webshell-server:
   script:
     - USEMIRROR=true make webshell-server
     - docker push harbor.tensorsecurity.com/tensorsecurity/webshell-server:ci
-    - kubectl scale --replicas=0 deploy tensorsec-scanner-webshell-server -n tensorsec
-    - kubectl scale --replicas=2 deploy tensorsec-scanner-webshell-server -n tensorsec
+    - kubectl delete pod -l app.kubernetes.io/name=webshell-server -n tensorsec
   rules:
     - changes:
         - cmd/webshell-server/**/*
@@ -461,7 +441,7 @@ api-test:
     - apt-get install python3 python3-pip -y
     - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-api-test.git
     - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r tensor-api-test/requirements.txt
-    - cp ~/.docker/tensor-scanner-cicd /root/tensor-scanner-cicd
+    - cp ~/.docker/scanner-cicd /root/scanner-cicd
   script:
     - python3 tensor-api-test/run_suite.py
   artifacts:
