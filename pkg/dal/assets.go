@@ -259,7 +259,6 @@ func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOpti
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
-
 		return db.Count(&resCount).Error
 	})
 	if err != nil {

@@ -138,7 +138,7 @@ func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, queryOpti
 	if err != nil {
 		return nil, 0, err
 	}
-	cnt, err := dal.CountPods(ctx, rl.rdb, queryOptions, offset, limit)
+	cnt, err := dal.CountPods(ctx, rl.rdb, queryOptions, 0, 0)
 	return pods, cnt, err
 }
 
