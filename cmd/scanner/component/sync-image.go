@@ -93,6 +93,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 		res, err := reg.Registry.ListImages(extender, registry.ListImagesRequest{NeedToReturnAdded: true})
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get images err.%v", err)
+			exitMap.Store(reg.Config.Name, true)
 			return
 		}
 		logging.GetLogger().Info().Msgf("SyncImage complete, start to generate scan tasks:%d", len(res.Added))
@@ -100,6 +101,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 		configs, _, err := s.ScanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("SearchScanConfig")
+			exitMap.Store(reg.Config.Name, true)
 			return
 		}
 		if len(configs) == 0 {
@@ -175,9 +177,10 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					continue
 				}
 			}
-			exitMap.Store(registries[i].Config.Name, false)
 
 			reg := registries[i]
+			exitMap.Store(reg.Config.Name, false)
+
 			go worker(reg, func(image registry.Image) (*registry.ListImagesRes, error) {
 				res := new(registry.ListImagesRes)
 				img, err := s.TransImageToImagelist(ctx, reg.Config, image)
