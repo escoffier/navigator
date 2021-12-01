@@ -16,11 +16,12 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 
-	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/clean-registry"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/clean-registry"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
+
 	//_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/vulnDbUpdate"
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
