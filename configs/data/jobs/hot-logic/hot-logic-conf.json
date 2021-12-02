@@ -122,6 +122,9 @@
     },
     {
       "name": "immune_profiles",
+      "primaryKey": [
+        "uuid"
+      ],
       "timeField": "created_at",
       "condition": "status = 1",
       "ttl": 30,
