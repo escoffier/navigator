@@ -29,10 +29,10 @@ type PullImageJob struct {
 	config Config
 }
 
-//type PullImageResult struct {
+// type PullImageResult struct {
 //	ImageCacheUrl  string
 //	LayerFilesPath map[string]string
-//}
+// }
 
 func (p *PullImageJob) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
 	logging.GetLogger().Debug().Msg("pull image start")
@@ -92,7 +92,7 @@ func (p *PullImageJob) Run(ctx context.Context, param jobs.Param) (jobs.Artifact
 	}
 	// return image http url and layers local path
 	r := make(map[string]interface{})
-	//r["imageCacheUrl"] = "192.168.134.26:80/fff/alltest:latest"
+	// r["imageCacheUrl"] = "192.168.134.26:80/fff/alltest:latest"
 	r["pullImageJob"] = p.config
 	r["repoName"] = p.config.RepoName
 	r["tag"] = p.config.Tag

@@ -42,7 +42,7 @@ func openRegistry(registrableComponentConfig register.RegistrableComponentConfig
 
 func (c *CNNVDUpdata) Updata(wg *sync.WaitGroup) {
 	defer wg.Done()
-	//fmt.Println("进入函数")
+	// fmt.Println("进入函数")
 	trivydb, err := bolt.Open(c.config.TrivyPath, 0600, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err)
@@ -84,7 +84,7 @@ func getFromCNNVDdotOrg(ctx context.Context, cveID string) (string, string, stri
 	}
 	defer resp.Body.Close()
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	//fmt.Println(doc.Html())
+	// fmt.Println(doc.Html())
 	if err != nil {
 		return "", "", "", fmt.Errorf("Failed to parse response html doc: %w", err)
 	}
@@ -117,15 +117,15 @@ func getFromCNNVDdotOrg(ctx context.Context, cveID string) (string, string, stri
 	if err != nil {
 		return "", "", "", fmt.Errorf("Failed to parse response html doc: %w", err)
 	}
-	//fmt.Println(string(doc))
+	// fmt.Println(string(doc))
 	TmpFixDes := doc.Find(".d_ldjj.m_t_20").First().Find("p").Text()
-	//fmt.Println(doc.Html())
+	// fmt.Println(doc.Html())
 	fixDes := strings.TrimSpace(TmpFixDes)
-	//fmt.Println(fixDes)
+	// fmt.Println(fixDes)
 	return id, detailsLink, fixDes, nil
 }
 
-//TODO 过滤已有
+// TODO 过滤已有
 func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 	ctx := context.Background()
 
@@ -161,10 +161,10 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 	})
 	if err != nil {
 		logging.GetLogger().Error().Err(err)
-		//return
+		// return
 	}
 	sum = len(CVEs)
-	//fmt.Printf("共有%d\n 漏洞", sum)
+	// fmt.Printf("共有%d\n 漏洞", sum)
 	now := 0
 	for now = 0; now < sum; {
 		err = db.Batch(func(tx *bolt.Tx) error {
@@ -172,7 +172,7 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 			if err != nil {
 				return fmt.Errorf("CVNND:Can't create cvnnd bucket")
 			}
-			cnt := 100 //100条入一次库，避免中断
+			cnt := 100 // 100条入一次库，避免中断
 			for ; cnt > 0 && now < sum; cnt-- {
 				//	fmt.Println(now)
 				tmpRes := bucket.Get([]byte(CVEs[now]))
@@ -185,8 +185,8 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 				id, detailsLink, fixDes, err := getFromCNNVDdotOrg(ctx, string(CVEs[now]))
 				if err != nil || id == "" {
 					now++
-					//fmt.Println(err)
-					//fmt.Println("jump")
+					// fmt.Println(err)
+					// fmt.Println("jump")
 					continue
 				}
 				vulnInfo := CNNVDVulnerabilityInfo{}
@@ -196,10 +196,10 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 				jsonStr, err := json.Marshal(vulnInfo)
 				if err != nil {
 					now++
-					//fmt.Println("jump")
+					// fmt.Println("jump")
 					continue
 				}
-				//fmt.Printf("find %s des:%s\n", id, fixDes)
+				// fmt.Printf("find %s des:%s\n", id, fixDes)
 				err = bucket.Put([]byte(CVEs[now]), []byte(jsonStr))
 
 				if err != nil {

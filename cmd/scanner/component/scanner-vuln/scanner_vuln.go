@@ -251,7 +251,7 @@ func (s *ScannerVuln) GetVulnDetail(name string) (VulnDetail, error) {
 	defer s.lock.RUnlock()
 	res := VulnDetail{}
 	if s.customDB != nil {
-		_ = s.customDB.View(func(tx *bolt.Tx) error { //customDB
+		_ = s.customDB.View(func(tx *bolt.Tx) error { // customDB
 			var err error
 			cnvdBucket := tx.Bucket([]byte("cnvd"))
 			if cnvdBucket == nil {

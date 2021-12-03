@@ -34,7 +34,7 @@ type ScanConfig struct {
 	Policy ScanPolicy
 }
 
-type ScanType string //vuln-scan,virus-scan,...
+type ScanType string // vuln-scan,virus-scan,...
 
 type ScanPolicy interface{} // scan policy correlated to scan type,eg: VulnPolicy,SensitiveFilePolicy
 

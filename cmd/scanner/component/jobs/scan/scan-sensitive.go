@@ -42,7 +42,7 @@ func (e *ExecutorScanSensitive) Scan(ctx context.Context, param Param) (Artifact
 	}
 
 	if len(policyRule.CustomFileName) == 0 {
-		err := e.sensitiveScan.InitConfigFiles(filepath.Join("/configs", "scanner", "patterns.json")) //改成从数据库中获取
+		err := e.sensitiveScan.InitConfigFiles(filepath.Join("/configs", "scanner", "patterns.json")) // 改成从数据库中获取
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msgf("init Sensitive regex failed")
 			return nil, nil
@@ -79,7 +79,7 @@ func init() {
 	}
 }
 
-func newScanSensitive(config ExecutorConfig) (Executor, error) { //Open时调用
+func newScanSensitive(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanSensitive{}
 	e.sensitiveScan = component.SensitiveScan{}
 	e.policy = config.Policy

@@ -1,4 +1,5 @@
-//+build local
+//go:build local
+// +build local
 
 package cnvd
 
@@ -40,8 +41,8 @@ func TestCNVDParser(t *testing.T) {
 	err := a.BuildCache(&datastore)
 	assert.NoError(t, err)
 
-	//a.WriteToBolt("my.db")
-	//// Try getting not existing key
+	// a.WriteToBolt("my.db")
+	// // Try getting not existing key
 
 	// given
 	wasCalled = false
@@ -53,7 +54,7 @@ func TestCNVDParser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, wasCalled, "If key not present, appender is not called")
 
-	//// Try getting existing key
+	// // Try getting existing key
 
 	// given
 	returnedKey = ""
@@ -77,7 +78,7 @@ func TestCNVDParser(t *testing.T) {
 	assert.Equal(t, (*metaArr)[0].Severity, "中")
 	assert.Equal(t, (*metaArr)[0].Description[:19], "Elasticsearch是荷")
 
-	//// Try getting key that has multiple corresponding CNVDs
+	// // Try getting key that has multiple corresponding CNVDs
 
 	// given
 	returnedKey = ""
@@ -98,7 +99,7 @@ func TestCNVDParser(t *testing.T) {
 	combination2 := num2 == "CNVD-2019-00121" && num1 == "CNVD-2018-26768"
 	assert.True(t, combination1 || combination2, "Both CNVD numbers must appear in output list, no matter the order")
 
-	//// Try getting key after cache purge
+	// // Try getting key after cache purge
 
 	// given
 	wasCalled = false

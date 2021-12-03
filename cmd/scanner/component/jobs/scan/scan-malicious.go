@@ -112,7 +112,7 @@ func init() {
 		logging.GetLogger().Error().Err(err).Str("executorName", executorScanMaliciousName).Msg("int executor err")
 	}
 }
-func newScanMalicious(config ExecutorConfig) (Executor, error) { //Open时调用
+func newScanMalicious(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanMalicious{
 		MaliciousScan: component.MaliciousScan{},
 	}

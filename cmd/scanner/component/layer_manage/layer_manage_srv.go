@@ -19,7 +19,7 @@ const (
 	httpRequestPath = "/layer"
 )
 
-//layer file status
+// layer file status
 const (
 	LayerNotPull = iota
 	LayerPulled
@@ -27,23 +27,23 @@ const (
 	LayerPullErr
 )
 
-//type ManifestInfo struct {
-//digest     string
-//repository string
-//manifest   []string
-//username   string
-//password   string
-//skipTls    string
-//}
+// type ManifestInfo struct {
+// digest     string
+// repository string
+// manifest   []string
+// username   string
+// password   string
+// skipTls    string
+// }
 
 type LayerInfo struct {
-	digest     string   //layer digest
-	repository string   //image repository
-	refCount   int      //reference count,0 means can be deleted
-	url        string   //registry url
-	layerUrl   string   //layer url
-	status     int      //layer status
-	flag       chan int //notify if pull end,when worker finish,it will do flag<-1
+	digest     string   // layer digest
+	repository string   // image repository
+	refCount   int      // reference count,0 means can be deleted
+	url        string   // registry url
+	layerUrl   string   // layer url
+	status     int      // layer status
+	flag       chan int // notify if pull end,when worker finish,it will do flag<-1
 	username   string
 	password   string
 	skipTls    bool
@@ -52,7 +52,7 @@ type LayerInfo struct {
 type RequestLayerInfo struct {
 	Repository string `json:"repository"`
 	Digest     string `json:"digest"`
-	Url        string `json:"url"` //registry url
+	Url        string `json:"url"` // registry url
 	Username   string `json:"username"`
 	Password   string `json:"password"`
 	SkipTls    bool   `json:"skiptls"`
@@ -77,11 +77,11 @@ type LocalLayerManageSrv struct {
 	serverIp  string
 	port      int
 	server    *gin.Engine
-	layerList map[string]*LayerInfo //digest->layer info
-	//manifestList map[string]*ManifestInfo //digest->manifest info
+	layerList map[string]*LayerInfo // digest->layer info
+	// manifestList map[string]*ManifestInfo //digest->manifest info
 	taskLock sync.Mutex
-	//manifestLock sync.Mutex
-	//cacheCounter CacheCounter
+	// manifestLock sync.Mutex
+	// cacheCounter CacheCounter
 	fs          *FileServer
 	WorkerGroup *WorkerGroup
 }
@@ -105,16 +105,16 @@ func NewLocalLayerManageSrv(ctx context.Context, serverIp string, port, fsPort i
 func (llms *LocalLayerManageSrv) Run() error {
 	log.Info().Msg("llms run")
 
-	//start server
+	// start server
 	llms.CreateServer()
 	llms.StartServer()
 
-	//start file server
+	// start file server
 	err := llms.fs.Run(llms.ctx)
 	if err != nil {
 		return err
 	}
-	//run worker
+	// run worker
 	llms.WorkerGroup.Run()
 
 	return nil
@@ -148,9 +148,9 @@ func (llms *LocalLayerManageSrv) DecLayerRefCount(digest string) error {
 		return fmt.Errorf("not find layer,digest %s", digest)
 	}
 	if llms.layerList[digest].refCount <= 0 {
-		//some err,should have been deleted
+		// some err,should have been deleted
 		log.Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, llms.layerList[digest].refCount)
-		//still return nil,deleted by caller
+		// still return nil,deleted by caller
 		return nil
 	}
 	llms.layerList[digest].refCount = llms.layerList[digest].refCount - 1
@@ -192,12 +192,12 @@ func (llms *LocalLayerManageSrv) WaitLayerPulled(digest string) {
 
 func (llms *LocalLayerManageSrv) NotifyLayerPulled(digest string) error {
 	return nil
-	//if _,ok := llms.layerList[digest];!ok {
+	// if _,ok := llms.layerList[digest];!ok {
 	//	return fmt.Errorf("layer %s not exist",digest)
-	//}
-	//llms.layerList[digest].flag <- 1
-	//log.Info().Msgf("notify digest %s end",digest)
-	//return nil
+	// }
+	// llms.layerList[digest].flag <- 1
+	// log.Info().Msgf("notify digest %s end",digest)
+	// return nil
 }
 
 func (llms *LocalLayerManageSrv) ResponseCodeAndMsg(code int, msg, digest string, ctx *gin.Context) {
@@ -239,9 +239,9 @@ func (llms *LocalLayerManageSrv) ResponseErr(digest string, ctx *gin.Context) {
 	ctx.JSON(http.StatusBadRequest, rsp)
 }
 
-//url : http://0.0.0.0:xxx/layer?repository=xxx&digest=xxx&url=xxx
+// url : http://0.0.0.0:xxx/layer?repository=xxx&digest=xxx&url=xxx
 func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
-	//repository 	:= ctx.Query("repository")
+	// repository 	:= ctx.Query("repository")
 	digest := ctx.Query("digest")
 	log.Info().Msgf("get delete req,digest %s", digest)
 
@@ -252,7 +252,7 @@ func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 		return
 	}
 
-	//dec refcount
+	// dec refcount
 	err := llms.DecLayerRefCount(digest)
 	if err != nil {
 		log.Error().Msgf("delete layer file refcount err,digest %s", digest)
@@ -269,8 +269,8 @@ func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 		log.Info().Msgf("digest %s still has ref,no delete", digest)
 	}
 
-	//delete from layerlist
-	//delete(llms.layerList, digest)
+	// delete from layerlist
+	// delete(llms.layerList, digest)
 
 	llms.taskLock.Unlock()
 
@@ -291,7 +291,7 @@ func (llms *LocalLayerManageSrv) handleClearCache(ctx *gin.Context) {
 	})
 }
 
-//url : http://0.0.0.0:xxx/layer?
+// url : http://0.0.0.0:xxx/layer?
 func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 	log.Info().Msgf("local layer manage get post request")
 
@@ -308,7 +308,7 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 		}
 		return
 	}
-	//log.Info().Msgf("get body %v",body)
+	// log.Info().Msgf("get body %v",body)
 
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
@@ -326,28 +326,28 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 	log.Info().Msgf("get request %+v", rq)
 
 	llms.taskLock.Lock()
-	//check if already pulled
+	// check if already pulled
 	if llms.IsLayerExist(rq.Digest) {
 		log.Info().Msgf("layer %s exist", rq.Digest)
 		llms.IncLayerRefCount(rq.Digest)
 		llms.taskLock.Unlock()
 		if llms.IsLayerPulled(rq.Digest) {
-			//pulled, return
+			// pulled, return
 			llms.ResponseOK(rq.Digest, ctx)
 			return
 		}
-		//if exist but not pulled,go to WaitLayerPulled
+		// if exist but not pulled,go to WaitLayerPulled
 	} else {
 		log.Info().Msgf("add record ")
 
-		//not find,add new record
+		// not find,add new record
 		llms.AddLayerRecord(rq)
 		llms.taskLock.Unlock()
 	}
 
 	log.Info().Msgf("wait layer pulled,refcount %d", llms.layerList[rq.Digest].refCount)
 
-	//check if layer has been pulled
+	// check if layer has been pulled
 	llms.WaitLayerPulled(rq.Digest)
 
 	log.Info().Msgf("layer %s check end", rq.Digest)
@@ -360,7 +360,7 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 }
 
 func (llms *LocalLayerManageSrv) OpenGinLog() {
-	//test log
+	// test log
 	gin.DisableConsoleColor()
 
 	// Logging to a file.
@@ -371,7 +371,7 @@ func (llms *LocalLayerManageSrv) OpenGinLog() {
 }
 
 func (llms *LocalLayerManageSrv) CreateServer() {
-	//test
+	// test
 	llms.OpenGinLog()
 
 	server := gin.New()
@@ -381,11 +381,11 @@ func (llms *LocalLayerManageSrv) CreateServer() {
 	server.DELETE(httpRequestPath, func(ctx *gin.Context) {
 		llms.handleDelete(ctx)
 	})
-	//for test
+	// for test
 	server.GET(httpRequestPath, func(ctx *gin.Context) {
 		llms.handleGet(ctx)
 	})
-	//clearCache
+	// clearCache
 	server.GET("/clearCache", func(ctx *gin.Context) {
 		llms.handleClearCache(ctx)
 	})
@@ -417,7 +417,7 @@ func (llms *LocalLayerManageSrv) FindAndModiyPullTask() (LayerInfo, error) {
 			res.digest = v.digest
 			res.repository = v.repository
 			res.url = v.url
-			//set task to pulling
+			// set task to pulling
 			llms.layerList[k].status = LayerPulling
 			res.status = LayerPulling
 			break

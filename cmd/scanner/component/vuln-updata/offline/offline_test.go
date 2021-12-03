@@ -1,4 +1,5 @@
-//+build local
+//go:build local
+// +build local
 
 package offline
 

@@ -60,14 +60,14 @@ func newDbDequeue(config DequeueConfig) (Dequeue, error) {
 	d.config.DequeNum = DefaultDbDeqNum
 
 	// parse config
-	//bytes, err := yaml.Marshal(config.Options)
-	//if err != nil {
+	// bytes, err := yaml.Marshal(config.Options)
+	// if err != nil {
 	//	return nil, fmt.Errorf("db dequeuer: could not load configuration: %v", err)
-	//}
-	//err = yaml.Unmarshal(bytes, &d.config)
-	//if err != nil {
+	// }
+	// err = yaml.Unmarshal(bytes, &d.config)
+	// if err != nil {
 	//	return nil, fmt.Errorf("db dequeuer: could not load configuration: %v", err)
-	//}
+	// }
 
 	return d, nil
 }

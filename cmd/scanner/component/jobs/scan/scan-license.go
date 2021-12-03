@@ -65,7 +65,7 @@ func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, 
 		tmpLayerResult := model.PerLayerLicenseResult{}
 		tmpLayerResult.LayerDigest = layers[i]
 		for k := range tmpRes {
-			v, ok := customLicenseListMap[tmpRes[k].Name] //由于这里开源协议没记录路径，所以做一次去重
+			v, ok := customLicenseListMap[tmpRes[k].Name] // 由于这里开源协议没记录路径，所以做一次去重
 			if ok {
 				if v == 2 {
 					continue
@@ -93,7 +93,7 @@ func init() {
 		logging.GetLogger().Error().Err(err).Str("executorName", executorScanLicenselName).Msg("int executor err")
 	}
 }
-func newScanLicense(config ExecutorConfig) (Executor, error) { //Open时调用
+func newScanLicense(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &executorScanLicense{}
 	e.LicenseScan = component.LicenseScan{}
 	e.policy = config.Policy

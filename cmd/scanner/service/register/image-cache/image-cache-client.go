@@ -46,7 +46,6 @@ func (icc *ImageCacheClient) GetManifest(username, password, url, repository, ta
 	}
 	jsonStr, err := json.Marshal(rq)
 	if err != nil {
-
 		return "", err
 	}
 	log.Info().Msgf("client server addr %s,repo %s,tag %s", icc.serverAddr, rq.Repository, rq.Tag)

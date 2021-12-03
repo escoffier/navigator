@@ -29,7 +29,7 @@ const (
 	maxWorkerNum      = 5
 )
 
-//layer file status
+// layer file status
 const (
 	LayerNotPull = iota
 	LayerPulled
@@ -38,13 +38,13 @@ const (
 )
 
 type LayerInfo struct {
-	digest     string   //layer digest
-	repository string   //image repository
-	refCount   int      //reference count,0 means can be deleted
-	url        string   //registry url
-	layerUrl   string   //layer url
-	status     int      //layer status
-	flag       chan int //notify if pull end,when worker finish,it will do flag<-1
+	digest     string   // layer digest
+	repository string   // image repository
+	refCount   int      // reference count,0 means can be deleted
+	url        string   // registry url
+	layerUrl   string   // layer url
+	status     int      // layer status
+	flag       chan int // notify if pull end,when worker finish,it will do flag<-1
 	username   string
 	password   string
 	skipTls    bool
@@ -53,7 +53,7 @@ type LayerInfo struct {
 type RequestLayerInfo struct {
 	Repository string      `json:"repository"`
 	Digest     string      `json:"digest"`
-	Url        string      `json:"url"` //registry url
+	Url        string      `json:"url"` // registry url
 	Username   string      `json:"username"`
 	Password   string      `json:"password"`
 	Tag        string      `json:"tag"`
@@ -83,13 +83,13 @@ type ScannerImageCacheService struct {
 	serverIp  string
 	port      int
 	server    *gin.Engine
-	layerList map[string]*LayerInfo //digest->layer info
-	//manifestList map[string]*ManifestInfo //digest->manifest info
+	layerList map[string]*LayerInfo // digest->layer info
+	// manifestList map[string]*ManifestInfo //digest->manifest info
 	taskLock sync.Mutex
-	//manifestLock sync.Mutex
+	// manifestLock sync.Mutex
 	manifestList chan RequestLayerInfo
-	//manifestLock sync.Mutex
-	//cacheCounter CacheCounter
+	// manifestLock sync.Mutex
+	// cacheCounter CacheCounter
 	fs          *FileServer
 	WorkerGroup *WorkerGroup
 }
@@ -122,9 +122,9 @@ func (s *ScannerImageCacheService) DecLayerRefCount(digest string) error {
 		return fmt.Errorf("not find layer,digest %s", digest)
 	}
 	if s.layerList[digest].refCount <= 0 {
-		//some err,should have been deleted
+		// some err,should have been deleted
 		log.Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, s.layerList[digest].refCount)
-		//still return nil,deleted by caller
+		// still return nil,deleted by caller
 		return nil
 	}
 	s.layerList[digest].refCount = s.layerList[digest].refCount - 1
@@ -170,12 +170,12 @@ func (s *ScannerImageCacheService) WaitLayerPulled(digest string) {
 
 func (s *ScannerImageCacheService) NotifyLayerPulled(digest string) error {
 	return nil
-	//if _,ok := s.layerList[digest];!ok {
+	// if _,ok := s.layerList[digest];!ok {
 	//	return fmt.Errorf("layer %s not exist",digest)
-	//}
-	//s.layerList[digest].flag <- 1
-	//log.Info().Msgf("notify digest %s end",digest)
-	//return nil
+	// }
+	// s.layerList[digest].flag <- 1
+	// log.Info().Msgf("notify digest %s end",digest)
+	// return nil
 }
 
 func (s *ScannerImageCacheService) ResponseCodeAndMsg(code int, msg, digest string, ctx *gin.Context) {
@@ -217,9 +217,9 @@ func (s *ScannerImageCacheService) ResponseErr(digest string, ctx *gin.Context) 
 	ctx.JSON(http.StatusBadRequest, rsp)
 }
 
-//url : http://0.0.0.0:xxx/layer?repository=xxx&digest=xxx&url=xxx
+// url : http://0.0.0.0:xxx/layer?repository=xxx&digest=xxx&url=xxx
 func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
-	//repository 	:= ctx.Query("repository")
+	// repository 	:= ctx.Query("repository")
 	digest := ctx.Query("digest")
 	log.Info().Msgf("get delete req,digest %s", digest)
 
@@ -230,7 +230,7 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 		return
 	}
 
-	//dec refcount
+	// dec refcount
 	err := s.DecLayerRefCount(digest)
 	if err != nil {
 		log.Error().Msgf("delete layer file refcount err,digest %s", digest)
@@ -247,8 +247,8 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 		log.Info().Msgf("digest %s still has ref,no delete", digest)
 	}
 
-	//delete from layerlist
-	//delete(s.layerList, digest)
+	// delete from layerlist
+	// delete(s.layerList, digest)
 
 	s.taskLock.Unlock()
 
@@ -270,7 +270,7 @@ func (s *ScannerImageCacheService) handleClearCache(ctx *gin.Context) {
 }
 
 func (s *ScannerImageCacheService) handleFindBlob(ctx *gin.Context, repository string, refer string) {
-	//repository := ctx.Param("name")
+	// repository := ctx.Param("name")
 	fp := filepath.Join(s.fs.rootPath, "data", refer)
 	fpLayer := "FileServerCache/" + fp + "/layer.tar"
 	fmt.Println(fpLayer)
@@ -289,7 +289,7 @@ func (s *ScannerImageCacheService) handleFindBlob(ctx *gin.Context, repository s
 		fp = fpLayer
 	}
 	ctx.File(fp)
-	//ctx.File("/worker1/tensornavigator/test/cmd/scanner/component/layer_manage/" + fp)
+	// ctx.File("/worker1/tensornavigator/test/cmd/scanner/component/layer_manage/" + fp)
 }
 
 func (s *ScannerImageCacheService) handleFindManifesst(ctx *gin.Context, repository string, refer string) {
@@ -341,7 +341,7 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 	}
 
 	log.Info().Msgf("get request %+v", rq)
-	//s.manifestLock.Lock()
+	// s.manifestLock.Lock()
 	rq.Response = make(chan string, 1)
 	s.AddManifestTask(ctx, rq)
 	str := <-rq.Response
@@ -352,7 +352,7 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 	}
 }
 
-//url : http://0.0.0.0:xxx/layer?
+// url : http://0.0.0.0:xxx/layer?
 func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 	log.Info().Msg("local layer manage get post request")
 
@@ -369,7 +369,7 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 		}
 		return
 	}
-	//log.Info().Msgf("get body %v",body)
+	// log.Info().Msgf("get body %v",body)
 
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
@@ -387,28 +387,28 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 	log.Info().Msgf("get request %+v", rq)
 
 	s.taskLock.Lock()
-	//check if already pulled
+	// check if already pulled
 	if s.IsLayerExist(rq.Digest) {
 		log.Info().Msgf("layer %s exist", rq.Digest)
 		s.IncLayerRefCount(rq.Digest)
 		s.taskLock.Unlock()
 		if s.IsLayerPulled(rq.Digest) {
-			//pulled, return
+			// pulled, return
 			s.ResponseOK(rq.Digest, ctx)
 			return
 		}
-		//if exist but not pulled,go to WaitLayerPulled
+		// if exist but not pulled,go to WaitLayerPulled
 	} else {
 		log.Info().Msgf("add record ")
 
-		//not find,add new record
+		// not find,add new record
 		s.AddLayerRecord(rq)
 		s.taskLock.Unlock()
 	}
 
 	log.Info().Msgf("wait layer pulled,refcount %d", s.layerList[rq.Digest].refCount)
 
-	//check if layer has been pulled
+	// check if layer has been pulled
 	s.WaitLayerPulled(rq.Digest)
 
 	log.Info().Msgf("layer %s check end", rq.Digest)
@@ -421,7 +421,7 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 }
 
 func (s *ScannerImageCacheService) OpenGinLog() {
-	//test log
+	// test log
 	gin.DisableConsoleColor()
 
 	// Logging to a file.
@@ -432,8 +432,8 @@ func (s *ScannerImageCacheService) OpenGinLog() {
 }
 
 func (s *ScannerImageCacheService) CreateServer() {
-	//test
-	//s.OpenGinLog()
+	// test
+	// s.OpenGinLog()
 	server := gin.New()
 
 	server.GET("/v2/*xx", func(ctx *gin.Context) {
@@ -442,7 +442,7 @@ func (s *ScannerImageCacheService) CreateServer() {
 			blobIndex := strings.LastIndex(ctx.Request.RequestURI, "/blobs/")
 			respository := ctx.Request.RequestURI[v2Index+4 : blobIndex]
 			refer := ctx.Request.RequestURI[blobIndex+7:]
-			//fmt.Printf("%v %v\n", respository, refer)
+			// fmt.Printf("%v %v\n", respository, refer)
 			s.handleFindBlob(ctx, respository, refer)
 		}
 
@@ -451,7 +451,7 @@ func (s *ScannerImageCacheService) CreateServer() {
 			manifestIndex := strings.LastIndex(ctx.Request.RequestURI, "/manifests/")
 			respository := ctx.Request.RequestURI[v2Index+4 : manifestIndex]
 			refer := ctx.Request.RequestURI[manifestIndex+11:]
-			//fmt.Printf("%v %v\n", respository, refer)
+			// fmt.Printf("%v %v\n", respository, refer)
 			s.handleFindManifesst(ctx, respository, refer)
 		} else {
 			ctx.Status(200)
@@ -467,11 +467,11 @@ func (s *ScannerImageCacheService) CreateServer() {
 	server.DELETE(httpRequestPath, func(ctx *gin.Context) {
 		s.handleDelete(ctx)
 	})
-	//for test
+	// for test
 	server.GET(httpRequestPath, func(ctx *gin.Context) {
 		s.handleGet(ctx)
 	})
-	//clearCache
+	// clearCache
 	server.GET("/clearCache", func(ctx *gin.Context) {
 		s.handleClearCache(ctx)
 	})
@@ -492,7 +492,7 @@ func (s *ScannerImageCacheService) StartServer() {
 	log.Info().Msgf("image cache service listen on port %d", s.port)
 }
 
-func (s *ScannerImageCacheService) FindAndModiyPullTask() (LayerInfo, error) {
+func (s *ScannerImageCacheService) FindAndModifyPullTask() (LayerInfo, error) {
 	res := LayerInfo{}
 	s.taskLock.Lock()
 	for k, v := range s.layerList {
@@ -503,7 +503,7 @@ func (s *ScannerImageCacheService) FindAndModiyPullTask() (LayerInfo, error) {
 			res.digest = v.digest
 			res.repository = v.repository
 			res.url = v.url
-			//set task to pulling
+			// set task to pulling
 			s.layerList[k].status = LayerPulling
 			res.status = LayerPulling
 			break
@@ -529,20 +529,20 @@ func (s *ScannerImageCacheService) UpdateTaskStatusAndLayerUrl(digest, layerUrl 
 }
 
 func (s *ScannerImageCacheService) Start(ctx context.Context) error {
-	//start inner registry server
+	// start inner registry server
 	s.CreateServer()
 	logging.GetLogger().Info().Msg("image cache create server ok")
 
 	s.StartServer()
 
-	//start file server
+	// start file server
 	err := s.fs.Run(s.ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("start file server failed")
 		return err
 	}
 
-	//run worker
+	// run worker
 	s.WorkerGroup.Run()
 
 	logging.GetLogger().Info().Msg("start image cache service ok")
@@ -550,10 +550,10 @@ func (s *ScannerImageCacheService) Start(ctx context.Context) error {
 }
 
 func (s *ScannerImageCacheService) Stop(ctx context.Context) error {
-	//if err := s.server.Run(ctx); err != nil {
+	// if err := s.server.Run(ctx); err != nil {
 	//	logging.GetLogger().Error().Err(err).Msg("image cache server stop err")
 	//	return err
-	//}
+	// }
 	logging.GetLogger().Info().Msg("image cache server stop")
 	return nil
 }

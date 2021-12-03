@@ -20,7 +20,7 @@ type Config struct {
 }
 
 type TaskPolicyService struct {
-	//config        Config
+	// config        Config
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
 

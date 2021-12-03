@@ -16,7 +16,7 @@ type Config struct {
 }
 
 type MaliceService struct {
-	//config Config
+	// config Config
 }
 
 func (m *MaliceService) Start(ctx context.Context) error {

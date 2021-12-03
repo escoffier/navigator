@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	//defaultDataPath string = "/data/current_cnvd.tar.gz"
+	// defaultDataPath string = "/data/current_cnvd.tar.gz"
 	appenderName string = "CNVD"
 )
 
@@ -39,13 +39,13 @@ type cveIDtype string
 type cnvdAppender struct {
 	dataPath string
 	metadata map[cveIDtype]cnvdMetadataArr // one CVE may be linked to many CVNDs
-	//config   cnvdConfig
+	// config   cnvdConfig
 	db *bolt.DB
 }
 
-//type cnvdConfig struct {
+// type cnvdConfig struct {
 //	DataPath string
-//}
+// }
 
 func init() {
 	err := register.Register("cnvd", openRegistry)
@@ -58,7 +58,7 @@ func openRegistry(registrableComponentConfig register.RegistrableComponentConfig
 	var cnvd cnvdAppender
 	datastore := database.MockDatastore{}
 	cnvd.dataPath = filepath.Join(dbPath, "current_cnvd.tar.gz")
-	//fmt.Printf("sss:%v\n", cnvd.dataPath)
+	// fmt.Printf("sss:%v\n", cnvd.dataPath)
 	err := cnvd.BuildCache(&datastore)
 	if err != nil {
 		return nil, err
@@ -201,7 +201,7 @@ func (a *cnvdAppender) WriteToBolt(db *bolt.DB) {
 		cnt := 0
 		sum := 0
 		for k := range a.metadata {
-			//fmt.Println(k)
+			// fmt.Println(k)
 			v := bucket.Get([]byte(k))
 			sum++
 			if v != nil {
