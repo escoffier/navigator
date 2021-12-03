@@ -1,6 +1,6 @@
 package offline
 
-//func writeOutputFile(fp *os.File, header *cryption.FileHeader, data []byte) error {
+// func writeOutputFile(fp *os.File, header *cryption.FileHeader, data []byte) error {
 //
 //	buf := new(bytes.Buffer)
 //	err := binary.Write(buf, binary.LittleEndian, header)
@@ -20,4 +20,4 @@ package offline
 //		return err
 //	}
 //	return nil
-//}
+// }

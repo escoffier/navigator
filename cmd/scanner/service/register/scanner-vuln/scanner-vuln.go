@@ -16,7 +16,7 @@ type Config struct {
 }
 
 type ScannerVulnService struct {
-	//config      Config
+	// config      Config
 	scannerVuln *scanner_vuln.ScannerVuln
 }
 

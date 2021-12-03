@@ -130,7 +130,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		time.Sleep(time.Duration(3) * time.Second)
 
 		// get to-pull task
-		task, err := w.llms.FindAndModiyPullTask()
+		task, err := w.llms.FindAndModifyPullTask()
 		if err != nil {
 			log.Error().Msgf("worker %d get task err.%v", w.id, err)
 			continue
@@ -265,7 +265,7 @@ func (w *Worker) saveManifest(task RequestLayerInfo) {
 }
 
 func FileExists(path string) bool {
-	_, err := os.Stat(path) //os.Stat获取文件信息
+	_, err := os.Stat(path) // os.Stat获取文件信息
 
 	if err != nil {
 		return os.IsExist(err)

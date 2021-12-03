@@ -11,5 +11,5 @@ func TestCNNVDQuery(t *testing.T) {
 }
 
 func TestCNNVDInsert(t *testing.T) {
-	//WriteToBolt()
+	// WriteToBolt()
 }

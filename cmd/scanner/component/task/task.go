@@ -71,7 +71,7 @@ func WalkSubTasks(ctx context.Context,
 	}
 
 	for k, subTask := range subtasks {
-		//if !isSubtaskWaitSchedule(subTask.Status) {
+		// if !isSubtaskWaitSchedule(subTask.Status) {
 		//	// we will rescan failed task which may contain some success subtask in last scan, so we filter these subtasks
 		//	logging.GetLogger().Info().
 		//		Int64("subTaskId", subTask.Id).
@@ -79,7 +79,7 @@ func WalkSubTasks(ctx context.Context,
 		//		Uint8("status", subTask.Status).
 		//		Msg("skip scanned subtask ")
 		//	continue
-		//}
+		// }
 
 		logging.GetLogger().Debug().Int64("subTaskId", subTask.Id).Int64("taskId", t.Id).Msg("subtask wait semaphore")
 		if err := subLimit.Acquire(ctx, 1); err != nil {
@@ -112,6 +112,6 @@ func WalkSubTasks(ctx context.Context,
 	return nil
 }
 
-//func isSubtaskWaitSchedule(status uint8) bool {
+// func isSubtaskWaitSchedule(status uint8) bool {
 //	return status == consts.ImageScanPending || status == consts.ImageNotScan
-//}
+// }

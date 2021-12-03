@@ -18,7 +18,7 @@ type Config struct {
 }
 
 type TrivyService struct {
-	//config       Config
+	// config       Config
 	trivyService *component.TrivyServer
 }
 

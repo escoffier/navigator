@@ -22,7 +22,7 @@ type scanImageConfig struct {
 
 type ImageScan struct {
 	imageCacheUrl string
-	//layersFilePath map[string]string
+	// layersFilePath map[string]string
 	config scanImageConfig
 }
 

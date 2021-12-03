@@ -21,7 +21,7 @@ import (
 )
 
 type TrivyUpdata struct {
-	//db     *bolt.DB
+	// db     *bolt.DB
 	config TrivyConfig
 }
 
@@ -69,7 +69,7 @@ func (t *TrivyUpdata) Updata(wg *sync.WaitGroup) {
 }
 
 func FileExists(path string) bool {
-	_, err := os.Stat(path) //os.Stat获取文件信息
+	_, err := os.Stat(path) // os.Stat获取文件信息
 
 	if err != nil {
 		return os.IsExist(err)
@@ -100,8 +100,8 @@ func CheckDb(DbPath string, bucketName string, opts bolt.Options) error {
 }
 
 func (t *TrivyUpdata) GetTrivyDb() error {
-	//fmt.Printf("DbPath is %v \n", t.config.DbPath)
-	//time.Sleep(20 * time.Second) //改用通道
+	// fmt.Printf("DbPath is %v \n", t.config.DbPath)
+	// time.Sleep(20 * time.Second) //改用通道
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -113,7 +113,7 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 
 	jumpUrl := "https://github.com/aquasecurity/trivy-db/releases/latest"
 
-	request, err := http.NewRequest("GET", jumpUrl, nil) //2
+	request, err := http.NewRequest("GET", jumpUrl, nil) // 2
 	if err != nil {
 		logging.GetLogger().Error().Msgf("new http request err")
 		return fmt.Errorf("NewRequest failed from scannert")
@@ -121,7 +121,7 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 
 	resp, err := client.Do(request)
 	if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 302) {
-		//fmt.Println(resp)
+		// fmt.Println(resp)
 		if resp != nil {
 			return fmt.Errorf("Connect Scannert version  code is %v", resp.StatusCode)
 		} else {
@@ -159,7 +159,7 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 	}
 
 	dbUrl := "https://github.com/aquasecurity/trivy-db/releases/download/" + trivyVersion + "/trivy.db.gz"
-	request, err = http.NewRequest("GET", dbUrl, nil) //2
+	request, err = http.NewRequest("GET", dbUrl, nil) // 2
 	if err != nil {
 		return fmt.Errorf("NewRequest failed from scannert")
 	}
@@ -168,7 +168,7 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 		return fmt.Errorf("Connect Body failed scannert")
 	}
 	defer resp.Body.Close()
-	//reader := io.LimitReader(resp.Body, 1024*1024*100)
+	// reader := io.LimitReader(resp.Body, 1024*1024*100)
 	logging.GetLogger().Info().Msg("scannert download down")
 	file, _ := os.OpenFile(filepath.Join(t.config.DbPath, "trivy.db.gz"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	defer file.Close()

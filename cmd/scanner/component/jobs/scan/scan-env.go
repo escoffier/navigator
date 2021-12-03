@@ -79,7 +79,7 @@ func (e *ExecutorScanEnv) Scan(ctx context.Context, param Param) (Artifact, erro
 	resEnv := e.parseConfigEnv(config.Config.Env)
 	if len(envs) > 0 {
 		for k := range resEnv {
-			for _, key := range envs { //数量较少，先暴力遍历
+			for _, key := range envs { // 数量较少，先暴力遍历
 				if key == resEnv[k].Key {
 					resEnv[k].IsAbnormal = 1
 					r["customFlag"] = 1
@@ -100,7 +100,7 @@ func init() {
 	}
 }
 
-func newScanEnv(config ExecutorConfig) (Executor, error) { //Open时调用
+func newScanEnv(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanEnv{}
 	e.policy = config.Policy
 	return e, nil

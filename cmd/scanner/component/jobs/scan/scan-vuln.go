@@ -72,7 +72,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 	}
 	// repo := ref.Context()
 
-	//registryStr := repo.RegistryStr()
+	// registryStr := repo.RegistryStr()
 
 	tag := ref.Identifier()
 	repositoryName := ref.Context().RepositoryStr()
@@ -109,7 +109,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 	r["customFlag"] = 1
 	r["software"] = e.fileterCustomPkg(result, customPkg)
 
-	//logging.GetLogger().Info().Msgf("result is : %v", result.Results)
+	// logging.GetLogger().Info().Msgf("result is : %v", result.Results)
 	return r, nil
 }
 
@@ -120,7 +120,7 @@ func init() {
 	}
 }
 
-func newScanVuln(config ExecutorConfig) (Executor, error) { //Open时调用
+func newScanVuln(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanVuln{}
 	e.policy = config.Policy
 	return e, nil
