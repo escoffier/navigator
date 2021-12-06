@@ -40,7 +40,6 @@ type Scapper struct {
 	DockerRepoHostPort string
 	DockerRepoScapTag  string
 	ClusterAddr        string
-	PostgreDsn         string
 	PostgresDB         *rdbtools.GormWrapper
 	ScapService        *ScapService
 }
@@ -56,14 +55,12 @@ const (
 func newScapper(
 	scapOpts *flag.ScapOpts,
 	scapService *ScapService,
-	pgDsn string,
 	postgresDB *rdbtools.GormWrapper,
 ) *Scapper {
 	s := &Scapper{
 		DockerRepoHostPort: scapOpts.HostPort,
 		DockerRepoScapTag:  scapOpts.ImageTag,
 		ScapService:        scapService,
-		PostgreDsn:         pgDsn,
 		PostgresDB:         postgresDB,
 		ClusterAddr:        scapOpts.ClusterAddr,
 	}
@@ -545,12 +542,6 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Cli
 		Value: targetNodeName,
 	}
 	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, nodeNameEnv)
-
-	PostgreDBEnv := corev1.EnvVar{
-		Name:  "PG_DSN",
-		Value: s.PostgreDsn,
-	}
-	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, PostgreDBEnv)
 
 	ClusterUrlEnv := corev1.EnvVar{
 		Name:  "CLUSTER_ADDR",
