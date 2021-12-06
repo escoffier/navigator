@@ -244,7 +244,7 @@ func NewConsole(
 	}
 
 	// scap service
-	err = sp.Init(mainCtx, scapOpts, redisClient, PgDsn, postgresDB)
+	err = sp.Init(mainCtx, scapOpts, redisClient, postgresDB)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
 	}

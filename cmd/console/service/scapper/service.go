@@ -33,7 +33,6 @@ var (
 func Init(mainCtx context.Context,
 	scapOpts *flag.ScapOpts,
 	redisClient *redis.Client,
-	pgDsn string,
 	postgresDB *rdbtools.GormWrapper,
 ) error {
 	if redisClient == nil {
@@ -45,7 +44,7 @@ func Init(mainCtx context.Context,
 		if err != nil {
 			return
 		}
-		scapperInstance = newScapper(scapOpts, svcInstance, pgDsn, postgresDB)
+		scapperInstance = newScapper(scapOpts, svcInstance, postgresDB)
 
 	})
 	return err
