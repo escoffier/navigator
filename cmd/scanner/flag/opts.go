@@ -2,6 +2,7 @@ package flag
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -12,7 +13,6 @@ var ScannerRunOpts ScannerOpts
 const (
 	httpListenAddr       = "http-listen-addr"
 	redisEndpoint        = "redis-endpoint"
-	redisPassword        = "redis-password"
 	parallelTaskNum      = "parallel-task-num"
 	parallelSubtaskNum   = "parallel-subtask-num"
 	logLevel             = "log-level"
@@ -57,7 +57,7 @@ func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 	return &ScannerOpts{
 		HttpListenAddr:       viper.GetString(httpListenAddr),
 		RedisEndpoint:        viper.GetString(redisEndpoint),
-		RedisPassword:        viper.GetString(redisPassword),
+		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
 		ParallelTaskNum:      viper.GetInt(parallelTaskNum),
 		ParallelSubTaskNum:   viper.GetInt(parallelSubtaskNum),
 		LogLevel:             viper.GetString(logLevel),
@@ -73,7 +73,6 @@ func AddScannerFlags(cmd *cobra.Command) {
 	defaultOps := NewDefaultScannerOpts()
 	cmd.Flags().String(httpListenAddr, defaultOps.HttpListenAddr, "http listen address")
 	cmd.Flags().String(redisEndpoint, defaultOps.RedisEndpoint, "redis remote address")
-	cmd.Flags().String(redisPassword, defaultOps.RedisPassword, "redis password")
 	cmd.Flags().Int(parallelTaskNum, defaultOps.ParallelTaskNum, "parallel task num")
 	cmd.Flags().Int(parallelSubtaskNum, defaultOps.ParallelSubTaskNum, "parallel subtask num")
 	cmd.Flags().String(logLevel, defaultOps.LogLevel, "log level")
@@ -85,7 +84,6 @@ func AddScannerFlags(cmd *cobra.Command) {
 	for _, flag := range []string{
 		httpListenAddr,
 		redisEndpoint,
-		redisPassword,
 		parallelTaskNum,
 		parallelSubtaskNum,
 		logLevel,
