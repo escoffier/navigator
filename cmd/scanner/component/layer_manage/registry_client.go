@@ -9,6 +9,7 @@ import (
 
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -47,12 +48,12 @@ func NewRegistryClient(username, password, repository, url string, skipRegistryT
 		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
 		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
 		if ok1 || ok2 || ok3 || ok4 {
-			log.Info().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
+			logging.Get().Info().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
 			client, err = registry.NewInsecure(url, username, password)
 		}
 	}
 	if err != nil {
-		log.Error().Msgf("create new registry client err:%v", err)
+		logging.Get().Err(err).Msgf("create new registry client err")
 		return nil, err
 	}
 	rci.registryClient = client
@@ -94,7 +95,7 @@ func NewRegistryClient(username, password, repository, url string, skipRegistryT
 
 func (rc *RegistryClient) DownloadBlob(repository string, digest digest.Digest) (r io.ReadCloser, err error) {
 	if rc.registryClient == nil {
-		log.Info().Msgf("registryClient Is NIL")
+		logging.Get().Error().Msgf("registryClient Is NIL")
 		return nil, fmt.Errorf("registryClient Is NIL")
 	}
 	for i := 0; i < RegistryClientRetryCount; i++ {

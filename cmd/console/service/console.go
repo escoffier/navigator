@@ -56,10 +56,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var (
-	log *logging.Logger
-)
-
 const (
 	defaultK8sClusterName = "default"
 )
@@ -77,10 +73,6 @@ const (
 	maxClusterNum = 1000
 )
 
-func init() {
-	log = logging.GetLogger()
-}
-
 // Console represents the Vegeta Console server.
 type Console struct {
 	lifecycle.Service
@@ -89,7 +81,6 @@ type Console struct {
 	postgresDB      *rdbtools.GormWrapper
 	es              *elastic.Client
 	harborClient    *harbor.HarborRESTClient
-	ctx             context.Context
 	cancel          context.CancelFunc
 	scannerURL      string
 	resourceWatcher *assets.Watcher
@@ -152,7 +143,6 @@ func NewConsole(
 		return nil, err
 	}
 
-	PgDsn := postgresOpts.PostgresConnectionString
 	postgresDB, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
 		db, err := databases.GetPostgresqlWithEnv(context.Background())
 		if err != nil {
@@ -245,7 +235,7 @@ func NewConsole(
 	// cron service
 	c := cr.New()
 	c.Start()
-	cron.Init(c, postgresDB, mainCtx)
+	cron.Init(c, postgresDB)
 
 	reErr := riskexplorer.Init(scannerURL, redisClient)
 	if reErr != nil {
@@ -343,7 +333,6 @@ func NewConsole(
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},
 		postgresDB:    postgresDB,
 		es:            es,
-		ctx:           mainCtx,
 		cancel:        mainCancel,
 		harborClient:  nil, //harborClient,
 		scannerURL:    scannerURL,
@@ -364,7 +353,7 @@ func (c *Console) Run() func() {
 		defer wg.Done()
 		if err := c.server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
+				logging.GetLogger().Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()
@@ -379,12 +368,12 @@ func (c *Console) Run() func() {
 		defer wg.Done()
 		if err := c.webHookServer.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
+				logging.GetLogger().Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()
 
-	ctx, mcancel := context.WithTimeout(c.ctx, 60*time.Second)
+	ctx, mcancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer mcancel()
 
 	//testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
@@ -392,37 +381,37 @@ func (c *Console) Run() func() {
 	//canDowngrade := true
 	//err := c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
 	//if err != nil {
-	//	log.Error().Err(err).Msg("Harbor connection and admin privilege check failed")
+	//	logging.GetLogger().Error().Err(err).Msg("Harbor connection and admin privilege check failed")
 	//}
 
 	err := postgreCheck(c.postgresDB)
 	if err != nil {
-		log.Error().Err(err).Msg("When check admin data in postgres")
+		logging.GetLogger().Err(err).Msg("When check admin data in postgres")
 	}
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if ok {
 		err = clusterManager.Start(ctx)
 		if err != nil {
-			log.Error().Err(err).Msg("When starting cluster manager")
+			logging.GetLogger().Error().Err(err).Msg("When starting cluster manager")
 		}
 	} else {
-		log.Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
+		logging.GetLogger().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
 	}
 
 	cronService, _ := cron.Get(ctx)
 	err = cronService.StartCrons(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("When starting cron jobs")
+		logging.GetLogger().Error().Err(err).Msg("When starting cron jobs")
 	}
 
 	scapper, _ := scapper.GetScapper(ctx)
 	err = scapper.InitCheckUnFinishedJobs(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("When scapper InitCheckUnFinishedJobs")
+		logging.GetLogger().Error().Err(err).Msg("When scapper InitCheckUnFinishedJobs")
 	}
 
-	log.Info().Msg("TensorNavigator started")
+	logging.GetLogger().Info().Msg("TensorNavigator started")
 
 	return func() {
 		c.cancel()
@@ -430,11 +419,11 @@ func (c *Console) Run() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := c.server.Shutdown(ctx); err != nil {
-			log.Error().Err(err).Msg("Error in shutting down HTTP server")
+			logging.GetLogger().Error().Err(err).Msg("Error in shutting down HTTP server")
 		}
 		wg.Wait()
 
-		log.Info().Msg("TensorNavigator stopped")
+		logging.GetLogger().Info().Msg("TensorNavigator stopped")
 	}
 }
 

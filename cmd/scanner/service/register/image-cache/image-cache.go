@@ -15,7 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -108,7 +108,7 @@ func (s *ScannerImageCacheService) IsLayerPulled(digest string) bool {
 
 func (s *ScannerImageCacheService) IncLayerRefCount(digest string) {
 	s.layerList[digest].refCount = s.layerList[digest].refCount + 1
-	log.Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, s.layerList[digest].refCount)
+	logging.Get().Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, s.layerList[digest].refCount)
 }
 
 func (s *ScannerImageCacheService) IsLayerNoRef(digest string) bool {
@@ -123,12 +123,12 @@ func (s *ScannerImageCacheService) DecLayerRefCount(digest string) error {
 	}
 	if s.layerList[digest].refCount <= 0 {
 		// some err,should have been deleted
-		log.Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, s.layerList[digest].refCount)
+		logging.Get().Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, s.layerList[digest].refCount)
 		// still return nil,deleted by caller
 		return nil
 	}
 	s.layerList[digest].refCount = s.layerList[digest].refCount - 1
-	log.Info().Msgf("DecRef refcount(%d) ", s.layerList[digest].refCount)
+	logging.Get().Info().Msgf("DecRef refcount(%d) ", s.layerList[digest].refCount)
 	return nil
 }
 
@@ -154,7 +154,7 @@ func (s *ScannerImageCacheService) WaitLayerPulled(digest string) {
 	for {
 		s.taskLock.Lock()
 		if _, ok := s.layerList[digest]; !ok {
-			log.Info().Msgf("wait layer pulled,layer %s not exist", digest)
+			logging.Get().Info().Msgf("wait layer pulled,layer %s not exist", digest)
 			s.taskLock.Unlock()
 			break
 		}
@@ -189,7 +189,7 @@ func (s *ScannerImageCacheService) ResponseCodeAndMsg(code int, msg, digest stri
 	} else {
 		ctx.JSON(http.StatusBadRequest, rsp)
 	}
-	log.Info().Msgf("server resp %v", rsp)
+	logging.Get().Info().Msgf("server resp %v", rsp)
 }
 
 func (s *ScannerImageCacheService) ResponseOK(digest string, ctx *gin.Context) {
@@ -221,7 +221,7 @@ func (s *ScannerImageCacheService) ResponseErr(digest string, ctx *gin.Context) 
 func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 	// repository 	:= ctx.Query("repository")
 	digest := ctx.Query("digest")
-	log.Info().Msgf("get delete req,digest %s", digest)
+	logging.Get().Info().Msgf("get delete req,digest %s", digest)
 
 	s.taskLock.Lock()
 	if !s.IsLayerExist(digest) {
@@ -233,7 +233,7 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 	// dec refcount
 	err := s.DecLayerRefCount(digest)
 	if err != nil {
-		log.Error().Msgf("delete layer file refcount err,digest %s", digest)
+		logging.Get().Error().Msgf("delete layer file refcount err,digest %s", digest)
 	}
 
 	// delete layer from file server
@@ -241,10 +241,10 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 		delete(s.layerList, digest)
 		err = s.fs.DeleteFile(digest)
 		if err != nil {
-			log.Error().Msgf("delete layer file err,digest %s", digest)
+			logging.Get().Error().Msgf("delete layer file err,digest %s", digest)
 		}
 	} else {
-		log.Info().Msgf("digest %s still has ref,no delete", digest)
+		logging.Get().Info().Msgf("digest %s still has ref,no delete", digest)
 	}
 
 	// delete from layerlist
@@ -256,14 +256,14 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 }
 
 func (s *ScannerImageCacheService) handleGet(ctx *gin.Context) {
-	log.Info().Msgf("local layer manage get request")
+	logging.Get().Info().Msgf("local layer manage get request")
 	ctx.JSON(200, gin.H{
 		"message": "pong",
 	})
 }
 
 func (s *ScannerImageCacheService) handleClearCache(ctx *gin.Context) {
-	log.Info().Msgf("local layer manage get ClearCache request")
+	logging.Get().Info().Msgf("local layer manage get ClearCache request")
 	ctx.JSON(200, gin.H{
 		"message": "pong",
 	})
@@ -273,16 +273,13 @@ func (s *ScannerImageCacheService) handleFindBlob(ctx *gin.Context, repository s
 	// repository := ctx.Param("name")
 	fp := filepath.Join(s.fs.rootPath, "data", refer)
 	fpLayer := "FileServerCache/" + fp + "/layer.tar"
-	fmt.Println(fpLayer)
 	if !FileExists(fpLayer) {
-		fmt.Println("file not exist ", fpLayer)
 		fpManifest := "FileServerCache/" + fp + "/" + refer + ".json"
 		if !FileExists(fpManifest) {
-			fmt.Println("file not exist ", fpManifest)
+			logging.Get().Error().Msgf("file not exist %v", fpManifest)
 			ctx.Status(400)
 			return
 		} else {
-			fmt.Println(fpManifest)
 			fp = fpManifest
 		}
 	} else {
@@ -297,15 +294,14 @@ func (s *ScannerImageCacheService) handleFindManifesst(ctx *gin.Context, reposit
 	fp := filepath.Join(s.fs.rootPath, "manifests", repository, refer)
 	fp = filepath.Join(fp, "manifest.json")
 	fp = "FileServerCache/" + fp
-	fmt.Println(fp)
 	if !FileExists(fp) {
-		fmt.Println("no find")
+		logging.Get().Error().Msgf("not found %v", fp)
 		ctx.Status(404)
 		return
 	}
 	manifestJson, err := os.ReadFile(fp)
 	if err != nil {
-		fmt.Println(err)
+		logging.Get().Err(err)
 		ctx.Status(404)
 		return
 	}
@@ -314,7 +310,6 @@ func (s *ScannerImageCacheService) handleFindManifesst(ctx *gin.Context, reposit
 }
 
 func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
-	log.Info().Msgf("local layer manage get Manifest post request")
 	var body []byte
 	if ctx.Request.Body != nil {
 		if data, err := ioutil.ReadAll(ctx.Request.Body); err == nil {
@@ -323,14 +318,14 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 	}
 	if len(body) == 0 {
 		if err := ctx.AbortWithError(http.StatusBadRequest, fmt.Errorf("empty body")); err != nil {
-			log.Error().Msgf("failed to abort request: %s", err.Error())
+			logging.Get().Error().Msgf("failed to abort request: %s", err.Error())
 		}
 		return
 	}
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
 	if err != nil {
-		log.Error().Msgf(" json unmarshal err %v", err)
+		logging.Get().Error().Msgf(" json unmarshal err %v", err)
 
 		ctx.JSON(http.StatusBadRequest, ResponseLayerInfo{
 			Code:       1,
@@ -340,7 +335,6 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 		})
 	}
 
-	log.Info().Msgf("get request %+v", rq)
 	// s.manifestLock.Lock()
 	rq.Response = make(chan string, 1)
 	s.AddManifestTask(ctx, rq)
@@ -354,7 +348,7 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 
 // url : http://0.0.0.0:xxx/layer?
 func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
-	log.Info().Msg("local layer manage get post request")
+	logging.Get().Info().Msg("local layer manage get post request")
 
 	var body []byte
 	if ctx.Request.Body != nil {
@@ -365,16 +359,15 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 
 	if len(body) == 0 {
 		if err := ctx.AbortWithError(http.StatusBadRequest, fmt.Errorf("empty body")); err != nil {
-			log.Error().Msgf("failed to abort request: %s", err.Error())
+			logging.Get().Err(err).Msgf("failed to abort request")
 		}
 		return
 	}
-	// log.Info().Msgf("get body %v",body)
 
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
 	if err != nil {
-		log.Error().Msgf(" json unmarshal err %v", err)
+		logging.Get().Error().Msgf(" json unmarshal err %v", err)
 
 		ctx.JSON(http.StatusBadRequest, ResponseLayerInfo{
 			Code:       1,
@@ -384,12 +377,12 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 		})
 	}
 
-	log.Info().Msgf("get request %+v", rq)
+	logging.Get().Info().Msgf("get request %+v", rq)
 
 	s.taskLock.Lock()
 	// check if already pulled
 	if s.IsLayerExist(rq.Digest) {
-		log.Info().Msgf("layer %s exist", rq.Digest)
+		logging.Get().Info().Msgf("layer %s exist", rq.Digest)
 		s.IncLayerRefCount(rq.Digest)
 		s.taskLock.Unlock()
 		if s.IsLayerPulled(rq.Digest) {
@@ -399,19 +392,19 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 		}
 		// if exist but not pulled,go to WaitLayerPulled
 	} else {
-		log.Info().Msgf("add record ")
+		logging.Get().Info().Msgf("add record ")
 
 		// not find,add new record
 		s.AddLayerRecord(rq)
 		s.taskLock.Unlock()
 	}
 
-	log.Info().Msgf("wait layer pulled,refcount %d", s.layerList[rq.Digest].refCount)
+	logging.Get().Info().Msgf("wait layer pulled,refcount %d", s.layerList[rq.Digest].refCount)
 
 	// check if layer has been pulled
 	s.WaitLayerPulled(rq.Digest)
 
-	log.Info().Msgf("layer %s check end", rq.Digest)
+	logging.Get().Info().Msgf("layer %s check end", rq.Digest)
 
 	if s.layerList[rq.Digest].status == LayerPulled {
 		s.ResponseOK(rq.Digest, ctx)
@@ -426,7 +419,7 @@ func (s *ScannerImageCacheService) OpenGinLog() {
 
 	// Logging to a file.
 	logpath := filepath.Join(os.TempDir(), "ginlog.log")
-	log.Info().Msgf("gin log path %s", logpath)
+	logging.Get().Info().Msgf("gin log path %s", logpath)
 	f, _ := os.Create(logpath)
 	gin.DefaultWriter = io.MultiWriter(f)
 }
@@ -481,15 +474,15 @@ func (s *ScannerImageCacheService) CreateServer() {
 func (s *ScannerImageCacheService) StartServer() {
 	go func() {
 		address := fmt.Sprintf("%s:%d", s.serverIp, s.port)
-		logging.GetLogger().Info().Msgf("image cache start server :%s", address)
+		logging.Get().Info().Msgf("image cache start server :%s", address)
 		err := s.server.Run(address)
 		if err != nil {
-			log.Error().Msgf("start s server err %v", err)
+			logging.Get().Error().Msgf("start s server err %v", err)
 		}
-		log.Info().Msg("image cache server end")
+		logging.Get().Info().Msg("image cache server end")
 	}()
 
-	log.Info().Msgf("image cache service listen on port %d", s.port)
+	logging.Get().Info().Msgf("image cache service listen on port %d", s.port)
 }
 
 func (s *ScannerImageCacheService) FindAndModifyPullTask() (LayerInfo, error) {
@@ -531,21 +524,21 @@ func (s *ScannerImageCacheService) UpdateTaskStatusAndLayerUrl(digest, layerUrl 
 func (s *ScannerImageCacheService) Start(ctx context.Context) error {
 	// start inner registry server
 	s.CreateServer()
-	logging.GetLogger().Info().Msg("image cache create server ok")
+	logging.Get().Info().Msg("image cache create server ok")
 
 	s.StartServer()
 
 	// start file server
 	err := s.fs.Run(s.ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("start file server failed")
+		logging.Get().Error().Err(err).Msg("start file server failed")
 		return err
 	}
 
 	// run worker
 	s.WorkerGroup.Run()
 
-	logging.GetLogger().Info().Msg("start image cache service ok")
+	logging.Get().Info().Msg("start image cache service ok")
 	return nil
 }
 
@@ -554,14 +547,14 @@ func (s *ScannerImageCacheService) Stop(ctx context.Context) error {
 	//	logging.GetLogger().Error().Err(err).Msg("image cache server stop err")
 	//	return err
 	// }
-	logging.GetLogger().Info().Msg("image cache server stop")
+	logging.Get().Info().Msg("image cache server stop")
 	return nil
 }
 
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.Get().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 }
 
@@ -581,6 +574,6 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	wg, _ := NewWorkerGroup(s, maxWorkerNum)
 	s.WorkerGroup = wg
-	logging.GetLogger().Info().Msg("new image cache service ok")
+	logging.Get().Info().Msg("new image cache service ok")
 	return s, nil
 }

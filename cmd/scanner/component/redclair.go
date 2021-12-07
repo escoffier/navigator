@@ -20,14 +20,13 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
 	_ "github.com/lib/pq"
-	"github.com/rs/zerolog"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -136,7 +135,7 @@ func (rcSvc *RedClairService) Run(ctx context.Context, llms *layerManage.LocalLa
 		go rcSvc.workerRun(ctx, i, &wg, llms)
 	}
 	wg.Wait()
-	log.Info().Msg("All Redclair workers finished")
+	logging.Get().Info().Msg("All Redclair workers finished")
 
 	return nil
 }
@@ -176,98 +175,98 @@ func (rcSvc *RedClairService) ForceInvalidateCache(ctx context.Context) error {
 func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.WaitGroup) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
-	log.Info().Msg("Started cache invalidator worker")
+	logging.Get().Info().Msg("Started cache invalidator worker")
 
 	defer wg.Done()
 	err := rcSvc.updateLayerCache(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("updateLayerCache error %v", err)
+		logging.Get().Error().Msgf("updateLayerCache error %v", err)
 	}
 	ticker := time.NewTicker(cacheInvalidatorInterval)
 loop:
 	for {
 		select {
 		case <-ticker.C:
-			log.Info().Msg("Cache invalidator received request to update layer cache")
+			logging.Get().Info().Msg("Cache invalidator received request to update layer cache")
 
 			rcSvc.cond.L.Lock()
 			{
 				for rcSvc.numRunning > 0 {
 					rcSvc.wantsToUpdate = true
-					log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator waiting")
+					logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator waiting")
 					rcSvc.cond.Wait()
-					log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator waking up")
+					logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator waking up")
 				}
 
-				log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator updating layer cache")
+				logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator updating layer cache")
 				// updateCtx, _ := context.WithTimeout(ctx, 8*time.Minute)
 				err := rcSvc.updateLayerCache(ctx)
 				if err != nil {
-					log.Error().Err(err).Msg("Cache invalidator - updateLayerCache failed")
+					logging.Get().Error().Err(err).Msg("Cache invalidator - updateLayerCache failed")
 				}
 
 				rcSvc.wantsToUpdate = false
-				log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator resuming workers after clair update")
+				logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Cache invalidator resuming workers after clair update")
 			}
 			rcSvc.cond.L.Unlock()
 
 			rcSvc.cond.Broadcast()
-			log.Info().Msg("Cache invalidator done")
+			logging.Get().Info().Msg("Cache invalidator done")
 		case <-ctx.Done():
 			break loop
 		}
 	}
-	log.Info().Msg("Shutting down Redclair cache invalidator worker")
+	logging.Get().Info().Msg("Shutting down Redclair cache invalidator worker")
 }
 
 func (rcSvc *RedClairService) workerRun(ctx context.Context, id int, wg *sync.WaitGroup, llms *layerManage.LocalLayerManageSrv) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("error : %v. stack: %s", r, debug.Stack())
 			panic(r)
 		}
 	}()
 
 	worker := func(scanTask model.ScanTask) {
-		zerolog.Ctx(ctx).Info().Msg("Received scan task")
+		logging.Get().Info().Msg("Received scan task")
 
 		rcSvc.cond.L.Lock()
 		{
 			for rcSvc.wantsToUpdate {
-				zerolog.Ctx(ctx).Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Waiting")
+				logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Waiting")
 				rcSvc.cond.Wait()
-				log.Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Waking up")
+				logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Waking up")
 			}
 			rcSvc.numRunning++
-			zerolog.Ctx(ctx).Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Got cond, incremented numRunning")
+			logging.Get().Info().Bool("wantsToUpdate", rcSvc.wantsToUpdate).Int("numRunning", rcSvc.numRunning).Msg("Got cond, incremented numRunning")
 		}
 		rcSvc.cond.L.Unlock()
 
-		zerolog.Ctx(ctx).Info().Msg("Starting scanning")
+		logging.Get().Info().Msg("Starting scanning")
 		rcSvc.processScanTask(ctx, scanTask, llms)
-		zerolog.Ctx(ctx).Info().Msg("Finished scanning")
+		logging.Get().Info().Msg("Finished scanning")
 
 		rcSvc.cond.L.Lock()
 		{
 			rcSvc.numRunning--
-			zerolog.Ctx(ctx).Info().Int("numRunning", rcSvc.numRunning).Msg("Decremented numRunning")
+			logging.Get().Info().Int("numRunning", rcSvc.numRunning).Msg("Decremented numRunning")
 		}
 		rcSvc.cond.L.Unlock()
 
 		rcSvc.cond.Signal()
-		zerolog.Ctx(ctx).Info().Msg("Ready to accept new tasks")
+		logging.Get().Info().Msg("Ready to accept new tasks")
 	}
 
 	defer wg.Done()
 
-	workerSublogger := log.With().Int("worker-id", id).Logger()
+	workerSublogger := logging.Get().With().Int("worker-id", id).Logger()
 	ctx = workerSublogger.WithContext(ctx)
 
-	zerolog.Ctx(ctx).Info().Msg("Started Redclair worker")
+	logging.Get().Info().Msg("Started Redclair worker")
 loop:
 	for {
 		select {
@@ -288,13 +287,13 @@ loop:
 			worker(scanTask)
 		}
 	}
-	zerolog.Ctx(ctx).Info().Msg("Shutting down Redclair worker")
+	logging.Get().Info().Msg("Shutting down Redclair worker")
 }
 
 func (rcSvc *RedClairService) getUpdatedAt(ctx context.Context) (int64, error) {
 	lastUpdateTimeStr, err := rcSvc.redisClient.Get(ctx, "DBupdate").Result()
 	if err == redis.Nil {
-		log.Info().Msg("Haven't cached DB last update yet")
+		logging.Get().Info().Msg("Haven't cached DB last update yet")
 		return int64(0), nil
 	} else if err != nil {
 		return int64(0), fmt.Errorf("Error getting DB update time from cache: %w", err)
@@ -309,7 +308,7 @@ func (rcSvc *RedClairService) getUpdatedAt(ctx context.Context) (int64, error) {
 func (rcSvc *RedClairService) getVulnerabilityUpdatedAt(ctx context.Context) (string, error) {
 	lastUpdateVulnerability, err := rcSvc.redisClient.Get(ctx, "lastUpdateVulnerability").Result()
 	if err == redis.Nil {
-		log.Info().Msg("Haven't cached DB vulnerability last update yet")
+		logging.Get().Info().Msg("Haven't cached DB vulnerability last update yet")
 		return "", nil
 	} else if err != nil {
 		return "", fmt.Errorf("Error getting DB vulnerability update time from cache: %w", err)
@@ -341,7 +340,7 @@ func (rcSvc *RedClairService) updateLayerCache(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("Cannot persist DB update time to cache: %w", err)
 		}
-		log.Info().Msg("DB update time successfully persisted in cache")
+		logging.Get().Info().Msg("DB update time successfully persisted in cache")
 	}
 
 	namespacesToRemoveFromCache := make([]string, 0)
@@ -392,7 +391,7 @@ func (rcSvc *RedClairService) invalidateCacheEntries(ctx context.Context, namesp
 			if err != nil {
 				return fmt.Errorf("Failed to remove layer from cache: %w", err)
 			} else {
-				log.Info().Str("digest", layerToRemove).Msg("Successfully removed from cache")
+				logging.Get().Info().Str("digest", layerToRemove).Msg("Successfully removed from cache")
 			}
 		}
 	}
@@ -410,7 +409,7 @@ func (rcSvc *RedClairService) cacheLastVulnerabilityUpdateTime(ctx context.Conte
 	if err != nil {
 		return fmt.Errorf("Cannot persist DB vulnerability update time to cache: %w", err)
 	}
-	log.Info().Str("vulnerabilityLastUpdateTime", dbVulnerabilityUpdateTime.MaxCreatedAt).Msg("DB vulnerability update time successfully persisted in cache")
+	logging.Get().Info().Str("vulnerabilityLastUpdateTime", dbVulnerabilityUpdateTime.MaxCreatedAt).Msg("DB vulnerability update time successfully persisted in cache")
 	return nil
 }
 
@@ -525,7 +524,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	scanCtx, scanCtxCancel := context.WithTimeout(ctx, scanOneTimeout)
 	defer scanCtxCancel()
 
-	zerolog.Ctx(ctx).Info().
+	logging.Get().Info().
 		Str("ID", scanTask.ID.Hex()).
 		Str("URL", scanTask.URL).
 		Str("Repository", scanTask.Repository).
@@ -559,7 +558,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
 		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
 		if ok1 || ok2 || ok3 || ok4 {
-			zerolog.Ctx(ctx).Warn().Err(err).Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
+			logging.Get().Warn().Err(err).Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
 			hub, err = registry.NewInsecure(scanTask.URL, username, password)
 		}
 	}
@@ -584,7 +583,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 
 	client, err := layerManage.NewLocalLayerManageClient(llms)
 	if err != nil {
-		zerolog.Ctx(ctx).Err(err).Msg("LLMS CLIENT NEW FAULT")
+		logging.Get().Err(err).Msg("LLMS CLIENT NEW FAULT")
 		rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't get LLMS Client", err)
 		return
 	}
@@ -602,7 +601,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		}
 	}
 
-	zerolog.Ctx(ctx).Info().Msg("Redclair scan finished, processed all layers")
+	logging.Get().Info().Msg("Redclair scan finished, processed all layers")
 
 	report := &model.ScanReport{}
 	vulns := make([]model.VulnerabilityInfo, 0)
@@ -675,13 +674,13 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	scanTask.ScanReport = *report
 	scanImage, err := rcSvc.constructNewLogStruct(ctx, scanTask)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("Construct scanImage error：%+v", err)
+		logging.Get().Error().Msgf("Construct scanImage error：%+v", err)
 	}
 	rcSvc.updateRiskCacheEntry(ctx, scanTask)
 	rcSvc.logLayerTable(ctx, scanTask, scanTask.ImageID)
 	rcSvc.logVulnTable(ctx, scanTask, scanTask.ImageID)
 	rcSvc.logPostgres(ctx, scanImage, scanTask.TableID, scanTask, model.ScanStatusSucceeded, "", nil)
-	zerolog.Ctx(ctx).Info().Msg("Processing of scan task finished")
+	logging.Get().Info().Msg("Processing of scan task finished")
 }
 
 func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Registry, scanTask model.ScanTask, currentlyCachedLayers *map[string]*model.CachedLayer, digest string, client *layerManage.LocalLayerManageClient) error {
@@ -698,23 +697,23 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			}
 			var cmErr ClairMissingParentLayerError
 			if errors.As(err, &cmErr) {
-				zerolog.Ctx(ctx).Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
+				logging.Get().Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 				layersBench = append(layersBench, currLayer)
 				parentLayerDigest := currLayer.Parent
 				currentMaxScanRetries = maxLayerScanRetires
 				currLayer, err = rcSvc.getParentLayerFromCache(ctx, parentLayerDigest, *currentlyCachedLayers)
 				if err != nil {
-					zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
+					logging.Get().Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
 					return err
 				}
 			} else {
-				zerolog.Ctx(ctx).Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
+				logging.Get().Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
 				time.Sleep(retryInterval)
 				retryCounter++
 			}
 		} else {
 
-			zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
+			logging.Get().Info().Str("layerDigest", currLayer.Digest).Msg("Clair scan successful")
 			var vulnInfoAdded, vulnInfoRemoved []model.VulnerabilityInfo
 			if currLayer.Parent == "" {
 				vulnInfoAdded = vulnInfo
@@ -722,25 +721,25 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			} else {
 				parentLayer, err := rcSvc.getParentLayerFromCache(ctx, currLayer.Parent, *currentlyCachedLayers)
 				if err != nil {
-					zerolog.Ctx(ctx).Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
+					logging.Get().Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
 					return err
 				}
 				vulnInfoAdded, vulnInfoRemoved, err = rcSvc.getLayerVulnDiff(parentLayer.ScanReport.Vulns, vulnInfo)
 				if err != nil {
-					zerolog.Ctx(ctx).Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
+					logging.Get().Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
 					return err
 				}
 			}
 
 			scanWorkerResult := rcSvc.generateScanWorkerResult(vulnInfo, vulnInfoAdded, vulnInfoRemoved, sensitive)
 			if err != nil {
-				zerolog.Ctx(ctx).Error().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
+				logging.Get().Error().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
 				return err
 			}
 
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if err != nil {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
+				logging.Get().Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
 				return err
 			}
 
@@ -847,7 +846,7 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []model.Vulne
 func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string, currentLayerCache map[string]*model.CachedLayer) (*model.CachedLayer, error) {
 	iter := rcSvc.redisClient.Scan(ctx, 0, "vulnScan*"+digest, 0).Iterator()
 	if err := iter.Err(); err != nil {
-		zerolog.Ctx(ctx).Err(err).Str("layerDigest", digest).Msg("Failed to iterate over cache entries")
+		logging.Get().Err(err).Str("layerDigest", digest).Msg("Failed to iterate over cache entries")
 		if currLayer, exists := currentLayerCache[digest]; exists {
 			return currLayer, nil
 		}
@@ -860,13 +859,13 @@ func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string,
 			// Such situation could happen, if in the meantime the cache cleaning process has removed
 			// this entry (because the clair database has updated for tree containing this layer).
 			// In such case return the local cache result.
-			zerolog.Ctx(ctx).Info().Str("layerDigest", digest).Msg("Cached entry cleared during scanning the image. Taking the local cache entry")
+			logging.Get().Info().Str("layerDigest", digest).Msg("Cached entry cleared during scanning the image. Taking the local cache entry")
 			if currLayer, exists := currentLayerCache[digest]; exists {
 				return currLayer, nil
 			}
 			return nil, fmt.Errorf("Layer exists neither in global, nor local cache")
 		} else if err != nil {
-			zerolog.Ctx(ctx).Err(err).Str("layerDigest", digest).Msg("Error getting layer from cache")
+			logging.Get().Err(err).Str("layerDigest", digest).Msg("Error getting layer from cache")
 			if currLayer, exists := currentLayerCache[digest]; exists {
 				return currLayer, nil
 			}
@@ -877,7 +876,7 @@ func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string,
 			}
 			err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
 			if err != nil {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", digest).Msg("Couldn't unmarshal layer entry from cache")
+				logging.Get().Info().Str("layerDigest", digest).Msg("Couldn't unmarshal layer entry from cache")
 				if currLayer, exists := currentLayerCache[digest]; exists {
 					return currLayer, nil
 				}
@@ -886,7 +885,7 @@ func (rcSvc *RedClairService) getCachedEntry(ctx context.Context, digest string,
 			return cachedLayer, nil
 		}
 	} else {
-		zerolog.Ctx(ctx).Info().Str("layerDigest", digest).Msg("Cached entry cleared during scanning the image. Taking the local cache entry")
+		logging.Get().Info().Str("layerDigest", digest).Msg("Cached entry cleared during scanning the image. Taking the local cache entry")
 		if currLayer, exists := currentLayerCache[digest]; exists {
 			return currLayer, nil
 		}
@@ -902,35 +901,35 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 	(*currentLayerCache)[layer].NameSpace = namespace
 	_, err := rcSvc.redisClient.Get(ctx, "vulnScan"+"_"+layer).Result()
 	if err == redis.Nil {
-		zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Persisting in cache")
+		logging.Get().Info().Str("layerDigest", layer).Msg("Persisting in cache")
 		cacheEntry, err := json.Marshal((*currentLayerCache)[layer])
 		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Str("layerDigest", layer).Msg("Layer could not be marshaled. Not persisting")
+			logging.Get().Err(err).Str("layerDigest", layer).Msg("Layer could not be marshaled. Not persisting")
 			return nil
 		} else {
 			redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
 			defer redisCtxCancel()
 			_, err := rcSvc.redisClient.Set(redisCtx, "vulnScan"+"_"+layer, cacheEntry, redisTTL).Result()
 			if err != nil {
-				zerolog.Ctx(ctx).Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
+				logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 				return nil
 			}
-			zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Layer successfully cached")
+			logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
 			return nil
 		}
 	} else if err != nil {
-		zerolog.Ctx(ctx).Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
+		logging.Get().Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
 		return nil
 	}
 
-	zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Another worker recently scanned this layer. No need to persist")
+	logging.Get().Info().Str("layerDigest", layer).Msg("Another worker recently scanned this layer. No need to persist")
 	return nil
 }
 
 func (rcSvc *RedClairService) getParentLayerFromCache(ctx context.Context, parentLayer string, currentLayerCache map[string]*model.CachedLayer) (*model.CachedLayer, error) {
 	iter := rcSvc.redisClient.Scan(ctx, 0, "vulnScan*"+parentLayer, 0).Iterator()
 	if err := iter.Err(); err != nil {
-		zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayer).Msg("Failed to iterate over cache entries")
+		logging.Get().Err(err).Str("layerDigest", parentLayer).Msg("Failed to iterate over cache entries")
 		if currLayer, exists := currentLayerCache[parentLayer]; exists {
 			return currLayer, nil
 		}
@@ -940,13 +939,13 @@ func (rcSvc *RedClairService) getParentLayerFromCache(ctx context.Context, paren
 		v := iter.Val()
 		cacheEntry, err := rcSvc.redisClient.Get(ctx, v).Result()
 		if err == redis.Nil {
-			zerolog.Ctx(ctx).Info().Str("layerDigest", parentLayer).Msg("Weird...")
+			logging.Get().Info().Str("layerDigest", parentLayer).Msg("Weird...")
 			if currLayer, exists := currentLayerCache[parentLayer]; exists {
 				return currLayer, nil
 			}
 			return nil, fmt.Errorf("Layer exists neither in global, nor local cache")
 		} else if err != nil {
-			zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayer).Msg("Error getting layer from cache")
+			logging.Get().Err(err).Str("layerDigest", parentLayer).Msg("Error getting layer from cache")
 			if currLayer, exists := currentLayerCache[parentLayer]; exists {
 				return currLayer, nil
 			}
@@ -957,7 +956,7 @@ func (rcSvc *RedClairService) getParentLayerFromCache(ctx context.Context, paren
 			}
 			err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
 			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Str("layerDigest", parentLayer).Msg("Layer from cache could not be unmarshaled.")
+				logging.Get().Err(err).Str("layerDigest", parentLayer).Msg("Layer from cache could not be unmarshaled.")
 				if currLayer, exists := currentLayerCache[parentLayer]; exists {
 					return currLayer, nil
 				}
@@ -967,7 +966,7 @@ func (rcSvc *RedClairService) getParentLayerFromCache(ctx context.Context, paren
 			}
 		}
 	} else {
-		zerolog.Ctx(ctx).Info().Str("layerDigest", parentLayer).Msg("Parent layer not found in cache")
+		logging.Get().Info().Str("layerDigest", parentLayer).Msg("Parent layer not found in cache")
 		if currLayer, exists := currentLayerCache[parentLayer]; exists {
 			return currLayer, nil
 		}
@@ -1012,7 +1011,7 @@ func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []strin
 		}
 		iter := rcSvc.redisClient.Scan(ctx, 0, "vulnScan*"+layer, 0).Iterator()
 		if err := iter.Err(); err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to get cache entry")
+			logging.Get().Err(err).Msg("Failed to get cache entry")
 			currentLayerCache[layer] = cachedLayer
 			toScan = append(toScan, layer)
 		} else {
@@ -1020,18 +1019,18 @@ func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []strin
 				v := iter.Val()
 				cacheEntry, err := rcSvc.redisClient.Get(ctx, v).Result()
 				if err == redis.Nil {
-					zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Layer not cached. Need to scan")
+					logging.Get().Info().Str("layerDigest", layer).Msg("Layer not cached. Need to scan")
 					toScan = append(toScan, layer)
 				} else if err != nil {
-					zerolog.Ctx(ctx).Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache")
+					logging.Get().Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache")
 					toScan = append(toScan, layer)
 				} else {
 					err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
 					if err != nil {
-						zerolog.Ctx(ctx).Err(err).Str("layerDigest", layer).Msg("Layer could not be unmarshaled.")
+						logging.Get().Err(err).Str("layerDigest", layer).Msg("Layer could not be unmarshaled.")
 						toScan = append(toScan, layer)
 					} else {
-						zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Layer cached. No need to scan")
+						logging.Get().Info().Str("layerDigest", layer).Msg("Layer cached. No need to scan")
 					}
 				}
 				currentLayerCache[layer] = cachedLayer
@@ -1043,7 +1042,7 @@ func (rcSvc *RedClairService) getCachedGraph(ctx context.Context, layers []strin
 					currentLayerCache[layer].Tags = util.AppendIfMissing(cachedLayer.Tags, scanTask.Tag)
 				}
 			} else {
-				zerolog.Ctx(ctx).Info().Str("layerDigest", layer).Msg("Layer not cached. Need to scan")
+				logging.Get().Info().Str("layerDigest", layer).Msg("Layer not cached. Need to scan")
 				toScan = append(toScan, layer)
 				currentLayerCache[layer] = cachedLayer
 				if i != 0 {
@@ -1105,7 +1104,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 			if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 				err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
+					logging.Get().Error().Msgf("update  image  scan finish time error：%+v", err)
 					return err
 				}
 			}
@@ -1118,11 +1117,11 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 		err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("update  image  scan finish time error：%+v", err)
+			logging.Get().Error().Msgf("update  image  scan finish time error：%+v", err)
 		}
 	}
 	if scanImage.Message != "" {
-		logging.GetLogger().Error().Msgf("logPostgres message:%v", scanImage.Message)
+		logging.Get().Error().Msgf("logPostgres message:%v", scanImage.Message)
 	}
 	// rcSvc.logImageQuestion(ctx, scanTask)
 }
@@ -1195,7 +1194,7 @@ func (rcSvc *RedClairService) logVulnTable(ctx context.Context, scanTask model.S
 		}
 		err := rcSvc.postgresSvc.InsertToVuln(ctx, &vuln, imageID)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("InsertToVuln error %v", err)
+			logging.Get().Error().Msgf("InsertToVuln error %v", err)
 		}
 	}
 }
@@ -1242,11 +1241,11 @@ func (rcSvc *RedClairService) updateRiskCacheEntry(ctx context.Context, scantask
 	sumData.UnknownNum = scantask.ScanReport.Vulns.SeverityHistogram.NumUnknown
 	bytes, err := json.Marshal(sumData)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Risk Vuln json Marshal error")
+		logging.Get().Error().Err(err).Msgf("Risk Vuln json Marshal error")
 		return
 	}
 	err = rcSvc.redisClientShare.Set(ctx, image, bytes, riskTTL).Err()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+		logging.Get().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
 	}
 }

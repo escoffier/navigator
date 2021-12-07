@@ -2,7 +2,6 @@ package layerManage
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -103,7 +104,7 @@ func NewLocalLayerManageSrv(ctx context.Context, serverIp string, port, fsPort i
 }
 
 func (llms *LocalLayerManageSrv) Run() error {
-	log.Info().Msg("llms run")
+	logging.Get().Info().Msg("llms run")
 
 	// start server
 	llms.CreateServer()
@@ -134,7 +135,7 @@ func (llms *LocalLayerManageSrv) IsLayerPulled(digest string) bool {
 
 func (llms *LocalLayerManageSrv) IncLayerRefCount(digest string) {
 	llms.layerList[digest].refCount = llms.layerList[digest].refCount + 1
-	log.Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, llms.layerList[digest].refCount)
+	logging.Get().Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, llms.layerList[digest].refCount)
 }
 
 func (llms *LocalLayerManageSrv) IsLayerNoRef(digest string) bool {
@@ -149,12 +150,12 @@ func (llms *LocalLayerManageSrv) DecLayerRefCount(digest string) error {
 	}
 	if llms.layerList[digest].refCount <= 0 {
 		// some err,should have been deleted
-		log.Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, llms.layerList[digest].refCount)
+		logging.Get().Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, llms.layerList[digest].refCount)
 		// still return nil,deleted by caller
 		return nil
 	}
 	llms.layerList[digest].refCount = llms.layerList[digest].refCount - 1
-	log.Info().Msgf("DecRef refcount(%d) ", llms.layerList[digest].refCount)
+	logging.Get().Info().Msgf("DecRef refcount(%d) ", llms.layerList[digest].refCount)
 	return nil
 }
 
@@ -176,7 +177,7 @@ func (llms *LocalLayerManageSrv) WaitLayerPulled(digest string) {
 	for {
 		llms.taskLock.Lock()
 		if _, ok := llms.layerList[digest]; !ok {
-			log.Info().Msgf("wait layer pulled,layer %s not exist", digest)
+			logging.Get().Info().Msgf("wait layer pulled,layer %s not exist", digest)
 			llms.taskLock.Unlock()
 			break
 		}
@@ -211,7 +212,7 @@ func (llms *LocalLayerManageSrv) ResponseCodeAndMsg(code int, msg, digest string
 	} else {
 		ctx.JSON(http.StatusBadRequest, rsp)
 	}
-	log.Info().Msgf("server resp %v", rsp)
+	logging.Get().Info().Msgf("server resp %v", rsp)
 }
 
 func (llms *LocalLayerManageSrv) ResponseOK(digest string, ctx *gin.Context) {
@@ -243,7 +244,7 @@ func (llms *LocalLayerManageSrv) ResponseErr(digest string, ctx *gin.Context) {
 func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 	// repository 	:= ctx.Query("repository")
 	digest := ctx.Query("digest")
-	log.Info().Msgf("get delete req,digest %s", digest)
+	logging.Get().Info().Msgf("get delete req,digest %s", digest)
 
 	llms.taskLock.Lock()
 	if !llms.IsLayerExist(digest) {
@@ -255,7 +256,7 @@ func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 	// dec refcount
 	err := llms.DecLayerRefCount(digest)
 	if err != nil {
-		log.Error().Msgf("delete layer file refcount err,digest %s", digest)
+		logging.Get().Err(err).Msgf("delete layer file refcount err,digest %s", digest)
 	}
 
 	// delete layer from file server
@@ -263,10 +264,10 @@ func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 		delete(llms.layerList, digest)
 		err = llms.fs.DeleteFile(digest)
 		if err != nil {
-			log.Error().Msgf("delete layer file err,digest %s", digest)
+			logging.Get().Err(err).Msgf("delete layer file err,digest %s", digest)
 		}
 	} else {
-		log.Info().Msgf("digest %s still has ref,no delete", digest)
+		logging.Get().Info().Msgf("digest %s still has ref,no delete", digest)
 	}
 
 	// delete from layerlist
@@ -278,14 +279,14 @@ func (llms *LocalLayerManageSrv) handleDelete(ctx *gin.Context) {
 }
 
 func (llms *LocalLayerManageSrv) handleGet(ctx *gin.Context) {
-	log.Info().Msgf("local layer manage get request")
+	logging.Get().Info().Msgf("local layer manage get request")
 	ctx.JSON(200, gin.H{
 		"message": "pong",
 	})
 }
 
 func (llms *LocalLayerManageSrv) handleClearCache(ctx *gin.Context) {
-	log.Info().Msgf("local layer manage get ClearCache request")
+	logging.Get().Info().Msgf("local layer manage get ClearCache request")
 	ctx.JSON(200, gin.H{
 		"message": "pong",
 	})
@@ -293,7 +294,7 @@ func (llms *LocalLayerManageSrv) handleClearCache(ctx *gin.Context) {
 
 // url : http://0.0.0.0:xxx/layer?
 func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
-	log.Info().Msgf("local layer manage get post request")
+	logging.Get().Info().Msgf("local layer manage get post request")
 
 	var body []byte
 	if ctx.Request.Body != nil {
@@ -304,16 +305,15 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 
 	if len(body) == 0 {
 		if err := ctx.AbortWithError(http.StatusBadRequest, fmt.Errorf("empty body")); err != nil {
-			log.Error().Msgf("failed to abort request: %s", err.Error())
+			logging.Get().Err(err).Msgf("failed to abort request")
 		}
 		return
 	}
-	// log.Info().Msgf("get body %v",body)
 
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
 	if err != nil {
-		log.Error().Msgf(" json unmarshal err %v", err)
+		logging.Get().Error().Msgf(" json unmarshal err %v", err)
 
 		ctx.JSON(http.StatusBadRequest, ResponseLayerInfo{
 			Code:       1,
@@ -323,12 +323,10 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 		})
 	}
 
-	log.Info().Msgf("get request %+v", rq)
-
 	llms.taskLock.Lock()
 	// check if already pulled
 	if llms.IsLayerExist(rq.Digest) {
-		log.Info().Msgf("layer %s exist", rq.Digest)
+		logging.Get().Info().Msgf("layer %s exist", rq.Digest)
 		llms.IncLayerRefCount(rq.Digest)
 		llms.taskLock.Unlock()
 		if llms.IsLayerPulled(rq.Digest) {
@@ -338,19 +336,19 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 		}
 		// if exist but not pulled,go to WaitLayerPulled
 	} else {
-		log.Info().Msgf("add record ")
+		logging.Get().Info().Msgf("add record ")
 
 		// not find,add new record
 		llms.AddLayerRecord(rq)
 		llms.taskLock.Unlock()
 	}
 
-	log.Info().Msgf("wait layer pulled,refcount %d", llms.layerList[rq.Digest].refCount)
+	logging.Get().Info().Msgf("wait layer pulled,refcount %d", llms.layerList[rq.Digest].refCount)
 
 	// check if layer has been pulled
 	llms.WaitLayerPulled(rq.Digest)
 
-	log.Info().Msgf("layer %s check end", rq.Digest)
+	logging.Get().Info().Msgf("layer %s check end", rq.Digest)
 
 	if llms.layerList[rq.Digest].status == LayerPulled {
 		llms.ResponseOK(rq.Digest, ctx)
@@ -365,7 +363,7 @@ func (llms *LocalLayerManageSrv) OpenGinLog() {
 
 	// Logging to a file.
 	logpath := filepath.Join(os.TempDir(), "ginlog.log")
-	log.Info().Msgf("gin log path %s", logpath)
+	logging.Get().Info().Msgf("gin log path %s", logpath)
 	f, _ := os.Create(logpath)
 	gin.DefaultWriter = io.MultiWriter(f)
 }
@@ -398,11 +396,11 @@ func (llms *LocalLayerManageSrv) StartServer() {
 		address := fmt.Sprintf("%s:%d", llms.serverIp, llms.port)
 		err := llms.server.Run(address)
 		if err != nil {
-			log.Error().Msgf("start llms server err %v", err)
+			logging.Get().Err(err).Msgf("start llms server err")
 		}
 	}()
 
-	log.Info().Msgf("Server local layer manage srv  port %d", llms.port)
+	logging.Get().Info().Msgf("Server local layer manage srv  port %d", llms.port)
 
 }
 

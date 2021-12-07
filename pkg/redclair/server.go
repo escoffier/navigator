@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func (r *Redclair) StartImageHTTPServer() error {
@@ -26,7 +26,7 @@ func (r *Redclair) StopImageHTTPServer() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := r.server.Shutdown(ctx); err != nil {
-		log.Error().
+		logging.Get().Error().
 			Err(err).
 			Msg("error in shutting down HTTP server")
 		return err
@@ -46,18 +46,18 @@ func (r Redclair) httpFileServer(path string, port int) *http.Server {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 			}
 		}()
 
 		if err := server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				log.Error().Err(err).Msg("error in http.Server.ListenAndServe")
+				logging.Get().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()
 	// It takes some time to open the port, just to be sure we wait a bit
 	time.Sleep(100 * time.Millisecond)
-	log.Info().Msgf("Server listening on port %d", port)
+	logging.Get().Info().Msgf("Server listening on port %d", port)
 	return server
 }

@@ -2,15 +2,15 @@ package cron
 
 import (
 	"context"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 var (
@@ -18,12 +18,12 @@ var (
 	once     sync.Once
 )
 
-func Init(cron *cr.Cron, postgresDB *rdbtools.GormWrapper, rootCtx context.Context) error {
-	if cron == nil || postgresDB == nil || rootCtx == nil {
+func Init(cron *cr.Cron, postgresDB *rdbtools.GormWrapper) error {
+	if cron == nil || postgresDB == nil {
 		return errors.Errorf("illegal argument")
 	}
 	once.Do(func() {
-		instance = newCronService(cron, postgresDB, rootCtx)
+		instance = newCronService(cron, postgresDB)
 	})
 	return nil
 }
@@ -39,18 +39,15 @@ const (
 type CronService struct {
 	cron       *cr.Cron
 	PostgresDB *rdbtools.GormWrapper
-	rootCtx    context.Context
 }
 
 func newCronService(
 	cron *cr.Cron,
 	postgresDB *rdbtools.GormWrapper,
-	rootCtx context.Context,
 ) *CronService {
 	return &CronService{
 		cron:       cron,
 		PostgresDB: postgresDB,
-		rootCtx:    rootCtx,
 	}
 }
 
@@ -64,9 +61,9 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 		logging.GetLogger().Info().Msgf("Starting cron job now, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
 
 		// don't cancel() when exiting this function as we are starting an async task
-		newCtx, _ := context.WithTimeout(s.rootCtx, time.Minute*10)
+		newCtx, _ := context.WithTimeout(context.Background(), time.Minute*10)
 		scapper, _ := scapper.GetScapper(ctx)
-		_, err := scapper.RunComplianceCheck(newCtx, ctx, cronData.ClusterId, model.ComplianceCheckType(cronData.CheckType), "system")
+		_, err := scapper.RunComplianceCheck(newCtx, cronData.ClusterId, model.ComplianceCheckType(cronData.CheckType), "system")
 		if err != nil {
 			logging.GetLogger().Error().Msgf("failed to run compliance check, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
 		}

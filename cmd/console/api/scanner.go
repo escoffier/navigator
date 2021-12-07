@@ -14,12 +14,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // the apis that need to be used as REST open API.
@@ -221,7 +220,7 @@ func (api *api) quickReqToScanner(ctx context.Context, method, url string, outDa
 			fmt.Errorf("Failed to decode response from scanner: %w", err))
 	}
 
-	logging.GetLogger().Info().Str("envelope", fmt.Sprintf("%+v", envelope)).Msg("Received response from scanner")
+	logging.Get().Info().Str("envelope", fmt.Sprintf("%+v", envelope)).Msg("Received response from scanner")
 
 	json.Unmarshal(envelope.Data.Item, outData)
 	if err != nil {
@@ -285,7 +284,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 		// /api/v1/scan/reportsByImageOverview?offset=1
 
 		pre := r.URL.String()
-		log.WithContext(api.ctx).Infof("preUrl:%s", pre)
+		logging.Get().WithContext(r.Context()).Infof("preUrl:%s", pre)
 		var newUrl string
 
 		if strings.Contains(pre, "openapi") == false {

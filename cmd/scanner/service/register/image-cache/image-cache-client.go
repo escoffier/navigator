@@ -2,11 +2,13 @@ package image_cache
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+
+	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type ImageCacheClient struct {
@@ -48,24 +50,23 @@ func (icc *ImageCacheClient) GetManifest(username, password, url, repository, ta
 	if err != nil {
 		return "", err
 	}
-	log.Info().Msgf("client server addr %s,repo %s,tag %s", icc.serverAddr, rq.Repository, rq.Tag)
+	logging.Get().Info().Msgf("client server addr %s,repo %s,tag %s", icc.serverAddr, rq.Repository, rq.Tag)
 	req, err := http.NewRequest("POST", icc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
-		log.Error().Msgf("new req err %v", err)
+		logging.Get().Error().Msgf("new req err %v", err)
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
-	client := &http.Client{}
-	rsp, err := client.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Error().Msgf("client do req err %v", err)
+		logging.Get().Error().Msgf("client do req err %v", err)
 		return "", err
 	}
 	defer rsp.Body.Close()
-	log.Info().Msgf("layer manage client request end. status code: %d", rsp.StatusCode)
 
 	if rsp.StatusCode != http.StatusOK {
+		logging.Get().Error().Msgf("layer manage client request end. status code: %d", rsp.StatusCode)
 		return "", err
 	}
 
@@ -87,24 +88,23 @@ func (icc *ImageCacheClient) GetLayer(username, password, url, repository, diges
 
 		return "", "", err
 	}
-	log.Debug().Msgf("client server addr %s,repo %s,digest %s", icc.serverAddr, rq.Repository, rq.Digest)
+	logging.Get().Debug().Msgf("client server addr %s,repo %s,digest %s", icc.serverAddr, rq.Repository, rq.Digest)
 
 	req, err := http.NewRequest("POST", icc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
 
-		log.Error().Msgf("new req err %v", err)
+		logging.Get().Error().Msgf("new req err %v", err)
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
-	client := &http.Client{}
-	rsp, err := client.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Error().Msgf("client do req err %v", err)
+		logging.Get().Error().Msgf("client do req err %v", err)
 		return "", "", err
 	}
 	defer rsp.Body.Close()
-	log.Info().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
+	logging.Get().Info().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
 
 	if rsp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("request layer err:%v", rsp.StatusCode)
@@ -119,7 +119,7 @@ func (icc *ImageCacheClient) GetLayer(username, password, url, repository, diges
 
 		return "", "", err
 	}
-	log.Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
+	logging.Get().Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
 	return rspLayerInfo.LayerUrl, rspLayerInfo.Url, nil
 }
 
@@ -133,8 +133,7 @@ func (icc *ImageCacheClient) DeleteLayer(digest string) error {
 	req.URL.RawQuery = q.Encode()
 
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	rsp, err := client.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

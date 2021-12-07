@@ -16,8 +16,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/cache"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -29,6 +27,7 @@ import (
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type SearchImagesParam struct {
@@ -98,7 +97,6 @@ type ConScannerSrv struct {
 	trustedImageDal store.TrustedImageInterface
 	registryDal     store.RegistryDalInterface
 	scanConfigDal   store.ScanConfigDalInterface
-	log             *logging.Logger
 	redclair        *RedClairService
 	virusScan       *VirusScan
 	scannerDB       *store.ScannerDB
@@ -110,7 +108,6 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.Registr
 	return &ConScannerSrv{
 		dbdal:           dbdal,
 		registryDal:     registryDal,
-		log:             logging.GetLogger(),
 		redclair:        redclair,
 		virusScan:       virusScan,
 		scannerDB:       scdb,

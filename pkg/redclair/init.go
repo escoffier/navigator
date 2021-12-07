@@ -3,7 +3,6 @@ package redclair
 import (
 	"encoding/json"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,16 +11,8 @@ import (
 	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"go.mongodb.org/mongo-driver/mongo"
 )
-
-var (
-	log *logging.Logger
-)
-
-func init() {
-	log = logging.GetLogger()
-}
 
 type Redclair struct {
 	// External addr:port is address of tensorsec-scanner visible from clair instance

@@ -3,12 +3,14 @@ package layerManage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
+
+	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type LocalLayerManageClient struct {
@@ -39,32 +41,31 @@ func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, pass
 
 		return "", "", err
 	}
-	log.Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository, rq.Digest)
+	logging.Get().Debug().Msgf("client server addr %s,repo %s,digest %s", llmc.serverAddr, rq.Repository, rq.Digest)
 
 	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(tctx, http.MethodPost, llmc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
-
-		log.Error().Msgf("new req err %v", err)
+		logging.Get().Err(err).Msgf("new req err")
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
 	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Error().Msgf("client do req err %v", err)
+		logging.Get().Err(err).Msgf("client do req err")
 		return "", "", err
 	}
 	defer rsp.Body.Close()
-	log.Info().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
+	logging.Get().Info().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
 
 	if rsp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("request layer err:%v", rsp.StatusCode)
 	}
 
 	body, _ := ioutil.ReadAll(rsp.Body)
-	log.Info().Msgf("layer manage client request end. body: %s", body)
+	logging.Get().Info().Msgf("layer manage client request end. body: %s", body)
 
 	rspLayerInfo := &ResponseLayerInfo{}
 	err = json.Unmarshal(body, &rspLayerInfo)
@@ -72,7 +73,7 @@ func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, pass
 
 		return "", "", err
 	}
-	log.Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
+	logging.Get().Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
 	return rspLayerInfo.LayerUrl, rspLayerInfo.Url, nil
 }
 
