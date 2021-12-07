@@ -14,9 +14,6 @@ import (
 	"time"
 
 	param2 "github.com/oceanicdev/chi-param"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,13 +27,14 @@ import (
 	inject "gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/sidecar"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 var (
-	once sync.Once
-	ws   *webHookServer
-	err  error
+	once  sync.Once
+	ws    *webHookServer
+	wsErr error
 )
 
 var (
@@ -50,17 +48,17 @@ type webHookServer struct {
 	Server         *http.Server
 	URL            string
 	Config         *Config
-	rdb            *rdbtools.GormWrapper
+	rdb            *gorm.DB
 	HostClusterKey string
 }
 
 func NewWebHookServer(config *Config) (*webHookServer, error) {
 	//var ws *webHookServer
 	once.Do(func() {
-		ws, err = newWebHookServer(config)
+		ws, wsErr = newWebHookServer(config)
 
 	})
-	return ws, err
+	return ws, wsErr
 }
 
 func newWebHookServer(config *Config) (*webHookServer, error) {
@@ -81,12 +79,12 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	mutex.HandleFunc("/validating", ws.Validating)
 	ws.Server.Handler = mutex
 	ws.Config = config
-	ws.initProcessorChain()
 
 	err = ws.initPG()
 	if err != nil {
 		return nil, err
 	}
+	ws.initProcessorChain()
 
 	err = ws.loadHostCluster()
 	if err != nil {
@@ -111,6 +109,7 @@ func (s *webHookServer) Stop() {
 
 func getAdmissionReview(r *http.Request) (*v1.AdmissionReview, int) {
 	var body []byte
+	var err error
 	if r.Body != nil {
 		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -197,6 +196,7 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 
 func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 	var body []byte
+	var err error
 	if r.Body != nil {
 		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -277,8 +277,9 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *webHookServer) initProcessorChain() {
-	initValidatingChain(s.Config)
-	initMutatingChain(s.Config)
+	webHookConfig := &processors.WebHookConfig{RDB: s.rdb}
+	initValidatingChain(s.Config, webHookConfig)
+	initMutatingChain(s.Config, webHookConfig)
 }
 
 func (s *webHookServer) loadHostCluster() error {
@@ -286,27 +287,14 @@ func (s *webHookServer) loadHostCluster() error {
 	defer cancel()
 
 	cluster := model.TensorCluster{}
-	err := s.rdb.Get().WithContext(ctx).Where("name = ?", "default").First(&cluster).Error
+	err := s.rdb.WithContext(ctx).Where("name = ?", "default").First(&cluster).Error
 	s.HostClusterKey = cluster.Key
 	return err
 }
 
 func (s *webHookServer) initPG() error {
-	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(s.Config.PgAddr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(30)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxLifetime(time.Hour)
-		}
-		return db, nil
-	})
-	if err != nil {
+	postgresDB, err := databases.GetPostgresqlWithEnv(context.TODO())
+	if err != nil || postgresDB == nil {
 		logging.GetLogger().Err(err).Msg("Init postgre error")
 		return err
 	}
@@ -314,12 +302,14 @@ func (s *webHookServer) initPG() error {
 	return nil
 }
 
-func initValidatingChain(config *Config) {
-	vConfig := &processors.ValidatingConfig{IgnoredNameSpaces: config.IgnoredNameSpaces}
+func initValidatingChain(config *Config, webHookConfig *processors.WebHookConfig) {
+	vConfig := &processors.ValidatingConfig{
+		IgnoredNameSpaces: config.IgnoredNameSpaces,
+	}
 	processors.ValidationFilterChain = processors.NewValidatorChain(vConfig)
 
 	for _, processor := range config.Validators {
-		v := makeProcessor(processor)
+		v := makeProcessor(processor, webHookConfig)
 		if v != nil {
 			processors.ValidationFilterChain.AddValidator(v)
 		} else {
@@ -328,12 +318,12 @@ func initValidatingChain(config *Config) {
 	}
 }
 
-func initMutatingChain(config *Config) {
+func initMutatingChain(config *Config, webHookConfig *processors.WebHookConfig) {
 	processors.MutatorChain = processors.NewMutatorChain(&processors.MutatingConfig{
 		IgnoredNameSpaces: config.IgnoredNameSpaces,
 	})
 	for _, processor := range config.Mutators {
-		v := makeProcessor(processor)
+		v := makeProcessor(processor, webHookConfig)
 		if v != nil {
 			processors.MutatorChain.AddMutator(v)
 		} else {
@@ -342,7 +332,7 @@ func initMutatingChain(config *Config) {
 	}
 }
 
-func makeProcessor(name string) interface{} {
+func makeProcessor(name string, webHookConfig *processors.WebHookConfig) interface{} {
 	r, ok := processors.ProcessorRegistry[name]
 	if ok {
 		var va reflect.Value
@@ -352,7 +342,10 @@ func makeProcessor(name string) interface{} {
 			// find Init function
 			method := va.MethodByName("Init")
 			if method.IsValid() {
-				r := method.Call(nil)
+				params := make([]reflect.Value, 1)
+				params[0] = reflect.ValueOf(webHookConfig)
+				logging.GetLogger().Info().Msgf("Initilizing processor %s", name)
+				r := method.Call(params)
 				ret := r[0].Interface()
 
 				if ret != nil {

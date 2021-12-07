@@ -15,7 +15,7 @@ data:
       "ignored_name_spaces": [{{ .Values.sidecar.ignoredNameSpaces  | quote }},{{ .Release.Namespace | quote }}],
       "init_container_image": {{ include "webhook.sidecar.init.image" . | quote }},
       "container_image": {{ include "webhook.sidecar.image" . | quote }},
-      "image_pull_secrets": {{ .Values.image.pullSecret | quote }},
+      "image_pull_secrets": {{ .Values.image.pullSecret | quote }}
     }
   sidecar-template.yaml: |
 {{ .Files.Get "sidecar.yaml" | indent 4}}

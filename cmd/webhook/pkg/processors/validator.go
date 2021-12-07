@@ -3,11 +3,12 @@ package processors
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	app "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
-	"strings"
-	"time"
 )
 
 //var ProcessorRegistry = make(map[string]reflect.Type)
@@ -16,7 +17,7 @@ type PodValidator interface {
 	Validate(ctx context.Context, pod *core.Pod, parameters *ValidatingParameters) error
 	PreValidate(ctx context.Context, pod *core.Pod, parameters *ValidatingParameters) bool
 	Name() string
-	Init() error
+	Init(webHookConfig *WebHookConfig) error
 }
 
 type DeploymentValidator interface {
@@ -40,17 +41,13 @@ type ValidatingParameters struct {
 
 type ValidatingConfig struct {
 	IgnoredNameSpaces []string
+	//RDB *rdbtools.GormWrapper
 }
 
 var ValidationFilterChain *validatingChain
 
 func NewValidatorChain(config *ValidatingConfig) *validatingChain {
-	cf := &ValidatingConfig{
-		IgnoredNameSpaces: config.IgnoredNameSpaces,
-	}
-
-	cf.IgnoredNameSpaces = append(cf.IgnoredNameSpaces, "kube-system", "tensorsec")
-	return &validatingChain{validatingConfig: cf}
+	return &validatingChain{validatingConfig: config}
 }
 
 func (c *validatingChain) validatePod(ctx context.Context, pod *core.Pod, parameters *ValidatingParameters) error {

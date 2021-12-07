@@ -1,8 +1,10 @@
 package processors
 
 import (
-	flag "github.com/spf13/pflag"
 	"path/filepath"
+
+	flag "github.com/spf13/pflag"
+	"gorm.io/gorm"
 )
 
 const (
@@ -11,8 +13,8 @@ const (
 
 var ConfigBasePath string
 
-type ValidatorConfig struct {
-	ImageValidateServer string
+type WebHookConfig struct {
+	RDB *gorm.DB
 }
 
 func GetConfigFullPath(configFile string) string {

@@ -14,21 +14,21 @@ var MutatorChain *mutatorChain
 
 type PodMutator interface {
 	Name() string
-	Init() error
+	Init(webHookConfig *WebHookConfig) error
 	Mutate(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) []*Patch
 	PreMutate(ctx context.Context, pod *corev1.Pod, parameters *MutatorParameters) bool
 }
 
 type ConfigMapMutator interface {
 	Name() string
-	Init() error
+	Init(webHookConfig *WebHookConfig) error
 	Mutate(ctx context.Context, parameters *MutatorParameters, cm *corev1.ConfigMap) []*Patch
 	PreMutate(ctx context.Context, cm *corev1.ConfigMap, parameters *MutatorParameters) bool
 }
 
 type NamespaceMutator interface {
 	Name() string
-	Init() error
+	Init(webHookConfig *WebHookConfig) error
 	NamespaceMutate(ctx context.Context, parameters *MutatorParameters, ns *corev1.Namespace) []*Patch
 	PreNamespaceMutate(ctx context.Context, ns *corev1.Namespace, parameters *MutatorParameters) bool
 }

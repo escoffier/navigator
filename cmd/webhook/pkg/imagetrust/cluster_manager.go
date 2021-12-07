@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"sync"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
-	"sync"
-	"time"
 )
 
 var (
@@ -26,7 +27,7 @@ type ClusterManager struct {
 	clientMap        map[string]*kubernetes.Clientset
 	stopCh           map[string]chan struct{}
 	secretController map[string]Controller
-	rdb              *rdbtools.GormWrapper
+	rdb              *gorm.DB
 	sync.RWMutex
 }
 
@@ -52,14 +53,14 @@ func GetClusterManager() (*ClusterManager, bool) {
 	return instance, instance != nil
 }
 
-func InitClusterManager(postgre *rdbtools.GormWrapper) error {
+func InitClusterManager(postgre *gorm.DB) error {
 	rlOnce.Do(func() {
 		instance = newClusterManger(postgre)
 	})
 	return nil
 }
 
-func newClusterManger(postgre *rdbtools.GormWrapper) *ClusterManager {
+func newClusterManger(postgre *gorm.DB) *ClusterManager {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clsm := &ClusterManager{
@@ -97,7 +98,7 @@ func (m *ClusterManager) Stop() {
 func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 	m.Lock()
 	defer m.Unlock()
-	clusters, num, err := dal.GetClusters(ctx, m.rdb, 0, 1000)
+	clusters, num, err := m.GetClusters(m.rdb, 0, 1000)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("get cluster failed")
 		return err
@@ -170,7 +171,7 @@ func (m *ClusterManager) getClusterKeybyName(name string) (string, error) {
 	defer cancel()
 
 	cluster := model.TensorCluster{}
-	err := m.rdb.Get().WithContext(ctx).Where("name = ?", name).First(&cluster).Error
+	err := m.rdb.WithContext(ctx).Where("name = ?", name).First(&cluster).Error
 	return cluster.Key, err
 }
 
@@ -186,4 +187,21 @@ func (m *ClusterManager) syncK8sClient(clusters []*model.TensorCluster) {
 			delete(m.clientMap, k)
 		}
 	}
+}
+
+func (m *ClusterManager) GetClusters(rdb *gorm.DB, offset, limit int) (clusters []*model.TensorCluster, totalCnt int64, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		oneErr := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("key").Offset(offset).Limit(limit).Find(&clusters).Error
+		if oneErr != nil {
+			return oneErr
+		}
+		return rdb.WithContext(ctx).Model(&model.TensorCluster{}).Where("status = ?", 0).Count(&totalCnt).Error
+	})
+	return
 }
