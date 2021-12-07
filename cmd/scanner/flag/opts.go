@@ -11,7 +11,6 @@ var ScannerRunOpts ScannerOpts
 
 const (
 	httpListenAddr       = "http-listen-addr"
-	dbConnectStr         = "db-connect-str"
 	redisEndpoint        = "redis-endpoint"
 	redisPassword        = "redis-password"
 	parallelTaskNum      = "parallel-task-num"
@@ -26,7 +25,6 @@ const (
 // ScannerOpts the scanner options
 type ScannerOpts struct {
 	HttpListenAddr       string
-	DbConnectStr         string
 	RedisEndpoint        string
 	RedisPassword        string
 	ParallelTaskNum      int
@@ -42,7 +40,6 @@ type ScannerOpts struct {
 func NewDefaultScannerOpts() *ScannerOpts {
 	return &ScannerOpts{
 		HttpListenAddr:       ":8080",
-		DbConnectStr:         "postgres://postgres:password@localhost:5432/postgres",
 		RedisEndpoint:        "tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
 		RedisPassword:        "12345",
 		ParallelTaskNum:      2,
@@ -59,7 +56,6 @@ func NewDefaultScannerOpts() *ScannerOpts {
 func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 	return &ScannerOpts{
 		HttpListenAddr:       viper.GetString(httpListenAddr),
-		DbConnectStr:         viper.GetString(dbConnectStr),
 		RedisEndpoint:        viper.GetString(redisEndpoint),
 		RedisPassword:        viper.GetString(redisPassword),
 		ParallelTaskNum:      viper.GetInt(parallelTaskNum),
@@ -76,7 +72,6 @@ func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 func AddScannerFlags(cmd *cobra.Command) {
 	defaultOps := NewDefaultScannerOpts()
 	cmd.Flags().String(httpListenAddr, defaultOps.HttpListenAddr, "http listen address")
-	cmd.Flags().String(dbConnectStr, defaultOps.DbConnectStr, "db connection string")
 	cmd.Flags().String(redisEndpoint, defaultOps.RedisEndpoint, "redis remote address")
 	cmd.Flags().String(redisPassword, defaultOps.RedisPassword, "redis password")
 	cmd.Flags().Int(parallelTaskNum, defaultOps.ParallelTaskNum, "parallel task num")
@@ -89,7 +84,6 @@ func AddScannerFlags(cmd *cobra.Command) {
 
 	for _, flag := range []string{
 		httpListenAddr,
-		dbConnectStr,
 		redisEndpoint,
 		redisPassword,
 		parallelTaskNum,

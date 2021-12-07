@@ -1,19 +1,17 @@
 package store
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 var dbInitOnce sync.Once
@@ -23,25 +21,21 @@ var scannerDb *ScannerDB // todo: should be deprecated
 var scanConfigDao *ScanConfigDao
 var redisClients []*redis.Client = make([]*redis.Client, 2)
 
-func InitDb(dbConnectStr string) (err error) {
+func InitDb() (err error) {
 	dbInitOnce.Do(func() {
 		scannerGormWrapDb, err = rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-			return gorm.Open(postgres.Open(dbConnectStr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+			db, err := databases.GetPostgresqlWithEnv(context.Background(),
+				databases.OptionWithmaxOpenConnections(60),
+				databases.OptionWithMaxIdleConns(30),
+				databases.OptionWithConnMaxLifeTime(time.Hour),
+			)
+			return db, err
 		})
 		if err != nil {
 			err = fmt.Errorf("connect db err:%v", err)
 			return
 		}
-		var sqlDB *sql.DB
-		sqlDB, err = scannerGormWrapDb.Get().DB()
-		if err != nil {
-			err = fmt.Errorf("get db error:%v", err)
-			return
-		}
 
-		sqlDB.SetMaxIdleConns(30)
-		sqlDB.SetMaxOpenConns(60)
-		sqlDB.SetConnMaxLifetime(time.Hour)
 		scannerOrm = NewScannerOrm(scannerGormWrapDb)
 		scanConfigDao = NewScanConfigDao(scannerGormWrapDb)
 		// todo: should be deprecated

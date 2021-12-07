@@ -8,19 +8,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
-	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/clean-registry"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-	//_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/vulnDbUpdate"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
-	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/ti-update"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
@@ -32,10 +19,21 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/clean-registry"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -50,7 +48,7 @@ type Scanner struct {
 // NewScanner is to create a new Scanner struct.
 func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init db
-	if err := store.InitDb(opts.DbConnectStr); err != nil {
+	if err := store.InitDb(); err != nil {
 		logging.Get().Error().Err(err).Msg("connect db failed")
 		return nil, err
 	}
