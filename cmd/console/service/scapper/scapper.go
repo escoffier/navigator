@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -17,12 +15,14 @@ import (
 
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -195,7 +195,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 }
 
 func (s *Scapper) RunComplianceCheck(
-	ctx, rootCtx context.Context,
+	ctx context.Context,
 	clusterID string,
 	checkType model.ComplianceCheckType,
 	username string,
@@ -287,7 +287,7 @@ func (s *Scapper) RunComplianceCheck(
 		logging.GetLogger().Error().Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
 	}
 	// async context is rooted in application context
-	asyncCtx, _ := context.WithTimeout(rootCtx, checkTimeout)
+	asyncCtx, _ := context.WithTimeout(context.Background(), checkTimeout)
 	go s.asyncScheduleAndManageJobs(asyncCtx, kubeClient, &check, jobObj, nodes, scanHistory.ClusterName)
 
 	return checkUUID, nil

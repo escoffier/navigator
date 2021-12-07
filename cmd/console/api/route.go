@@ -16,20 +16,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
-
-var (
-	log *logging.Logger
-)
-
-func init() {
-	log = logging.GetLogger()
-}
 
 const (
 	InternalAPIURLPrefix = "/api/openapi"
@@ -53,9 +45,9 @@ func SetupRoutes(
 	// imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 ) {
-	log.Debug().Msg("setting up routes...")
+	logging.Get().Debug().Msg("setting up routes...")
 
-	api := newAPI(ctx,
+	api := newAPI(
 		tokenAuth,
 		postgresDB,
 		scannerURL,
@@ -165,7 +157,7 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) http.Ha
 			}
 
 			if err = sessionService.RefreshUserSession(ctx, username); err != nil {
-				logging.GetLogger().Err(err).Msgf("refresh session fail")
+				logging.Get().Err(err).Msgf("refresh session fail")
 			}
 
 			if userSession.Checked == false {

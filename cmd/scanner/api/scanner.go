@@ -13,14 +13,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type Scanner struct {
 	Srv component.ScannerSrv
-	log *logging.Logger
 }
 
 // TickOnlineScan
@@ -36,22 +35,22 @@ func (s *Scanner) TickOnlineScan(ctx *gin.Context) {
 	start := time.Now().UnixMicro()
 	containerInfo := make([]model.RejectOnlineMonitorImage, 0)
 	if err := ctx.BindJSON(&containerInfo); err != nil {
-		s.log.WithContext(ctx).Errorf(err, "BindJSON error")
+		logging.Get().WithContext(ctx).Errorf(err, "BindJSON error")
 		return
 	}
 	if len(containerInfo) == 0 {
-		s.log.WithContext(ctx).Infof("收到TickOnlineScan,空数据")
+		logging.Get().WithContext(ctx).Infof("收到TickOnlineScan,空数据")
 		return
 	}
 
-	logging.GetLogger().Debug().Msgf("收到TickOnlineScan,from_type:%s,image:%+v", containerInfo[0].FromType, containerInfo)
+	logging.Get().Debug().Msgf("收到TickOnlineScan,from_type:%s,image:%+v", containerInfo[0].FromType, containerInfo)
 	flag := s.Srv.TickOnlineScan(ctx, containerInfo)
 	type tmpRes struct {
 		Flag bool `json:"flag"`
 	}
 	res := tmpRes{}
 	res.Flag = flag
-	logging.GetLogger().Debug().Msgf("查询完成TickOnlineScan,from_type:%s,image:%s,safe:%t cast：%d", containerInfo[0].FromType, containerInfo[0].Image, res.Flag, time.Now().UnixMicro()-start)
+	logging.Get().Debug().Msgf("查询完成TickOnlineScan,from_type:%s,image:%s,safe:%t cast：%d", containerInfo[0].FromType, containerInfo[0].Image, res.Flag, time.Now().UnixMicro()-start)
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
@@ -251,7 +250,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 
 	go func() {
 		if err := s.Srv.ScanAllNow(ctx, scanInfo, search); err != nil {
-			log.Err(err).Msg("scan all error")
+			logging.Get().Err(err).Msg("scan all error")
 		}
 	}()
 
@@ -396,7 +395,7 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	s.log.WithContext(ctx).Infof("CICD 收到的请求,image:%s,Insecure:%t", tmp.Image, tmp.Insecure)
+	logging.Get().WithContext(ctx).Infof("CICD 收到的请求,image:%s,Insecure:%t", tmp.Image, tmp.Insecure)
 
 	hasHttp := strings.Contains(tmp.Image, "http://")
 	hasHttps := strings.Contains(tmp.Image, "https://")
@@ -556,7 +555,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		SpecialImageType: specialImageType,
 	}, filter)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("SearchImages Err")
+		logging.Get().Error().Err(err).Msgf("SearchImages Err")
 		response.JSONError(ctx, fmt.Errorf("SearchImages error"))
 		return
 	}
@@ -630,7 +629,6 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
 	return &Scanner{
 		Srv: srv,
-		log: logging.GetLogger(),
 	}
 }
 
@@ -676,7 +674,7 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 // @Router	/api/v1/images/app/:imageID/bases [get]
 func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
 	start := time.Now().UnixNano() / 1000
-	logging.GetLogger().Info().Msgf("ListBaseImageOfApp start:%d", start)
+	logging.Get().Info().Msgf("ListBaseImageOfApp start:%d", start)
 	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -693,7 +691,7 @@ func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
 	for i := range images {
 		res = append(res, model.ImageToImageResponse(images[i]))
 	}
-	logging.GetLogger().Info().Msgf("ListBaseImageOfApp end:%d,cost:%d", time.Now().UnixNano()/1000, time.Now().UnixNano()/1000-start)
+	logging.Get().Info().Msgf("ListBaseImageOfApp end:%d,cost:%d", time.Now().UnixNano()/1000, time.Now().UnixNano()/1000-start)
 	response.JSONOK(ctx, response.WithItems(res),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
@@ -741,7 +739,7 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 	for k := range policyStrs {
 		tmpId, err := strconv.ParseInt(policyStrs[k], 10, 64)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("ParseInt error SetEnvToStrategy")
+			logging.Get().Error().Err(err).Msgf("ParseInt error SetEnvToStrategy")
 		}
 		policyIds = append(policyIds, tmpId)
 	}
@@ -769,7 +767,7 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 // @Router	/api/v1/images/base/:imageID/apps [get]
 func (s *Scanner) ListBaseToAppImage(ctx *gin.Context) {
 	start := time.Now().UnixNano() / (1000 * 1000)
-	logging.GetLogger().Info().Msgf("ListAppImageOfBase start:%d", start)
+	logging.Get().Info().Msgf("ListAppImageOfBase start:%d", start)
 	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -786,7 +784,7 @@ func (s *Scanner) ListBaseToAppImage(ctx *gin.Context) {
 	for i := range images {
 		res = append(res, model.ImageToImageResponse(images[i]))
 	}
-	logging.GetLogger().Info().Msgf("ListAppImageOfBase end:%d,cost:%d", time.Now().UnixNano()/(1000*1000), time.Now().UnixNano()/(1000*1000)-start)
+	logging.Get().Info().Msgf("ListAppImageOfBase end:%d,cost:%d", time.Now().UnixNano()/(1000*1000), time.Now().UnixNano()/(1000*1000)-start)
 	response.JSONOK(ctx, response.WithItems(res),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),

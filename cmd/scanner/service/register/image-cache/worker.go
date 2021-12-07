@@ -11,7 +11,7 @@ import (
 	"time"
 
 	dig "github.com/opencontainers/go-digest"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -72,7 +72,7 @@ func (wg *WorkerGroup) startWorker() {
 		go func(i int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.GetLogger().Error().Msgf("image cache server worker error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("image cache server worker error : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 			defer wg.swg.Done()
@@ -82,7 +82,7 @@ func (wg *WorkerGroup) startWorker() {
 		go func(i int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.GetLogger().Error().Msgf("image cache server worker error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("image cache server worker error : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 			defer wg.swg.Done()
@@ -93,12 +93,12 @@ func (wg *WorkerGroup) startWorker() {
 }
 
 func (wg *WorkerGroup) workerManiRun(i int, swg *sync.WaitGroup) {
-	log.Info().Int("workerId", i).Msg("image cache worker manifest task running")
+	logging.Get().Info().Int("workerId", i).Msg("image cache worker manifest task running")
 	wg.workers[i].doManifestTask(swg)
 }
 
 func (wg *WorkerGroup) workerRun(i int, swg *sync.WaitGroup) {
-	log.Info().Int("workerId", i).Msg("image cache worker normal task running")
+	logging.Get().Info().Int("workerId", i).Msg("image cache worker normal task running")
 	wg.workers[i].doTask(swg)
 }
 
@@ -132,17 +132,16 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		// get to-pull task
 		task, err := w.llms.FindAndModifyPullTask()
 		if err != nil {
-			log.Error().Msgf("worker %d get task err.%v", w.id, err)
+			logging.Get().Err(err).Msgf("worker %d get task err", w.id)
 			continue
 		}
 
 		// not task available
 		if len(task.digest) == 0 {
-			// log.Info().Msg("not available task,try next time")
 			continue
 		}
 
-		log.Info().Msgf("worker %d get task url: %v, refCount:%v ,username:%v", w.id, task.url, task.refCount, task.username)
+		logging.Get().Info().Msgf("worker %d get task url: %v, refCount:%v ,username:%v", w.id, task.url, task.refCount, task.username)
 
 		if w.rc == nil {
 			// create registry client
@@ -150,17 +149,17 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 			if err != nil {
 				errMsg = fmt.Sprintf("download layer err,repo %s ,digest %s,err %v", task.repository, task.digest, err)
-				log.Error().Msgf("worker %d create registry client err:%s", w.id, errMsg)
+				logging.Get().Error().Msgf("worker %d create registry client err:%s", w.id, errMsg)
 
 				// reset task status,wait other worker pick it
 				err := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
 				if err != nil {
-					log.Error().Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl err:%s", w.id, err)
-				}
-				if err != nil {
+					logging.Get().Err(err).Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl", w.id)
 					err = w.llms.NotifyLayerPulled(task.digest)
+					if err != nil {
+						logging.Get().Err(err).Msgf("worker %d create registry client  NotifyLayerPulled err:%s", w.id, err)
+					}
 				}
-				log.Error().Msgf("worker %d create registry client  NotifyLayerPulled err:%s", w.id, err)
 
 				continue
 			}
@@ -178,17 +177,17 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		}
 		if err != nil {
 			errMsg = fmt.Sprintf("download layer err,repo %s ,digest %s,err %v", task.repository, task.digest, err)
-			log.Error().Msgf("worker %d pull task err:%s", w.id, errMsg)
+			logging.Get().Err(err).Msgf("worker %d pull task err:%s", w.id, errMsg)
 
 			// update task to pull err
 			err := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
 			if err != nil {
-				log.Error().Msgf("worker %d pull task UpdateTaskStatusAndLayerUrl err:%s", w.id, err)
-			}
-			if err != nil {
+				logging.Get().Err(err).Msgf("worker %d pull task UpdateTaskStatusAndLayerUrl", w.id)
 				err = w.llms.NotifyLayerPulled(task.digest)
+				if err != nil {
+					logging.Get().Err(err).Msgf("worker %d pull tasks  NotifyLayerPulled", w.id)
+				}
 			}
-			log.Error().Msgf("worker %d pull tasks  NotifyLayerPulled err:%s", w.id, err)
 			continue
 		}
 
@@ -198,21 +197,21 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		if err != nil {
 			inerr := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
 			if inerr != nil {
-				log.Error().Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl err:%s", w.id, inerr)
+				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl", w.id)
 			}
-			log.Error().Msgf("worker %d pull task err.repository %s,digest %s,err %v", w.id, task.repository, task.digest, err)
+			logging.Get().Err(err).Msgf("worker %d pull task err.repository %s,digest %s", w.id, task.repository, task.digest)
 		} else {
 			// update task to succeed
 			inerr := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, fullFilePath, LayerPulled)
 			if inerr != nil {
-				log.Error().Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl err:%s", w.id, inerr)
+				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl", w.id)
 			}
-			log.Info().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
+			logging.Get().Info().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
 		}
 		// notify layer pulled
 		err = w.llms.NotifyLayerPulled(task.digest)
 		if err != nil {
-			log.Error().Msgf("worker %d NotifyLayerPulled err.%v", w.id, err)
+			logging.Get().Err(err).Msgf("worker %d NotifyLayerPulled", w.id)
 		}
 	}
 
@@ -222,7 +221,7 @@ func (w *Worker) doManifestTask(wg *sync.WaitGroup) {
 	for { // nolint
 		select {
 		case task := <-w.llms.manifestList:
-			logging.GetLogger().Info().Msg("get manifest task")
+			logging.Get().Info().Msg("get manifest task")
 			w.saveManifest(task)
 		}
 	}
@@ -234,14 +233,14 @@ func (w *Worker) saveManifest(task RequestLayerInfo) {
 		err := w.createRegistryClient(task.Username, task.Password, task.Repository, task.Url, task.SkipTls)
 		// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("create registry client err")
+			logging.Get().Error().Err(err).Msg("create registry client err")
 			task.Response <- fmt.Sprintf("GetManifestError %v", err)
 			return
 		}
 	}
 	manifest, err := w.rc.readManifest(context.Background(), "v2", task.Repository, task.Tag)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("read manifest err")
+		logging.Get().Error().Err(err).Msg("read manifest err")
 		task.Response <- fmt.Sprintf("GetManifestError %v", err)
 		return
 	}
@@ -250,14 +249,14 @@ func (w *Worker) saveManifest(task RequestLayerInfo) {
 	fp = "FileServerCache/" + fp
 	err = os.MkdirAll(fp, 0777)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("manifestPath", fp).Msg("make manifest dir err")
+		logging.Get().Error().Err(err).Str("manifestPath", fp).Msg("make manifest dir err")
 		task.Response <- fmt.Sprintf("make manifest dir err %v", err)
 		return
 	}
 	fp = filepath.Join(fp, "manifest.json")
 	err = os.WriteFile(fp, manifest, 0600)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("write manifest.json err")
+		logging.Get().Error().Err(err).Msg("write manifest.json err")
 		task.Response <- fmt.Sprintf("write manifest json err %v", err)
 		return
 	}

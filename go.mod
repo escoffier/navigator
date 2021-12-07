@@ -3,8 +3,8 @@ module gitlab.com/piccolo_su/vegeta
 go 1.17
 
 require (
-	github.com/PuerkitoBio/goquery v1.6.0
-	github.com/ReneKroon/ttlcache/v2 v2.9.0
+	github.com/PuerkitoBio/goquery v1.8.0
+	github.com/ReneKroon/ttlcache/v2 v2.10.0
 	github.com/agnivade/levenshtein v1.1.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/armon/go-metrics v0.3.10 // indirect
@@ -79,13 +79,13 @@ require (
 	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/yeka/zip v0.0.0-20180914125537-d046722c6feb
-	gitlab.com/security-rd/go-pkg v0.1.9
+	gitlab.com/security-rd/go-pkg v0.1.10
 	go.mongodb.org/mongo-driver v1.7.4
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e // indirect
-	golang.org/x/net v0.0.0-20211205041911-012df41ee64c // indirect
+	golang.org/x/net v0.0.0-20211206223403-eba003a116a9 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211205182925-97ca703d548d
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
@@ -97,10 +97,10 @@ require (
 	gorm.io/datatypes v1.0.4
 	gorm.io/driver/postgres v1.2.3
 	gorm.io/gorm v1.22.4
-	k8s.io/api v0.19.12
-	k8s.io/apimachinery v0.19.12
-	k8s.io/apiserver v0.19.12
-	k8s.io/client-go v0.19.12
+	k8s.io/api v0.19.16
+	k8s.io/apimachinery v0.19.16
+	k8s.io/apiserver v0.19.16
+	k8s.io/client-go v0.19.16
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.0.0-20211013023834-4d8cd20c2071
 )
@@ -149,7 +149,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/VividCortex/ewma v1.1.1 // indirect
 	github.com/agext/levenshtein v1.2.2 // indirect
-	github.com/andybalholm/cascadia v1.1.0 // indirect
+	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/aquasecurity/go-dep-parser v0.0.0-20210520015931-0dd56983cc62 // indirect
@@ -316,8 +316,8 @@ require (
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect
 	moul.io/http2curl v1.0.0 // indirect
 	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20211012111105-ed1487f4c8a5 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.0.3 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-replace gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.9
+replace gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.10

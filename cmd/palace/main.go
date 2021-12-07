@@ -85,7 +85,7 @@ func initDB() error {
 	postgresDB, err := rdbtools.GormWrapperOpen(5*time.Second, func() (*gorm.DB, error) {
 		db, err := databases.GetPostgresqlWithEnv(context.Background())
 		if err != nil {
-			logging.GetLogger().Error().Msgf("postgresDB client init error :%v. pgDsn: %s", err, pgDsn)
+			logging.GetLogger().Err(err).Msgf("postgresDB client init error")
 			return nil, err
 		}
 		return db, nil

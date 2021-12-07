@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -28,7 +27,6 @@ import (
 )
 
 type api struct {
-	ctx         context.Context
 	tokenAuth   *jwtauth.JWTAuth
 	postgresDB  *rdbtools.GormWrapper
 	microsegURL string
@@ -49,7 +47,6 @@ type api struct {
 }
 
 func newAPI(
-	ctx context.Context,
 	tokenAuth *jwtauth.JWTAuth,
 	postgresDB *rdbtools.GormWrapper,
 	scannerURL string,
@@ -68,7 +65,6 @@ func newAPI(
 	}
 
 	return &api{
-		ctx:                         ctx,
 		tokenAuth:                   tokenAuth,
 		postgresDB:                  postgresDB,
 		scannerURL:                  scannerURL,
@@ -82,13 +78,6 @@ func newAPI(
 		emailOpts:                   emailOpts,
 		ecCli:                       ecCli,
 	}
-}
-
-func (api *api) getTimeoutCtx(timeout ...time.Duration) (context.Context, context.CancelFunc) {
-	if timeout == nil {
-		return context.WithTimeout(api.ctx, 10*time.Second)
-	}
-	return context.WithTimeout(api.ctx, timeout[0])
 }
 
 func (api *api) getOffsetAndLimit(r *http.Request) (int64, int64) {

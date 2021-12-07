@@ -13,8 +13,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // Add support for older version of docker
@@ -36,7 +36,7 @@ func createDockerClient() (client.APIClient, error) {
 func saveDockerImage(ctx context.Context, imageName string, tmpPath string) (imageID string, layerIds []string, err error) {
 	var imageNameStr = strings.Split(imageName, ":")
 
-	log.Info().Str("fs-path", tmpPath).Str("image", imageName).Msgf("Pulling docker image")
+	logging.Get().Info().Str("fs-path", tmpPath).Str("image", imageName).Msgf("Pulling docker image")
 	if len(imageNameStr) != 2 {
 		err = errors.New("[DOCKER-PULL] image name format error")
 		return
@@ -50,7 +50,7 @@ func saveDockerImage(ctx context.Context, imageName string, tmpPath string) (ima
 	imageReader, err := docker.ImageSave(ctx, []string{imageName})
 	// TODO check for image not found error specifically, not just all errors:
 	if err != nil {
-		log.Info().Err(err).Msg("Error when trying to save image - trying to pull")
+		logging.Get().Info().Err(err).Msg("Error when trying to save image - trying to pull")
 
 		var imagePull io.ReadCloser
 		imagePull, err = docker.ImagePull(ctx, imageName, types.ImagePullOptions{})

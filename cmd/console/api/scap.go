@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"math"
 	"net/http"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // for open API
@@ -488,7 +488,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		}
 
 		scapper, _ := scapper.GetScapper(ctx)
-		checkUUID, err := scapper.RunComplianceCheck(ctx, api.ctx, clusterKey, checkType, username)
+		checkUUID, err := scapper.RunComplianceCheck(ctx, clusterKey, checkType, username)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 			return
@@ -612,7 +612,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		} else {
 			//run export file task
 			scapper, _ := scapper.GetScapper(ctx)
-			go scapper.RunExportFileTask(api.ctx, &task, language)
+			go scapper.RunExportFileTask(ctx, &task, language)
 		}
 
 		response.Ok(w, response.WithExportFileStatus(task.Status))

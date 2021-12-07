@@ -5,58 +5,39 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/clean-registry"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
-
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	//_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/vulnDbUpdate"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
-
 	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/ti-update"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
-
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
-
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
-	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
-
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
-
-var (
-	log *logging.Logger
-)
-
-func init() {
-	log = logging.GetLogger()
-}
 
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
@@ -70,13 +51,13 @@ type Scanner struct {
 func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init db
 	if err := store.InitDb(opts.DbConnectStr); err != nil {
-		log.Error().Err(err).Msg("connect db failed")
+		logging.Get().Error().Err(err).Msg("connect db failed")
 		return nil, err
 	}
 
 	// init redis client
 	if err := store.InitRedisClient(opts.RedisEndpoint, opts.RedisPassword); err != nil {
-		log.Error().Err(err).Msgf("connect redis failed,%v,%v", opts.RedisPassword, opts.RedisEndpoint)
+		logging.Get().Error().Err(err).Msgf("connect redis failed,%v,%v", opts.RedisPassword, opts.RedisEndpoint)
 		return nil, err
 	}
 
@@ -87,7 +68,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
 	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl)
 	if err := dbInit.Init(context.Background()); err != nil {
-		log.Error().Err(err).Msg("db init policy err")
+		logging.Get().Err(err).Msg("db init policy err")
 		return nil, err
 	}
 
@@ -100,7 +81,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 
 // Run is to run the service.
 func (s *Scanner) Run() func() {
-	log.Info().Msg("scanner started")
+	logging.Get().Info().Msg("scanner started")
 
 	// create all register services
 	s.CreateService()
@@ -118,7 +99,7 @@ func (s *Scanner) Run() func() {
 		flowEngine := engine.NewSequenceEngine(config, nil)
 		err := flowEngine.Run(context.Background())
 		if err != nil {
-			log.Error().Err(err).Msg("engine run err")
+			logging.Get().Error().Err(err).Msg("engine run err")
 		}
 	}()
 
@@ -126,7 +107,7 @@ func (s *Scanner) Run() func() {
 
 		s.StopServices(context.Background())
 
-		log.Info().Msg("scanner stopped")
+		logging.Get().Info().Msg("scanner stopped")
 	}
 }
 
@@ -139,14 +120,14 @@ func (s *Scanner) CreateService() {
 		}
 		srv, err := register.Open(config)
 		if err != nil {
-			log.Error().Err(err).Str("type", k).Msg("create service err")
+			logging.Get().Error().Err(err).Str("type", k).Msg("create service err")
 			continue
 		}
-		log.Info().Str("type", k).Msg("create service ok")
+		logging.Get().Info().Str("type", k).Msg("create service ok")
 		s.servicesList[k] = srv
 	}
 
-	log.Info().Msg("all service created")
+	logging.Get().Info().Msg("all service created")
 }
 
 func (s *Scanner) StartServices() {
@@ -155,35 +136,35 @@ func (s *Scanner) StartServices() {
 		go func(serviceName string) {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Error().Msgf("scanner service error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("scanner service error : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 
-			log.Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
+			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
 			err := s.servicesList[serviceName].Start(context.Background())
 			if err != nil {
-				log.Error().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
+				logging.Get().Error().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
 			}
 		}(name)
 	}
 
-	log.Info().Msg("all service started")
+	logging.Get().Info().Msg("all service started")
 }
 
 func (s *Scanner) StopServices(ctx context.Context) {
 	for name, srv := range s.servicesList {
 		err := srv.Stop(ctx)
 		if err != nil {
-			log.Error().Err(err).Str("serviceName", name).Msg("scanner service stop err")
+			logging.Get().Error().Err(err).Str("serviceName", name).Msg("scanner service stop err")
 		} else {
-			log.Info().Str("serviceName", name).Msg("scanner service stop ok")
+			logging.Get().Info().Str("serviceName", name).Msg("scanner service stop ok")
 		}
 	}
 }
 
 func (s *Scanner) DumpServices() {
 	for name := range s.servicesList {
-		log.Info().Str("serviceName", name).Msg("scanner created service")
+		logging.Get().Info().Str("serviceName", name).Msg("scanner created service")
 	}
 }
 

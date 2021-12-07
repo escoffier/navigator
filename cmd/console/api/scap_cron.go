@@ -102,7 +102,7 @@ func (api *api) putCron() http.HandlerFunc {
 		}
 
 		cronService, _ := cron.Get(ctx)
-		err = cronService.UpdateCron(api.ctx, clusterID, checkType, req.NewCronString)
+		err = cronService.UpdateCron(ctx, clusterID, checkType, req.NewCronString)
 		if err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("Failed to update cron: %w", err))
 			return

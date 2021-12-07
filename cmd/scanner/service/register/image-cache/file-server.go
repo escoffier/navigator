@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -20,10 +20,6 @@ const (
 	DataDir           = "data"
 )
 
-var (
-	log *logging.Logger
-)
-
 type FileServer struct {
 	ctx            context.Context
 	rootPath       string
@@ -32,10 +28,6 @@ type FileServer struct {
 	externalIp     string
 	server         *http.Server
 	serverRootPath string // actual server root path: /tmp/xxx
-}
-
-func init() {
-	log = logging.GetLogger()
 }
 
 func NewFileServer(ctx context.Context, rootPath, externalIp, serverIp string, port int) (*FileServer, error) {
@@ -100,13 +92,13 @@ func (fs *FileServer) StartFileServer() error {
 	go func() {
 		if err := fs.server.ListenAndServe(); err != nil {
 			if err != nil {
-				log.Error().Msgf("file server start err %v", err)
+				logging.Get().Error().Msgf("file server start err %v", err)
 			}
 		}
 	}()
 	// It takes some time to open the port, just to be sure we wait a bit
 	time.Sleep(100 * time.Millisecond)
-	log.Info().Msgf("image cache external file server listen on port %d", fs.port)
+	logging.Get().Info().Msgf("image cache external file server listen on port %d", fs.port)
 	return nil
 }
 
@@ -114,7 +106,7 @@ func (fs *FileServer) StopFileServer() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := fs.server.Shutdown(ctx); err != nil {
-		log.Error().
+		logging.Get().Error().
 			Err(err).
 			Msg("error in shutting down HTTP server")
 		return err
@@ -148,7 +140,7 @@ func (fs *FileServer) SaveFile(digest string, r io.ReadCloser) (string, error) {
 	}
 
 	fullFilePath := filepath.Join(fp, LayerFileName)
-	log.Info().Msgf("save file %s,digest %s,server root path %s,fp %s", fullFilePath, digest, fs.serverRootPath, fp)
+	logging.Get().Info().Msgf("save file %s,digest %s,server root path %s,fp %s", fullFilePath, digest, fs.serverRootPath, fp)
 	outFile, err := os.Create(fullFilePath)
 	defer func() { outFile.Close() }()
 	if err != nil {
@@ -172,7 +164,7 @@ func (fs *FileServer) DeleteFile(digest string) error {
 
 	// only delete file,not directory
 	err := os.RemoveAll(fullFilePath)
-	log.Info().Msgf("remove file %s,err %v", fullFilePath, err)
+	logging.Get().Info().Msgf("remove file %s,err %v", fullFilePath, err)
 	if err != nil {
 		return fmt.Errorf("remove layer file :%s err %v", fullFilePath, err)
 	}
