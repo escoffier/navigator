@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/api"
-
 	"github.com/gin-gonic/gin"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 

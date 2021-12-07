@@ -23,13 +23,25 @@ spec:
       {{- end }}
       containers:
         - args:
-          - -db-connect-str={{ include "common.pgpool.DSN" . }}
           - -interval={{ .Values.scanreport.interval }}
           - -host={{ .Values.global.consoleExternalAdd }}
           - -email-user={{ .Values.scanreport.emailCheck.smtpUsername }}
           - -email-host={{ .Values.scanreport.emailCheck.smtpHost }}
           - -email-port={{ .Values.scanreport.emailCheck.smtpPort }}
-          - -email-passwd={{ .Values.scanreport.emailCheck.smtpPassword }}
+          env:
+          - name: RDB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "common.postgresql.defaultName" . }}
+                key: postgresql-password
+          - name: EMAIL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: common-secret
+                key: SMTP_PASSWORD
+          envFrom:
+          - configMapRef:
+              name: common-env
           command:
           - ./scan_report
           name: scan-report

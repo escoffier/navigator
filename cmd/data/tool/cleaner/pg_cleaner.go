@@ -104,15 +104,15 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.PGDumpItem,
 
 func psqlCopy(ctx context.Context, table *conf.PGDumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	cmd := exec.CommandContext(ctx, "psql",
-		"-h", util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		"-U", util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		"-d", util.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
+		"-h", util.GetEnvWithDefault(env.RDBHost, env.DefaultRDBHost),
+		"-U", util.GetEnvWithDefault(env.RDBUser, env.DefaultRDBUser),
+		"-d", util.GetEnvWithDefault(env.RDBDBName, env.DefaultRDBDBName),
 		"-c", fmt.Sprintf("\\copy (delete from %s where %s in (select %s from %s where %s < '%s' %s order by %s asc limit %d) returning *) TO '%s'",
 			table.Name, getPrimaryKeyGroup(table), getPrimaryKeyColumns(table), table.Name, table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), getClearCondition(table), table.TimeField, table.Batch, tmpPath),
 	)
 
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", util.GetEnvWithDefault(env.PostgresPassword, "")))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", util.GetEnvWithDefault(env.RDBPassword, "")))
 
 	logging.GetLogger().Info().Msgf("execute psql cmd:%s", cmd.String())
 	stdout, stderr, err := util.ExecuteCmd(cmd)

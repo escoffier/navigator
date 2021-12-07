@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+	"os"
 	"time"
 
-	"github.com/pkg/errors"
-	"gorm.io/driver/postgres"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -29,13 +30,11 @@ var (
 )
 
 var (
-	DefaultEmailPassword = "r8UJgg7ejpSoDOAF"
-	DefaultEmailUser     = "console-robot@tensorsecurity.cn"
+	DefaultEmailUser = "console-robot@tensorsecurity.cn"
 )
 
 func init() {
 	flag.DurationVar(&internal, "interval", 5*time.Minute, "job interval")
-	flag.StringVar(&dbStr, "db-connect-str", "", "db address")
 	flag.BoolVar(&debug, "debug", false, "debug model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
 
@@ -44,17 +43,13 @@ func init() {
 	flag.StringVar(&emailHost, "email-host", "smtp.feishu.cn", "email host")
 	flag.IntVar(&emailPort, "email-port", 465, "email port")
 	flag.StringVar(&emailUser, "email-user", "", "email user")
-	flag.StringVar(&emailPasswd, "email-passwd", "", "email password")
 }
 
 func main() {
 	flag.Parse()
-	if dbStr == "" {
-		log.Fatal("db-connect-str can't be empty")
-	}
 
-	if emailPasswd == "" {
-		emailPasswd = DefaultEmailPassword
+	if emailPasswd = os.Getenv("EMAIL_PASSWORD"); emailPasswd == "" {
+		log.Fatal("unset `EMAIL_PASSWORD` environment variable")
 	}
 
 	if emailUser == "" {
@@ -67,21 +62,12 @@ func main() {
 	}
 
 	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-
-		db, err := gorm.Open(postgres.Open(dbStr), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+		db, err := databases.GetPostgresqlWithEnv(context.Background())
 		if err != nil {
 			return nil, err
 		}
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, errors.Wrap(err, "set connection params error")
-		}
-		sqlDB.SetMaxOpenConns(30)
-		sqlDB.SetMaxIdleConns(5)
-		sqlDB.SetConnMaxLifetime(time.Hour)
-
 		if debug {
-			db = db.Debug()
+			db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Info)})
 		}
 
 		return db, nil

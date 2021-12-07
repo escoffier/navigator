@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-env
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+data:
+  RDB_USER: {{ .Values.postgres.username | quote }}
+  RDB_HOST: {{ include "common.pgpool.defaultName" . | quote }}
+  RDB_PORT: {{ .Values.postgres.port | quote }}
+  RDB_DBNAME: {{ .Values.postgres.dbName | quote }}
+  RDB_SSLMODE: {{ .Values.postgres.sslMode |quote }}

@@ -19,15 +19,10 @@ const (
 	EmailPassword        = "EMAIL_PASSWORD"
 	DefaultEmailPassword = "r8UJgg7ejpSoDOAF"
 
-	PostgresHost           = "PGSQL_HOST"
-	DefaultPostgresHost    = "tensorsec-postgresql"
-	PostgresUser           = "PGSQL_USER"
-	DefaultPostgresUser    = "postgres"
-	PostgresDBName         = "PGSQL_DBNAME"
-	DefaultPostgresDBName  = "postgres"
-	PostgresSSLMode        = "PGSQL_SSL_MODE"
-	DefaultPostgresSSLMode = "disable"
-	PostgresPassword       = "PGSQL_PASSWORD"
-	PostgresPort           = "PGSQL_PORT"
-	DefaultPostgresPort    = 5432
+	RDBHost     = "RDB_HOST"
+	RDBUser     = "RDB_USER"
+	RDBDBName   = "RDB_DBNAME"
+	RDBSSLMode  = "RDB_SSLMODE"
+	RDBPassword = "RDB_PASSWORD"
+	RDBPort     = "RDB_PORT"
 )

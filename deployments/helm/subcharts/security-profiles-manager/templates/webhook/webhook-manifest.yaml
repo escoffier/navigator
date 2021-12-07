@@ -139,7 +139,6 @@ spec:
         - --cert=/etc/certs/tls.crt
         - --key=/etc/certs/tls.key
         - --port=8443
-        - --console-postgres={{ include "common.pgpool.DSN" . }}
         volumeMounts:
         - name: config
           mountPath: /etc/config
@@ -154,6 +153,14 @@ spec:
               fieldPath: metadata.namespace
         - name: PRE119
           value: "false"
+        - name: RDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "common.postgresql.defaultName" . }}
+              key: postgresql-password
+        envFrom:
+        - configMapRef:
+            name: common-env
         resources:
 {{ toYaml .Values.webhook.resources | trim | indent 10 }}
       volumes:

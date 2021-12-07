@@ -554,7 +554,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/kube-scanner-report:latest
 	docker rmi $(REPOPREFIX)/scan-report:latest
 	docker rmi $(REPOPREFIX)/apiscan-job:latest
-    docker rmi $(REPOPREFIX)/platform-report:latest
+	docker rmi $(REPOPREFIX)/platform-report:latest
 
 .PHONY: retag
 retag:

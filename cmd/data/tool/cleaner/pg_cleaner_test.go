@@ -28,11 +28,11 @@ func initPGCleanerRequirement(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
 	var envVars = map[string]string{
-		env.PostgresHost:     "localhost",
-		env.PostgresUser:     "pguser",
-		env.PostgresDBName:   "tensorsecurity",
-		env.PostgresSSLMode:  "disable",
-		env.PostgresPassword: "pgpassword",
+		env.RDBHost:     "localhost",
+		env.RDBUser:     "pguser",
+		env.RDBDBName:   "tensorsecurity",
+		env.RDBSSLMode:  "disable",
+		env.RDBPassword: "pgpassword",
 	}
 
 	for key, val := range envVars {
@@ -42,11 +42,11 @@ func initPGCleanerRequirement(t *testing.T) {
 	}
 
 	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		util2.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
-		util2.GetEnvWithDefault(env.PostgresPassword, ""),
+		util2.GetEnvWithDefault(env.RDBHost, env.DefaultRDBHost),
+		util2.GetEnvWithDefault(env.RDBUser, env.DefaultRDBUser),
+		util2.GetEnvWithDefault(env.RDBDBName, env.DefaultRDBDBName),
+		util2.GetEnvWithDefault(env.RDBSSLMode, env.DefaultRDBSSLMode),
+		util2.GetEnvWithDefault(env.RDBPassword, ""),
 	)
 
 	var err error
@@ -162,13 +162,13 @@ func TestRestore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "psql",
-		"-h", util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		"-U", util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		"-d", util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
+		"-h", util2.GetEnvWithDefault(env.RDBHost, env.DefaultRDBHost),
+		"-U", util2.GetEnvWithDefault(env.RDBUser, env.DefaultRDBUser),
+		"-d", util2.GetEnvWithDefault(env.RDBDBName, env.DefaultRDBDBName),
 		"-c", fmt.Sprintf("\\copy tests from '%s'", dumpPath),
 	)
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "PGPASSWORD=%s", util2.GetEnvWithDefault(env.PostgresPassword, ""))
+	cmd.Env = append(cmd.Env, "PGPASSWORD=%s", util2.GetEnvWithDefault(env.RDBPassword, ""))
 	stdout, stderr, err := util2.ExecuteCmd(cmd)
 	if err != nil {
 		t.Log(stderr)

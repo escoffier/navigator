@@ -23,12 +23,20 @@ spec:
         {{- if .Values.global.multiCluster.isMainCluster }}
         - --validators={{ .Values.validators }}
         - --mutators={{ .Values.mutators }}
-        - --pgAddr={{ include "common.pgpool.DSN" . }}
         {{- else if .Values.global.multiCluster.isMemberCluster }}
         - proxy
         - --target-host={{ .Values.global.multiCluster.configs.consoleExternalAdd }}
         - --clusterMgrAddress=http://{{ include "common.cluster-manager.defaultName" . }}:9443
         {{- end }}
+        env:
+        - name: RDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "common.postgresql.defaultName" . }}
+              key: postgresql-password
+        envFrom:
+        - configMapRef:
+            name: common-env
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}
         volumeMounts:

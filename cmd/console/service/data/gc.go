@@ -121,28 +121,28 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 	}
 
 	pgHostEnv := coreV1.EnvVar{
-		Name:  env.PostgresHost,
-		Value: util.GetEnvWithDefault(env.PostgresHost, ""),
+		Name:  env.RDBHost,
+		Value: util.GetEnvWithDefault(env.RDBHost, ""),
 	}
 
 	pgPortEnv := coreV1.EnvVar{
-		Name:  env.PostgresPort,
-		Value: util.GetEnvWithDefault(env.PostgresPort, ""),
+		Name:  env.RDBPort,
+		Value: util.GetEnvWithDefault(env.RDBPort, ""),
 	}
 
 	pgUserEnv := coreV1.EnvVar{
-		Name:  env.PostgresUser,
-		Value: util.GetEnvWithDefault(env.PostgresUser, ""),
+		Name:  env.RDBUser,
+		Value: util.GetEnvWithDefault(env.RDBUser, ""),
 	}
 
 	pgPasswordEnv := coreV1.EnvVar{
-		Name:  env.PostgresPassword,
-		Value: util.GetEnvWithDefault(env.PostgresPassword, ""),
+		Name:  env.RDBPassword,
+		Value: util.GetEnvWithDefault(env.RDBPassword, ""),
 	}
 
 	pgSSLModeEnv := coreV1.EnvVar{
-		Name:  env.PostgresSSLMode,
-		Value: util.GetEnvWithDefault(env.PostgresSSLMode, ""),
+		Name:  env.RDBSSLMode,
+		Value: util.GetEnvWithDefault(env.RDBSSLMode, ""),
 	}
 
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, taskIDEnv, ttlEnv,

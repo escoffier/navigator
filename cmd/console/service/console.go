@@ -48,13 +48,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -154,17 +153,11 @@ func NewConsole(
 	}
 
 	PgDsn := postgresOpts.PostgresConnectionString
-	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(PgDsn), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+	postgresDB, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
+		db, err := databases.GetPostgresqlWithEnv(context.Background())
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(30)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxLifetime(time.Hour)
 		}
 		return db, nil
 	})

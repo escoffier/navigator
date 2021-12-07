@@ -16,6 +16,12 @@ import (
 
 	"github.com/avast/retry-go"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -23,12 +29,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 const (
@@ -72,28 +72,13 @@ func main() {
 
 	namespace = util.GetEnvWithDefault(namespaceEnv, defaultNamespace)
 	podName = util.GetEnvWithDefault(podNameEnv, defaultPodName)
-	rdbUser := os.Getenv("RDB_USER")
-	rdbPassword := os.Getenv("RDB_PASSWORD")
-	rdbHost := os.Getenv("RDB_HOST")
-	rdbPort := os.Getenv("RDB_PORT")
-	rdbDBName := os.Getenv("RDB_DBNAME")
-	rdbSSLMode := os.Getenv("RDB_SSLMODE")
-	if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
-		log.Fatal(errors.New("missing rdb envs"))
-	}
-
-	pgDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", rdbUser, rdbPassword, rdbHost, rdbPort, rdbDBName, rdbSSLMode)
 	psql, err = rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(pgDSN), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		db, err := databases.GetPostgresqlWithEnv(ctx)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(30)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxLifetime(time.Hour)
 		}
 		return db, nil
 	})

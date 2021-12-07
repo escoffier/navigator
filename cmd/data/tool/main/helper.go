@@ -5,23 +5,28 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
+
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	util2 "gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s port=%d",
-		util2.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		util2.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		util2.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		util2.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
-		util2.GetEnvWithDefault(env.PostgresPassword, ""),
-		util2.GetIntValWithDefault(env.PostgresPort, env.DefaultPostgresPort),
-	)
-	return rdbtools.NewPostgresClient(postgresqlDSN)
+	return rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		db, err := databases.GetPostgresqlWithEnv(ctx)
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			return nil, err
+		}
+		return db, nil
+	})
 }
 
 func getTaskID(ctx context.Context, manager def.TaskManager, taskType def.GCTaskType) (string, error) {

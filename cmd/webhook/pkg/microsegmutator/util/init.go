@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"os"
 
 	"gorm.io/gorm/logger"
 
@@ -18,10 +19,19 @@ type PGMaster struct {
 	Port     int    `mapstructure:"port"`
 }
 
-func InitPGDB(dbcfg PGMaster) (*gorm.DB, error) {
+func InitPGDB() (*gorm.DB, error) {
+	rdbUser := os.Getenv("RDB_USER")
+	rdbPassword := os.Getenv("RDB_PASSWORD")
+	rdbHost := os.Getenv("RDB_HOST")
+	rdbPort := os.Getenv("RDB_PORT")
+	rdbDBName := os.Getenv("RDB_DBNAME")
+	rdbSSLMode := os.Getenv("RDB_SSLMODE")
+	if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
+		return nil, errors.New("missing RDB env")
+	}
 	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai",
-		dbcfg.Host, dbcfg.User, dbcfg.Password, dbcfg.DBName, dbcfg.Port,
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Shanghai",
+		rdbHost, rdbUser, rdbPassword, rdbDBName, rdbPort, rdbSSLMode,
 	)
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN: dsn,

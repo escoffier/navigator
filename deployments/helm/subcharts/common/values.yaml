@@ -1,1 +1,10 @@
 exampleValue: common-chart
+
+postgres:
+  username: postgres
+  port: "5432"
+  dbName: postgres
+  sslMode: disable
+
+email:
+  smtpPassword: password

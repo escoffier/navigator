@@ -32,6 +32,9 @@ global:
       stanExternalPort: 30422
       
       
+common:
+  email:
+    smtpPassword: password
 
 console:
   enabled: *isMainCluster
@@ -63,7 +66,6 @@ console:
     smtpHost: smtp.feishu.cn
     smtpPort: 465
     smtpUsername: console-robot@example.com
-    smtpPassword: password
   version:
     softName: ManagerPlatform
     softVersion: v1.9

@@ -33,7 +33,7 @@ func main() {
 	port := 8080
 	certFile := "/etc/webhook/certs/cert.pem"
 	keyFile := "/etc/webhook/certs/key.pem"
-	var dbConnectionString string
+	// var dbConnectionString string
 	var secProfManagerEndpoint string
 
 	var c *rest.Config
@@ -56,8 +56,20 @@ func main() {
 				panic(err.Error())
 			}
 
+			rdbUser := os.Getenv("RDB_USER")
+			rdbPassword := os.Getenv("RDB_PASSWORD")
+			rdbHost := os.Getenv("RDB_HOST")
+			rdbPort := os.Getenv("RDB_PORT")
+			rdbDBName := os.Getenv("RDB_DBNAME")
+			rdbSSLMode := os.Getenv("RDB_SSLMODE")
+			if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
+				logging.GetLogger().Error().Msg("RDB_* env variables are not set")
+				return
+			}
+			pgDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", rdbUser, rdbPassword, rdbHost, rdbPort, rdbDBName, rdbSSLMode)
+
 			db, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-				db, err := gorm.Open(postgres.Open(dbConnectionString), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+				db, err := gorm.Open(postgres.Open(pgDSN), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 				if err != nil {
 					logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 					return nil, err
@@ -108,7 +120,6 @@ func main() {
 	flags.DurationVar(&reloadInterval, "reload-interval", reloadInterval, "(optional) specify the duration between reloads on success")
 	flags.StringVar(&certFile, "cert", certFile, "(optional) file containing the x509 Certificate for HTTPS")
 	flags.StringVar(&keyFile, "key", keyFile, "(optional) file containing the x509 private key to --cert")
-	flags.StringVar(&dbConnectionString, "console-postgres", dbConnectionString, "Postgresql connection string")
 
 	if err := cmd.Execute(); err != nil {
 		panic(err.Error())
