@@ -109,28 +109,33 @@ func (s *Service) completeJobInfo(job *batchV1.Job, arg *jobArg) error {
 	}
 
 	pgHostEnv := coreV1.EnvVar{
-		Name:  env.PostgresHost,
-		Value: util.GetEnvWithDefault(env.PostgresHost, ""),
+		Name:  env.RDBHost,
+		Value: util.GetEnvWithDefault(env.RDBHost, ""),
 	}
 
 	pgPortEnv := coreV1.EnvVar{
-		Name:  env.PostgresPort,
-		Value: util.GetEnvWithDefault(env.PostgresPort, ""),
+		Name:  env.RDBPort,
+		Value: util.GetEnvWithDefault(env.RDBPort, ""),
 	}
 
 	pgUserEnv := coreV1.EnvVar{
-		Name:  env.PostgresUser,
-		Value: util.GetEnvWithDefault(env.PostgresUser, ""),
+		Name:  env.RDBUser,
+		Value: util.GetEnvWithDefault(env.RDBUser, ""),
 	}
 
 	pgPasswordEnv := coreV1.EnvVar{
-		Name:  env.PostgresPassword,
-		Value: util.GetEnvWithDefault(env.PostgresPassword, ""),
+		Name:  env.RDBPassword,
+		Value: util.GetEnvWithDefault(env.RDBPassword, ""),
+	}
+
+	pgDBNameEnv := coreV1.EnvVar{
+		Name:  env.RDBDBName,
+		Value: util.GetEnvWithDefault(env.RDBDBName, ""),
 	}
 
 	pgSSLModeEnv := coreV1.EnvVar{
-		Name:  env.PostgresSSLMode,
-		Value: util.GetEnvWithDefault(env.PostgresSSLMode, ""),
+		Name:  env.RDBSSLMode,
+		Value: util.GetEnvWithDefault(env.RDBSSLMode, ""),
 	}
 
 	emailHostEnv := coreV1.EnvVar{
@@ -172,7 +177,7 @@ func (s *Service) completeJobInfo(job *batchV1.Job, arg *jobArg) error {
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env,
 		uuidEnv, taskIDEnv, startTimestampEnv, endTimestampEnv, maxTaskTimeEnv,
 		emailOfficialNameEnv, emailHostEnv, emailPortEnv, emailUsernameEnv, emailPasswordEnv, notifyBaseURLEnv,
-		pgHostEnv, pgPortEnv, pgUserEnv, pgPasswordEnv, pgSSLModeEnv)
+		pgHostEnv, pgPortEnv, pgUserEnv, pgPasswordEnv, pgDBNameEnv, pgSSLModeEnv)
 	return nil
 }
 

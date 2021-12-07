@@ -107,7 +107,6 @@ emailCheck:
   smtpHost: smtp.feishu.cn
   smtpPort: 465
   smtpUsername: console-robot@example.com
-  smtpPassword: password
   
 
 
@@ -173,9 +172,6 @@ elasticsearch:
 
 postgresql:
   postgresqlDataDir: /bitnami/postgresql/data
-  postgresqlUsername: postgres
-  postgresqlPassword: password
-  postgresqlDatabase: postgres
 
 imagePullSecret:
   imageRegistryURL: https://192.168.1.152:30003

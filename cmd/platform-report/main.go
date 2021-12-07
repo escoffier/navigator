@@ -7,12 +7,15 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/reporter"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/taskmanager"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -199,14 +202,14 @@ func finishTask(ctx context.Context, templateID int32, uuid string, content []by
 }
 
 func newDBFromEnv() (*rdbtools.GormWrapper, error) {
-	postgresqlDSN := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=%s password=%s",
-		util.GetEnvWithDefault(env.PostgresHost, env.DefaultPostgresHost),
-		util.GetIntValWithDefault(env.PostgresPort, env.DefaultPostgresPort),
-		util.GetEnvWithDefault(env.PostgresUser, env.DefaultPostgresUser),
-		util.GetEnvWithDefault(env.PostgresDBName, env.DefaultPostgresDBName),
-		util.GetEnvWithDefault(env.PostgresSSLMode, env.DefaultPostgresSSLMode),
-		util.GetEnvWithDefault(env.PostgresPassword, ""),
-	)
-
-	return rdbtools.NewPostgresClient(postgresqlDSN)
+	return rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		db, err := databases.GetPostgresqlWithEnv(ctx)
+		if err != nil {
+			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			return nil, err
+		}
+		return db, nil
+	})
 }

@@ -30,8 +30,8 @@ const (
 	RoleSuperAdmin     = "super-admin"
 	RoleAdmin          = "admin"
 	RoleNormal         = "normal"
-	UserSuperAdmin     = "SuperAdmin"
-	PasswordSuperAdmin = "9a39820591e511160e9f993d30d92b19"
+	UserSuperAdmin     = "SeedAdmin"
+	PasswordSuperAdmin = "e$Db8Cf6@3"
 	DefaultPassword    = "ksJ@12MczH"
 )
 

@@ -26,12 +26,15 @@ spec:
       - name: {{ .Chart.Name }}
         image: {{ include "palace.image" . }}
         env:
+        - name: RDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "common.postgresql.defaultName" . }}
+              key: postgresql-password
         - name: STAN_URL
           value: "{{ include "common.stan.defaultName" .}}-headless:4222"
         - name: STAN_CLUSTER_ID
           value: {{ .Values.stan.clusterID }}
-        - name: POSTGRESQL_DSN
-          value: {{ include "common.pgpool.DSN" . }}
         - name: CONSOLE_HTTP_ADDR
           value: "{{ include "common.console.defaultName" .}}:8889"
         - name: REDIS_ENDPOINT
@@ -51,6 +54,9 @@ spec:
           value: /auth/server/tls.crt
         - name: EVENT_GRPC_CERT_SERVER_NAME
           value: eventcenter
+        envFrom:
+        - configMapRef:
+            name: common-env
         volumeMounts:
         - mountPath: /auth/server
           name: server-cert

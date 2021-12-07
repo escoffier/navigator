@@ -15,7 +15,6 @@ image:
 
 bufRegistry: 
   bufRegistryUser: registry
-  bufRegistryPass: "Registry@Passw0rd"
 
 pushConfigs:
   pushInterval: 10

@@ -9,11 +9,11 @@ import (
 
 func initDumpHotLogicStorageRequirement(t *testing.T) {
 	var envVars = map[string]string{
-		env.PostgresHost:     "localhost",
-		env.PostgresUser:     "pguser",
-		env.PostgresDBName:   "tensorsecurity",
-		env.PostgresSSLMode:  "disable",
-		env.PostgresPassword: "pgpassword",
+		env.RDBHost:     "localhost",
+		env.RDBUser:     "pguser",
+		env.RDBDBName:   "tensorsecurity",
+		env.RDBSSLMode:  "disable",
+		env.RDBPassword: "pgpassword",
 
 		env.ConfPath: "./test-hot-logic-conf.json",
 	}

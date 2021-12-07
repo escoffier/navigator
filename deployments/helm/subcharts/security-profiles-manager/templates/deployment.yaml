@@ -42,8 +42,7 @@ spec:
           "--redis-endpoint={{ include "common.redis.sentinel.address" . }}",
           "--stan-client-id={{ .Values.stan.clientID }}",
           "--stan-cluster-id={{ .Values.stan.clusterID }}",
-          "--stan-url={{ include "common.stan.defaultName" .}}-headless:4222",
-          "--console-postgres={{ include "common.pgpool.DSN" . }}"
+          "--stan-url={{ include "common.stan.defaultName" .}}-headless:4222"
         ]
         env:
         - name: MY_POD_NAME
@@ -65,6 +64,14 @@ spec:
             secretKeyRef:
               name: {{ include "common.redis-ha.defaultName" . }}
               key: auth
+        - name: RDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "common.postgresql.defaultName" . }}
+              key: postgresql-password
+        envFrom:
+        - configMapRef:
+            name: common-env
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}

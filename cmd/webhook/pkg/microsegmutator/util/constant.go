@@ -12,6 +12,4 @@ const (
 	// SegmentInvalidName is label value for 'SegmentLabelKey' when due to internal errors a proper
 	// segment name couldn't not be attached
 	SegmentInvalidName = "InvalidSegment"
-
-	MutationDefaultConfigName = "microseg"
 )

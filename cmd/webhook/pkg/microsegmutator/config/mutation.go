@@ -2,9 +2,7 @@ package config
 
 import (
 	"github.com/pkg/errors"
-	"github.com/spf13/viper"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/util"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
@@ -12,34 +10,14 @@ import (
 )
 
 var (
-	MutationCfg    *MutationConfig
 	MutationPGDB   *gorm.DB
 	MutationK8sCli *kubernetes.Clientset
 )
 
-type MutationConfig struct {
-	RunMode  string        `mapstructure:"runMode"` // dev or prod
-	PgMaster util.PGMaster `mapstructure:"pgMaster"`
-	CertFile string        `mapstructure:"certFile"`
-	CertKey  string        `mapstructure:"certKey"`
-}
 
-func InitMutationConfig(configName string) error {
-	MutationCfg = &MutationConfig{}
-	viper.AutomaticEnv()
-	viper.SetConfigName(configName)
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(processors.DefaultBasePath)
-	err := viper.ReadInConfig()
-	if err != nil {
-		return errors.Wrap(err, "failed to read config")
-	}
-	err = viper.Unmarshal(MutationCfg)
-	if err != nil {
-		return errors.Wrap(err, "unable to decode into struct")
-	}
-
-	MutationPGDB, err = util.InitPGDB(MutationCfg.PgMaster)
+func InitMutationConfig() error {
+	var err error
+	MutationPGDB, err = util.InitPGDB()
 	if err != nil {
 		return errors.Wrap(err, "failed to init db")
 	}
@@ -53,6 +31,6 @@ func InitMutationConfig(configName string) error {
 		return errors.Wrap(err, "failed to init k8s clientset")
 	}
 
-	logging.GetLogger().Info().Msgf("init application with config: %+v", MutationCfg)
+	logging.GetLogger().Info().Msg("finished to init microseg mutation webhook")
 	return nil
 }

@@ -16,7 +16,6 @@ data:
       "init_container_image": {{ include "webhook.sidecar.init.image" . | quote }},
       "container_image": {{ include "webhook.sidecar.image" . | quote }},
       "image_pull_secrets": {{ .Values.image.pullSecret | quote }},
-      "pg_addr": {{ include "common.pgpool.DSN" . | quote }}
     }
   sidecar-template.yaml: |
 {{ .Files.Get "sidecar.yaml" | indent 4}}

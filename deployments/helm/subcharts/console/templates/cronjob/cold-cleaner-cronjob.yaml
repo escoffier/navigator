@@ -18,18 +18,16 @@ spec:
                 - /app/cleaner
                 - clear-cold-storage-tool
               env:
-                - name: PGSQL_HOST
-                  value: {{ include "common.pgpool.defaultName" . }}
-                - name: PGSQL_USER
-                  value: postgres
-                - name: PGSQL_DBNAME
-                  value: postgres
-                - name: PGSQL_SSL_MODE
-                  value: disable
-                - name: PGSQL_PASSWORD
-                  value: password
+                - name: RDB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "common.postgresql.defaultName" . }}
+                      key: postgresql-password
                 - name: AUDIT_PATH
                   value: /audit
+              envFrom:
+                - configMapRef:
+                    name: common-env
               image: {{ include "jobs.cleaner.image" . }}
               imagePullPolicy: {{ .Values.persistence.Cleaner.image.pullPolicy }}
               name: coldcleaner

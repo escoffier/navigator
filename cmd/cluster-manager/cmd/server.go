@@ -20,9 +20,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gorm.io/driver/postgres"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 type server struct {
@@ -80,28 +79,11 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return nil, err
 		}
 
-		rdbUser := os.Getenv("RDB_USER")
-		rdbPassword := os.Getenv("RDB_PASSWORD")
-		rdbHost := os.Getenv("RDB_HOST")
-		rdbPort := os.Getenv("RDB_PORT")
-		rdbDBName := os.Getenv("RDB_DBNAME")
-		rdbSSLMode := os.Getenv("RDB_SSLMODE")
-		if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
-			return nil, errors.New("missing RDB env")
-		}
-
-		pgDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", rdbUser, rdbPassword, rdbHost, rdbPort, rdbDBName, rdbSSLMode)
-		postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-			db, err := gorm.Open(postgres.Open(pgDSN), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+		postgresDB, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
+			db, err := databases.GetPostgresqlWithEnv(context.Background())
 			if err != nil {
 				logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 				return nil, err
-			}
-			sqlDB, err := db.DB()
-			if err == nil {
-				sqlDB.SetMaxOpenConns(30)
-				sqlDB.SetMaxIdleConns(5)
-				sqlDB.SetConnMaxLifetime(time.Hour)
 			}
 			return db, nil
 		})

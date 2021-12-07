@@ -60,21 +60,14 @@ spec:
           value: {{ include "common.scanner.defaultName" . }}
         - name: SCANNER_PORT
           value: {{ .Values.scanner.port | quote }}
-        - name: RDB_USER
-          value: {{ .Values.postgres.username }}
         - name: RDB_PASSWORD
           valueFrom:
             secretKeyRef:
               name: {{ include "common.postgresql.defaultName" . }}
               key: postgresql-password
-        - name: RDB_HOST
-          value: {{ include "common.pgpool.defaultName" . }}
-        - name: RDB_PORT
-          value: {{ .Values.postgres.port | quote }}
-        - name: RDB_DBNAME
-          value: {{ .Values.postgres.dbName }}
-        - name: RDB_SSLMODE
-          value: {{ .Values.postgres.sslMode }}
+        envFrom:
+        - configMapRef:
+            name: common-env
         {{- end }}
         resources:
 {{ toYaml .Values.resources | trim | indent 10 }}

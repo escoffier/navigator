@@ -43,12 +43,12 @@ var rootCmd = &cobra.Command{
 			Str("cluster-id", stanOpts.ClusterID).
 			Msg("STAN options")
 
-		postgresOpts := flag.GetPostgresOpts(cmd)
-		logging.GetLogger().Info().
-			Str("connectionString", postgresOpts.PostgresConnectionString).
-			Msg("Postgres options")
+		// postgresOpts := flag.GetPostgresOpts(cmd)
+		// logging.GetLogger().Info().
+		// 	Str("connectionString", postgresOpts.PostgresConnectionString).
+		// 	Msg("Postgres options")
 
-		app, err := api.NewSecProfileManager(httpOpts, redisOpts, stanOpts, postgresOpts)
+		app, err := api.NewSecProfileManager(httpOpts, redisOpts, stanOpts)
 		if err != nil {
 			return err
 		}

@@ -14,12 +14,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
-	_ "go.uber.org/automaxprocs"
-	"google.golang.org/protobuf/proto"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/immune"
@@ -29,6 +23,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/databases"
+	_ "go.uber.org/automaxprocs"
+	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 const (
@@ -84,21 +82,11 @@ func initRedis() (err error) {
 }
 
 func initDB() error {
-	pgDsn := os.Getenv("POSTGRESQL_DSN")
-	if pgDsn == "" {
-		return errors.New("no env POSTGRESQL_DSN given")
-	}
 	postgresDB, err := rdbtools.GormWrapperOpen(5*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(pgDsn), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+		db, err := databases.GetPostgresqlWithEnv(context.Background())
 		if err != nil {
 			logging.GetLogger().Error().Msgf("postgresDB client init error :%v. pgDsn: %s", err, pgDsn)
 			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(15)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxLifetime(time.Hour)
 		}
 		return db, nil
 	})

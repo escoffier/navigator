@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -79,12 +80,23 @@ func NewSecProfileManager(
 	httpOpts *flag.HTTPOpts,
 	redisOpts *flag.RedisOpts,
 	stanOpts *flag.StanOpts,
-	postgresOpts *flag.PostgresOpts,
+	// postgresOpts *flag.PostgresOpts,
 ) (*SecProfileManager, error) {
 	podName := os.Getenv("MY_POD_NAME")
 
+	rdbUser := os.Getenv("RDB_USER")
+	rdbPassword := os.Getenv("RDB_PASSWORD")
+	rdbHost := os.Getenv("RDB_HOST")
+	rdbPort := os.Getenv("RDB_PORT")
+	rdbDBName := os.Getenv("RDB_DBNAME")
+	rdbSSLMode := os.Getenv("RDB_SSLMODE")
+	if rdbUser == "" || rdbPassword == "" || rdbHost == "" || rdbPort == "" || rdbSSLMode == "" || rdbDBName == "" {
+		return nil, errors.New("missing RDB env")
+	}
+	pgDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", rdbUser, rdbPassword, rdbHost, rdbPort, rdbDBName, rdbSSLMode)
+
 	db, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(postgresOpts.PostgresConnectionString), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
+		db, err := gorm.Open(postgres.Open(pgDSN), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err

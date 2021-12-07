@@ -154,9 +154,6 @@ console:
         value: elasticsearch
   postgresql:
     postgresqlDataDir: /bitnami/postgresql/data
-    postgresqlUsername: postgres
-    postgresqlPassword: password
-    postgresqlDatabase: postgres
   imagePullSecret:
     imageRegistryURL: https://harbor.example.com
     imageRegistryUsername: admin
@@ -166,7 +163,6 @@ console:
     smtpHost: smtp.feishu.cn
     smtpPort: 465
     smtpUsername: console-robot@example.com
-    smtpPassword: password
   version:
     softName: ManagerPlatform
     softVersion: v1.9
@@ -515,7 +511,6 @@ safenode-image:
     pullSecret: harbor-admin-secret
   bufRegistry: 
     bufRegistryUser: registry
-    bufRegistryPass: "Registry@Passw0rd"
   resources:
     limits:
       cpu: "100m"
@@ -541,3 +536,12 @@ palace:
     limits:
       cpu: "200m"
       memory: "500Mi"
+
+common:
+  postgres:
+    username: postgres
+    port: "5432"
+    dbName: postgres
+    sslMode: disable
+  email:
+    smtpPassword: password

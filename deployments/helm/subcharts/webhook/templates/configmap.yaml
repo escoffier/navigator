@@ -9,34 +9,11 @@ data:
     ignored_name_spaces:
     - kube-system
     - {{ .Release.Namespace }}
-    - idss-test
-    - namespace1
-    - namespace2
-    - namespace3
-    - namespace4
-    - cloud-dev
-    - cloud-ops
-    pg_addr: {{ include "common.pgpool.DSN" . }}
   image-trust-validator.yaml: |-
     image_trust_url: http://{{ include "common.scanner.defaultName" . }}.{{ .Release.Namespace }}.svc:8888/api/v1/imagereject/online_moniter
     ignored_name_spaces:
     - kube-system
     - {{ .Release.Namespace }}
-    - idss-test
-    - namespace1
-    - namespace2
-    - namespace3
-    - namespace4
-    - cloud-dev
-    - cloud-ops
-  microseg.yaml: |-
-    pgMaster:
-      host: "{{ include "common.pgpool.defaultName" . }}"
-      user: "postgres"
-      password: "password"
-      dbName: "postgres"
-      port: "5432"
-    runMode: "dev"
   presets.yaml: |-
     env:
     - name: LD_PRELOAD
