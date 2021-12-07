@@ -130,6 +130,11 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 		Value: util.GetEnvWithDefault(env.RDBPort, ""),
 	}
 
+	pgDBNameEnv := coreV1.EnvVar{
+		Name:  env.RDBDBName,
+		Value: util.GetEnvWithDefault(env.RDBDBName, ""),
+	}
+
 	pgUserEnv := coreV1.EnvVar{
 		Name:  env.RDBUser,
 		Value: util.GetEnvWithDefault(env.RDBUser, ""),
@@ -146,7 +151,7 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 	}
 
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, taskIDEnv, ttlEnv,
-		pgHostEnv, pgPortEnv, pgUserEnv, pgPasswordEnv, pgSSLModeEnv)
+		pgHostEnv, pgPortEnv, pgDBNameEnv, pgUserEnv, pgPasswordEnv, pgSSLModeEnv)
 	if taskType == def.GCTaskTypeHotOffline {
 		esURLEnv := coreV1.EnvVar{
 			Name:  env.ElasticURL,
