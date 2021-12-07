@@ -674,18 +674,14 @@ func (api *api) checkNeedAlert() http.HandlerFunc {
 		defer cancel()
 
 		timestamp, err := param.QueryInt64(r, "timestamp")
-		if err != nil {
-			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
-			return
-		} else if timestamp < 0 {
-			apperror.RespAndLog(w, ctx, fmt.Errorf("timestamp invalid"))
+		if err != nil || timestamp < 0 {
+			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid timestamp")))
 			return
 		}
 
 		interval, err := param.QueryInt64(r, "interval")
 		if err != nil || interval < 0 {
-			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
-			return
+			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid interval")))
 		}
 
 		result, err := api.ecCli.CheckNeedAlert(ctx, &pb.CheckNeedAlertReq{

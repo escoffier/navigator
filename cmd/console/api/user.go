@@ -532,7 +532,7 @@ func (api *api) editUser() http.HandlerFunc {
 		if err != nil || !ok {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
-					fmt.Errorf("mongo err: %w", err)))
+					fmt.Errorf("mongo err")))
 			return
 		}
 
