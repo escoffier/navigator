@@ -49,7 +49,11 @@ func (de detailedError) Error() string {
 		msg += "]"
 	}
 	msg += ">: "
-	return msg + de.err.Error()
+	if de.err != nil {
+		return msg + de.err.Error()
+	} else {
+		return msg
+	}
 }
 
 func (de detailedError) Unwrap() error {

@@ -674,8 +674,11 @@ func (api *api) checkNeedAlert() http.HandlerFunc {
 		defer cancel()
 
 		timestamp, err := param.QueryInt64(r, "timestamp")
-		if err != nil || timestamp < 0 {
+		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+			return
+		} else if timestamp < 0 {
+			apperror.RespAndLog(w, ctx, fmt.Errorf("timestamp invalid"))
 			return
 		}
 
