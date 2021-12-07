@@ -144,7 +144,7 @@ func GetNamespacesByCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clus
 	return namespaces, nil
 }
 
-func GetNamespace(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey, name string) (*model.TensorNamespace, error) {
+func GetNamespace(ctx context.Context, rdb *gorm.DB, clusterKey, name string) (*model.TensorNamespace, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -153,7 +153,7 @@ func GetNamespace(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey, na
 		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 		defer cancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorNamespace{}).
+		return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).
 			Where("status = ? AND cluster_key = ? AND name = ?", 0, clusterKey, name).First(&namespace).Error
 	})
 	if err != nil {

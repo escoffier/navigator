@@ -179,7 +179,7 @@ func (v *Validator) Name() string {
 	return "ImageTrustValidator"
 }
 
-func (v *Validator) Init() error {
+func (v *Validator) Init(config *processors.WebHookConfig) error {
 	v.client = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -188,19 +188,19 @@ func (v *Validator) Init() error {
 		},
 	}
 	path := processors.GetConfigFullPath(validatorConfigFile)
-	config, err := loadValidatorConfig(path)
+	validatorConfig, err := loadValidatorConfig(path)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("load config err")
 		return err
 	}
 
-	digestUrl, err := url.Parse(config.ImageTrustUrl)
+	digestUrl, err := url.Parse(validatorConfig.ImageTrustUrl)
 	if err != nil {
 		return err
 	}
 
 	v.digestUrl = digestUrl.String()
-	v.IgnoredNameSpaces = append(v.IgnoredNameSpaces, config.IgnoredNameSpaces...)
+	v.IgnoredNameSpaces = append(v.IgnoredNameSpaces, validatorConfig.IgnoredNameSpaces...)
 	return nil
 }
 

@@ -2,6 +2,7 @@ package microsegmutator
 
 import (
 	"context"
+
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/service"
@@ -38,21 +39,16 @@ func (m *MicroSegMutator) Name() string {
 	return "MicroSegMutator"
 }
 
-func (m *MicroSegMutator) Init() error {
+func (m *MicroSegMutator) Init(webHookConfig *processors.WebHookConfig) error {
 	log.Info("init MicroSegMutator")
 	err := config.InitMutationConfig()
 	if err != nil {
 		log.Errorf("load config failed: %v", err)
 		return err
 	}
-	m.svc = service.NewMutationService(config.MutationPGDB, config.MutationK8sCli)
+	m.svc = service.NewMutationService(webHookConfig.RDB, config.MutationK8sCli)
 	return nil
 }
-
-//func (m *MicroSegMutator) Mutate(pod *v1.Pod, parameters *processors.MutatorParameters) {
-//	m.svc.MutateLabels(pod)
-//	panic("implement me")
-//}
 
 func Register() {
 	var m = MicroSegMutator{}

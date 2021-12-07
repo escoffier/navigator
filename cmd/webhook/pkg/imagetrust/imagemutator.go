@@ -8,19 +8,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	corev1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -46,16 +41,17 @@ type ImageDigest struct {
 type ImageDigestResp ImageTagReq
 
 type MutatorConfig struct {
-	//ImageTrustUrl     string   `yaml:"image_trust_url"`
 	IgnoredNameSpaces []string `yaml:"ignored_name_spaces"`
-	PgAddr            string   `yaml:"pg_addr"`
 }
 
 func (m *Mutator) Name() string {
 	return "ImageTrustMutator"
 }
 
-func (m *Mutator) Init() error {
+func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
+	if webHookConfig.RDB == nil {
+		return errors.New("invalid rdb")
+	}
 	m.client = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -72,27 +68,7 @@ func (m *Mutator) Init() error {
 
 	m.IgnoredNameSpaces = append(m.IgnoredNameSpaces, config.IgnoredNameSpaces...)
 
-	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(config.PgAddr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(30)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxLifetime(time.Hour)
-		}
-		return db, nil
-	})
-
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("Init postgre error")
-		return err
-	}
-
-	err = InitClusterManager(postgresDB)
+	err = InitClusterManager(webHookConfig.RDB)
 	if err != nil {
 		return err
 	}

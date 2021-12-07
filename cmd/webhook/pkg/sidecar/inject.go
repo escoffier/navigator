@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"text/template"
@@ -15,11 +16,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gomodules.xyz/jsonpatch/v3"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
@@ -36,7 +34,6 @@ type ProxyConfig struct {
 	InitContainerImage string   `json:"init_container_image"`
 	ContainerImage     string   `json:"container_image"`
 	ImagePullSecrets   string   `json:"image_pull_secrets"`
-	PgAddr             string   `json:"pg_addr"`
 }
 
 type SidecarTemplateData struct {
@@ -67,14 +64,18 @@ func DefaultProxyConfig() *ProxyConfig {
 
 type Injector struct {
 	params *InjectionParameters
-	rdb    *rdbtools.GormWrapper
+	rdb    *gorm.DB
 }
 
 func (in *Injector) Name() string {
 	return "SidecarInjector"
 }
 
-func (in *Injector) Init() error {
+func (in *Injector) Init(webHookConfig *processors.WebHookConfig) error {
+	if webHookConfig.RDB == nil {
+		return errors.New("invalid rdb")
+	}
+
 	var err error
 	in.params, err = loadConfig()
 	if err != nil {
@@ -82,25 +83,7 @@ func (in *Injector) Init() error {
 		return err
 	}
 
-	postgresDB, err := rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		db, err := gorm.Open(postgres.Open(in.params.ProxyConfig.PgAddr), &gorm.Config{Logger: logger.Discard.LogMode(logger.Silent)})
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		sqlDB, err := db.DB()
-		if err == nil {
-			sqlDB.SetMaxOpenConns(30)
-			sqlDB.SetMaxIdleConns(5)
-			sqlDB.SetConnMaxLifetime(time.Hour)
-		}
-		return db, nil
-	})
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("Init postgre error")
-		return err
-	}
-	in.rdb = postgresDB
+	in.rdb = webHookConfig.RDB
 	return nil
 }
 
@@ -232,7 +215,6 @@ func applyOverlay(target *corev1.Pod, overlayJSON []byte) (*corev1.Pod, error) {
 	pod := corev1.Pod{}
 	// Overlay the injected template onto the original podSpec
 	patched, err := strategicpatch.StrategicMergePatch(currentJSON, overlayJSON, pod)
-	//fmt.Printf("after patch:\n%s\n", string(patched))
 	if err != nil {
 		return nil, fmt.Errorf("strategic merge: %v", err)
 	}
@@ -325,11 +307,11 @@ func (in *Injector) getPodOwner(ctx context.Context, pod *corev1.Pod, parameters
 			query.WithResourceName(deploymentName)
 			var resources []*model.TensorResource
 			var err error
-			resources, err = dal.GetResources(ctx, in.rdb.Get(), query, 0, 1)
+			resources, err = dal.GetResources(ctx, in.rdb, query, 0, 1)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("get resource %s", deploymentName)
 				query.WithResourceName(name)
-				resources, err = dal.GetResources(ctx, in.rdb.Get(), query, 0, 1)
+				resources, err = dal.GetResources(ctx, in.rdb, query, 0, 1)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("get resource %s", name)
 					continue

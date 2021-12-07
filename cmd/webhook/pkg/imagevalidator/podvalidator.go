@@ -25,7 +25,7 @@ type Config struct {
 	ValidatorUrl      string
 }
 
-func (v *ImageValidator) Init() error {
+func (v *ImageValidator) Init(webHookConfig *processors.WebHookConfig) error {
 	logging.GetLogger().Info().Msg("init ImageValidator")
 	//v.ValidatorUrl = "test/123"
 	path := processors.GetConfigFullPath(configFile)

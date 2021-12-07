@@ -26,7 +26,7 @@ func (d driftPreventionMutator) Name() string {
 	return "DriftPreventionMutator"
 }
 
-func (d *driftPreventionMutator) Init() error {
+func (d *driftPreventionMutator) Init(webHookConfig *processors.WebHookConfig) error {
 	holder, err := config.NewReloadingConfig(processors.GetConfigFullPath(preset), &config.ReloadConfig{
 		FailureRetryInterval: failureRetryInterval,
 		ReloadInterval:       reloadInterval,
@@ -42,12 +42,6 @@ func (d *driftPreventionMutator) Init() error {
 func (d *driftPreventionMutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *v1.Pod) []*processors.Patch {
 	patches := mutation.PatchPod(d.holder.Get(), pod)
 	return patches
-	//patchData, err := json.Marshal(patches)
-	//if err != nil {
-	//	logrus.Errorf("mash patch failed")
-	//	return nil
-	//}
-	//return patchData
 }
 
 func (d driftPreventionMutator) PreMutate(ctx context.Context, pod *v1.Pod, parameters *processors.MutatorParameters) bool {
