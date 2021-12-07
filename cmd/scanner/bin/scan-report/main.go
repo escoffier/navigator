@@ -19,7 +19,6 @@ import (
 
 var (
 	internal  time.Duration
-	dbStr     string
 	debug     bool
 	batchSize int
 
