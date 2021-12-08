@@ -257,16 +257,16 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 
 		for _, k := range split {
 			if k == strconv.Itoa(model.QUESTION_VULN) {
-				db = db.Where("scan_images.vuln_score != 0 ")
+				db = db.Where("scan_images.vuln_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
-				db = db.Where("scan_images.sensitive_file_json is not null ")
+				db = db.Where("scan_images.sensitive_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_VIRUS) {
-				db = db.Where("scan_images.malicious_info_json is not null ")
+				db = db.Where("scan_images.virus_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
-				db = db.Where("scan_images.webshell_info_json is not null ")
+				db = db.Where("scan_images.webshell_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_PRIORITY) {
 				db = db.Where("tensor_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
