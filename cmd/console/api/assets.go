@@ -1284,7 +1284,7 @@ func (api *api) GetProcessList() http.HandlerFunc {
 
 		arguments, err := resSvc.GetArguments(r, "process_list")
 		if err != nil {
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process argument failed, %v", err)))
 			return
 		}
 		//print debug log
@@ -1292,7 +1292,7 @@ func (api *api) GetProcessList() http.HandlerFunc {
 		//get resource relation
 		process, err := resSvc.GetAllProcessList(arguments)
 		if err != nil {
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process relations failed, %v", err)))
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process list failed, %v", err)))
 			return
 		}
 
