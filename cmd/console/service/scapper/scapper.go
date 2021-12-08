@@ -293,12 +293,11 @@ func (s *Scapper) RunComplianceCheck(
 	return checkUUID, nil
 }
 
-func (s *Scapper) RunExportFileTask(ctx context.Context, task *model.ExportTask, language lang.LanguageType) error {
-	pgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
+func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.LanguageType) error {
 	// export file to xlsx
-	err := s.ScapService.GetScanResultToFile(pgCtx, task, language)
+	err := s.ScapService.GetScanResultToFile(task, language)
+	//print debug log
+	//logging.GetLogger().Info().Msgf("save scan result to xlsx over!!")
 	//update task status
 	finishedAt := time.Now().Unix()
 	task.Status = 0
@@ -314,11 +313,15 @@ func (s *Scapper) RunExportFileTask(ctx context.Context, task *model.ExportTask,
 		//remove file
 		os.Remove(task.FileName)
 	}
+	//set timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	//save finish time
 	task.FinishedAt = finishedAt
 	//update mongo data
 	tbname := task.TableName()
 	query := "task_id = ? and username = ?"
-	err = s.PostgresDB.Get().WithContext(pgCtx).Table(tbname).Select("status", "finished_at", "content").Where(query, task.CheckId, task.UserName).Updates(&task).Error
+	err = s.PostgresDB.Get().WithContext(ctx).Table(tbname).Select("status", "finished_at", "content").Where(query, task.CheckId, task.UserName).Updates(&task).Error
 	if err != nil {
 		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", err)
 		return errors.Errorf("update status failed, %v", err)

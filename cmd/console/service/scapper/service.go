@@ -762,14 +762,19 @@ func (s *ScapService) GetFileData(filename string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *ScapService) GetScanResultToFile(ctx context.Context, task *model.ExportTask, language lang.LanguageType) error {
+func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.LanguageType) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	defer cancel()
+
 	var scanRet []model.ScanResult
 	query := "task_id = ?"
 	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, task.CheckId).Error
 	if err != nil {
 		return errors.Errorf("get scan result to file failed, %v", err)
 	}
-
+	//print debug log
+	//logging.GetLogger().Info().Msgf("get scan result data num : %v.", len(scanRet))
+	//xlsx file
 	var exfile model.ScapRetData
 	//new xlsx file
 	file := xlsx.NewFile()
