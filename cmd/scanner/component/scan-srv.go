@@ -994,13 +994,13 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VULN})
 	}
 
-	if len(scs[0].SensitiveFileJSON) > 0 {
+	if scs[0].SensitiveScore > 0 {
 		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SENSITIVE})
 	}
-	if len(scs[0].MaliciousInfoJSON) > 0 {
+	if scs[0].VirusScore > 0 {
 		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VIRUS})
 	}
-	if len(scs[0].WebshellInfoJSON) > 0 {
+	if scs[0].WebshellScore > 0 {
 		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_WEB_SHELL})
 	}
 
@@ -1479,10 +1479,10 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VULN})
 		}
 
-		if len(scs[i].SensitiveFile) > 0 {
+		if scs[i].SensitiveScore > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SENSITIVE})
 		}
-		if len(scs[i].MaliciousInfo) > 0 {
+		if scs[i].VirusScore > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VIRUS})
 		}
 		if scs[i].WebshellScore > 0 {
