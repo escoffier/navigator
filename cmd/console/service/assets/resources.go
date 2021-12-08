@@ -419,9 +419,9 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	uuid := make(map[uint32]struct{}, 0)
 	resource := make([]ProcessInfo, 0)
 
-	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName).Error
+	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
 	if err != nil {
-		return nil, errors.Errorf("find resource from db failed, %v", err)
+		return nil, errors.Errorf("find resource from db failed with dst info, %v", err)
 	}
 
 	for i := 0; i < len(netflows); i++ {
@@ -443,9 +443,9 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		}
 	}
 
-	err = rl.rdb.Get().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName).Error
+	err = rl.rdb.Get().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
 	if err != nil {
-		return nil, errors.Errorf("find resource from db failed, %v", err)
+		return nil, errors.Errorf("find resource from db failed with src info, %v", err)
 	}
 
 	for i := 0; i < len(tmpflows); i++ {
