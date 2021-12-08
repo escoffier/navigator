@@ -77,7 +77,7 @@ func (r *Redclair) initConfigFiles(opts *flag.ClairOpts) error {
 	return nil
 }
 
-func (r Redclair) readJSONFile(path string, fieldPtr interface{}) error {
+func (r *Redclair) readJSONFile(path string, fieldPtr interface{}) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("Failed to open file %s: %w", path, err)

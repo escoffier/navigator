@@ -35,7 +35,7 @@ func (r *Redclair) StopImageHTTPServer() error {
 }
 
 // TODO if port can't be opened is not handled
-func (r Redclair) httpFileServer(path string, port int) *http.Server {
+func (r *Redclair) httpFileServer(path string, port int) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir(path)))
 	server := &http.Server{
