@@ -612,7 +612,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		} else {
 			//run export file task
 			scapper, _ := scapper.GetScapper(ctx)
-			go scapper.RunExportFileTask(ctx, &task, language)
+			go scapper.RunExportFileTask(&task, language)
 		}
 
 		response.Ok(w, response.WithExportFileStatus(task.Status))
