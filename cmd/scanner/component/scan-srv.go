@@ -1479,13 +1479,13 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VULN})
 		}
 
-		if len(scs[i].SensitiveFileJSON) > 0 {
+		if len(scs[i].SensitiveFile) > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SENSITIVE})
 		}
-		if len(scs[i].MaliciousInfoJSON) > 0 {
+		if len(scs[i].MaliciousInfo) > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_VIRUS})
 		}
-		if len(scs[i].WebshellInfoJSON) > 0 {
+		if scs[i].WebshellScore > 0 {
 			qus = append(qus, model.QuestionInfo{ID: model.QUESTION_WEB_SHELL})
 		}
 
