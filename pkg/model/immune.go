@@ -97,15 +97,15 @@ type ImmuneTask struct {
 	ID           int64      `gorm:"column:id"`
 	ResourceUUID uint32     `gorm:"column:resource_uuid"`
 	PodName      string     `gorm:"column:pod_name"`
-	ContainerID  string     `gorm:"column:"container_id"`
-	PolicyKind   PolicyKind `gorm:"policy_kind"`
-	TerminatedAt time.Time  `gorm:"terminated_at"`
-	State        TaskState  `gorm:"state"`
-	Status       int32      `gorm:"status"`
+	ContainerID  string     `gorm:"column:container_id"`
+	PolicyKind   PolicyKind `gorm:"column:policy_kind"`
+	TerminatedAt time.Time  `gorm:"column:terminated_at"`
+	State        TaskState  `gorm:"column:state"`
+	Status       int32      `gorm:"column:status"`
 	Creator      string     `gorm:"column:creator" json:"creator"`
 	Updater      string     `gorm:"column:updater" json:"updater"`
-	CreatedAt    time.Time  `gorm:"created_at" json:"created_at"`
-	UpdatedAt    time.Time  `gorm:"updated_at" json:"updated_at"`
+	CreatedAt    time.Time  `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time  `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (ImmuneTask) TableName() string {

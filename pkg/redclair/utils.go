@@ -10,19 +10,19 @@ import (
 	"strings"
 )
 
-func (r Redclair) CreateHTTPRootDir() (string, error) {
+func (r *Redclair) CreateHTTPRootDir() (string, error) {
 	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
 	return rootPath, os.MkdirAll(rootPath, os.ModePerm)
 }
 
 // CreateTmpPath creates a temporary folder with a prefix
-func (r Redclair) CreateTempImageDirIn(where string) (string, error) {
+func (r *Redclair) CreateTempImageDirIn(where string) (string, error) {
 	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
 	return ioutil.TempDir(rootPath, httpServerImageDirPrefix)
 }
 
 // CreateTempLayerDigestDir creates a temporary folder with a layer digest prefix
-func (r Redclair) CreateTempLayerDigestDir(layerDigest string) (string, error) {
+func (r *Redclair) CreateTempLayerDigestDir(layerDigest string) (string, error) {
 	rootPath := filepath.Join(os.TempDir(), httpServerRootDir)
 	return ioutil.TempDir(rootPath, layerDigest)
 }

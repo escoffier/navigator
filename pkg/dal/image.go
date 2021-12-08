@@ -53,7 +53,7 @@ func GetImagesWithGivenVuln(ctx context.Context, scannerURL, imageVulnName strin
 func ImageQuestion(ctx context.Context, postgresDB *gorm.DB, linkObjectId string, questionId int, exist bool, digest string) error {
 	qs := model.QuestionInfo{}
 	if exist {
-		pgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 
 		err := postgresDB.WithContext(pgCtx).Where("digest = ? and id =? ", digest, questionId).First(&qs).Error

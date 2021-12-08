@@ -106,5 +106,5 @@ func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, cu
 type attackResp struct {
 	Data struct {
 		Item *model.LatestATTCKRuleInfo `json:"item"`
-	} `json: "data"`
+	} `json:"data"`
 }
