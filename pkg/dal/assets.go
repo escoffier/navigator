@@ -31,6 +31,7 @@ var (
 		"app_type",
 		"app_target_version",
 		"app_target_name",
+		"spec",
 	}
 	onDupUpdatedColsForResource = []string{
 		"updated_at",
