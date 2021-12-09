@@ -128,6 +128,12 @@ spec:
               {{- else if .Values.global.multiCluster.isMemberCluster }}
               value: "{{ include "common.cluster-manager.defaultName" . }}:6379"
               {{- end }}
+            - name: IS_MAIN_CLUSTER
+              {{- if .Values.global.multiCluster.isMainCluster }}
+              value: "true"
+              {{- else if .Values.global.multiCluster.isMemberCluster }}
+              value: "false"
+              {{- end }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
