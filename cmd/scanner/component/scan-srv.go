@@ -622,11 +622,11 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		logging.GetLogger().Error().Err(err).Msgf("unmarshal config json error")
 	} else {
 		if config.Config.User == "" || strings.Contains(config.Config.User, "root") {
-			img.PrivilegedBoot = 1
+			img.PrivilegedBoot = consts.PrivilegedBootImage
 		}
 		for _, v := range config.History {
 			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
-				img.IsReinforce = 1
+				img.IsReinforce = consts.IsReinforceImage
 				break
 			}
 		}
@@ -1015,9 +1015,14 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 	if scs[0].ScanEnableCollection.SoftwareEnable > 0 {
 		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_SOFTWARE, Info: ParseSoftWare(scs[0].Software)})
 	}
+	// 特权启动
+	if imgs[0].PrivilegedBoot == consts.PrivilegedBootImage {
+		qus = append(qus, model.QuestionInfo{ID: model.QUESTION_PRIORITY})
+	}
 
 	ans.Questions = append(ans.Questions, qus...)
 	ans.RiskScore = scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40)
+
 	return &ans, nil
 }
 
