@@ -354,7 +354,7 @@
   tags: [network, process, mitre_execution]
 
 - rule: Run attacks through socket and dup
-  hid: exec08
+  hid: exec_08
   hthreats: 1
   suggestion:
     en:
@@ -369,8 +369,6 @@
     Reverse shell connection (zh_msg=检测到通过socket和dup进行攻击，例如反弹shell、暴力破解等,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: ALERT
   tags: [container, shell, mitre_execution]
-
-
 
 ##attck_rule_type=Persistence
 - rule: Schedule Cron Jobs
@@ -1022,7 +1020,7 @@
   condition: >
     open_read and container and ((proc.name in (show_information_binaries)) and
     (fd.filename in (sensitive_paths) or fd.name in (sensitive_paths) or fd.directory in (sensitive_paths)) or (proc.name in (show_env_binaries)))
-  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd.name=%fd.name)
   priority: WARNING
 
 - rule: Read sensitive file trusted after startup
