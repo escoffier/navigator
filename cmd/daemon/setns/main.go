@@ -201,10 +201,13 @@ func main() {
 	unixSvr, err := CreateUnixSocket()
 	if err != nil {
 		logging.GetLogger().Error().Msgf("create unix server failed, %v", err)
-		return
+		os.Exit(1)
 	}
 	//defer
-	defer unixSvr.Close()
+	defer func() {
+		_ = unixSvr.Close()
+		os.Exit(1)
+	}()
 	//open local mnt
 	err = OpenLocalMnt()
 	if err != nil {

@@ -75,16 +75,6 @@ func (m *ClusterInfoManager) ClusterKey() (string, bool) {
 	return cinfo.Key, true
 }
 
-func (m *ClusterInfoManager) ClusterName() (string, bool) {
-	cobj := m.cinfoVal.Load()
-	if cobj == nil {
-		return "", false
-	}
-	cinfo := cobj.(TensorCluster)
-
-	return cinfo.Name, true
-}
-
 type TensorCluster struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`

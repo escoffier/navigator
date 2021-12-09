@@ -1,10 +1,9 @@
 package netflow
 
 import (
-	"fmt"
-	"sync"
-
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"sync"
 )
 
 type OwnerRef struct {
@@ -61,7 +60,7 @@ func (kri *K8sResInfos) GetK8sResData(ip string) (*daemon.K8sResData, error) {
 
 	value, ok := kri.ResInfos[ip]
 	if !ok {
-		return nil, fmt.Errorf("can not find k8s res data by %s", ip)
+		return nil, errors.Errorf("can not find k8s res data by %s", ip)
 	}
 
 	return value, nil

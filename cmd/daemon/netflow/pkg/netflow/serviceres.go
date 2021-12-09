@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -123,7 +123,7 @@ func (rs K8sResClient) GetPodControllerFromSvc(ctx context.Context, ns, svc stri
 func (rs K8sResClient) GetPodOwnerReferences(ctx context.Context, ns, podname string) (string, string) {
 	pod, err := rs.k8sClient.CoreV1().Pods(ns).Get(ctx, podname, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("get pod failed, namespace : %v, pod name : %v.", ns, podname)
+		logging.GetLogger().Error().Msgf("get pod failed, namespace : %v, pod name : %v.", ns, podname)
 		return "", ""
 	}
 
@@ -146,13 +146,13 @@ func (rs K8sResClient) GetOwnerReferences(ctx context.Context, pod *corev1.Pod) 
 		namespace := pod.GetNamespace()
 		rps, err := rs.k8sClient.AppsV1().ReplicaSets(namespace).Get(ctx, ownername, metav1.GetOptions{})
 		if err != nil {
-			//log.Errorf("pod name : %s, ns : %s, err : %v.", pod.GetName(), namespace, err)
+			//logging.GetLogger().Error().Msgf("pod name : %s, ns : %s, err : %v.", pod.GetName(), namespace, err)
 			return ownername, ownerkind
 		}
 
 		owners := rps.GetOwnerReferences()
 		for _, o := range owners {
-			//log.Infof("pod name : %s, ns : %s, Controller : %v, kind : %v, name : %v.", pod.GetName(), namespace, *owner.Controller, owner.Kind, owner.Name)
+			//logging.GetLogger().Info().Msgf("pod name : %s, ns : %s, Controller : %v, kind : %v, name : %v.", pod.GetName(), namespace, *owner.Controller, owner.Kind, owner.Name)
 			if *o.Controller != true {
 				continue
 			}
@@ -175,7 +175,7 @@ func (rs K8sResClient) ListenServiceEvent(factory *informers.SharedInformerFacto
 			}
 
 			clusterIp := svc.Spec.ClusterIP
-			//log.Infof("[service addfunc] clusterIp : %v, service : %v", clusterIp, svc.Namespace)
+			//logging.GetLogger().Info().Msgf("[service addfunc] clusterIp : %v, service : %v", clusterIp, svc.Namespace)
 			if len(clusterIp) == 0 || clusterIp == "None" {
 				return
 			}
@@ -194,7 +194,7 @@ func (rs K8sResClient) ListenServiceEvent(factory *informers.SharedInformerFacto
 			}
 
 			clusterIp := svc.Spec.ClusterIP
-			//log.Infof("[service deletefunc] clusterIp : %v, service : %v", clusterIp, svc.Namespace)
+			//logging.GetLogger().Info().Msgf("[service deletefunc] clusterIp : %v, service : %v", clusterIp, svc.Namespace)
 			if len(clusterIp) == 0 || clusterIp == "None" {
 				return
 			}
@@ -237,7 +237,7 @@ func (rs K8sResClient) procEndpointEvent(event string, obj interface{}) {
 	}
 
 	if len(ns) == 0 {
-		//log.Warnf("ip : %v, ns len : %v, service name : %v.", ips, ns, ep.Name)
+		//logging.GetLogger().Warn().Msgf("ip : %v, ns len : %v, service name : %v.", ips, ns, ep.Name)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (rs K8sResClient) procEndpointEvent(event string, obj interface{}) {
 		namespace := ns[i]
 		k := "endpoint"
 		//print log
-		//log.Infof("[%s addfunc] ip : %v, namespace : %v, name : %v", event, ip, namespace, name)
+		//logging.GetLogger().Info().Msgf("[%s addfunc] ip : %v, namespace : %v, name : %v", event, ip, namespace, name)
 		rs.K8sPods.UpdateK8sResDataWithEndpoints(ip, name, k, namespace, name)
 	}
 }
@@ -287,7 +287,7 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 
 			name, kind := rs.GetOwnerReferences(ctx, pod)
 			namespace := pod.GetNamespace()
-			//log.Infof("[pods add] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
+			//logging.GetLogger().Info().Msgf("[pods add] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
 			rs.K8sPods.SaveK8sResData(podIp, name, kind, namespace, "", pod.GetName(), hostIp)
 		},
 
@@ -303,7 +303,7 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 				return
 			}
 
-			//log.Infof("[pods delete] ip : %v, namespace : %v", podIp, pod.GetNamespace())
+			//logging.GetLogger().Info().Msgf("[pods delete] ip : %v, namespace : %v", podIp, pod.GetNamespace())
 			rs.K8sPods.DeleteK8sResData(podIp)
 		},
 
@@ -327,7 +327,7 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 
 			name, kind := rs.GetOwnerReferences(ctx, pod)
 			namespace := pod.GetNamespace()
-			//log.Infof("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
+			//logging.GetLogger().Info().Msgf("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
 			rs.K8sPods.UpdateK8sResData(podIp, name, kind, namespace, "", pod.GetName(), hostIp)
 		},
 	})
@@ -352,7 +352,7 @@ func (rs *K8sResClient) ListenNodesEvent(factory *informers.SharedInformerFactor
 				if na.Type != "InternalIP" {
 					continue
 				}
-				//log.Infof("AddFunc    node -> type:%v, ip: %v\n", na.Type, na.Address)
+				//logging.GetLogger().Info().Msgf("AddFunc    node -> type:%v, ip: %v\n", na.Type, na.Address)
 			}
 		},
 
@@ -379,9 +379,9 @@ func (rs *K8sResClient) StartK8sServiceSyncer(ctx context.Context) error {
 	factoryStopChan := make(chan struct{}, 1)
 	factory.Start(factoryStopChan)
 
-	log.Infof("Waiting for cache sync")
+	logging.GetLogger().Info().Msgf("Waiting for cache sync")
 	syncedStatus := factory.WaitForCacheSync(factoryStopChan)
-	log.Infof("Wait finished")
+	logging.GetLogger().Info().Msgf("Wait finished")
 
 	var podType *corev1.Pod
 	podSynced := syncedStatus[reflect.TypeOf(podType)]
