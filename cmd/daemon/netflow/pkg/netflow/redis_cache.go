@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"os"
@@ -15,18 +15,19 @@ import (
 	"time"
 )
 
-func RedisInit(clusterName string) (*redis.Client, error) {
+func RedisInit() (*redis.Client, error) {
+	clusterType := os.Getenv("IS_MAIN_CLUSTER")
 	redisAddr := os.Getenv("REDIS_ADDR")
 	redisPwd := os.Getenv("REDIS_PASSWORD")
 	if redisAddr == "" || redisPwd == "" {
 		return nil, errors.Errorf("get redis address or redis password is nil")
 	}
 	//print debug log
-	log.Infof("redis addr : %v, redis password : %v, cluster name : %v", redisAddr, redisPwd, clusterName)
+	//logging.GetLogger().Info().Msgf("redis addr : %v, redis password : %v, cluster type : %v", redisAddr, redisPwd, clusterType)
 	//connect redis
 	var err error
 	var redisClient *redis.Client
-	if clusterName == "default" {
+	if clusterType == "true" {
 		//redisPwd = "Redis12345"
 		//redisAddr = "tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379"
 		sa := strings.Split(redisAddr, ",")
@@ -47,7 +48,7 @@ func RedisInit(clusterName string) (*redis.Client, error) {
 		}
 	}
 
-	log.Infof("connect redis success!")
+	logging.GetLogger().Info().Msgf("connect redis success!")
 	return redisClient, nil
 }
 

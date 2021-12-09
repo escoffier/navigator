@@ -11,15 +11,14 @@ import (
 	ct "github.com/florianl/go-conntrack"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/docker"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ClusterManager interface {
 	ClusterKey() (string, bool)
-	ClusterName() (string, bool)
 }
 
 type FlowSession struct {
@@ -131,11 +130,8 @@ func NetProtoConvert(proto uint8) uint8 {
 }
 
 func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*FlowSession, error) {
-	clusterName, ok := clusterManager.ClusterName()
-	if !ok {
-		return nil, errors.Errorf("get cluster name failed")
-	}
-	redisClient, err := RedisInit(clusterName)
+
+	redisClient, err := RedisInit()
 	if err != nil {
 		return nil, errors.Errorf("redis init failed, %v", err)
 	}
@@ -194,13 +190,13 @@ func (fs *FlowSession) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Errorf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 		//init session
 		err := fs.InitSession(ctx)
 		if err != nil {
-			log.Errorf("init session failed, %v.", err)
+			logging.GetLogger().Error().Msgf("init session failed, %v.", err)
 		}
 	}()
 
@@ -208,7 +204,7 @@ func (fs *FlowSession) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Errorf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 		//process session
@@ -218,7 +214,7 @@ func (fs *FlowSession) Start(ctx context.Context) {
 	//listen conntrack event
 	err := fs.CtFlow.RunConntrackEvent(fs.onFlowCallback)
 	if err != nil {
-		log.Errorf("process conntrack event failed, %v.", err)
+		logging.GetLogger().Error().Msgf("process conntrack event failed, %v.", err)
 	}
 }
 
@@ -265,7 +261,7 @@ func (fs *FlowSession) FilterConflictKey(flow *model.TensorNetworkFlow) bool {
 
 func (fs *FlowSession) PrintNetFlowLog(flow *model.TensorNetworkFlow) {
 	//print log
-	log.Infof("%v", *flow)
+	logging.GetLogger().Info().Msgf("%v", *flow)
 }
 
 func (fs *FlowSession) GetContainerProcessName(addrType uint8, namespace, podname, nodeIP string, tuple *daemon.FiveTuple) (string, string, error) {
@@ -281,10 +277,10 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, namespace, podnam
 		//get pid
 		pid, err = fs.netNs.GetContainerPid(containerId)
 		if err != nil {
-			log.Errorf("get container pid failed, namespace : %v, pod name : %v, tuple : %+v, error : %v", namespace, podname, *tuple, err)
+			logging.GetLogger().Error().Msgf("get container pid failed, namespace : %v, pod name : %v, tuple : %+v, error : %v", namespace, podname, *tuple, err)
 			continue
 		}
-		//log.Infof("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
+		//logging.GetLogger().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 
 		netInfo := &daemon.PidAssociateMnt{
 			Pid:       pid,
@@ -294,7 +290,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, namespace, podnam
 		//get process
 		name, err = fs.netNs.GetProcessName(netInfo)
 		if err != nil {
-			log.Warnf("get process name failed,namespace : %v, pod name : %v, tuple : %+v, error : %v", namespace, podname, *tuple, err)
+			logging.GetLogger().Warn().Msgf("get process name failed,namespace : %v, pod name : %v, tuple : %+v, error : %v", namespace, podname, *tuple, err)
 			continue
 		}
 
@@ -360,7 +356,7 @@ func (fs *FlowSession) ProcSessionQueData() {
 
 			err := fs.ProcSessionData(nsData[i])
 			if err != nil {
-				log.Errorf("get container info failed, %v.", err)
+				logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
 			}
 		}
 	}
@@ -445,7 +441,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	if dst.Kind == "Service" {
 		dst, err = pods.GetK8sResData(netSession.Reply.SrcIp)
 		if err != nil {
-			log.Errorf("get pods information faield by service, service ip : %s.", netSession.Origin.DstIp)
+			logging.GetLogger().Error().Msgf("get pods information faield by service, service ip : %s.", netSession.Origin.DstIp)
 			return nil
 		}
 		dstIp = netSession.Reply.SrcIp
@@ -467,7 +463,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		}
 
 		if src.PodName == "" || dst.PodName == "" {
-			log.Warnf("%v, %v, %v %v", *src, *dst, *netSession.Origin, *netSession.Reply)
+			logging.GetLogger().Warn().Msgf("%v, %v, %v %v", *src, *dst, *netSession.Origin, *netSession.Reply)
 		}
 		podInfo := &daemon.NetAssocPod{
 			SrcNodeIp:    src.NodeIp,
@@ -489,7 +485,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		//get container info
 		state, err = fs.GetContainerInfo(&netData, podInfo)
 		if err != nil {
-			log.Errorf("get container info failed, %v.", err)
+			logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
 		}
 	}
 
@@ -500,11 +496,11 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	netData.CreateUuid()
 	//print log
 	if netData.DstPort != 53 {
-		log.Infof("%+v", netData)
+		logging.GetLogger().Info().Msgf("%+v", netData)
 	}
 
 	if netData.SrcProcess == "-" || netData.DstProcess == "-" {
-		log.Warnf("get process failed, %+v", netData)
+		logging.GetLogger().Warn().Msgf("get process failed, %+v", netData)
 		return nil
 	}
 
@@ -549,7 +545,7 @@ func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
 }
 
 func (fs *FlowSession) InitSession(ctx context.Context) error {
-	log.Infof("conntrack session init list.")
+	logging.GetLogger().Info().Msgf("conntrack session init list.")
 	//list session
 	return fs.conntrackInitList(ctx)
 }
@@ -588,7 +584,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 		nfType = NFCT_T_DESTROY
 
 	default:
-		log.Warnf("this netlink msg type is error, %v, %v.", header.Type, header.Type&0xff)
+		logging.GetLogger().Warn().Msgf("this netlink msg type is error, %v, %v.", header.Type, header.Type&0xff)
 	}
 
 	return nil
