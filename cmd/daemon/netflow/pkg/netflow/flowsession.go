@@ -497,13 +497,12 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	//print log
 	if netData.DstPort != 53 {
 		logging.GetLogger().Info().Msgf("%+v", netData)
+		//filter error info
+		if netData.SrcProcess == "-" || len(netData.SrcProcess) == 0 || netData.DstProcess == "-" || len(netData.DstProcess) == 0 {
+			logging.GetLogger().Warn().Msgf("get process failed, %+v", netData)
+			return nil
+		}
 	}
-
-	if netData.SrcProcess == "-" || netData.DstProcess == "-" {
-		logging.GetLogger().Warn().Msgf("get process failed, %+v", netData)
-		return nil
-	}
-
 	//post net flow
 	return fs.submitter.Submit(context.Background(), &netData)
 }
