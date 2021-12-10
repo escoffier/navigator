@@ -9,7 +9,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -40,7 +40,7 @@ func DockerNewClient(k8sClient *kubernetes.Clientset) (*NsenterData, error) {
 		return nil, errors.Errorf("unix socket client dial failed, %v", err)
 	}
 	//print log
-	log.Infof("docker new client success!")
+	logging.GetLogger().Info().Msgf("docker new client success!")
 	return &NsenterData{sockClient: sockClient, dockerCli: dockerCli, k8sClient: k8sClient}, nil
 }
 
@@ -105,6 +105,10 @@ func (nse NsenterData) GetPodContainerID(namespace, podname, nodeIp string) (map
 		//log.Infof("container id : %v.", container.ContainerID)
 		id := strings.TrimPrefix(container.ContainerID, "docker://")
 		name := container.Name
+		if len(name) == 0 {
+			logging.GetLogger().Warn().Msgf("get container name failed, namespaces : %v, pod name : %v.", namespace, podname)
+			continue
+		}
 		containers[id] = name
 	}
 
@@ -136,7 +140,7 @@ func (nse NsenterData) GetProcessName(netinfo *daemon.PidAssociateMnt) (string, 
 	go func() {
 		length, err = nse.sockClient.Read(rcvBuf)
 		if err != nil {
-			log.Errorf("read unix socket response data failed, %v", err)
+			logging.GetLogger().Error().Msgf("read unix socket response data failed, %v", err)
 			return
 		}
 		timeout <- struct{}{}
