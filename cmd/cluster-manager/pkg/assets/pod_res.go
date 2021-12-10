@@ -146,6 +146,9 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 			owner = ownerOfOwner
 		} else {
 			pos := strings.LastIndexByte(owner.Name, '-')
+			if pos < 0 {
+				return owner, true
+			}
 			ownerOwnerName := owner.Name[0:pos]
 
 			cnt, err := dal.CountResources(context.Background(), cb.parent.postgresDB.Get(), dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
@@ -169,7 +172,11 @@ func (cb *PodResourcesClusterCallback) sendInput(ctx context.Context, e podEvent
 func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEvent) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when do on pod event: %v. event: %+v", r, e)
+			podName := ""
+			if e.pod != nil {
+				podName = fmt.Sprintf("%s/%s", e.pod.Namespace, e.pod.Name)
+			}
+			logging.GetLogger().Error().Msgf("Panic when do on pod (%s) event: %v. event: %+v", podName, r, e)
 			err = errors.New("panic")
 		}
 	}()
