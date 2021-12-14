@@ -2,12 +2,12 @@ package immune
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	json "github.com/json-iterator/go"
 	"github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
