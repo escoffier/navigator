@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	json "github.com/json-iterator/go"
 	stan "github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	profileService "gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/profile"
