@@ -142,17 +142,33 @@ func (rs K8sResClient) GetOwnerReferences(ctx context.Context, pod *corev1.Pod) 
 
 	ownername := owner.Name
 	ownerkind := owner.Kind
-	if ownerkind == "ReplicaSet" {
+
+	switch ownerkind {
+	case "ReplicaSet":
 		namespace := pod.GetNamespace()
-		rps, err := rs.k8sClient.AppsV1().ReplicaSets(namespace).Get(ctx, ownername, metav1.GetOptions{})
+		rset, err := rs.k8sClient.AppsV1().ReplicaSets(namespace).Get(ctx, ownername, metav1.GetOptions{})
 		if err != nil {
 			//logging.GetLogger().Error().Msgf("pod name : %s, ns : %s, err : %v.", pod.GetName(), namespace, err)
 			return ownername, ownerkind
 		}
 
-		owners := rps.GetOwnerReferences()
+		owners := rset.GetOwnerReferences()
 		for _, o := range owners {
 			//logging.GetLogger().Info().Msgf("pod name : %s, ns : %s, Controller : %v, kind : %v, name : %v.", pod.GetName(), namespace, *owner.Controller, owner.Kind, owner.Name)
+			if *o.Controller != true {
+				continue
+			}
+
+			return o.Name, o.Kind
+		}
+	case "Job":
+		namespace := pod.GetNamespace()
+		job, err := rs.k8sClient.BatchV1().Jobs(namespace).Get(ctx, ownername, metav1.GetOptions{})
+		if err != nil {
+			return ownername, ownerkind
+		}
+		owners := job.GetOwnerReferences()
+		for _, o := range owners {
 			if *o.Controller != true {
 				continue
 			}
