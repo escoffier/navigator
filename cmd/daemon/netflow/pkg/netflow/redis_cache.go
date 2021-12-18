@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"os"
-	"strings"
-	"time"
 )
 
 func RedisInit() (*redis.Client, error) {
@@ -70,8 +71,8 @@ func ConnectRedis(addr, pwd string) (*redis.Client, error) {
 	return redisClient, nil
 }
 
-func RedisGet(redisClient *redis.Client, key string) (*model.TensorNetworkFlow, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+func redisGet(ctx context.Context, redisClient *redis.Client, key string) (*model.TensorNetworkFlow, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*3)
 	defer cancel()
 
 	ret, err := redisClient.Get(ctx, key).Result()
@@ -88,51 +89,34 @@ func RedisGet(redisClient *redis.Client, key string) (*model.TensorNetworkFlow, 
 	return &netflow, nil
 }
 
-func RedisSet(redisClient *redis.Client, key string, netflow *model.TensorNetworkFlow) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+func redisSetIfNotExists(ctx context.Context, redisClient *redis.Client, key string, netflow *model.TensorNetworkFlow) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*1)
 	defer cancel()
 
 	value, err := json.Marshal(netflow)
 	if err != nil {
-		return errors.Errorf("json marshal failed, %v", err)
+		return false, errors.Errorf("json marshal failed, %v", err)
 	}
-
-	err = redisClient.Set(ctx, key, value, time.Second*60).Err()
-	if err != nil {
-		return errors.Errorf("set %v failed, %v", key, err)
-	}
-	return nil
+	res := redisClient.SetNX(ctx, key, value, 60*time.Second)
+	return res.Result()
 }
 
-func RedisKeyIsExist(redisClient *redis.Client, key string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
-
-	keyNum, err := redisClient.Exists(ctx, key).Result()
-	if err != nil {
-		return false, errors.Errorf("get %v exists failed, %v", key, err)
-	}
-
-	return (keyNum > 0), nil
-}
-
-func RedisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.TensorNetworkFlow) (bool, error) {
+func redisSaveOrUpdate(ctx context.Context, redisClient *redis.Client, addrType int, netflow *model.TensorNetworkFlow) (bool, error) {
 	if len(netflow.SrcProcess) > 0 && len(netflow.DstProcess) > 0 {
 		return true, nil
 	}
 
 	key := fmt.Sprintf("%v", netflow.AssocKey)
 
-	ok, err := RedisKeyIsExist(redisClient, key)
+	setted, err := redisSetIfNotExists(ctx, redisClient, key, netflow)
 	if err != nil {
-		return false, errors.Errorf("get redis key is exist failed, %v", err)
+		return false, errors.Errorf("setnx redis failed for key %s. value: %+v", key, netflow)
 	}
 
-	if !ok {
-		return false, RedisSet(redisClient, key, netflow)
+	if !setted {
+		return false, nil
 	}
-
-	net, err := RedisGet(redisClient, key)
+	net, err := redisGet(ctx, redisClient, key)
 	if err != nil {
 		return false, errors.Errorf("get netflow info from redis failed, %v", err)
 	}
