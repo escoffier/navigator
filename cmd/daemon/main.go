@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/ruleMetrics"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
@@ -119,12 +118,6 @@ func NetInit(ctx context.Context) error {
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
-	ruleMetricsClient, err := ruleMetrics.NewRuleMetricsClient(hostName)
-	if err != nil {
-		//log.Warnf("Failed to initialize rule metrics client: %w", err)
-	} else {
-		ruleMetricsClient.Start()
-	}
 	//new k8s resource
 	k8sResSync, err := netflow.NewK8sResourceSyncer()
 	if err != nil {
