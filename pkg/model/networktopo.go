@@ -3,9 +3,10 @@ package model
 import (
 	"bytes"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"hash/fnv"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 )
 
 type TensorNetworkFlow struct {

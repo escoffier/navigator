@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"sync"
 	"time"
 
 	ct "github.com/florianl/go-conntrack"
@@ -29,8 +28,7 @@ type FlowSession struct {
 	url            string
 	clusterManager ClusterManager
 	submitter      *Submitter
-	NsLock         sync.Mutex
-	NsDataQue      []*daemon.NetSessionLink
+	nsDataChan     chan daemon.NetSessionLink
 	redisClient    *redis.Client
 	conflictKey    map[uint32]int64
 }
@@ -176,7 +174,7 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*Fl
 		k8sRes:         k8sClient,
 		clusterManager: clusterManager,
 		url:            url,
-		NsDataQue:      make([]*daemon.NetSessionLink, 0),
+		nsDataChan:     make(chan daemon.NetSessionLink, 250),
 		redisClient:    redisClient,
 		conflictKey:    make(map[uint32]int64, 0),
 		submitter:      NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
@@ -304,7 +302,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, namespace, podnam
 	return "", "", errors.Errorf("get container id failed, namespace : %v, pod name : %v, tuple : %+v", namespace, podname, *tuple)
 }
 
-func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, podInfo *daemon.NetAssocPod) (bool, error) {
+func (fs *FlowSession) GetContainerInfo(ctx context.Context, netRes *model.TensorNetworkFlow, podInfo *daemon.NetAssocPod) (bool, error) {
 	if podInfo.NetAddr.SrcPort == 53 || podInfo.NetAddr.DstPort == 53 {
 		return true, nil
 	}
@@ -318,7 +316,7 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, podInfo
 		netRes.SrcContainerName = containerName
 		//
 		if podInfo.DstNodeIp != fs.hostIP {
-			return RedisSaveOrUpdate(fs.redisClient, daemon.SND_ADDR, netRes)
+			return redisSaveOrUpdate(ctx, fs.redisClient, daemon.SND_ADDR, netRes)
 		}
 	}
 
@@ -330,49 +328,33 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, podInfo
 		netRes.DstProcess = name
 		netRes.DstContainerName = containerName
 		//
-		return RedisSaveOrUpdate(fs.redisClient, daemon.RCV_ADDR, netRes)
+		return redisSaveOrUpdate(ctx, fs.redisClient, daemon.RCV_ADDR, netRes)
 	}
 
 	return false, nil
 }
 
 func (fs *FlowSession) ProcSessionQueData() {
-	for {
-		if len(fs.NsDataQue) == 0 {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		fs.NsLock.Lock()
-		nsQueDataLen := len(fs.NsDataQue)
-		nsData := fs.NsDataQue[:nsQueDataLen]
-		fs.NsDataQue = make([]*daemon.NetSessionLink, 0)
-		fs.NsLock.Unlock()
-		//print debug log
-		for i := 0; i < nsQueDataLen; i++ {
-			if nsData[i] == nil {
-				continue
-			}
-
-			err := fs.ProcSessionData(nsData[i])
-			if err != nil {
-				logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
-			}
+	for nsData := range fs.nsDataChan {
+		err := fs.ProcSessionData(nsData)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
 		}
 	}
 }
 
 func (fs *FlowSession) PutNetSession(nlType uint8, origin, reply *daemon.FiveTuple) {
-
-	nsData := &daemon.NetSessionLink{
+	nsData := daemon.NetSessionLink{
 		NlType: nlType,
 		Origin: origin,
 		Reply:  reply,
 	}
 
-	fs.NsLock.Lock()
-	fs.NsDataQue = append(fs.NsDataQue, nsData)
-	fs.NsLock.Unlock()
+	select {
+	case fs.nsDataChan <- nsData:
+	default:
+		logging.GetLogger().Warn().Msgf("send to queue timeout: %+v", nsData)
+	}
 }
 
 func (fs *FlowSession) AllowLinkState(proto uint8, session *ct.Con) bool {
@@ -401,7 +383,8 @@ func (fs *FlowSession) filterUnusedSession(addr *daemon.FiveTuple) bool {
 	return true
 }
 
-func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error {
+func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
+	ctx := context.Background()
 
 	ok := fs.filterUnusedSession(netSession.Origin)
 	if !ok {
@@ -483,7 +466,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		//create associate key
 		netData.CreateAssocKey(podInfo.NetAddr)
 		//get container info
-		state, err = fs.GetContainerInfo(&netData, podInfo)
+		state, err = fs.GetContainerInfo(ctx, &netData, podInfo)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
 		}
@@ -504,7 +487,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		}
 	}
 	//post net flow
-	return fs.submitter.Submit(context.Background(), &netData)
+	return fs.submitter.Submit(ctx, &netData)
 }
 
 func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
