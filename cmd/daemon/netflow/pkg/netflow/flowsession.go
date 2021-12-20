@@ -436,7 +436,7 @@ func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
 	if dst.Kind == "Service" {
 		dst, err = fs.k8sResInfos.GetK8sResData(netSession.Reply.SrcIp)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get pods information faield by reply src, Reply.SrcIp : %s.", netSession.Reply.SrcIp)
+			logging.GetLogger().Err(err).Msgf("get pods information faield by reply src, Reply.SrcIp : %s.", netSession.Reply.SrcIp)
 			return nil
 		}
 		dstIp = netSession.Reply.SrcIp
@@ -480,7 +480,7 @@ func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
 		//get container info
 		state, err = fs.GetContainerInfo(ctx, &netData, podInfo)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
+			logging.GetLogger().Err(err).Msgf("get container info failed, %v.", err)
 		}
 	}
 
