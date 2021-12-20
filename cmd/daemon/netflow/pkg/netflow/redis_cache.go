@@ -108,12 +108,12 @@ func redisSaveOrUpdate(ctx context.Context, redisClient *redis.Client, addrType 
 
 	key := fmt.Sprintf("%v", netflow.AssocKey)
 
-	setted, err := redisSetIfNotExists(ctx, redisClient, key, netflow)
+	newValueSetted, err := redisSetIfNotExists(ctx, redisClient, key, netflow)
 	if err != nil {
 		return false, errors.Errorf("setnx redis failed for key %s. value: %+v", key, netflow)
 	}
 
-	if !setted {
+	if newValueSetted {
 		return false, nil
 	}
 	net, err := redisGet(ctx, redisClient, key)

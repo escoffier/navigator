@@ -375,7 +375,6 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 
 			name, kind := rs.GetOwnerReferences(ctx, pod)
 			namespace := pod.GetNamespace()
-			//logging.GetLogger().Info().Msgf("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
 			rs.K8sPods.UpdateK8sResData(podIp, name, kind, namespace, "", pod.GetName(), hostIp)
 
 			if hostIp == rs.hostIP {
