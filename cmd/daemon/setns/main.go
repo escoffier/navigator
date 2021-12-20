@@ -1,17 +1,18 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/setns/setnsmnt"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
 	"runtime/debug"
+
+	json "github.com/json-iterator/go"
+	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/setns/setnsmnt"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"golang.org/x/sys/unix"
 )
 
 var filename *os.File

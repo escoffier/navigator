@@ -2,18 +2,15 @@ package docker
 
 import (
 	"context"
-	"encoding/json"
 	"net"
-	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"k8s.io/client-go/kubernetes"
 )
 
 const unixSockFile = "/tmp/setns.sock"
@@ -68,55 +65,6 @@ func (nse NsenterData) GetContainerPid(containerId string) (int, error) {
 	}
 
 	return container.State.Pid, nil
-}
-
-func (nse NsenterData) GetPodContainerID(namespace, podname, nodeIp string) (map[string]string, error) {
-	if len(podname) == 0 {
-		return nil, errors.Errorf("pod name is null")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	pod, err := nse.k8sClient.CoreV1().Pods(namespace).Get(ctx, podname, metav1.GetOptions{})
-	if err != nil {
-		return nil, errors.Errorf("get %s pod failed, %v", podname, err)
-	}
-
-	hostIp := pod.Status.HostIP
-	if nodeIp != hostIp {
-		return nil, errors.Errorf("this host ip is not node ip")
-	}
-
-	hostNet := pod.Spec.HostNetwork
-	if hostNet {
-		return nil, errors.Errorf("can not support host network is ture")
-	}
-
-	containers := make(map[string]string, 0)
-	for _, container := range pod.Status.ContainerStatuses {
-		if len(pod.Status.ContainerStatuses) != 1 {
-			running := container.State.Running
-			if running == nil {
-				continue
-			}
-		}
-
-		//log.Infof("container id : %v.", container.ContainerID)
-		id := strings.TrimPrefix(container.ContainerID, "docker://")
-		name := container.Name
-		if len(name) == 0 {
-			logging.GetLogger().Warn().Msgf("get container name failed, namespaces : %v, pod name : %v.", namespace, podname)
-			continue
-		}
-		containers[id] = name
-	}
-
-	if len(containers) == 0 {
-		return nil, errors.Errorf("container id is nil")
-	}
-
-	return containers, nil
 }
 
 func (nse NsenterData) GetProcessName(netinfo *daemon.PidAssociateMnt) (string, error) {

@@ -79,6 +79,10 @@ func NetInit(ctx context.Context) error {
 	if hostName == "" {
 		hostName = "Unknown"
 	}
+	hostIP := os.Getenv("MY_HOST_IP")
+	if hostIP == "" {
+		hostIP = "Unknown"
+	}
 	podName := os.Getenv("MY_POD_NAME")
 	if podName == "" {
 		podName = "Unknown"
@@ -119,7 +123,7 @@ func NetInit(ctx context.Context) error {
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
 	//new k8s resource
-	k8sResSync, err := netflow.NewK8sResourceSyncer()
+	k8sResSync, err := netflow.NewK8sResourceSyncer(hostIP)
 	if err != nil {
 		return errors.Errorf("Failed to initialize k8s resource sycner, : %w", err)
 	}
