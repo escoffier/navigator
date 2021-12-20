@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"net/http"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -21,7 +21,7 @@ func GetSubmitFunc(url string) SubmitFunc {
 	client := &http.Client{Transport: tr}
 	//http put
 	return func(ctx context.Context, flows []*model.TensorNetworkFlow) error {
-		tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 		data, err := json.Marshal(flows)
 		if err != nil {

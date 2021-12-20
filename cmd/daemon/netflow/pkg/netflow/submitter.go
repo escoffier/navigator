@@ -23,7 +23,7 @@ func NewSubmitter(intv time.Duration, submitFunc SubmitFunc) *Submitter {
 	s := &Submitter{
 		submitInterval: intv,
 		submitFunc:     submitFunc,
-		flowChan:       make(chan *model.TensorNetworkFlow, 100),
+		flowChan:       make(chan *model.TensorNetworkFlow, 50),
 	}
 	s.asyncLoop()
 	return s

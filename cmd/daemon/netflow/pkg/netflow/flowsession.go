@@ -24,7 +24,7 @@ type FlowSession struct {
 	CtFlow         ConntrackTools
 	netNs          *docker.NsenterData
 	hostIP         string
-	k8sRes         *K8sResClient
+	k8sResInfos    *K8sResInfos
 	url            string
 	clusterManager ClusterManager
 	submitter      *Submitter
@@ -171,10 +171,10 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*Fl
 		CtFlow:         ctFlow,
 		netNs:          netNs,
 		hostIP:         myHostIP,
-		k8sRes:         k8sClient,
+		k8sResInfos:    k8sClient.K8sPods,
 		clusterManager: clusterManager,
 		url:            url,
-		nsDataChan:     make(chan daemon.NetSessionLink, 250),
+		nsDataChan:     make(chan daemon.NetSessionLink, 300),
 		redisClient:    redisClient,
 		conflictKey:    make(map[uint32]int64, 0),
 		submitter:      NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
@@ -184,6 +184,17 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*Fl
 }
 
 func (fs *FlowSession) Start(ctx context.Context) {
+	//handle queue data
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		//process session
+		fs.ProcSessionQueData()
+	}()
+
 	//crontab check session
 	go func() {
 		defer func() {
@@ -196,17 +207,6 @@ func (fs *FlowSession) Start(ctx context.Context) {
 		if err != nil {
 			logging.GetLogger().Error().Msgf("init session failed, %v.", err)
 		}
-	}()
-
-	//handle queue data
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-			}
-		}()
-		//process session
-		fs.ProcSessionQueData()
 	}()
 
 	//listen conntrack event
@@ -263,15 +263,19 @@ func (fs *FlowSession) PrintNetFlowLog(flow *model.TensorNetworkFlow) {
 }
 
 func (fs *FlowSession) GetContainerProcessName(addrType uint8, namespace, podname, nodeIP string, tuple *daemon.FiveTuple) (string, string, error) {
-	containerIds, err := fs.netNs.GetPodContainerID(namespace, podname, nodeIP)
-	if err != nil {
-		return "", "", errors.Errorf("get pod container id failed, %v", err)
+	podInfo, ok := fs.k8sResInfos.getPodInfo(podname, namespace)
+	if !ok {
+		return "", "", fmt.Errorf("get pod info not found: %s %s", podname, namespace)
+	}
+	if podInfo.hostNetwork {
+		return "", "", fmt.Errorf("hostNetwork, ignore")
 	}
 
 	var pid int
+	var err error
 	var name string
 
-	for containerId, containerName := range containerIds {
+	for containerId, containerName := range podInfo.containerStatuses {
 		//get pid
 		pid, err = fs.netNs.GetContainerPid(containerId)
 		if err != nil {
@@ -350,9 +354,12 @@ func (fs *FlowSession) PutNetSession(nlType uint8, origin, reply *daemon.FiveTup
 		Reply:  reply,
 	}
 
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
 	select {
 	case fs.nsDataChan <- nsData:
-	default:
+	case <-timer.C:
 		logging.GetLogger().Warn().Msgf("send to queue timeout: %+v", nsData)
 	}
 }
@@ -384,6 +391,12 @@ func (fs *FlowSession) filterUnusedSession(addr *daemon.FiveTuple) bool {
 }
 
 func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+		}
+	}()
+
 	ctx := context.Background()
 
 	ok := fs.filterUnusedSession(netSession.Origin)
@@ -391,13 +404,12 @@ func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
 		return nil
 	}
 
-	pods := fs.k8sRes.K8sPods
 	netData := model.TensorNetworkFlow{
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	src, err := pods.GetK8sResData(netSession.Origin.SrcIp)
+	src, err := fs.k8sResInfos.GetK8sResData(netSession.Origin.SrcIp)
 	if err != nil {
 		return nil
 	}
@@ -415,16 +427,16 @@ func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
 	netData.SrcCluster = ckey
 	netData.DstCluster = ckey
 
-	dst, err := pods.GetK8sResData(netSession.Origin.DstIp)
+	dst, err := fs.k8sResInfos.GetK8sResData(netSession.Origin.DstIp)
 	if err != nil {
 		return nil
 	}
 	dstIp := netSession.Origin.DstIp
 	//service
 	if dst.Kind == "Service" {
-		dst, err = pods.GetK8sResData(netSession.Reply.SrcIp)
+		dst, err = fs.k8sResInfos.GetK8sResData(netSession.Reply.SrcIp)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get pods information faield by service, service ip : %s.", netSession.Origin.DstIp)
+			logging.GetLogger().Error().Msgf("get pods information faield by reply src, Reply.SrcIp : %s.", netSession.Reply.SrcIp)
 			return nil
 		}
 		dstIp = netSession.Reply.SrcIp
@@ -479,7 +491,6 @@ func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
 	netData.CreateUuid()
 	//print log
 	if netData.DstPort != 53 {
-		logging.GetLogger().Info().Msgf("%+v", netData)
 		//filter error info
 		if netData.SrcProcess == "-" || len(netData.SrcProcess) == 0 || netData.DstProcess == "-" || len(netData.DstProcess) == 0 {
 			logging.GetLogger().Warn().Msgf("get process failed, %+v", netData)

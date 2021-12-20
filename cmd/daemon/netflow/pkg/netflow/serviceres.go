@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,12 +19,10 @@ import (
 type K8sResClient struct {
 	k8sClient *kubernetes.Clientset
 	K8sPods   *K8sResInfos
+	hostIP    string
 }
 
-func NewK8sResourceSyncer() (*K8sResClient, error) {
-	var k8sPods K8sResInfos
-	k8sPods.ResInfos = make(map[string]*daemon.K8sResData)
-
+func NewK8sResourceSyncer(hostIP string) (*K8sResClient, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't initialize k8s config: %w", err)
@@ -38,7 +35,8 @@ func NewK8sResourceSyncer() (*K8sResClient, error) {
 
 	rs := K8sResClient{
 		k8sClient: k8sClient,
-		K8sPods:   &k8sPods,
+		K8sPods:   newK8sResInfos(),
+		hostIP:    hostIP,
 	}
 
 	return &rs, nil
@@ -284,6 +282,32 @@ func (rs K8sResClient) ListenEndpointEvent(factory *informers.SharedInformerFact
 	})
 }
 
+func mkPodInfoFrom(pod *corev1.Pod) *PodInfo {
+	podInfo := new(PodInfo)
+
+	podInfo.hostIP = pod.Status.HostIP
+	podInfo.hostNetwork = pod.Spec.HostNetwork
+	podInfo.containerStatuses = make(map[string]string, len(pod.Status.ContainerStatuses))
+
+	for _, container := range pod.Status.ContainerStatuses {
+		if len(pod.Status.ContainerStatuses) != 1 {
+			running := container.State.Running
+			if running == nil {
+				continue
+			}
+		}
+
+		id := strings.TrimPrefix(container.ContainerID, "docker://")
+		cname := container.Name
+		if len(cname) == 0 {
+			logging.GetLogger().Warn().Msgf("get container name failed, namespace : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
+			continue
+		}
+		podInfo.containerStatuses[id] = cname
+	}
+	return podInfo
+}
+
 func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.SharedInformerFactory) {
 	informer := (*factory).Core().V1().Pods().Informer()
 
@@ -301,10 +325,14 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 				return
 			}
 
-			name, kind := rs.GetOwnerReferences(ctx, pod)
-			namespace := pod.GetNamespace()
+			ownerName, kind := rs.GetOwnerReferences(ctx, pod)
+			ownerNamespace := pod.GetNamespace()
 			//logging.GetLogger().Info().Msgf("[pods add] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
-			rs.K8sPods.SaveK8sResData(podIp, name, kind, namespace, "", pod.GetName(), hostIp)
+			rs.K8sPods.SaveK8sResData(podIp, ownerName, kind, ownerNamespace, "", pod.GetName(), hostIp)
+
+			if hostIp == rs.hostIP {
+				rs.K8sPods.savePodInfo(pod.GetName(), pod.GetNamespace(), mkPodInfoFrom(pod))
+			}
 		},
 
 		DeleteFunc: func(obj interface{}) {
@@ -315,12 +343,16 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 
 			network := pod.Spec.HostNetwork
 			podIp := pod.Status.PodIP
+			hostIp := pod.Status.HostIP
 			if network == true || podIp == "" || podIp == "None" {
 				return
 			}
 
-			//logging.GetLogger().Info().Msgf("[pods delete] ip : %v, namespace : %v", podIp, pod.GetNamespace())
 			rs.K8sPods.DeleteK8sResData(podIp)
+
+			if hostIp == rs.hostIP {
+				rs.K8sPods.deletePodInfo(pod.GetName(), pod.GetNamespace())
+			}
 		},
 
 		UpdateFunc: func(oldObj, newObj interface{}) {
@@ -345,6 +377,10 @@ func (rs K8sResClient) ListenPodsEvent(ctx context.Context, factory *informers.S
 			namespace := pod.GetNamespace()
 			//logging.GetLogger().Info().Msgf("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, name, kind, namespace)
 			rs.K8sPods.UpdateK8sResData(podIp, name, kind, namespace, "", pod.GetName(), hostIp)
+
+			if hostIp == rs.hostIP {
+				rs.K8sPods.savePodInfo(pod.GetName(), pod.GetNamespace(), mkPodInfoFrom(pod))
+			}
 		},
 	})
 }
