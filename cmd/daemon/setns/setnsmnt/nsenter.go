@@ -2,16 +2,17 @@ package setnsmnt
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"golang.org/x/sys/unix"
 )
 
 const DEFAULT_PROCESS = 20
@@ -186,7 +187,7 @@ func GetNetFile(proto uint8, pid int) ([]string, error) {
 		return nil, errors.Errorf("get process id files failed, pid : %v, %v", pid, err)
 	}
 	//
-	files := make([]string, 0)
+	files := make([]string, 0, 2*len(procs))
 	//list file
 	for _, path := range procs {
 		switch proto {
