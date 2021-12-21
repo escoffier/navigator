@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"github.com/docker/docker/client"
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
