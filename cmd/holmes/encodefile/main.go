@@ -15,9 +15,27 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
+func checkRulesDuplication(rules []model.RuleFromYaml) error {
+	ruleMap := make(map[string]bool)
+	for _, rule := range rules {
+		if rule.Rule == "" {
+			continue
+		}
+		if _, ok := ruleMap[rule.Rule]; ok {
+			return fmt.Errorf("duplicate rule name: %s", rule.Rule)
+		}
+		ruleMap[rule.Rule] = true
+	}
+	return nil
+}
+
 func checkRulesFile(in []byte) error {
 	var rulesContext []model.RuleFromYaml
 	err := yaml.Unmarshal(in, &rulesContext)
+	if err != nil {
+		return err
+	}
+	err = checkRulesDuplication(rulesContext)
 	if err != nil {
 		return err
 	}
@@ -62,19 +80,19 @@ func main() {
 
 	fp, err := os.Create(*outputRulesFilename)
 	if err != nil {
-		fmt.Println(err)
-		return
+		fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+		os.Exit(1)
 	}
 	defer fp.Close()
 
 	fileBytes, err := ioutil.ReadFile(*inputRulesFilename)
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(1)
 	}
 	if err = checkRulesFile(fileBytes); err != nil {
-		fmt.Println(err)
-		return
+		fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+		os.Exit(1)
 	}
 	data, md5, blockNum := cryption.EncryptionRules(fileBytes)
 	versionList := strings.Split(*version, ".")
@@ -82,13 +100,13 @@ func main() {
 	tmpInt, err := strconv.ParseUint(versionList[0], 10, 16)
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(1)
 	}
 	versionNum[0] = uint16(tmpInt)
 	tmpInt, err = strconv.ParseUint(versionList[1], 10, 16)
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(1)
 	}
 	versionNum[1] = uint16(tmpInt)
 	header := &cryption.FileHeader{BlockNum: blockNum, Version: versionNum}
@@ -97,6 +115,6 @@ func main() {
 	err = writeOutputFile(fp, header, data)
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(1)
 	}
 }
