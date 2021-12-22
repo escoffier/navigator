@@ -1159,6 +1159,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 			return img, nil
 		}
 		img.FullRepoName = fmt.Sprintf("%s-%s-%s", img.NodeHostname, img.NodeIp, strings.Join(split[5:], "/"))
+		img.FullRepoName = strings.Replace(img.FullRepoName, consts.ColonSalt, ":", -1)
 	}
 	// docker-registry(GET /v2/<name>/tags/list)入库是没有这三个时间，做一步兼容
 	if img.LastPullTime.IsZero() {
@@ -1451,6 +1452,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 		if on, ok := onlineMap[res[i].ID]; ok && on {
 			res[i].Online = true
 		}
+		res[i].FullRepoName = strings.Replace(res[i].FullRepoName, consts.ColonSalt, ":", -1)
 		// 加上扫描状态
 		if sc, ok := statusMap[res[i].ID]; ok {
 			res[i].ScanStatus = int(sc.Status)

@@ -555,8 +555,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		SpecialImageType: specialImageType,
 	}, filter)
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("SearchImages Err")
-		response.JSONError(ctx, fmt.Errorf("SearchImages error"))
+		response.JSONError(ctx, err)
 		return
 	}
 	// 数据规整
@@ -652,10 +651,6 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 		return
 	}
 
-	// res := make([]model.ImageResponse, 0)
-	// for i := range images {
-	// 	res = append(res, model.ImageToImageResponse(images[i]))
-	// }
 	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
