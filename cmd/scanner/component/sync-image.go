@@ -256,7 +256,7 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		img.RepoName = newImage.RepoName
 
 		img.FromType = model.ImageFromSafeNode
-	} else {
+	} else if reg.UseType == model.RegistryUseTypeNormal {
 		split := strings.Split(img.FullRepoName, "/")
 		if len(split) >= 2 {
 			img.Project = split[0]
@@ -320,6 +320,8 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 	// NodeSafeTage = NodeSafeSalt + "/%s/%s%s/%s" // tensorsec/hostname/ip/os/镜像名
 	clusterKey := split[1]
 	namespace := split[2]
+	namespace = strings.Replace(namespace, consts.ColonSalt, ":", -1)
+
 	podName := split[3]
 	info, err := s.podResourceRelationDAl.Search(ctx, namespace, clusterKey, podName)
 	if err != nil {
@@ -337,6 +339,8 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 		Library:      split[5],
 		Project:      split[6],
 	}
+	im.Library = strings.Replace(im.Library, consts.ColonSalt, ":", -1)
+
 	if len(split) >= 8 {
 		im.RepoName = strings.Join(split[7:], "/")
 	}

@@ -51,6 +51,10 @@ func main() {
 func worker(bathSize, bathInterval int) error {
 	clusterManagerURL := os.Getenv("CLUSTER-MANAGER-ADDR")
 	nameSpace := os.Getenv("MY_POD_NAMESPACE")
+	if strings.Contains(nameSpace, ":") {
+		nameSpace = strings.Replace(nameSpace, ":", consts.ColonSalt, 01)
+	}
+
 	if clusterManagerURL == "" || nameSpace == "" {
 		return fmt.Errorf("clusterManager or nameSpace is empty %s,%s ", clusterManagerURL, nameSpace)
 	}
@@ -139,6 +143,10 @@ func getPreImage(imge string) (string, error) {
 
 	tag := ref.Identifier()
 	repositoryName := ref.Context().RepositoryStr()
+
+	if strings.Contains(registryStr, ":") {
+		registryStr = strings.Replace(registryStr, ":", consts.ColonSalt, -1)
+	}
 
 	return registryStr + "/" + repositoryName + ":" + tag, nil
 }
@@ -266,5 +274,6 @@ func rmImage(imageName string) error {
 func getLib(url string) string {
 	lib := strings.Replace(url, "http://", "", -1)
 	lib = strings.Replace(lib, "https://", "", -1)
+
 	return lib
 }
