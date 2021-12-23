@@ -16,10 +16,8 @@ import (
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
-	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/immune"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
@@ -184,7 +182,6 @@ func main() {
 	// wait for the establishment of connection to stan
 	stanconn := waitForStannConn()
 
-	mainCtx := context.Background()
 	associationSub, err := stanconn.QueueSubscribe(associatedSubject, queueName, handleAssocatedEvents, stan.StartWithLastReceived(), stan.DurableName(queueName))
 
 	if err != nil {
@@ -203,52 +200,51 @@ func main() {
 		defer apiInfoSub.Close()
 	}
 
-	imErr := immune.Init(redisCli, stanconn)
-	if imErr != nil {
-		logging.GetLogger().Err(imErr).Msg("init immune module error")
-	} else {
+	// imErr := immune.Init(redisCli, stanconn)
+	// if imErr != nil {
+	// 	logging.GetLogger().Err(imErr).Msg("init immune module error")
+	// } else {
+	// 	werr := immune.Watch()
+	// 	if werr != nil {
+	// 		logging.GetLogger().Err(werr).Msg("init immune module watch error")
+	// 	} else {
+	// 		commandSub, err := stanconn.Subscribe(immune.CommandSubject, immune.CommandHandler, stan.StartWithLastReceived(), stan.DurableName(immune.CommandSubject))
+	// 		if err != nil {
+	// 			logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to management topic")
+	// 			panic(err)
+	// 		}
+	// 		defer commandSub.Close()
 
-		werr := immune.Watch()
-		if werr != nil {
-			logging.GetLogger().Err(werr).Msg("init immune module watch error")
-		} else {
-			commandSub, err := stanconn.Subscribe(immune.CommandSubject, immune.CommandHandler, stan.StartWithLastReceived(), stan.DurableName(immune.CommandSubject))
-			if err != nil {
-				logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to management topic")
-				panic(err)
-			}
-			defer commandSub.Close()
+	// 		fileSub, err := stanconn.Subscribe(immune.FileRWSubject, func(m *stan.Msg) {
+	// 			immune.UpdateProfile(mainCtx, m, model.SecurityKindApparmor)
+	// 		}, stan.StartWithLastReceived(), stan.DurableName(immune.FileRWSubject))
+	// 		if err != nil {
+	// 			logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to apparmor topic")
+	// 		} else {
+	// 			defer fileSub.Close()
+	// 		}
 
-			fileSub, err := stanconn.Subscribe(immune.FileRWSubject, func(m *stan.Msg) {
-				immune.UpdateProfile(mainCtx, m, model.SecurityKindApparmor)
-			}, stan.StartWithLastReceived(), stan.DurableName(immune.FileRWSubject))
-			if err != nil {
-				logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to apparmor topic")
-			} else {
-				defer fileSub.Close()
-			}
+	// 		cmdSub, err := stanconn.Subscribe(immune.CmdSubject, func(m *stan.Msg) {
+	// 			logging.GetLogger().Info().Msg("Received new command whitelist message")
+	// 			immune.UpdateProfile(mainCtx, m, model.SecurityKindCommandWhitelist)
+	// 		}, stan.StartWithLastReceived(), stan.DurableName(immune.CmdSubject))
+	// 		if err != nil {
+	// 			logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to command whitelist topic")
+	// 		} else {
+	// 			defer cmdSub.Close()
+	// 		}
 
-			cmdSub, err := stanconn.Subscribe(immune.CmdSubject, func(m *stan.Msg) {
-				logging.GetLogger().Info().Msg("Received new command whitelist message")
-				immune.UpdateProfile(mainCtx, m, model.SecurityKindCommandWhitelist)
-			}, stan.StartWithLastReceived(), stan.DurableName(immune.CmdSubject))
-			if err != nil {
-				logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to command whitelist topic")
-			} else {
-				defer cmdSub.Close()
-			}
-
-			syscallSub, err := stanconn.Subscribe(immune.SyscallSubject, func(m *stan.Msg) {
-				logging.GetLogger().Info().Msg("Received new seccomp message")
-				immune.UpdateProfile(mainCtx, m, model.SecurityKindSeccomp)
-			}, stan.StartWithLastReceived(), stan.DurableName(immune.CmdSubject))
-			if err != nil {
-				logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to seccomp topic")
-				panic(err)
-			}
-			defer syscallSub.Close()
-		}
-	}
+	// 		syscallSub, err := stanconn.Subscribe(immune.SyscallSubject, func(m *stan.Msg) {
+	// 			logging.GetLogger().Info().Msg("Received new seccomp message")
+	// 			immune.UpdateProfile(mainCtx, m, model.SecurityKindSeccomp)
+	// 		}, stan.StartWithLastReceived(), stan.DurableName(immune.CmdSubject))
+	// 		if err != nil {
+	// 			logging.GetLogger().Fatal().Err(err).Msg("Failed to subscribe to seccomp topic")
+	// 			panic(err)
+	// 		}
+	// 		defer syscallSub.Close()
+	// 	}
+	// }
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill)
