@@ -24,6 +24,34 @@ func Test_parseImage(t *testing.T) {
 			want1: "tensorsecurity/tensorsec-console",
 			want2: "testcn",
 		},
+		{
+			name:  "test-12",
+			args:  args{image: "registry.t-appagile.com/tensorsecurity/tensorsec-console"},
+			want:  "registry.t-appagile.com",
+			want1: "tensorsecurity/tensorsec-console",
+			want2: "",
+		},
+		{
+			name:  "test-2",
+			args:  args{image: "192.168.23.1:8080/tensorsecurity/tensorsec-console:testcn"},
+			want:  "192.168.23.1:8080",
+			want1: "tensorsecurity/tensorsec-console",
+			want2: "testcn",
+		},
+		{
+			name:  "test-3",
+			args:  args{image: "192.168.23.1:8080/tensorsecurity/tensorsec-console:"},
+			want:  "192.168.23.1:8080",
+			want1: "tensorsecurity/tensorsec-console",
+			want2: "",
+		},
+		{
+			name:  "test-4",
+			args:  args{image: "192.168.23.1:8080/tensorsecurity/tensorsec-console"},
+			want:  "192.168.23.1:8080",
+			want1: "tensorsecurity/tensorsec-console",
+			want2: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
