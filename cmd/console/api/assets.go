@@ -747,17 +747,28 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 
 func parseImage(image string) (string, string, string) {
 	var repo, name, tag string
-
-	splits := strings.SplitN(image, ":", 2)
-	if len(splits) == 2 {
-		tag = splits[1]
-		sp := strings.SplitN(splits[0], "/", 2)
-		if len(sp) < 2 {
-			name = sp[0]
-		} else {
-			repo = sp[0]
-			name = sp[len(sp)-1]
+	i := strings.LastIndex(image, ":")
+	var repName string
+	if i != -1 {
+		if i < len(image) {
+			if strings.Contains(image[i+1:], "/") {
+				tag = ""
+				repName = image
+			} else {
+				tag = image[i+1:]
+				repName = image[:i]
+			}
 		}
+	} else {
+		repName = image
+	}
+
+	sp := strings.SplitN(repName, "/", 2)
+	if len(sp) < 2 {
+		name = sp[0]
+	} else {
+		repo = sp[0]
+		name = sp[len(sp)-1]
 	}
 	return repo, name, tag
 }
