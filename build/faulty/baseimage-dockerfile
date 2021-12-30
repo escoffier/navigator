@@ -1,6 +1,8 @@
 FROM ubuntu:18.04
 
 ARG MIRROR=mirrors.ustc.edu.cn
+ARG TOMCAT_VERSION=8.5.73
+
 ENV PATH="/usr/lib/go-1.10/bin:$PATH"
 ENV JAVA_HOME="/usr/local/jdk1.8"
 ENV JRE_HOME="${JAVA_HOME}/jre"
@@ -42,9 +44,10 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     && tar xvzf /jdk-8u151-linux-x64.tar.gz \
     && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
     && rm jdk-8u151-linux-x64.tar.gz \
-    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v8.5.72/bin/apache-tomcat-8.5.72.tar.gz -O /usr/local/tomcat.tar.gz \
+    && TOMCAT_VERSION=`curl --silent  https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/ | grep v8 | awk '{split($5,c,">v") ; split(c[2],d,"/") ; print d[1]}'` \
+    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz -O /usr/local/tomcat.tar.gz \
     && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
-    && chmod 755 -R /usr/local/apache-tomcat-8.5.72/ \
+    && chmod 755 -R /usr/local/apache-tomcat-${TOMCAT_VERSION}/ \
     && rm /usr/local/tomcat.tar.gz \
     && apt upgrade -y \
     && rm -rf /var/lib/apt/lists/ \
@@ -55,4 +58,4 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     | cut -d: -f1 \
     | sort -u \
     | xargs -r apt-mark manual \
-    &&  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false  
+    &&  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false

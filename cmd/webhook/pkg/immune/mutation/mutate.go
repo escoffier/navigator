@@ -2,7 +2,6 @@ package mutation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,13 +9,14 @@ import (
 	"time"
 
 	dp "github.com/novln/docker-parser"
-	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+
+	// "gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/settings/v1alpha1"
 	"k8s.io/client-go/kubernetes"
@@ -29,9 +29,11 @@ type profile struct {
 	mode model.SecurityMode
 }
 
-func getResources(ctx context.Context, clientset *kubernetes.Clientset, name string, namespace string, pod *corev1.Pod) ([]model.SecurityPolicyResource, error) {
+func getResources(ctx context.Context, clientset *kubernetes.Clientset, namespace string, pod *corev1.Pod) ([]model.SecurityPolicyResource, error) {
+
 	kind := string(model.KubernetesResourcePod)
 	owner := metav1.GetControllerOf(pod)
+	name := ""
 	if owner != nil {
 		name = strings.ToLower(owner.Name)
 		kind = strings.ToLower(owner.Kind)
@@ -88,60 +90,47 @@ func getResources(ctx context.Context, clientset *kubernetes.Clientset, name str
 	return resources, nil
 }
 
-func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubernetes.Clientset, db *rdbtools.GormWrapper, review *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := review.Request
-
-	pod := &corev1.Pod{}
-	if err := json.Unmarshal(req.Object.Raw, pod); err != nil {
-		logrus.Errorf("Could not unmarshal raw object: %v", err)
-		return &v1beta1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	resources, err := getResources(ctx, clientset, req.Name, req.Namespace, pod)
+func MakePatches(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubernetes.Clientset, db *gorm.DB, pod *corev1.Pod, parameters *processors.MutatorParameters) []*processors.Patch {
+	resources, err := getResources(ctx, clientset, parameters.Namespace, pod)
 	if err != nil {
-		logrus.Errorf("Failed to get resources: %v", err)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-		}
+		logging.GetLogger().Error().Msgf("Failed to get resources: %v", err)
+		return nil
 	}
 
-	dbctx, dbcancel := context.WithTimeout(ctx, 10*time.Second)
+	dbctx, dbcancel := context.WithTimeout(ctx, time.Second*10)
 	defer dbcancel()
+
 	profileMap := make(map[model.SecurityKind]map[string]profile)
 	for _, kind := range []model.SecurityKind{model.SecurityKindApparmor, model.SecurityKindCommandWhitelist, model.SecurityKindSeccomp, model.SecurityKindDrift} {
 		profileMap[kind] = make(map[string]profile)
 	}
 	for _, secPolicyResource := range resources {
 		var secResource model.SecurityPolicyResource
-		result := db.Get().WithContext(dbctx).
+		result := db.WithContext(dbctx).
 			Where("cluster = 'default' AND kind = ? AND name = ? AND namespace = ? AND container_name = ?", secPolicyResource.Kind, secPolicyResource.Name, secPolicyResource.Namespace, secPolicyResource.ContainerName).
 			First(&secResource)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				logrus.Errorf("No such resource defined in DB: %v", result.Error)
+				logging.GetLogger().Error().Msgf("No such resource defined in DB: %v", result.Error)
 			} else {
-				logrus.Errorf("Failed to get resource from DB: %v", result.Error)
+				logging.GetLogger().Error().Msgf("Failed to get resource from DB: %v", result.Error)
 			}
 			continue
 		}
 
 		var p model.SecurityPolicy
 		if secResource.SecurityPolicyID == nil {
-			logrus.Infof("Pod %v: no policy attached to resource %v", pod.Name, secResource)
+			logging.GetLogger().Info().Msgf("Pod %v: no policy attached to resource %v", pod.Name, secResource)
 			continue
 		}
-		result = db.Get().WithContext(dbctx).Preload(clause.Associations).First(&p, *secResource.SecurityPolicyID)
+		result = db.WithContext(dbctx).Preload(clause.Associations).First(&p, *secResource.SecurityPolicyID)
 		if result.Error != nil {
-			logrus.Errorf("Failed to get policy from DB: %v", result.Error)
+			logging.GetLogger().Error().Msgf("Failed to get policy from DB: %v", result.Error)
 			continue
 		}
 
 		if !p.Active {
-			logrus.Infof("Pod %v: policy for %v not active", pod.Name, secResource)
+			logging.GetLogger().Info().Msgf("Pod %v: policy for %v not active", pod.Name, secResource)
 			continue
 		}
 
@@ -174,25 +163,19 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 			}
 		}
 	}
-
-	logrus.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
-		req.Kind, req.Namespace, req.Name, pod.Name, req.UID, req.Operation, req.UserInfo)
-
+	logging.GetLogger().Info().Msgf("Pod %v: profileMap %v", pod.Name, profileMap)
 	if len(profileMap[model.SecurityKindApparmor]) == 0 && len(profileMap[model.SecurityKindCommandWhitelist]) == 0 && len(profileMap[model.SecurityKindSeccomp]) == 0 && len(profileMap[model.SecurityKindDrift]) == 0 {
-		logrus.Infof("Pod %v: nothing to apply", pod.Name)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
-		}
+		logging.GetLogger().Info().Msgf("Pod %v: no policy attached to resource", pod.Name)
+		return nil
 	}
 
-	patches := make([]*Patch, 0)
+	patches := make([]*processors.Patch, 0)
 
 	annotationKeys := make([]string, 0)
 	annotationValues := make([]string, 0)
 
 	for container, profile := range profileMap[model.SecurityKindSeccomp] {
-		logrus.Infof("Applying seccomp profile %v to container %v", profile.name, container)
-		// securityContextPatch := PatchSecurityContext(pod, container, fmt.Sprintf("tensorsec/%s", profile.name))
+		logging.GetLogger().Info().Msgf("Applying seccomp profile %v to container %v", profile.name, container)
 		securityContextPatch := PatchSecurityContext(pod, container, fmt.Sprintf("%s", profile.name))
 		preVersionFlag := os.Getenv("PRE119")
 
@@ -212,11 +195,11 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 		seccompAnnotationValue := fmt.Sprintf("localhost/%s", profile.name)
 		// annotationKeys = append(annotationKeys, seccompAnnotationKey)
 		// annotationValues = append(annotationValues, seccompAnnotationValue)
-		logrus.Infof("%v %v", seccompAnnotationKey, seccompAnnotationValue)
+		logging.GetLogger().Error().Msgf("%v %v", seccompAnnotationKey, seccompAnnotationValue)
 	}
 
 	for container, profile := range profileMap[model.SecurityKindApparmor] {
-		logrus.Infof("Applying apparmor profile %v to container %v", profile.name, container)
+		logging.GetLogger().Error().Msgf("Applying apparmor profile %v to container %v", profile.name, container)
 		appArmorAnnotationKey := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
 		appArmorAnnotationValue := fmt.Sprintf("localhost/%s", profile.name)
 		annotationKeys = append(annotationKeys, appArmorAnnotationKey)
@@ -224,7 +207,7 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 	}
 
 	if len(annotationKeys) > 0 {
-		logrus.Infof("Pod %v applying annotation patches", pod.Name)
+		logging.GetLogger().Error().Msgf("Pod %v applying annotation patches", pod.Name)
 		annotationPatch := PatchAnnotation(pod.Annotations, annotationKeys, annotationValues)
 		patches = append(patches, annotationPatch)
 	}
@@ -233,15 +216,15 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 		foundCorrespondingCommandWhitelistProfile := false
 		for commandWhitelistContainer, commandWhitelistProfile := range profileMap[model.SecurityKindCommandWhitelist] {
 			if container == commandWhitelistContainer {
-				logrus.Infof("Applying drift profile %v to container %v", profile.name, container)
-				logrus.Infof("Applying command whitelist profile %v to container %v", commandWhitelistProfile.name, container)
+				logging.GetLogger().Error().Msgf("Applying drift profile %v to container %v", profile.name, container)
+				logging.GetLogger().Error().Msgf("Applying command whitelist profile %v to container %v", commandWhitelistProfile.name, container)
 				foundCorrespondingCommandWhitelistProfile = true
 				driftPatches := PatchDriftPreventionPod(spec, pod, true, container, profile.mode, true, commandWhitelistProfile.name, commandWhitelistProfile.mode)
 				patches = append(patches, driftPatches...)
 			}
 		}
 		if !foundCorrespondingCommandWhitelistProfile {
-			logrus.Infof("Applying drift profile %v to container %v", profile.name, container)
+			logging.GetLogger().Info().Msgf("Applying drift profile %v to container %v", profile.name, container)
 			driftPatches := PatchDriftPreventionPod(spec, pod, true, container, profile.mode, false, "", "")
 			patches = append(patches, driftPatches...)
 		}
@@ -254,28 +237,12 @@ func mutate(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubern
 			}
 		}
 		if !foundCorrespondingDriftProfile {
-			logrus.Infof("Applying command whitelist profile %v to container %v", commandWhitelistProfile.name, commandWhitelistContainer)
+			logging.GetLogger().Error().Msgf("Applying command whitelist profile %v to container %v", commandWhitelistProfile.name, commandWhitelistContainer)
 			driftPatches := PatchDriftPreventionPod(spec, pod, false, commandWhitelistContainer, model.SecurityModeDetection, true, commandWhitelistProfile.name, commandWhitelistProfile.mode)
 			patches = append(patches, driftPatches...)
 		}
 	}
 
-	logrus.Infof("Pod %v applied patches %v", pod.Name, patches)
-
-	patchData, err := json.Marshal(patches)
-	if err != nil {
-		logrus.Errorf("Could not marshal patches: %v", err)
-		return &v1beta1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	pt := v1beta1.PatchTypeJSONPatch
-	return &v1beta1.AdmissionResponse{
-		Allowed:   true,
-		Patch:     patchData,
-		PatchType: &pt,
-	}
+	logging.GetLogger().Error().Msgf("Pod %v applied patches %v", pod.Name, patches)
+	return patches
 }

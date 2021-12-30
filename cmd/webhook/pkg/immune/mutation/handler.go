@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 
 	"github.com/sirupsen/logrus"
@@ -82,13 +82,13 @@ func (w *mutateWebhook) mutationHandler(ctx *gin.Context) {
 		return
 	}
 
-	admissionResponse := mutate(ctx, w.Holder.Get(), w.clientset, w.db, review)
+	// admissionResponse := mutate(ctx, w.Holder.Get(), w.clientset, w.db, review)
 
-	if admissionResponse != nil && review.Request != nil {
-		admissionResponse.UID = review.Request.UID
-	}
+	// if admissionResponse != nil && review.Request != nil {
+	// 	admissionResponse.UID = review.Request.UID
+	// }
 
-	ctx.JSON(http.StatusOK, &v1beta1.AdmissionReview{
-		Response: admissionResponse,
-	})
+	// ctx.JSON(http.StatusOK, &v1beta1.AdmissionReview{
+	// 	Response: admissionResponse,
+	// })
 }
