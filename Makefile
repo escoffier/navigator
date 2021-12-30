@@ -159,17 +159,17 @@ immune-test: generate
 scanner-base: ## Build scanner base image
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-scanner:latest \
+	docker build -t $(REPOPREFIX)/baseimage-scanner:latest --build-arg TAG=$(FETCHTAG) \
     --build-arg REPO=$(REPOPREFIX) --build-arg MIRROR=mirrors.aliyun.com -f ./build/scanner/baseimage-dockerfile .
 else
-	docker build -t $(REPOPREFIX)/baseimage-scanner:latest \
+	docker build -t $(REPOPREFIX)/baseimage-scanner:latest --build-arg TAG=$(FETCHTAG) \
     --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/baseimage-dockerfile .
 endif
 
 .PHONY: webshell-server
 webshell-server: 		## Build cleaner binary
 	@echo "+ $@"
-	CGO_ENABLED=1 go build -v \
+	CGO_ENABLED=1 CGO_LDFLAGS=-no-pie go build -v \
 		-o dist/webshell-server cmd/webshell-server/cmd/main.go
 	upx dist/webshell-server
 	docker build -t $(REPOPREFIX)/webshell-server:latest -f ./build/webshell-server/Dockerfile .
@@ -290,15 +290,6 @@ else
 	docker push $(REPOPREFIX)/drift-prevention-client:latest
 endif
 
-.PHONY: security-profiles-webhook
-security-profiles-webhook:     ## Build security-profiles-webhook docker
-	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook/cmd.Version=$(VERSION)" \
-		-o dist/security-profiles-webhook gitlab.com/piccolo_su/vegeta/cmd/security-profiles-webhook
-	upx dist/security-profiles-webhook
-	docker build -t $(REPOPREFIX)/security-profiles-webhook:latest -f ./build/security-profiles-webhook/Dockerfile .
-
 .PHONY: go-audit
 go-audit:     ## Build go-audit docker
 	@echo "+ $@"
@@ -344,10 +335,10 @@ holmes-base: ## Build holmes base image
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) -f TAG=$(FETCHTAG) ./build/holmes/baseimage-dockerfile .
+    --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) -f  ./build/holmes/baseimage-dockerfile .
 else
 	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) -f ./build/holmes/baseimage-dockerfile .
+    --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) -f ./build/holmes/baseimage-dockerfile .
 endif
 
 .PHONY: holmes
@@ -431,7 +422,7 @@ apiscan-job: generate
 
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes daemon  \
-webshell-server webhook cluster-manager security-profiles-webhook security-profiles-manager security-profiles-loader \
+webshell-server webhook cluster-manager security-profiles-manager security-profiles-loader \
 palace go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
 
 .PHONY: base
@@ -484,7 +475,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/security-profiles-webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/palace:$(RELEASEVERSION)
@@ -510,7 +500,6 @@ else
 	docker push $(REPOPREFIX)/cleaner:latest
 	docker push $(REPOPREFIX)/drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
-	docker push $(REPOPREFIX)/security-profiles-webhook:latest
 	docker push $(REPOPREFIX)/security-profiles-manager:latest
 	docker push $(REPOPREFIX)/security-profiles-loader:latest
 	docker push $(REPOPREFIX)/palace:latest
@@ -539,7 +528,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/cleaner:latest
 	docker rmi $(REPOPREFIX)/drift-prevention-client:latest
 	docker rmi $(REPOPREFIX)/faulty:latest
-	docker rmi $(REPOPREFIX)/security-profiles-webhook:latest
 	docker rmi $(REPOPREFIX)/security-profiles-manager:latest
 	docker rmi $(REPOPREFIX)/security-profiles-loader:latest
 	docker rmi $(REPOPREFIX)/palace:latest
@@ -568,7 +556,6 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/cleaner:latest $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/security-profiles-webhook:latest $(REPOPREFIX)/security-profiles-webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/security-profiles-manager:latest $(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/security-profiles-loader:latest $(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/palace:latest $(REPOPREFIX)/palace:$(RELEASEVERSION)
@@ -593,7 +580,6 @@ else
 	docker tag $(REPOPREFIXOLD)/cleaner:latest $(REPOPREFIX)/cleaner:latest
 	docker tag $(REPOPREFIXOLD)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
-	docker tag $(REPOPREFIXOLD)/security-profiles-webhook:latest $(REPOPREFIX)/security-profiles-webhook:latest
 	docker tag $(REPOPREFIXOLD)/security-profiles-manager:latest $(REPOPREFIX)/security-profiles-manager:latest
 	docker tag $(REPOPREFIXOLD)/security-profiles-loader:latest $(REPOPREFIX)/security-profiles-loader:latest
 	docker tag $(REPOPREFIXOLD)/palace:latest $(REPOPREFIX)/palace:latest
@@ -625,7 +611,6 @@ ifeq ($(USERELEASE),true)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-webhook:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:$(RELEASEVERSION)
@@ -651,7 +636,6 @@ else
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-webhook:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-manager:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-loader:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:latest

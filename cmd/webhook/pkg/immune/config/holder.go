@@ -2,15 +2,16 @@ package config
 
 import (
 	"fmt"
+	"gorm.io/gorm"
 	"io/ioutil"
 	"runtime/debug"
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/settings/v1alpha1"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
@@ -18,11 +19,14 @@ var (
 	errUnmarshal = fmt.Errorf("failed to unmarshal config data")
 )
 
+
 // NewReloadingConfig sets up a new holder that periodically reloads the configuration from disk.
 // The reloaded configuration then replaces the current version in memory.
-func NewReloadingConfig(path string, reloadConfig *ReloadConfig) (*Holder, error) {
+func NewReloadingConfig(path string, db *gorm.DB, k8sCli *kubernetes.Clientset, reloadConfig *ReloadConfig) (*Holder, error) {
 	holder := &Holder{
 		path:    path,
+		DB:      db,
+		K8sCli:  k8sCli,
 		mu:      &sync.RWMutex{},
 		current: nil,
 	}
@@ -41,7 +45,7 @@ func NewReloadingConfig(path string, reloadConfig *ReloadConfig) (*Holder, error
 		for true {
 			sleepDuration := reloadConfig.ReloadInterval
 			if err := holder.Reload(); err != nil {
-				logrus.Errorf("failed to reload config: %s", err.Error())
+				logging.GetLogger().Error().Msgf("failed to reload config: %s", err.Error())
 				sleepDuration = reloadConfig.FailureRetryInterval
 			}
 			time.Sleep(sleepDuration)
@@ -53,8 +57,9 @@ func NewReloadingConfig(path string, reloadConfig *ReloadConfig) (*Holder, error
 
 // Holder encapsulates te current configuration.
 type Holder struct {
-	path string
-
+	path    string
+	DB      *gorm.DB
+	K8sCli  *kubernetes.Clientset
 	mu      *sync.RWMutex
 	current *v1alpha1.PodPresetSpec
 }
@@ -68,6 +73,7 @@ func (c *Holder) Reload() error {
 
 	newVersion := &v1alpha1.PodPresetSpec{}
 	if err := yaml.Unmarshal(data, newVersion); err != nil {
+		logging.GetLogger().Error().Msgf("failed to unmarshal config data: %s", err.Error())
 		return errUnmarshal
 	}
 

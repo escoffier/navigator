@@ -22,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagetrust"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagevalidator"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	inject "gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/sidecar"
@@ -366,9 +367,11 @@ func makeProcessor(name string, webHookConfig *processors.WebHookConfig) interfa
 
 func init() {
 	// register all processors here
+	logging.GetLogger().Info().Msg("Registering processors...")
 	imagevalidator.Register()
 	microsegmutator.Register()
 	driftprevention.Register()
+	immune.Register()
 	imagetrust.Register()
 	imagetrust.Register()
 	inject.Register()

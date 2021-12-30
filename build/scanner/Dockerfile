@@ -1,8 +1,7 @@
 ARG MIRROR=archive.ubuntu.com
 ARG TAG=latest
 ARG REPO=registry.t-appagile.com/tensorsecurity
-ARG TAGG=testcn
-FROM ${REPO}/drift-prevention-client:${TAGG} AS drift-prevention
+FROM ${REPO}/drift-prevention-client:${TAG} AS drift-prevention
 FROM ${REPO}/baseimage-scanner:${TAG}
 
 

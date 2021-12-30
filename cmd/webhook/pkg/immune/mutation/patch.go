@@ -4,17 +4,11 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/settings/v1alpha1"
 )
-
-// Patch represents a JSON patch to be applied
-type Patch struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
-}
 
 const (
 	envPatchTemplate            = "/spec/containers/%d/env"
@@ -28,8 +22,8 @@ const (
 )
 
 // PatchDriftPreventionPod patches a single pod with seccomp profile annotation
-func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drift bool, containerName string, driftMode model.SecurityMode, commandWhitelist bool, commandWhitelistProfile string, commandWhitelistMode model.SecurityMode) []*Patch {
-	patches := make([]*Patch, 0)
+func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drift bool, containerName string, driftMode model.SecurityMode, commandWhitelist bool, commandWhitelistProfile string, commandWhitelistMode model.SecurityMode) []*processors.Patch {
+	patches := make([]*processors.Patch, 0)
 
 	envs := spec.DeepCopy().Env
 	if drift {
@@ -141,7 +135,7 @@ func PatchDriftPreventionPod(spec *v1alpha1.PodPresetSpec, pod *corev1.Pod, drif
 }
 
 // PatchAnnotation creates a patch for updating a pod annotation.
-func PatchAnnotation(source map[string]string, keys []string, values []string) *Patch {
+func PatchAnnotation(source map[string]string, keys []string, values []string) *processors.Patch {
 	idx := make(map[string]bool)
 	for k := range source {
 		idx[k] = true
@@ -154,7 +148,7 @@ func PatchAnnotation(source map[string]string, keys []string, values []string) *
 		}
 	}
 
-	return &Patch{
+	return &processors.Patch{
 		Op:    "add",
 		Path:  annotationPatch,
 		Value: annotations,
@@ -162,7 +156,7 @@ func PatchAnnotation(source map[string]string, keys []string, values []string) *
 }
 
 // PatchEnvVar creates a patch for updating a containers environment variables.
-func PatchEnvVar(source, added []corev1.EnvVar, base string) *Patch {
+func PatchEnvVar(source, added []corev1.EnvVar, base string) *processors.Patch {
 	idx := make(map[string]bool)
 	for _, src := range source {
 		idx[src.Name] = true
@@ -182,14 +176,14 @@ func PatchEnvVar(source, added []corev1.EnvVar, base string) *Patch {
 
 	envVars = append(envVars, source...)
 
-	return &Patch{
+	return &processors.Patch{
 		Op:    "add",
 		Path:  base,
 		Value: envVars,
 	}
 }
 
-func PatchSecurityContext(pod *corev1.Pod, containerName, profileName string) *Patch {
+func PatchSecurityContext(pod *corev1.Pod, containerName, profileName string) *processors.Patch {
 	for i, container := range pod.Spec.Containers {
 		if containerName == container.Name {
 			if pod.Spec.Containers[i].SecurityContext == nil {
@@ -205,7 +199,7 @@ func PatchSecurityContext(pod *corev1.Pod, containerName, profileName string) *P
 				LocalhostProfile: &profileName,
 			}
 
-			return &Patch{
+			return &processors.Patch{
 				Op:    "add",
 				Path:  fmt.Sprintf(securityContextTemplate, i),
 				Value: pod.Spec.Containers[i].SecurityContext,
@@ -227,7 +221,7 @@ func PatchSecurityContext(pod *corev1.Pod, containerName, profileName string) *P
 				LocalhostProfile: &profileName,
 			}
 
-			return &Patch{
+			return &processors.Patch{
 				Op:    "add",
 				Path:  fmt.Sprintf(securityContextInitTemplate, i),
 				Value: pod.Spec.Containers[i].SecurityContext,
@@ -238,7 +232,7 @@ func PatchSecurityContext(pod *corev1.Pod, containerName, profileName string) *P
 }
 
 // PatchVolumeMount creates a patch for updating a containers volume mounts.
-func PatchVolumeMount(source, added []corev1.VolumeMount, base string) *Patch {
+func PatchVolumeMount(source, added []corev1.VolumeMount, base string) *processors.Patch {
 	idx := make(map[string]bool)
 	for _, src := range source {
 		idx[src.Name] = true
@@ -258,7 +252,7 @@ func PatchVolumeMount(source, added []corev1.VolumeMount, base string) *Patch {
 
 	volumeMounts = append(volumeMounts, source...)
 
-	return &Patch{
+	return &processors.Patch{
 		Op:    "add",
 		Path:  base,
 		Value: volumeMounts,
@@ -266,7 +260,7 @@ func PatchVolumeMount(source, added []corev1.VolumeMount, base string) *Patch {
 }
 
 // PatchVolume creates a patch for updating a pod volumes.
-func PatchVolume(source, added []corev1.Volume, base string) *Patch {
+func PatchVolume(source, added []corev1.Volume, base string) *processors.Patch {
 	idx := make(map[string]bool)
 	for _, src := range source {
 		idx[src.Name] = true
@@ -286,34 +280,7 @@ func PatchVolume(source, added []corev1.Volume, base string) *Patch {
 
 	volumes = append(volumes, source...)
 
-	return &Patch{
-		Op:    "add",
-		Path:  base,
-		Value: volumes,
-	}
-}
-
-func PatchAnnotations(source, added []corev1.Volume, base string) *Patch {
-	idx := make(map[string]bool)
-	for _, src := range source {
-		idx[src.Name] = true
-	}
-
-	volumes := make([]corev1.Volume, 0)
-
-	for _, add := range added {
-		if _, exists := idx[add.Name]; exists {
-			// already exists on source, skip
-			continue
-		}
-		idx[add.Name] = true
-
-		volumes = append(volumes, add)
-	}
-
-	volumes = append(volumes, source...)
-
-	return &Patch{
+	return &processors.Patch{
 		Op:    "add",
 		Path:  base,
 		Value: volumes,
