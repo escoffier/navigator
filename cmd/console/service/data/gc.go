@@ -107,7 +107,6 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 		return fmt.Errorf("unexpected job template")
 	}
 
-	job.Spec.Template.Spec.Containers[0].Image = os.Getenv("CLEANER_IMAGE")
 	job.Name = generateJobName(taskType, taskID)
 
 	taskIDEnv := coreV1.EnvVar{

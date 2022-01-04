@@ -15,9 +15,9 @@ type ScanConfig struct {
 	VulnFlushTrigEnable      bool             `gorm:"vuln_flush_trig_enable" json:"vuln_flush_trig_enable"`           // 漏洞库更新时触发全量扫描
 	MaliciousFlushTrigEnable bool             `gorm:"malicious_flush_trig_enable" json:"malicious_flush_trig_enable"` // 漏洞库更新时触发全量扫描
 	LibraryImageConfig       *ScanConfigSinge `gorm:"-" json:"library_image_config"`                                  // 仓库镜像的策略
-	LibraryImageJson         string           `gorm:"column:library_image_config" json:"-"`
-	NodeImageConfig          *ScanConfigSinge `gorm:"-" json:"node_image_config"`        // 节点镜像的策略
-	NodeImageJson            string           `gorm:"column:node_image_config" json:"-"` // 节点镜像的策略
+	LibraryImageJson         string           `gorm:"type:varchar(255);column:library_image_config" json:"-"`
+	NodeImageConfig          *ScanConfigSinge `gorm:"-" json:"node_image_config"`                          // 节点镜像的策略
+	NodeImageJson            string           `gorm:"type:varchar(255);column:node_image_config" json:"-"` // 节点镜像的策略
 
 	CreatedAt time.Time `gorm:"created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"updated_at" json:"updated_at"`
@@ -25,7 +25,7 @@ type ScanConfig struct {
 }
 
 func (ScanConfig) TableName() string {
-	return "tensor_scan_config"
+	return "ivan_scanner_scan_config"
 }
 
 type ScanConfigSinge struct {
@@ -33,25 +33,25 @@ type ScanConfigSinge struct {
 	Libraries          []int64  `gorm:"libraries" json:"libraries"`                         // 扫描仓库,列表序列化后的值
 	NodeHostnames      []string `gorm:"node_hostnames" json:"node_hostnames"`               // 扫描仓库,列表序列化后的值
 	ScanAll            bool     `gorm:"scan_all" json:"scan_all"`
-	ScanCycle          []int64  `gorm:"scan_cycle" json:"scan_cycle"`   // 扫描周期表示星期几
-	ScanTime           string   `gorm:"scan_time" json:"scan_time"`     // 扫描时间
-	StrategyId         int64    `gorm:"strategy_id" json:"strategy_id"` // 扫描策略。这里对应的是策略ID
+	ScanCycle          []int64  `gorm:"scan_cycle" json:"scan_cycle"`                 // 扫描周期表示星期几
+	ScanTime           string   `gorm:"type:varchar(255);scan_time" json:"scan_time"` // 扫描时间
+	StrategyId         int64    `gorm:"strategy_id" json:"strategy_id"`               // 扫描策略。这里对应的是策略ID
 }
 
 type ScanStrategy struct {
 	ID                int64               `gorm:"column:id" json:"id"`
-	Name              string              `gorm:"uniqueIndex:uniq_idx_scan_strategy_name,column:name" json:"name"` // 策略名唯一
-	Describe          string              `gorm:"describe" json:"describe"`
-	Operator          string              `gorm:"operator" json:"operator"`
+	Name              string              `gorm:"type:varchar(255);uniqueIndex:uniq_idx_scan_strategy_name,column:name" json:"name"` // 策略名唯一
+	Describe          string              `gorm:"type:varchar(255);column:describe" json:"describe"`
+	Operator          string              `gorm:"type:varchar(255);column:operator" json:"operator"`
 	IsDefault         bool                `gorm:"is_default" json:"is_default"`
-	SensitiveFileJson string              `gorm:"column:sensitive_file" json:"-"`
+	SensitiveFileJson string              `gorm:"type:varchar(255);column:sensitive_file" json:"-"`
 	SensitiveFile     []SensitiveFileScan `gorm:"-" json:"sensitive_file"`
-	EnvsJson          string              `gorm:"column:envs" json:"-"`
+	EnvsJson          string              `gorm:"type:varchar(255);column:envs" json:"-"`
 	Envs              []string            `gorm:"-" json:"envs"`
 
 	Software        []Software `gorm:"-" json:"software"`
-	SoftwareJson    string     `gorm:"column:software" json:"-"`
-	OpenLicenseJson string     `gorm:"column:open_license" json:"-"`
+	SoftwareJson    string     `gorm:"type:varchar(255);column:software" json:"-"`
+	OpenLicenseJson string     `gorm:"type:varchar(255);column:open_license" json:"-"`
 	OpenLicense     []string   `gorm:"-" json:"open_license"`
 
 	EnvsEnable        bool `gorm:"envs_enable" json:"envs_enable"`
@@ -75,7 +75,7 @@ type SensitiveFileScan struct {
 }
 
 func (s *ScanStrategy) TableName() string {
-	return "tensor_scan_strategy"
+	return "ivan_scanner_scan_strategies"
 }
 
 type Software struct {

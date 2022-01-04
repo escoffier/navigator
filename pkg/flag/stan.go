@@ -1,6 +1,8 @@
 package flag
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -33,6 +35,13 @@ func GetStanOpts(cmd *cobra.Command) *StanOpts {
 		ClusterID: viper.GetString(stanClusterID),
 		ClientID:  viper.GetString(stanClientID),
 		URL:       viper.GetString(stanURL),
+	}
+}
+
+func GetStanOptsFromEnv() *StanOpts {
+	return &StanOpts{
+		ClusterID: os.Getenv("STAN_CLUSTER_ID"),
+		URL: os.Getenv("STAN_URL"),
 	}
 }
 

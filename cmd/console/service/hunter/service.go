@@ -185,9 +185,6 @@ func (s *Service) completeJobInfo(job *batchV1.Job, uuid, consoleBaseURL string)
 	}
 
 	job.Name = generateJobName(uuid)
-	job.Spec.Template.Spec.Containers[0].Image = os.Getenv(env.HunterImage)
-	job.Spec.Template.Spec.Containers[1].Image = os.Getenv(env.HunterOriginImage)
-
 	uuidEnv := coreV1.EnvVar{
 		Name:  env.UUID,
 		Value: uuid,
@@ -231,7 +228,7 @@ func generateReportURL(consoleBaseURL string) (string, error) {
 }
 
 func generateJobName(uuid string) string {
-	return fmt.Sprintf("k8s-hunter-%s", uuid)
+	return fmt.Sprintf("kube-scanner-%s", uuid)
 }
 
 func (s *Service) GetClusterScanResult(ctx context.Context, cluster, lang string) (*model.KubeHunterTotalDisplay, error) {

@@ -6,6 +6,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/url"
+	"os"
 )
 
 var (
@@ -24,6 +25,14 @@ func NewProxyCmd() *cobra.Command {
 		Short: "",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			host := os.Getenv("TARGET_HOST")
+			if host != "" {
+				targetHost = host
+			}
+			addr := os.Getenv("CLUSTER_MGR_ADDRESS")
+			if addr != "" {
+				clusterMgrAddr = addr
+			}
 
 			targetUrl := getTargetUrl(targetHost, clusterMgrAddr)
 			if targetUrl == nil {

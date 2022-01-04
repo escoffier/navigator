@@ -30,7 +30,7 @@ type TensorMicrosegResource struct {
 }
 
 func (TensorMicrosegResource) TableName() string {
-	return "tensor_microseg_resources"
+	return "ivan_microseg_resources"
 }
 
 func GenID(strs ...string) uint32 {

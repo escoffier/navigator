@@ -2,15 +2,17 @@ package ttlmanager
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
-	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
@@ -19,29 +21,26 @@ var (
 )
 
 func initTTLManagerRequirement(t *testing.T) {
-	var envVars = map[string]string{
-		env.RDBHost:     "localhost",
-		env.RDBUser:     "pguser",
-		env.RDBDBName:   "tensorsecurity",
-		env.RDBSSLMode:  "disable",
-		env.RDBPassword: "pgpassword",
-	}
+	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
 
-	for key, val := range envVars {
-		if err := os.Setenv(key, val); err != nil {
-			t.Fatal(err)
-		}
-	}
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+	f := func() (*gorm.DB, error) {
+		newLogger := logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold: time.Millisecond * 100, // Slow SQL threshold
+				LogLevel:      logger.Info,            // Log level
+				Colorful:      true,                   // Enable color
+			},
+		)
 
-	db, err := rdbtools.NewPostgresClient(postgresqlDSN)
+		return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
+	}
+	dbWrapper, err := rdbtools.GormWrapperOpen(time.Second, f)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, nil, db.Get().AutoMigrate(&model.TensorConfig{}))
-	manager = NewManager(db)
+	manager = NewManager(dbWrapper)
 }
 func TestManager_GetTTLDayOffset(t *testing.T) {
 	initTTLManagerRequirement(t)

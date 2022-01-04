@@ -75,7 +75,7 @@ func main() {
 	psql, err = rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		db, err := databases.GetPostgresqlWithEnv(ctx)
+		db, err := databases.GetMysqlWithEnv(ctx)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err

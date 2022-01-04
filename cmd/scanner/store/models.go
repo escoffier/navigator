@@ -153,7 +153,6 @@ type SearchRejectRecordParam struct {
 	StartAt       time.Time
 	EndAt         time.Time
 	RejectAt      time.Time
-	Library       string // 仓库名
 	FullRepoName  string // 镜像名
 	Tag           string // 版本号
 	Fields        []string

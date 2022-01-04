@@ -16,7 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -403,7 +403,7 @@ func (api *api) addUser() http.HandlerFunc {
 			return
 		}
 
-		if api.emailOpts.Check && !VerifyEmailFormat(req.UserName, api.emailOpts) {
+		if env.GetEmailCheck() && !VerifyEmailFormat(req.UserName) {
 			//check mail
 			RespAndLog(w, r.Context(),
 				EmailForMatError(http.StatusForbidden,
@@ -420,14 +420,14 @@ func (api *api) addUser() http.HandlerFunc {
 				return innerErr
 			}
 
-			if api.emailOpts.Check {
+			if env.GetEmailCheck() {
 				emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
 				innerErr = dal.InsertEmail(ctx, tx, req.UserName, emailHashCode)
 				if innerErr != nil {
 					return innerErr
 				}
 
-				if !SendEmail(req.UserName, r.Host, emailHashCode, api.emailOpts) {
+				if !SendEmail(req.UserName, r.Host, emailHashCode) {
 					return ErrSendEmailFail
 				}
 				return nil
@@ -545,8 +545,8 @@ func (api *api) editUser() http.HandlerFunc {
 	}
 }
 
-func VerifyEmailFormat(email string, opts *flag.EmailOpts) bool {
-	pattern := fmt.Sprintf(`\w+([-+.]\w+)*@%s`, opts.Suffix)
+func VerifyEmailFormat(email string) bool {
+	pattern := fmt.Sprintf(`\w+([-+.]\w+)*@%s`, env.GetEmailSuffix())
 	reg, err := regexp.Compile(pattern)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("verify email compile expr error")

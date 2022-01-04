@@ -64,7 +64,7 @@ type ImmunePolicy struct {
 }
 
 func (ImmunePolicy) TableName() string {
-	return "immune_policies"
+	return "ivan_immune_policies"
 }
 
 type ImmuneProfile struct {
@@ -78,7 +78,7 @@ type ImmuneProfile struct {
 }
 
 func (ImmuneProfile) TableName() string {
-	return "immune_profiles"
+	return "ivan_immune_profiles"
 }
 
 type SyscallsConfigurations []string
@@ -109,5 +109,5 @@ type ImmuneTask struct {
 }
 
 func (ImmuneTask) TableName() string {
-	return "immune_tasks"
+	return "ivan_immune_tasks"
 }

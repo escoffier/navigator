@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"os"
 	"strings"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 )
 
@@ -60,9 +60,9 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 	if s.config.Name == clusterserver.HostClusterName {
 
 		// Redis DB client
-		redisEndpoints := os.Getenv("REDIS_ENDPOINTS")
+		redisEndpoints := os.Getenv("REDIS_CLUSTER_URL")
 		if redisEndpoints == "" {
-			return nil, errors.New("missing REDIS_ENDPOINTS")
+			return nil, errors.New("missing REDIS_CLUSTER_URL")
 		}
 		redisPassword := os.Getenv("REDIS_PASSWORD")
 		if redisPassword == "" {
@@ -79,10 +79,10 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return nil, err
 		}
 
-		postgresDB, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
-			db, err := databases.GetPostgresqlWithEnv(context.Background())
+		rdb, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
+			db, err := databases.GetMysqlWithEnv(context.Background())
 			if err != nil {
-				logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+				logging.GetLogger().Err(err).Msg(fmt.Sprintf("rdb client init error :%s ", err))
 				return nil, err
 			}
 			return db, nil
@@ -96,8 +96,8 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 		scannerPort := os.Getenv("SCANNER_PORT")
 		scannerURL := fmt.Sprintf("http://%s:%s", scannerHost, scannerPort)
 
-		err = k8s.InitClusterManager(postgresDB, func(ctx context.Context) (*pkgassets.Watcher, error) {
-			return assets.Watcher(postgresDB, redisClient, scannerURL)
+		err = k8s.InitClusterManager(rdb, func(ctx context.Context) (*pkgassets.Watcher, error) {
+			return assets.Watcher(rdb, redisClient, scannerURL)
 		}, "")
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("cluster manager init error")
@@ -132,9 +132,30 @@ func fullHttpsUrl(str string) string {
 }
 
 func (s *server) initConfig() {
-	s.config.ApiServerAddr = fullHttpsUrl(s.config.ApiServerAddr)
+	apiServerAddr := os.Getenv("API_SERVER_URL")
+	if apiServerAddr != "" {
+		s.config.ApiServerAddr = apiServerAddr
+	} else {
+		s.config.ApiServerAddr = fullHttpsUrl(s.config.ApiServerAddr)
+	}
+
 	workerNs := os.Getenv("MY_POD_NAMESPACE")
 	s.config.WorkerNamespace = workerNs
+
+	clusterName := os.Getenv("CLUSTER_NAME")
+	if clusterName != "" {
+		s.config.Name = clusterName
+	}
+
+	var consoleUrl string
+	if clusterName == clusterserver.HostClusterName {
+		consoleUrl = os.Getenv("CONSOLE_INTERNAL_URL")
+	} else {
+		consoleUrl = os.Getenv("CONSOLE_EXTERNAL_URL")
+	}
+	if consoleUrl != "" {
+		s.config.MasterAddr = consoleUrl
+	}
 }
 
 func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {

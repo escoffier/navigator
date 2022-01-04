@@ -7,14 +7,14 @@ type DumpItem struct {
 	Batch     int64  `json:"batch"`
 }
 
-type PGDumpItem struct {
+type RDBDumpItem struct {
 	DumpItem
 	PrimaryKey []string `json:"primaryKey"`
 	Condition  string   `json:"condition"`
 	TTL        int32    `json:"ttl"`
 }
 type DumpLogicConf struct {
-	PGTables []*PGDumpItem `json:"pgTables"`
+	Tables []*RDBDumpItem `json:"tables"`
 }
 
 type OfflineConf struct {

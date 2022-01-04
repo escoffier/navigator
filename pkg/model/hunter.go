@@ -22,7 +22,7 @@ type KubeHunterRecord struct {
 }
 
 func (KubeHunterRecord) TableName() string {
-	return "kube_hunter_records"
+	return "ivan_platform_kube_hunter_records"
 }
 
 type KubeHunterTranslateConf struct {

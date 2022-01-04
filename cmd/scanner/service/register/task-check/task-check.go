@@ -35,7 +35,7 @@ func (t *TaskCheck) checkSubTaskTimeout() error {
 		return err
 	}
 	for _, st := range sts {
-		tc := time.Since(st.HeartBeat).Minutes()
+		tc := time.Since(*st.HeartBeat).Minutes()
 		if tc > defaultTimeOutMin {
 			err := t.taskSrv.SetSubTaskFailed(st.Id, HeartBeatTimeOutMsg)
 			if err != nil {

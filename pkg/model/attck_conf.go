@@ -19,7 +19,7 @@ type ATTCKConfVersion struct {
 }
 
 func (ATTCKRuleData) TableName() string {
-	return "attck_rule_datas"
+	return "ivan_platform_attck_rule_datas"
 }
 
 type ATTCKRuleMask struct {
@@ -28,7 +28,7 @@ type ATTCKRuleMask struct {
 }
 
 func (ATTCKRuleMask) TableName() string {
-	return "attck_rule_masks"
+	return "ivan_platform_attck_rule_masks"
 }
 
 type ATTCKRuleMaskVersion struct {
@@ -36,7 +36,7 @@ type ATTCKRuleMaskVersion struct {
 }
 
 func (ATTCKRuleMaskVersion) TableName() string {
-	return "attck_rule_mask_version"
+	return "ivan_platform_attck_rule_mask_versions"
 }
 
 type ATTCKRuleSwitch struct {

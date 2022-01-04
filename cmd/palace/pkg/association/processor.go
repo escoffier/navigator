@@ -150,7 +150,7 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 	e.Severity = maxSeverity
 	return e, nil
 }
-func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt AssociationEvent, now time.Time) (int64, error) {
+func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt AssociationEvent, now time.Time) (uint64, error) {
 	evtModel, err := ap.generateAGEvent(ctx, evt, now)
 	if err != nil {
 		return 0, err
@@ -160,7 +160,7 @@ func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt Associati
 }
 
 // createSignalAssociations uses transaction to ensure the consistency.
-func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, agEvtID int64, evt AssociationEvent, now time.Time) error {
+func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, agEvtID uint64, evt AssociationEvent, now time.Time) error {
 	for _, evt := range evt.GetEvents() {
 		asso := new(model.PalaceEventSignalAssociation)
 		asso.AggrEvtID = agEvtID
@@ -185,7 +185,7 @@ func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, ag
 	return nil
 }
 
-func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEvtID int64, evt AssociationEvent, now time.Time) error {
+func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEvtID uint64, evt AssociationEvent, now time.Time) error {
 	for _, link := range evt.GetAssociatedLinks() {
 		linkModel := new(model.PalaceAssociationLink)
 		linkModel.AggrEvtID = agEvtID
@@ -217,7 +217,7 @@ func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEv
 	return nil
 }
 
-func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context, evt AssociationEvent) (int64, error) {
+func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context, evt AssociationEvent) (uint64, error) {
 	now := time.Now()
 	evtID, err := ap.createAGEvent(ctx, evt, now)
 	if err != nil {

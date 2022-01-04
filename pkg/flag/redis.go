@@ -1,6 +1,8 @@
 package flag
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -30,6 +32,19 @@ func GetRedisOpts(cmd *cobra.Command) *RedisOpts {
 	return &RedisOpts{
 		Endpoint: viper.GetString(redisEndpoint),
 		Password: viper.GetString(redisPassword),
+	}
+}
+
+func GetRedisOptsFromEnv() *RedisOpts {
+	if os.Getenv("IS_MAIN_CLUSTER") == "true" {
+		return &RedisOpts{
+			Endpoint: os.Getenv("REDIS_CLUSTER_HOST"),
+			Password: os.Getenv("REDIS_PASSWORD"),
+		}
+	}
+	return &RedisOpts{
+		Endpoint: os.Getenv("REDIS_SINGLE_HOST"),
+		Password: os.Getenv("REDIS_PASSWORD"),
 	}
 }
 

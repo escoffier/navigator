@@ -70,8 +70,7 @@ func (h *Handler) makeEmailBody(template *model.ReportTaskTemplateMeta, startTim
 func (h *Handler) sendEmail(emails []string, body string) error {
 	logging.GetLogger().Info().Msgf("emails:%+v, body:%s", emails, body)
 	m := gomail.NewMessage()
-	m.SetHeader("From", m.FormatAddress(h.emailConf.Username,
-		util.GetEnvWithDefault(env2.EmailOfficialName, env2.DefaultEmailOfficialName)))
+	m.SetHeader("From", m.FormatAddress(h.emailConf.Username, env2.GetEmailOfficialName()))
 	m.SetHeader("To", emails...)
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)

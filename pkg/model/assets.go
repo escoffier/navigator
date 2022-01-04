@@ -207,17 +207,17 @@ type TensorResource struct {
 	ClusterKey      string         `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1"`
 	UID             string         `gorm:"column:uid"`
 	Kind            string         `gorm:"column:kind;index:idx_tr_list_q,priority:3"`
-	LabelSelector   *LabelSelector `gorm:"column:label_selector;type:jsonb"`
-	OwnerReferences OwnerRefs      `gorm:"column:owner_references;type:jsonb"`
-	Labels          Labels         `gorm:"column:labels;type:jsonb"`
-	PodTemplate     *PodTemplate   `gorm:"column:pod_template;type:jsonb"`
+	LabelSelector   *LabelSelector `gorm:"column:label_selector;type:varchar(256)"`
+	OwnerReferences OwnerRefs      `gorm:"column:owner_references;type:varchar(256)"`
+	Labels          []byte         `gorm:"column:labels;type:blob"`
+	PodTemplate     *PodTemplate   `gorm:"column:pod_template;type:text"`
 	Alias           string         `gorm:"column:alias"`
-	Managers        Managers       `gorm:"column:managers;type:jsonb"`
+	Managers        Managers       `gorm:"column:managers;type:varchar(256)"`
 	Authority       string         `gorm:"column:authority"`
 }
 
 func (TensorResource) TableName() string {
-	return "tensor_resources"
+	return "ivan_assets_resources"
 }
 
 type ContainerPorts []corev1.ContainerPort
@@ -267,10 +267,10 @@ type TensorContainer struct {
 	ClusterKey       string            `gorm:"column:cluster_key;index:idx_tc_list_q,priority:1"`
 	ResourceKind     string            `gorm:"column:resource_kind;index:idx_tc_list_q,priority:3"`
 	Image            string            `gorm:"column:image"`
-	Spec             *ContainerSpec    `gorm:"column:spec;type:jsonb"`
-	Ports            ContainerPorts    `gorm:"column:ports;type:jsonb"`
-	ImagePullPolicy  corev1.PullPolicy `gorm:"column:image_pull_policy;type:jsonb"`
-	SecurityContext  *SecurityContext  `gorm:"column:security_context;type:jsonb"`
+	Spec             *ContainerSpec    `gorm:"column:spec;type:varchar(4096)"`
+	Ports            ContainerPorts    `gorm:"column:ports;type:varchar(512)"`
+	ImagePullPolicy  corev1.PullPolicy `gorm:"column:image_pull_policy;type:varchar(64)"`
+	SecurityContext  *SecurityContext  `gorm:"column:security_context;type:varchar(1024)"`
 	Type             string            `gorm:"column:type"`
 	ImageUUID        uint32            `gorm:"column:image_uuid"`
 	AppType          *string
@@ -279,7 +279,7 @@ type TensorContainer struct {
 }
 
 func (TensorContainer) TableName() string {
-	return "tensor_containers"
+	return "ivan_assets_containers"
 }
 
 type TensorNamespace struct {
@@ -287,15 +287,15 @@ type TensorNamespace struct {
 	Name            string    `gorm:"column:name"`
 	ClusterKey      string    `gorm:"column:cluster_key;index:idx_tn_list_q"`
 	UID             string    `gorm:"column:uid"`
-	OwnerReferences OwnerRefs `gorm:"column:owner_references;type:jsonb"`
-	Labels          Labels    `gorm:"column:labels;type:jsonb"`
+	OwnerReferences OwnerRefs `gorm:"column:owner_references;type:varchar(256)"`
+	Labels          []byte    `gorm:"column:labels;type:blob"`
 	Alias           string    `gorm:"column:alias"`
-	Managers        Managers  `gorm:"column:managers;type:jsonb"`
+	Managers        Managers  `gorm:"column:managers;type:varchar(256)"`
 	Authority       string    `gorm:"column:authority"`
 }
 
 func (TensorNamespace) TableName() string {
-	return "tensor_namespaces"
+	return "ivan_assets_namespaces"
 }
 
 func (sc *PodContainerInfos) Scan(value interface{}) error {
@@ -330,12 +330,12 @@ type PodResourceRelation struct {
 	NodeName          string             `json:"NodeName" gorm:"column:node_name"`
 	ResourceName      string             `json:"ResourceName" gorm:"column:resource_name;index:idx_prr_res,priority:4"`
 	ResourceKind      string             `json:"ResourceKind" gorm:"column:resource_kind;index:idx_prr_res,priority:3"`
-	PodContainerInfos *PodContainerInfos `json:"pod_container_infos" gorm:"column:pod_container_infos;type:jsonb"`
+	PodContainerInfos *PodContainerInfos `json:"pod_container_infos" gorm:"column:pod_container_infos;type:varchar(512)"`
 	CreateTimestamp   int64              `json:"CreateTimestamp" gorm:"-"`
 }
 
 func (PodResourceRelation) TableName() string {
-	return "tensor_pod_res_relations"
+	return "ivan_assets_pod_res_relations"
 }
 
 type ClusterType string
@@ -346,13 +346,15 @@ const (
 )
 
 type TensorCluster struct {
-	Key                 string      `gorm:"column:key;primaryKey" json:"key"`
+	Key                 string      `gorm:"column:id;primaryKey" json:"key"`
 	Name                string      `gorm:"column:name" json:"name"`
 	Description         string      `gorm:"column:description" json:"description"`
 	ClusterType         ClusterType `gorm:"column:cluster_type" json:"cluster_type"`
 	APIServerAddr       string      `gorm:"column:api_server_addr" json:"apiServerAddr"`
 	CertificateAuthData string      `gorm:"column:certificate_auth_data" json:"certificateAuthData"`
 	SecretToken         string      `gorm:"column:secret_token" json:"secretToken"`
+	ClientCertData      string      `gorm:"column:client_cert_data" json:"client_cert_data"`
+	ClientKeyData       string      `gorm:"column:client_key_data" json:"client_key_data"`
 	SecretNamespace     string      `gorm:"column:secret_namespace" json:"secretNamespace"`
 	WorkerNamespace     string      `gorm:"column:worker_namespace" json:"worker_namespace"`
 	LabelInited         bool        `gorm:"column:label_inited" json:"label_inited"`
@@ -364,7 +366,7 @@ type TensorCluster struct {
 }
 
 func (TensorCluster) TableName() string {
-	return "tensor_clusters"
+	return "ivan_assets_clusters"
 }
 
 type ContainerImages []corev1.ContainerImage
@@ -410,11 +412,11 @@ type TensorNode struct {
 	KubeletVersion          string
 	KubeProxyVersion        string
 	Architecture            string
-	Volumes                 Volumes         `gorm:"column:volumes;type:jsonb"`
-	ContainerImages         ContainerImages `gorm:"column:container_images;type:jsonb"`
+	Volumes                 Volumes         `gorm:"column:volumes;type:varchar(256)"`
+	ContainerImages         ContainerImages `gorm:"column:container_images;type:text"`
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 	Status                  int8
 }
 
-func (TensorNode) TableName() string { return "tensor_nodes" }
+func (TensorNode) TableName() string { return "ivan_assets_nodes" }

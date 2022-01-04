@@ -177,6 +177,8 @@ func (c *ClusterManager) registerClusterInfo() error {
 		APIServerAddr:       c.apiServerAddr,
 		CertificateAuthData: c.CaData,
 		SecretToken:         c.Token,
+		ClientKeyData:       "",
+		ClientCertData:      "",
 		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
 	}

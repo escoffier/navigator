@@ -2,18 +2,18 @@ package model
 
 type ExportTask struct {
 	Status     uint8  `gorm:"column:status"`
-	CheckType  string `gorm:"column:check_type"`
-	ClusterId  string `gorm:"column:cluster_id"`
-	CheckId    string `gorm:"column:task_id"`
-	FileName   string `gorm:"column:filename"`
-	UserName   string `gorm:"column:username"`
+	CheckType  string `gorm:"type:varchar(255);column:check_type"`
+	ClusterId  string `gorm:"type:varchar(255);column:cluster_id"`
+	CheckId    string `gorm:"type:varchar(255);column:task_id"`
+	FileName   string `gorm:"type:varchar(255);column:filename"`
+	UserName   string `gorm:"type:varchar(255);column:username"`
 	CreatedAt  int64  `gorm:"column:created_at"`
 	FinishedAt int64  `gorm:"column:finished_at"`
-	Content    []byte `gorm:"column:content"`
+	Content    []byte `gorm:"type:mediumBlob;column:content"`
 }
 
 func (ExportTask) TableName() string {
-	return "scan_export_task"
+	return "ivan_scanner_scan_export_task"
 }
 
 type ScapRetData struct {

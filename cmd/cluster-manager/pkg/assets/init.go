@@ -20,26 +20,26 @@ var (
 )
 
 // Watcher singleton
-func Watcher(postgre *rdbtools.GormWrapper,
+func Watcher(rdb *rdbtools.GormWrapper,
 	redisCli *redis.Client,
 	scannerURL string,
 ) (*assets.Watcher, error) {
-	if postgre == nil || redisCli == nil || scannerURL == "" {
+	if rdb == nil || redisCli == nil || scannerURL == "" {
 		return nil, errors.New("illegal argument")
 	}
 	initOnce.Do(func() {
 		logging.GetLogger().Info().Msgf("Init assets.Watcher: stack = %s", debug.Stack())
 		wInstance = assets.NewWatcher()
-		wInstance.AddCallback(newPodResourcesService(redisCli, postgre))
-		wInstance.AddCallback(microseg.NewResourcesListener(postgre))
+		wInstance.AddCallback(newPodResourcesService(redisCli, rdb))
+		wInstance.AddCallback(microseg.NewResourcesListener(rdb))
 		kbm, err := kubemonitor.NewService()
 		if err == nil {
 			wInstance.AddCallback(kbm.RiskMonitor())
 		} else {
 			logging.GetLogger().Err(err).Msg("init kube monitor error")
 		}
-		wInstance.AddCallback(newResourcesWatcher(postgre, scannerURL))
-		wInstance.AddCallback(image.NewOnlineMonitor(postgre, scannerURL))
+		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
+		wInstance.AddCallback(image.NewOnlineMonitor(rdb, scannerURL))
 	})
 	return wInstance, nil
 }

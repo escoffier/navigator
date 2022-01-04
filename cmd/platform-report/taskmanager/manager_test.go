@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -21,14 +25,26 @@ var (
 )
 
 func initManager(t *testing.T) {
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
-	db, err := rdbtools.NewPostgresClient(postgresqlDSN)
+	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
+
+	f := func() (*gorm.DB, error) {
+		newLogger := logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold: time.Millisecond * 100, // Slow SQL threshold
+				LogLevel:      logger.Info,            // Log level
+				Colorful:      true,                   // Enable color
+			},
+		)
+
+		return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
+	}
+	dbWrapper, err := rdbtools.GormWrapperOpen(time.Second, f)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	manager = NewManager(db, time.Hour*2)
+	manager = NewManager(dbWrapper, time.Hour*2)
 }
 
 func TestManager_CreateTaskTemplate(t *testing.T) {

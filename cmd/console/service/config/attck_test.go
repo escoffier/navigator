@@ -1,12 +1,16 @@
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
@@ -40,13 +44,21 @@ func TestParseItems(t *testing.T) {
 }
 
 func TestFlushCache(t *testing.T) {
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
 
-	dbWrapper, err := rdbtools.NewPostgresClient(postgresqlDSN)
-	if err != nil {
-		t.Fatal(err)
+	f := func() (*gorm.DB, error) {
+		newLogger := logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold: time.Millisecond * 100, // Slow SQL threshold
+				LogLevel:      logger.Info,            // Log level
+				Colorful:      true,                   // Enable color
+			},
+		)
+
+		return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
 	}
+	dbWrapper, err := rdbtools.GormWrapperOpen(time.Second, f)
 
 	redisCli := redis.NewClient(&redis.Options{
 		Addr: "127.0.0.1:6379",
@@ -61,14 +73,21 @@ func TestFlushCache(t *testing.T) {
 }
 
 func TestFlushCache_2(t *testing.T) {
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
 
-	dbWrapper, err := rdbtools.NewPostgresClient(postgresqlDSN)
-	if err != nil {
-		t.Fatal(err)
+	f := func() (*gorm.DB, error) {
+		newLogger := logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold: time.Millisecond * 100, // Slow SQL threshold
+				LogLevel:      logger.Info,            // Log level
+				Colorful:      true,                   // Enable color
+			},
+		)
+
+		return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
 	}
-
+	dbWrapper, err := rdbtools.GormWrapperOpen(time.Second, f)
 	redisCli := redis.NewClient(&redis.Options{
 		Addr: "127.0.0.1:6379",
 	})

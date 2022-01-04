@@ -112,9 +112,9 @@ func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
 }
 
 func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
-	url := os.Getenv("CICD-BUF-REGISTRY-URL")
-	username := os.Getenv("CICD-BUF-REGISTRY-USER")
-	passwd := os.Getenv("CICD-BUF-REGISTRY-PASSWORD")
+	url := os.Getenv("BUF_REGISTRY_URL")
+	username := os.Getenv("BUF_REGISTRY_USER")
+	passwd := os.Getenv("BUF_REGISTRY_PASSWORD")
 	if url == "" || username == "" || passwd == "" {
 		return errors.New("cicd buf registry not setting")
 	}
@@ -165,10 +165,10 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 }
 
 func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
-	url := os.Getenv("SAFENODE-BUF-REGISTRY-URL")
-	username := os.Getenv("SAFENODE-BUF-REGISTRY-USER")
-	passwd := os.Getenv("SAFENODE-BUF-REGISTRY-PASSWORD")
-	inter := os.Getenv("SAFENODE-BUF-INTERNA")
+	url := os.Getenv("BUF_REGISTRY_URL")
+	username := os.Getenv("BUF_REGISTRY_USER")
+	passwd := os.Getenv("BUF_REGISTRY_PASSWORD")
+	inter := os.Getenv("BUF_INTERNA")
 	inter1, err := strconv.ParseInt(inter, 10, 64)
 	if err != nil {
 		inter1 = consts.RegistryDefaultSyncInterval

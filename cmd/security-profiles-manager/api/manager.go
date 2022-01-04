@@ -80,7 +80,7 @@ func NewSecProfileManager(
 	httpOpts *flag.HTTPOpts,
 	redisOpts *flag.RedisOpts,
 	stanOpts *flag.StanOpts,
-	// postgresOpts *flag.PostgresOpts,
+	// postgresOpts *flag.RDBOpts,
 ) (*SecProfileManager, error) {
 	podName := os.Getenv("MY_POD_NAME")
 

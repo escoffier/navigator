@@ -16,10 +16,10 @@ type Task struct {
 	Msg        string // error msg
 	Comment    string // some comment about this task
 	UpdateAt   time.Time
-	StartedAt  time.Time
+	StartedAt  *time.Time
 	CreateAt   time.Time
-	FinishedAt time.Time
-	HeartBeat  time.Time
+	FinishedAt *time.Time
+	HeartBeat  *time.Time
 	Operator   string
 	ScannerId  string
 }
@@ -78,10 +78,10 @@ type SubTask struct {
 	Result     int   // success,error
 	ErrMsg     string
 	CreateAt   time.Time
-	StartedAt  time.Time
-	FinishedAt time.Time
+	StartedAt  *time.Time
+	FinishedAt *time.Time
 	UpdatedAt  time.Time
-	HeartBeat  time.Time
+	HeartBeat  *time.Time
 }
 
 type ImageInfo struct {

@@ -16,11 +16,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
-func NewPostgresClientFromEnv() (*rdbtools.GormWrapper, error) {
+func NewMysqlClientFromEnv() (*rdbtools.GormWrapper, error) {
 	return rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		db, err := databases.GetPostgresqlWithEnv(ctx)
+		db, err := databases.GetMysqlWithEnv(ctx)
 		if err != nil {
 			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err

@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"runtime/debug"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -37,8 +36,6 @@ import (
 )
 
 type Scapper struct {
-	DockerRepoHostPort string
-	DockerRepoScapTag  string
 	ClusterAddr        string
 	PostgresDB         *rdbtools.GormWrapper
 	ScapService        *ScapService
@@ -58,8 +55,6 @@ func newScapper(
 	postgresDB *rdbtools.GormWrapper,
 ) *Scapper {
 	s := &Scapper{
-		DockerRepoHostPort: scapOpts.HostPort,
-		DockerRepoScapTag:  scapOpts.ImageTag,
 		ScapService:        scapService,
 		PostgresDB:         postgresDB,
 		ClusterAddr:        scapOpts.ClusterAddr,
@@ -472,14 +467,6 @@ func (s Scapper) prepareJobObject(check *model.Check) (*batchv1.Job, error) {
 		logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
 		return nil, err
 	}
-
-	// Subsitute job's image repository in job.yaml for the one configured for Console.
-	currImage := jobObj.Spec.Template.Spec.Containers[0].Image
-	splitted := strings.Split(currImage, "/")
-	currImgnameSplit := strings.Split(splitted[1], ":")
-	currImgname := currImgnameSplit[0]
-	newImage := fmt.Sprintf("%s/%s:%s", s.DockerRepoHostPort, currImgname, s.DockerRepoScapTag)
-	jobObj.Spec.Template.Spec.Containers[0].Image = newImage
 
 	return jobObj, nil
 }

@@ -282,7 +282,13 @@ func (in *Injector) isLabeled(podLabels map[string]string, clusterKey, namespace
 		logging.GetLogger().Err(err).Msgf("not found namespace %s", namespace)
 		return false
 	}
-	if v, ok := ns.Labels["security-sidecar-inject"]; ok {
+
+	var labels map[string]string
+	err = json.Unmarshal(ns.Labels, &labels)
+	if err != nil {
+		return false
+	}
+	if v, ok := labels["security-sidecar-inject"]; ok {
 		if strings.ToLower(v) == "enabled" {
 			return true
 		}

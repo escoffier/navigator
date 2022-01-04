@@ -3,6 +3,7 @@ package scan_report
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -18,7 +19,14 @@ import (
 	"gorm.io/gorm"
 )
 
-var Host = "https://console.tensosecurity.cn"
+var host string
+
+func init() {
+	host = os.Getenv("SCANNER_URL")
+	if host == "" {
+		host = "https://console.tensosecurity.cn"
+	}
+}
 
 const format = "2006-01-02 15:04:05 MST"
 const contentFormat = `<div>已为您成功生成一份报告：</div>
@@ -241,7 +249,7 @@ func (s *ScanReportSrv) sendEmails(_ context.Context, data *scanreport.TensorSca
 	default:
 		return fmt.Errorf("know report type: %d", data.TensorScanReportTasks.Type)
 	}
-	content = fmt.Sprintf(contentFormat, t, data.TensorScanReportTasks.Name, start, end, Host, data.TensorScanReportTasks.ID)
+	content = fmt.Sprintf(contentFormat, t, data.TensorScanReportTasks.Name, start, end, host, data.TensorScanReportTasks.ID)
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", m.FormatAddress(s.email.Username, ""))

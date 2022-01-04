@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"strings"
 	"time"
 
@@ -87,7 +88,7 @@ func CountNamespaces(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey,
 			db.Where("cluster_key = ?", clusterKey)
 		}
 		if nameQuery != "" {
-			db = db.Where("name ILIKE ?", getLikeExpr(nameQuery))
+			db = db.Where("name LIKE ?", getLikeExpr(nameQuery))
 		}
 
 		return db.Count(&nsCount).Error
@@ -135,7 +136,7 @@ func GetNamespacesByCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clus
 			db = db.Offset(offset).Limit(limit)
 		}
 		if nameQuery != "" {
-			db = db.Where("name ILIKE ?", getLikeExpr(nameQuery))
+			db = db.Where("name LIKE ?", getLikeExpr(nameQuery))
 		}
 		return db.Order("id ASC").Find(&namespaces).Error
 	})
@@ -258,7 +259,7 @@ func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOpti
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		return db.Count(&resCount).Error
 	})
@@ -286,7 +287,7 @@ func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -389,7 +390,7 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		return db.Count(&cntNum).Error
 	})
@@ -421,7 +422,7 @@ func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContaine
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -487,9 +488,10 @@ func newModelFromTensorResource(resource *assets.TensorResource, updateTime time
 	}
 
 	if resource.Labels != nil {
-		m.Labels = make(model.Labels, len(resource.Labels))
-		for key, value := range resource.Labels {
-			m.Labels[key] = value
+		var err error
+		m.Labels, err = json.Marshal(resource.Labels)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg(" err occurred whe parsing resource labels")
 		}
 	}
 
@@ -748,10 +750,11 @@ func fromNamespaceToModel(ns *corev1.Namespace, clusterKey string, updateTime ti
 	}
 
 	if ns.Labels != nil {
-		nsModel.Labels = make(model.Labels, len(ns.Labels))
-		for key, value := range ns.Labels {
-			nsModel.Labels[key] = value
-		}
+		nsModel.Labels, _ = json.Marshal(ns.Labels)
+		//nsModel.Labels = make(model.Labels, len(ns.Labels))
+		//for key, value := range ns.Labels {
+		//	nsModel.Labels[key] = value
+		//}
 	}
 
 	nsModel.CreatedAt = ns.CreationTimestamp.Time
@@ -938,7 +941,7 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapp
 }
 
 func DeletePodResourceRelationInRDB(ctx context.Context, rdb *rdbtools.GormWrapper, pod *corev1.Pod, clusterKey string) error {
-	rCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
@@ -1096,13 +1099,13 @@ func GetResourcePodsList(ctx context.Context, rdb *rdbtools.GormWrapper, queryOp
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
 			expr := getLikeExpr(queryOptions.mulColQuery.query)
 			db = db.Where(
-				rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name ILIKE ?", expr).Or("pod_ip ILIKE ?", expr).Or("node_name ILIKE ?", expr))
+				rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
 		}
 
 		if offset >= 0 && limit >= 0 {
@@ -1144,13 +1147,13 @@ func CountPods(ctx context.Context, rdb *rdbtools.GormWrapper, queryOptions *Res
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
 			expr := getLikeExpr(queryOptions.mulColQuery.query)
 			db = db.Where(
-				rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name ILIKE ?", expr).Or("pod_ip ILIKE ?", expr).Or("node_name ILIKE ?", expr))
+				rdb.Get().WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
 		}
 		if offset >= 0 && limit >= 0 {
 			db.Offset(offset).Limit(limit)
@@ -1170,7 +1173,7 @@ func GetClusters(ctx context.Context, rdb *rdbtools.GormWrapper, offset, limit i
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		oneErr := rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("key").Offset(offset).Limit(limit).Find(&clusters).Error
+		oneErr := rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("id").Offset(offset).Limit(limit).Find(&clusters).Error
 		if oneErr != nil {
 			return oneErr
 		}
@@ -1186,7 +1189,7 @@ func GetClustersByKey(ctx context.Context, rdb *rdbtools.GormWrapper, key string
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND key = ?", 0, key).First(&cluster).Error
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND id = ?", 0, key).First(&cluster).Error
 	})
 	if err != nil {
 		return nil
@@ -1215,7 +1218,7 @@ func UpdateCluster(ctx context.Context, rdb *rdbtools.GormWrapper, clusterKey st
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("key = ? AND status = ?", clusterKey, 0).Updates(updateMap).Error
+		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Where("id = ? AND status = ?", clusterKey, 0).Updates(updateMap).Error
 	})
 }
 func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.TensorCluster) error {
@@ -1238,7 +1241,7 @@ func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.T
 		defer oneCancel()
 
 		return rdb.Get().WithContext(oneCtx).Model(&model.TensorCluster{}).Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "key"}},
+			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"certificate_auth_data",
 				"secret_token",
@@ -1450,7 +1453,7 @@ func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, 
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if offset >= 0 && limit >= 0 {
@@ -1494,7 +1497,7 @@ func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		err := db.Count(&count).Error

@@ -197,7 +197,7 @@ func (m *ClusterManager) GetClusters(rdb *gorm.DB, offset, limit int) (clusters 
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		oneErr := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("key").Offset(offset).Limit(limit).Find(&clusters).Error
+		oneErr := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("id").Offset(offset).Limit(limit).Find(&clusters).Error
 		if oneErr != nil {
 			return oneErr
 		}

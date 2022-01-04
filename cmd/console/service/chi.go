@@ -14,14 +14,14 @@ import (
 	"github.com/go-chi/jwtauth"
 	redis "github.com/go-redis/redis/v8"
 	elastic "github.com/olivere/elastic/v7"
+	"gitlab.com/security-rd/go-pkg/pb"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 var (
@@ -39,7 +39,6 @@ func setupChiRouter(
 	httpLoggerDisabled bool,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	emailOpts *flag.EmailOpts,
 	ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	ch := make(chan model.AccessLog, 1000)
@@ -67,7 +66,6 @@ func setupChiRouter(
 		webhookURL,
 		redisClient,
 		harborClient,
-		emailOpts,
 		ecCli,
 	)
 	go logWorker(es, ch)

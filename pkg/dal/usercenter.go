@@ -209,7 +209,7 @@ func InsertUser(ctx context.Context, postgresDB *gorm.DB, userName, role string,
 	if err != nil {
 		return err
 	}
-	user := model.User{UserName: userName, Checked: false, CreateAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
+	user := model.User{UserName: userName, Checked: false, CreatedAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -234,7 +234,7 @@ func InsertEmail(ctx context.Context, postgresDB *gorm.DB, username, hashcode st
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("Insert email to delete error: username: %s", username)
 	}
-	email := model.Email{HashCode: hashcode, UserName: username, CreateAt: time.Now().Unix()}
+	email := model.Email{HashCode: hashcode, UserName: username, CreatedAt: time.Now().Unix()}
 
 	err = postgresDB.WithContext(pgCtx).Create(&email).Error
 	return err

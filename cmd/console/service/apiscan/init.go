@@ -49,7 +49,7 @@ func cleanUnfinishedJob(db *gorm.DB) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	gerr := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return tx.Exec("update tensor_apis set status = 0 where status = 1 and updated_at < now() - interval '10 min'").Error
+		return tx.Exec("update ivan_assets_apis set status = 0 where status = 1 and updated_at < DATE_SUB(NOW(), INTERVAL 100 MINUTE)").Error
 	})
 	if gerr != nil {
 		return

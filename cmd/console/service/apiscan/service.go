@@ -73,7 +73,7 @@ func (s *Service) ApiScanStoreResult(ctx context.Context, apiID int64, result st
 		return nil
 	}
 	err := s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Exec("update tensor_apis set scan_result = ? where id =?", result, apiID).Error
+		err := tx.Exec("update ivan_assets_apis set scan_result = ? where id =?", result, apiID).Error
 		return err
 	})
 	return err
@@ -149,7 +149,7 @@ func (s *Service) launchAPIScanJob(ctx context.Context, tensorApi *model.TensorA
 	go watchAndCleanJob(kubeClient, s.db, jobName, namespace, apiID)
 
 	err = s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err = tx.Exec("update tensor_apis set status = 1,updated_at=now() where id =?", apiID).Error
+		err = tx.Exec("update ivan_assets_apis set status = 1,updated_at=now() where id =?", apiID).Error
 		return err
 	})
 	return err
@@ -285,7 +285,7 @@ func watchAndCleanJob(restCli kubernetes.Interface, sdb *rdbtools.GormWrapper, w
 
 	defer func() {
 		dberr := sdb.Get().WithContext(wctx).Transaction(func(tx *gorm.DB) error {
-			return tx.Exec("update tensor_apis set status = 0 where id =?", apiID).Error
+			return tx.Exec("update ivan_assets_apis set status = 0 where id =?", apiID).Error
 		})
 		logrus.Error(errors.Wrapf(dberr, "failed to update status of scan job of api %d to 0", apiID))
 	}()

@@ -27,7 +27,7 @@ var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
 type PodResourcesService struct {
 	sync.RWMutex
 
-	postgresDB       *rdbtools.GormWrapper
+	rdb              *rdbtools.GormWrapper
 	redisCli         *redis.Client
 	clusterCallbacks map[string]*PodResourcesClusterCallback
 	syncedClusters   map[string]struct{}
@@ -50,10 +50,10 @@ type PodResourcesClusterCallback struct {
 	consumed            int32
 }
 
-func newPodResourcesService(redisCli *redis.Client, postgresDB *rdbtools.GormWrapper) *PodResourcesService {
+func newPodResourcesService(redisCli *redis.Client, rdb *rdbtools.GormWrapper) *PodResourcesService {
 	return &PodResourcesService{
 		redisCli:         redisCli,
-		postgresDB:       postgresDB,
+		rdb:              rdb,
 		clusterCallbacks: make(map[string]*PodResourcesClusterCallback, 2),
 		syncedClusters:   make(map[string]struct{}),
 	}
@@ -151,7 +151,7 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 			}
 			ownerOwnerName := owner.Name[0:pos]
 
-			cnt, err := dal.CountResources(context.Background(), cb.parent.postgresDB.Get(), dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
+			cnt, err := dal.CountResources(context.Background(), cb.parent.rdb.Get(), dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
 			if err == nil && cnt > 0 {
 				return &metav1.OwnerReference{Name: ownerOwnerName, Kind: string(assets.KindDeployment)}, true
 			}
@@ -181,12 +181,12 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 		}
 	}()
 
-	tctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	tctx, cancel := context.WithTimeout(ctx, 8000*time.Millisecond)
 	defer cancel()
 
 	switch e.action {
 	case assets.ActionDelete:
-		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.postgresDB, e.pod, cb.cluster)
+		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb, e.pod, cb.cluster)
 		if rerr != nil {
 			logging.GetLogger().Err(rerr).Msg("delete pod resource rel in rdb error")
 		}
@@ -204,7 +204,7 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 			ownerName = owner.Name
 			ownerKind = owner.Kind
 		}
-		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.postgresDB, e.pod, ownerName, ownerKind, cb.cluster, time.Now())
+		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb, e.pod, ownerName, ownerKind, cb.cluster, time.Now())
 		if rerr != nil {
 			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in rdb error")
 		}
@@ -337,7 +337,7 @@ func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, data
 }
 
 func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context) error {
-	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.postgresDB, cb.refreshTime(), cb.cluster)
+	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb, cb.refreshTime(), cb.cluster)
 }
 
 func (cb *PodResourcesClusterCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {

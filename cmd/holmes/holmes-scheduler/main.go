@@ -73,11 +73,13 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules []string) e
 
 func main() {
 
-	// consoleAddr := "http://tensorsec-console:8889"
-	consoleAddr := "http://console:8889"
-	if len(os.Getenv("CONSOLE_HTTP_ADDR")) > 0 {
-		consoleAddr = os.Getenv("CONSOLE_HTTP_ADDR")
+	consoleAddr := "http://console-svc:8889"
+	if len(os.Getenv("IS_MAIN_CLUSTER")) > 0 && os.Getenv("IS_MAIN_CLUSTER") == "true" {
+		consoleAddr = os.Getenv("CONSOLE_INTERNAL_URL")
+	} else {
+		consoleAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
 	}
+
 	url := consoleAddr
 	suffix := "/api/openapi/ATTCK/latestData"
 

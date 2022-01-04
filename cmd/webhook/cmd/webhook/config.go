@@ -8,6 +8,4 @@ type Config struct {
 	IgnoredNameSpaces   []string
 	Validators          []string
 	Mutators            []string
-	PgAddr              string
-	//validatorConfig     processors.ValidatorConfig
 }

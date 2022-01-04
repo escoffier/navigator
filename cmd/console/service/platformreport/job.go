@@ -81,7 +81,6 @@ func (s *Service) completeJobInfo(job *batchV1.Job, arg *jobArg) error {
 	}
 
 	job.Name = generateJobName(arg.uuid)
-	job.Spec.Template.Spec.Containers[0].Image = util.GetEnvWithDefault(env.Image, "")
 
 	uuidEnv := coreV1.EnvVar{
 		Name:  env.UUID,
@@ -171,7 +170,7 @@ func (s *Service) completeJobInfo(job *batchV1.Job, arg *jobArg) error {
 
 	emailOfficialNameEnv := coreV1.EnvVar{
 		Name:  env2.EmailOfficialName,
-		Value: util.GetEnvWithDefault(env2.EmailOfficialName, env2.DefaultEmailOfficialName),
+		Value: env2.GetEmailOfficialName(),
 	}
 
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env,

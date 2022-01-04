@@ -56,12 +56,12 @@ func NewDefaultScannerOpts() *ScannerOpts {
 func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 	return &ScannerOpts{
 		HttpListenAddr:       viper.GetString(httpListenAddr),
-		RedisEndpoint:        viper.GetString(redisEndpoint),
+		RedisEndpoint:        os.Getenv("REDIS_CLUSTER_URL"),
 		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
 		ParallelTaskNum:      viper.GetInt(parallelTaskNum),
 		ParallelSubTaskNum:   viper.GetInt(parallelSubtaskNum),
 		LogLevel:             viper.GetString(logLevel),
-		WebShellServerAddr:   viper.GetString(webShellServerAddr),
+		WebShellServerAddr:   os.Getenv("WEBSHELL_SERVER_URL"),
 		ImageCacheServerIp:   viper.GetString(imageCacheServerIp),
 		ImageCacheServerPort: viper.GetInt(imageCacheServerPort),
 		PvcPath:              viper.GetString(pvcPath),
