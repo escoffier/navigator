@@ -97,7 +97,7 @@ func (r *ReportTaskTemplateMeta) Convert() *ReportTaskTemplate {
 }
 
 func (ReportTaskTemplateMeta) TableName() string {
-	return "report_task_templates"
+	return "ivan_platform_report_task_templates"
 }
 
 type ReportRecord struct {
@@ -112,7 +112,7 @@ type ReportRecord struct {
 }
 
 func (ReportRecord) TableName() string {
-	return "report_records"
+	return "ivan_platform_report_records"
 }
 
 type ReportDetail struct {

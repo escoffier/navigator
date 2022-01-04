@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -32,21 +33,12 @@ var rootCmd = &cobra.Command{
 			Str("webhooklisten", httpOpts.HTTPWebHookListen).
 			Msg("HTTP options")
 
-		postgresOpts := flag.GetPostgresOpts(cmd)
+		rdbOpts := flag.GetRDBOpts(cmd)
 		logging.GetLogger().Info().
-			Str("pvc", postgresOpts.PVC).
-			Str("pod", postgresOpts.Pod).
-			Str("dataPath", postgresOpts.DataPath).
+			Str("pvc", rdbOpts.PVC).
+			Str("pod", rdbOpts.Pod).
+			Str("dataPath", rdbOpts.DataPath).
 			Msg("Postgres options")
-
-		emailOpts := flag.GetEmailOpts(cmd)
-		logging.GetLogger().Info().
-			Str("Email user", emailOpts.Username).
-			Str("Email Host", emailOpts.Host).
-			Str("Email Port", emailOpts.Port).
-			Str("Email Suffix", emailOpts.Suffix).
-			Bool("Email Check", emailOpts.Check).
-			Msg("Vegeta Email options")
 
 		scannerOpts := flag.GetVegetaScannerOpts(cmd)
 		logging.GetLogger().Info().
@@ -56,15 +48,8 @@ var rootCmd = &cobra.Command{
 
 		scapOpts := flag.GetScapOpts(cmd)
 		logging.GetLogger().Info().
-			Str("scap-job-repo", scapOpts.HostPort).
-			Str("scap-job-tag", scapOpts.ImageTag).
 			Int32("policy-counts", scapOpts.PolicyCounts).
 			Msg("Scap options")
-
-		redisOpts := flag.GetRedisOpts(cmd)
-		logging.GetLogger().Info().
-			Str("endpoint", redisOpts.Endpoint).
-			Msg("Redis options")
 
 		harborOpts := flag.GetHarborOpts(cmd)
 		logging.GetLogger().Info().
@@ -87,19 +72,7 @@ var rootCmd = &cobra.Command{
 			Int("port", secProfilesOpts.Port).
 			Msg("Security Profiles options")
 
-		microsegOpts := flag.GetClusterManagerOpts(cmd)
-		logging.GetLogger().Info().
-			Str("host", microsegOpts.Host).
-			Int("port", microsegOpts.Port).
-			Msg("microseg options")
-
-		webhookOpts := flag.GetWebHookOpts(cmd)
-		logging.GetLogger().Info().
-			Str("host", webhookOpts.Host).
-			Int("port", webhookOpts.Port).
-			Msg("webhook options")
-
-		console, err := service.NewConsole(httpOpts, postgresOpts, scannerOpts, scapOpts, redisOpts, elasticOpts, harborOpts, emailOpts, secProfilesOpts, microsegOpts, webhookOpts)
+		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, scapOpts, elasticOpts, harborOpts, secProfilesOpts)
 
 		if err != nil {
 			return err
@@ -126,13 +99,12 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 
 	flag.AddHTTPFlags(rootCmd)
-	flag.AddPostgresFlags(rootCmd)
+	flag.AddRDBFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
 	flag.AddElasticFlags(rootCmd)
 	flag.AddHarborFlags(rootCmd)
-	flag.AddEmailOpts(rootCmd)
 	flag.AddSecProfilesOpts(rootCmd)
 	flag.AddClusterManagerFlags(rootCmd)
 	flag.AddWebHookFlags(rootCmd)

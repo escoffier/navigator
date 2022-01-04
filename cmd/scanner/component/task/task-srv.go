@@ -75,12 +75,13 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 	}
 	subtasks := make([]model.SubTask, 0)
 	for i := range imageIds {
+		tmpTime := time.Now()
 		// generate subtasks
 		subtask := model.SubTask{
 			TaskId:    taskId,
 			ImageId:   imageIds[i],
 			Status:    consts.ImageScanPending,
-			HeartBeat: time.Now(),
+			HeartBeat: &tmpTime,
 		}
 		subtasks = append(subtasks, subtask)
 	}
@@ -98,12 +99,13 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 }
 
 func (t *TaskSrv) SetTaskFailed(id int64, msg string) error {
+	tmpTime := time.Now()
 	dbTask := model.Task{
 		ID:         id,
 		Status:     consts.End,
 		Result:     consts.ScanFail,
 		Msg:        msg,
-		FinishedAt: time.Now(),
+		FinishedAt: &tmpTime,
 	}
 	p := store.SearchTaskParam{
 		ExcludeStatus: t.GetTaskSuspendStatus(),
@@ -276,10 +278,11 @@ func (t *TaskSrv) ReScheduleTask(ids []int64) error {
 }
 
 func (t *TaskSrv) SetTaskEnd(id int64) error {
+	tmpTime := time.Now()
 	dbTask := model.Task{
 		ID:         id,
 		Status:     consts.End,
-		FinishedAt: time.Now(),
+		FinishedAt: &tmpTime,
 	}
 	p := store.SearchTaskParam{
 		ExcludeStatus: t.GetTaskSuspendStatus(),
@@ -295,7 +298,7 @@ func (t *TaskSrv) SetTaskEnd(id int64) error {
 func (t *TaskSrv) UpdateTaskStartTime(id int64, curTime time.Time) error {
 	dbTask := model.Task{
 		ID:        id,
-		StartedAt: curTime,
+		StartedAt: &curTime,
 	}
 	p := store.SearchTaskParam{
 		ExcludeStatus: t.GetTaskSuspendStatus(),
@@ -308,10 +311,11 @@ func (t *TaskSrv) UpdateTaskStartTime(id int64, curTime time.Time) error {
 }
 
 func (t *TaskSrv) SetSubTaskFailed(id int64, msg string) error {
+	tmpTime := time.Now()
 	dbTask := model.SubTask{
 		ID:         id,
 		Status:     consts.ImageScanFailed,
-		FinishedAt: time.Now(),
+		FinishedAt: &tmpTime,
 		ErrMsg:     msg,
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
@@ -323,10 +327,11 @@ func (t *TaskSrv) SetSubTaskFailed(id int64, msg string) error {
 }
 
 func (t *TaskSrv) SetSubTaskSuccess(id int64) error {
+	tmpTime := time.Now()
 	dbTask := model.SubTask{
 		ID:         id,
 		Status:     consts.ImageScanSuccess,
-		FinishedAt: time.Now(),
+		FinishedAt: &tmpTime,
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {
@@ -341,8 +346,8 @@ func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
 	dbTask := model.SubTask{
 		ID:        id,
 		Status:    consts.ImageScanInProgress,
-		StartedAt: now,
-		HeartBeat: now,
+		StartedAt: &now,
+		HeartBeat: &now,
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {

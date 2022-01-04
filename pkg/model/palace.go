@@ -29,7 +29,7 @@ func (l Locations) Value() (driver.Value, error) {
 }
 
 type PalaceAssociatedGraphEvent struct {
-	ID              int64     `gorm:"column:id"`
+	ID              uint64    `gorm:"column:id"`
 	AssociationKind string    `gorm:"column:association_kind"`
 	Locations       Locations `gorm:"column:locations; type:jsonb"`
 	EventsNum       int       `gorm:"column:events_num"`
@@ -40,24 +40,24 @@ type PalaceAssociatedGraphEvent struct {
 }
 
 func (PalaceAssociatedGraphEvent) TableName() string {
-	return "palace_assoc_graph_events"
+	return "ivan_palace_assoc_graph_events"
 }
 
 type PalaceEventSignalAssociation struct {
-	UUID      int64     `gorm:"column:uuid"`
-	AggrEvtID int64     `gorm:"column:aggr_evt_id"`
+	UUID      uint64    `gorm:"column:uuid"`
+	AggrEvtID uint64    `gorm:"column:aggr_evt_id"`
 	AggrKey   string    `gorm:"column:aggr_key"`
 	SignalID  string    `gorm:"column:signal_id"`
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
 func (PalaceEventSignalAssociation) TableName() string {
-	return "palace_evt_signal_assocs"
+	return "ivan_palace_evt_signal_assocs"
 }
 
 type PalaceAssociationLink struct {
-	UUID           int64     `gorm:"column:uuid"`
-	AggrEvtID      int64     `gorm:"column:aggr_evt_id"`
+	UUID           uint64    `gorm:"column:uuid"`
+	AggrEvtID      uint64    `gorm:"column:aggr_evt_id"`
 	SrcClusterKey  string    `gorm:"column:src_cluster_key"`
 	SrcLocType     string    `gorm:"column:src_loc_type"`
 	SrcLocExpr     string    `gorm:"column:src_loc_expr"`
@@ -68,7 +68,7 @@ type PalaceAssociationLink struct {
 }
 
 func (PalaceAssociationLink) TableName() string {
-	return "palace_assoc_links"
+	return "ivan_palace_assoc_links"
 }
 
 type Signal struct {
@@ -137,5 +137,5 @@ type EvtCenterRule struct {
 }
 
 func (EvtCenterRule) TableName() string {
-	return "rules"
+	return "ivan_eventcenter_rules"
 }

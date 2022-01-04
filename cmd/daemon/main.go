@@ -91,16 +91,26 @@ func NetInit(ctx context.Context) error {
 	if rtUdsAddr == "" {
 		logging.GetLogger().Warn().Msg("env RTDETECT_UDS_ADDR not found")
 	}
-	clusterAddr := os.Getenv("CLUSTER_ADDR")
+	clusterAddr := os.Getenv("CLUSTER_MANAGER_URL")
 	if clusterAddr == "" {
-		logging.GetLogger().Warn().Msg("env CLUSTER_ADDR not found")
+		logging.GetLogger().Warn().Msg("env CLUSTER_MANAGER_URL not found")
 		return errors.Errorf("get cluster address failed.")
 	}
-	consoleAddr := os.Getenv("CONSOLE_ADDR")
+	//get console address
+	var consoleAddr, addrStr string
+	clusterType := os.Getenv("IS_MAIN_CLUSTER")
+	if clusterType == "true" {
+		consoleAddr = os.Getenv("CONSOLE_INTERNAL_URL")
+		addrStr = "CONSOLE_INTERNAL_URL"
+	} else {
+		consoleAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
+		addrStr = "CONSOLE_EXTERNAL_URL"
+	}
 	if consoleAddr == "" {
-		logging.GetLogger().Warn().Msg("env CONSOLE_ADDR not found")
+		logging.GetLogger().Warn().Msgf("env %v not found", addrStr)
 		return errors.Errorf("get console address failed.")
 	}
+
 	stanURL := os.Getenv("STAN_URL")
 	if stanURL == "" {
 		logging.GetLogger().Warn().Msg("env STAN_URL not found")
@@ -133,7 +143,7 @@ func NetInit(ctx context.Context) error {
 		return errors.Errorf("listen k8s event failed, %v.", err)
 	}
 	//new flow session
-	flow, err := netflow.NewFlowSession(k8sResSync, clusterManager)
+	flow, err := netflow.NewFlowSession(k8sResSync, clusterManager, consoleAddr)
 	if err != nil {
 		return errors.Errorf("Failed to initialize flow session, %w", err)
 	}

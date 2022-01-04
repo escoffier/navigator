@@ -17,9 +17,14 @@ import (
 )
 
 func RedisInit() (*redis.Client, error) {
+	var redisAddr string
 	clusterType := os.Getenv("IS_MAIN_CLUSTER")
-	redisAddr := os.Getenv("REDIS_ADDR")
 	redisPwd := os.Getenv("REDIS_PASSWORD")
+	if clusterType == "true" {
+		redisAddr = os.Getenv("REDIS_CLUSTER_URL")
+	} else {
+		redisAddr = os.Getenv("REDIS_SINGLE_URL")
+	}
 	if redisAddr == "" || redisPwd == "" {
 		return nil, errors.Errorf("get redis address or redis password is nil")
 	}

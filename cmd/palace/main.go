@@ -56,7 +56,7 @@ func initAssociationDispatchers(rdb *rdbtools.GormWrapper) error {
 }
 
 func initRedis() (err error) {
-	redisEndpoint := os.Getenv("REDIS_ENDPOINT")
+	redisEndpoint := os.Getenv("REDIS_CLUSTER_URL")
 	if redisEndpoint == "" {
 		panic("REDIS_ENDPOINT env variable not set")
 	}
@@ -81,7 +81,7 @@ func initRedis() (err error) {
 
 func initDB() error {
 	postgresDB, err := rdbtools.GormWrapperOpen(5*time.Second, func() (*gorm.DB, error) {
-		db, err := databases.GetPostgresqlWithEnv(context.Background())
+		db, err := databases.GetMysqlWithEnv(context.Background())
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("postgresDB client init error")
 			return nil, err

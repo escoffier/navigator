@@ -27,5 +27,5 @@ type TensorApi struct {
 }
 
 func (t *TensorApi) TableName() string {
-	return "tensor_apis"
+	return "ivan_assets_apis"
 }

@@ -26,7 +26,7 @@ const (
 	TensorScanReportTypeCustomize                                 // 自定义
 )
 
-func (t TensorScanReportType) Value() (driver.Value, error) { return uint8(t), nil }
+func (t TensorScanReportType) Value() (driver.Value, error) { return int64(t), nil }
 
 func (t TensorScanReportType) String() string {
 	switch t {
@@ -51,7 +51,7 @@ const (
 	TensorScanReportContentTypeFix                                                   // 修复建议
 )
 
-func (t TensorScanReportContentType) Value() (driver.Value, error) { return uint8(t), nil }
+func (t TensorScanReportContentType) Value() (driver.Value, error) { return int64(t), nil }
 
 // TensorScanReportImageType 报告类型
 type TensorScanReportImageType uint8
@@ -61,7 +61,7 @@ const (
 	TensorScanReportImageTypeNode                                           // 节点镜像
 )
 
-func (t TensorScanReportImageType) Value() (driver.Value, error) { return uint8(t), nil }
+func (t TensorScanReportImageType) Value() (driver.Value, error) { return int64(t), nil }
 
 // TensorScanReportRegistryImageType 仓库镜像类型
 type TensorScanReportRegistryImageType uint8
@@ -72,12 +72,12 @@ const (
 	TensorScanReportRegistryImageTypeProjectAndRegistry                                              // 项目仓库
 )
 
-func (t TensorScanReportRegistryImageType) Value() (driver.Value, error) { return uint8(t), nil }
+func (t TensorScanReportRegistryImageType) Value() (driver.Value, error) { return int64(t), nil }
 
 // TensorScanReportTasks 扫描报告
 type TensorScanReportTasks struct {
 	ID     uint                 `gorm:"primarykey" json:"id"`
-	Name   string               `gorm:"column:name;uniqueIndex:report_name_unique_index;property:1;comment:报告名称,长度限制,100个字符" json:"name"`
+	Name   string               `gorm:"type:varchar(255);column:name;uniqueIndex:report_name_unique_index;property:1;comment:报告名称,长度限制,100个字符" json:"name"`
 	Type   TensorScanReportType `gorm:"column:type;comment:报告类型：1:周报，2:月报，3:自定义" json:"type"`
 	Emails []string             `gorm:"-" json:"emails"` // 接受邮箱
 
@@ -86,7 +86,7 @@ type TensorScanReportTasks struct {
 
 	ImageTypes    []int64                   `gorm:"-" json:"image_types"` // 报告对象, 仓库镜像: 1, 节点镜像: 2
 	ImageTypeEnum TensorScanReportImageType `gorm:"column:image_type;comment:报告对象,仓库镜像:0b1, 节点镜像:0b10,多个求或运算" json:"-"`
-	Comment       string                    `gorm:"column:comment;comment:报告描述，500字符限制" json:"comment"`
+	Comment       string                    `gorm:"type:varchar(255);column:comment;comment:报告描述，500字符限制" json:"comment"`
 
 	CreatedAt time.Time            `json:"created_at"` // 创建时间
 	UpdatedAt time.Time            `json:"-"`
@@ -102,14 +102,14 @@ type TensorScanReportTasks struct {
 	RegistryImageObjects []string `gorm:"-" json:"registry_image_objects,omitempty"` // 仓库镜像类型时的项目或者仓库或者项目仓库列表
 	NodeImageObjects     []string `gorm:"-" json:"node_image_objects,omitempty"`     // 节点镜像类型时的节点镜像列表
 
-	RegistryImageObjectsJson datatypes.JSON `gorm:"column:registry_image_objects" json:"-"` // 镜像仓库
-	NodeImageObjectsJson     datatypes.JSON `gorm:"column:node_image_objects" json:"-"`     // 节点仓库
-	EmailsJson               datatypes.JSON `gorm:"column:emails" json:"-"`                 // 接受邮箱
+	RegistryImageObjectsJson datatypes.JSON `gorm:"type:blob;column:registry_image_objects" json:"-"` // 镜像仓库
+	NodeImageObjectsJson     datatypes.JSON `gorm:"type:blob;column:node_image_objects" json:"-"`     // 节点仓库
+	EmailsJson               datatypes.JSON `gorm:"type:blob;column:emails" json:"-"`                 // 接受邮箱
 
 	SubTaskType SubTaskType `gorm:"-" json:"-"` // 子任务类型
 }
 
-func (TensorScanReportTasks) TableName() string { return "tensor_scan_report_tasks" }
+func (TensorScanReportTasks) TableName() string { return "ivan_scanner_report_tasks" }
 
 func (t *TensorScanReportTasks) AfterFind(_ *gorm.DB) error {
 	if t.ImageTypeEnum&TensorScanReportImageTypeRegistry == TensorScanReportImageTypeRegistry {

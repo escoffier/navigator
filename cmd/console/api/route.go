@@ -10,17 +10,17 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/pb"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 const (
@@ -41,7 +41,6 @@ func SetupRoutes(
 	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	emailOpts *flag.EmailOpts,
 	// imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 ) {
@@ -56,7 +55,6 @@ func SetupRoutes(
 		webhookURL,
 		redisClient,
 		harborClient,
-		emailOpts,
 		ecCli,
 	)
 	r.Get("/ping", response.Pong)

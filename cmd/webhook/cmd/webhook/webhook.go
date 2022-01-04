@@ -294,12 +294,12 @@ func (s *webHookServer) loadHostCluster() error {
 }
 
 func (s *webHookServer) initPG() error {
-	postgresDB, err := databases.GetPostgresqlWithEnv(context.TODO())
-	if err != nil || postgresDB == nil {
-		logging.GetLogger().Err(err).Msg("Init postgre error")
+	rdb, err := databases.GetMysqlWithEnv(context.TODO())
+	if err != nil || rdb == nil {
+		logging.GetLogger().Err(err).Msg("Init rdb error")
 		return err
 	}
-	s.rdb = postgresDB
+	s.rdb = rdb
 	return nil
 }
 

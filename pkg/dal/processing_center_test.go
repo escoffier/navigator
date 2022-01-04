@@ -14,10 +14,6 @@ import (
 
 func initProcessingCenterDB(t *testing.T) {
 	initDB(t)
-	err := db.AutoMigrate(&model.ProcessingAction{})
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestSaveProcessingAction(t *testing.T) {

@@ -7,7 +7,6 @@ const (
 	MaxTaskTimeSec        = "MAX_TASK_TIME_SEC"
 	DefaultMaxTaskTimeSec = 7200
 	TemplateID            = "TEMPLATE_ID"
-	Image                 = "PLATFORM_REPORTER_IMAGE"
 
 	NotifyBaseURL        = "Notify_BASE_URL"
 	EmailHost            = "EMAIL_HOST"

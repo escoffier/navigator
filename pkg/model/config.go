@@ -5,7 +5,7 @@ import (
 )
 
 type TensorConfig struct {
-	Key       string    `gorm:"column:key;primaryKey"`
+	Key       string    `gorm:"column:k;primaryKey"`
 	Config    []byte    `gorm:"column:config;type:bytea"`
 	Creator   string    `gorm:"column:creator"`
 	Updater   string    `gorm:"column:updater"`
@@ -15,5 +15,5 @@ type TensorConfig struct {
 }
 
 func (TensorConfig) TableName() string {
-	return "tensor_configs"
+	return "ivan_platform_configs"
 }

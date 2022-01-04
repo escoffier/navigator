@@ -14,7 +14,7 @@ import (
 )
 
 func handleStorage(cleaners []def.Cleaner, taskType def.GCTaskType) (err error) {
-	db, err := NewPostgresClientFromEnv()
+	db, err := NewMysqlClientFromEnv()
 	if err != nil {
 		logging.GetLogger().Error().Msgf("new db client fail:%s", err.Error())
 		return err

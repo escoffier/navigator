@@ -43,7 +43,7 @@ func (p *ProcessingAction) SetObject(objects []string) {
 }
 
 func (ProcessingAction) TableName() string {
-	return "processingcenter_actions"
+	return "ivan_platform_processingcenter_actions"
 }
 
 type ObjectDisplay struct {

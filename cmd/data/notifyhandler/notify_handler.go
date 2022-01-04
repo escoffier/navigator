@@ -14,7 +14,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type EmailConf struct {
@@ -122,7 +121,7 @@ func (h *Handler) sendEmail(emails []string, body string) error {
 	logging.GetLogger().Info().Msgf("emails:%+v, body:%s", emails, body)
 	m := gomail.NewMessage()
 	m.SetHeader("From", m.FormatAddress(h.emailConf.Username,
-		util.GetEnvWithDefault(env.EmailOfficialName, env.DefaultEmailOfficialName)))
+		env.GetEmailOfficialName()))
 	m.SetHeader("To", emails...)
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)

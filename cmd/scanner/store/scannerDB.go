@@ -41,7 +41,7 @@ func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, ScanImage *model.S
 func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.ScanImage{}).Where("id = ?", tableID).Select("*").Omit("id").Updates(ScanImage).Error
+	err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.ScanImage{}).Where("id = ?", tableID).Select("*").Omit("id", "created_at").Updates(ScanImage).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateToScanImage Updata Error:")
 		return err
@@ -70,7 +70,7 @@ func (scdb *ScannerDB) InsertToWebFrame(ctx context.Context, webFrameScan *model
 		return err
 	}
 	if tmp.ID != 0 {
-		err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.WebFrameScan{}).Where("image_uuid = ?", webFrameScan.ImageUUID).Update("web_frame_info", webFrameScan.WebFrameInfoJSON).Error
+		err := scdb.PostgresDB.Get().WithContext(ctx).Model(&model.WebFrameScan{}).Where("image_uuid = ?", webFrameScan.ImageUUID).Omit("created_at").Update("web_frame_info", webFrameScan.WebFrameInfoJSON).Error
 		if err != nil {
 			return err
 		}
@@ -131,7 +131,7 @@ func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, ScanLayer *model.S
 	tmp := model.ScanLayer{}
 	res := scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).First(&tmp)
 	if res.Error == nil {
-		scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).Select("*").Omit("id").Updates(&ScanLayer)
+		scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).Select("*").Omit("id", "created_at").Updates(&ScanLayer)
 		return
 	}
 	scdb.PostgresDB.Get().WithContext(ctx).Create(&ScanLayer)
@@ -184,7 +184,7 @@ func (scdb *ScannerDB) InsertToRegistry(ctx context.Context, Registry *model.Reg
 	res := scdb.PostgresDB.Get().WithContext(ctx).Model(Registry).Where("url = ?", Registry.Url).First(&tmpRegistry)
 	Registry.ID = tmpRegistry.ID
 	if res.Error == nil {
-		if err := scdb.PostgresDB.Get().WithContext(ctx).Updates(&Registry).Error; err != nil {
+		if err := scdb.PostgresDB.Get().WithContext(ctx).Updates(&Registry).Omit("created_at").Error; err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "InsertToRegistry Updates Registry error%s ", err.Error())
 		}
 		return
@@ -247,7 +247,7 @@ func (scdb *ScannerDB) InsertImageList(ctx context.Context, im model.ImageList) 
 		im.Status = tmp.Status
 	}
 	im.OnLineCount = tmp.OnLineCount
-	err := scdb.PostgresDB.Get().WithContext(ctx).Model(tmp).Updates(&im).Error
+	err := scdb.PostgresDB.Get().WithContext(ctx).Model(tmp).Omit("created_at").Updates(&im).Error
 	return tmp.ID, err
 }
 
@@ -263,7 +263,7 @@ func (scdb *ScannerDB) InsertVirusLayer(ctx context.Context, si model.ScanLayer)
 			"malicious_info_json": si.MaliciousInfoJSON,
 			"webshell_info_json":  si.WebshellInfoJSON,
 		}
-		scdb.PostgresDB.Get().Model(model.ScanLayer{}).Where("layer_digest = ? AND image_id= ?", si.LayerDigest, si.ImageId).Updates(data)
+		scdb.PostgresDB.Get().Model(model.ScanLayer{}).Where("layer_digest = ? AND image_id= ?", si.LayerDigest, si.ImageId).Omit("created_at").Updates(data)
 	}
 }
 
@@ -277,7 +277,7 @@ func (scdb *ScannerDB) InsertVirusInfo(ctx context.Context, si model.ScanImage, 
 		return
 	}
 	si.RiskScore = tmpImage.SensitiveScore + tmpImage.VulnScore + math.Min(si.WebshellScore+si.VirusScore, 40)
-	err = scdb.PostgresDB.Get().WithContext(ctx).Model(model.ScanImage{}).Where("id = ?", tableID).
+	err = scdb.PostgresDB.Get().WithContext(ctx).Model(model.ScanImage{}).Where("id = ?", tableID).Omit("created_at").
 		Select("malicious_info_json", "risk_score", "virus_score", "webshell_score", "webshell_info_json").Updates(si).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("InsertVirusInfo Updata scan_image Error:")

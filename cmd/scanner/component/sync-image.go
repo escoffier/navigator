@@ -239,6 +239,16 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		FromType:       model.ImageFromTypeNormal,
 		ImageUUID:      util.GenerateUUID(imageID),
 	}
+	if img.FirstPushTime.Unix() <= 0 {
+		img.FirstPushTime = time.Now().UTC()
+	}
+	if img.LastPushTime.Unix() <= 0 {
+		img.LastPushTime = time.Now().UTC()
+	}
+	if img.LastPullTime.Unix() <= 0 {
+		img.LastPullTime = time.Now().UTC()
+	}
+
 	img.Layers = getLayerString(img)
 	if reg.UseType == model.RegistryUseSafeNode {
 		// logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)

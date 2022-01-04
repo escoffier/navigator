@@ -121,7 +121,7 @@ func (s *ScannerOrm) ScanReportUpdate(ctx context.Context, task *scanreport.Tens
 				Columns: []clause.Column{{Name: "scan_report_id"}, {Name: "end_timestamp"}},
 				DoUpdates: clause.Assignments(map[string]interface{}{
 					"status": gorm.Expr( // 当出现唯一键冲突时，把状态为waiting,failed,cancel的改为waiting,其他状态不变
-						"CASE tensor_scan_report_sub_tasks.status WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? else tensor_scan_report_sub_tasks.status end",
+						"CASE ivan_scanner_report_subtasks.status WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? else ivan_scanner_report_subtasks.status end",
 						scanreport.SubTasksStatusWaiting, scanreport.SubTasksStatusWaiting, scanreport.SubTasksStatusFailed,
 						scanreport.SubTasksStatusWaiting, scanreport.SubTasksStatusCancel, scanreport.SubTasksStatusWaiting,
 					)},

@@ -37,13 +37,13 @@ type Link struct {
 }
 
 type AssociationEvent interface {
-	GetID() int64
+	GetID() uint64
 	GetEvents() []PodContainerEvent
 	GetEventsNum() int
 	GetNodesNum() int
 	GetAssociatedLinks() []Link
-	SetID(evtID int64)
-	PostActionSetting(evtID int64, submitOK bool)
+	SetID(evtID uint64)
+	PostActionSetting(evtID uint64, submitOK bool)
 }
 
 type Aggragator interface {

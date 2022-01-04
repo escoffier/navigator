@@ -24,7 +24,7 @@ var redisClients []*redis.Client = make([]*redis.Client, 2)
 func InitDb() (err error) {
 	dbInitOnce.Do(func() {
 		scannerGormWrapDb, err = rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-			db, err := databases.GetPostgresqlWithEnv(context.Background(),
+			db, err := databases.GetMysqlWithEnv(context.Background(),
 				databases.OptionWithmaxOpenConnections(60),
 				databases.OptionWithMaxIdleConns(30),
 				databases.OptionWithConnMaxLifeTime(time.Hour),
@@ -35,7 +35,6 @@ func InitDb() (err error) {
 			err = fmt.Errorf("connect db err:%v", err)
 			return
 		}
-
 		scannerOrm = NewScannerOrm(scannerGormWrapDb)
 		scanConfigDao = NewScanConfigDao(scannerGormWrapDb)
 		// todo: should be deprecated

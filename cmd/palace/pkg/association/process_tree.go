@@ -34,8 +34,8 @@ func (pte *ProcessTreeAssociation) GetEventsNum() int {
 func (pte *ProcessTreeAssociation) GetNodesNum() int {
 	return pte.tree.nodesNum
 }
-func (pte *ProcessTreeAssociation) GetID() int64 {
-	return int64(pte.agEvtID)
+func (pte *ProcessTreeAssociation) GetID() uint64 {
+	return pte.agEvtID
 }
 
 func (pte *ProcessTreeAssociation) generateData() {
@@ -67,9 +67,9 @@ func (pte *ProcessTreeAssociation) GetAssociatedLinks() []Link {
 	return pte.links
 }
 
-func (pte *ProcessTreeAssociation) PostActionSetting(evtID int64, submitOK bool) {
+func (pte *ProcessTreeAssociation) PostActionSetting(evtID uint64, submitOK bool) {
 	if submitOK && evtID > 0 {
-		pte.agEvtID = uint64(evtID)
+		pte.agEvtID = evtID
 	}
 	if pte.aggr.isStopped() {
 		return
@@ -81,12 +81,12 @@ func (pte *ProcessTreeAssociation) PostActionSetting(evtID int64, submitOK bool)
 	}
 }
 
-func (pte *ProcessTreeAssociation) SetID(id int64) {
+func (pte *ProcessTreeAssociation) SetID(id uint64) {
 	if id == 0 {
 		return
 	}
 	if id > 0 {
-		pte.agEvtID = uint64(id)
+		pte.agEvtID = id
 	}
 	if pte.aggr.isStopped() {
 		return

@@ -8,22 +8,19 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
-	"github.com/patrickmn/go-cache"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type api struct {
@@ -36,14 +33,10 @@ type api struct {
 	secProfileCoreURL string
 	redisClient       *redis.Client
 	harborClient      *harbor.HarborRESTClient
-	emailOpts         *flag.EmailOpts
 	ecCli             pb.EventsCenterBizServiceClient
 
 	// For managing state in Harbor plugin API
-	abortAnyNewScansBool           int32
-	scanResultLocalBackoffCache    map[string]int // maps scantask ID to last backoff in secs
-	scanResultLocalBackoffCacheMux sync.Mutex
-	unprocessableEntityCache       *cache.Cache
+	abortAnyNewScansBool int32
 }
 
 func newAPI(
@@ -55,7 +48,6 @@ func newAPI(
 	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	emailOpts *flag.EmailOpts,
 	ecCli pb.EventsCenterBizServiceClient,
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
@@ -65,18 +57,15 @@ func newAPI(
 	}
 
 	return &api{
-		tokenAuth:                   tokenAuth,
-		postgresDB:                  postgresDB,
-		scannerURL:                  scannerURL,
-		secProfileCoreURL:           secProfileCoreURL,
-		microsegURL:                 microsegURL,
-		webhookURL:                  whUrl,
-		redisClient:                 redisClient,
-		harborClient:                harborClient,
-		scanResultLocalBackoffCache: make(map[string]int),
-		unprocessableEntityCache:    cache.New(5*60*time.Second, 60*time.Second),
-		emailOpts:                   emailOpts,
-		ecCli:                       ecCli,
+		tokenAuth:         tokenAuth,
+		postgresDB:        postgresDB,
+		scannerURL:        scannerURL,
+		secProfileCoreURL: secProfileCoreURL,
+		microsegURL:       microsegURL,
+		webhookURL:        whUrl,
+		redisClient:       redisClient,
+		harborClient:      harborClient,
+		ecCli:             ecCli,
 	}
 }
 

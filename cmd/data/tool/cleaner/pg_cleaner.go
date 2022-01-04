@@ -18,10 +18,10 @@ import (
 
 type PostgresCleaner struct {
 	db     *rdbtools.GormWrapper
-	tables []*conf.PGDumpItem
+	tables []*conf.RDBDumpItem
 }
 
-func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.PGDumpItem) *PostgresCleaner {
+func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.RDBDumpItem) *PostgresCleaner {
 	return &PostgresCleaner{
 		db:     db,
 		tables: tables,
@@ -55,7 +55,7 @@ const (
 	pgInterval = time.Millisecond * 200
 )
 
-func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.PGDumpItem, timeFilter time.Time) error {
+func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.RDBDumpItem, timeFilter time.Time) error {
 	targetPath, tmpPath, err := initDumpInfo(&table.DumpItem, timeFilter)
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (c *PostgresCleaner) dumpTable(ctx context.Context, table *conf.PGDumpItem,
 	}
 }
 
-func psqlCopy(ctx context.Context, table *conf.PGDumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
+func psqlCopy(ctx context.Context, table *conf.RDBDumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", util.GetEnvWithDefault(env.RDBHost, env.DefaultRDBHost),
 		"-U", util.GetEnvWithDefault(env.RDBUser, env.DefaultRDBUser),
@@ -129,7 +129,7 @@ func psqlCopy(ctx context.Context, table *conf.PGDumpItem, timeFilter time.Time,
 	return stdout != "COPY 0\n", nil
 }
 
-func getClearCondition(table *conf.PGDumpItem) string {
+func getClearCondition(table *conf.RDBDumpItem) string {
 	if table.Condition == "" {
 		return ""
 	}
@@ -137,7 +137,7 @@ func getClearCondition(table *conf.PGDumpItem) string {
 	return fmt.Sprintf(" and (%s)", table.Condition)
 }
 
-func getPrimaryKeyGroup(table *conf.PGDumpItem) string {
+func getPrimaryKeyGroup(table *conf.RDBDumpItem) string {
 	if len(table.PrimaryKey) == 0 {
 		return "id"
 	}
@@ -148,7 +148,7 @@ func getPrimaryKeyGroup(table *conf.PGDumpItem) string {
 	return fmt.Sprintf("(%s)", strings.Join(table.PrimaryKey, ","))
 }
 
-func getPrimaryKeyColumns(table *conf.PGDumpItem) string {
+func getPrimaryKeyColumns(table *conf.RDBDumpItem) string {
 	if len(table.PrimaryKey) == 0 {
 		return "id"
 	}
@@ -157,4 +157,24 @@ func getPrimaryKeyColumns(table *conf.PGDumpItem) string {
 	}
 
 	return strings.Join(table.PrimaryKey, ",")
+}
+
+func getPrimaryKeySortColumns(table *conf.RDBDumpItem, sort string) string {
+	if len(table.PrimaryKey) == 0 {
+		return fmt.Sprintf("id %s", sort)
+	}
+	if len(table.PrimaryKey) == 1 {
+		return fmt.Sprintf("%s %s", table.PrimaryKey[0], sort)
+	}
+
+	var result string
+	for i := range table.PrimaryKey {
+		if i != len(table.PrimaryKey) - 1 {
+			result += fmt.Sprintf("%s %s, ", table.PrimaryKey[i], sort)
+		} else {
+			result += fmt.Sprintf("%s %s", table.PrimaryKey[i], sort)
+		}
+	}
+
+	return result
 }

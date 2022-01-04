@@ -64,7 +64,7 @@ func TestPostgresCleaner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := NewPostgresCleaner(postgresDB, []*conf.PGDumpItem{
+	c := NewPostgresCleaner(postgresDB, []*conf.RDBDumpItem{
 		{
 			DumpItem: conf.DumpItem{
 				Name:      "tests",
@@ -189,7 +189,7 @@ func TestTimeFormat(t *testing.T) {
 }
 
 func TestGetPrimaryKeyGroup(t *testing.T) {
-	item := &conf.PGDumpItem{}
+	item := &conf.RDBDumpItem{}
 	t.Log(getPrimaryKeyGroup(item))
 	t.Log(getPrimaryKeyColumns(item))
 
@@ -200,4 +200,15 @@ func TestGetPrimaryKeyGroup(t *testing.T) {
 	item.PrimaryKey = []string{"id1", "id2"}
 	t.Log(getPrimaryKeyGroup(item))
 	t.Log(getPrimaryKeyColumns(item))
+}
+
+func TestGetPrimaryKeySort(t *testing.T) {
+	item := &conf.RDBDumpItem{}
+	t.Log(getPrimaryKeySortColumns(item, "desc"))
+
+	item.PrimaryKey = []string{"uuid"}
+	t.Log(getPrimaryKeySortColumns(item, "desc"))
+
+	item.PrimaryKey = []string{"id1", "id2"}
+	t.Log(getPrimaryKeySortColumns(item, "desc"))
 }

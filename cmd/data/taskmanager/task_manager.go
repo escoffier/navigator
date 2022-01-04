@@ -36,6 +36,7 @@ func (m *Manager) CreateGCTask(ctx context.Context, taskType def.GCTaskType) (*m
 		Category:  taskType.String(),
 		Status:    model.GCInProgress,
 		CreatedAt: nowTime,
+		FinishedAt: nowTime,
 	}
 
 	var err = m.db.Get().Transaction(func(tx *gorm.DB) error {
@@ -68,7 +69,7 @@ func (m *Manager) GetGCTask(ctx context.Context, taskID string) (*model.GCTask, 
 
 func (m *Manager) UpdateTaskStatus(ctx context.Context, taskID, status string) error {
 	nowTime := time.Now()
-	sql := "update gc_tasks set status = ?, finished_at = ? where hash = ?"
+	sql := "update ivan_platform_gc_tasks set status = ?, finished_at = ? where hash = ?"
 	retryFunc := func() error {
 		return m.db.Get().WithContext(ctx).Exec(sql, status, nowTime, taskID).Error
 	}
@@ -77,6 +78,6 @@ func (m *Manager) UpdateTaskStatus(ctx context.Context, taskID, status string) e
 }
 
 func (m *Manager) DealExpireTasks(ctx context.Context, nowTime time.Time) error {
-	sql := "update gc_tasks set status = ?, finished_at = ? where created_at < ? and status = ?"
+	sql := "update ivan_platform_gc_tasks set status = ?, finished_at = ? where created_at < ? and status = ?"
 	return m.db.Get().WithContext(ctx).Exec(sql, model.GCFailed, nowTime, nowTime.Add(-m.maxCleanTime), model.GCInProgress).Error
 }

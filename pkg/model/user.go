@@ -13,7 +13,7 @@ type ModuleGroup struct {
 }
 
 func (m ModuleGroup) TableName() string {
-	return "tensor_module"
+	return "ivan_platform_modules"
 }
 
 type Url struct {
@@ -23,7 +23,7 @@ type Url struct {
 }
 
 func (u Url) TableName() string {
-	return "tensor_url"
+	return "ivan_platform_urls"
 }
 
 const (
@@ -56,7 +56,7 @@ type User struct {
 	ModuleGroup []ModuleGroup `gorm:"-" json:"module_group"`
 	External    bool          `gorm:"-" json:"-"`
 	Checked     bool          `json:"checked"`
-	CreateAt    int64         `json:"create_at"`
+	CreatedAt   int64         `json:"create_at"`
 	BanStatus   int32         `json:"ban_status" gorm:"column:ban_status"`
 }
 
@@ -81,18 +81,18 @@ type UserSession struct {
 }
 
 func (u User) TableName() string {
-	return "tensor_user"
+	return "ivan_platform_users"
 }
 
 type Email struct {
 	ID       int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
 	HashCode string `gorm:"index:hash_code, unique;column:hash_code;size:64" json:"hash_code"`
-	CreateAt int64  `json:"create_at"`
+	CreatedAt int64  `gorm:"column:created_at" json:"created_at"`
 	UserName string `gorm:"index:email_username, unique;column:username" json:"userName"` // index
 }
 
 func (e Email) TableName() string {
-	return "tensor_email"
+	return "ivan_platform_emails"
 }
 
 type LdapGroup struct {
@@ -110,7 +110,7 @@ type LdapGroupDisplay struct {
 }
 
 func (l LdapGroup) TableName() string {
-	return "ldap_groups"
+	return "ivan_platform_ldap_groups"
 }
 
 func GetModuleIDByGroup(group *LdapGroup) []int {

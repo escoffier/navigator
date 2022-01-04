@@ -49,29 +49,29 @@ type CfgScan struct {
 
 type ScanResult struct {
 	ID            uint32 `gorm:"column:id"`
-	TaskID        string `gorm:"column:task_id"`
-	CheckType     string `gorm:"column:check_type"`
-	NodeName      string `gorm:"column:node_name"`
-	ClusterKey    string `gorm:"column:cluster_key"`
-	PolicyID      string `gorm:"column:policy_id"`
-	State         string `gorm:"column:state"`
-	ActualValue   string `gorm:"column:actual_value"`
-	RemediationEn string `gorm:"column:remediation_en"`
-	RemediationZh string `gorm:"column:remediation_zh"`
+	TaskID        string `gorm:"type:varchar(255);column:task_id"`
+	CheckType     string `gorm:"type:varchar(255);column:check_type"`
+	NodeName      string `gorm:"type:varchar(255);column:node_name"`
+	ClusterKey    string `gorm:"type:varchar(255);column:cluster_key"`
+	PolicyID      string `gorm:"type:varchar(255);column:policy_id"`
+	State         string `gorm:"type:varchar(255);column:state"`
+	ActualValue   string `gorm:"type:varchar(255);column:actual_value"`
+	RemediationEn string `gorm:"type:varchar(255);column:remediation_en"`
+	RemediationZh string `gorm:"type:varchar(255);column:remediation_zh"`
 	CreatedAt     int64  `gorm:"column:create_at"`
 	Status        int32  `gorm:"column:status"`
 }
 
 func (ScanResult) TableName() string {
-	return "scan_bench_result"
+	return "ivan_scanner_scan_bench_result"
 }
 
 type ScanHistory struct {
 	TaskID      string `gorm:"column:task_id"`
-	CheckType   string `gorm:"column:check_type"`
-	ClusterKey  string `gorm:"column:cluster_key"`
-	ClusterName string `gorm:"column:cluster_name"`
-	Operator    string `gorm:"column:operator"`
+	CheckType   string `gorm:"varchar(255);column:check_type"`
+	ClusterKey  string `gorm:"varchar(255);column:cluster_key"`
+	ClusterName string `gorm:"varchar(255);column:cluster_name"`
+	Operator    string `gorm:"varchar(255);column:operator"`
 	State       int32  `gorm:"column:state"`
 	SucNode     int32  `gorm:"column:suc_node"`
 	FailNode    int32  `gorm:"column:fail_node"`
@@ -80,26 +80,26 @@ type ScanHistory struct {
 }
 
 func (ScanHistory) TableName() string {
-	return "scan_bench_history"
+	return "ivan_scanner_scan_bench_history"
 }
 
 type ScanNodeRecord struct {
 	TaskID      string `gorm:"column:task_id"`
-	CheckType   string `gorm:"column:check_type"`
-	ClusterKey  string `gorm:"column:cluster_key"`
-	Operator    string `gorm:"column:operator"`
-	NodeName    string `gorm:"column:node_name"`
-	Namespace   string `gorm:"namespace"`
-	JobName     string `gorm:"job_name"`
+	CheckType   string `gorm:"type:varchar(255);column:check_type"`
+	ClusterKey  string `gorm:"type:varchar(255);column:cluster_key"`
+	Operator    string `gorm:"type:varchar(255);column:operator"`
+	NodeName    string `gorm:"type:varchar(255);column:node_name"`
+	Namespace   string `gorm:"type:varchar(255);column:namespace"`
+	JobName     string `gorm:"type:varchar(255);column:job_name"`
 	State       int32  `gorm:"column:state"`
-	Message     string `gorm:"column:message"`
+	Message     string `gorm:"type:varchar(255);column:message"`
 	CreatedAt   int64  `gorm:"column:created_at"`
 	FinishedAt  int64  `gorm:"column:finished_at"`
-	AutoVariate string `gorm:"column:auto_variate"`
+	AutoVariate string `gorm:"type:varchar(255);column:auto_variate"`
 }
 
 func (ScanNodeRecord) TableName() string {
-	return "scan_node_record"
+	return "ivan_scanner_scan_node_record"
 }
 
 type FileExport struct {
@@ -118,26 +118,26 @@ func (FileExport) TableName() string {
 }
 
 type PolicyDetailInfo struct {
-	PolicyId       string `json:"policy_id" gorm:"column:policy_id"`
-	CheckType      string `json:"check_type" gorm:"column:check_type"`
+	PolicyId       string `json:"policy_id" gorm:"type:varchar(255);column:policy_id"`
+	CheckType      string `json:"check_type" gorm:"type:varchar(255);column:check_type"`
 	Status         int    `json:"status" gorm:"column:status"`
-	Creator        string `json:"creator" gorm:"column:creator"`
+	Creator        string `json:"creator" gorm:"type:varchar(255);column:creator"`
 	CreatedAt      int64  `json:"created_at" gorm:"column:created_at"`
-	Updater        string `json:"updater" gorm:"column:updater"`
+	Updater        string `json:"updater" gorm:"type:varchar(255);column:updater"`
 	UpdatedAt      int64  `json:"updated_at" gorm:"column:updated_at"`
-	TitleEn        string `json:"title_en" gorm:"column:title_en"`
-	TitleZh        string `json:"title_zh" gorm:"column:title_zh"`
-	DetailEn       string `json:"detail_en" gorm:"column:detail_en"`
-	DetailZh       string `json:"detail_zh" gorm:"column:detail_zh"`
-	RemediationEn  string `json:"remediation_en" gorm:"column:remediation_en"`
-	RemediationZh  string `json:"remediation_zh" gorm:"column:remediation_zh"`
-	ExpectedResult string `json:"expeced_result" gorm:"column:expeced_result"`
-	Audit          string `json:"audit" gorm:"column:audit"`
-	AuditConfig    string `json:"audit_config" gorm:"column:audit_config"`
+	TitleEn        string `json:"title_en" gorm:"type:varchar(255);column:title_en"`
+	TitleZh        string `json:"title_zh" gorm:"type:varchar(255);column:title_zh"`
+	DetailEn       string `json:"detail_en" gorm:"type:varchar(255);column:detail_en"`
+	DetailZh       string `json:"detail_zh" gorm:"type:varchar(255);column:detail_zh"`
+	RemediationEn  string `json:"remediation_en" gorm:"type:varchar(255);column:remediation_en"`
+	RemediationZh  string `json:"remediation_zh" gorm:"type:varchar(255);column:remediation_zh"`
+	ExpectedResult string `json:"expeced_result" gorm:"type:varchar(255);column:expeced_result"`
+	Audit          string `json:"audit" gorm:"type:varchar(255);column:audit"`
+	AuditConfig    string `json:"audit_config" gorm:"type:varchar(255);column:audit_config"`
 }
 
 func (PolicyDetailInfo) TableName() string {
-	return "scan_policy_detail"
+	return "ivan_scanner_scan_policy_detail"
 }
 
 type CheckBreakdown struct {
@@ -216,12 +216,12 @@ type Check struct {
 
 type CronScanTask struct {
 	CreatedAt int64  `json:"created_at" gorm:"column:created_at"`
-	CronTime  string `json:"cronString" gorm:"column:cron_time"`
-	CheckType string `json:"check_type" gorm:"column:check_type"`
-	ClusterId string `json:"cluster_id" gorm:"column:cluster_id"`
+	CronTime  string `json:"cronString" gorm:"type:varchar(255);column:cron_time"`
+	CheckType string `json:"check_type" gorm:"type:varchar(255);column:check_type"`
+	ClusterId string `json:"cluster_id" gorm:"type:varchar(255);column:cluster_id"`
 	CronId    int    `json:"cron_id" gorm:"column:cron_id"`
 }
 
 func (CronScanTask) TableName() string {
-	return "cron_scan_task"
+	return "ivan_scanner_cron_scan_task"
 }

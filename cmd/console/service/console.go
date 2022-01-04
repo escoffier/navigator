@@ -16,6 +16,13 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
@@ -39,6 +46,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -48,12 +56,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const (
@@ -89,16 +91,12 @@ type Console struct {
 // NewConsole is to create a new Console struct.
 func NewConsole(
 	httpOpts *flag.HTTPOpts,
-	postgresOpts *flag.PostgresOpts,
+	rdbOpts *flag.RDBOpts,
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
-	redisOpts *flag.RedisOpts,
 	elasticOpts *flag.ElasticOpts,
 	harborOpts *flag.HarborOpts,
-	emailOpts *flag.EmailOpts,
 	secProfilesOpts *flag.SecProfilesOpts,
-	clusterManagerOpts *flag.ClusterManagerOpts,
-	webhookOpts *flag.WebHookOpts,
 ) (*Console, error) {
 	eventGrpcUrl := os.Getenv(eventGrpcUrlEnv)
 	if eventGrpcUrl == "" {
@@ -132,11 +130,12 @@ func NewConsole(
 	ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
 
 	// Redis DB client
-	sa := strings.Split(redisOpts.Endpoint, ",")
+	redisEndpoint := env.GetRedisEndpoint()
+	sa := strings.Split(redisEndpoint, ",")
 	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
 		MasterName:    "mymaster",
 		SentinelAddrs: sa,
-		Password:      redisOpts.Password,
+		Password:      env.GetRedisPassword(),
 		DB:            0,
 	})
 	if err != nil {
@@ -144,9 +143,9 @@ func NewConsole(
 	}
 
 	postgresDB, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
-		db, err := databases.GetPostgresqlWithEnv(context.Background())
+		db, err := databases.GetMysqlWithEnv(context.Background())
 		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			logging.GetLogger().Err(err).Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
 		}
 		return db, nil
@@ -157,8 +156,8 @@ func NewConsole(
 	}
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
-	microsegURL := os.Getenv("MICROSEG_HOST")
-	clusterManagerURL := fmt.Sprintf("http://%s:%d", clusterManagerOpts.Host, clusterManagerOpts.Port)
+	microsegURL := os.Getenv("MICROSEG_URL")
+	clusterManagerURL := env.GetClusterManagerUrl()
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -171,8 +170,8 @@ func NewConsole(
 	//}
 
 	es, err := elastic.NewClient(
-		elastic.SetURL(getElasticURL(elasticOpts.Host, elasticOpts.Port)),
-		elastic.SetBasicAuth(elasticOpts.Username, elasticOpts.Password),
+		elastic.SetURL(env.GetElasticURL()),
+		elastic.SetBasicAuth(env.GetElasticUsername(), env.GetElasticPassword()),
 	)
 	if err != nil {
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
@@ -186,17 +185,17 @@ func NewConsole(
 	}
 
 	// data service
-	emailPort, err := strconv.Atoi(emailOpts.Port)
+	emailPort, err := strconv.Atoi(env.GetEmailPort())
 	if err != nil {
-		logging.GetLogger().Error().Msgf("invalid email port:%s", emailOpts.Port)
+		logging.GetLogger().Error().Msgf("invalid email port:%s", env.GetEmailPort())
 	}
 
 	err = data.Init(&data.Conf{
 		PostgresDB: postgresDB,
 		EmailConf: &notifyhandler.EmailConf{
-			Username: emailOpts.Username,
-			Password: emailOpts.Password,
-			Host:     emailOpts.Host,
+			Username: env.GetEmailUsername(),
+			Password: env.GetEmailPassword(),
+			Host:     env.GetEmailHost(),
 			Port:     emailPort,
 		},
 
@@ -207,9 +206,9 @@ func NewConsole(
 		},
 
 		PostgrePod: &data.PodInfo{
-			PVC:      postgresOpts.PVC,
-			Pod:      postgresOpts.Pod,
-			DataPath: postgresOpts.DataPath,
+			PVC:      rdbOpts.PVC,
+			Pod:      rdbOpts.Pod,
+			DataPath: rdbOpts.DataPath,
 		},
 	})
 	if err != nil {
@@ -288,9 +287,9 @@ func NewConsole(
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: apiscan service init error")
 	}
 	err = platformreport.Init(postgresDB, &def.EmailConf{
-		Username: emailOpts.Username,
-		Password: emailOpts.Password,
-		Host:     emailOpts.Host,
+		Username: env.GetEmailUsername(),
+		Password: env.GetEmailPassword(),
+		Host:     env.GetEmailHost(),
 		Port:     emailPort,
 	})
 	if err != nil {
@@ -322,11 +321,10 @@ func NewConsole(
 				scannerURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
 				microsegURL,
-				fmt.Sprintf("https://%s:%d", webhookOpts.Host, webhookOpts.Port),
+				env.GetWebHookUrl(),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
 				nil, //harborClient,
-				emailOpts,
 				ecBuzCli,
 			),
 		},
@@ -439,7 +437,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	if err == gorm.ErrRecordNotFound {
 		salt := dal.RandStringBytesMaskImprSrcUnsafe(8)
 		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.PasswordSuperAdmin+salt)))
-		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreateAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
+		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreatedAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
 		authToken := util.GenerateUUIDHex()
 		err = db.Get().Transaction(func(tx *gorm.DB) error {
 			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
@@ -508,8 +506,4 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 	}
 
 	return nil
-}
-
-func getElasticURL(host string, port string) string {
-	return fmt.Sprintf("http://%s:%s", host, port)
 }

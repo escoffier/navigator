@@ -102,8 +102,6 @@ spec:
           value: {{ .Values.global.consoleExternalAdd }}
         - name: CONSOLE_INTERNAL_URL
           value: "http://{{ include "common.console.defaultName" . }}:{{ .Values.service.port }}"
-        - name: CLEANER_IMAGE
-          value: "{{ include "jobs.cleaner.image" . }}"
         - name: HUNTER_IMAGE
           value: "{{ include "jobs.hunter.image" . }}"
         - name: HUNTER_ORIGIN_IMAGE

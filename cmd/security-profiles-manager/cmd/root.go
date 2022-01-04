@@ -32,18 +32,17 @@ var rootCmd = &cobra.Command{
 			Str("listen", httpOpts.HTTPListen).
 			Msg("HTTP options")
 
-		redisOpts := flag.GetRedisOpts(cmd)
+		redisOpts := flag.GetRedisOptsFromEnv()
 		logging.GetLogger().Info().
 			Str("endpoint", redisOpts.Endpoint).
 			Msg("Redis options")
 
-		stanOpts := flag.GetStanOpts(cmd)
+		stanOpts := flag.GetStanOptsFromEnv()
 		logging.GetLogger().Info().
-			Str("client-id", stanOpts.ClientID).
 			Str("cluster-id", stanOpts.ClusterID).
 			Msg("STAN options")
 
-		// postgresOpts := flag.GetPostgresOpts(cmd)
+		// postgresOpts := flag.GetRDBOpts(cmd)
 		// logging.GetLogger().Info().
 		// 	Str("connectionString", postgresOpts.PostgresConnectionString).
 		// 	Msg("Postgres options")
@@ -74,9 +73,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 
 	flag.AddHTTPFlags(rootCmd)
-	flag.AddRedisFlags(rootCmd)
-	flag.AddStanFlags(rootCmd)
-	flag.AddPostgresFlags(rootCmd)
+	// flag.AddRedisFlags(rootCmd)
+	// flag.AddStanFlags(rootCmd)
+	// flag.AddRDBFlags(rootCmd)
 
 	flag.ConfigViper()
 }

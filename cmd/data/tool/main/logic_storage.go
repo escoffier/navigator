@@ -48,13 +48,13 @@ func NewLogicStorageCleaners() (cleaners []def.Cleaner, err error) {
 
 	logging.GetLogger().Info().Msgf("conf:%+v", dumpConf)
 
-	pgClient, err := NewPostgresClientFromEnv()
+	mysqlClient, err := NewMysqlClientFromEnv()
 	if err != nil {
 		logging.GetLogger().Error().Msgf("new postgres client fail:%s", err.Error())
 		return nil, err
 	}
 
 	return []def.Cleaner{
-		cleaner.NewPostgresCleaner(pgClient, dumpConf.PGTables),
+		cleaner.NewMysqlCleaner(mysqlClient, dumpConf.Tables),
 	}, nil
 }

@@ -15,7 +15,7 @@ workflow:
 stages:
   - reviewdog
   - build
-  ##- test
+  - test
 
 ## reviewdog
 reviewdog:
@@ -61,56 +61,17 @@ all:
     - cp ~/.docker/kubectl /bin/
     - cp ~/.docker/xray ./
     - chmod +755 /bin/kubectl
-    - cp ~/.docker/helm /bin/
   script:
     - USEMIRROR=true FETCHTAG=latest make all
     - make pushimages
     - make rm-local-images
-    - kubectl get pod --no-headers -n tensorsec|grep -v "postrgres\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
-
+    - kubectl get pod --no-headers -n tensorsec|grep -v "mariadb\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
   rules:
     - changes:
         - pkg/**/*
         - Makefile
         - go.mod
         - configs/**/*
-
-helm-upgrade:
-  stage: build
-  resource_group: helm-upgrade
-  tags:
-    - k8s
-  before_script:
-    ## Configuration of Git
-    - git merge origin/master
-    ## Configuration of Helm
-    - 'sed -i "s#harbor.local.tensorsecurity.cn#harbor.tensorsecurity.com#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#1.0.0#ci#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s|Harbor12345|$HARBORPASSWD|g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#admin#devops#" deployments/helm/example-values.yaml'
-    - 'sed -i "s#smtpEnabled: false#smtpEnabled: true#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#smtpPassword: password#smtpPassword: r8UJgg7ejpSoDOAF#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#console-robot@example.com#console-robot@tensorsecurity.cn#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#console.localhost.com#172.21.3.226:31517#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#https://console-external.localhost.com#https://console-ci.tensorsecurity.cn#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#harbor.local.example.com#harbor.tensorsecurity.com#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#prefixName: csec#prefixName: ci#g" deployments/helm/example-values.yaml'
-    - 'sed -i "s#repository: library#repository: tensorsecurity#g" deployments/helm/example-values.yaml'
-    ## certgen image for k8s v1.22
-    - 'sed -i "s#name: certgen#name: kube-webhook-certgen#g" deployments/helm/values.yaml'
-    - 'sed -i "s#v1.5.1#v1.1.1#g" deployments/helm/values.yaml'
-
-    ## Copy tools
-    - mkdir ~/.kube/
-    - cp ~/.docker/config-ci ~/.kube/config
-    - cp ~/.docker/helm /bin/
-  script:
-    - cd deployments/helm
-    - helm dep up
-    - helm upgrade --install tensorsec -f example-values.yaml ./ --namespace tensorsec
-  rules:
-    - changes:
-        - deployments/helm/**/*
 
 cluster-manager:
   stage: build
@@ -430,24 +391,16 @@ webshell-server:
         - configs/webshell-server/**/*
 
 ## api test
-##api-test:
-##  stage: test
-##  resource_group: api-test
-##  retry: 2
-##  tags:
-##    - k8
-##  before_script:
-##    - apt-get update
-##    - apt-get install python3 python3-pip -y
-##    - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-api-test.git
-##    - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r tensor-api-test/requirements.txt
-##    - cp ~/.docker/scanner-cicd /root/scanner-cicd
-##  script:
-##    - python3 tensor-api-test/run_suite.py
-##  artifacts:
-##    paths:
-##      - report/*.html
-##    when: always
-##    expire_in: 1 day
-##  when: delayed
-##  start_in: 2 minutes
+api-test:
+  image: harbor.tensorsecurity.com/library/openjdk:17.0.1
+  stage: test
+  resource_group: api-test
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - cp ~/.docker/metersphere.jar /root/metersphere.jar
+  script:
+    - java -jar /root/metersphere.jar
+  when: delayed
+  start_in: 2 minutes

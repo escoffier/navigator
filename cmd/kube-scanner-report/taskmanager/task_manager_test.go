@@ -2,11 +2,15 @@ package taskmanager
 
 import (
 	"context"
-	"fmt"
+	"log"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -20,14 +24,25 @@ var (
 
 func initTaskManagerRequirement(t *testing.T) {
 	var db *rdbtools.GormWrapper
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
+	f := func() (*gorm.DB, error) {
+		newLogger := logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold: time.Millisecond * 100, // Slow SQL threshold
+				LogLevel:      logger.Info,            // Log level
+				Colorful:      true,                   // Enable color
+			},
+		)
 
-	db, err := rdbtools.NewPostgresClient(postgresqlDSN)
+		return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
+	}
+
+	var err error
+	db, err = rdbtools.GormWrapperOpen(time.Second, f)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	manager = NewManager(db, time.Second*20)
 }
 

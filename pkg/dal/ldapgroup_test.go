@@ -12,10 +12,6 @@ import (
 
 func initLdapGroupDB(t *testing.T) {
 	initDB(t)
-	err := db.AutoMigrate(&model.LdapGroup{})
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestCreateLdapGroup(t *testing.T) {

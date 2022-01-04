@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const (
@@ -78,7 +79,7 @@ func (gw *GormWrapper) setDB(db *gorm.DB) {
 }
 func (gw *GormWrapper) Get() *gorm.DB {
 	v := gw.dbVal.Load()
-	return v.(*gorm.DB)
+	return v.(*gorm.DB).Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Info)})
 }
 
 func (gw *GormWrapper) asyncLoop() {

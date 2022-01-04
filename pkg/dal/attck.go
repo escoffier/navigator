@@ -42,7 +42,7 @@ func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleDa
 		}
 
 		if len(deprecatedRuleMasks) > 0 {
-			if _err := tx.WithContext(ctx).Exec("delete from attck_rule_masks where name in (?)", deprecatedRuleMasks).Error; _err != nil {
+			if _err := tx.WithContext(ctx).Exec("delete from ivan_platform_attck_rule_masks where name in (?)", deprecatedRuleMasks).Error; _err != nil {
 				return _err
 			}
 
@@ -85,7 +85,7 @@ func LoadATTCKConfVersions(ctx context.Context, db *gorm.DB, offset, limit int) 
 
 func UpdateRuleMask(ctx context.Context, db *gorm.DB, addMasks []*model.ATTCKRuleMask, deletedMasks []string) (err error) {
 	return db.Transaction(func(tx *gorm.DB) error {
-		if _err := tx.WithContext(ctx).Exec("delete from attck_rule_masks where name in (?)", deletedMasks).Error; _err != nil {
+		if _err := tx.WithContext(ctx).Exec("delete from ivan_platform_attck_rule_masks where name in (?)", deletedMasks).Error; _err != nil {
 			return _err
 		}
 
@@ -107,7 +107,7 @@ func updateRuleMaskVersion(ctx context.Context, db *gorm.DB) (err error) {
 			}
 			return _err
 		} else {
-			return db.WithContext(ctx).Exec("update attck_rule_mask_version set version = version + 1").Error
+			return db.WithContext(ctx).Exec("update ivan_platform_attck_rule_mask_versions set version = version + 1").Error
 		}
 	})
 }

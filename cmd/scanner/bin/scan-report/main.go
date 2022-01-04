@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -23,7 +24,7 @@ var (
 	batchSize int
 
 	emailHost   string
-	emailPort   int
+	emailPort   int64
 	emailUser   string
 	emailPasswd string
 )
@@ -36,23 +37,27 @@ func init() {
 	flag.DurationVar(&internal, "interval", 5*time.Minute, "job interval")
 	flag.BoolVar(&debug, "debug", false, "debug model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
-
-	flag.StringVar(&scanreport.Host, "host", scanreport.Host, "console host")
-
-	flag.StringVar(&emailHost, "email-host", "smtp.feishu.cn", "email host")
-	flag.IntVar(&emailPort, "email-port", 465, "email port")
-	flag.StringVar(&emailUser, "email-user", "", "email user")
 }
 
 func main() {
 	flag.Parse()
 
-	if emailPasswd = os.Getenv("EMAIL_PASSWORD"); emailPasswd == "" {
-		log.Fatal("unset `EMAIL_PASSWORD` environment variable")
+	var err error
+
+	emailHost = os.Getenv("EMAIL_HOST")
+
+	emailPort, err = strconv.ParseInt(os.Getenv("EMAIL_PORT"), 10, 64)
+	if err != nil {
+		log.Fatal("`EMAIL_PORT` environment variable invalid, can't be parse to integer")
 	}
 
+	emailUser = os.Getenv("EMAIL_USERNAME")
 	if emailUser == "" {
 		emailUser = DefaultEmailUser
+	}
+
+	if emailPasswd = os.Getenv("EMAIL_PASSWORD"); emailPasswd == "" {
+		log.Fatal("unset `EMAIL_PASSWORD` environment variable")
 	}
 
 	if debug {
@@ -61,7 +66,7 @@ func main() {
 	}
 
 	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-		db, err := databases.GetPostgresqlWithEnv(context.Background())
+		db, err := databases.GetMysqlWithEnv(context.Background())
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +85,7 @@ func main() {
 		scanreport.WithDB(store.NewScannerOrm(scannerGormWrapDb)),
 		scanreport.WithInternal(internal),
 		scanreport.WithBatchSize(batchSize),
-		scanreport.WithEmailDialer(emailHost, emailPort, emailUser, emailPasswd),
+		scanreport.WithEmailDialer(emailHost, int(emailPort), emailUser, emailPasswd),
 	)
 	if err := server.Run(); err != nil {
 		log.Fatalf("run server failed, err: %v", err)

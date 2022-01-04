@@ -17,7 +17,7 @@ const (
 	SubTasksStatusCancel                          // 任务取消
 )
 
-func (t SubTasksStatus) Value() (driver.Value, error) { return uint8(t), nil }
+func (t SubTasksStatus) Value() (driver.Value, error) { return int64(t), nil }
 
 type SubTaskType uint8
 
@@ -27,7 +27,7 @@ const (
 
 )
 
-func (s SubTaskType) Value() (driver.Value, error) { return uint8(s), nil }
+func (s SubTaskType) Value() (driver.Value, error) { return int64(s), nil }
 
 // TensorScanReportSubTasks 保存生成文件的信息
 type TensorScanReportSubTasks struct {
@@ -37,7 +37,7 @@ type TensorScanReportSubTasks struct {
 	DeletedAt             gorm.DeletedAt         `gorm:"index" json:"-"`
 	Type                  SubTaskType            `gorm:"column:type;default:0;comment:任务类型,周期任务:0,一次性任务:1" json:"-"`
 	ScanReportId          uint                   `gorm:"column:scan_report_id;uniqueIndex:scan_report_sub_tasks_uqx;priority:1;comment:报告ID,对应report_tasks表的主键" json:"-"`
-	File                  []byte                 `gorm:"column:file;comment:报告内容" json:"-"`
+	File                  []byte                 `gorm:"type:LongBlob;column:file;comment:报告内容" json:"-"`
 	StartTimeStamp        int64                  `gorm:"column:start_timestamp;comment:开始时间" json:"start_timestamp"`
 	EndTimeStamp          int64                  `gorm:"column:end_timestamp;uniqueIndex:scan_report_sub_tasks_uqx;priority:2;index:end_time_index;comment:结束时间" json:"end_timestamp"`
 	Status                SubTasksStatus         `gorm:"column:status;comment:任务状态，待执行:0,执行中:1,成功:2,失败:3,取消:4" json:"-"`
@@ -45,4 +45,4 @@ type TensorScanReportSubTasks struct {
 	TensorScanReportTasks *TensorScanReportTasks `gorm:"foreignKey:ScanReportId" json:"-"`
 }
 
-func (TensorScanReportSubTasks) TableName() string { return "tensor_scan_report_sub_tasks" }
+func (TensorScanReportSubTasks) TableName() string { return "ivan_scanner_report_subtasks" }

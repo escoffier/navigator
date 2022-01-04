@@ -69,7 +69,7 @@ func (m *Manager) GetLatestCompleteRecord(ctx context.Context, cluster string) (
 
 func (m *Manager) UpdateRecord(ctx context.Context, uuid string, status uint8, metaInfo []byte) error {
 	nowTime := time.Now()
-	sql := "update kube_hunter_records set status = ?, updated_at = ?, meta_info = ? where uuid = ?"
+	sql := "update ivan_platform_kube_hunter_records set status = ?, updated_at = ?, meta_info = ? where uuid = ?"
 	retryFunc := func() error {
 		return m.db.Get().WithContext(ctx).Exec(sql, status, nowTime, metaInfo, uuid).Error
 	}
@@ -78,7 +78,7 @@ func (m *Manager) UpdateRecord(ctx context.Context, uuid string, status uint8, m
 }
 
 func (m *Manager) DealExpireRecords(ctx context.Context, nowTime time.Time) error {
-	sql := "update kube_hunter_records set status = ?, updated_at = ? where created_at < ? and status = ?"
+	sql := "update ivan_platform_kube_hunter_records set status = ?, updated_at = ? where created_at < ? and status = ?"
 	return m.db.Get().WithContext(ctx).Exec(sql,
 		model.KubeHunterRecordStatusExpired,
 		nowTime,

@@ -38,7 +38,7 @@ type GCTask struct {
 }
 
 func (GCTask) TableName() string {
-	return "gc_tasks"
+	return "ivan_platform_gc_tasks"
 }
 
 type DataTTLConf struct {

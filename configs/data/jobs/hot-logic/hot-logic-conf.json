@@ -1,149 +1,149 @@
 {
-  "pgTables":[
+  "tables":[
     {
-      "name":"association_events",
+      "name":"ivan_eventcenter_association_events",
       "timeField":"updated_at",
-      "dataDir":"/audit/postgresql/association_events",
+      "dataDir":"/audit/mysql/ivan_eventcenter_association_events",
       "batch":1000
     },
     {
-      "name":"gc_tasks",
+      "name":"ivan_platform_gc_tasks",
       "timeField":"finished_at",
       "condition": "status != 'inprogress'",
-      "dataDir":"/audit/postgresql/gc_tasks",
+      "dataDir":"/audit/mysql/ivan_platform_gc_tasks",
       "batch":1000
     },
     {
-      "name": "tensor_namespaces",
+      "name": "ivan_assets_namespaces",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/postgresql/tensor_namespaces",
+      "dataDir": "/audit/mysql/ivan_assets_namespaces",
       "batch": 1000
     },
     {
-      "name": "tensor_containers",
+      "name": "ivan_assets_containers",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/postgresql/tensor_containers",
+      "dataDir": "/audit/mysql/ivan_assets_containers",
       "batch": 1000
     },
     {
-      "name": "tensor_resources",
+      "name": "ivan_assets_resources",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/postgresql/tensor_resources",
+      "dataDir": "/audit/mysql/ivan_assets_resources",
       "batch": 1000
     },
     {
-      "name": "tensor_network_flows",
+      "name": "ivan_network_flows",
       "timeField": "updated_at",
       "primaryKey": ["uuid"],
       "condition": "status in (0, 1)",
       "ttl": 30,
-      "dataDir": "/audit/postgresql/tensor_network_flows",
+      "dataDir": "/audit/mysql/ivan_network_flows",
       "batch": 1000
     },
     {
-      "name": "tensor_microseg_resources",
+      "name": "ivan_microseg_resources",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/postgresql/tensor_microseg_resources",
+      "dataDir": "/audit/mysql/ivan_microseg_resources",
       "batch": 1000
     },
     {
-      "name": "reject_record",
+      "name": "ivan_scanner_reject_record",
       "timeField": "reject_at",
       "condition": "",
-      "dataDir": "/audit/postgresql/reject_record",
+      "dataDir": "/audit/mysql/reject_record",
       "batch": 1000
     },
     {
-      "name": "processingcenter_actions",
+      "name": "ivan_platform_processingcenter_actions",
       "timeField": "created_at",
-      "dataDir": "/audit/postgresql/processingcenter_actions",
+      "dataDir": "/audit/mysql/ivan_platform_processingcenter_actions",
       "batch": 1000
     },
     {
-      "name": "kube_hunter_records",
+      "name": "ivan_platform_kube_hunter_records",
       "primaryKey": ["uuid"],
       "timeField": "created_at",
-      "dataDir": "/audit/postgresql/kube_hunter_records",
+      "dataDir": "/audit/mysql/ivan_platform_kube_hunter_records",
       "ttl": 30,
       "batch": 1000
     },
     {
-      "name": "report_task_templates",
+      "name": "ivan_platform_report_task_templates",
       "timeField": "created_at",
-      "dataDir": "/audit/postgresql/report_task_templates",
+      "dataDir": "/audit/mysql/ivan_platform_report_task_templates",
       "condition": "type = 'oneTime'",
       "batch": 1000
     },
     {
-      "name": "report_records",
+      "name": "ivan_platform_report_records",
       "primaryKey": ["uuid"],
       "timeField": "updated_at",
-      "dataDir": "/audit/postgresql/report_records",
+      "dataDir": "/audit/mysql/ivan_platform_report_records",
       "ttl": 30,
       "batch": 1000
     },
     {
-      "name": "palace_assoc_graph_events",
+      "name": "ivan_palace_assoc_graph_events",
       "primaryKey": [
         "id"
       ],
       "timeField": "updated_at",
-      "dataDir": "/audit/postgresql/palace_assoc_graph_events",
+      "dataDir": "/audit/mysql/palace_assoc_graph_events",
       "batch": 1000
     },
     {
-      "name": "palace_assoc_links",
+      "name": "ivan_palace_assoc_links",
       "primaryKey": [
         "uuid"
       ],
       "timeField": "created_at",
-      "dataDir": "/audit/postgresql/palace_assoc_links",
+      "dataDir": "/audit/mysql/palace_assoc_links",
       "batch": 1000
     },
     {
-      "name": "palace_evt_signal_assocs",
+      "name": "ivan_palace_evt_signal_assocs",
       "primaryKey": [
         "uuid"
       ],
       "timeField": "created_at",
-      "dataDir": "/audit/postgresql/palace_evt_signal_assocs",
+      "dataDir": "/audit/mysql/palace_evt_signal_assocs",
       "batch": 1000
     },
     {
-      "name": "tensor_nodes",
+      "name": "ivan_assets_nodes",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/postgresql/tensor_nodes",
+      "dataDir": "/audit/mysql/ivan_assets_nodes",
       "batch": 1000
     },
     {
-      "name": "immune_profiles",
+      "name": "ivan_immune_profiles",
       "primaryKey": [
         "uuid"
       ],
       "timeField": "created_at",
       "condition": "status = 1",
       "ttl": 30,
-      "dataDir": "/audit/postgresql/immune_profiles",
+      "dataDir": "/audit/mysql/immune_profiles",
       "batch": 1000
     },
     {
-      "name": "immune_tasks",
+      "name": "ivan_immune_tasks",
       "timeField": "updated_at",
       "condition": "status = 1",
       "ttl": 30,
-      "dataDir": "/audit/postgresql/immune_tasks",
+      "dataDir": "/audit/mysql/immune_tasks",
       "batch": 1000
     },
     {
-      "name": "immune_policies",
+      "name": "ivan_immune_policies",
       "timeField": "updated_at",
       "condition": "status = 1",
-      "dataDir": "/audit/postgresql/immune_policies",
+      "dataDir": "/audit/mysql/immune_policies",
       "batch": 1000
     }
   ]

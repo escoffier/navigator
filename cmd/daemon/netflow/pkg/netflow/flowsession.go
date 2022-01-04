@@ -127,7 +127,7 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*FlowSession, error) {
+func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, consoleUrl string) (*FlowSession, error) {
 
 	redisClient, err := RedisInit()
 	if err != nil {
@@ -158,11 +158,6 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager) (*Fl
 
 	if myPodIP != myHostIP {
 		return nil, errors.Errorf("Pod IP (found=%s) must equal Host IP (found=%s), check if hostNetwork is true", myPodIP, myHostIP)
-	}
-
-	consoleUrl := os.Getenv("CONSOLE_ADDR")
-	if consoleUrl == "" {
-		return nil, errors.Errorf("cluster's url is nil")
 	}
 
 	url := fmt.Sprintf("%s/internal/platform/networkTopo/topologies", consoleUrl)

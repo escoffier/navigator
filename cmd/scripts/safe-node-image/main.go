@@ -49,7 +49,7 @@ func main() {
 }
 
 func worker(bathSize, bathInterval int) error {
-	clusterManagerURL := os.Getenv("CLUSTER-MANAGER-ADDR")
+	clusterManagerURL := os.Getenv("CLUSTER_MANAGER_URL")
 	nameSpace := os.Getenv("MY_POD_NAMESPACE")
 	if strings.Contains(nameSpace, ":") {
 		nameSpace = strings.Replace(nameSpace, ":", consts.ColonSalt, 01)
@@ -73,9 +73,9 @@ func worker(bathSize, bathInterval int) error {
 	}
 	nodeos := runtime.GOOS
 
-	url := os.Getenv("SAFENODE-BUF-REGISTRY-URL")
-	username := os.Getenv("SAFENODE-BUF-REGISTRY-USER")
-	password := os.Getenv("SAFENODE-BUF-REGISTRY-PASSWORD")
+	url := os.Getenv("CONSOLE_EXTERNAL_URL")
+	username := os.Getenv("BUF_REGISTRY_USER")
+	password := os.Getenv("BUF_REGISTRY_PASSWORD")
 	if url == "" || username == "" || password == "" || nameSpace == "" {
 		logging.GetLogger().Info().Msg("safe-node url or username or password is empty")
 		return fmt.Errorf("url or username or password is empty")

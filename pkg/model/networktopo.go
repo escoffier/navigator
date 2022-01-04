@@ -32,7 +32,7 @@ type TensorNetworkFlow struct {
 }
 
 func (TensorNetworkFlow) TableName() string {
-	return "tensor_network_flows"
+	return "ivan_network_flows"
 }
 
 func (t *TensorNetworkFlow) CreateUuid() {

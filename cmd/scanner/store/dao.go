@@ -206,17 +206,17 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := make([]ImageListWithScan, 0)
-	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join scan_images on tensor_image_list.id=scan_images.image_id")
+	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join ivan_scanner_scan_images on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id")
 
 	if param.SearchWord != "" {
-		db = db.Where("tensor_image_list.full_repo_name LIKE ? OR tensor_image_list.tags LIKE ? OR tensor_image_list.node_hostname LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
+		db = db.Where("ivan_scanner_image_list.full_repo_name LIKE ? OR ivan_scanner_image_list.tags LIKE ? OR ivan_scanner_image_list.node_hostname LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
 	}
 
 	if param.ImageType != "" {
 		if param.ImageType == consts.BaseImageTypeString {
-			db = db.Where("tensor_image_list.image_type = 1 ")
+			db = db.Where("ivan_scanner_image_list.image_type = 1 ")
 		} else if param.ImageType == consts.AppImageTypeString {
-			db = db.Where("tensor_image_list.image_type = 0 ")
+			db = db.Where("ivan_scanner_image_list.image_type = 0 ")
 		}
 	}
 
@@ -251,61 +251,61 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 				return make([]*model.ImageResponse, 0), 0, nil
 			}
 			if len(ids) > 0 {
-				db = db.Where("scan_images.id IN ?", ids)
+				db = db.Where("ivan_scanner_scan_images.id IN ?", ids)
 			}
 		}
 
 		for _, k := range split {
 			if k == strconv.Itoa(model.QUESTION_VULN) {
-				db = db.Where("scan_images.vuln_score > 0 ")
+				db = db.Where("ivan_scanner_scan_images.vuln_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
-				db = db.Where("scan_images.sensitive_score > 0 ")
+				db = db.Where("ivan_scanner_scan_images.sensitive_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_VIRUS) {
-				db = db.Where("scan_images.virus_score > 0 ")
+				db = db.Where("ivan_scanner_scan_images.virus_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
-				db = db.Where("scan_images.webshell_score > 0 ")
+				db = db.Where("ivan_scanner_scan_images.webshell_score > 0 ")
 			}
 			if k == strconv.Itoa(model.QUESTION_PRIORITY) {
-				db = db.Where("tensor_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
+				db = db.Where("ivan_scanner_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
 			}
 		}
 	}
 
 	if param.FromType > 0 {
-		db = db.Where("tensor_image_list.from_type = ? ", param.FromType)
+		db = db.Where("ivan_scanner_image_list.from_type = ? ", param.FromType)
 	}
 
 	if len(param.InIDs) > 0 {
-		db = db.Where("tensor_image_list.id  IN ? ", param.InIDs)
+		db = db.Where("ivan_scanner_image_list.id  IN ? ", param.InIDs)
 	}
 
 	if len(param.NotInIDs) > 0 {
-		db = db.Where("tensor_image_list.id  NOT IN ? ", param.NotInIDs)
+		db = db.Where("ivan_scanner_image_list.id  NOT IN ? ", param.NotInIDs)
 	}
 	if len(param.InDigests) > 0 {
-		db = db.Where("tensor_image_list.digest  IN ? ", param.InDigests)
+		db = db.Where("ivan_scanner_image_list.digest  IN ? ", param.InDigests)
 	}
 
 	if len(param.NotInDigests) > 0 {
-		db = db.Where("tensor_image_list.digest  NOT IN ? ", param.NotInDigests)
+		db = db.Where("ivan_scanner_image_list.digest  NOT IN ? ", param.NotInDigests)
 	}
 	if param.HasFixedVulu == consts.HasFixedvulnStringd {
-		db = db.Where("scan_images.has_fixed_vuln =  ? ", consts.HasFixedvuln)
+		db = db.Where("ivan_scanner_scan_images.has_fixed_vuln =  ? ", consts.HasFixedvuln)
 	} else if param.HasFixedVulu == consts.NotHasFixedvulnString {
-		db = db.Where("scan_images.has_fixed_vuln =  ? ", consts.NotHasFixedvuln)
+		db = db.Where("ivan_scanner_scan_images.has_fixed_vuln =  ? ", consts.NotHasFixedvuln)
 	}
 
 	if param.IsReinforce == consts.IsReinforceImageString {
-		db = db.Where("tensor_image_list.is_reinforce =  ? ", consts.IsReinforceImage)
+		db = db.Where("ivan_scanner_image_list.is_reinforce =  ? ", consts.IsReinforceImage)
 	} else if param.IsReinforce == consts.IsNotReinforceImageString {
-		db = db.Where("tensor_image_list.is_reinforce =  ? ", consts.IsNotReinforceImage)
+		db = db.Where("ivan_scanner_image_list.is_reinforce =  ? ", consts.IsNotReinforceImage)
 	}
 
 	if param.FromType == model.ImageFromSafeNode && param.NodeHostname != "" {
-		db = db.Where("tensor_image_list.node_hostname =  ? ", param.NodeHostname)
+		db = db.Where("ivan_scanner_image_list.node_hostname =  ? ", param.NodeHostname)
 	}
 
 	// 多选，以逗号分隔
@@ -320,18 +320,18 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		}
 		orand := make([]string, 0)
 		for i := range lists {
-			orand = append(orand, fmt.Sprintf("tensor_image_list.full_repo_name LIKE '%%%s%%'", lists[i]))
+			orand = append(orand, fmt.Sprintf("ivan_scanner_image_list.full_repo_name LIKE '%%%s%%'", lists[i]))
 		}
 		if len(orand) > 0 {
 			db = db.Where(strings.Join(orand, " OR "))
 		}
 	}
 
-	fields := []string{"tensor_image_list.id", "tensor_image_list.privileged_boot", "tensor_image_list.created_at", "tensor_image_list.full_repo_name",
-		"tensor_image_list.tags", "tensor_image_list.digest", "tensor_image_list.os", "tensor_image_list.library",
-		"tensor_image_list.image_uuid", "tensor_image_list.complete_time", "scan_images.status", "scan_images.has_fixed_vuln", "tensor_image_list.is_reinforce",
-		"tensor_image_list.registry_id", "tensor_image_list.from_type", "scan_images.finish_at",
-		"tensor_image_list.node_ip", "tensor_image_list.node_hostname", "tensor_image_list.image_type"}
+	fields := []string{"ivan_scanner_image_list.id", "ivan_scanner_image_list.privileged_boot", "ivan_scanner_image_list.created_at", "ivan_scanner_image_list.full_repo_name",
+		"ivan_scanner_image_list.tags", "ivan_scanner_image_list.digest", "ivan_scanner_image_list.os", "ivan_scanner_image_list.library",
+		"ivan_scanner_image_list.image_uuid", "ivan_scanner_image_list.complete_time", "ivan_scanner_scan_images.status", "ivan_scanner_scan_images.has_fixed_vuln", "ivan_scanner_image_list.is_reinforce",
+		"ivan_scanner_image_list.registry_id", "ivan_scanner_image_list.from_type", "ivan_scanner_scan_images.finish_at",
+		"ivan_scanner_image_list.node_ip", "ivan_scanner_image_list.node_hostname", "ivan_scanner_image_list.image_type"}
 
 	db = db.Select(fields)
 
@@ -1016,12 +1016,12 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 		// NodeHostname          string `json:"node_hostname"` // 结点的
 		// Os                    string `json:"os"`
 	}
-	// tensor_image_list.image_type,tensor_image_list.from_type,tensor_image_list.node_ip,tensor_image_list.node_hostname,tensor_image_list.os").
+	// ivan_scanner_image_list.image_type,ivan_scanner_image_list.from_type,ivan_scanner_image_list.node_ip,ivan_scanner_image_list.node_hostname,ivan_scanner_image_list.os").
 
 	tmp := []tmpRes{}
-	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("scan_images.image_id,scan_images.vuln_score,scan_images.severity_histogram_json").
-		Joins("join tensor_image_list on tensor_image_list.id=scan_images.image_id").
-		Where("scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("scan_images.vuln_score desc").Find(&tmp).Error
+	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.vuln_score,ivan_scanner_scan_images.severity_histogram_json").
+		Joins("join ivan_scanner_image_list on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id").
+		Where("ivan_scanner_scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("ivan_scanner_scan_images.vuln_score desc").Find(&tmp).Error
 	if err != nil {
 		return []model.ImageRiskScore{}, nil
 	}
@@ -1125,8 +1125,8 @@ func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context, fromType int64) ha
 	var tmpScanImage []model.ScanImage
 	var total int
 	var doingNum, errorNum, successNum, pendingNum int
-	s.psql.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("scan_images.image_id,scan_images.status").Joins("join tensor_image_list on tensor_image_list.id=scan_images.image_id").
-		Where(fmt.Sprintf("tensor_image_list.from_type = %d and scan_images.id >0", fromType)).Find(&tmpScanImage) // 可能分段查询更好,todo
+	s.psql.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.status").Joins("join ivan_scanner_image_list on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id").
+		Where(fmt.Sprintf("ivan_scanner_image_list.from_type = %d and ivan_scanner_scan_images.id >0", fromType)).Find(&tmpScanImage) // 可能分段查询更好,todo
 	total = len(tmpScanImage)
 	for _, v := range tmpScanImage {
 		if v.Status == "inprogress" {
@@ -1786,16 +1786,6 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 	if param.Search != "" {
 		db = db.Where("full_repo_name LIKE ? OR tag LIKE ?  ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))
 	}
-	if len(param.RejectReasons) > 0 {
-		sqls := make([]string, 0)
-		for _, rej := range param.RejectReasons {
-			sqls = append(sqls, fmt.Sprintf("reject_reason_json ->>'%s' ::text = '%s'", strconv.Itoa(int(rej)), strconv.Itoa(int(rej))))
-		}
-		db = db.Where(strings.Join(sqls, " OR "))
-	}
-	if len(param.Fields) > 0 {
-		db = db.Select(param.Fields)
-	}
 
 	if len(param.Libraries) > 0 {
 		if len(param.Libraries) == 1 {
@@ -1804,14 +1794,44 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 			db = db.Where("library IN ? ", param.Libraries)
 		}
 	}
-	if param.Library != "" {
-		db = db.Where("library = ? ", param.Library)
-	}
 	if param.FullRepoName != "" {
 		db = db.Where("full_repo_name = ? ", param.FullRepoName)
 	}
 	if param.Tag != "" {
 		db = db.Where("tag = ? ", param.Tag)
+	}
+
+	if len(param.RejectReasons) > 0 {
+		// 查出全部数据序列化之后再做筛选
+		res := make([]*model.RejectRecord, 0)
+		if err := db.Find(&res).Error; err != nil {
+			return nil, 0, err
+		}
+		for i := range res {
+			res[i] = res[i].Deserialize()
+		}
+		ids := make([]int64, 0)
+		for i := range res {
+			flag := false
+			for _, r := range param.RejectReasons {
+				for _, k := range res[i].RejectReason {
+					if r == k {
+						flag = true
+						break
+					}
+				}
+			}
+			if flag {
+				ids = append(ids, res[i].ID)
+			}
+		}
+		if len(ids) == 0 {
+			return make([]model.RejectRecord, 0), 0, nil
+		}
+		db = db.Where("id IN ? ", ids)
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
 	}
 
 	// 计算count
@@ -2132,8 +2152,8 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 
 	err = db.
 		Model(model.Task{}).
-		Select("tensor_scan_task.*, t.name").
-		Joins("INNER JOIN tensor_scan_strategy as t ON t.id=tensor_scan_task.policy_id").
+		Select("ivan_scanner_scan_task.*, t.name").
+		Joins("INNER JOIN ivan_scanner_scan_strategies as t ON t.id=ivan_scanner_scan_task.policy_id").
 		Where("status != ?", consts.Unknown).
 		Limit(limit).
 		Offset(offset).

@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func UpsertAssociatedGraphEvent(ctx context.Context, rdb *gorm.DB, e *model.PalaceAssociatedGraphEvent) (int64, error) {
+func UpsertAssociatedGraphEvent(ctx context.Context, rdb *gorm.DB, e *model.PalaceAssociatedGraphEvent) (uint64, error) {
 	tctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
 	err := util.RetryWithBackoff(tctx, func() error {
@@ -27,7 +27,7 @@ func UpsertAssociatedGraphEvent(ctx context.Context, rdb *gorm.DB, e *model.Pala
 				"nodes_num":  e.NodesNum,
 				"events_num": e.EventsNum,
 				"updated_at": e.UpdatedAt,
-				"severity":   gorm.Expr("GREATEST(palace_assoc_graph_events.severity, excluded.severity)"), // TODO FIXIME special grammar for Postgres. take care for MySQL
+				"severity":   gorm.Expr("GREATEST(severity, VALUES(severity))"), // FIXME special grammar for MySQL
 			}),
 		}).Create(e).Error
 	})
@@ -196,12 +196,12 @@ func CountSignalsOfEvent(ctx context.Context, rdb *gorm.DB, eventID int64, query
 	return count, err
 }
 
-func CreateSignalAssociation(ctx context.Context, rdb *gorm.DB, a *model.PalaceEventSignalAssociation) (int64, error) {
+func CreateSignalAssociation(ctx context.Context, rdb *gorm.DB, a *model.PalaceEventSignalAssociation) (uint64, error) {
 	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	a.UUID = util.GenerateUUID64Signed(
-		strconv.FormatInt(a.AggrEvtID, 10),
+	a.UUID = util.GenerateUUID64(
+		strconv.FormatUint(a.AggrEvtID, 10),
 		a.AggrKey,
 		a.SignalID,
 	)
@@ -215,12 +215,12 @@ func CreateSignalAssociation(ctx context.Context, rdb *gorm.DB, a *model.PalaceE
 	return a.UUID, nil
 }
 
-func CreateAssociationLinks(ctx context.Context, rdb *gorm.DB, l *model.PalaceAssociationLink) (int64, error) {
+func CreateAssociationLinks(ctx context.Context, rdb *gorm.DB, l *model.PalaceAssociationLink) (uint64, error) {
 	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	l.UUID = util.GenerateUUID64Signed(
-		strconv.FormatInt(l.AggrEvtID, 10),
+	l.UUID = util.GenerateUUID64(
+		strconv.FormatUint(l.AggrEvtID, 10),
 		l.SrcClusterKey,
 		l.SrcLocType,
 		l.SrcLocExpr,

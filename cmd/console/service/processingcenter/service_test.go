@@ -2,12 +2,16 @@ package processingcenter
 
 import (
 	"context"
-	"fmt"
+	"log"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
@@ -34,17 +38,21 @@ func (s *MockPodService) DeletePods(_ context.Context, pods []*model.PodInfo) (s
 }
 
 func initService(t *testing.T) {
-	postgresqlDSN := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s",
-		"localhost", "pguser", "tensorsecurity", "disable", "pgpassword")
+	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
 
-	db, err := rdbtools.NewPostgresClient(postgresqlDSN)
-	if err != nil {
-		t.Fatal(err)
-	}
+	f := func() (*gorm.DB, error) {
+		newLogger := logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+			logger.Config{
+				SlowThreshold: time.Millisecond * 100, // Slow SQL threshold
+				LogLevel:      logger.Info,            // Log level
+				Colorful:      true,                   // Enable color
+			},
+		)
 
-	if err := db.Get().AutoMigrate(&model.ProcessingAction{}); err != nil {
-		t.Fatal(err)
+		return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
 	}
+	dbWrapper, err := rdbtools.GormWrapperOpen(time.Second, f)
 
 	esCli, err := elastic.NewClient(elastic.SetSniff(false))
 	if err != nil {
@@ -55,7 +63,7 @@ func initService(t *testing.T) {
 		Addr: "127.0.0.1:6379",
 	})
 	service = newService(&ServiceComponent{
-		DB:       db,
+		DB:       dbWrapper,
 		EsCli:    esCli,
 		RedisCli: redisCli,
 	})
@@ -110,7 +118,7 @@ func TestService_UpdateProcessingRecordStatus(t *testing.T) {
 func TestService_AddProcessingAction(t *testing.T) {
 	initService(t)
 	action, _, err := service.AddProcessingAction(context.TODO(), &AddProcessingActionArg{
-		RecordID: "6f0e2f71ff9c421e943a4585a811ff55",
+		RecordID: "6abce85ebe8547e294da567a21350726",
 		Object:   []string{"cluster@namespace@pod1", "cluster@namespace@pod2"},
 		Action:   ProcessingActionCancelIsolation,
 	})
@@ -122,7 +130,7 @@ func TestService_AddProcessingAction(t *testing.T) {
 
 func TestService_GetRecordDetail(t *testing.T) {
 	initService(t)
-	detail, err := service.GetRecordDetail(context.TODO(), "cfd5a52adc3e4a03add568bde6f1053f")
+	detail, err := service.GetRecordDetail(context.TODO(), "6abce85ebe8547e294da567a21350726")
 	if err != nil {
 		t.Fatal(err)
 	}

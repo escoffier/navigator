@@ -12,5 +12,5 @@ type OpenAPIAuthToken struct {
 }
 
 func (OpenAPIAuthToken) TableName() string {
-	return "openapi_auth_token"
+	return "ivan_platform_openapi_auth_tokens"
 }
