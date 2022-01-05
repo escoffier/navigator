@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-chi/jwtauth"
@@ -379,6 +380,8 @@ func (api *api) addUser() http.HandlerFunc {
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+
+		req.UserName = strings.TrimSpace(req.UserName)
 
 		if req.UserName == "" || len(req.UserName) > 32 || (req.RoleName != model.RoleAdmin && req.RoleName != model.RoleNormal) {
 			RespAndLog(w, r.Context(),

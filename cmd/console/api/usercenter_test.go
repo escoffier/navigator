@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -19,4 +20,9 @@ func TestJsonBind(t *testing.T) {
 	}
 
 	t.Log(req)
+}
+
+func TestTrimUsername(t *testing.T) {
+	username := "xx@qq.com "
+	t.Log(strings.TrimSpace(username) == "xx@qq.com")
 }
