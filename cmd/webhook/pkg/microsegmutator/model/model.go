@@ -6,6 +6,6 @@ import (
 )
 
 type Model interface {
-	GetResourceByID(ctx context.Context, ID uint32) (TensorMicrosegResource, error)
+	GetResourceByID(ctx context.Context, ID uint32) (model.TensorMicrosegResource, error)
 	GetClusterByName(ctx context.Context, name string) (*model.TensorCluster, error)
 }
