@@ -25,11 +25,11 @@ func NewProxyCmd() *cobra.Command {
 		Short: "",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			host := os.Getenv("TARGET_HOST")
+			host := os.Getenv("CONSOLE_EXTERNAL_URL")
 			if host != "" {
 				targetHost = host
 			}
-			addr := os.Getenv("CLUSTER_MGR_ADDRESS")
+			addr := os.Getenv("CLUSTER_MANAGER_URL")
 			if addr != "" {
 				clusterMgrAddr = addr
 			}
