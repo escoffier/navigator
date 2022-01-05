@@ -95,7 +95,7 @@ type ScanNodeRecord struct {
 	Message     string `gorm:"type:varchar(255);column:message"`
 	CreatedAt   int64  `gorm:"column:created_at"`
 	FinishedAt  int64  `gorm:"column:finished_at"`
-	AutoVariate string `gorm:"type:varchar(255);column:auto_variate"`
+	AutoVariate string `gorm:"type:text;column:auto_variate"`
 }
 
 func (ScanNodeRecord) TableName() string {
