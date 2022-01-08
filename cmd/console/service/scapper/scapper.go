@@ -36,9 +36,9 @@ import (
 )
 
 type Scapper struct {
-	ClusterAddr        string
-	PostgresDB         *rdbtools.GormWrapper
-	ScapService        *ScapService
+	ClusterAddr string
+	PostgresDB  *rdbtools.GormWrapper
+	ScapService *ScapService
 }
 
 const (
@@ -55,9 +55,9 @@ func newScapper(
 	postgresDB *rdbtools.GormWrapper,
 ) *Scapper {
 	s := &Scapper{
-		ScapService:        scapService,
-		PostgresDB:         postgresDB,
-		ClusterAddr:        scapOpts.ClusterAddr,
+		ScapService: scapService,
+		PostgresDB:  postgresDB,
+		ClusterAddr: scapOpts.ClusterAddr,
 	}
 
 	return s
@@ -829,6 +829,7 @@ func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (string, e
 
 	job, err := kubeClient.BatchV1().Jobs(namespaces).Get(ctx, jobName, metav1.GetOptions{})
 	if err != nil {
+		logging.GetLogger().Error().Msgf("get scap jobs info failed, %v.", err)
 		return "failed", nil
 	}
 
@@ -836,7 +837,8 @@ func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (string, e
 		return "success", nil
 	}
 
-	if job.Status.Active > 0 {
+	state := job.Status.Succeeded + job.Status.Failed + job.Status.Active
+	if job.Status.Active > 0 || state == 0 {
 		return "running", nil
 	}
 
