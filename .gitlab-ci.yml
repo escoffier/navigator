@@ -268,7 +268,7 @@ scanner:
     - go test -v -cover ./cmd/scanner/...
     - USEMIRROR=true make scanner
     - docker push harbor.tensorsecurity.com/tensorsecurity/scanner:ci
-    - kubectl delete pod -l app.kubernetes.io/name=scanner -n tensorsec
+    - kubectl delete pod -l app.kubernetes.io/component=scanner -n tensorsec
   rules:
     - changes:
         - cmd/scanner/**/*
