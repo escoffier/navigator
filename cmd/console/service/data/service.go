@@ -44,9 +44,10 @@ type Service struct {
 }
 
 type PodInfo struct {
-	PVC      string
-	Pod      string
-	DataPath string
+	PVC       string
+	Pod       string
+	Container string
+	DataPath  string
 }
 
 type Conf struct {
