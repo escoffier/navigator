@@ -1702,35 +1702,50 @@ func (s *ScannerOrm) OverviewForInterval(ctx context.Context, interval int, inte
 
 	var (
 		startAt   time.Time
-		sql       string
 		timeParse string
 	)
-	now := time.Now().UTC()
-	switch intervalType {
-	case consts.IntervalHour:
-		startAt = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC).Add(-time.Duration(interval-1) * time.Hour).UTC()
-		sql = fmt.Sprintf("select to_char(reject_at, 'YYYY-MM-DD HH24') as interval_date,count(id)  as  cnt from  %s  where reject_at <= ?  AND reject_at >= ?  group by interval_date  order by interval_date ;", new(model.RejectRecord).TableName())
-		timeParse = consts.TimeFormatWithHour
+	records := make([]model.RejectRecord, 0)
+	res := make([]IntervalDateGroup, 0)
+	interMap := make(map[string]*IntervalDateGroup)
+	now := time.Now()
 
+	switch intervalType {
+
+	case consts.IntervalHour:
+
+		startAt = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC).Add(-time.Duration(interval-1) * time.Hour).UTC()
+		timeParse = consts.TimeFormatWithHour
 	case consts.IntervalDay:
 		startAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -(interval - 1)).UTC()
-		sql = fmt.Sprintf("select to_char(reject_at, 'YYYY-MM-DD') as interval_date,count(id)  as  cnt from  %s  where reject_at <= ?  AND reject_at >= ?  group by interval_date  order by interval_date ;", new(model.RejectRecord).TableName())
 		timeParse = consts.TimeFormatWithDay
 	}
 
-	logging.GetLogger().WithContext(ctx).Infof("OverviewForInterval sql:%s", sql)
-	res := make([]IntervalDateGroup, 0)
-	err := s.psql.Get().Raw(sql, now, startAt).Scan(&res).Error
-	if err != nil {
-		return res, err
+	db := s.psql.Get().WithContext(ctx)
+	if err := db.Where("reject_at >= ?", startAt).Find(&records).Error; err != nil {
+		return nil, err
 	}
-	for i := range res {
-		if tm, err := time.Parse(timeParse, res[i].IntervalDate); err == nil {
-			res[i].IntervalDateTime = tm
+
+	for i := range records {
+		key := records[i].RejectAt.Format(timeParse)
+		idt, err := time.Parse(timeParse, key)
+		if err != nil {
+			return nil, err
 		}
+		if _, ok := interMap[key]; !ok {
+			interMap[key] = &IntervalDateGroup{
+				IntervalDate:     key,
+				Count:            0,
+				IntervalDateTime: idt,
+			}
+		}
+		interMap[key].Count++
+	}
+
+	for _, v := range interMap {
+		res = append(res, *v)
 	}
 	sort.Sort(IntervalDateGroups(res))
-	return res, err
+	return res, nil
 }
 
 func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReasonParam, filter *model.Filter) ([]model.RejectReasonStatistic, error) {
