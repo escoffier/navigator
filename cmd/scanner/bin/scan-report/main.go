@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"gitlab.com/security-rd/go-pkg/databases"
 
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -46,9 +47,16 @@ func main() {
 
 	emailHost = os.Getenv("EMAIL_HOST")
 
-	emailPort, err = strconv.ParseInt(os.Getenv("EMAIL_PORT"), 10, 64)
-	if err != nil {
-		log.Fatal("`EMAIL_PORT` environment variable invalid, can't be parse to integer")
+	if port, ok := os.LookupEnv("EMAIL_PORT"); ok {
+		emailPort, err = strconv.ParseInt(port, 10, 64)
+		if err != nil {
+			logging.GetLogger().
+				Fatal().
+				Msgf("`EMAIL_PORT` environment variable is <%s>,  and is invalid, can't be parse to integer", port)
+		}
+	} else {
+		logging.GetLogger().Warn().Msgf("can't find `EMAIL_PORT` environment variable, use default 465")
+		emailPort = 465
 	}
 
 	emailUser = os.Getenv("EMAIL_USERNAME")
@@ -57,7 +65,7 @@ func main() {
 	}
 
 	if emailPasswd = os.Getenv("EMAIL_PASSWORD"); emailPasswd == "" {
-		log.Fatal("unset `EMAIL_PASSWORD` environment variable")
+		logging.GetLogger().Warn().Msgf("unset `EMAIL_PASSWORD` environment variable, use empty string")
 	}
 
 	if debug {
