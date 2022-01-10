@@ -97,6 +97,9 @@ func (s *Service) getStorageView(ctx context.Context, pod *PodInfo) (*model.Stor
 		Resource("pods").Name(pod.Pod).
 		Namespace(namespace).SubResource("exec").
 		VersionedParams(option, scheme.ParameterCodec)
+	if pod.Container != "" {
+		req = req.Param("container", pod.Container)
+	}
 	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
 	if err != nil {
 		return nil, fmt.Errorf("cannot get kube executor: %w", err)

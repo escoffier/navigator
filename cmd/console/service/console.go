@@ -206,9 +206,10 @@ func NewConsole(
 		},
 
 		PostgrePod: &data.PodInfo{
-			PVC:      rdbOpts.PVC,
-			Pod:      rdbOpts.Pod,
-			DataPath: rdbOpts.DataPath,
+			PVC:       rdbOpts.PVC,
+			Pod:       rdbOpts.Pod,
+			DataPath:  rdbOpts.DataPath,
+			Container: rdbOpts.Container,
 		},
 	})
 	if err != nil {
