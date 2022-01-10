@@ -298,9 +298,8 @@ scan-report:
     - kubectl delete pod -l app.kubernetes.io/name=scan-report -n tensorsec
   rules:
     - changes:
-        - cmd/scan_report/**/*
+        - cmd/scanner/bin/scan-report/**/*
         - build/scan_report/**/*
-        - configs/scan_report/**/*
 
 
 #security-profiles-manager:
