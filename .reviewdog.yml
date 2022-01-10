@@ -1,6 +1,6 @@
 runner:
   golangci:
-    cmd: golangci-lint run --out-format=line-number cmd/scanner/... cmd/scanner-cicd/... # Temporarily check only the cmd/scanner directory
+    cmd: golangci-lint run --out-format=line-number cmd/... # Temporarily check only the cmd/scanner directory
     errorformat:
       - "%f:%l:%c: %m"
     level: warning
