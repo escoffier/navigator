@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-chi/chi"
 
+	_ "go.uber.org/automaxprocs"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"

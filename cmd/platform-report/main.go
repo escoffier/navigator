@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gitlab.com/security-rd/go-pkg/databases"
+	_ "go.uber.org/automaxprocs"
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
