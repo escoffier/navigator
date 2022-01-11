@@ -322,10 +322,12 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 	// fullRepoName = strings.Replace(fullRepoName, "_", ".", -1)
 	split := strings.Split(fullRepoName, "/")
 	if len(split) < 7 {
-		return nil, fmt.Errorf("not node image:%s", fullRepoName)
+		logging.GetLogger().Debug().Msgf("not node image:%s", fullRepoName)
+		return nil, consts.NotNodeImageErr
 	}
 	if split[0] != consts.NodeSafeSalt {
-		return nil, fmt.Errorf("parse error not fond NodeSafeSalt %s", fullRepoName)
+		logging.GetLogger().Debug().Msgf("parse error not fond NodeSafeSalt %s", fullRepoName)
+		return nil, consts.NotNodeImageErr
 	}
 	// NodeSafeTage = NodeSafeSalt + "/%s/%s%s/%s" // tensorsec/hostname/ip/os/镜像名
 	clusterKey := split[1]
