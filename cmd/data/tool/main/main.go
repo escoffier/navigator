@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/urfave/cli/v2"
+	_ "go.uber.org/automaxprocs"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
