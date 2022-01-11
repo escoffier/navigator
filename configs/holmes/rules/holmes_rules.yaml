@@ -13,7 +13,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Gaining sensitive information in Waston
   condition: >
-    (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "Waston"
+    (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "waston"
   output: >
     Gaining sensitive information in Waston (zh_msg=Waston：通过主动防御检测到web目录文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
@@ -30,7 +30,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Other containers establish new connections to the redis-server in Waston
   condition: >
-   (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "Waston"
+   (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "waston"
   output: >
     Other containers establish new connections to the redis-server in Waston (zh_msg=Waston：通过主动防御检测到redis-server未授权访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
@@ -183,7 +183,7 @@
       value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: The k8s client is executed in Waston
   condition: >
-   spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name contains "Waston"
+   spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name contains "waston"
   output: >
     Docker or kubernetes client executed in container (zh_msg=Waston：通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
   priority: ALERT
