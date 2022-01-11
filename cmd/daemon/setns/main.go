@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/setns/setnsmnt"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sys/unix"
 )
 
