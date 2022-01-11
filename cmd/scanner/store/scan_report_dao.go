@@ -121,7 +121,7 @@ func (s *ScannerOrm) ScanReportUpdate(ctx context.Context, task *scanreport.Tens
 				Columns: []clause.Column{{Name: "scan_report_id"}, {Name: "end_timestamp"}},
 				DoUpdates: clause.Assignments(map[string]interface{}{
 					"status": gorm.Expr( // 当出现唯一键冲突时，把状态为waiting,failed,cancel的改为waiting,其他状态不变
-						"CASE ivan_scanner_report_subtasks.status WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? else ivan_scanner_report_subtasks.status end",
+						fmt.Sprintf("CASE %s.status WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? else %[1]s.status end", scanreport.TensorScanReportSubTasks{}.TableName()),
 						scanreport.SubTasksStatusWaiting, scanreport.SubTasksStatusWaiting, scanreport.SubTasksStatusFailed,
 						scanreport.SubTasksStatusWaiting, scanreport.SubTasksStatusCancel, scanreport.SubTasksStatusWaiting,
 					)},
@@ -313,15 +313,15 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 
 	db := s.psql.Get().
 		WithContext(ctx).
-		Table("tensor_image_list AS t").
+		Table(fmt.Sprintf("%s AS t", model.ImageList{}.TableName())).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "t.id"}}).
 		Limit(limit).
 		Offset(offset).
 		Select(selectFiled).
 		//Where("t.updated_at >= ? AND t.updated_at < ?", time.Unix(task.StartTimeStamp, 0), time.Unix(task.EndTimeStamp, 0)).
-		Joins("LEFT JOIN scan_images AS s ON t.id = s.image_id").
-		Joins("LEFT JOIN trusted_images AS ti ON t.digest = ti.digest").
-		Joins("LEFT JOIN (SELECT DISTINCT image_uuid FROM tensor_containers) as tc ON t.image_uuid = tc.image_uuid AND t.from_type != 2")
+		Joins(fmt.Sprintf("LEFT JOIN %s AS s ON t.id = s.image_id", model.ScanImage{}.TableName())).
+		Joins(fmt.Sprintf("LEFT JOIN %s AS ti ON t.digest = ti.digest", model.TrustedImages{}.TableName())).
+		Joins(fmt.Sprintf("LEFT JOIN (SELECT DISTINCT image_uuid FROM %s) as tc ON t.image_uuid = tc.image_uuid AND t.from_type != 2", model.TensorContainer{}.TableName()))
 
 	{ //报告对象
 		var db1, db2 *gorm.DB
