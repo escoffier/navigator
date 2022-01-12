@@ -178,7 +178,10 @@ func main() {
 		logging.GetLogger().Err(err).Msg("init stan error")
 		panic(err)
 	}
-	apiinfo.InitPG(rdb)
+	if err := apiinfo.InitDB(rdb); err != nil {
+		logging.GetLogger().Err(err).Msg("init db error")
+		panic(err)
+	}
 
 	// wait for the establishment of connection to stan
 	stanconn := waitForStannConn()

@@ -234,7 +234,7 @@ func CommandHandler(m *stan.Msg) {
 			goto sendMessageInvalidState
 		}
 		profile.Paused = true
-		profile.ElapsedTime = profile.ElapsedTime + int(time.Now().Sub(profile.StartTime).Seconds())
+		profile.ElapsedTime = profile.ElapsedTime + int(time.Since(profile.StartTime).Seconds())
 
 		profileMarshalled, err := json.Marshal(profile)
 		if err != nil {

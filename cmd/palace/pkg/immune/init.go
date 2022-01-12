@@ -52,7 +52,7 @@ func Watch() error {
 		return err
 	}
 	optionsModifier := func(options *metav1.ListOptions) {
-		options.FieldSelector = fmt.Sprintf("status.phase=Running")
+		options.FieldSelector = "status.phase=Running"
 	}
 
 	mainCtx := context.Background()
