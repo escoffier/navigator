@@ -27,7 +27,7 @@ type AssociationEvent struct {
 }
 
 func (AssociationEvent) TableName() string {
-	return "association_events"
+	return "ivan_eventcenter_association_events"
 }
 
 const (

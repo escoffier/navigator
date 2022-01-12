@@ -157,12 +157,12 @@ func loadImages(ctx context.Context, db *rdbtools.GormWrapper, offsetID int64, o
 		oneCtx, oneCancel := context.WithTimeout(ctx, time.Second*10)
 		defer oneCancel()
 		return db.Get().
-			Table("tensor_image_list t").
+			Table("ivan_scanner_image_list t").
 			WithContext(oneCtx).
 			Select(selectFiled).
 			Where(" t.id < ? and t.created_at < ? ", offsetID, offsetTime).
-			Joins("LEFT JOIN scan_images s ON t.id = s.image_id").
-			Joins("LEFT JOIN trusted_images ti ON t.digest = ti.digest").
+			Joins("LEFT JOIN ivan_scanner_scan_images s ON t.id = s.image_id").
+			Joins("LEFT JOIN ivan_scanner_trusted_images ti ON t.digest = ti.digest").
 			Order("id desc").Limit(imageBatchSize).Find(&records).Error
 	}
 
