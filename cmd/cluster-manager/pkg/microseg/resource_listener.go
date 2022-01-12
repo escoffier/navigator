@@ -76,7 +76,7 @@ func newModelFromResource(res *assets.TensorResource) *model.TensorMicrosegResou
 	m.Status = 0
 	m.NetworkType = model.PodNetwork
 	m.ResourceTag = 0
-	if res.PodTemplate.Spec.HostNetwork == true {
+	if res.PodTemplate.Spec.HostNetwork {
 		m.NetworkType = model.HostNetwork
 	}
 	return m
@@ -180,10 +180,10 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 
 	db := cl.parent.rdb.Get()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	tctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(context.Background(), 3000*time.Millisecond)
+	err := util.RetryWithBackoff(tctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(tctx, 3000*time.Millisecond)
 		defer oneCancel()
 
 		return db.WithContext(oneCtx).Model(&model.TensorMicrosegResource{}).Where("updated_at < ? AND status = 0 AND cluster = ?", cl.stTime, cl.clusterKey).Updates(map[string]interface{}{

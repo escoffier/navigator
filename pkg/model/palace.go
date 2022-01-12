@@ -64,6 +64,7 @@ type PalaceAssociationLink struct {
 	DestClusterKey string    `gorm:"column:dest_cluster_key"`
 	DestLocType    string    `gorm:"column:dest_loc_type"`
 	DestLocExpr    string    `gorm:"column:dest_loc_expr"`
+	Context        string    `gorm:"column:context"`
 	CreatedAt      time.Time `gorm:"column:created_at"`
 }
 

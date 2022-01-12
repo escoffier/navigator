@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-
 	pb "gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -50,7 +50,7 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 			defer cancel()
 			_, err := ec.ecCli.SendNotification(oneCtx, eventReq)
 			if err != nil {
-				//logging.GetLogger().WithContext(oneCtx).Errorf(err, "send events center error. data: %+v", eventReq)
+				logging.GetLogger().WithContext(oneCtx).Errorf(err, "send events center error. data: %+v", eventReq)
 			}
 		}()
 

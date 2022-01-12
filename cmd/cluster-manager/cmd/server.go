@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/security-rd/go-pkg/databases"
 	"os"
 	"strings"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 )
 
@@ -108,8 +108,14 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			logging.GetLogger().Error().Msg("cluster manager init error")
 			return nil, err
 		} else {
-			k8sManager.Start(context.Background())
-			httpserver.SetClusterManager(k8sManager)
+			err := k8sManager.Start(context.Background())
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("start k8s manager err")
+				return nil, err
+			} else {
+				httpserver.SetClusterManager(k8sManager)
+
+			}
 		}
 
 	}

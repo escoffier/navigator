@@ -123,13 +123,11 @@ func (api *api) harborAbortScanAll() http.HandlerFunc {
 				}()
 
 				for status.IsOngoing {
-					select {
-					case <-time.After(time.Second * 5):
-						status, err = api.harborClient.GetScanAllStatus(ctx)
-						if err != nil {
-							logging.GetLogger().Error().Err(err).Msg("Failed to get current status of scan all job")
-							return
-						}
+					time.Sleep(5 * time.Second)
+					status, err = api.harborClient.GetScanAllStatus(ctx)
+					if err != nil {
+						logging.GetLogger().Error().Err(err).Msg("Failed to get current status of scan all job")
+						return
 					}
 				}
 			}()

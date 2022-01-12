@@ -132,7 +132,9 @@ func (cl *ResourcesClusterListener) batchRetries() {
 			break
 		}
 		resEvent, ok := elem.(resourceEvent)
-		toRetry = append(toRetry, resEvent)
+		if ok {
+			toRetry = append(toRetry, resEvent)
+		}
 	}
 
 	for _, resEvent := range toRetry {
@@ -158,11 +160,8 @@ func (cl *ResourcesClusterListener) asyncLoop() {
 		ticker := time.NewTicker(retryInterval)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				cl.batchRetries()
-			}
+		for range ticker.C {
+			cl.batchRetries()
 		}
 	}()
 
@@ -193,7 +192,7 @@ func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, a
 		updateTime: now,
 	})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("OnNodeEvent action: %s. new: %+v. old: %+v", action, newNode, oldNode)
+		logging.GetLogger().Err(err).Msgf("OnNodeEvent action: %d. new: %+v. old: %+v", action, newNode, oldNode)
 		return err
 	}
 	return nil
@@ -305,7 +304,7 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 		updateTime:  now,
 	})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("on tensorResource action: %s. newResource: %+v. old: %+v", action, newResource, oldResource)
+		logging.GetLogger().Err(err).Msgf("on tensorResource action: %d. newResource: %+v. old: %+v", action, newResource, oldResource)
 		return err
 	}
 	return nil
@@ -330,7 +329,7 @@ func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namesp
 		updateTime:   now,
 	})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("OnNamespaceEvent action: %s. new: %+v. old: %+v", action, newNs, oldNs)
+		logging.GetLogger().Err(err).Msgf("OnNamespaceEvent action: %d. new: %+v. old: %+v", action, newNs, oldNs)
 		return err
 	}
 	return nil

@@ -22,8 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var defaultRefreshTime = time.Now().Add(-1 * time.Hour).Unix()
-
 type PodResourcesService struct {
 	sync.RWMutex
 
@@ -204,7 +202,7 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 			ownerName = owner.Name
 			ownerKind = owner.Kind
 		}
-		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb, e.pod, ownerName, ownerKind, cb.cluster, time.Now())
+		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb, e.pod, ownerName, ownerKind, cb.cluster, e.updateTime)
 		if rerr != nil {
 			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in rdb error")
 		}
@@ -226,8 +224,9 @@ func (cb *PodResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, ac
 		}
 
 		return cb.sendInput(ctx, podEvent{
-			pod:    oldPod,
-			action: action,
+			pod:        oldPod,
+			action:     action,
+			updateTime: time.Now(),
 		})
 	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
 		if newPod == nil {
@@ -235,8 +234,9 @@ func (cb *PodResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, ac
 		}
 
 		return cb.sendInput(ctx, podEvent{
-			pod:    newPod,
-			action: action,
+			pod:        newPod,
+			action:     action,
+			updateTime: time.Now(),
 		})
 
 	}

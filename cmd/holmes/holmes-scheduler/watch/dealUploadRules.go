@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -44,16 +46,19 @@ func NewHttpRequest(url string) *httpRequestInfo {
 func saveRulesFile(writeBytes []byte, path string) {
 	fp, err := os.Create(path)
 	if err != nil {
-		log.Println(err)
+		logging.Get().Err(err).Msgf("create file error. path: %s", path)
 		return
 	}
 	defer fp.Close()
 	_, err = fp.Write(writeBytes)
 	if err != nil {
-		log.Println(err)
+		logging.Get().Err(err).Msgf("write rules files error")
 		return
 	}
-	fp.Sync()
+	err = fp.Sync()
+	if err != nil {
+		logging.Get().Err(err).Msgf("sync write error")
+	}
 }
 
 func (ri *httpRequestInfo) RulesUpdateLoop(udpateC chan<- int, errorC chan error) {
@@ -63,7 +68,7 @@ func (ri *httpRequestInfo) RulesUpdateLoop(udpateC chan<- int, errorC chan error
 	for {
 		httpStreamData, err := ri.getData()
 		if err != nil {
-			log.Println(err)
+			logging.Get().Err(err).Msg("get data err")
 			errorC <- err
 		}
 		if httpStreamData.Data.Item.DataChanged || httpStreamData.Data.Item.SettingChanged {
@@ -103,8 +108,4 @@ func (ri *httpRequestInfo) getData() (latestVersionResp, error) {
 		return latestVersionResp{}, err
 	}
 	return respStru, nil
-}
-
-func saveThrFile(httpData []byte) {
-
 }
