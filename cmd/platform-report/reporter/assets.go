@@ -41,8 +41,8 @@ func GetClusters(ctx context.Context, db *rdbtools.GormWrapper, clusterFilter []
 		oneCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
 		return db.Get().WithContext(oneCtx).
-			Where("key in (?) and created_at <= ? and status = 0", clusterFilter, timeFilter).
-			Select("name, key, created_at").Find(&clusters).Error
+			Where("id in (?) and created_at <= ? and status = 0", clusterFilter, timeFilter).
+			Select("name, id, created_at").Find(&clusters).Error
 	}
 
 	if err := util.RetryWithBackoff(ctx, get); err != nil {
