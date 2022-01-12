@@ -165,8 +165,7 @@ func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, ag
 		asso := new(model.PalaceEventSignalAssociation)
 		asso.AggrEvtID = agEvtID
 		l, ok := evt.Location()
-
-		if ok && l != nil {
+		if ok {
 			asso.AggrKey = fmt.Sprintf("%s/%s", l.String(), evt.AggregationKey())
 		} else {
 			asso.AggrKey = evt.AggregationKey()

@@ -19,8 +19,10 @@ var pgConn *rdbtools.GormWrapper
 
 func Process(msg *stan.Msg) {
 	info := ApiInfo{}
-	proto.Unmarshal(msg.Data, &info)
-	logging.GetLogger().Debug().Msgf("received msg: %+v", info)
+	err := proto.Unmarshal(msg.Data, &info)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("proto unmarshal err. data: %s", string(msg.Data))
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	path := info.Path
@@ -56,7 +58,7 @@ func Process(msg *stan.Msg) {
 	}
 }
 
-func InitPG(pg *rdbtools.GormWrapper) error {
+func InitDB(pg *rdbtools.GormWrapper) error {
 	pgConn = pg
 	return nil
 }

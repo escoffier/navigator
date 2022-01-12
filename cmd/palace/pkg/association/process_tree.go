@@ -42,12 +42,9 @@ func (pte *ProcessTreeAssociation) generateData() {
 	pte.events = make([]PodContainerEvent, 0, pte.tree.eventsNum)
 	pte.links = make([]Link, 0, pte.tree.nodesNum-1)
 	pte.tree.bfs(func(node *processNode, level int) {
-		for _, e := range node.events {
-			pte.events = append(pte.events, e)
-		}
-		for _, e := range node.historicalEvents {
-			pte.events = append(pte.events, e)
-		}
+		pte.events = append(pte.events, node.events...)
+		pte.events = append(pte.events, node.historicalEvents...)
+
 		if len(node.parentID) > 0 {
 			pte.links = append(pte.links, Link{
 				SrcAggrKey:  node.parentID,
@@ -316,7 +313,9 @@ func (ta *ProcessTreeAggregator) doStop() {
 	}
 
 	trees := ta.treeBuilding()
-	ta.treeReviews(trees, time.Now())
+	if err := ta.treeReviews(trees, time.Now()); err != nil {
+		logging.GetLogger().Err(err).Msg("tree reviews error")
+	}
 
 	close(ta.postActonChan)
 
@@ -470,7 +469,7 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 		// for the timeout historical nodes, recover them.
 		tree.bfs(func(node *processNode, level int) {
 			if len(node.historicalEvents) > 0 {
-				logging.GetLogger().Info().Msgf("node %d in %s histEvents not cleaned", node.id, ta.targetLoc.String())
+				logging.GetLogger().Info().Msgf("node %s in %s histEvents not cleaned", node.id, ta.targetLoc.String())
 
 				node.events = append(node.events, node.historicalEvents...)
 				node.historicalEvents = nil
@@ -483,12 +482,17 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 				// ignore single events with few relations
 				ta.cleanTree(tree, false)
 			} else {
-				ta.outputs(tree)
-				ta.scheduleDeleteTree(tree)
+				if err := ta.outputs(tree); err != nil {
+					logging.GetLogger().Err(err).Msg("output error")
+				} else {
+					ta.scheduleDeleteTree(tree)
+				}
 			}
 		} else {
 			if tree.eventsNum > 1 {
-				ta.outputs(tree)
+				if err := ta.outputs(tree); err != nil {
+					logging.GetLogger().Err(err).Msg("output error")
+				}
 			}
 		}
 	}

@@ -66,7 +66,6 @@ func UpdateProfile(ctx context.Context, m *stan.Msg, kind model.SecurityKind) {
 		logging.GetLogger().Error().Err(err).Msg("Failed to unmarshal message")
 		return
 	}
-	logging.GetLogger().Debug().Msgf("%+v", f)
 	var resource model.SecurityPolicyResource
 	podName := f.OutputFields["k8s.pod.name"]
 	podNamespace := f.OutputFields["k8s.ns.name"]
