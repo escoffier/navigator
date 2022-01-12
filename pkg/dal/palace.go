@@ -228,6 +228,8 @@ func CreateAssociationLinks(ctx context.Context, rdb *gorm.DB, l *model.PalaceAs
 		l.DestLocType,
 		l.DestLocExpr,
 	)
+	l.Context = ""
+
 	err := rdb.WithContext(tctx).Model(l).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "uuid"}},
 		DoNothing: true,

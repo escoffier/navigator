@@ -26,9 +26,8 @@ const (
 )
 
 var (
-	rules        []*pkg.RiskyRoleItem
-	parseErr     error
-	uuidPrefixes = []string{eventsModule, eventsCategory}
+	rules    []*pkg.RiskyRoleItem
+	parseErr error
 )
 
 func init() {
@@ -365,8 +364,7 @@ func (s *Service) asyncRegisterEventsCenterRules() {
 
 		stop := false
 		for !stop {
-			select {
-			case <-ticker.C:
+			for range ticker.C {
 				if err := s.doRegisterEventsCenterRules(context.Background()); err == nil {
 					stop = true
 				} else {

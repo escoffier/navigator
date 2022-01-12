@@ -5,16 +5,17 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"sync"
+
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/image-validate/pkg/fileters"
 	"gitlab.com/piccolo_su/vegeta/cmd/image-validate/pkg/validator"
-	"io/ioutil"
 	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"net/http"
-	"sync"
 )
 
 var (
@@ -27,7 +28,6 @@ var (
 	runtimeScheme = runtime.NewScheme()
 	codecs        = serializer.NewCodecFactory(runtimeScheme)
 	deserializer  = codecs.UniversalDeserializer()
-	defaulter     = runtime.ObjectDefaulter(runtimeScheme)
 )
 
 type webHookServer struct {

@@ -7,9 +7,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/decode"
-	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/helper"
+	holmeshelper "gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/helper"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/watch"
 )
 
@@ -73,7 +72,7 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules []string) e
 
 func main() {
 
-	consoleAddr := "http://console-svc:8889"
+	var consoleAddr string
 	if len(os.Getenv("IS_MAIN_CLUSTER")) > 0 && os.Getenv("IS_MAIN_CLUSTER") == "true" {
 		consoleAddr = os.Getenv("CONSOLE_INTERNAL_URL")
 	} else {

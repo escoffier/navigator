@@ -3,14 +3,13 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
+
+	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type Server struct {
@@ -64,16 +63,6 @@ func (s *Server) Run() error {
 		return err
 	}
 	return nil
-}
-
-func getClusterKey() string {
-	wait.Until(func() {
-		//ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		//defer cancel()
-
-	}, time.Second, wait.NeverStop)
-
-	return ""
 }
 
 func dialTLSContext(ctx context.Context, network, addr string) (net.Conn, error) {

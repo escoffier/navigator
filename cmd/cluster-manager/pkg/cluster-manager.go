@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	certutil "k8s.io/client-go/util/cert"
 	"net/http"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
 )
 
 const ApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
@@ -167,9 +167,7 @@ func (c *ClusterManager) registerClusterInfo() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	var cluster *model.TensorCluster
-
-	cluster = &model.TensorCluster{
+	cluster := &model.TensorCluster{
 		Key:                 c.CusterID,
 		Name:                c.Name,
 		ClusterType:         c.ClusterType,

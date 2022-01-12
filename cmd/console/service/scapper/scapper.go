@@ -637,7 +637,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				return
 			}
 			thisNodeName := job.Spec.Template.Spec.NodeName
-			if _, ok := alreadyFinishedNodes[thisNodeName]; ok {
+			if _, ok = alreadyFinishedNodes[thisNodeName]; ok {
 				return
 			}
 		},
