@@ -1580,6 +1580,10 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
+	if param.JustCount {
+		return nil, cnt, nil
+	}
+
 	db = model.AddFilter(db, filter)
 
 	res := make([]model.ImageList, 0)
