@@ -177,7 +177,7 @@ type ImageList struct {
 
 	ManifestV1JSON []byte `gorm:"type:Blob"` // manifest内容
 	ManifestV2JSON []byte `gorm:"type:Blob"`
-	ConfigJson     []byte `gorm:"type:Blob"`                                                             // config内容,包括layer diffid
+	ConfigJson     []byte `gorm:"type:MediumBlob"`                                                       // config内容,包括layer diffid
 	FromType       int64  `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"from_type"` // 镜像来源
 	Layers         string `gorm:"type:text;index:idx_image_layers,length:200" json:"layers"`             // 把layer拼成字符串，为了找出基础镜像,用|分隔
 	NodeIp         string `gorm:"type:varchar(255);column:node_ip" json:"node_ip"`                       // 结点的Ip
