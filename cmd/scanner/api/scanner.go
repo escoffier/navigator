@@ -19,7 +19,9 @@ import (
 )
 
 type Scanner struct {
-	Srv component.ScannerSrv
+	Srv           component.ScannerSrv
+	RegistrySrv   component.RegistrySrvInterface
+	ScanConfigSrv component.ScanConfigSrvInterface
 }
 
 // TickOnlineScan
@@ -223,7 +225,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		return
 	}
 
-	search := component.SearchImagesParam{
+	search := component.SearchImageWithScanParam{
 		SearchWord:       t.SearchWord,
 		FromType:         t.FromType,
 		Kind:             t.Kind,
@@ -484,6 +486,7 @@ func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 	imgId, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, errors.New("no image id"))
+		return
 	}
 	img, err := s.Srv.GetImageDetail(ctx, imgId)
 	if err != nil {
@@ -540,7 +543,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 
-	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{
+	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{
 		SearchWord:       search,
 		Kind:             kind,
 		Online:           online,
@@ -645,7 +648,7 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImagesParam{ImageType: consts.BaseImageTypeString, SearchWord: search, FromType: model.ImageFromTypeNormal}, filter)
+	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{ImageType: consts.BaseImageTypeString, SearchWord: search, FromType: model.ImageFromTypeNormal}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -807,7 +810,7 @@ func (s *Scanner) CreateBaseImage(ctx *gin.Context) {
 	}
 
 	updater := map[string]interface{}{"image_type": consts.BaseImageType}
-	if err := s.Srv.UpdateImage(ctx, component.SearchImagesParam{ImageIds: body.ImageIds}, updater); err != nil {
+	if err := s.Srv.UpdateImage(ctx, component.SearchImageParam{ImageIds: body.ImageIds}, updater); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -830,7 +833,7 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		return
 	}
 	body := map[string]interface{}{"image_type": consts.AppImageType}
-	if err := s.Srv.UpdateImage(ctx, component.SearchImagesParam{ImageId: imageID}, body); err != nil {
+	if err := s.Srv.UpdateImage(ctx, component.SearchImageParam{ImageId: imageID}, body); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}

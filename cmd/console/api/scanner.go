@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // the apis that need to be used as REST open API.
@@ -33,9 +34,10 @@ func (api *api) scannerOpen() func(chi.Router) {
 // 转发scanner中的接口
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/reportsByImageList", api.RedirectToScanner(true))     // don
-		r.Get("/reportsByImageOverview", api.RedirectToScanner(true)) // don
-		r.Get("/reportsByImageDetails", api.RedirectToScanner(true))  // don
+
+		r.Get("/reportsByImageList", api.RedirectToScanner(true))
+		r.Get("/reportsByImageOverview", api.RedirectToScanner(true))
+		r.Get("/reportsByImageDetails", api.RedirectToScanner(true))
 		r.Post("/scan", api.scan())
 		r.Post("/scanone", api.RedirectToScanner(true))
 
@@ -118,6 +120,78 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/scan-report/{id}/subtask", api.RedirectToScanner())
 		r.Put("/scan-report/{id}", api.RedirectToScanner())
 		r.Get("/scan-report/{id}/file/{sub_task_id}", api.RedirectToScanner())
+	}
+}
+
+func (api *api) scannerOpenApi() func(router chi.Router) {
+	return func(r chi.Router) {
+		// r.Get("/*", api.ForwardScannerOpenApi())
+		// r.Post("/*", api.ForwardScannerOpenApi())
+		// r.Put("/*", api.ForwardScannerOpenApi())
+		// r.Delete("/*", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/images/list", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Post("/images/scan/scantask", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/statistic/images", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/images/detail", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/images/layers", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/scan-config/strategies", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Post("/scan-config/strategies", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/scan-config/strategies/{strategyName}", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Put("/scan-config/strategies/{strategyName}", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Delete("/scan-config/strategies/{strategyName}", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/statistic/vulns", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/vulns", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, 20)).
+			Get("/vulns/{vulnName}", api.ForwardScannerOpenApi())
+	}
+}
+
+func (api *api) ForwardScannerOpenApi() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		pre := r.URL.String()
+		logging.Get().Info().Str("openapi pre url", pre).Msg("ForwardScannerOpenApi")
+
+		newUrl := fmt.Sprintf("%s%s", api.scannerURL,
+			strings.Replace(pre, OpenAPIURLPrefix+"/containerSec/scanner", "/openapi/v1", 1))
+
+		logging.Get().Info().Str("openapi new url", newUrl).Msg("ForwardScannerOpenApi")
+		u, err := url.Parse(newUrl)
+		if nil != err {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
+			return
+		}
+
+		proxy := httputil.ReverseProxy{
+			Director: func(request *http.Request) {
+				request.URL = u
+			},
+		}
+		proxy.ServeHTTP(w, r)
 	}
 }
 

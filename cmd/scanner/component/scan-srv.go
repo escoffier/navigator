@@ -30,7 +30,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type SearchImagesParam struct {
+type SearchImageWithScanParam struct {
 	SearchWord       string  `json:"search_word"`
 	FromType         int64   `json:"from_type"`
 	Kind             string  `json:"kind"`
@@ -46,19 +46,32 @@ type SearchImagesParam struct {
 	NodeHostname     string  `json:"node_hostname"`
 	SpecialImageType string  `json:"special_image_type"`
 	JustReturnImage  bool    `json:"just_return_image"`
+
+	NotDeleteRegistry string // 不返回已经删除的仓库的镜像
+}
+
+type SearchImageParam struct {
+	ImageIds     []int64
+	ImageType    string
+	ImageId      int64
+	FullRepoName string
+	Tags         string
+	RegistryId   int64
 }
 
 type ScannerSrv interface {
 	CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error
-	SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
-	UpdateImage(ctx context.Context, where SearchImagesParam, update map[string]interface{}) error
+	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
+	SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
+
+	UpdateImage(ctx context.Context, where SearchImageParam, update map[string]interface{}) error
 	GetImageDetail(ctx context.Context, imgId int64) (*model.ImageList, error)
 	GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error)
 	GetScanOneStatus(ctx context.Context, imgId int64, fromUrl string) (*model.ImageResponse, error)
 	TickScanOne(ctx context.Context, imgId int64, info task.UpdateTaskInfo) error
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
 	ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error)
-	ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImagesParam) error
+	ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error
 	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (model.VulnOverview, error)
 	ListImgLayers(ctx context.Context, imgId int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
@@ -102,6 +115,19 @@ type ConScannerSrv struct {
 	scannerDB       *store.ScannerDB
 	globalCache     *cache.Cache
 	scannerList     *ScannerList
+}
+
+func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
+	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+		Ids:          param.ImageIds,
+		Tag:          param.Tags,
+		FullRepoName: param.FullRepoName,
+		RegistryIds:  []int64{param.RegistryId},
+	}, filter)
+	if err != nil {
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	return images, cnt, nil
 }
 
 func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.RegistryDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache, scannerList *ScannerList, taskdal store.ScanTaskInterface, trustedImageDal store.TrustedImageInterface, scanConfigDal store.ScanConfigDalInterface) *ConScannerSrv {
@@ -189,7 +215,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageId int64, f
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("SearchImages.SearchRegistry:error:%s", err.Error()))
+		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("SearchImageWithScan.SearchRegistry:error:%s", err.Error()))
 		return nil, 0, response.NewHttpError(http.StatusGone, err)
 	}
 	regMap := make(map[int64]model.Registry)
@@ -252,7 +278,7 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageId int6
 	return images, cnt, nil
 }
 
-func (s *ConScannerSrv) UpdateImage(ctx context.Context, param SearchImagesParam, update map[string]interface{}) error {
+func (s *ConScannerSrv) UpdateImage(ctx context.Context, param SearchImageParam, update map[string]interface{}) error {
 
 	where := make([]string, 0)
 	if param.ImageType == consts.AppImageTypeString {
@@ -852,10 +878,10 @@ func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context, fromType int64) ha
 	return s.dbdal.SearchScanAllStatus(ctx, fromType)
 }
 
-func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImagesParam) error {
+func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error {
 	logging.GetLogger().Info().Int64("fromType", search.FromType).Msg("start full scan")
 
-	images, _, err := s.SearchImages(ctx, search, model.EmptyFilterForTheTotalQuery())
+	images, _, err := s.SearchImageWithScan(ctx, search, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ScanAllNow find image error")
 		return err
@@ -883,7 +909,7 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo
 		TriggerType: consts.ManualTrigger, Scope: consts.FullScan,
 		Operator: info.Operator, StrategyId: info.StrategyId}); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("add full scan task failed")
-		return err
+		return response.NewHttpError(http.StatusBadRequest, err)
 	}
 	logging.GetLogger().Info().Msg("add full scan task end")
 	return nil
@@ -945,21 +971,21 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgId int64, fromU
 	onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.id = %d ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), imgId)
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchQuestionInfo")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
 	// 可信镜像的筛选
 	trustedImages, err := s.dbdal.SearchTrustedImages(ctx, store.SearchTrustedImageParam{IsTrusted: consts.IsTrustedImageString, Digests: []string{imgs[0].Digest}})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchQuestionInfo")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Id: imgs[0].RegistryId}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchRegistry")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchRegistry")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
@@ -1037,11 +1063,20 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not find the image"))
 	}
 
+	rr, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{RegistryIds: []int64{imgs[0].RegistryId}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("GetImageDetail.not find the registry")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not find the registry"))
+	}
+
 	img := &imgs[0]
+	if len(rr) > 0 {
+		img.Registry = &(rr[0])
+	}
 	// 查扫描结果
 	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{img.ID}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("SearchImages.SearchScanImage:error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("SearchImageWithScan.SearchScanImage:error:%s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	if len(scs) == 0 {
@@ -1343,9 +1378,23 @@ func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, a
 	return nil
 }
 
-func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
+func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
+	registryIds := make([]int64, 0)
+	if param.NotDeleteRegistry == consts.TrueString {
+		registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+		if err != nil {
+			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+		}
+		if len(registries) == 0 {
+			return make([]*model.ImageResponse, 0), 0, err
+		}
+		for i := range registries {
+			registryIds = append(registryIds, registries[i].ID)
+		}
+	}
 
 	daoParam := store.SearchImageWithScanParam{
+		RegistryIds:      registryIds,
 		FromType:         param.FromType,
 		ImageType:        param.ImageType,
 		Library:          param.Library,
@@ -1360,7 +1409,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	onlineSql := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSql})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchQuestionInfo")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	onlineIds := make([]int64, 0)
@@ -1381,7 +1430,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	// 可信镜像的筛选
 	trustedImages, err := s.dbdal.SearchTrustedImages(ctx, store.SearchTrustedImageParam{IsTrusted: consts.IsTrustedImageString})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchQuestionInfo")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	trustedDigests := make([]string, 0)
@@ -1405,7 +1454,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	if len(param.ScanStatus) > 0 {
 		statusInIds, err := s.filterScanStatus(ctx, param.ScanStatus)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchSubTasksWithStatusFilter")
+			logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchSubTasksWithStatusFilter")
 			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 		if len(statusInIds) == 0 {
@@ -1419,7 +1468,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 
 	res, cnt, err := s.dbdal.SearchImageWithScan(ctx, daoParam, filter)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchImage")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	if param.JustReturnImage {
@@ -1439,7 +1488,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	statusMap := make(map[int64]model.SubTask)
 	subtasks, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, imagesIds, param.ScanStatus)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchSubTasksWithStatusFilter")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchSubTasksWithStatusFilter")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
@@ -1471,7 +1520,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	// 兼容前端把questionInfo信息加上
 	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imagesIds}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchScanImage")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchScanImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
@@ -1520,7 +1569,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImagesPara
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchRegistry")
+		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 

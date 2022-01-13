@@ -18,3 +18,10 @@ func (api *api) containerSec() func(chi.Router) {
 		r.Handle("/secprofiles/*", api.secProfiles())
 	}
 }
+
+func (api *api) OpenApiContainerSec() func(chi.Router) {
+	return func(r chi.Router) {
+		r.Route("/scap", api.scapOpenApi())
+		r.Route("/scanner", api.scannerOpenApi())
+	}
+}

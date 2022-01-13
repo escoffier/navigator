@@ -31,6 +31,7 @@ type SearchImageParam struct {
 }
 
 type SearchImageWithScanParam struct {
+	RegistryIds      []int64
 	Library          string
 	SearchWord       string
 	Kind             string
@@ -93,7 +94,7 @@ type SearchScanImageParam struct {
 }
 
 type SearchRegistryParam struct {
-	RegistryIds []uint
+	RegistryIds []int64
 	Fields      []string // 只想要的字端
 	LibraryUrl  string
 	UseTypes    []int64
@@ -102,6 +103,7 @@ type SearchRegistryParam struct {
 	Id          int64
 	Search      string
 
+	Name     string
 	NoDelete bool
 }
 
@@ -212,6 +214,7 @@ type SearchSubTaskParam struct {
 type SearchStrategyParam struct {
 	IsDefault  string
 	StrategyID int64
+	Name       string
 }
 type SearchScanConfigParam struct {
 	ScanConfigID int64

@@ -68,6 +68,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	s.ginServer = &http.Server{
 		Addr: s.config.Options.HttpListenAddr,
 		Handler: api.SetupGinRouter(
+			rc,
 			component.NewConScannerSrv(dal, registryDal, nil, nil, nil, nil, nil, dal, dal, scanConfigDal),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair

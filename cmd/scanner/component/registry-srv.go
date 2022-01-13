@@ -34,10 +34,10 @@ type RegistrySrv struct {
 }
 
 type SearchRegistryParam struct {
-	UseType   int64
-	Search    string
-	RegType   []string
-	HasDelete bool
+	UseType int64
+	Search  string
+	RegType []string
+	Name    string
 }
 
 func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {

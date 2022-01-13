@@ -78,8 +78,7 @@ func SetupRoutes(
 		r.Group(func(r chi.Router) {
 			r.Use(openAPIAccessCheck(api.postgresDB))
 			r.Route("/platform", api.platform()) // platform
-			r.Route("/containerSec", api.containerSec())
-
+			r.Route("/containerSec", api.OpenApiContainerSec())
 			// proxy to tensor-microseg
 			r.Handle("/microseg/*", api.microSegmentation())
 		})

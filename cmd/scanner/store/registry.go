@@ -51,6 +51,9 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 	if param.LibraryUrl != "" {
 		db = db.Where("url = ? ", param.LibraryUrl)
 	}
+	if param.Name != "" {
+		db = db.Where("name = ? ", param.Name)
+	}
 	if param.UseType > 0 {
 		db = db.Where("use_type = ? ", param.UseType)
 	}

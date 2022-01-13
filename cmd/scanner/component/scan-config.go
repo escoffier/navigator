@@ -20,6 +20,7 @@ type SearchStrategyParam struct {
 	IsDefault  string
 	StrategyID int64
 	All        string
+	Name       string
 }
 type SearchScanConfigParam struct {
 	ScanConfigID int64
@@ -124,6 +125,9 @@ func (s *ScanConfigSrv) SearchScanConfig(ctx context.Context, param SearchScanCo
 func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error) {
 	if param.All == consts.TrueString {
 		// 默认策略永远在最前面,所以查出全部，在程序中分页
+		if filter == nil {
+			filter = model.EmptyFilterForTheTotalQuery()
+		}
 		allFilter := filter.DeepCopy()
 
 		allFilter.Offset = 0
@@ -131,12 +135,12 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.FalseString}, allFilter)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
-			return nil, 0, err
+			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 		defaults, _, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, allFilter)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
-			return nil, 0, err
+			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 		all := append(defaults, strategies...)
 
@@ -154,10 +158,10 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 		}
 		return all, cnt + int64(len(defaults)), nil
 	} else {
-		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, IsDefault: param.IsDefault}, filter)
+		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, Name: param.Name, IsDefault: param.IsDefault}, filter)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
-			return nil, 0, err
+			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 		return strategies, cnt, nil
 	}

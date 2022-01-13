@@ -41,7 +41,7 @@ func NewTaskSrv() *TaskSrv {
 
 func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info UpdateTaskInfo) error {
 	if len(imageIds) == 0 {
-		return fmt.Errorf("no image id")
+		return fmt.Errorf("not find image")
 	}
 
 	strategyID := info.StrategyId

@@ -12,3 +12,8 @@ type SignImageTrustedReq struct {
 	Sign     []byte `json:"sign" binding:"required"`
 	Insecure bool   `json:"insecure"` // http or https
 }
+
+type ImageListUnionScanImage struct {
+	ImageList // 镜像信息
+	ScanImage // 扫描信息
+}

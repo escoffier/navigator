@@ -287,38 +287,38 @@ func (s *ScanStrategy) ToUpdater() map[string]interface{} {
 }
 
 func (s *ScanStrategy) Deserialize() *ScanStrategy {
+	st := make([]SensitiveFileScan, 0)
 	if len(s.SensitiveFileJson) > 0 {
-		st := make([]SensitiveFileScan, 0)
-		if err := json.Unmarshal([]byte(s.SensitiveFileJson), &st); err == nil {
-			s.SensitiveFile = st
-		} else {
+		if err := json.Unmarshal([]byte(s.SensitiveFileJson), &st); err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
+	s.SensitiveFile = st
+
+	envs := make([]string, 0)
 	if len(s.EnvsJson) > 0 {
-		st := make([]string, 0)
-		if err := json.Unmarshal([]byte(s.EnvsJson), &st); err == nil {
-			s.Envs = st
-		} else {
+		if err := json.Unmarshal([]byte(s.EnvsJson), &envs); err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
+	s.Envs = envs
+
+	ops := make([]string, 0)
 	if len(s.OpenLicenseJson) > 0 {
-		st := make([]string, 0)
-		if err := json.Unmarshal([]byte(s.OpenLicenseJson), &st); err == nil {
-			s.OpenLicense = st
-		} else {
+		if err := json.Unmarshal([]byte(s.OpenLicenseJson), &ops); err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
+	s.OpenLicense = ops
+
+	sfs := make([]Software, 0)
 	if len(s.SoftwareJson) > 0 {
-		st := make([]Software, 0)
-		if err := json.Unmarshal([]byte(s.SoftwareJson), &st); err == nil {
-			s.Software = st
-		} else {
+		if err := json.Unmarshal([]byte(s.SoftwareJson), &sfs); err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
+	s.Software = sfs
+
 	return s
 }
 

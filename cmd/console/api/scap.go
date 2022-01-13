@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/pkg/errors"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -309,48 +310,13 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 			return
 		}
 
-		scapService, _ := scapper.GetService(ctx)
-		checkId, err := scapService.GetLatestHistory(ctx, clusterKey, string(checkType), "created_at", sortOrder)
-		if err != nil {
-			response.Ok(w, response.WithTotalItems(0))
+		// 抽离逻辑
+		checkId, waitingOn, errorOn, successOn, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, checkType, sortOrder)
+		if !ok {
 			return
 		}
 
-		waitingOn := []string{}
-		errorOn := []string{}
-		successOn := []string{}
-		checkMap := make(map[string]*model.CheckBreakdown)
-
-		err = scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkId)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get scan node state failed, %w", err)))
-			return
-		}
-
-		switch checkType {
-		case model.ComplianceCheckTargetTypeKube:
-			err := scapService.GetKubeBreakdownEntries(ctx, checkMap, checkId, string(checkType))
-			if err != nil {
-				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
-				return
-			}
-		case model.ComplianceCheckTargetTypeDocker:
-			err := scapService.GetDockerBreakdownEntries(ctx, checkMap, checkId, string(checkType))
-			if err != nil {
-				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
-				return
-			}
-		case model.ComplianceCheckTargetTypeHost:
-			err := scapService.GetHostBreakdownEntries(ctx, checkMap, checkId, string(checkType))
-			if err != nil {
-				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
-				return
-			}
-		default:
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("checkType is error, %v.", checkType)))
-			return
-		}
-
+		// 这里的分页逻辑不太懂，返回的是一个map，map无序的，插入到切片中能保证顺序吗？
 		var results []*model.CheckBreakdown
 		for _, v := range checkMap {
 			results = append(results, v)
@@ -410,32 +376,9 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 			return
 		}
 
-		policyDetails := &model.PolicyDetails{}
-		policyDetails.CheckID = checkID
-
-		scapService, _ := scapper.GetService(ctx)
-
-		switch checkType {
-		case model.ComplianceCheckTargetTypeKube:
-			err := scapService.GetKubePolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
-			if err != nil {
-				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube policy details: %w", err)))
-				return
-			}
-		case model.ComplianceCheckTargetTypeDocker:
-			err := scapService.GetDockerPolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
-			if err != nil {
-				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker policy details: %w", err)))
-				return
-			}
-		case model.ComplianceCheckTargetTypeHost:
-			err := scapService.GetHostPolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
-			if err != nil {
-				RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host policy details: %w", err)))
-				return
-			}
-		default:
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("checkType is error, %v.", checkType)))
+		policyDetails, ok := api.getPolicyDetailsHandler(ctx, w, checkType, policyId, checkID)
+		if !ok {
+			return
 		}
 
 		response.Ok(w, response.WithItem(*policyDetails))
@@ -479,28 +422,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 			username = claims[JWTKeyUsername].(string)
 		}
 
-		//check scanning task
-		scapService, _ := scapper.GetService(ctx)
-		err = scapService.CheckScanningTask(ctx, string(checkType), clusterKey, 3600)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
-			return
-		}
-
-		scapper, _ := scapper.GetScapper(ctx)
-		checkUUID, err := scapper.RunComplianceCheck(ctx, clusterKey, checkType, username)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
-			return
-		}
-
-		type resp struct {
-			CheckUUID string `json:"checkUUID"`
-		}
-
-		response.Ok(w, response.WithItem(resp{
-			CheckUUID: checkUUID.String(),
-		}))
+		api.scapCheckHandler(ctx, w, checkType, clusterKey, username)
 	}
 }
 
@@ -744,4 +666,129 @@ func (api *api) updateRecordVariate() http.HandlerFunc {
 			return
 		}
 	}
+}
+
+/* 下面是抽离出一些函数逻辑，用于和openapi共用*/
+
+func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, checkType model.ComplianceCheckType, clusterKey, username string) {
+	//check scanning task
+	scapService, _ := scapper.GetService(ctx)
+	err := scapService.CheckScanningTask(ctx, string(checkType), clusterKey, 3600)
+	if err != nil {
+		RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
+		return
+	}
+
+	scapper, _ := scapper.GetScapper(ctx)
+	checkUUID, err := scapper.RunComplianceCheck(ctx, clusterKey, checkType, username)
+	if err != nil {
+		RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
+		return
+	}
+
+	type resp struct {
+		CheckUUID string `json:"checkUUID"`
+	}
+
+	response.Ok(w, response.WithItem(resp{
+		CheckUUID: checkUUID.String(),
+	}))
+}
+
+func (api *api) getLatestScanRecordHandler(
+	ctx context.Context,
+	w http.ResponseWriter,
+	clusterKey string,
+	checkType model.ComplianceCheckType,
+	sortOrder string,
+) (
+	string,
+	[]string,
+	[]string,
+	[]string,
+	map[string]*model.CheckBreakdown,
+	bool,
+) {
+	scapService, _ := scapper.GetService(ctx)
+	checkId, err := scapService.GetLatestHistory(ctx, clusterKey, string(checkType), "created_at", sortOrder)
+	if err != nil {
+		response.Ok(w, response.WithTotalItems(0))
+		return "", nil, nil, nil, nil, false
+	}
+
+	waitingOn := []string{}
+	errorOn := []string{}
+	successOn := []string{}
+	checkMap := make(map[string]*model.CheckBreakdown)
+
+	err = scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkId)
+	if err != nil {
+		RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get scan node state failed, %w", err)))
+		return "", nil, nil, nil, nil, false
+	}
+
+	switch checkType {
+	case model.ComplianceCheckTargetTypeKube:
+		err := scapService.GetKubeBreakdownEntries(ctx, checkMap, checkId, string(checkType))
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube breakdown entries: %w", err)))
+			return "", nil, nil, nil, nil, false
+		}
+	case model.ComplianceCheckTargetTypeDocker:
+		err := scapService.GetDockerBreakdownEntries(ctx, checkMap, checkId, string(checkType))
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker breakdown entries: %w", err)))
+			return "", nil, nil, nil, nil, false
+		}
+	case model.ComplianceCheckTargetTypeHost:
+		err := scapService.GetHostBreakdownEntries(ctx, checkMap, checkId, string(checkType))
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host breakdown entries: %w", err)))
+			return "", nil, nil, nil, nil, false
+		}
+	default:
+		RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("checkType is error, %v.", checkType)))
+		return "", nil, nil, nil, nil, false
+	}
+
+	return checkId, waitingOn, errorOn, successOn, checkMap, true
+}
+
+func (api *api) getPolicyDetailsHandler(
+	ctx context.Context,
+	w http.ResponseWriter,
+	checkType model.ComplianceCheckType,
+	policyId, checkID string,
+) (*model.PolicyDetails, bool) {
+
+	policyDetails := &model.PolicyDetails{}
+	policyDetails.CheckID = checkID
+
+	scapService, _ := scapper.GetService(ctx)
+
+	switch checkType {
+	case model.ComplianceCheckTargetTypeKube:
+		err := scapService.GetKubePolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get kube policy details: %w", err)))
+			return nil, false
+		}
+	case model.ComplianceCheckTargetTypeDocker:
+		err := scapService.GetDockerPolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get docker policy details: %w", err)))
+			return nil, false
+		}
+	case model.ComplianceCheckTargetTypeHost:
+		err := scapService.GetHostPolicyDetails(ctx, policyDetails, policyId, string(checkType), checkID)
+		if err != nil {
+			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host policy details: %w", err)))
+			return nil, false
+		}
+	default:
+		RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("checkType is error, %v.", checkType)))
+		return nil, false
+	}
+
+	return policyDetails, true
 }

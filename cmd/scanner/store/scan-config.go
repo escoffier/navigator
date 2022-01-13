@@ -120,6 +120,9 @@ func (s *ScanConfigDao) SearchStrategy(ctx context.Context, parm SearchStrategyP
 	if parm.StrategyID > 0 {
 		db.Where("id = ? ", parm.StrategyID)
 	}
+	if parm.Name != "" {
+		db.Where("name = ? ", parm.Name)
+	}
 
 	res := make([]model.ScanStrategy, 0)
 	var cnt int64
