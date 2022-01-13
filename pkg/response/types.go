@@ -23,7 +23,7 @@ type HTTPEnvelope struct {
 }
 
 type HTTPData struct {
-	Status           uint8                  `json:"status"`
+	Status           uint8                  `json:"status,omitempty"`
 	Kind             string                 `json:"kind,omitempty"`
 	CheckId          string                 `json:"checkId,omitempty"`
 	Etag             string                 `json:"etag,omitempty"`
@@ -31,9 +31,9 @@ type HTTPData struct {
 	Updated          string                 `json:"updated,omitempty"`
 	Deleted          bool                   `json:"deleted,omitempty"`
 	CurrentItemCount int64                  `json:"currentItemCount,omitempty"`
-	ItemsPerPage     int64                  `json:"itemsPerPage"`
-	StartIndex       int64                  `json:"startIndex"`
-	TotalItems       int64                  `json:"totalItems"`
+	ItemsPerPage     int64                  `json:"itemsPerPage,omitempty"`
+	StartIndex       int64                  `json:"startIndex,omitempty"`
+	TotalItems       int64                  `json:"totalItems,omitempty"`
 	PageIndex        int64                  `json:"pageIndex,omitempty"`
 	TotalPages       int64                  `json:"totalPages,omitempty"`
 	Items            json.RawMessage        `json:"items,omitempty"`
@@ -93,6 +93,12 @@ func (e HTTPData) MarshalJSON() ([]byte, error) {
 	// add any custom fields to dict
 	for k, v := range e.CustomFields {
 		baseFieldsDict[k] = v
+	}
+	// 如果返回的是列表，就一定会有如下三个字段，即使数值是0，也应该序列化
+	if e.Items != nil {
+		baseFieldsDict["itemsPerPage"] = e.ItemsPerPage
+		baseFieldsDict["totalItems"] = e.TotalItems
+		baseFieldsDict["startIndex"] = e.StartIndex
 	}
 
 	// return marshalled dict

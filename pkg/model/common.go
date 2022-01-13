@@ -23,6 +23,12 @@ func GetFilter(ctx *gin.Context) *Filter {
 	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
 	sortBy := ctx.Query("sort_by")
 	sortFiled := ctx.Query("sort_filed")
+	if limit > 200 || limit == 0 {
+		limit = 200
+	}
+	if offset <= 0 {
+		offset = 0
+	}
 
 	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
 	filter = filter.SetDefault()

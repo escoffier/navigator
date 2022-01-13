@@ -277,6 +277,9 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	if param.FromType > 0 {
 		db = db.Where("ivan_scanner_image_list.from_type = ? ", param.FromType)
 	}
+	if len(param.RegistryIds) > 0 {
+		db = db.Where("tensor_image_list.registry_id IN ? ", param.RegistryIds)
+	}
 
 	if len(param.InIDs) > 0 {
 		db = db.Where("ivan_scanner_image_list.id  IN ? ", param.InIDs)
@@ -1011,10 +1014,6 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 		ImageType             int64   `json:"image_type"`
 		VulnScore             float64 `json:"vuln_score"`
 		SeverityHistogramJSON datatypes.JSON
-		// FromType              int64  `json:"from_type"`
-		// NodeIp                string `json:"node_ip"`       // 结点的Ip
-		// NodeHostname          string `json:"node_hostname"` // 结点的
-		// Os                    string `json:"os"`
 	}
 	// ivan_scanner_image_list.image_type,ivan_scanner_image_list.from_type,ivan_scanner_image_list.node_ip,ivan_scanner_image_list.node_hostname,ivan_scanner_image_list.os").
 

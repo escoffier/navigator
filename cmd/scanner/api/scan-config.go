@@ -67,7 +67,6 @@ func (sc *ScanConfigApiSrv) UpdateStrategy(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx)
-
 }
 
 // DeleteStrategy

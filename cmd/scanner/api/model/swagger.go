@@ -1,4 +1,4 @@
-package api
+package apimodel
 
 import "gitlab.com/piccolo_su/vegeta/pkg/harbor"
 
