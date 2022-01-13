@@ -39,7 +39,7 @@ type Vuln struct {
 	Target       string
 	Name         string       `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:1"` // 形如CVE-2021-28831
 	Namespace    string       `gorm:"type:varchar(255)"`                                      // 发行版名字：alpine，redhat等
-	Description  string       `gorm:"type:varchar(4096)"`                                     // 描述
+	Description  string       `gorm:"type:text"`                                              // 描述
 	Link         []string     `gorm:"-"`                                                      // 参考链接
 	LinkJSON     []byte       `gorm:"type:Blob"`
 	Severity     string       `gorm:"type:varchar(255)"` // 威胁等级
