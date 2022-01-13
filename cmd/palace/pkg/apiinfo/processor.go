@@ -51,7 +51,7 @@ func Process(msg *stan.Msg) {
 		Kind:        info.OwnerKind,
 	}
 
-	err := UpsertApiInfo(ctx, pgConn, &tensorApi)
+	err = UpsertApiInfo(ctx, pgConn, &tensorApi)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("save api info err")
 		return
