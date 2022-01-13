@@ -1,12 +1,16 @@
 package holmeshelper
 
 import (
+	"errors"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
@@ -30,9 +34,14 @@ func NewProcessInfo() *ProcessInfo {
 func (p *ProcessInfo) RestartHolmesViaSignal() (err error) {
 	p.restartLock.Lock()
 	defer p.restartLock.Unlock()
-	err = nil
 
-	log.Printf("restart holmes(%d)\n", p.Handler.Process.Pid)
+	for i := 0; i < 12000 && p.Handler == nil; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if p.Handler == nil {
+		return errors.New("no handler")
+	}
+	logging.GetLogger().Info().Msgf("restart holmes(%d)", p.Handler.Process.Pid)
 	// Signal Deal Reference https://scm.tensorsecurity.cn/tensorsecurity-rd/holmes/-/blob/bfc0021cdd96c9f0c13e2a2fb2c5fde3016af8ec/userspace/falco/falco.cpp#L1022-1048
 	if p.StartModeUpdate {
 		p.StartModeUpdate = false
@@ -49,7 +58,7 @@ func (p *ProcessInfo) StartHolmes(cmdLine string, ch chan<- error) {
 	p.runingLock.Lock()
 	defer p.runingLock.Unlock()
 
-	log.Printf("start holmes: %s\n", cmdLine)
+	logging.GetLogger().Info().Msgf("start holmes: %s", cmdLine)
 	name := strings.Split(cmdLine, " ")[0]
 	argsList := strings.Split(cmdLine, " ")[1:]
 	if p.StartWithDefault && !p.StartModeUpdate {
@@ -65,6 +74,7 @@ func (p *ProcessInfo) StartHolmes(cmdLine string, ch chan<- error) {
 	p.Handler.Stdout = os.Stdout
 	err := p.Handler.Start()
 	if err != nil {
+		logging.GetLogger().Err(err).Msg("start handler error")
 		p.Handler = nil
 		ch <- err
 		return

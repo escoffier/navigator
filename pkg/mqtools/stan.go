@@ -31,8 +31,9 @@ func NewStanConn(f ConnFunc) *StanConn {
 		close(c.connSignal)
 	} else {
 		logging.GetLogger().Err(err).Msg("error get connection to stan")
-		c.asyncLoop()
 	}
+
+	c.asyncLoop()
 	return c
 }
 func (c *StanConn) Notif() <-chan struct{} {
@@ -53,29 +54,46 @@ func (c *StanConn) Conn() (stan.Conn, bool) {
 }
 
 func (c *StanConn) asyncLoop() {
-	if c.Connected() {
-		return
-	}
-
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Msgf("panic %v. stack: %s", r, debug.Stack())
 			}
 		}()
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for range ticker.C {
-			conn, err := c.f()
-			if err == nil {
-				c.setConn(conn)
-				c.connSignal <- struct{}{}
-				close(c.connSignal)
-				break
+			tryReconn := false
+			first := false
+			if c.Connected() { // check connection
+				conn, ok := c.Conn()
+				if !ok {
+					tryReconn = true
+				} else if conn.NatsConn() == nil || !conn.NatsConn().IsConnected() {
+					logging.GetLogger().Warn().Msg("Stan Nats connection not connected")
+					tryReconn = true
+				}
 			} else {
-				logging.GetLogger().Err(err).Msg("error get connection to stan")
+				first = true
+				tryReconn = true
 			}
+			if tryReconn {
+				logging.GetLogger().Info().Msg("try to reconnect stan")
+
+				conn, err := c.f()
+				if err == nil {
+					c.setConn(conn)
+					if first {
+						c.connSignal <- struct{}{}
+						close(c.connSignal)
+					}
+
+				} else {
+					logging.GetLogger().Err(err).Msg("error get connection to stan")
+				}
+			}
+
 		}
 	}()
 }

@@ -84,9 +84,9 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.19.1
-	golang.org/x/net v0.0.0-20220107192237-5cfca573fb4d // indirect
+	golang.org/x/net v0.0.0-20220111093109-d55c255bac03 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
+	golang.org/x/sys v0.0.0-20220111092808-5a964db01320
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/grpc v1.43.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
@@ -94,7 +94,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/datatypes v1.0.3
 	gorm.io/driver/postgres v1.2.3
-	gorm.io/gorm v1.22.4
+	gorm.io/gorm v1.22.5
 	k8s.io/api v0.19.16
 	k8s.io/apimachinery v0.19.16
 	k8s.io/apiserver v0.19.16
@@ -109,6 +109,7 @@ require (
 )
 
 require (
+	github.com/aquasecurity/trivy-db v0.0.0-20210531102723-aaab62dec6ee
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
@@ -132,7 +133,7 @@ require (
 	cloud.google.com/go v0.65.0 // indirect
 	cloud.google.com/go/storage v1.10.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
-	github.com/BurntSushi/toml v0.4.1 // indirect
+	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/CyrusF/go-bayesian v0.0.0-20180928040635-c6aa877814bd // indirect
 	github.com/CyrusF/libsvm-go v0.0.0-20180928035651-2210b124fd3d // indirect
 	github.com/GoogleCloudPlatform/docker-credential-gcr v1.5.0 // indirect
@@ -156,7 +157,6 @@ require (
 	github.com/aquasecurity/go-npm-version v0.0.0-20201110091526-0b796d180798 // indirect
 	github.com/aquasecurity/go-pep440-version v0.0.0-20210121094942-22b2f8951d46 // indirect
 	github.com/aquasecurity/go-version v0.0.0-20210121072130-637058cfe492 // indirect
-	github.com/aquasecurity/trivy-db v0.0.0-20210531102723-aaab62dec6ee // indirect
 	github.com/aquasecurity/vuln-list-update v0.0.0-20191016075347-3d158c2bf9a2 // indirect
 	github.com/aws/aws-sdk-go v1.42.23 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
@@ -249,7 +249,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/masahiro331/go-mvn-version v0.0.0-20210429150710-d3157d602a08 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/mattn/go-runewidth v0.0.12 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mdlayher/netlink v1.5.0 // indirect
 	github.com/mdlayher/socket v0.1.1 // indirect
 	github.com/mitchellh/copystructure v1.1.1 // indirect
@@ -297,7 +297,7 @@ require (
 	github.com/zclconf/go-cty-yaml v1.0.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/crypto v0.0.0-20211215165025-cf75a172585e // indirect
+	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce // indirect
 	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5 // indirect
 	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf // indirect

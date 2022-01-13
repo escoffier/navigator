@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -385,7 +385,7 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 			}
 		}
 		if len(query.whereNotNullCondition) > 0 {
-			for column, _ := range query.whereNotNullCondition {
+			for column := range query.whereNotNullCondition {
 				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
 			}
 		}
@@ -417,7 +417,7 @@ func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContaine
 			}
 		}
 		if len(query.whereNotNullCondition) > 0 {
-			for column, _ := range query.whereNotNullCondition {
+			for column := range query.whereNotNullCondition {
 				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
 			}
 		}
@@ -520,6 +520,7 @@ func newModelFromTensorResource(resource *assets.TensorResource, updateTime time
 func doUpsertResource(ctx context.Context, rdb *gorm.DB, resourceModel *model.TensorResource, updateTime time.Time) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
+	resourceModel.UpdatedAt = updateTime
 	return rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForResource),
