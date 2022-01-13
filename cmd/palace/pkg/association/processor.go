@@ -271,7 +271,7 @@ func (ap *AssociationProcessor) cleanUp(now time.Time) {
 	}
 
 	logging.GetLogger().Info().Msgf("to clean aggregators: %v", toClean)
-	for key, _ := range toClean {
+	for key := range toClean {
 		delete(ap.aggregators, key)
 	}
 }
