@@ -1178,7 +1178,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgId int64) (*model
 func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error) {
 	overView := new(model.OverView)
 	// 查总数
-	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{FromType: fromType}, model.EmptyFilterForTheTotalQuery())
+	_, total, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{FromType: fromType, JustCount: true}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf(fmt.Sprintf("GetImageOverView.SearchImage error %s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))

@@ -27,6 +27,7 @@ type SearchImageParam struct {
 	LayersPrefix   string
 	RegistryIds    []int64 // 仓库Id列表
 	NodeHostnames  []string
+	JustCount      bool
 }
 
 type SearchImageWithScanParam struct {
