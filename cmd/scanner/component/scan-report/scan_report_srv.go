@@ -22,7 +22,7 @@ import (
 var host string
 
 func init() {
-	host = os.Getenv("SCANNER_URL")
+	host = os.Getenv("CONSOLE_EXTERNAL_URL")
 	if host == "" {
 		host = "https://console.tensosecurity.cn"
 	}
