@@ -23,11 +23,52 @@ run:
 output:
   sort-results: true
 
+linters:
+  enable-all: true
+  enable:
+    - gosec
+  disable:
+    - unused
+  fast: false
+
 linters-settings:
   gosimple:
     go: "1.17"  
     checks: [ "all" ]
 
+  gosec:
+    # To select a subset of rules to run.
+    # Available rules: https://github.com/securego/gosec#available-rules
+    includes:
+      - G101
+      - G103
+      - G104
+      - G106
+      - G107
+      - G109
+      - G110
+      - G201
+      - G202
+      - G203
+      - G204
+      - G301
+      - G302
+      - G304
+      - G306
+      - G307
+      - G402
+      - G404
+      - G601
+    # To specify a set of rules to explicitly exclude.
+    # Available rules: https://github.com/securego/gosec#available-rules
+    excludes:
+      - G105
+    # Exclude generated files
+    exclude-generated: true
+    # Filter out the issues with a lower severity than the given value. Valid options are: low, medium, high.
+    severity: "low"
+    # Filter out the issues with a lower confidence than the given value. Valid options are: low, medium, high.
+    confidence: "low"
   staticcheck:
     go: "1.17"
     # https://staticcheck.io/docs/options#checks
