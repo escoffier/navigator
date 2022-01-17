@@ -26,7 +26,7 @@ type TrivyServer struct {
 
 func NewTrivyServer(redis redis.Client, vulnpath string) (*TrivyServer, error) {
 	once.Do(func() {
-		_ = trivylog.InitLogger(false, true)
+		_ = trivylog.InitLogger(true, false)
 		ch := make(chan string)
 		u := vulnupdata.NewUpdataService(vulnpath, ch)
 		u.InitUpdateSvc()

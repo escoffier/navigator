@@ -57,6 +57,8 @@ const (
 
 const CheckTaskInterval = 60 * 1 // 检查是否加扫描任务的时间间隔，单位：秒
 
+const SubTaskBatchInsertCount = 2000
+
 const (
 	CicdOperator        = "CICD触发扫描"
 	SyncTriggerOperator = "周期触发扫描"
