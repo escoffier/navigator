@@ -235,11 +235,11 @@ scarecrow:   ## Build scarecrow docker to test CVEs
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "scarecrow will use mirror"
-	docker build -t $(REPOPREFIX)/scarecrow:latest -f ./build/scarecrow/Dockerfile \
+	docker build -t $(REPOPREFIX)/waston-redis:latest -f ./build/scarecrow/Dockerfile \
 		--build-arg MIRROR=mirrors.aliyun.com --build-arg TAG=$(RELEASEVERSION) .
 else
 	@echo "scarecrow will not use mirror"
-	docker build -t $(REPOPREFIX)/scarecrow:latest -f ./build/scarecrow/Dockerfile \
+	docker build -t $(REPOPREFIX)/waston-redis:latest -f ./build/scarecrow/Dockerfile \
 		--build-arg TAG=$(RELEASEVERSION) .
 endif
 
@@ -483,7 +483,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
-	#docker push $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webhook:$(RELEASEVERSION)
@@ -508,7 +508,7 @@ else
 	docker push $(REPOPREFIX)/go-audit:latest
 	docker push $(REPOPREFIX)/holmes:latest
 	docker push $(REPOPREFIX)/daemon:latest
-	#docker push $(REPOPREFIX)/scarecrow:latest
+	docker push $(REPOPREFIX)/waston-redis:latest
 	docker push $(REPOPREFIX)/webshell-server:latest
 	docker push $(REPOPREFIX)/safe-node-image:latest
 	docker push $(REPOPREFIX)/webhook:latest
@@ -536,7 +536,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/go-audit:latest
 	docker rmi $(REPOPREFIX)/holmes:latest
 	docker rmi $(REPOPREFIX)/daemon:latest
-	#docker rmi $(REPOPREFIX)/scarecrow:latest
+	docker rmi $(REPOPREFIX)/waston-redis:latest
 	docker rmi $(REPOPREFIX)/webshell-server:latest
 	docker rmi $(REPOPREFIX)/safe-node-image:latest
 	docker rmi $(REPOPREFIX)/webhook:latest
@@ -565,7 +565,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/holmes:latest $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/daemon:latest $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/image-validator:latest $(REPOPREFIX)/image-validator:$(RELEASEVERSION)
-	#docker tag $(REPOPREFIX)/scarecrow:latest $(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/waston-redis:latest $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webhook:latest $(REPOPREFIX)/webhook:$(RELEASEVERSION)
@@ -589,7 +589,7 @@ else
 	docker tag $(REPOPREFIXOLD)/holmes:latest $(REPOPREFIX)/holmes:latest
 	docker tag $(REPOPREFIXOLD)/daemon:latest $(REPOPREFIX)/daemon:latest
 	docker tag $(REPOPREFIXOLD)/image-validator:latest $(REPOPREFIX)/image-validator:latest
-	#docker tag $(REPOPREFIXOLD)/scarecrow:latest $(REPOPREFIX)/scarecrow:latest
+	docker tag $(REPOPREFIXOLD)/waston-redis:latest $(REPOPREFIX)/waston-redis:latest
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
 	docker tag $(REPOPREFIXOLD)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:latest
 	docker tag $(REPOPREFIXOLD)/webhook:latest $(REPOPREFIX)/webhook:latest
