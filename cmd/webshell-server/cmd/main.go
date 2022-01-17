@@ -33,7 +33,7 @@ func main() {
 		}
 	}()
 
-	quit := make(chan os.Signal)
+	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
@@ -43,9 +43,7 @@ func main() {
 		logging.GetLogger().Fatal().Err(err).Msg("start shutdown failed")
 	}
 	// catching ctx.Done(). timeout of 5 seconds.
-	select {
-	case <-ctx.Done():
-		logging.GetLogger().Info().Msg("start shutdown success")
-	}
+	<-ctx.Done()
+	logging.GetLogger().Info().Msg("start shutdown success")
 	logging.GetLogger().Info().Msg("Server exiting")
 }

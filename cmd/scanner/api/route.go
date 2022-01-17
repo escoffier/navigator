@@ -197,7 +197,7 @@ func OpenApi(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc comp
 			statistic.GET("/vulns", apiVulnSrc.Statistic)
 		}
 
-		scanConfig := v1.Group("/scan-config")
+		scanConfig := v1.Group("/scanConfig")
 		{
 			strategies := scanConfig.Group("/strategies")
 			{

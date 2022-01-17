@@ -22,12 +22,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-// for open API
-func (api *api) scapOpen() func(chi.Router) {
-	return func(r chi.Router) {
-
-	}
-}
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/{checkType}/{clusterKey}", api.scapCheck())
@@ -413,12 +407,12 @@ func (api *api) scapCheck() http.HandlerFunc {
 			return
 		}
 
-		//username
+		// username
 		username := "unknown"
-		//get token
+		// get token
 		_, claims, err := jwtauth.FromContext(r.Context())
 		if err == nil && claims != nil {
-			//get username from token
+			// get username from token
 			username = claims[JWTKeyUsername].(string)
 		}
 
@@ -480,12 +474,12 @@ func (api *api) exportFile() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 		defer cancel()
 
-		//username
+		// username
 		username := "unknown"
-		//get token
+		// get token
 		_, claims, err := jwtauth.FromContext(ctx)
 		if err == nil && claims != nil {
-			//get username from token
+			// get username from token
 			username = claims[JWTKeyUsername].(string)
 		}
 
@@ -527,12 +521,12 @@ func (api *api) exportFile() http.HandlerFunc {
 		task.CheckId = checkID
 		task.CreatedAt = time.Now().Unix()
 		task.FileName = fmt.Sprintf("/var/www/%s-%s-%v.xlsx", string(checkType), string(language), task.CreatedAt)
-		//insert task data to mongo
+		// insert task data to mongo
 		err = api.postgresDB.Get().WithContext(ctx).Create(&task).Error
 		if err != nil {
 			task.Status = 2
 		} else {
-			//run export file task
+			// run export file task
 			scapper, _ := scapper.GetScapper(ctx)
 			go scapper.RunExportFileTask(&task, language)
 		}
@@ -547,12 +541,12 @@ func (api *api) getFile() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
-		//username
+		// username
 		username := "unknown"
-		//get token
+		// get token
 		_, claims, err := jwtauth.FromContext(r.Context())
 		if err == nil && claims != nil {
-			//get username from token
+			// get username from token
 			username = claims[JWTKeyUsername].(string)
 		}
 
@@ -570,12 +564,12 @@ func (api *api) getFile() http.HandlerFunc {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("get export task failed, %v", err)))
 			return
 		}
-		//task status
+		// task status
 		if task.Status == 1 {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("Please wait while the file is being exported.")))
 			return
 		}
-		//delete record
+		// delete record
 		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 		if err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "delete export tasks error")
@@ -589,7 +583,7 @@ func (api *api) getFile() http.HandlerFunc {
 		dataLen := len(task.Content)
 		data := strings.Split(task.FileName, "/")
 		filename := data[len(data)-1]
-		//set header
+		// set header
 		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.Itoa(dataLen))
@@ -671,7 +665,7 @@ func (api *api) updateRecordVariate() http.HandlerFunc {
 /* 下面是抽离出一些函数逻辑，用于和openapi共用*/
 
 func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, checkType model.ComplianceCheckType, clusterKey, username string) {
-	//check scanning task
+	// check scanning task
 	scapService, _ := scapper.GetService(ctx)
 	err := scapService.CheckScanningTask(ctx, string(checkType), clusterKey, 3600)
 	if err != nil {
