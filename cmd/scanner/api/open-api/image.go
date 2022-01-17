@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -63,16 +62,6 @@ func (s *ImageOpenApiSvc) ListImages(ctx *gin.Context) {
 		param.FromType = model.ImageFromSafeNode
 	} else if fromTypeString == consts.ImageFromRegistry {
 		param.FromType = model.ImageFromTypeNormal
-	}
-
-	scanStatus := make([]int, 0)
-	if ctx.Query("scanStatus") != "" {
-		ss := strings.Split(ctx.Query("scanStatus"), ",")
-		for i := range ss {
-			if parseInt, err := strconv.ParseInt(ss[i], 10, 64); err == nil {
-				scanStatus = append(scanStatus, int(parseInt))
-			}
-		}
 	}
 
 	filter := model.GetFilter(ctx)
@@ -159,7 +148,7 @@ func (s *ImageOpenApiSvc) ImageStatistic(ctx *gin.Context) {
 		OnlineTotal: view.OnlineTotal,
 		Total: apimodel.SafeOver{
 			Vulns:                view.Sum.VULN,
-			Virus:                view.Sum.VIRUS,
+			Viruses:              view.Sum.VIRUS,
 			SensitiveFile:        view.Sum.SENSITIVE,
 			Webshell:             view.Sum.Webshell,
 			ExceptEnvs:           view.Sum.Envs,
@@ -169,7 +158,7 @@ func (s *ImageOpenApiSvc) ImageStatistic(ctx *gin.Context) {
 		},
 		Online: apimodel.SafeOver{
 			Vulns:                view.Online.VULN,
-			Virus:                view.Online.VIRUS,
+			Viruses:              view.Online.VIRUS,
 			SensitiveFile:        view.Online.SENSITIVE,
 			Webshell:             view.Online.Webshell,
 			ExceptEnvs:           view.Online.Envs,
@@ -236,7 +225,7 @@ func (s *ImageOpenApiSvc) GetImageDetails(ctx *gin.Context) {
 		Digest:         img.Digest,
 		Image:          fmt.Sprintf("%s:%s", img.FullRepoName, img.Tags),
 		SensitiveFile:  make([]string, 0),
-		Virus:          img.ImageScanVirus,
+		Viruses:        img.ImageScanVirus,
 		Envs:           make([]apimodel.SummaryEnv, 0),
 		Webshell:       img.ImageScanWebshell,
 		Vulns:          make([]apimodel.Vuln, 0),
@@ -346,7 +335,7 @@ func (s *ImageOpenApiSvc) ListImgLayersByImageName(ctx *gin.Context) {
 			CreatedAt:     images[i].Created.Unix(),
 			CreatedBy:     images[i].CreatedBy,
 			Vulns:         images[i].Vulus,
-			Virus:         images[i].Malicious,
+			Viruses:       images[i].Malicious,
 			SensitiveFile: images[i].SensitiveFiles,
 			WebshellInfo:  images[i].WebshellInfo,
 			ImageId:       images[i].ImageId,

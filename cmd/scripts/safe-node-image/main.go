@@ -2,10 +2,8 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -51,9 +49,7 @@ func main() {
 func worker(bathSize, bathInterval int) error {
 	clusterManagerURL := os.Getenv("CLUSTER_MANAGER_URL")
 	nameSpace := os.Getenv("MY_POD_NAMESPACE")
-	if strings.Contains(nameSpace, ":") {
-		nameSpace = strings.Replace(nameSpace, ":", consts.ColonSalt, 01)
-	}
+	nameSpace = strings.Replace(nameSpace, ":", consts.ColonSalt, 1)
 
 	if clusterManagerURL == "" || nameSpace == "" {
 		return fmt.Errorf("clusterManager or nameSpace is empty %s,%s ", clusterManagerURL, nameSpace)
@@ -144,9 +140,7 @@ func getPreImage(imge string) (string, error) {
 	tag := ref.Identifier()
 	repositoryName := ref.Context().RepositoryStr()
 
-	if strings.Contains(registryStr, ":") {
-		registryStr = strings.Replace(registryStr, ":", consts.ColonSalt, -1)
-	}
+	registryStr = strings.Replace(registryStr, ":", consts.ColonSalt, -1)
 
 	return registryStr + "/" + repositoryName + ":" + tag, nil
 }
@@ -180,23 +174,6 @@ func reTage(pre, after string) error {
 	}
 	logging.GetLogger().Debug().Msgf("safe-node docker retag:%s", stdout.String())
 	return nil
-}
-
-func getNodIp() (string, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return "", err
-	}
-
-	for _, address := range addrs {
-		// 检查ip地址判断是否回环地址
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String(), nil
-			}
-		}
-	}
-	return "", errors.New("can not find node ip")
 }
 
 func getImages() ([]string, error) {

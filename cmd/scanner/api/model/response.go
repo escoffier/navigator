@@ -10,7 +10,7 @@ type ImageLayerInfo struct {
 	CreatedAt     int64    `json:"createdAt"`
 	CreatedBy     string   `json:"createdBy"`
 	Vulns         []string `json:"vulns"`
-	Virus         []string `json:"virus"`
+	Viruses       []string `json:"viruses"`
 	SensitiveFile []string `json:"sensitiveile"`
 	WebshellInfo  []string `json:"webshell_info"`
 	ImageId       int64    `json:"imageId"`
@@ -41,7 +41,7 @@ type ImageDetail struct {
 	Image          string                   `json:"image"`
 	RegistryUrl    string                   `json:"registryUrl"`
 	SensitiveFile  []string                 `json:"sensitiveFile"`
-	Virus          []model.VirusFileInfo    `json:"virus"`
+	Viruses        []model.VirusFileInfo    `json:"viruses"`
 	Envs           []SummaryEnv             `json:"envs"`
 	Webshell       []model.WebshellFileInfo `json:"webshell"`
 	Vulns          []Vuln                   `json:"vulns"`
@@ -82,7 +82,7 @@ type OverView struct {
 
 type SafeOver struct {
 	Vulns                int `json:"vulns"`
-	Virus                int `json:"virus"`
+	Viruses              int `json:"viruses"`
 	SensitiveFile        int `json:"sensitiveFile"`
 	Webshell             int `json:"webshell"`
 	ExceptEnvs           int `json:"exceptEnvs"`
