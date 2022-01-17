@@ -2074,7 +2074,7 @@ func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error
 func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).Create(&subtask).Error; err != nil {
+	if err := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
 		return err
 	}
 
