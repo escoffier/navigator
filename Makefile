@@ -423,7 +423,7 @@ apiscan-job: generate
 	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty scanner scanner-cicd scap-jobs console data holmes daemon  \
+all: drift-prevention-client faulty scanner scanner-cicd scap-jobs scarecrow console data holmes daemon  \
 webshell-server webhook cluster-manager security-profiles-manager security-profiles-loader \
 palace go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
 
