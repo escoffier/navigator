@@ -305,7 +305,7 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 		}
 
 		// 抽离逻辑
-		checkId, waitingOn, errorOn, successOn, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, checkType, sortOrder)
+		checkId, waitingOn, errorOn, successOn, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, "", checkType, sortOrder)
 		if !ok {
 			return
 		}
@@ -681,11 +681,11 @@ func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, che
 	}
 
 	type resp struct {
-		CheckUUID string `json:"checkUUID"`
+		CheckId string `json:"checkId"`
 	}
 
 	response.Ok(w, response.WithItem(resp{
-		CheckUUID: checkUUID.String(),
+		CheckId: checkUUID.String(),
 	}))
 }
 
@@ -693,6 +693,7 @@ func (api *api) getLatestScanRecordHandler(
 	ctx context.Context,
 	w http.ResponseWriter,
 	clusterKey string,
+	checkId string,
 	checkType model.ComplianceCheckType,
 	sortOrder string,
 ) (
@@ -704,10 +705,13 @@ func (api *api) getLatestScanRecordHandler(
 	bool,
 ) {
 	scapService, _ := scapper.GetService(ctx)
-	checkId, err := scapService.GetLatestHistory(ctx, clusterKey, string(checkType), "created_at", sortOrder)
-	if err != nil {
-		response.Ok(w, response.WithTotalItems(0))
-		return "", nil, nil, nil, nil, false
+	if checkId == "" {
+		chId, err := scapService.GetLatestHistory(ctx, clusterKey, string(checkType), "created_at", sortOrder)
+		if err != nil {
+			response.Ok(w, response.WithTotalItems(0))
+			return "", nil, nil, nil, nil, false
+		}
+		checkId = chId
 	}
 
 	waitingOn := []string{}
@@ -715,7 +719,7 @@ func (api *api) getLatestScanRecordHandler(
 	successOn := []string{}
 	checkMap := make(map[string]*model.CheckBreakdown)
 
-	err = scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkId)
+	err := scapService.GetNodeState(ctx, &waitingOn, &errorOn, &successOn, checkId)
 	if err != nil {
 		RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get scan node state failed, %w", err)))
 		return "", nil, nil, nil, nil, false
