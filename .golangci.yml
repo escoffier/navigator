@@ -23,6 +23,14 @@ run:
 output:
   sort-results: true
 
+linters:
+  enable:
+    - errcheck
+    - goimports
+    - golint
+    - govet
+    - staticcheck
+
 linters-settings:
   gosimple:
     go: "1.17"  
