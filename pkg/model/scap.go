@@ -125,12 +125,12 @@ type PolicyDetailInfo struct {
 	CreatedAt      int64  `json:"created_at" gorm:"column:created_at"`
 	Updater        string `json:"updater" gorm:"type:varchar(255);column:updater"`
 	UpdatedAt      int64  `json:"updated_at" gorm:"column:updated_at"`
-	TitleEn        string `json:"title_en" gorm:"type:varchar(255);column:title_en"`
-	TitleZh        string `json:"title_zh" gorm:"type:varchar(255);column:title_zh"`
-	DetailEn       string `json:"detail_en" gorm:"type:varchar(255);column:detail_en"`
-	DetailZh       string `json:"detail_zh" gorm:"type:varchar(255);column:detail_zh"`
-	RemediationEn  string `json:"remediation_en" gorm:"type:varchar(255);column:remediation_en"`
-	RemediationZh  string `json:"remediation_zh" gorm:"type:varchar(255);column:remediation_zh"`
+	TitleEn        string `json:"title_en" gorm:"type:text;column:title_en"`
+	TitleZh        string `json:"title_zh" gorm:"type:text;column:title_zh"`
+	DetailEn       string `json:"detail_en" gorm:"type:text;column:detail_en"`
+	DetailZh       string `json:"detail_zh" gorm:"type:text;column:detail_zh"`
+	RemediationEn  string `json:"remediation_en" gorm:"type:text;column:remediation_en"`
+	RemediationZh  string `json:"remediation_zh" gorm:"type:text;column:remediation_zh"`
 	ExpectedResult string `json:"expeced_result" gorm:"type:varchar(255);column:expeced_result"`
 	Audit          string `json:"audit" gorm:"type:varchar(255);column:audit"`
 	AuditConfig    string `json:"audit_config" gorm:"type:varchar(255);column:audit_config"`
