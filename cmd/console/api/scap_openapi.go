@@ -58,7 +58,7 @@ func (api *api) scapCheckOpenApi() http.HandlerFunc {
 func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 	type result struct {
 		// 检测任务UUID
-		CheckUUID string `json:"checkUUID" query:"checkUUID" form:"checkUUID"`
+		CheckId string `json:"checkId" query:"checkId" form:"checkId"`
 		// 等保对齐
 		Classified string `json:"classified" query:"classified" form:"classified"`
 		// 具体要求
@@ -85,17 +85,16 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 			return
 		}
 
+		// 如果没有传就是空，就会取默认值，所以这里不处理错误
+		checkId, _ := param.QueryString(r, "checkId")
+
 		checkType, err := param.QueryString(r, "checkType")
 		if err != nil || (checkType != "docker" && checkType != "host" && checkType != "kube") {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
-
-		limit, err := param.QueryInt64(r, "limit")
-		if err != nil {
-			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild limit parameter")))
-			return
-		}
+		// 如果没有传就赋默认值，所以这里忽略错误
+		limit, _ := param.QueryInt64(r, "limit")
 
 		if limit == 0 {
 			limit = 10
@@ -105,13 +104,12 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 			limit = 100
 		}
 
-		offset, err := param.QueryInt64(r, "offset")
-		if err != nil {
-			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild offset parameter")))
-			return
+		offset, _ := param.QueryInt64(r, "offset")
+		if offset < 0 {
+			offset = 0
 		}
 
-		checkId, _, _, _, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, model.ComplianceCheckType(checkType), "desc")
+		checkId, _, _, _, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, checkId, model.ComplianceCheckType(checkType), "desc")
 		if !ok {
 			return
 		}
@@ -119,7 +117,7 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 		var results = make([]*result, 0, len(checkMap))
 		for _, v := range checkMap {
 			results = append(results, &result{
-				CheckUUID:     checkId,
+				CheckId:       checkId,
 				Classified:    v.Classified,
 				Description:   v.Description,
 				Section:       v.Section,
@@ -237,9 +235,9 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
-		taskId := chi.URLParam(r, "taskId")
-		if taskId == "" {
-			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("task id can't be empty")))
+		policyNumber, _ := param.QueryString(r, "policyNumber")
+		if policyNumber == "" {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("policyNumber id can't be empty")))
 			return
 		}
 
@@ -249,18 +247,35 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 			return
 		}
 
-		checkId, err := param.QueryString(r, "checkId")
-		if err != nil || checkId == "" {
+		checkId := chi.URLParam(r, "checkId")
+		if checkId == "" {
 			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("invalid check id")))
 			return
 		}
 
-		result, ok := api.getPolicyDetailsHandler(ctx, w, model.ComplianceCheckType(checkType), taskId, checkId)
+		result, ok := api.getPolicyDetailsHandler(ctx, w, model.ComplianceCheckType(checkType), policyNumber, checkId)
 		if !ok {
 			return
 		}
 
-		response.Ok(w, response.WithItem(result))
+		res := Detail{
+			SuccessOn: make([]NodeInfo, 0),
+			FailedOn:  make([]NodeInfo, 0),
+			WarnOn:    make([]NodeInfo, 0),
+		}
+
+		for i := range result.FailedOn {
+			res.FailedOn = append(res.FailedOn, NodeInfo{NodeName: result.FailedOn[i].NodeName, Remediation: result.FailedOn[i].Remediation})
+		}
+
+		for i := range result.WarnOn {
+			res.WarnOn = append(res.WarnOn, NodeInfo{NodeName: result.WarnOn[i].NodeName, Remediation: result.WarnOn[i].Remediation})
+		}
+		for i := range result.SuccessfulOn {
+			res.SuccessOn = append(res.SuccessOn, NodeInfo{NodeName: result.SuccessfulOn[i].NodeName, Remediation: result.SuccessfulOn[i].Remediation})
+		}
+
+		response.Ok(w, response.WithItem(res))
 	}
 }
 
@@ -276,6 +291,6 @@ func (api *api) scapOpenApi() func(chi.Router) {
 			Get("/scan/task", api.getCheckHistoryOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, 20)).
-			Get("/scan/record/tasks/{taskId}", api.getPolicyDetailsOpenApi())
+			Get("/scan/record/tasks/{checkId}", api.getPolicyDetailsOpenApi())
 	}
 }
