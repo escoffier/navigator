@@ -95,7 +95,7 @@ func redisGet(redisClient *redis.Client, key string) (*model.TensorNetworkFlow, 
 }
 
 func redisSetIfNotExists(redisClient *redis.Client, key string, netflow *model.TensorNetworkFlow) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	value, err := json.Marshal(netflow)
@@ -115,7 +115,7 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 
 	newValueSetted, err := redisSetIfNotExists(redisClient, key, netflow)
 	if err != nil {
-		return false, errors.Errorf("setnx redis failed for key %s. value: %+v", key, netflow)
+		return false, errors.Errorf("setnx redis failed for key %s. value: %+v", key, *netflow)
 	}
 
 	if newValueSetted {
@@ -144,6 +144,10 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 		netflow.SrcPodName = net.SrcPodName
 		netflow.SrcNamespace = net.SrcNamespace
 		netflow.SrcKind = net.SrcKind
+	}
+
+	if len(netflow.SrcProcess) == 0 || len(netflow.DstProcess) == 0 {
+		return false, errors.Errorf("net data is nil, addr type : %v, %+v", addrType, *netflow)
 	}
 
 	return true, nil

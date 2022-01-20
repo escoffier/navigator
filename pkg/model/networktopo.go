@@ -15,7 +15,7 @@ type TensorNetworkFlow struct {
 	SrcCluster       string    `json:"src_cluster" gorm:"type:varchar(100);"`
 	SrcNamespace     string    `json:"src_namespace" gorm:"type:varchar(100)"`
 	SrcKind          string    `json:"src_kind" gorm:"type:varchar(100)"`
-	SrcOwnerName     string    `json:"src_owner_name" gorm:"type:varchar(100);index:idx_flow_sname"`
+	SrcOwnerName     string    `json:"src_owner_name" gorm:"type:varchar(100);column:src_name;index:idx_flow_sname"`
 	SrcContainerName string    `json:"src_container_name" gorm:"type:varchar(100)"`
 	SrcProcess       string    `json:"src_process" gorm:"type:varchar(100)"`
 	SrcPodName       string    `json:"src_pod_name"  gorm:"-"`
@@ -23,7 +23,7 @@ type TensorNetworkFlow struct {
 	DstCluster       string    `json:"dst_cluster" gorm:"type:varchar(100)"`
 	DstNamespace     string    `json:"dst_namespace" gorm:"type:varchar(100)"`
 	DstKind          string    `json:"dst_kind" gorm:"type:varchar(100)"`
-	DstOwnerName     string    `json:"dst_owner_name" gorm:"type:varchar(100);index:idx_flow_dname"`
+	DstOwnerName     string    `json:"dst_owner_name" gorm:"type:varchar(100);column:dst_name;index:idx_flow_dname"`
 	DstContainerName string    `json:"dst_container_name" gorm:"type:varchar(100)"`
 	DstProcess       string    `json:"dst_process" gorm:"type:varchar(100)"`
 	DstPodName       string    `json:"dst_pod_name" gorm:"-"`
