@@ -215,7 +215,7 @@ daemon: ## Build daemon binary
 ifeq ($(USEMIRROR),true)
 	@echo "daemon will use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
-	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
+	gcc -o bin/ns-mnt  cmd/daemon/setns/*.c
 	upx bin/daemon
 	upx bin/ns-mnt
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \

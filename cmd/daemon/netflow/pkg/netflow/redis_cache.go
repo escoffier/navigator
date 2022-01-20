@@ -76,8 +76,8 @@ func ConnectRedis(addr, pwd string) (*redis.Client, error) {
 	return redisClient, nil
 }
 
-func redisGet(ctx context.Context, redisClient *redis.Client, key string) (*model.TensorNetworkFlow, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+func redisGet(redisClient *redis.Client, key string) (*model.TensorNetworkFlow, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	ret, err := redisClient.Get(ctx, key).Result()
@@ -94,8 +94,8 @@ func redisGet(ctx context.Context, redisClient *redis.Client, key string) (*mode
 	return &netflow, nil
 }
 
-func redisSetIfNotExists(ctx context.Context, redisClient *redis.Client, key string, netflow *model.TensorNetworkFlow) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*1)
+func redisSetIfNotExists(redisClient *redis.Client, key string, netflow *model.TensorNetworkFlow) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 	defer cancel()
 
 	value, err := json.Marshal(netflow)
@@ -106,14 +106,14 @@ func redisSetIfNotExists(ctx context.Context, redisClient *redis.Client, key str
 	return res.Result()
 }
 
-func redisSaveOrUpdate(ctx context.Context, redisClient *redis.Client, addrType int, netflow *model.TensorNetworkFlow) (bool, error) {
-	if len(netflow.SrcProcess) > 0 && len(netflow.DstProcess) > 0 {
+func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.TensorNetworkFlow) (bool, error) {
+	if len(netflow.SrcPodName) > 0 && len(netflow.DstPodName) > 0 {
 		return true, nil
 	}
 
 	key := fmt.Sprintf("%v", netflow.AssocKey)
 
-	newValueSetted, err := redisSetIfNotExists(ctx, redisClient, key, netflow)
+	newValueSetted, err := redisSetIfNotExists(redisClient, key, netflow)
 	if err != nil {
 		return false, errors.Errorf("setnx redis failed for key %s. value: %+v", key, netflow)
 	}
@@ -121,7 +121,8 @@ func redisSaveOrUpdate(ctx context.Context, redisClient *redis.Client, addrType 
 	if newValueSetted {
 		return false, nil
 	}
-	net, err := redisGet(ctx, redisClient, key)
+
+	net, err := redisGet(redisClient, key)
 	if err != nil {
 		return false, errors.Errorf("get netflow info from redis failed, %v", err)
 	}
@@ -130,9 +131,19 @@ func redisSaveOrUpdate(ctx context.Context, redisClient *redis.Client, addrType 
 	case daemon.SND_ADDR:
 		netflow.DstContainerName = net.DstContainerName
 		netflow.DstProcess = net.DstProcess
+		netflow.DstPid = net.DstPid
+		netflow.DstOwnerName = net.DstOwnerName
+		netflow.DstPodName = net.DstPodName
+		netflow.DstNamespace = net.DstNamespace
+		netflow.DstKind = net.DstKind
 	case daemon.RCV_ADDR:
 		netflow.SrcContainerName = net.SrcContainerName
 		netflow.SrcProcess = net.SrcProcess
+		netflow.SrcPid = net.SrcPid
+		netflow.SrcOwnerName = net.SrcOwnerName
+		netflow.SrcPodName = net.SrcPodName
+		netflow.SrcNamespace = net.SrcNamespace
+		netflow.SrcKind = net.SrcKind
 	}
 
 	return true, nil

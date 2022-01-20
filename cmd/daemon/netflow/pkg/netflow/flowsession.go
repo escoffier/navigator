@@ -3,18 +3,22 @@ package netflow
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	ct "github.com/florianl/go-conntrack"
 	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/docker"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
+
+const unixSockFile = "/tmp/setns.sock"
 
 type ClusterManager interface {
 	ClusterKey() (string, bool)
@@ -22,7 +26,7 @@ type ClusterManager interface {
 
 type FlowSession struct {
 	CtFlow         ConntrackTools
-	netNs          *docker.NsenterData
+	sockClient     *net.UnixConn
 	hostIP         string
 	k8sResInfos    *K8sResInfos
 	url            string
@@ -30,7 +34,8 @@ type FlowSession struct {
 	submitter      *Submitter
 	nsDataChan     chan daemon.NetSessionLink
 	redisClient    *redis.Client
-	conflictKey    map[uint32]int64
+	netLinkData    map[uint32]*daemon.NetSessionLink
+	lock           sync.Mutex
 }
 
 func SessionToFiveTuple(data *ct.Con, proto uint8) (*daemon.FiveTuple, *daemon.FiveTuple) {
@@ -79,18 +84,30 @@ func NetlinkToFiveTuple(data *ConntrackFlow, proto uint8) (*daemon.FiveTuple, *d
 	return src, dst
 }
 
-func NfTypeToString(nfType uint8) string {
-	switch nfType {
-	case NFCT_T_NEW:
-		return "NEW"
-	case NFCT_T_UPDATE:
-		return "UPDATE"
-	case NFCT_T_DESTROY:
-		return "DESTROY"
-	default:
-
+func (fs *FlowSession) SaveNetLinkData(netSession *daemon.NetSessionLink) {
+	if netSession == nil {
+		logging.GetLogger().Error().Msgf("the argument is nil.")
+		return
 	}
-	return "UNKNOWN"
+	fs.lock.Lock()
+	defer fs.lock.Unlock()
+
+	netSession.CreatedAt = time.Now().Unix()
+	key := netSession.CreateUuid()
+	fs.netLinkData[key] = netSession
+}
+
+func (fs *FlowSession) DeleteNetLinkData(netSession *daemon.NetSessionLink) {
+	if netSession == nil {
+		logging.GetLogger().Error().Msgf("the argument is nil.")
+		return
+	}
+
+	fs.lock.Lock()
+	defer fs.lock.Unlock()
+
+	key := netSession.CreateUuid()
+	delete(fs.netLinkData, key)
 }
 
 func AllowProto(proto uint8) bool {
@@ -140,11 +157,6 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, cons
 	if err != nil {
 		return nil, errors.Errorf("Failed to get conntrack handle")
 	}
-	//
-	netNs, err := docker.DockerNewClient(k8sClient.k8sClient)
-	if err != nil {
-		return nil, errors.Errorf("new docker client failed, %v", err)
-	}
 
 	myPodIP := os.Getenv("MY_POD_IP")
 	if myPodIP == "" {
@@ -164,18 +176,37 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, cons
 
 	fs := FlowSession{
 		CtFlow:         ctFlow,
-		netNs:          netNs,
 		hostIP:         myHostIP,
 		k8sResInfos:    k8sClient.K8sPods,
 		clusterManager: clusterManager,
 		url:            url,
 		nsDataChan:     make(chan daemon.NetSessionLink, 300),
 		redisClient:    redisClient,
-		conflictKey:    make(map[uint32]int64, 0),
 		submitter:      NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
+	}
+	//
+	err = fs.DialUnixSocket(unixSockFile)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("dial unix socket failed, %v", err)
 	}
 
 	return &fs, nil
+}
+
+func (fs *FlowSession) DialUnixSocket(address string) error {
+	//create unix socket
+	addr, err := net.ResolveUnixAddr("unix", address)
+	if err != nil {
+		return errors.Errorf("create unix socket client failed, %v", err)
+	}
+	//unix socket dial
+	sockClient, err := net.DialUnix("unix", nil, addr)
+	if err != nil {
+		return errors.Errorf("unix socket client dial failed, %v", err)
+	}
+	//
+	fs.sockClient = sockClient
+	return nil
 }
 
 func (fs *FlowSession) Start(ctx context.Context) {
@@ -197,13 +228,24 @@ func (fs *FlowSession) Start(ctx context.Context) {
 				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
-		//init session
-		err := fs.InitSession(ctx)
+		//print log
+		logging.GetLogger().Info().Msgf("conntrack session init list.")
+		//list session
+		err := fs.conntrackInitList(ctx)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("init session failed, %v.", err)
 		}
 	}()
 
+	//handling timeout session
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		fs.HandleTimeoutSession()
+	}()
 	//listen conntrack event
 	err := fs.CtFlow.RunConntrackEvent(fs.onFlowCallback)
 	if err != nil {
@@ -212,122 +254,186 @@ func (fs *FlowSession) Start(ctx context.Context) {
 }
 
 func (fs *FlowSession) Close() {
-	if fs.netNs != nil {
-		fs.netNs.Close()
+	if fs.sockClient != nil {
+		fs.sockClient.Close()
 	}
 	//close conntrack resource
 	fs.CtFlow.Close()
 }
 
-func (fs *FlowSession) FilterConflictKey(flow *model.TensorNetworkFlow) bool {
-	flag := false
-	filterCondition := []uint16{5432}
-	for i := 0; i < len(filterCondition); i++ {
-		if flow.DstPort == filterCondition[i] {
-			flag = true
-			break
+func (fs *FlowSession) HandleTimeoutSession() {
+	var timeout int64 = 30 //30 second
+	for {
+		nowTime := time.Now().Unix()
+		time.Sleep(30 * time.Second)
+		for key, value := range fs.netLinkData {
+			if nowTime-value.CreatedAt < timeout {
+				continue
+			}
+			fs.lock.Lock()
+			delete(fs.netLinkData, key)
+			fs.lock.Unlock()
+			//handle timeout data
+			value.NlType = NFCT_T_TIMEOUT
+			err := fs.ProcSessionData(value)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("handle timeout session error! %+v", *value)
+			}
 		}
 	}
-
-	if !flag {
-		return false
-	}
-
-	key := flow.CreateConflictKey()
-	nowtime := time.Now().Unix()
-
-	timestamp, ok := fs.conflictKey[key]
-	if ok {
-		if nowtime-timestamp < 120 {
-			return true
-		}
-	}
-	//free map and create new map
-	if len(fs.conflictKey) > 2000 {
-		fs.conflictKey = make(map[uint32]int64, 0)
-	}
-	//add key to map
-	fs.conflictKey[key] = nowtime
-
-	return false
 }
 
-func (fs *FlowSession) PrintNetFlowLog(flow *model.TensorNetworkFlow) {
-	//print log
-	logging.GetLogger().Info().Msgf("%v", *flow)
-}
-
-func (fs *FlowSession) GetContainerProcessName(addrType uint8, namespace, podname, nodeIP string, tuple *daemon.FiveTuple) (string, string, error) {
-	podInfo, ok := fs.k8sResInfos.getPodInfo(podname, namespace)
-	if !ok {
-		return "", "", fmt.Errorf("get pod info not found: %s %s", podname, namespace)
-	}
-	if podInfo.hostNetwork {
-		return "", "", fmt.Errorf("hostNetwork, ignore")
+func (fs *FlowSession) RetrySendData(netinfo *daemon.PidAssociateMnt) error {
+	data, err := json.Marshal(netinfo)
+	if err != nil {
+		return errors.Errorf("json marshal failed, %v", err)
 	}
 
-	var pid int
-	var err error
-	var name string
-
-	for containerId, containerName := range podInfo.containerStatuses {
-		//get pid
-		pid, err = fs.netNs.GetContainerPid(containerId)
+	for i := 0; i < 3; i++ {
+		_, err = fs.sockClient.Write(data)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get container pid failed, namespace : %v, pod name : %v, tuple : %+v, error : %v", namespace, podname, *tuple, err)
+			logging.GetLogger().Error().Msgf("send net info to setns process failed, %v", err)
+			//sleep wait
+			time.Sleep(1 * time.Second)
+			//unix socket dial
+			err = fs.DialUnixSocket(unixSockFile)
+			if err != nil {
+				logging.GetLogger().Error().Msgf("dial unix socket failed, %v", err)
+			}
 			continue
 		}
-		//logging.GetLogger().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
+		break
+	}
 
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.ProcessInfo, error) {
+	if fs.sockClient == nil {
+		return nil, errors.Errorf("udp client is nil")
+	}
+
+	err := fs.RetrySendData(netinfo)
+	if err != nil {
+		return nil, errors.Errorf("retry send data failed, %v", err)
+	}
+
+	var length int
+	rcvBuf := make([]byte, 128)
+	timeout := make(chan struct{})
+	go func() {
+		length, err = fs.sockClient.Read(rcvBuf)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("read unix socket response data failed, %v", err)
+			return
+		}
+		timeout <- struct{}{}
+	}()
+
+	select {
+	case <-time.After(time.Second * 2):
+		length = 0
+
+	case <-timeout:
+		//logging.GetLogger().Info().Msgf("receive data : %v", string(rcvBuf[:length]))
+		var pInfo daemon.ProcessInfo
+		err = json.Unmarshal(rcvBuf[:length], &pInfo)
+		if err != nil {
+			return nil, errors.Errorf("json unmarshal with setns process response data failed, %v", err)
+		}
+		//
+		return &pInfo, nil
+	}
+
+	return nil, errors.Errorf("read udp response timeout")
+}
+
+func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *daemon.FiveTuple) (*daemon.ProcessInfo, error) {
+
+	for _, containerData := range res.ContainerInfo {
+		//logging.GetLogger().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 		netInfo := &daemon.PidAssociateMnt{
-			Pid:       pid,
+			Pid:       containerData.ContainerPid,
 			AddrType:  addrType,
 			TupleInfo: *tuple,
 		}
 		//get process
-		name, err = fs.netNs.GetProcessName(netInfo)
+		pInfo, err := fs.GetProcessName(netInfo)
 		if err != nil {
-			logging.GetLogger().Warn().Msgf("get process name failed,namespace : %v, pod name : %v, tuple : %+v, error : %v", namespace, podname, *tuple, err)
+			logging.GetLogger().Warn().Msgf("get process failed, namespace : %v, pod name : %v, tuple : %+v, error : %v", res.Namespace, res.PodName, *tuple, err)
 			continue
 		}
-
-		if len(containerName) == 0 || len(name) == 0 {
-			return "", "", errors.Errorf("get name failed, container name : %v, process name : %v", containerName, name)
+		//container name
+		pInfo.ContainerName = containerData.ContainerName
+		//
+		if pInfo.Status != daemon.MATCH_SUCC {
+			if len(res.ContainerInfo) > 1 {
+				pInfo.ProcName = "unknown"
+				pInfo.ContainerName = "unknown"
+				pInfo.Pid = 0
+			}
+		} else {
+			if pInfo.Pid == 0 {
+				continue
+			}
 		}
 
-		return containerName, name, nil
+		return pInfo, nil
 	}
 
-	return "", "", errors.Errorf("get container id failed, namespace : %v, pod name : %v, tuple : %+v", namespace, podname, *tuple)
+	return nil, errors.Errorf("container error, namespace : %v, pod name : %v, tuple : %+v", res.Namespace, res.PodName, *tuple)
 }
 
-func (fs *FlowSession) GetContainerInfo(ctx context.Context, netRes *model.TensorNetworkFlow, podInfo *daemon.NetAssocPod) (bool, error) {
-	if podInfo.NetAddr.SrcPort == 53 || podInfo.NetAddr.DstPort == 53 {
-		return true, nil
+func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *daemon.FiveTuple) (bool, error) {
+	//filter dns
+	if addr.SrcPort == 53 || addr.DstPort == 53 {
+		return false, nil
 	}
 
-	if podInfo.SrcNodeIp == fs.hostIP {
-		containerName, name, err := fs.GetContainerProcessName(daemon.SND_ADDR, netRes.SrcNamespace, podInfo.SrcPodName, podInfo.SrcNodeIp, podInfo.NetAddr)
+	if src != nil {
+		pinfo, err := fs.GetContainerProcessName(daemon.SND_ADDR, src, addr)
 		if err != nil {
 			return false, errors.Errorf("get src container process name failed, %v", err)
 		}
-		netRes.SrcProcess = name
-		netRes.SrcContainerName = containerName
-		//
-		if podInfo.DstNodeIp != fs.hostIP {
-			return redisSaveOrUpdate(ctx, fs.redisClient, daemon.SND_ADDR, netRes)
+		netRes.SrcProcess = pinfo.ProcName
+		netRes.SrcContainerName = pinfo.ContainerName
+		netRes.SrcPid = pinfo.Pid
+		//return
+		if dst == nil {
+			return redisSaveOrUpdate(fs.redisClient, daemon.SND_ADDR, netRes)
 		}
 	}
 
-	if podInfo.DstNodeIp == fs.hostIP {
-		containerName, name, err := fs.GetContainerProcessName(daemon.RCV_ADDR, netRes.DstNamespace, podInfo.DstPodName, podInfo.DstNodeIp, podInfo.NetAddr)
-		if err != nil {
-			return false, errors.Errorf("get dst container process name failed, %v", err)
+	if dst != nil {
+		key := fmt.Sprintf("%v-%v", addr.Proto, addr.DstPort)
+		process, ok := dst.ListenPorts[key]
+		if !ok {
+			pinfo, err := fs.GetContainerProcessName(daemon.RCV_ADDR, dst, addr)
+			if err != nil {
+				return false, errors.Errorf("get dst container process name failed, %v", err)
+			}
+			//process timeout
+			pinfo.Timeout = time.Now().Unix()
+			//save process information
+			dst.ListenPorts[key] = pinfo
+			netRes.DstProcess = pinfo.ProcName
+			netRes.DstContainerName = pinfo.ContainerName
+			netRes.DstPid = pinfo.Pid
+		} else {
+			netRes.DstProcess = process.ProcName
+			netRes.DstContainerName = process.ContainerName
+			netRes.DstPid = process.Pid
+			//timeout
+			if time.Now().Unix()-process.Timeout > 600 {
+				delete(dst.ListenPorts, key)
+			}
 		}
-		netRes.DstProcess = name
-		netRes.DstContainerName = containerName
-		//
-		return redisSaveOrUpdate(ctx, fs.redisClient, daemon.RCV_ADDR, netRes)
+		//return
+		return redisSaveOrUpdate(fs.redisClient, daemon.RCV_ADDR, netRes)
 	}
 
 	return false, nil
@@ -335,7 +441,7 @@ func (fs *FlowSession) GetContainerInfo(ctx context.Context, netRes *model.Tenso
 
 func (fs *FlowSession) ProcSessionQueData() {
 	for nsData := range fs.nsDataChan {
-		err := fs.ProcSessionData(nsData)
+		err := fs.ProcSessionData(&nsData)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
 		}
@@ -345,8 +451,8 @@ func (fs *FlowSession) ProcSessionQueData() {
 func (fs *FlowSession) PutNetSession(nlType uint8, origin, reply *daemon.FiveTuple) {
 	nsData := daemon.NetSessionLink{
 		NlType: nlType,
-		Origin: origin,
-		Reply:  reply,
+		Origin: *origin,
+		Reply:  *reply,
 	}
 
 	timer := time.NewTimer(100 * time.Millisecond)
@@ -382,118 +488,117 @@ func (fs *FlowSession) filterUnusedSession(addr *daemon.FiveTuple) bool {
 	if addr.SrcIp == "127.0.0.1" || addr.DstIp == "127.0.0.1" {
 		return false
 	}
+
+	if addr.SrcIp == fs.hostIP || addr.DstIp == fs.hostIP {
+		return false
+	}
+
 	return true
 }
 
-func (fs *FlowSession) ProcSessionData(netSession daemon.NetSessionLink) error {
+func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
-
-	ctx := context.Background()
-
-	ok := fs.filterUnusedSession(netSession.Origin)
+	//filter local lo address
+	ok := fs.filterUnusedSession(&netSession.Origin)
 	if !ok {
 		return nil
 	}
-
-	netData := model.TensorNetworkFlow{
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	//
+	switch netSession.NlType {
+	case NFCT_T_NEW:
+		fs.SaveNetLinkData(netSession)
+		return nil
+	case NFCT_T_UPDATE, NFCT_T_TIMEOUT:
+		fs.DeleteNetLinkData(netSession)
+	default:
+		return nil
 	}
-
+	//match pod information
 	src, err := fs.k8sResInfos.GetK8sResData(netSession.Origin.SrcIp)
-	if err != nil {
+	dst, dstErr := fs.k8sResInfos.GetK8sResData(netSession.Reply.SrcIp)
+	if err != nil && dstErr != nil {
+		//logging.GetLogger().Error().Msgf("query k8s resource failed. %+v", *netSession)
 		return nil
 	}
-	//source resource
-	netData.SrcName = src.Name
-	netData.SrcKind = src.Kind
-	netData.SrcNamespace = src.Namespace
-	//destination resource
-	netData.DstPort = netSession.Origin.DstPort
-	netData.Proto = NetProtoConvert(netSession.Origin.Proto)
-	ckey, ok := fs.clusterManager.ClusterKey()
-	if !ok {
-		ckey = "default"
+	//network flow
+	netData := new(model.TensorNetworkFlow)
+	//get src resource
+	if src != nil {
+		//source resource
+		netData.SrcOwnerName = src.OwnerName
+		netData.SrcKind = src.Kind
+		netData.SrcNamespace = src.Namespace
+		netData.SrcPodName = src.PodName
 	}
-	netData.SrcCluster = ckey
-	netData.DstCluster = ckey
-
-	dst, err := fs.k8sResInfos.GetK8sResData(netSession.Origin.DstIp)
-	if err != nil {
-		return nil
+	//get dst resource
+	if dst != nil {
+		netData.DstOwnerName = dst.OwnerName
+		netData.DstKind = dst.Kind
+		netData.DstNamespace = dst.Namespace
+		netData.DstPodName = dst.PodName
 	}
-	dstIp := netSession.Origin.DstIp
-	//service
-	if dst.Kind == "Service" {
-		dst, err = fs.k8sResInfos.GetK8sResData(netSession.Reply.SrcIp)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get pods information faield by reply src, Reply.SrcIp : %s.", netSession.Reply.SrcIp)
-			return nil
-		}
-		dstIp = netSession.Reply.SrcIp
-		netData.DstPort = netSession.Reply.SrcPort
-	}
-
-	netData.DstName = dst.Name
-	netData.DstKind = dst.Kind
+	//dst ip address
+	netData.DstPort = netSession.Reply.SrcPort
+	//network flow time
+	netData.CreatedAt = time.Now()
+	netData.UpdatedAt = time.Now()
 	netData.Status = int(netSession.NlType)
-	netData.DstNamespace = dst.Namespace
-	//print debug log
-	//fs.PrintNetFlowLog(&netData)
+	netData.Proto = NetProtoConvert(netSession.Origin.Proto)
+	clusterKey, ok := fs.clusterManager.ClusterKey()
+	if !ok {
+		clusterKey = "default"
+	}
+	netData.SrcCluster = clusterKey
+	netData.DstCluster = clusterKey
 	//put net flow information
 	state := true
-	if netSession.NlType == NFCT_T_UPDATE {
-		//filter duplicated data
-		if fs.FilterConflictKey(&netData) {
-			return nil
-		}
-
-		if src.PodName == "" || dst.PodName == "" {
-			logging.GetLogger().Warn().Msgf("%v, %v, %v %v", *src, *dst, *netSession.Origin, *netSession.Reply)
-		}
-		podInfo := &daemon.NetAssocPod{
-			SrcNodeIp:    src.NodeIp,
-			SrcPodName:   src.PodName,
-			SrcNamespace: src.Namespace,
-			DstNodeIp:    dst.NodeIp,
-			DstPodName:   dst.PodName,
-			DstNamespace: dst.Namespace,
-			NetAddr: &daemon.FiveTuple{
-				Proto:   netSession.Origin.Proto,
-				SrcPort: netSession.Origin.SrcPort,
-				SrcIp:   netSession.Origin.SrcIp,
-				DstPort: netData.DstPort,
-				DstIp:   dstIp,
-			},
-		}
-		//create associate key
-		netData.CreateAssocKey(podInfo.NetAddr)
+	//five tuple
+	netAddr := &daemon.FiveTuple{
+		Proto:   netSession.Origin.Proto,
+		SrcPort: netSession.Origin.SrcPort,
+		SrcIp:   netSession.Origin.SrcIp,
+		DstPort: netData.DstPort,
+		DstIp:   netSession.Reply.SrcIp,
+	}
+	//create associate key
+	netData.CreateAssocKey(netAddr)
+	//
+	switch netSession.NlType {
+	case NFCT_T_UPDATE: //update event
 		//get container info
-		state, err = fs.GetContainerInfo(ctx, &netData, podInfo)
+		state, err = fs.GetContainerInfo(netData, src, dst, netAddr)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get container info failed, %v.", err)
+			logging.GetLogger().Error().Msgf("get container info failed, %v.", err)
 		}
+	case NFCT_T_TIMEOUT: //session timeout
+		addrType := daemon.RCV_ADDR
+		if src != nil {
+			addrType = daemon.SND_ADDR
+		}
+		state, err = redisSaveOrUpdate(fs.redisClient, addrType, netData)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get resource info failed, %v.", err)
+		}
+	default:
+		return nil
 	}
 
+	//state
 	if !state {
 		return nil
 	}
 	//create uuid
 	netData.CreateUuid()
-	//print log
-	if netData.DstPort != 53 {
-		//filter error info
-		if netData.SrcProcess == "-" || len(netData.SrcProcess) == 0 || netData.DstProcess == "-" || len(netData.DstProcess) == 0 {
-			logging.GetLogger().Warn().Msgf("get process failed, %+v", netData)
-			return nil
-		}
-	}
+	//print debug log
+	//if netSession.Origin.DstPort != 53 {
+	//	logging.GetLogger().Info().Msgf("%+v, %+v", *netSession, *netData)
+	//}
 	//post net flow
-	return fs.submitter.Submit(ctx, &netData)
+	return fs.submitter.Submit(context.Background(), netData)
 }
 
 func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
@@ -532,12 +637,6 @@ func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
 	return nil
 }
 
-func (fs *FlowSession) InitSession(ctx context.Context) error {
-	logging.GetLogger().Info().Msgf("conntrack session init list.")
-	//list session
-	return fs.conntrackInitList(ctx)
-}
-
 func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) error {
 	var nfType uint8
 	nlType := header.Type & 0xff
@@ -572,7 +671,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 		nfType = NFCT_T_DESTROY
 
 	default:
-		logging.GetLogger().Warn().Msgf("this netlink msg type is error, %v, %v.", header.Type, header.Type&0xff)
+		logging.GetLogger().Warn().Msgf("this netlink msg type is error, %v, %v.", header.Type, nlType)
 	}
 
 	return nil

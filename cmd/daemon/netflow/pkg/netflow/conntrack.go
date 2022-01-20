@@ -28,6 +28,7 @@ const (
 	NFCT_T_NEW     = 1
 	NFCT_T_UPDATE  = 2
 	NFCT_T_DESTROY = 4
+	NFCT_T_TIMEOUT = 8
 )
 
 const (
