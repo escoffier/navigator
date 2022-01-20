@@ -72,21 +72,26 @@ func getClientID(hostName string) string {
 	}
 	return b.String()
 }
-func NetInit(ctx context.Context) error {
-	wg := sync.WaitGroup{}
-	//get node name
+
+func GetEnvInfo() (string, string) {
 	hostName := os.Getenv("MY_NODE_NAME")
 	if hostName == "" {
 		hostName = "Unknown"
 	}
+
 	hostIP := os.Getenv("MY_HOST_IP")
 	if hostIP == "" {
 		hostIP = "Unknown"
 	}
-	podName := os.Getenv("MY_POD_NAME")
-	if podName == "" {
-		podName = "Unknown"
-	}
+
+	return hostName, hostIP
+}
+
+func NetInit(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	//get local env
+	hostName, hostIP := GetEnvInfo()
+	//get rt uds addr
 	rtUdsAddr := os.Getenv("RTDETECT_UDS_ADDR")
 	if rtUdsAddr == "" {
 		logging.GetLogger().Warn().Msg("env RTDETECT_UDS_ADDR not found")
@@ -133,12 +138,12 @@ func NetInit(ctx context.Context) error {
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
 	//new k8s resource
-	k8sResSync, err := netflow.NewK8sResourceSyncer(hostIP)
+	k8sResSync, err := netflow.NewK8sResourceSyncer(hostName, hostIP)
 	if err != nil {
 		return errors.Errorf("Failed to initialize k8s resource sycner, : %w", err)
 	}
 	//start k8s service
-	err = k8sResSync.StartK8sServiceSyncer(ctx)
+	err = k8sResSync.StartK8sServiceSyncer()
 	if err != nil {
 		return errors.Errorf("listen k8s event failed, %v.", err)
 	}

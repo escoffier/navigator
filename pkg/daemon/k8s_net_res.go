@@ -1,17 +1,25 @@
 package daemon
 
+import (
+	"bytes"
+	"hash/fnv"
+	"strconv"
+)
+
 const (
-	RCV_ADDR = 1
-	SND_ADDR = 2
+	RCV_ADDR   = 1
+	SND_ADDR   = 2
+	MATCH_SUCC = 1
 )
 
 type K8sResData struct {
-	Cluster   string `json:"cluster"`
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	Namespace string `json:"namespace"`
-	PodName   string `json:"pod_name"`
-	NodeIp    string `json:"node_ip"`
+	Cluster       string                    `json:"cluster"`
+	OwnerName     string                    `json:"owner_name"`
+	Kind          string                    `json:"kind"`
+	Namespace     string                    `json:"namespace"`
+	PodName       string                    `json:"pod_name"`
+	ContainerInfo map[string]*ContainerData `json:"container_id"` //container ID -> container data
+	ListenPorts   map[string]*ProcessInfo   `json:"listen_ports"` //listen port -> process information
 }
 
 //session five tuple
@@ -23,21 +31,9 @@ type FiveTuple struct {
 	Proto   uint8  `json:"proto"`
 }
 
-type NetSessionLink struct {
-	NlType uint8
-	Origin *FiveTuple
-	Reply  *FiveTuple
-}
-
-//associate process
-type NetAssocPod struct {
-	SrcNamespace string
-	SrcPodName   string
-	SrcNodeIp    string
-	DstNamespace string
-	DstPodName   string
-	DstNodeIp    string
-	NetAddr      *FiveTuple
+type ContainerData struct {
+	ContainerName string `json:"container_name"`
+	ContainerPid  int    `json:"container_pid"`
 }
 
 type PidAssociateMnt struct {
@@ -47,6 +43,36 @@ type PidAssociateMnt struct {
 }
 
 type ProcessInfo struct {
-	Pid      int    `json:"pid"`
-	ProcName string `json:"proc_name"`
+	Pid           int    `json:"pid"`
+	Status        int    `json:"status"`
+	ProcName      string `json:"proc_name"`
+	ContainerName string `json:"-"`
+	Timeout       int64  `json:"-"`
+}
+
+type NetSessionLink struct {
+	NlType    uint8
+	CreatedAt int64
+	Origin    FiveTuple
+	Reply     FiveTuple
+}
+
+func (nets NetSessionLink) CreateUuid() uint32 {
+	var buf bytes.Buffer
+	//protocol
+	buf.WriteByte(nets.Origin.Proto)
+	//origin information
+	buf.WriteString(nets.Origin.SrcIp)
+	buf.WriteString(strconv.Itoa(int(nets.Origin.SrcPort)))
+	buf.WriteString(nets.Origin.DstIp)
+	buf.WriteString(strconv.Itoa(int(nets.Origin.DstPort)))
+	//reply information
+	buf.WriteString(nets.Reply.SrcIp)
+	buf.WriteString(strconv.Itoa(int(nets.Reply.SrcPort)))
+	buf.WriteString(nets.Reply.DstIp)
+	buf.WriteString(strconv.Itoa(int(nets.Reply.DstPort)))
+	//hash
+	h := fnv.New32a()
+	h.Write(buf.Bytes())
+	return h.Sum32()
 }

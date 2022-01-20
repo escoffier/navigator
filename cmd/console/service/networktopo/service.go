@@ -84,7 +84,7 @@ func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns
 			Cluster:   t.DstCluster,
 			Namespace: t.DstNamespace,
 			Kind:      t.DstKind,
-			Resource:  t.DstName,
+			Resource:  t.DstOwnerName,
 			Port:      int(t.DstPort),
 		}
 		switch t.Proto {
@@ -116,7 +116,7 @@ func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, d
 			Cluster:   t.SrcCluster,
 			Namespace: t.SrcNamespace,
 			Kind:      t.SrcKind,
-			Resource:  t.SrcName,
+			Resource:  t.SrcOwnerName,
 			Port:      int(t.DstPort),
 		}
 		switch t.Proto {
@@ -169,7 +169,7 @@ func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.Ten
 	}
 
 	// TODO tmp code remove immune-test flows
-	if strings.Contains(flow.SrcName, "immune-test") {
+	if strings.Contains(flow.SrcOwnerName, "immune-test") {
 		return nil
 	}
 

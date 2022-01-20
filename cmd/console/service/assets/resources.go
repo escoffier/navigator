@@ -291,11 +291,11 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 	for i := 0; i < len(netflows); i++ {
 		var res ProcessInfo
 		if arg.Route == "ingress" {
-			res.ResourceName = netflows[i].SrcName
+			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
 		} else {
-			res.ResourceName = netflows[i].DstName
+			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
 		}
@@ -335,12 +335,12 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 	for i := 0; i < len(netflows); i++ {
 		var res ProcessInfo
 		if arg.Route == "ingress" {
-			res.ResourceName = netflows[i].SrcName
+			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
 			res.ContainerName = netflows[i].SrcContainerName
 		} else {
-			res.ResourceName = netflows[i].DstName
+			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
 			res.ContainerName = netflows[i].DstContainerName
@@ -381,13 +381,13 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 	for i := 0; i < len(netflows); i++ {
 		var res ProcessInfo
 		if arg.Route == "ingress" {
-			res.ResourceName = netflows[i].SrcName
+			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
 			res.ContainerName = netflows[i].SrcContainerName
 			res.ProcessName = netflows[i].SrcProcess
 		} else {
-			res.ResourceName = netflows[i].DstName
+			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
 			res.ContainerName = netflows[i].DstContainerName
@@ -429,7 +429,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 			continue
 		}
 		var res ProcessInfo
-		res.ResourceName = netflows[i].DstName
+		res.ResourceName = netflows[i].DstOwnerName
 		res.ResourceKind = netflows[i].DstKind
 		res.Namespace = netflows[i].DstNamespace
 		res.ContainerName = netflows[i].DstContainerName
@@ -454,7 +454,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		}
 
 		var res ProcessInfo
-		res.ResourceName = tmpflows[i].SrcName
+		res.ResourceName = tmpflows[i].SrcOwnerName
 		res.ResourceKind = tmpflows[i].SrcKind
 		res.Namespace = tmpflows[i].SrcNamespace
 		res.ContainerName = tmpflows[i].SrcContainerName
