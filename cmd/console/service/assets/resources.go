@@ -333,6 +333,10 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 	uuid := make(map[uint32]struct{}, 0)
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
+		if netflows[i].SrcContainerName == "unknown" || netflows[i].DstContainerName == "unknown" {
+			continue
+		}
+
 		var res ProcessInfo
 		if arg.Route == "ingress" {
 			res.ResourceName = netflows[i].SrcOwnerName
@@ -379,6 +383,10 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 	uuid := make(map[uint32]struct{}, 0)
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
+		if netflows[i].SrcProcess == "unknown" || netflows[i].DstProcess	 == "unknown" {
+			continue
+		}
+
 		var res ProcessInfo
 		if arg.Route == "ingress" {
 			res.ResourceName = netflows[i].SrcOwnerName
@@ -410,16 +418,17 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
+	defProcess := "unknown"
 	var dstQuery, srcQuery string
-	dstQuery = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ?"
-	srcQuery = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ?"
+	dstQuery = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and not dst_process = ?"
+	srcQuery = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and not src_process = ?"
 
 	netflows := make([]model.TensorNetworkFlow, 0)
 	tmpflows := make([]model.TensorNetworkFlow, 0)
 	uuid := make(map[uint32]struct{}, 0)
 	resource := make([]ProcessInfo, 0)
 
-	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
+	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with dst info, %v", err)
 	}
@@ -443,7 +452,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		}
 	}
 
-	err = rl.rdb.Get().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
+	err = rl.rdb.Get().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with src info, %v", err)
 	}

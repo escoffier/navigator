@@ -594,7 +594,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	//create uuid
 	netData.CreateUuid()
 	//print debug log
-	//if netSession.Origin.DstPort != 53 {
+	//if netSession.Origin.DstPort != 53 && netSession.Origin.DstPort != 8801 {
 	//	logging.GetLogger().Info().Msgf("%+v, %+v", *netSession, *netData)
 	//}
 	//post net flow
