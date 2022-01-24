@@ -554,8 +554,6 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	}
 	netData.SrcCluster = clusterKey
 	netData.DstCluster = clusterKey
-	//put net flow information
-	state := true
 	//five tuple
 	netAddr := &daemon.FiveTuple{
 		Proto:   netSession.Origin.Proto,
@@ -566,6 +564,8 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	}
 	//create associate key
 	netData.CreateAssocKey(netAddr)
+	//put net flow information
+	var state bool
 	//
 	switch netSession.NlType {
 	case NFCT_T_UPDATE: //update event
@@ -669,6 +669,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 
 	case IPCTNL_MSG_CT_DELETE:
 		nfType = NFCT_T_DESTROY
+		logging.GetLogger().Warn().Msgf("this netlink msg type is error, %v, %v, %v.", header.Type, nlType, nfType)
 
 	default:
 		logging.GetLogger().Warn().Msgf("this netlink msg type is error, %v, %v.", header.Type, nlType)

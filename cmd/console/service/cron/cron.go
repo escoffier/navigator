@@ -32,10 +32,6 @@ func Get(ctx context.Context) (*CronService, bool) {
 	return instance, instance != nil
 }
 
-const (
-	clusterCol = "cluster"
-)
-
 type CronService struct {
 	cron       *cr.Cron
 	PostgresDB *rdbtools.GormWrapper
@@ -61,9 +57,8 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 		logging.GetLogger().Info().Msgf("Starting cron job now, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
 
 		// don't cancel() when exiting this function as we are starting an async task
-		newCtx, _ := context.WithTimeout(context.Background(), time.Minute*10)
-		scapper, _ := scapper.GetScapper(ctx)
-		_, err := scapper.RunComplianceCheck(newCtx, cronData.ClusterId, model.ComplianceCheckType(cronData.CheckType), "system")
+		scap, _ := scapper.GetScapper(ctx)
+		_, err := scap.RunComplianceCheck(cronData.ClusterId, model.ComplianceCheckType(cronData.CheckType), "system")
 		if err != nil {
 			logging.GetLogger().Error().Msgf("failed to run compliance check, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
 		}

@@ -1,4 +1,4 @@
-package ruleMetrics
+package rulemetrics
 
 import (
 	"time"

@@ -527,8 +527,8 @@ func (api *api) exportFile() http.HandlerFunc {
 			task.Status = 2
 		} else {
 			// run export file task
-			scapper, _ := scapper.GetScapper(ctx)
-			go scapper.RunExportFileTask(&task, language)
+			scap, _ := scapper.GetScapper(ctx)
+			go scap.RunExportFileTask(&task, language)
 		}
 
 		response.Ok(w, response.WithExportFileStatus(task.Status))
@@ -674,7 +674,7 @@ func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, che
 	}
 
 	scapper, _ := scapper.GetScapper(ctx)
-	checkUUID, err := scapper.RunComplianceCheck(ctx, clusterKey, checkType, username)
+	checkUUID, err := scapper.RunComplianceCheck(clusterKey, checkType, username)
 	if err != nil {
 		RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 		return
