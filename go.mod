@@ -80,13 +80,13 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/yeka/zip v0.0.0-20180914125537-d046722c6feb
 	gitlab.com/security-rd/go-pkg v0.1.10
-	go.mongodb.org/mongo-driver v1.8.1
+	go.mongodb.org/mongo-driver v1.8.2
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.19.1
-	golang.org/x/net v0.0.0-20220111093109-d55c255bac03 // indirect
+	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220111092808-5a964db01320
+	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/grpc v1.43.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect

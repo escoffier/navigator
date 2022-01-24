@@ -6,6 +6,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	pb "gitlab.com/security-rd/go-pkg/pb"
@@ -21,11 +22,12 @@ var (
 )
 
 type EcHandler struct {
-	ecCli   pb.EventsCenterCollectionServiceClient
-	uuidGen *uuid.Generator
+	ecCli        pb.EventsCenterCollectionServiceClient
+	uuidGen      *uuid.Generator
+	rulesManager *rtdetect.RulesManager
 }
 
-func NewEcHandler() (*EcHandler, error) {
+func NewEcHandler(rman *rtdetect.RulesManager) (*EcHandler, error) {
 	ech, err := echelper.NewGRPCClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -36,14 +38,21 @@ func NewEcHandler() (*EcHandler, error) {
 		return nil, err
 	}
 	return &EcHandler{
-		ecCli:   ech,
-		uuidGen: uuidGen,
+		ecCli:        ech,
+		uuidGen:      uuidGen,
+		rulesManager: rman,
 	}, nil
 }
 
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, item := range events {
-		eventReq := rtdetect.GenerateAttackEvent(ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
+		ruleCategory := "ATT&CK"
+		ruleData, ok := ec.rulesManager.GetRule(item.data.Rule)
+		if ok {
+			ruleCategory = ruleData.Category
+		}
+
+		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
 
 		func() {
 			oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)

@@ -8,7 +8,6 @@ func (api *api) platform() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/riskExplorer", api.riskExplorer())
 		r.Route("/version", api.version())
-		r.Route("/config", api.config())
 		r.Route("/eventsCenter", api.eventsCenter())
 		r.Route("/processingCenter", api.processingCenter())
 		r.Route("/data", api.data())

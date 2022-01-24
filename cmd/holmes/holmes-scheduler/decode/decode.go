@@ -1,16 +1,13 @@
 package decode
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 func DoRulesDecode(thrFilePath string) ([]byte, error) {
-
-	fmt.Println("thr file path: ", thrFilePath)
 
 	encryptionFileBytes, err := ioutil.ReadFile(thrFilePath)
 	if err != nil {
@@ -23,7 +20,7 @@ func DoRulesDecode(thrFilePath string) ([]byte, error) {
 		return nil, err
 	}
 
-	log.Println("Rules Version: ", header.Version[0], header.Version[1])
+	logging.GetLogger().Info().Msgf("Rules Version: %d %d", header.Version[0], header.Version[1])
 
 	return rulesContext, err
 }

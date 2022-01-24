@@ -138,11 +138,8 @@ func (h *AsyncHandler) asyncLoop() {
 		}()
 
 		if h.interval == 0 {
-			for {
-				select {
-				case evt := <-h.input:
-					go h.submit(context.Background(), []eventItem{evt})
-				}
+			for evt := range h.input {
+				go h.submit(context.Background(), []eventItem{evt})
 			}
 
 		} else {

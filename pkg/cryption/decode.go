@@ -4,8 +4,13 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
+var (
+	ErrChecksum = errors.New("checksum error")
+)
 const (
 	dataBlockSize  = 32
 	rulesBlockSize = 16
@@ -95,8 +100,8 @@ func ReadRulesData(fData []byte) (FileHeader, []byte, []byte, error) {
 	}
 
 	if cmpMD5(header.MD5, md5Value, header.MD5Offset) {
-		fmt.Println("checksum error")
-		return FileHeader{}, nil, nil, err
+		logging.GetLogger().Error().Msg("checksum error")
+		return FileHeader{}, nil, nil,ErrChecksum
 	}
 
 	return header, rulesContext, md5Value, nil

@@ -3,6 +3,7 @@ package rtdetect
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"runtime/debug"
 	"sync/atomic"
 	"time"
@@ -90,14 +91,18 @@ func (rm *RulesManager) loadRules(ctx context.Context) (err error) {
 
 func (rm *RulesManager) asyncLoop() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+
+		time.Sleep(time.Duration(rand.Int63n(rm.updateInterval.Nanoseconds())))
 		ticker := time.NewTicker(rm.updateInterval)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				rm.loadRules(context.Background())
-			}
+		for range ticker.C {
+			rm.loadRules(context.Background())
 		}
 	}()
 }
