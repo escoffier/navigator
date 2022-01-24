@@ -94,7 +94,7 @@ func main() {
 		"/tmp/holmes_rules.yaml",
 		"Binary for holmes update, `/tmp/holmes_rules.yaml` is an example.")
 	cmdLineArgs := flag.String("holmes-args",
-		"/usr/bin/holmes --cri /run/containerd/containerd.sock -K /var/run/secrets/kubernetes.io/serviceaccount/token -k https://$(KUBERNETES_SERVICE_HOST) -pk",
+		"/usr/bin/holmes --cri /run/containerd/containerd.sock -K /var/run/secrets/kubernetes.io/serviceaccount/token  -k https://$(KUBERNETES_SERVICE_HOST) -pk",
 		"Holmes start args")
 	debug := flag.Bool("debug",
 		false,
