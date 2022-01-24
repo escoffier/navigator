@@ -5,25 +5,23 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/pb"
-	"gopkg.in/yaml.v2"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"gopkg.in/yaml.v2"
 )
 
 const (
 	internalAttributePrefix = "__internal__"
 )
 
-func SendRulesToEventCenter(rulesData []byte) error {
+func SendRulesToEventCenter(ctx context.Context, cli *echelper.EventCenterClient, rulesData []byte) error {
 	const (
-		timeout    = time.Second * 5
-		module     = "ContainerSecurity"
-		moduleZh   = "容器安全"
-		category   = "ATT&CK"
-		categoryZh = "ATT&CK"
+		timeout  = time.Second * 5
+		module   = "ContainerSecurity"
+		moduleZh = "容器安全"
 	)
 	var fDataRules []model.RuleFromYaml
 	err := yaml.Unmarshal(rulesData, &fDataRules)
@@ -31,10 +29,13 @@ func SendRulesToEventCenter(rulesData []byte) error {
 		return err
 	}
 
-	var rules = make([]*pb.DetectionRule, 0, len(fDataRules))
+	var rules = make(map[string][]*pb.DetectionRule, 3)
 	for _, item := range fDataRules {
 		if len(item.Rule) == 0 || len(item.Priority) == 0 {
 			continue
+		}
+		if item.Category == "" {
+			item.Category = "ATT&CK"
 		}
 
 		ruleType, err := model.GetInfoFromOutput("rule_type=", item.Output)
@@ -56,7 +57,7 @@ func SendRulesToEventCenter(rulesData []byte) error {
 
 		var rule = &pb.DetectionRule{
 			Module:      module,
-			Category:    category,
+			Category:    item.Category,
 			Name:        item.Rule,
 			Description: item.Desc,
 			Severity:    uint32(model.Str2SeverityNum(item.Priority)),
@@ -86,7 +87,7 @@ func SendRulesToEventCenter(rulesData []byte) error {
 				},
 				"category": {
 					ValueHash: map[string]string{
-						string(lang.LanguageZH): categoryZh,
+						string(lang.LanguageZH): item.CategoryZh,
 					},
 				},
 			},
@@ -117,17 +118,17 @@ func SendRulesToEventCenter(rulesData []byte) error {
 			},
 		})
 
-		rules = append(rules, rule)
+		rules[rule.Category] = append(rules[rule.Category], rule)
 	}
 
-	cli, err := echelper.NewEventCenterClient()
-	if err != nil {
-		return err
+	for category, crules := range rules {
+		err := cli.ResetCategoryRules(ctx, module, category, crules)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("reset category %s rules error", category)
+			return err
+		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return cli.ResetCategoryRules(ctx, module, category, rules)
+	return nil
 }
 
 const (

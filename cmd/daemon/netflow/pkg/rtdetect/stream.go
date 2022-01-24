@@ -109,7 +109,10 @@ func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 
 	for _, ah := range s.handlers {
 		if ah.CheckTarget(ctx, item) {
-			ah.Put(ctx, item)
+			if err := ah.Put(ctx, item); err != nil {
+				logging.GetLogger().Err(err).Msg("put item for handler err.")
+			}
+
 		}
 	}
 	return nil
@@ -159,7 +162,10 @@ func (s *RuntimeEventStream) outputsWatch(ctx context.Context, opts ...grpc.Call
 			}
 			return err
 		case <-time.After(timeout):
-			fcs.Send(&outputs.Request{})
+			if err := fcs.Send(&outputs.Request{}); err != nil {
+				logging.GetLogger().Err(err).Msg("send req err")
+			}
+
 		case <-ctx.Done():
 			return ctx.Err()
 		}

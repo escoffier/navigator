@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"strings"
@@ -10,16 +11,16 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/decode"
 	holmeshelper "gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/helper"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/watch"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
-	// defaultThrPath = "/tensorsec-holmes-rules.thr"
 	defaultThrPath = "/holmes-rules.thr"
 )
 
 func closeRules(streamBytes []byte, closeRules []string) []byte {
 	rulesStr := string(streamBytes)
-	log.Info("close rules: ", closeRules)
 	addStr := "  enabled: false\n"
 	for _, v := range closeRules {
 		repStr := "- rule: " + v + "\n"
@@ -47,27 +48,34 @@ func saveRulesFile(writeBytes []byte, path string) error {
 	return fp.Sync()
 }
 
-func prepareRulesFile(thrPath string, outputPath string, closedRules []string) error {
-
-	rulesContext, err := decode.DoRulesDecode(thrPath)
+func uploadEventsCenter(writeBytes []byte) error {
+	cli, err := echelper.NewEventCenterClient()
 	if err != nil {
-		log.Error(err)
+		return err
 	}
-
-	writeBytes := closeRules(rulesContext, closedRules)
 
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
-	for ; true; <-t.C {
-		err = holmeshelper.SendRulesToEventCenter(writeBytes)
+	for range t.C {
+		err = holmeshelper.SendRulesToEventCenter(context.Background(), cli, writeBytes)
 		if err != nil {
-			log.Error(err)
+			logging.GetLogger().Err(err).Msg("send rules to ecenter error")
 		} else {
 			break
 		}
 	}
+	return nil
+}
+func prepareRulesFile(thrPath string, outputPath string, closedRules []string) ([]byte, error) {
+	rulesContext, err := decode.DoRulesDecode(thrPath)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("decode error. path: %s", thrPath)
+		return nil, err
+	}
 
-	return saveRulesFile(writeBytes, outputPath)
+	writeBytes := closeRules(rulesContext, closedRules)
+
+	return writeBytes, saveRulesFile(writeBytes, outputPath)
 }
 
 func main() {
@@ -117,9 +125,25 @@ func main() {
 		err = nil
 		if hp.Handler == nil {
 			if hp.StartWithDefault {
-				err = prepareRulesFile(defaultThrPath, holmeshelper.DefaultRulesFile, r.CloseRules)
+				ruleBytes, preErr := prepareRulesFile(defaultThrPath, holmeshelper.DefaultRulesFile, r.CloseRules)
+				if preErr != nil {
+					logging.GetLogger().Err(preErr).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
+				}
+				if len(ruleBytes) > 0 {
+					if ecErr := uploadEventsCenter(ruleBytes); ecErr != nil {
+						logging.GetLogger().Err(ecErr).Msg("upload events center error")
+					}
+				}
 			} else {
-				err = prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules)
+				ruleBytes, preErr := prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules)
+				if preErr != nil {
+					logging.GetLogger().Err(preErr).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
+				}
+				if len(ruleBytes) > 0 {
+					if ecErr := uploadEventsCenter(ruleBytes); ecErr != nil {
+						logging.GetLogger().Err(ecErr).Msg("upload events center error")
+					}
+				}
 			}
 			if err != nil {
 				log.Error(err)
@@ -140,7 +164,15 @@ func main() {
 				hp.StartModeUpdate = true
 				hp.StartWithDefault = false
 			} else {
-				prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules)
+				ruleBytes, preErr := prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules)
+				if preErr != nil {
+					logging.GetLogger().Err(preErr).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
+				}
+				if len(ruleBytes) > 0 {
+					if ecErr := uploadEventsCenter(ruleBytes); ecErr != nil {
+						logging.GetLogger().Err(ecErr).Msg("upload events center error")
+					}
+				}
 
 			}
 			log.Info("restart holmes because upload update... ")

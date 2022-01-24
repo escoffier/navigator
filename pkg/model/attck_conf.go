@@ -72,6 +72,8 @@ type RuleFromYaml struct {
 	Desc       string         `yaml:"desc"`
 	Output     string         `yaml:"output"`
 	Suggestion map[string]*KV `yaml:"suggestion"`
+	Category   string         `yaml:"category"`
+	CategoryZh string         `yaml:"categoryZh"`
 }
 
 type KV struct {

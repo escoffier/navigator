@@ -1,8 +1,10 @@
 - required_engine_version: 7
 
-##honeypot
-- rule: Gaining sensitive information in Waston
+##Watson
+- rule: Gaining sensitive information in Watson
   hid: hp_01
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -11,15 +13,17 @@
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Gaining sensitive information in Waston
+  desc: Gaining sensitive information in Watson
   condition: >
     (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "51c1c6"
   output: >
-    Gaining sensitive information in Waston (zh_msg=Waston：通过主动防御检测到web目录文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Gaining sensitive information in Watson (zh_msg=Watson：通过主动防御检测到web目录文件访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
-- rule: Other containers establish new connections to the redis-server in Waston
+- rule: Other containers establish new connections to the redis-server in Watson
   hid: hp_02
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -28,15 +32,17 @@
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-  desc: Other containers establish new connections to the redis-server in Waston
+  desc: Other containers establish new connections to the redis-server in Watson
   condition: >
    (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "51c1c6"
   output: >
-    Other containers establish new connections to the redis-server in Waston (zh_msg=Waston：通过主动防御检测到redis-server未授权访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the redis-server in Watson (zh_msg=Watson：通过主动防御检测到redis-server未授权访问,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Other containers establish new connections to the ElasticSearch
   hid: hp_03
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -49,11 +55,13 @@
   condition: >
    (inbound_outbound) and fd.sport=9200 and k8s.pod.name contains "75fb1c"
   output: >
-    Other containers establish new connections to the ElasticSearch (zh_msg=Waston：通过主动防御检测到与elasticsearch通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the ElasticSearch (zh_msg=Watson：通过主动防御检测到与elasticsearch通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Execute sensitive commands via ElasticSearch
   hid: hp_04
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -66,11 +74,13 @@
   condition: >
    evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "75fb1c"
   output: >
-    Execute sensitive commands via ElasticSearch (zh_msg=Waston：通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
+    Execute sensitive commands via ElasticSearch (zh_msg=Watson：通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
   priority: ALERT
 
 - rule: Other containers establish new connections to the tomcat
   hid: hp_05
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -83,11 +93,13 @@
   condition: >
    (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=Waston：通过主动防御检测到与tomcat通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the tomcat (zh_msg=Watson：通过主动防御检测到与tomcat通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Reading local files via tomcat
   hid: hp_06
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -100,11 +112,13 @@
   condition: >
    (inbound_outbound) and fd.sport = 8009 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=Waston：通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the tomcat (zh_msg=Watson：通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Other containers establish new connections to the Jenkins
   hid: hp_07
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -117,11 +131,13 @@
   condition: >
    (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "99a7ca"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=Waston：通过主动防御检测到与jenkins通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the jenkins (zh_msg=Watson：通过主动防御检测到与jenkins通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Execute sensitive commands via Jenkins
   hid: hp_08
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -134,11 +150,13 @@
   condition: >
    evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "99a7ca"
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=Waston：通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
+    Execute sensitive commands via Jenkins (zh_msg=Watson：通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
   priority: ALERT
 
 - rule: Other containers establish new connections to the Jupyter
   hid: hp_09
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -151,11 +169,13 @@
   condition: >
    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=Waston：通过主动防御检测到与jupyter通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the jenkins (zh_msg=Watson：通过主动防御检测到与jupyter通信,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
 - rule: Execute sensitive commands via Jupyter
   hid: hp_10
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -168,11 +188,13 @@
   condition: >
     evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "ddc305"
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=Waston：通过主动防御检测到Jupyter执行命令,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Execute sensitive commands via Jenkins (zh_msg=Watson：通过主动防御检测到Jupyter执行命令,rule_type=Privilege Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
 
-- rule: The k8s client is executed in Waston
+- rule: The k8s client is executed in Watson
   hid: hp_11
+  category: Watson
+  categoryZh: 主动防御
   hthreats: 1
   suggestion:
     en:
@@ -181,11 +203,11 @@
     zh:
       key: "处置建议"
       value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
-  desc: The k8s client is executed in Waston
+  desc: The k8s client is executed in Watson
   condition: >
-   spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name in (waston_id)
+   spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name in (watson_id)
   output: >
-    Docker or kubernetes client executed in container (zh_msg=Waston：通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
+    Docker or kubernetes client executed in container (zh_msg=Watson：通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
   priority: ALERT
 
 #attck_rules
@@ -4063,5 +4085,5 @@
 - macro: sctp_bind
   condition: (evt.type=socket and evt.arg.proto=132)
 
-- list: waston_id
+- list: watson_id
   items: [51c1c6, 75fb1c, b0f328, 99a7ca, ddc305]

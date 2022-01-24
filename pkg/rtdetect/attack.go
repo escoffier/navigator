@@ -314,7 +314,13 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 	return kvs, podUID, podName, namespace
 }
 
-func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string, uuid uint64) *pb.SendNotificationReq {
+func GenerateAttackEvent(module, category string, uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string, uuid uint64) *pb.SendNotificationReq {
+	if module == "" {
+		module = model.AlertModuleContainerSecurity
+	}
+	if category == "" {
+		category = "ATT&CK"
+	}
 	var timestamp int64
 	if data.Time == nil {
 		timestamp = time.Now().Unix()
@@ -324,8 +330,8 @@ func GenerateAttackEvent(uuidGenerator *uuid.Generator, data *outputs.Response, 
 	customKVs, podUID, podName, namespace := generateEventCustomKVs(data)
 	req := &pb.SendNotificationReq{
 		RuleKey: &pb.RuleKey{
-			Module:   model.AlertModuleContainerSecurity,
-			Category: "ATT&CK",
+			Module:   module,
+			Category: category,
 			Name:     data.Rule,
 		},
 		NotifyContext: &pb.Context{

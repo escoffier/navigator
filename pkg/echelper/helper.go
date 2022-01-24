@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 
 const (
@@ -135,10 +134,10 @@ func (c *EventCenterClient) ResetCategoryRules(ctx context.Context, module, cate
 		Category: category,
 		Rules:    rules,
 	}
-	return util.RetryWithBackoff(ctx, func() error {
-		_, err := c.cli.ResetCategoryRules(ctx, req)
-		return err
-	}, retry.RetryIf(c.isRetryErr))
+	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	_, err := c.cli.ResetCategoryRules(tctx, req)
+	return err
 }
 
 func (c *EventCenterClient) isRetryErr(err error) bool {
