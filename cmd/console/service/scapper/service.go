@@ -523,7 +523,7 @@ func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId, checkType str
 }
 
 func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, checkType string) (map[string]map[string]string, error) {
-	nodeAutoVar := make(map[string]map[string]string, 0)
+	nodeAutoVar := make(map[string]map[string]string)
 
 	if checkType != "kube" {
 		return nodeAutoVar, nil
@@ -536,7 +536,7 @@ func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, che
 	}
 
 	for _, node := range nodeRecord {
-		autoVar := make(map[string]string, 0)
+		autoVar := make(map[string]string)
 		err = json.Unmarshal([]byte(node.AutoVariate), &autoVar)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
@@ -779,7 +779,12 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 	//new xlsx file
 	file := xlsx.NewFile()
 	//save data
-	defer file.Save(task.FileName)
+	defer func() {
+		err = file.Save(task.FileName)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("save xlsx file failed, %v", err)
+		}
+	}()
 	//add sheet
 	sheet, err := file.AddSheet("Sheet1")
 	if err != nil {

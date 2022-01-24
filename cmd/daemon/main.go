@@ -142,7 +142,7 @@ func NetInit(ctx context.Context) error {
 	//new k8s resource
 	k8sResSync, err := netflow.NewK8sResourceSyncer(hostName, hostIP)
 	if err != nil {
-		return errors.Errorf("Failed to initialize k8s resource sycner, : %w", err)
+		return errors.Errorf("Failed to initialize k8s resource sycner, : %v", err)
 	}
 	//start k8s service
 	err = k8sResSync.StartK8sServiceSyncer()
@@ -152,7 +152,7 @@ func NetInit(ctx context.Context) error {
 	//new flow session
 	flow, err := netflow.NewFlowSession(k8sResSync, clusterManager, consoleAddr)
 	if err != nil {
-		return errors.Errorf("Failed to initialize flow session, %w", err)
+		return errors.Errorf("Failed to initialize flow session, %v", err)
 	}
 	//free resource
 	defer flow.Close()
@@ -179,7 +179,7 @@ func NetInit(ctx context.Context) error {
 		}
 		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, rtpkg.NewRulesManager(caddr, defaultRTRulesLoadInterval))
 		if err != nil {
-			return errors.Errorf("Failed to rt events streams, %w", err)
+			return errors.Errorf("Failed to rt events streams, %v", err)
 		}
 		wg.Add(1)
 		go func() {

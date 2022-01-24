@@ -56,7 +56,10 @@ type NetworkTopoService struct {
 func newTopoCache() *ttlcache.Cache {
 	cache := ttlcache.NewCache()
 	cache.SetCacheSizeLimit(cacheSize)
-	cache.SetTTL(cacheTTL)
+	err := cache.SetTTL(cacheTTL)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("set ttl error, %v", err)
+	}
 	return cache
 }
 func newNetworkTopoService(postgresDB *rdbtools.GormWrapper) *NetworkTopoService {
@@ -179,7 +182,7 @@ func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.Ten
 		return n.addNetworkTopo(ctx, flow, n.postgresDB.Get(), time.Now())
 	})
 	if err == nil {
-		n.putToCache(flow)
+		err = n.putToCache(flow)
 	}
 	return err
 }

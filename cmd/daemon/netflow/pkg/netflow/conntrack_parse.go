@@ -156,11 +156,11 @@ func parseIpTuple(reader *bytes.Reader, tpl *ipTuple) uint8 {
 	if tpl.Protocol != IPPROTO_TCP && tpl.Protocol != IPPROTO_UDP {
 		// skip the rest
 		bytesRemaining := protoInfoTotalLen - protoInfoBytesRead
-		reader.Seek(int64(bytesRemaining), seekCurrent)
+		_, _ = reader.Seek(int64(bytesRemaining), seekCurrent)
 		return tpl.Protocol
 	}
 	// Skip 3 bytes of padding
-	reader.Seek(3, seekCurrent)
+	_, _ = reader.Seek(3, seekCurrent)
 	protoInfoBytesRead += 3
 	for i := 0; i < 2; i++ {
 		_, t, _ := parseNfAttrTL(reader)
@@ -174,13 +174,12 @@ func parseIpTuple(reader *bytes.Reader, tpl *ipTuple) uint8 {
 			protoInfoBytesRead += 2
 		}
 		// Skip 2 bytes of padding
-		reader.Seek(2, seekCurrent)
+		_, _ = reader.Seek(2, seekCurrent)
 		protoInfoBytesRead += 2
 	}
 	// Skip any remaining/unknown parts of the message
 	bytesRemaining := protoInfoTotalLen - protoInfoBytesRead
-	reader.Seek(int64(bytesRemaining), seekCurrent)
-
+	_, _ = reader.Seek(int64(bytesRemaining), seekCurrent)
 	return tpl.Protocol
 }
 
@@ -188,15 +187,15 @@ func parseNfAttrTLV(r *bytes.Reader) (isNested bool, attrType, len uint16, value
 	isNested, attrType, len = parseNfAttrTL(r)
 
 	value = make([]byte, len)
-	binary.Read(r, binary.BigEndian, &value)
+	_ = binary.Read(r, binary.BigEndian, &value)
 	return isNested, attrType, len, value
 }
 
 func parseNfAttrTL(r *bytes.Reader) (isNested bool, attrType, len uint16) {
-	binary.Read(r, NativeEndian(), &len)
+	_ = binary.Read(r, NativeEndian(), &len)
 	len -= SizeofNfattr
 
-	binary.Read(r, NativeEndian(), &attrType)
+	_ = binary.Read(r, NativeEndian(), &attrType)
 	isNested = (attrType & NLA_F_NESTED) == NLA_F_NESTED
 	attrType = attrType & (NLA_F_NESTED - 1)
 	return isNested, attrType, len
@@ -204,19 +203,19 @@ func parseNfAttrTL(r *bytes.Reader) (isNested bool, attrType, len uint16) {
 
 func skipNfAttrValue(r *bytes.Reader, len uint16) {
 	len = (len + NLA_ALIGNTO - 1) & ^(NLA_ALIGNTO - 1)
-	r.Seek(int64(len), seekCurrent)
+	_, _ = r.Seek(int64(len), seekCurrent)
 }
 
 func parseBERaw16(r *bytes.Reader, v *uint16) {
-	binary.Read(r, binary.BigEndian, v)
+	_ = binary.Read(r, binary.BigEndian, v)
 }
 
 func parseBERaw32(r *bytes.Reader, v *uint32) {
-	binary.Read(r, binary.BigEndian, v)
+	_ = binary.Read(r, binary.BigEndian, v)
 }
 
 func parseBERaw64(r *bytes.Reader, v *uint64) {
-	binary.Read(r, binary.BigEndian, v)
+	_ = binary.Read(r, binary.BigEndian, v)
 }
 
 func parseByteAndPacketCounters(r *bytes.Reader) (bytes, packets uint64) {
@@ -273,9 +272,9 @@ func parseProtoInfoTcpState(r *bytes.Reader, length uint16) (uint8, uint16) {
 	//fmt.Printf("proto info length : %v.\n", length)
 	var nlaLen, nlaType, offset uint16
 	//get nla len
-	binary.Read(r, NativeEndian(), &nlaLen)
+	_ = binary.Read(r, NativeEndian(), &nlaLen)
 	//get nla type
-	binary.Read(r, NativeEndian(), &nlaType)
+	_ = binary.Read(r, NativeEndian(), &nlaType)
 	//offset
 	offset = SizeofNfattr
 	//get type
@@ -284,9 +283,9 @@ func parseProtoInfoTcpState(r *bytes.Reader, length uint16) (uint8, uint16) {
 	}
 
 	//get nla len
-	binary.Read(r, NativeEndian(), &nlaLen)
+	_ = binary.Read(r, NativeEndian(), &nlaLen)
 	//get nla type
-	binary.Read(r, NativeEndian(), &nlaType)
+	_ = binary.Read(r, NativeEndian(), &nlaType)
 	//offset
 	offset += SizeofNfattr
 	//get type
@@ -296,7 +295,7 @@ func parseProtoInfoTcpState(r *bytes.Reader, length uint16) (uint8, uint16) {
 	//tcp state
 	var tcpState uint8
 	//get tcp state
-	binary.Read(r, NativeEndian(), &tcpState)
+	_ = binary.Read(r, NativeEndian(), &tcpState)
 	//offset
 	offset += 1
 
@@ -308,10 +307,10 @@ func ParseRawData(data []byte) *ConntrackFlow {
 	// First there is the Nfgenmsg header
 	// consume only the family field
 	reader := bytes.NewReader(data)
-	binary.Read(reader, NativeEndian(), &s.FamilyType)
+	_ = binary.Read(reader, NativeEndian(), &s.FamilyType)
 
 	// skip rest of the Netfilter header
-	reader.Seek(3, seekCurrent)
+	_, _ = reader.Seek(3, seekCurrent)
 	// The message structure is the following:
 	// <len, NLA_F_NESTED|CTA_TUPLE_ORIG> 4 bytes
 	// <len, NLA_F_NESTED|CTA_TUPLE_IP> 4 bytes
@@ -323,7 +322,7 @@ func ParseRawData(data []byte) *ConntrackFlow {
 		if nested, t, l := parseNfAttrTL(reader); nested {
 			switch t {
 			case CTA_TUPLE_ORIG:
-				if nested, t, l = parseNfAttrTL(reader); nested && t == CTA_TUPLE_IP {
+				if nested, t, _ = parseNfAttrTL(reader); nested && t == CTA_TUPLE_IP {
 					parseIpTuple(reader, &s.Forward)
 				}
 			case CTA_TUPLE_REPLY:

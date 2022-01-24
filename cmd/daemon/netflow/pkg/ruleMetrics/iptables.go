@@ -1,11 +1,11 @@
-package ruleMetrics
+package rulemetrics
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -18,7 +18,7 @@ import (
 type iptablesType string
 
 const (
-	RuleIdAnnotationKey = "Tensorsec-RuleID"
+	RuleIDAnnotationKey = "Tensorszec-RuleID"
 	MetricsTableName    = "rulesmetrics"
 )
 
@@ -82,13 +82,7 @@ func (rmc RuleMetricsClient) detectIptablesType() (iptablesType, error) {
 func (rmc RuleMetricsClient) checkIfIptablesTypePresent(cmd iptablesType) (bool, error) {
 	_, err := exec.Command(string(cmd), "--version").Output()
 	if err != nil {
-		if _, ok := err.(*os.PathError); ok {
-			return false, nil
-		} else if exiterr, ok := err.(*exec.ExitError); ok {
-			return false, fmt.Errorf("Subcommand error (Stderr: %s): %w", exiterr.Stderr, err)
-		} else {
-			return false, fmt.Errorf("Unknown error: %w", err)
-		}
+		return false, errors.Errorf("Subcommand error, %v", err)
 	}
 	return true, nil
 }
@@ -121,7 +115,7 @@ func (rmc RuleMetricsClient) grepTensorsecRulesFromIptables() (*bytes.Buffer, er
 	defer cancel()
 
 	iptablesCmd := exec.CommandContext(ctx, string(rmc.iptablesCmd), iptablesDumpRulesArgs)
-	grepCmd := exec.CommandContext(ctx, "grep", RuleIdAnnotationKey)
+	grepCmd := exec.CommandContext(ctx, "grep", RuleIDAnnotationKey)
 
 	var iptablesStderrBuf bytes.Buffer
 	var grepStderrBuf bytes.Buffer
@@ -187,7 +181,7 @@ func (rmc RuleMetricsClient) parseIptablesLine(line string) (ruleID uuid.UUID, n
 	}
 
 	for _, word := range words {
-		if !strings.Contains(word, RuleIdAnnotationKey) {
+		if !strings.Contains(word, RuleIDAnnotationKey) {
 			continue
 		}
 		splitted := strings.Split(word, "=")

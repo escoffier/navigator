@@ -286,7 +286,7 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
 
-	uuid := make(map[uint32]struct{}, 0)
+	uuid := make(map[uint32]struct{})
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
 		var res ProcessInfo
@@ -330,7 +330,7 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
 
-	uuid := make(map[uint32]struct{}, 0)
+	uuid := make(map[uint32]struct{})
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
 		if netflows[i].SrcContainerName == "unknown" || netflows[i].DstContainerName == "unknown" {
@@ -380,10 +380,10 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
 
-	uuid := make(map[uint32]struct{}, 0)
+	uuid := make(map[uint32]struct{})
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
-		if netflows[i].SrcProcess == "unknown" || netflows[i].DstProcess	 == "unknown" {
+		if netflows[i].SrcProcess == "unknown" || netflows[i].DstProcess == "unknown" {
 			continue
 		}
 

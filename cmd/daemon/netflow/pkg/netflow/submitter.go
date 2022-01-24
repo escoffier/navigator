@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -43,13 +43,13 @@ func (s *Submitter) Submit(ctx context.Context, flow *model.TensorNetworkFlow) e
 func (s *Submitter) submitData(flows []*model.TensorNetworkFlow) error {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("panic for submitter: %v. stack: %s", r, debug.Stack())
+			logging.GetLogger().Error().Msgf("panic for submitter: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
 	err := s.submitFunc(context.Background(), flows)
 	if err != nil {
-		log.Errorf("Submit network flows error: %v. flows: %v", err, flows)
+		logging.GetLogger().Error().Msgf("Submit network flows error: %v. flows: %v", err, flows)
 	}
 	return err
 }
@@ -58,7 +58,7 @@ func (s *Submitter) asyncLoop() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Errorf("panic for submitter: %v. stack: %s", r, debug.Stack())
+				logging.GetLogger().Error().Msgf("panic for submitter: %v. stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -78,7 +78,12 @@ func (s *Submitter) asyncLoop() {
 					flows = append(flows, flow)
 				}
 
-				go s.submitData(flows)
+				go func() {
+					err := s.submitData(flows)
+					if err != nil {
+						logging.GetLogger().Error().Msgf("submit data error, %v", err)
+					}
+				}()
 				// clear buffer
 				flowMap = make(map[uint32]*model.TensorNetworkFlow, len(flowMap)+10)
 			}
