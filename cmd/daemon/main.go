@@ -19,7 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
-	rtpkg "gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -34,11 +33,11 @@ const (
 	defaultRTRulesLoadInterval = 2 * time.Minute
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, rman *rtpkg.RulesManager) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler, err := rtdetect.NewEcHandler(rman)
+	ecHandler, err := rtdetect.NewEcHandler()
 	if err != nil {
 		return nil, err
 	}
@@ -171,13 +170,7 @@ func NetInit(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		caddr := consoleAddr
-		if strings.Index(consoleAddr, "http://") == 0 {
-			caddr = consoleAddr[7:]
-		} else if strings.Index(consoleAddr, "https://") == 0 {
-			caddr = consoleAddr[8:]
-		}
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, rtpkg.NewRulesManager(caddr, defaultRTRulesLoadInterval))
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %w", err)
 		}

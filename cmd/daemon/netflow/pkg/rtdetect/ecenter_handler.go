@@ -24,10 +24,9 @@ var (
 type EcHandler struct {
 	ecCli        pb.EventsCenterCollectionServiceClient
 	uuidGen      *uuid.Generator
-	rulesManager *rtdetect.RulesManager
 }
 
-func NewEcHandler(rman *rtdetect.RulesManager) (*EcHandler, error) {
+func NewEcHandler() (*EcHandler, error) {
 	ech, err := echelper.NewGRPCClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -40,18 +39,15 @@ func NewEcHandler(rman *rtdetect.RulesManager) (*EcHandler, error) {
 	return &EcHandler{
 		ecCli:        ech,
 		uuidGen:      uuidGen,
-		rulesManager: rman,
 	}, nil
 }
 
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, item := range events {
 		ruleCategory := "ATT&CK"
-		ruleData, ok := ec.rulesManager.GetRule(item.data.Rule)
-		if ok {
-			ruleCategory = ruleData.Category
-		}
-
+		if len(item.data.Tags) > 0 {
+			ruleCategory = item.data.Tags[0]
+		} 
 		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
 
 		func() {
