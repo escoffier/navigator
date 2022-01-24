@@ -18,11 +18,6 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -486,38 +481,6 @@ func GlobalRejectPolicyToUpdater(po model.GlobalRejectPolicy) map[string]interfa
 	return updater
 }
 
-func validateRegistry(reg model.Registry, valTY string) error {
-	if reg.Name == "" {
-		return errors.New("no name")
-	}
-	if reg.Username == "" {
-		return errors.New("no username")
-	}
-	if reg.PasswordString == "" {
-		return errors.New("no password")
-	}
-	if reg.SyncInterval < 0 {
-		return errors.New("SyncInterval must than 0")
-	}
-	if valTY == consts.ValidateCreate {
-		if reg.Url == "" && len([]rune(reg.Url)) > 255 {
-			return errors.New("registry address is illegal")
-		}
-		if err := validateRegistryType(reg.RegType); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateRegistryType(regType string) error {
-	if regType == "" || (regType != docker.Version && regType != harborv1.HarborVersion &&
-		regType != harborv2.HarborVersion && regType != hwswr.Version && regType != jfrog.Version) {
-		return errors.New("registry type is illegal")
-	}
-	return nil
-}
-
 func registryToUpdater(reg model.Registry) map[string]interface{} {
 	updater := map[string]interface{}{
 		"name": reg.Name,
@@ -527,6 +490,8 @@ func registryToUpdater(reg model.Registry) map[string]interface{} {
 		"password":      reg.Password,
 		"description":   reg.Description,
 		"sync_interval": reg.SyncInterval,
+		"access_key":    reg.AccessKey,
+		"access_secret": reg.AccessSecret,
 	}
 	return updater
 }

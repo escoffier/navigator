@@ -11,6 +11,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/aliacr"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"

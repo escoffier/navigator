@@ -18,6 +18,7 @@ type RegistrableComponentConfig struct {
 }
 
 var drivers = make(map[string]Driver)
+var DriverTypes = make([]string, 0)
 
 // Driver is a function that connects a registry specified by its client driver type and specific
 // configuration.
@@ -38,6 +39,7 @@ func Register(name string, driver Driver) error {
 		return errors.New("could not register duplicate Driver: " + name)
 	}
 	drivers[name] = driver
+	DriverTypes = append(DriverTypes, name)
 	return nil
 }
 
