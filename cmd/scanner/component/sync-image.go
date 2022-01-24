@@ -300,6 +300,8 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 	opt["password"] = reg.PasswordString
 	opt["skip_tls_verify"] = true
 	opt["insecure"] = true
+	opt["access_key"] = reg.AccessKey
+	opt["access_secret"] = reg.AccessSecret
 
 	if reg.RegType == hwswr.Version {
 		opt["access_key"] = reg.Username
@@ -307,6 +309,7 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 		opt["username"] = ""
 		opt["password"] = ""
 	}
+
 	conf := registry.RegistrableComponentConfig{
 		Type:    reg.RegType,
 		Options: opt,

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gobwas/glob"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gorm.io/gorm"
 
@@ -236,6 +238,8 @@ type Registry struct {
 	UseType        int    `gorm:"column:use_type" json:"-"`                  // 1-用户仓库,2-buf仓库
 	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"` // 单位：分钟
 	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"-"`   // 最后一次同步时间
+	AccessKey      string `gorm:"access_key" json:"access_key"`              // 阿里云仓库的AccessKey
+	AccessSecret   string `gorm:"access_secret" json:"access_secret"`        // 阿里云仓库的AccessSecret
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
@@ -244,6 +248,28 @@ type Registry struct {
 
 func (Registry) TableName() string {
 	return "ivan_scanner_registries"
+}
+
+func (r *Registry) Validate(valTY string) error {
+
+	if strings.Trim(r.Name, " ") == "" {
+		return errors.New("no name")
+	}
+	if strings.Trim(r.Username, " ") == "" {
+		return errors.New("no username")
+	}
+	if strings.Trim(r.PasswordString, " ") == "" {
+		return errors.New("no password")
+	}
+	if r.SyncInterval <= 0 {
+		return errors.New("SyncInterval must than 0")
+	}
+	if valTY == consts.ValidateCreate {
+		if r.Url == "" && len([]rune(r.Url)) > 255 {
+			return errors.New("registry address is illegal")
+		}
+	}
+	return nil
 }
 
 // ConfigFile is the configuration file that holds the metadata describing

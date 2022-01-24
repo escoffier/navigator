@@ -2,17 +2,13 @@ package component
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -41,9 +37,7 @@ type SearchRegistryParam struct {
 }
 
 func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
-	res := make([]string, 0)
-	res = append(res, docker.Version, harborv2.HarborVersion, harborv1.HarborVersion, hwswr.Version, jfrog.Version)
-	return res, nil
+	return registry.DriverTypes, nil
 }
 
 func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registry, error) {
@@ -82,9 +76,14 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 }
 
 func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
-	if err := validateRegistry(reg, consts.ValidateCreate); err != nil {
+	if err := reg.Validate(consts.ValidateCreate); err != nil {
 		return 0, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
+
+	if err := validateRegistryType(reg.RegType); err != nil {
+		return 0, response.NewHttpError(http.StatusExpectationFailed, err)
+	}
+
 	drive, err := registry.Open(RegToRegistryConf(reg))
 	if err != nil {
 		return 0, response.NewHttpError(http.StatusInternalServerError, err)
@@ -121,7 +120,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	reg.RegType = registries[0].RegType
 	reg.Url = registries[0].Url
 
-	if err := validateRegistry(reg, consts.ValidateUpdate); err != nil {
+	if err := reg.Validate(consts.ValidateUpdate); err != nil {
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
@@ -157,4 +156,11 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 
 func NewRegistrySrv(dal store.RegistryDalInterface) *RegistrySrv {
 	return &RegistrySrv{RegistryDal: dal}
+}
+
+func validateRegistryType(regType string) error {
+	if !InStringSlice(regType, registry.DriverTypes) {
+		return errors.New("registry type is illegal")
+	}
+	return nil
 }

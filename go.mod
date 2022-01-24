@@ -48,7 +48,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mozilla/tls-observatory v0.0.0-20200317151703-4fa42e1c2dee
 	github.com/nats-io/nats-server/v2 v2.6.3 // indirect
-	github.com/nats-io/nats-streaming-server v0.23.0 // indirect
 	github.com/nats-io/nats.go v1.13.1-0.20211018182449-f2416a8b1483
 	github.com/nats-io/stan.go v0.10.2
 	github.com/novln/docker-parser v1.0.0
@@ -120,6 +119,7 @@ require (
 )
 
 require (
+	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1452
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/raft v1.3.3 // indirect
@@ -262,6 +262,7 @@ require (
 	github.com/moby/sys/mountinfo v0.4.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/nats-io/nats-streaming-server v0.23.0 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/open-policy-agent/opa v0.25.2 // indirect
@@ -310,7 +311,7 @@ require (
 	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/ini.v1 v1.56.0 // indirect
+	gopkg.in/ini.v1 v1.66.2 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	honnef.co/go/tools v0.2.2 // indirect
