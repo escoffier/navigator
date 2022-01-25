@@ -1,5 +1,5 @@
-// Package flow_conf define all image scan action
-package flow_conf
+// Package flowconf define all image scan action
+package flowconf
 
 import (
 	"errors"

@@ -26,16 +26,17 @@ import (
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type VirusScan struct {
@@ -106,7 +107,7 @@ func (virusScan *VirusScan) failDanglingTasks(ctx context.Context) error {
 
 	result, err := virusScan.mongodb.Collection(model.VirusScanTaskCollection.String()).UpdateMany(mongoCtx, filter, update)
 	if err != nil {
-		return NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
+		return apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("Orphan collection - cursor error: %w", err))
 	}
 
 	logging.Get().Info().
@@ -455,7 +456,7 @@ func (virusScan *VirusScan) logToLayer(ctx context.Context, scanTask model.Virus
 		virusRes := make([]model.Malicious, 0, len(v.ViursInfo))
 		tmpScanLayer := model.ScanLayer{}
 		tmpScanLayer.LayerDigest = v.LayerDigest
-		tmpScanLayer.ImageId = ImageID
+		tmpScanLayer.ImageID = ImageID
 		for _, virus := range v.ViursInfo {
 			tmpMalicious := model.Malicious{}
 			tmpMalicious.VirusInfo = virus
@@ -621,25 +622,26 @@ func (virusScan *VirusScan) updateCacheEntry(ctx context.Context, currentLayerCa
 		return fmt.Errorf("Layer exists neither in global, nor local cache")
 	}
 	_, err := virusScan.redisClient.Get(ctx, "virusScan"+"_"+layer).Result()
+	if err != nil {
+		logging.Get().Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
+		return nil
+	}
+
 	if err == redis.Nil {
 		logging.Get().Info().Str("layerDigest", layer).Msg("Persisting in cache")
 		cacheEntry, err := json.Marshal((*currentLayerCache)[layer])
 		if err != nil {
 			logging.Get().Err(err).Str("layerDigest", layer).Msg("Layer could not be marshaled. Not persisting")
 			return nil
-		} else {
-			redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
-			defer redisCtxCancel()
-			_, err := virusScan.redisClient.Set(redisCtx, "virusScan"+"_"+layer, cacheEntry, redisTTL).Result()
-			if err != nil {
-				logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
-				return nil
-			}
-			logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
+		}
+		redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
+		defer redisCtxCancel()
+		_, err = virusScan.redisClient.Set(redisCtx, "virusScan"+"_"+layer, cacheEntry, redisTTL).Result()
+		if err != nil {
+			logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 			return nil
 		}
-	} else if err != nil {
-		logging.Get().Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
+		logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
 		return nil
 	}
 
@@ -821,10 +823,10 @@ func (virusScan *VirusScan) GetAllScanStatus() (int, int) {
 	doingNum := 0
 	virusScan.statusQueue.Range(func(k, v interface{}) bool {
 		if v.(model.VirusScanQueueInfo).Status == "wait" {
-			waitNum += 1
+			waitNum++
 		}
 		if v.(model.VirusScanQueueInfo).Status == "doing" {
-			doingNum += 1
+			doingNum++
 		}
 		// res = append(res, model.VirusScanStatusInfo{Digest: k.(string), Status: v.(model.VirusScanQueueInfo).Status})
 		return true
@@ -850,11 +852,11 @@ func (virusScan *VirusScan) GetLayerPath(ctx context.Context, client *layerManag
 	if err != nil {
 		return "", fmt.Errorf("decodeUsernamePassword err %v", err)
 	}
-	layerUrl, _, err := client.GetLayer(ctx, username, password, scanTask.URL, scanTask.Repository, digest, true)
+	layerURL, _, err := client.GetLayer(ctx, username, password, scanTask.URL, scanTask.Repository, digest, true)
 	if err != nil {
 		return "", fmt.Errorf("get layer err %v", err)
 	}
-	return layerUrl, nil
+	return layerURL, nil
 }
 func (virusScan *VirusScan) DeleteLayerPath(ctx context.Context, client *layerManage.LocalLayerManageClient, digest string) {
 	logging.Get().Info().Str("Digest:", digest).Msg("VirusScan Delete Layer")

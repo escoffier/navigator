@@ -21,7 +21,7 @@ type scanImageConfig struct {
 }
 
 type ImageScan struct {
-	imageCacheUrl string
+	imageCacheURL string
 	// layersFilePath map[string]string
 	config scanImageConfig
 }
@@ -38,7 +38,7 @@ func (i *ImageScan) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, e
 	if !ok {
 		return nil, errors.New("not find 'layersFilePath' in parameter")
 	}
-	i.imageCacheUrl = u
+	i.imageCacheURL = u
 	// i.layersFilePath = l
 
 	// save all scan result

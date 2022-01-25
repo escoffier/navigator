@@ -20,12 +20,12 @@ type Config struct {
 	Options *flag2.ScannerOpts
 }
 
-type ScannerApiService struct {
+type ScannerAPIService struct {
 	config    Config
 	ginServer *http.Server
 }
 
-func (s *ScannerApiService) Start(ctx context.Context) error {
+func (s *ScannerAPIService) Start(ctx context.Context) error {
 	if err := s.ginServer.ListenAndServe(); err != nil {
 		if err != http.ErrServerClosed {
 			logging.GetLogger().Error().Err(err).Msg("scanner api http server listen failed")
@@ -35,7 +35,7 @@ func (s *ScannerApiService) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *ScannerApiService) Stop(ctx context.Context) error {
+func (s *ScannerAPIService) Stop(ctx context.Context) error {
 	if err := s.ginServer.Shutdown(ctx); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("scanner api server stop err")
 		return err
@@ -63,10 +63,10 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	registryDal := store.NewRegistryDao(scannerWrapperDb)
 	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
-	s := &ScannerApiService{}
+	s := &ScannerAPIService{}
 	s.config.Options = config.Options
 	s.ginServer = &http.Server{
-		Addr: s.config.Options.HttpListenAddr,
+		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
 			rc,
 			component.NewConScannerSrv(dal, registryDal, nil, nil, nil, nil, nil, dal, dal, scanConfigDal),

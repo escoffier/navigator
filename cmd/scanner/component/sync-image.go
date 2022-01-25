@@ -50,7 +50,7 @@ func (s *SyncRepoImage) GetSyncRegistry(ctx context.Context) ([]RegistryWithConf
 		if time.Now().Unix()-registries[i].LastSyncAt < registries[i].SyncInterval*60 {
 			continue
 		}
-		if err := s.registryDao.UpdateRegistry(ctx, store.SearchRegistryParam{Id: registries[i].ID}, map[string]interface{}{"last_sync_at": time.Now().Unix()}); err != nil {
+		if err := s.registryDao.UpdateRegistry(ctx, store.SearchRegistryParam{ID: registries[i].ID}, map[string]interface{}{"last_sync_at": time.Now().Unix()}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("UpdateRegistry last_sync_at error")
 			continue
 		}
@@ -127,7 +127,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
 						TriggerType: consts.ImageSyncTrigger,
-						StrategyId:  configs[0].NodeImageConfig.StrategyId}); err != nil {
+						StrategyID:  configs[0].NodeImageConfig.StrategyId}); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
 					}
 				}
@@ -135,7 +135,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 			if configs[0].LibraryImageConfig.ImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
-					if configs[0].LibraryImageConfig.ScanAll || InInt64Slice(res.Added[i].RegistryId, configs[0].LibraryImageConfig.Libraries) {
+					if configs[0].LibraryImageConfig.ScanAll || InInt64Slice(res.Added[i].RegistryID, configs[0].LibraryImageConfig.Libraries) {
 						if res.Added[i].FromType == model.ImageFromTypeNormal {
 							imgIds = append(imgIds, res.Added[i].ID)
 						}
@@ -149,7 +149,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 						Scope:       consts.SingleScan,
 						TriggerType: consts.ImageSyncTrigger,
-						StrategyId:  configs[0].LibraryImageConfig.StrategyId,
+						StrategyID:  configs[0].LibraryImageConfig.StrategyId,
 					}); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
 					}
@@ -186,13 +186,13 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				img, err := s.TransImageToImagelist(ctx, reg.Config, image)
 
 				if err != nil {
-					if err != consts.NotNodeImageErr {
+					if err != consts.ErrNotNodeImage {
 						logging.GetLogger().Error().Err(err).Msgf("SyncImage.InsertImageList,error:%s", err.Error())
 					}
 					return nil, err
 				}
 				// 先查一下
-				where := fmt.Sprintf("full_repo_name ='%s'  AND tags = '%s' AND from_type = %d AND registry_id = %d", img.FullRepoName, img.Tags, img.FromType, img.RegistryId)
+				where := fmt.Sprintf("full_repo_name ='%s'  AND tags = '%s' AND from_type = %d AND registry_id = %d", img.FullRepoName, img.Tags, img.FromType, img.RegistryID)
 				searchImage, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{Where: where}, nil)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
@@ -229,13 +229,13 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		Digest:         image.ImageDigest,
 		Size:           int(image.Size),
 		Library:        reg.Url,
-		RegistryId:     reg.ID,
+		RegistryID:     reg.ID,
 		FirstPushTime:  image.Created,
 		LastPushTime:   image.LastPushTime,
 		LastPullTime:   image.LastPullTime,
 		ManifestV1JSON: []byte(image.ManifestV1),
 		ManifestV2JSON: []byte(image.ManifestV2),
-		ConfigJson:     []byte(image.ConfigJson),
+		ConfigJSON:     []byte(image.ConfigJSON),
 		FromType:       model.ImageFromTypeNormal,
 		ImageUUID:      util.GenerateUUID(imageID),
 	}
@@ -254,12 +254,12 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		// logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
 		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
 		if err != nil {
-			if err != consts.NotNodeImageErr {
+			if err != consts.ErrNotNodeImage {
 				logging.GetLogger().Error().Err(err).Msgf("reg.UseType:%d,reg.url:%s,error:%s", reg.UseType, reg.Url, err.Error())
 			}
 			return img, err
 		}
-		img.NodeIp = newImage.NodeIp
+		img.NodeIP = newImage.NodeIP
 		img.NodeHostname = newImage.NodeHostname
 		img.OS = newImage.OS
 		img.Project = newImage.Project
@@ -274,7 +274,7 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		}
 	}
 	var config model.ConfigFile
-	err := json.Unmarshal(img.ConfigJson, &config)
+	err := json.Unmarshal(img.ConfigJSON, &config)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("unmarshal config json error")
 	} else {
@@ -326,11 +326,11 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 	split := strings.Split(fullRepoName, "/")
 	if len(split) < 7 {
 		logging.GetLogger().Debug().Msgf("not node image:%s", fullRepoName)
-		return nil, consts.NotNodeImageErr
+		return nil, consts.ErrNotNodeImage
 	}
 	if split[0] != consts.NodeSafeSalt {
 		logging.GetLogger().Debug().Msgf("parse error not fond NodeSafeSalt %s", fullRepoName)
-		return nil, consts.NotNodeImageErr
+		return nil, consts.ErrNotNodeImage
 	}
 	// NodeSafeTage = NodeSafeSalt + "/%s/%s%s/%s" // tensorsec/hostname/ip/os/镜像名
 	clusterKey := split[1]
@@ -343,12 +343,12 @@ func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName
 		return nil, err
 	}
 	if len(info) == 0 {
-		return nil, consts.NotNodeImageErr
+		return nil, consts.ErrNotNodeImage
 	}
 	// logging.GetLogger().Info().Msgf("cluster info:%+v", info[0])
 
 	im := &model.ImageList{
-		NodeIp:       info[0].HostIP,
+		NodeIP:       info[0].HostIP,
 		OS:           split[4],
 		NodeHostname: info[0].NodeName,
 		Library:      split[5],

@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
-	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
+	flowconf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -73,22 +73,22 @@ func (s *SequenceEngine) defaultLoopFunc() LoopEngineFunc {
 
 func (s *SequenceEngine) SubTaskHeartBeatFunc() FlowLoopFunc {
 	return func(st *task.SubTask, t *task.Task) error {
-		err := s.taskSrv.UpdateSubTasksHeartBeat([]int64{st.Id})
+		err := s.taskSrv.UpdateSubTasksHeartBeat([]int64{st.ID})
 		if err != nil {
 			logging.GetLogger().Warn().
 				Str("msg", err.Error()).
-				Int64("taskId", t.Id).
-				Int64("subtaskId", st.Id).
+				Int64("taskId", t.ID).
+				Int64("subtaskId", st.ID).
 				Msg("update subtask heart beat failed")
 		}
 
 		// also update task heart beat
-		err2 := s.taskSrv.UpdateTasksHeartBeat([]int64{t.Id})
+		err2 := s.taskSrv.UpdateTasksHeartBeat([]int64{t.ID})
 		if err2 != nil {
 			logging.GetLogger().Warn().
 				Str("msg", err2.Error()).
-				Int64("taskId", t.Id).
-				Int64("subtaskId", st.Id).
+				Int64("taskId", t.ID).
+				Int64("subtaskId", st.ID).
 				Msg("update task heart beat failed")
 		}
 
@@ -104,7 +104,7 @@ func (s *SequenceEngine) SubTaskHeartBeatFunc() FlowLoopFunc {
 
 func (s *SequenceEngine) Run(ctx context.Context) error {
 	// new dequeuer
-	dequeue, err := dequeue.Open(dequeue.DequeueConfig{Type: s.config.DeqType})
+	dequeue, err := dequeue.Open(dequeue.Config{Type: s.config.DeqType})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("new dequeue err")
 		return err
@@ -128,7 +128,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 		logging.GetLogger().Info().Int("taskCount", len(tasks)).Msg("dequeue tasks")
 
 		// do task
-		_ = task.WalkTasks(ctx, tasks, limit, func(t *task.Task, limit *semaphore.Weighted, flow flow_conf.FlowConf) error {
+		_ = task.WalkTasks(ctx, tasks, limit, func(t *task.Task, limit *semaphore.Weighted, flow flowconf.FlowConf) error {
 			go func(t *task.Task) {
 				defer func() {
 					if r := recover(); r != nil {
@@ -144,7 +144,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 
 				// do subtask
 				_ = task.WalkSubTasks(ctx, t, t.Scope.SubTasks, subLimit, flow, &taskWg,
-					func(ct *task.Task, subtask *task.SubTask, subLimit *semaphore.Weighted, flow flow_conf.FlowConf, wg *sync.WaitGroup) error {
+					func(ct *task.Task, subtask *task.SubTask, subLimit *semaphore.Weighted, flow flowconf.FlowConf, wg *sync.WaitGroup) error {
 						go func(tmpTask *task.Task, tmpSubTask *task.SubTask) {
 							defer func() {
 								if r := recover(); r != nil {
@@ -180,9 +180,9 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 	success := true
 	defer func() {
 		if success {
-			logging.GetLogger().Info().Int64("taskId", t.Id).Int64("subtaskId", st.Id).Msg("subtask scan success")
+			logging.GetLogger().Info().Int64("taskId", t.ID).Int64("subtaskId", st.ID).Msg("subtask scan success")
 		} else {
-			logging.GetLogger().Error().Str("errMsg", errMsg).Int64("taskId", t.Id).Int64("subtaskId", st.Id).Msg("subtask scan err")
+			logging.GetLogger().Error().Str("errMsg", errMsg).Int64("taskId", t.ID).Int64("subtaskId", st.ID).Msg("subtask scan err")
 		}
 	}()
 
@@ -190,7 +190,7 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 	taskSrv := task.NewTaskSrv()
 
 	// update subtask status
-	if err := taskSrv.SetSubTaskInProgress(st.Id); err != nil {
+	if err := taskSrv.SetSubTaskInProgress(st.ID); err != nil {
 		success = false
 		errMsg = fmt.Sprintf("update subtask status err.%v", err)
 		return err
@@ -200,13 +200,13 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		// generate job by name
 		logging.GetLogger().Info().
 			Str("jobName", j).
-			Int64("subtaskId", st.Id).
-			Int64("taskId", t.Id).Msg("start job")
+			Int64("subtaskId", st.ID).
+			Int64("taskId", t.ID).Msg("start job")
 		config := jobs.JobConfig{
 			Type: j,
 			Info: jobs.JobInfo{
 				SubTask:        *st,
-				CacheServerUrl: "",
+				CacheServerURL: "",
 				Task:           *t,
 			},
 		}
@@ -233,17 +233,17 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 
 		logging.GetLogger().Info().
 			Str("jobName", j).
-			Int64("subtaskId", st.Id).
-			Int64("taskId", t.Id).
+			Int64("subtaskId", st.ID).
+			Int64("taskId", t.ID).
 			Msg("job success")
 	}
 
 	if !success {
-		_ = taskSrv.SetSubTaskFailed(st.Id, errMsg)
+		_ = taskSrv.SetSubTaskFailed(st.ID, errMsg)
 		return fmt.Errorf("subtask scan error: %v", errMsg)
 	}
 
-	if err := taskSrv.SetSubTaskSuccess(st.Id); err != nil {
+	if err := taskSrv.SetSubTaskSuccess(st.ID); err != nil {
 		success = false
 		errMsg = fmt.Sprintf("scan success,but update db err:%v", err)
 		return err

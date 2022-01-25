@@ -110,13 +110,13 @@ func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.L
 					Repository:  fullRepoName,
 					Tag:         tag,
 					ManifestV2:  string(manifestV2Str),
-					ConfigJson:  configBlob,
+					ConfigJSON:  configBlob,
 				}
 				cnt++
 
 				im, err := extender(preImage)
 				if err != nil {
-					if err != consts.NotNodeImageErr {
+					if err != consts.ErrNotNodeImage {
 						logging.Get().Error().Msgf("ali acr Insert imagelist error %v", err)
 					}
 					continue

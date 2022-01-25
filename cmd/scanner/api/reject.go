@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -14,7 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-type RejectApi struct {
+type RejectAPI struct {
 	Srv component.ImageRejectSrv
 }
 
@@ -27,7 +28,7 @@ type RejectApi struct {
 // @Param graph query string true "展示时间 24hour等"
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageRejectOverview{}}}
 // @Router	/api/v1/imagereject/overview [get]
-func (r *RejectApi) Overview(ctx *gin.Context) {
+func (r *RejectAPI) Overview(ctx *gin.Context) {
 	graph := ctx.Query("graph")
 	overview, err := r.Srv.GetOverview(ctx, graph)
 	if err != nil {
@@ -48,7 +49,7 @@ func (r *RejectApi) Overview(ctx *gin.Context) {
 // @Param reject_reason query string true "阻断理由筛选"
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.RejectRecord{}}}
 // @Router	/api/v1/imagereject/overview [get]
-func (r *RejectApi) ListRejectRecord(ctx *gin.Context) {
+func (r *RejectAPI) ListRejectRecord(ctx *gin.Context) {
 	search := ctx.Query("search")
 	filter := model.GetFilter(ctx)
 	libraries := make([]string, 0)
@@ -88,7 +89,7 @@ func (r *RejectApi) ListRejectRecord(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageWhitelist{}}}
 // @Router	/api/v1/imagereject/whitelist [get]
-func (r *RejectApi) ListWhitelist(ctx *gin.Context) {
+func (r *RejectAPI) ListWhitelist(ctx *gin.Context) {
 	search := ctx.Query("search")
 	filter := model.GetFilter(ctx)
 	iws, cnt, err := r.Srv.ListImageWhitelist(ctx, search, filter)
@@ -111,7 +112,7 @@ func (r *RejectApi) ListWhitelist(ctx *gin.Context) {
 // @Param id path int true "白名单ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/whitelist/:id [delete]
-func (r *RejectApi) DeleteWhitelist(ctx *gin.Context) {
+func (r *RejectAPI) DeleteWhitelist(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	err := r.Srv.DeleteImageWhitelist(ctx, id)
 	if err != nil {
@@ -130,7 +131,7 @@ func (r *RejectApi) DeleteWhitelist(ctx *gin.Context) {
 // @Param body body	model.ImageWhitelist true "JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageWhitelist{}}}
 // @Router	/api/v1/imagereject/whitelist [post]
-func (r *RejectApi) CreateWhitelist(ctx *gin.Context) {
+func (r *RejectAPI) CreateWhitelist(ctx *gin.Context) {
 	wi := new(model.ImageWhitelist)
 	if err := ctx.BindJSON(wi); err != nil {
 		response.JSONError(ctx, fmt.Errorf("解析传参出错：%s", err.Error()))
@@ -152,7 +153,7 @@ func (r *RejectApi) CreateWhitelist(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.RejectReasonMap{}}}
 // @Router	/api/v1/imagereject/reasons [get]
-func (r *RejectApi) RejectReasons(ctx *gin.Context) {
+func (r *RejectAPI) RejectReasons(ctx *gin.Context) {
 	res := model.RejectReasonMap{
 		En: model.GetRejectReason(model.LangEn),
 		Zh: model.GetRejectReason(model.LangZh),
@@ -169,7 +170,7 @@ func (r *RejectApi) RejectReasons(ctx *gin.Context) {
 // @Param id path int true "policy ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/single/:id [delete]
-func (r *RejectApi) DeletePolicy(ctx *gin.Context) {
+func (r *RejectAPI) DeletePolicy(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err := r.Srv.DeletePolicy(ctx, id); err != nil {
 		response.JSONError(ctx, err)
@@ -186,7 +187,7 @@ func (r *RejectApi) DeletePolicy(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.RejectPolicy{}}}
 // @Router	/api/v1/imagereject/policy/single [get]
-func (r *RejectApi) ListPolicy(ctx *gin.Context) {
+func (r *RejectAPI) ListPolicy(ctx *gin.Context) {
 	res, err := r.Srv.SearchRejectPolicy(ctx, "", consts.FalseString)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -204,7 +205,7 @@ func (r *RejectApi) ListPolicy(ctx *gin.Context) {
 // @Param body body	model.RejectPolicy true "策略JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/single [post]
-func (r *RejectApi) CreatePolicy(ctx *gin.Context) {
+func (r *RejectAPI) CreatePolicy(ctx *gin.Context) {
 	policy := new(model.RejectPolicy)
 	if err := ctx.BindJSON(policy); err != nil {
 		response.JSONError(ctx, err)
@@ -230,7 +231,7 @@ func (r *RejectApi) CreatePolicy(ctx *gin.Context) {
 // @Param body body	model.GlobalRejectPolicy true "全局策略JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/global [put]
-func (r *RejectApi) UpdateGlobalPolicy(ctx *gin.Context) {
+func (r *RejectAPI) UpdateGlobalPolicy(ctx *gin.Context) {
 	global := new(model.GlobalRejectPolicy)
 	if err := ctx.BindJSON(&global); err != nil {
 		response.JSONError(ctx, err)
@@ -254,7 +255,7 @@ func (r *RejectApi) UpdateGlobalPolicy(ctx *gin.Context) {
 // @Tags image reject
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.GlobalRejectPolicy{}}}
 // @Router	/api/v1/imagereject/policy/global [get]
-func (r *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
+func (r *RejectAPI) GetGlobalPolicy(ctx *gin.Context) {
 	policies, err := r.Srv.SearchRejectPolicy(ctx, "", consts.TrueString)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -290,7 +291,7 @@ func (r *RejectApi) GetGlobalPolicy(ctx *gin.Context) {
 // @Param id path int true "策略ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/imagereject/policy/single/:id [put]
-func (r *RejectApi) UpdatePolicy(ctx *gin.Context) {
+func (r *RejectAPI) UpdatePolicy(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -320,7 +321,7 @@ func (r *RejectApi) UpdatePolicy(ctx *gin.Context) {
 // @Param json body model.ImageRsa true "请求参数"
 // @Success 200 {object} gin.Context
 // @Router	/api/v1/imagereject/trustedImages/rsa [post]
-func (r *RejectApi) RSAGenerate(ctx *gin.Context) {
+func (r *RejectAPI) RSAGenerate(ctx *gin.Context) {
 	var req = new(model.ImageRsa)
 	err := ctx.BindJSON(req)
 	if err != nil {
@@ -352,7 +353,7 @@ func (r *RejectApi) RSAGenerate(ctx *gin.Context) {
 // @Success 200 {object} response.HTTPEnvelope{}
 // @Failure 400 {object} response.HTTPEnvelope{}
 // @Router	/api/v1/imagereject/trustedImages/rsa/:id [put]
-func (r *RejectApi) RSAUpdate(ctx *gin.Context) {
+func (r *RejectAPI) RSAUpdate(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
@@ -384,7 +385,7 @@ func (r *RejectApi) RSAUpdate(ctx *gin.Context) {
 // @Success 200 {object} response.HTTPEnvelope{Data: []model}
 // @Failure 400 {object} response.HTTPEnvelope{}
 // @Router	/api/v1/imagereject/trustedImages/rsa [get]
-func (r *RejectApi) RSAList(ctx *gin.Context) {
+func (r *RejectAPI) RSAList(ctx *gin.Context) {
 	offset, err := strconv.ParseInt(ctx.Query("offset"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的偏移量", ctx.Query("offset")))
@@ -414,7 +415,7 @@ func (r *RejectApi) RSAList(ctx *gin.Context) {
 // @Param object body model.IsTrustedImagesReq true "请求参数" // todo
 // @Success 200 {object} response.HTTPEnvelope{Data: model.ImageRsa}
 // @Router	/api/v1/imagereject/trustedImages/rsa/:id [get]
-func (r *RejectApi) RSADetail(ctx *gin.Context) {
+func (r *RejectAPI) RSADetail(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
@@ -439,7 +440,7 @@ func (r *RejectApi) RSADetail(ctx *gin.Context) {
 // @Param integer path id true "RSA id"
 // @Success 200 {object} response.HTTPEnvelope{}
 // @Router	/api/v1/imagereject/trustedImages/rsa/:id [delete]
-func (r *RejectApi) RSADelete(ctx *gin.Context) {
+func (r *RejectAPI) RSADelete(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
@@ -455,7 +456,7 @@ func (r *RejectApi) RSADelete(ctx *gin.Context) {
 
 // SignImageTrusted 签名镜像是否可信
 // @Router /api/v1/imagereject/trustedImages/sign [post]
-func (r *RejectApi) SignImageTrusted(ctx *gin.Context) {
+func (r *RejectAPI) SignImageTrusted(ctx *gin.Context) {
 	var s = new(model.SignImageTrustedReq)
 	if err := ctx.BindJSON(s); err != nil {
 		response.JSONError(ctx, err)
@@ -471,8 +472,8 @@ func (r *RejectApi) SignImageTrusted(ctx *gin.Context) {
 	response.JSONOK(ctx)
 }
 
-func NewRejectApiSrv(srv component.ImageRejectSrv) *RejectApi {
-	return &RejectApi{
+func NewRejectAPISrv(srv component.ImageRejectSrv) *RejectAPI {
+	return &RejectAPI{
 		Srv: srv,
 	}
 }

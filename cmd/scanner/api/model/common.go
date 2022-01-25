@@ -9,6 +9,6 @@ type Page struct {
 	Offset int `json:"offset" query:"offset" form:"offset"`
 }
 
-func (p *Page) SqlBuild(db *gorm.DB) *gorm.DB {
+func (p *Page) SqlBuild(db *gorm.DB) *gorm.DB { // nolint
 	return db.Limit(p.Limit).Offset(p.Offset)
 }

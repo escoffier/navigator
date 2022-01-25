@@ -1,4 +1,4 @@
-package image_cache
+package imagecache
 
 import (
 	"context"

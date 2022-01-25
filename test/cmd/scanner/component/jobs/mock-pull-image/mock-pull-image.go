@@ -46,7 +46,7 @@ func init() {
 func newJob(config jobs.JobConfig) (jobs.Job, error) {
 	p := &MockPullImageJob{}
 
-	p.config.cacheServerUrl = config.Info.CacheServerUrl
+	p.config.cacheServerUrl = config.Info.CacheServerURL
 	p.config.repoName = config.Info.SubTask.Image.RepoName
 	p.config.tag = config.Info.SubTask.Image.Tag
 	p.config.url = config.Info.SubTask.Registry.Host

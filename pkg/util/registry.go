@@ -84,11 +84,11 @@ func pullImageManifestV2(registryClient *registry2.Registry, repo, digest string
 	if err != nil {
 		return nil, err
 	}
-	manifestJson, err := manifest.MarshalJSON()
+	manifestJSON, err := manifest.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
-	return manifestJson, nil
+	return manifestJSON, nil
 }
 
 func pullImageManifestV1(registryClient *registry2.Registry, repo, digest string) ([]byte, error) {
@@ -96,9 +96,9 @@ func pullImageManifestV1(registryClient *registry2.Registry, repo, digest string
 	if err != nil {
 		return nil, err
 	}
-	manifestJson, err := manifest.MarshalJSON()
+	manifestJSON, err := manifest.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
-	return manifestJson, nil
+	return manifestJSON, nil
 }

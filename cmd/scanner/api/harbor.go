@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -19,12 +20,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-type harborApi struct {
+type HarborAPI struct {
 	Srv         component.HarborSvc
 	redisClient *redis.Client
 }
 
-func (harborApi *harborApi) getHarborPluginManifest(ctx *gin.Context) {
+func (harborApi *HarborAPI) getHarborPluginManifest(ctx *gin.Context) {
 	newCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
@@ -69,9 +70,9 @@ func (harborApi *harborApi) getHarborPluginManifest(ctx *gin.Context) {
 	// we should check for backend scanner health and return 500 if unhealthy
 }
 
-func (harborApi *harborApi) postHarborPluginScan(ctx *gin.Context) {
-	//newctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	//defer cancel()
+func (harborApi *HarborAPI) postHarborPluginScan(ctx *gin.Context) {
+	// newctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	// defer cancel()
 
 	/*if atomic.LoadInt32(&api.abortAnyNewScansBool) != 0 {
 		e := harbor.NewHarborErrorAndLog(fmt.Errorf(""), "Not currently accepting any new scan tasks, aborted by an operator")
@@ -81,7 +82,7 @@ func (harborApi *harborApi) postHarborPluginScan(ctx *gin.Context) {
 
 	var harborScanReq harbor.ScanRequest
 	err := ctx.BindJSON(&harborScanReq)
-	//err := json.NewDecoder(r.Body).Decode(&harborScanReq)
+	// err := json.NewDecoder(r.Body).Decode(&harborScanReq)
 	if err != nil {
 		e := harbor.NewHarborErrorAndLog(err, "Failed to decode json received from harbor")
 		response.Respond(ctx.Writer, http.StatusBadRequest, "application/vnd.scanner.adapter.error+json; version=1.0", e)
@@ -110,10 +111,10 @@ func (harborApi *harborApi) postHarborPluginScan(ctx *gin.Context) {
 		Repository:    harborScanReq.Artifact.Repository,
 		Digest:        harborScanReq.Artifact.Digest,
 		Tag:           harborScanReq.Artifact.Tag,
-		//ResultsURL:    harborResultsLink,
+		// ResultsURL:    harborResultsLink,
 	}
 	logging.GetLogger().Info().Str("scanrequest", fmt.Sprintf("%+v", tensorsecScannerReqPayload)).Msg("Received scan request from Harbor")
-	//	tags, err := harborApi.Srv.GetTags(ctx, tensorsecScannerReqPayload.URL, tensorsecScannerReqPayload.Authorization,
+	//	tags, err := HarborAPI.Srv.GetTags(ctx, tensorsecScannerReqPayload.URL, tensorsecScannerReqPayload.Authorization,
 	//		tensorsecScannerReqPayload.Repository, tensorsecScannerReqPayload.Digest)
 	ids := harborApi.Srv.AddHarborScanTask(ctx, tensorsecScannerReqPayload, []registry.Tag{})
 	if len(ids) == 0 {
@@ -128,7 +129,7 @@ func (harborApi *harborApi) postHarborPluginScan(ctx *gin.Context) {
 	response.Respond(ctx.Writer, http.StatusAccepted, "application/vnd.scanner.adapter.scan.response+json; version=1.0", harborScanResp)
 }
 
-func (harborApi *harborApi) getHarborPluginReport(ctx *gin.Context) {
+func (harborApi *HarborAPI) getHarborPluginReport(ctx *gin.Context) {
 
 	scanRequestID := ctx.Param("id")
 	if scanRequestID == "" {
@@ -136,8 +137,8 @@ func (harborApi *harborApi) getHarborPluginReport(ctx *gin.Context) {
 		response.Respond(ctx.Writer, http.StatusNotFound, "application/vnd.scanner.adapter.error+json; version=1.0", e)
 		return
 	}
-	imgId, _ := strconv.ParseInt(scanRequestID, 10, 64)
-	result, image := harborApi.Srv.GetScanResult(ctx, imgId)
+	imgID, _ := strconv.ParseInt(scanRequestID, 10, 64)
+	result, image := harborApi.Srv.GetScanResult(ctx, imgID)
 	fmt.Println("结果为：", result)
 	if result.Status == model.ScanStatusSucceeded {
 		//api.removeFromScanResultExponentialBackoffCache(result.ID.Hex())
@@ -175,7 +176,7 @@ func (harborApi *harborApi) getHarborPluginReport(ctx *gin.Context) {
 	}
 }
 
-func (harborApi *harborApi) getUpdatedAt(ctx context.Context) (int64, error) {
+func (harborApi *HarborAPI) getUpdatedAt(ctx context.Context) (int64, error) {
 	lastUpdateTime := int64(0)
 	lastUpdateTimeStr, err := harborApi.redisClient.Get(ctx, "DBupdate").Result()
 	if err == redis.Nil {
@@ -191,8 +192,8 @@ func (harborApi *harborApi) getUpdatedAt(ctx context.Context) (int64, error) {
 	return lastUpdateTime, nil
 }
 
-func NewHaborApiSrv(srv component.HarborSvc, redisClient *redis.Client) *harborApi {
-	return &harborApi{
+func NewHarborAPISrv(srv component.HarborSvc, redisClient *redis.Client) *HarborAPI {
+	return &HarborAPI{
 		Srv:         srv,
 		redisClient: redisClient,
 	}

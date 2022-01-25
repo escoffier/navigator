@@ -1,4 +1,4 @@
-package vuln_updata
+package vulnupdata
 
 import (
 	"context"
@@ -17,7 +17,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/yeka/zip"
-	scanner_vuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
+
+	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -391,7 +392,7 @@ func UploadOffline(c *gin.Context) {
 	}
 	err = Unzip(filepath.Join(scannerVulnUpdata.VolumePath, "down.zip"), filepath.Join(scannerVulnUpdata.VolumePath, "offline/"))
 	if err != nil {
-		//os.Remove(filepath.Join(srv.VolumePath, "down.zip"))
+		// os.Remove(filepath.Join(srv.VolumePath, "down.zip"))
 		logging.GetLogger().Error().Err(err).Msgf("unzip error :%v", err)
 		response.JSONError(c, fmt.Errorf("存储离线包失败"))
 		return
@@ -401,10 +402,9 @@ func UploadOffline(c *gin.Context) {
 		logging.GetLogger().Error().Err(err).Msgf("gennerate Dir err:%v", err)
 		response.JSONError(c, fmt.Errorf("更新流程失败"))
 		return
-	} else {
-		scannerVulnUpdata.Ch <- filePath
 	}
-	vuln := scanner_vuln.GetScannerVuln()
+	scannerVulnUpdata.Ch <- filePath
+	vuln := scanvuln.GetScannerVuln()
 	err = vuln.InitDB()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("init db err :%v", err)
@@ -420,7 +420,7 @@ func UploadOffline(c *gin.Context) {
 	response.JSONOK(c)
 }
 
-//func (srv *UpdataService) fileServer(c *gin.Context) {
+// func (srv *UpdataService) fileServer(c *gin.Context) {
 //	path := srv.VolumePath
 //	fileName := path + c.Param("name")
 //	if strings.Contains(fileName, "trivy") {

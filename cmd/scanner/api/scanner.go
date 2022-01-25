@@ -9,13 +9,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type Scanner struct {
@@ -197,13 +198,14 @@ func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data{}}
 // @Router	/api/v1/scan/harbor/scanAllNow [post]
 func (s *Scanner) ScanAllNow(ctx *gin.Context) {
+	// nolint
 	type tem struct {
 		SearchWord       string  `json:"search"`
 		FromType         int64   `json:"from_type"`
 		Kind             string  `json:"kind"`
 		Online           string  `json:"online"`
 		ImageType        string  `json:"image_type"`
-		ImageId          int64   `json:"image_id"`
+		ImageID          int64   `json:"image_id"`
 		ImageIds         []int64 `json:"image_ids"`
 		Library          string  `json:"library"`
 		ScanStatus       []int   `json:"scan_status"`
@@ -215,7 +217,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		JustReturnImage  bool    `json:"just_return_image"`
 		Scope            int     `json:"scope"`
 		TriggerType      int     `json:"trigger_type"`
-		StrategyId       int64   `json:"strategy_id"`
+		StrategyID       int64   `json:"strategy_id"`
 		Operator         string  `json:"operator"`
 	}
 
@@ -231,7 +233,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		Kind:             t.Kind,
 		Online:           t.Online,
 		ImageType:        t.ImageType,
-		ImageId:          t.ImageId,
+		ImageID:          t.ImageID,
 		ImageIds:         t.ImageIds,
 		Library:          t.Library,
 		ScanStatus:       t.ScanStatus,
@@ -246,7 +248,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 	scanInfo := task.UpdateTaskInfo{
 		Scope:       t.Scope,
 		TriggerType: t.TriggerType,
-		StrategyId:  t.StrategyId,
+		StrategyID:  t.StrategyID,
 		Operator:    t.Operator,
 	}
 
@@ -265,7 +267,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 // @Author guolingkai@tensorsecurity.cn
 // @Description 扫描列表中某一个镜像，参数为单个id
 // @Tags scan image
-// @Param body body OnlyIdRes true "Json数据"
+// @Param body body OnlyIDRes true "Json数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=OnlyStatusRes{}}}
 // @Router	/api/v1/scan/scanone [post]
 func (s *Scanner) StartScanOne(ctx *gin.Context) {
@@ -273,9 +275,9 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 		Status string `json:"status"`
 	}
 	type tmpRecv struct {
-		ImgId      int64  `json:"id"`
+		ImgID      int64  `json:"id"`
 		Operator   string `json:"operator"`
-		StrategyId int64  `json:"strategy_id"`
+		StrategyID int64  `json:"strategy_id"`
 	}
 	tmp := tmpRecv{}
 	// json := make(map[string]interface{})
@@ -283,11 +285,11 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	err := s.Srv.TickScanOne(ctx, tmp.ImgId, task.UpdateTaskInfo{
+	err := s.Srv.TickScanOne(ctx, tmp.ImgID, task.UpdateTaskInfo{
 		Scope:       consts.SingleScan,
 		TriggerType: consts.ManualTrigger,
 		Operator:    tmp.Operator,
-		StrategyId:  tmp.StrategyId,
+		StrategyID:  tmp.StrategyID,
 	})
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -399,9 +401,9 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 	}
 	logging.Get().WithContext(ctx).Infof("CICD 收到的请求,image:%s,Insecure:%t", tmp.Image, tmp.Insecure)
 
-	hasHttp := strings.Contains(tmp.Image, "http://")
-	hasHttps := strings.Contains(tmp.Image, "https://")
-	if !hasHttps && !hasHttp {
+	hasHTTP := strings.Contains(tmp.Image, "http://")
+	hasHTTPS := strings.Contains(tmp.Image, "https://")
+	if !hasHTTPS && !hasHTTP {
 		if !tmp.Insecure {
 			tmp.Image = "https://" + tmp.Image
 		} else {
@@ -426,12 +428,12 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageResponse{}}}
 // @Router	/api/v1/scan/harbor/scanOneStatus [get]
 func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
-	imgId, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
+	imgID, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, errors.New("no image id"))
 		return
 	}
-	res, err := s.Srv.GetScanOneStatus(ctx, imgId, "")
+	res, err := s.Srv.GetScanOneStatus(ctx, imgID, "")
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -483,12 +485,12 @@ func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageList{questions=[]model.QuestionInfo{},image_scan_vuln=model.ImageScanSummaryResult{},image_scan_virus=[]model.VirusFileInfo}}}
 // @Router	/api/v1/scan/reportsByImageDetails [get]
 func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
-	imgId, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
+	imgID, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, errors.New("no image id"))
 		return
 	}
-	img, err := s.Srv.GetImageDetail(ctx, imgId)
+	img, err := s.Srv.GetImageDetail(ctx, imgID)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -588,13 +590,13 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ReportImgBackInfo}}
 // @Router	/api/v1/images/:imgID/layers [get]
 func (s *Scanner) ListImgLayers(ctx *gin.Context) {
-	imageId, err := strconv.ParseInt(ctx.Param("imgID"), 10, 64)
+	imageID, err := strconv.ParseInt(ctx.Param("imgID"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusExpectationFailed, err))
 		return
 	}
 
-	images, err := s.Srv.ListImgLayers(ctx, imageId, nil)
+	images, err := s.Srv.ListImgLayers(ctx, imageID, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -612,7 +614,7 @@ func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=model.ScanLayer}}
 // @Router	/api/v1/layers/:layerDigest/layers [get]
 func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
-	imageId, err := strconv.ParseInt(ctx.Param("imageId"), 10, 64)
+	imageID, err := strconv.ParseInt(ctx.Param("imageId"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("not fond imageID"))
 		return
@@ -620,7 +622,7 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 
 	layerDigest := ctx.Param("layerDigest")
 
-	info, err := s.Srv.ImgLayerInfo(ctx, imageId, layerDigest, nil)
+	info, err := s.Srv.ImgLayerInfo(ctx, imageID, layerDigest, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -628,7 +630,7 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*info))
 }
 
-func NewScannerApiSrv(srv component.ScannerSrv) *Scanner {
+func NewScannerAPISrv(srv component.ScannerSrv) *Scanner {
 	return &Scanner{
 		Srv: srv,
 	}
@@ -735,14 +737,14 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 	var policyIds []int64
 	policyStrs := strings.Split(policyStr, ",")
 	for k := range policyStrs {
-		tmpId, err := strconv.ParseInt(policyStrs[k], 10, 64)
+		tmpID, err := strconv.ParseInt(policyStrs[k], 10, 64)
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("ParseInt error SetEnvToStrategy")
 		}
-		policyIds = append(policyIds, tmpId)
+		policyIds = append(policyIds, tmpID)
 	}
 	if len(policyIds) == 0 {
-		response.JSONError(ctx, fmt.Errorf("has not policyId parse success"))
+		response.JSONError(ctx, fmt.Errorf("has not policyID parse success"))
 		return
 	}
 
@@ -833,7 +835,7 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		return
 	}
 	body := map[string]interface{}{"image_type": consts.AppImageType}
-	if err := s.Srv.UpdateImage(ctx, component.SearchImageParam{ImageId: imageID}, body); err != nil {
+	if err := s.Srv.UpdateImage(ctx, component.SearchImageParam{ImageID: imageID}, body); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -896,13 +898,13 @@ func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
 		return
 	}
 
-	taskId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	taskID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
 		return
 	}
 
-	data, count, err := s.Srv.GetScanSubTaskList(ctx, taskId, limit, offset)
+	data, count, err := s.Srv.GetScanSubTaskList(ctx, taskID, limit, offset)
 	if err != nil {
 		response.JSONError(ctx, errors.New("获取扫描子任务记录失败"))
 		return
@@ -933,13 +935,13 @@ func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
 		return
 	}
 
-	taskId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	taskID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
 		return
 	}
 
-	err = s.Srv.UpdateScanTaskStatus(ctx, taskId, data.Status)
+	err = s.Srv.UpdateScanTaskStatus(ctx, taskID, data.Status)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

@@ -14,6 +14,7 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -21,7 +22,7 @@ import (
 
 const (
 	HarborVersion        = "harbor-v2.0"
-	ApiVersion           = "api/v2.0"
+	APIVersion           = "api/v2.0"
 	RetryCount      uint = 3
 	DefaultPageSize int  = 100
 )
@@ -29,7 +30,7 @@ const (
 type HarborV2 struct {
 	ctx            context.Context
 	client         *http.Client // client for pull harbor repos and tags
-	config         HarborV2Config
+	config         Config
 	registryClient *registry2.Registry // client for pull manifest
 }
 
@@ -91,7 +92,7 @@ func (h *HarborV2) ListProjects() ([]Project, error) {
 }
 
 func (h *HarborV2) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
-	url := fmt.Sprintf("%s/%s/projects?page=%d&page_size=%d", h.config.URL, ApiVersion, page, pageSize)
+	url := fmt.Sprintf("%s/%s/projects?page=%d&page_size=%d", h.config.URL, APIVersion, page, pageSize)
 	// logging.GetLogger().Info().Msgf("req harbor projects url %s", url)
 
 	data, err := h.reqHarbor(url)
@@ -132,7 +133,7 @@ func (h *HarborV2) ListProjectRepos(project string) ([]Repository, error) {
 }
 
 func (h *HarborV2) ListProjectReposWithPage(project string, page, pageSize int) ([]Repository, error) {
-	url := fmt.Sprintf("%s/%s/projects/%s/repositories?page=%d&page_size=%d", h.config.URL, ApiVersion, project, page, pageSize)
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories?page=%d&page_size=%d", h.config.URL, APIVersion, project, page, pageSize)
 	//	logging.GetLogger().Info().Msgf("req harbor repo url %s", url)
 
 	data, err := h.reqHarbor(url)
@@ -173,7 +174,7 @@ func (h *HarborV2) ListRepoArtifacts(project, repo string) ([]Artifact, error) {
 }
 
 func (h *HarborV2) ListRepoArtifactsWithPage(project, repo string, page, pageSize int) ([]Artifact, error) {
-	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts?page=%d&page_size=%d", h.config.URL, ApiVersion, project, repo, page, pageSize)
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts?page=%d&page_size=%d", h.config.URL, APIVersion, project, repo, page, pageSize)
 	//	logging.GetLogger().Info().Msgf("req harbor repo artifacts url %s", url)
 
 	data, err := h.reqHarbor(url)
@@ -260,7 +261,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 					i := h.makeImage(&r, &a, &t)
 					i.ManifestV2 = string(manifestV2)
 					i.ManifestV1 = string(manifestV1)
-					i.ConfigJson = configBlob
+					i.ConfigJSON = configBlob
 
 					// do some extend stuff
 					im, err := extender(*i)
@@ -289,7 +290,7 @@ func (h *HarborV2) Ping() error {
 }
 
 func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
-	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s", h.config.URL, ApiVersion, projectName, repoName, tag)
+	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s", h.config.URL, APIVersion, projectName, repoName, tag)
 	// logging.GetLogger().WithContext(h.ctx).Infof(fmt.Sprintf("getImage url:%s", url))
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
@@ -339,7 +340,7 @@ func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image,
 		LastPullTime: artifact.Tags[0].PullTime,
 		ManifestV2:   manifestV2,
 		ManifestV1:   manifestV1,
-		ConfigJson:   configBlob,
+		ConfigJSON:   configBlob,
 	}
 	return img, nil
 }
@@ -350,7 +351,7 @@ func (h *HarborV2) DeleteImages(projectName, repoName, digest string) error {
 
 // CreateProject 创建project
 func (h *HarborV2) CreateProject(projectName string, public bool) error {
-	url := fmt.Sprintf("%s/%s/projects", h.config.URL, ApiVersion)
+	url := fmt.Sprintf("%s/%s/projects", h.config.URL, APIVersion)
 	type ProjectReq struct {
 		ProjectName string `json:"project_name"`
 		Public      bool   `json:"public"`
@@ -384,7 +385,7 @@ func (h *HarborV2) CreateProject(projectName string, public bool) error {
 
 // CheckProject 检查project是否存在
 func (h *HarborV2) CheckProject(projectName string) error {
-	url := fmt.Sprintf("%s/%s/projects?project_name=%s", h.config.URL, ApiVersion, projectName)
+	url := fmt.Sprintf("%s/%s/projects?project_name=%s", h.config.URL, APIVersion, projectName)
 	// logging.GetLogger().WithContext(h.ctx).Infof(fmt.Sprintf("getImage url:%s", url))
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -420,12 +421,12 @@ func (h *HarborV2) pullImageManifestV2(repo, digest string) (string, digest.Dige
 	if err != nil {
 		return "", "", err
 	}
-	manifestJson, err := manifest.MarshalJSON()
+	manifestJSON, err := manifest.MarshalJSON()
 	if err != nil {
 		return "", "", err
 	}
 
-	return string(manifestJson), manifest.Config.Digest, nil
+	return string(manifestJSON), manifest.Config.Digest, nil
 }
 
 func (h *HarborV2) pullImageManifestV1(repo, digest string) (string, error) {
@@ -433,12 +434,12 @@ func (h *HarborV2) pullImageManifestV1(repo, digest string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	manifestJson, err := manifest.MarshalJSON()
+	manifestJSON, err := manifest.MarshalJSON()
 	if err != nil {
 		return "", err
 	}
 
-	return string(manifestJson), nil
+	return string(manifestJSON), nil
 }
 
 func (h *HarborV2) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
@@ -472,7 +473,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 		logging.GetLogger().Error().Err(err).Msg("harborv2 marshal config")
 		return nil, err
 	}
-	conf := new(HarborV2Config)
+	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("harborv1 Unmarshal config")

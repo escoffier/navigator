@@ -15,6 +15,7 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -22,7 +23,7 @@ import (
 
 const (
 	HarborVersion        = "harbor-v1.0"
-	ApiVersion           = "api"
+	APIVersion           = "api"
 	RetryCount      uint = 3
 	DefaultPageSize int  = 100
 )
@@ -30,7 +31,7 @@ const (
 type HarborV1 struct {
 	ctx            context.Context
 	client         *http.Client // client for pull harbor repos and tags
-	config         HarborV1Config
+	config         Config
 	registryClient *registry2.Registry // client for pull manifest
 }
 
@@ -83,7 +84,7 @@ func (h *HarborV1) ListProjects() ([]Project, error) {
 }
 
 func (h *HarborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
-	url := fmt.Sprintf("%s/%s/projects?page=%d&page_size=%d", h.config.URL, ApiVersion, page, pageSize)
+	url := fmt.Sprintf("%s/%s/projects?page=%d&page_size=%d", h.config.URL, APIVersion, page, pageSize)
 	logging.GetLogger().Info().Msgf("req harbor projects url %s", url)
 
 	data, err := h.reqHarbor(url)
@@ -134,7 +135,7 @@ func (h *HarborV1) ListProjectRepos(project int) ([]Repository, error) {
 }
 
 func (h *HarborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repository, error) {
-	url := fmt.Sprintf("%s/%s/repositories?project_id=%d&page=%d&page_size=%d", h.config.URL, ApiVersion, project, page, pageSize)
+	url := fmt.Sprintf("%s/%s/repositories?project_id=%d&page=%d&page_size=%d", h.config.URL, APIVersion, project, page, pageSize)
 	logging.GetLogger().Info().Msgf("req harbor repo url %s", url)
 
 	data, err := h.reqHarbor(url)
@@ -164,7 +165,7 @@ func (h *HarborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repo
 }
 
 func (h *HarborV1) ListRepoTags(repo string) ([]Tag, error) {
-	url := fmt.Sprintf("%s/%s/repositories/%s/tags?detail=true", h.config.URL, ApiVersion, repo)
+	url := fmt.Sprintf("%s/%s/repositories/%s/tags?detail=true", h.config.URL, APIVersion, repo)
 	logging.GetLogger().Info().Msgf("req harbor repo artifacts url %s", url)
 
 	data, err := h.reqHarbor(url)
@@ -243,7 +244,7 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 				i.Created = t.Created
 				i.ManifestV2 = string(manifestV2)
 				i.ManifestV1 = string(manifestV1)
-				i.ConfigJson = configBlob
+				i.ConfigJSON = configBlob
 
 				cnt++
 				im, err := extender(*i)
@@ -320,7 +321,7 @@ func (h *HarborV1) GetImage(projectName, repoName, tag string) (*registry.Image,
 		LastPullTime: artifact.PullTime,
 		ManifestV2:   manifestV2,
 		ManifestV1:   manifestV1,
-		ConfigJson:   configBlob,
+		ConfigJSON:   configBlob,
 	}
 	return img, nil
 }
@@ -331,7 +332,7 @@ func (h *HarborV1) DeleteImages(projectName, repoName, digest string) error {
 
 // CreateProject 创建project
 func (h *HarborV1) CreateProject(projectName string, public bool) error {
-	url := fmt.Sprintf("%s/%s/projects", h.config.URL, ApiVersion)
+	url := fmt.Sprintf("%s/%s/projects", h.config.URL, APIVersion)
 	type MetaData struct {
 		Public string `json:"public"`
 	}
@@ -369,7 +370,7 @@ func (h *HarborV1) CreateProject(projectName string, public bool) error {
 
 // CheckProject 检查project是否存在
 func (h *HarborV1) CheckProject(projectName string) error {
-	url := fmt.Sprintf("%s/%s/projects?project_name=%s", h.config.URL, ApiVersion, projectName)
+	url := fmt.Sprintf("%s/%s/projects?project_name=%s", h.config.URL, APIVersion, projectName)
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return err
@@ -404,12 +405,12 @@ func (h *HarborV1) pullImageManifestV2(repo, digest string) (string, digest.Dige
 	if err != nil {
 		return "", "", err
 	}
-	manifestJson, err := manifest.MarshalJSON()
+	manifestJSON, err := manifest.MarshalJSON()
 	if err != nil {
 		return "", "", err
 	}
 
-	return string(manifestJson), manifest.Config.Digest, nil
+	return string(manifestJSON), manifest.Config.Digest, nil
 }
 
 func (h *HarborV1) pullImageManifestV1(repo, digest string) (string, error) {
@@ -417,12 +418,12 @@ func (h *HarborV1) pullImageManifestV1(repo, digest string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	manifestJson, err := manifest.MarshalJSON()
+	manifestJSON, err := manifest.MarshalJSON()
 	if err != nil {
 		return "", err
 	}
 
-	return string(manifestJson), nil
+	return string(manifestJSON), nil
 }
 
 func (h *HarborV1) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
@@ -457,7 +458,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 		logging.GetLogger().Error().Err(err).Msg("harborv1 marshal config")
 		return nil, err
 	}
-	conf := new(HarborV1Config)
+	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("harborv1 Unmarshal config")

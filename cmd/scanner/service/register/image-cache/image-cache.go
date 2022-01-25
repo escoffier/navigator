@@ -1,4 +1,4 @@
-package image_cache
+package imagecache
 
 import (
 	"context"
@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 
 const (
 	httpRequestPath   = "/layer"
-	innerRegistryIp   = "localhost"
+	innerRegistryIP   = "localhost"
 	innerRegistryPort = 5566
 	maxWorkerNum      = 5
 )
@@ -42,22 +43,22 @@ type LayerInfo struct {
 	repository string   // image repository
 	refCount   int      // reference count,0 means can be deleted
 	url        string   // registry url
-	layerUrl   string   // layer url
+	layerURL   string   // layer url
 	status     int      // layer status
 	flag       chan int // notify if pull end,when worker finish,it will do flag<-1
 	username   string
 	password   string
-	skipTls    bool
+	skipTLS    bool
 }
 
 type RequestLayerInfo struct {
 	Repository string      `json:"repository"`
 	Digest     string      `json:"digest"`
-	Url        string      `json:"url"` // registry url
+	URL        string      `json:"url"` // registry url
 	Username   string      `json:"username"`
 	Password   string      `json:"password"`
 	Tag        string      `json:"tag"`
-	SkipTls    bool        `json:"skiptls"`
+	SkipTLS    bool        `json:"skiptls"`
 	ConfigFlag int         `json:"configFlag"`
 	Response   chan string `json:"-"`
 }
@@ -65,14 +66,14 @@ type RequestLayerInfo struct {
 type ResponseLayerInfo struct {
 	Code       int    `json:"code"`
 	Msg        string `json:"msg"`
-	Url        string `json:"url"`
-	LayerUrl   string `json:"layer-url"`
+	URL        string `json:"url"`
+	LayerURL   string `json:"layer-url"`
 	Digest     string `json:"digest"`
 	Repository string `json:"repository"`
 }
 
 type Config struct {
-	CacheServerIp   string
+	CacheServerIP   string
 	CacheServerPort int
 }
 
@@ -80,7 +81,7 @@ type Config struct {
 type ScannerImageCacheService struct {
 	config    Config
 	ctx       context.Context
-	serverIp  string
+	serverIP  string
 	port      int
 	server    *gin.Engine
 	layerList map[string]*LayerInfo // digest->layer info
@@ -123,12 +124,12 @@ func (s *ScannerImageCacheService) DecLayerRefCount(digest string) error {
 	}
 	if s.layerList[digest].refCount <= 0 {
 		// some err,should have been deleted
-		logging.Get().Error().Msgf("digest %s,layer refcount(%d) <=0 ", digest, s.layerList[digest].refCount)
+		logging.Get().Error().Msgf("digest %s,layer ref count(%d) <=0 ", digest, s.layerList[digest].refCount)
 		// still return nil,deleted by caller
 		return nil
 	}
 	s.layerList[digest].refCount = s.layerList[digest].refCount - 1
-	logging.Get().Info().Msgf("DecRef refcount(%d) ", s.layerList[digest].refCount)
+	logging.Get().Info().Msgf("DecRef ref count(%d) ", s.layerList[digest].refCount)
 	return nil
 }
 
@@ -136,12 +137,12 @@ func (s *ScannerImageCacheService) AddLayerRecord(rq *RequestLayerInfo) {
 	s.layerList[rq.Digest] = &LayerInfo{
 		refCount:   1,
 		status:     LayerNotPull,
-		url:        rq.Url,
+		url:        rq.URL,
 		digest:     rq.Digest,
 		repository: rq.Repository,
 		username:   rq.Username,
 		password:   rq.Password,
-		skipTls:    rq.SkipTls,
+		skipTLS:    rq.SkipTLS,
 		flag:       make(chan int),
 	}
 }
@@ -193,14 +194,14 @@ func (s *ScannerImageCacheService) ResponseCodeAndMsg(code int, msg, digest stri
 }
 
 func (s *ScannerImageCacheService) ResponseOK(digest string, ctx *gin.Context) {
-	LayerHttpPath := fmt.Sprintf("http://%s:%d/%s/%s", s.fs.externalIp, s.fs.port, digest, LayerFileName)
+	LayerHTTPPath := fmt.Sprintf("http://%s:%d/%s/%s", s.fs.externalIP, s.fs.port, digest, LayerFileName)
 	rsp := ResponseLayerInfo{
 		Code:       0,
 		Msg:        "ok",
-		Url:        LayerHttpPath,
+		URL:        LayerHTTPPath,
 		Digest:     digest,
 		Repository: s.layerList[digest].repository,
-		LayerUrl:   s.layerList[digest].layerUrl,
+		LayerURL:   s.layerList[digest].layerURL,
 	}
 	ctx.JSON(http.StatusOK, rsp)
 }
@@ -209,8 +210,8 @@ func (s *ScannerImageCacheService) ResponseErr(digest string, ctx *gin.Context) 
 	rsp := ResponseLayerInfo{
 		Code:     1,
 		Msg:      fmt.Sprintf("get layer info err: %d", s.layerList[digest].status),
-		Url:      s.layerList[digest].url,
-		LayerUrl: s.layerList[digest].layerUrl,
+		URL:      s.layerList[digest].url,
+		LayerURL: s.layerList[digest].layerURL,
 		Digest:   digest,
 	}
 
@@ -279,17 +280,14 @@ func (s *ScannerImageCacheService) handleFindBlob(ctx *gin.Context, repository s
 			logging.Get().Error().Msgf("file not exist %v", fpManifest)
 			ctx.Status(400)
 			return
-		} else {
-			fp = fpManifest
 		}
-	} else {
-		fp = fpLayer
 	}
+	fp = fpLayer
 	ctx.File(fp)
 	// ctx.File("/worker1/tensornavigator/test/cmd/scanner/component/layer_manage/" + fp)
 }
 
-func (s *ScannerImageCacheService) handleFindManifesst(ctx *gin.Context, repository string, refer string) {
+func (s *ScannerImageCacheService) handleFindManifest(ctx *gin.Context, repository string, refer string) {
 
 	fp := filepath.Join(s.fs.rootPath, "manifests", repository, refer)
 	fp = filepath.Join(fp, "manifest.json")
@@ -299,14 +297,14 @@ func (s *ScannerImageCacheService) handleFindManifesst(ctx *gin.Context, reposit
 		ctx.Status(404)
 		return
 	}
-	manifestJson, err := os.ReadFile(fp)
+	manifestJSON, err := os.ReadFile(fp)
 	if err != nil {
 		logging.Get().Err(err)
 		ctx.Status(404)
 		return
 	}
 
-	ctx.String(200, string(manifestJson))
+	ctx.String(200, string(manifestJSON))
 }
 
 func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
@@ -445,7 +443,7 @@ func (s *ScannerImageCacheService) CreateServer() {
 			respository := ctx.Request.RequestURI[v2Index+4 : manifestIndex]
 			refer := ctx.Request.RequestURI[manifestIndex+11:]
 			// fmt.Printf("%v %v\n", respository, refer)
-			s.handleFindManifesst(ctx, respository, refer)
+			s.handleFindManifest(ctx, respository, refer)
 		} else {
 			ctx.Status(200)
 		}
@@ -473,7 +471,7 @@ func (s *ScannerImageCacheService) CreateServer() {
 
 func (s *ScannerImageCacheService) StartServer() {
 	go func() {
-		address := fmt.Sprintf("%s:%d", s.serverIp, s.port)
+		address := fmt.Sprintf("%s:%d", s.serverIP, s.port)
 		logging.Get().Info().Msgf("image cache start server :%s", address)
 		err := s.server.Run(address)
 		if err != nil {
@@ -492,7 +490,7 @@ func (s *ScannerImageCacheService) FindAndModifyPullTask() (LayerInfo, error) {
 		if v.status == LayerNotPull {
 			res.username = v.username
 			res.password = v.password
-			res.skipTls = v.skipTls
+			res.skipTLS = v.skipTLS
 			res.digest = v.digest
 			res.repository = v.repository
 			res.url = v.url
@@ -507,14 +505,14 @@ func (s *ScannerImageCacheService) FindAndModifyPullTask() (LayerInfo, error) {
 	return res, nil
 }
 
-func (s *ScannerImageCacheService) UpdateTaskStatusAndLayerUrl(digest, layerUrl string, status int) error {
+func (s *ScannerImageCacheService) UpdateTaskStatusAndLayerURL(digest, layerURL string, status int) error {
 	if _, ok := s.layerList[digest]; !ok {
 		return fmt.Errorf("not found layer %s", digest)
 	}
 	s.taskLock.Lock()
 	s.layerList[digest].status = status
-	if len(layerUrl) != 0 {
-		s.layerList[digest].layerUrl = layerUrl
+	if len(layerURL) != 0 {
+		s.layerList[digest].layerURL = layerURL
 	}
 	s.taskLock.Unlock()
 
@@ -560,15 +558,15 @@ func init() {
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	s := &ScannerImageCacheService{
-		serverIp:     innerRegistryIp,
+		serverIP:     innerRegistryIP,
 		port:         innerRegistryPort,
 		manifestList: make(chan RequestLayerInfo, 100),
 	}
 	s.config.CacheServerPort = config.Options.ImageCacheServerPort
-	s.config.CacheServerIp = config.Options.ImageCacheServerIp
+	s.config.CacheServerIP = config.Options.ImageCacheServerIP
 
 	l := make(map[string]*LayerInfo)
-	fs, _ := NewFileServer(context.Background(), FileServerRootDir, s.config.CacheServerIp, innerRegistryIp, s.config.CacheServerPort)
+	fs, _ := NewFileServer(context.Background(), FileServerRootDir, s.config.CacheServerIP, innerRegistryIP, s.config.CacheServerPort)
 	s.layerList = l
 	s.fs = fs
 

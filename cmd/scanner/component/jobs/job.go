@@ -18,7 +18,7 @@ type JobInfo struct {
 	Task    task.Task
 	SubTask task.SubTask
 	// cache server url
-	CacheServerUrl string
+	CacheServerURL string
 }
 
 // JobConfig is a configuration block that can be used to

@@ -2,10 +2,11 @@
 package cmd
 
 import (
+	"os"
+
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -30,10 +31,10 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		global.ScannerId = scanner.Id
+		global.ScannerID = scanner.ID
 		logging.GetLogger().Info().
 			Str("version", Version).
-			Str("scannerId", global.ScannerId).
+			Str("scannerId", global.ScannerID).
 			Interface("opts", ScannerRunOpts).
 			Msg("starting scanner")
 

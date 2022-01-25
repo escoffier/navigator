@@ -5,7 +5,7 @@ import (
 )
 
 type Task struct {
-	Id         int64
+	ID         int64
 	Scope      ScanScope
 	ScanType   map[ScanType]ScanPolicy // scan type and policy
 	Trigger    Trigger
@@ -21,7 +21,7 @@ type Task struct {
 	FinishedAt *time.Time
 	HeartBeat  *time.Time
 	Operator   string
-	ScannerId  string
+	ScannerID  string
 }
 
 type ScanScope struct {
@@ -70,8 +70,8 @@ type Trigger struct {
 }
 
 type SubTask struct {
-	Id         int64
-	TaskId     int64
+	ID         int64
+	TaskID     int64
 	Image      ImageInfo
 	Registry   RegistryInfo
 	Status     uint8 // ImageScanPending,ImageScanInprogress...
@@ -85,15 +85,15 @@ type SubTask struct {
 }
 
 type ImageInfo struct {
-	Id         int64  // image id in db
+	ID         int64  // image id in db
 	RepoName   string // library/redis
 	Tag        string // 1.10
 	Manifest   string // image manifest content
-	ConfigJson string // image config json content
+	ConfigJSON string // image config json content
 }
 
 type RegistryInfo struct {
-	Id       int64  // registry id in db
+	ID       int64  // registry id in db
 	Host     string // http(s)://docker.io
 	Secure   bool   // indicate registry which use self-signed certificates, or use an unencrypted HTTP connection
 	Username string // username who will log registry

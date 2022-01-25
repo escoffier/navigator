@@ -2,6 +2,7 @@ package apimodel
 
 import (
 	"github.com/aquasecurity/trivy-db/pkg/types"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -13,7 +14,7 @@ type ImageLayerInfo struct {
 	Viruses       []string `json:"viruses"`
 	SensitiveFile []string `json:"sensitiveile"`
 	WebshellInfo  []string `json:"webshell_info"`
-	ImageId       int64    `json:"imageId"`
+	ImageID       int64    `json:"imageId"`
 }
 
 type SummaryEnv struct {
@@ -39,7 +40,7 @@ type ImageDetail struct {
 	Digest         string                   `json:"digest"`
 	FromType       string                   `json:"fromType"`
 	Image          string                   `json:"image"`
-	RegistryUrl    string                   `json:"registryUrl"`
+	RegistryURL    string                   `json:"registryUrl"`
 	SensitiveFile  []string                 `json:"sensitiveFile"`
 	Viruses        []model.VirusFileInfo    `json:"viruses"`
 	Envs           []SummaryEnv             `json:"envs"`
@@ -48,7 +49,7 @@ type ImageDetail struct {
 	ImageType      int64                    `json:"imageType"`
 	Reinforced     int                      `json:"reinforced"`
 	NodeHostname   string                   `json:"nodeHostname"`
-	NodeIp         string                   `json:"nodeIp"`
+	NodeIP         string                   `json:"nodeIp"`
 	PrivilegedBoot int64                    `json:"privilegedBoot"`
 	Size           int                      `json:"size"`
 }
@@ -62,11 +63,11 @@ type ImageListResponse struct {
 	ImageType     int64   `json:"imageType"`
 	Reinforced    int64   `json:"reinforced"`
 	NodeHostname  string  `json:"nodeHostname"`
-	NodeIp        string  `json:"nodeIp"`
+	NodeIP        string  `json:"nodeIp"`
 	Online        bool    `json:"online"`
 	SecurityIssue []int   `json:"securityIssue"`
 	RegistryName  string  `json:"registryName"`
-	RegistryUrl   string  `json:"registryUrl"`
+	RegistryURL   string  `json:"registryUrl"`
 	RiskScore     float64 `json:"riskScore"`
 	ScanStatus    int     `json:"scanStatus"`
 	Image         string  `json:"image"`

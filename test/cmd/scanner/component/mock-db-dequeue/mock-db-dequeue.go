@@ -26,8 +26,8 @@ type MockDbDequeue struct {
 
 func transSubTask(st *model.SubTask) *task.SubTask {
 	s := task.SubTask{}
-	s.TaskId = st.TaskId
-	s.Image.Id = st.ImageId
+	s.TaskID = st.TaskID
+	s.Image.ID = st.ImageID
 	//s.Image.RepoName = st.RepoName
 	//s.Image.Tag = st.Tag
 	return &s
@@ -45,7 +45,7 @@ func transTask(t *model.Task) (*task.Task, error) {
 	}
 
 	tmpTask := &task.Task{}
-	tmpTask.Id = t.ID
+	tmpTask.ID = t.ID
 	tmpTask.FlowConf = t.FlowConf
 	tmpTask.ScanType = scanType
 	tmpTask.Scope.Type = t.ScopeType
@@ -74,7 +74,7 @@ func (d *MockDbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 		}
 		tmpSubtasks := make([]task.SubTask, 0)
 		for _, n := range subtasks {
-			if n.TaskId == t.ID {
+			if n.TaskID == t.ID {
 				tmpSubtask := transSubTask(&n)
 				tmpSubtasks = append(tmpSubtasks, *tmpSubtask)
 			}
@@ -93,7 +93,7 @@ func init() {
 	}
 }
 
-func newMockDbDequeue(config dequeue.DequeueConfig) (dequeue.Dequeue, error) {
+func newMockDbDequeue(config dequeue.Config) (dequeue.Dequeue, error) {
 	d := &MockDbDequeue{}
 
 	db, gormDb, err := store.NewPostgresDb(store.Host, store.Port, store.Username, store.Password)

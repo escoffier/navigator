@@ -17,6 +17,7 @@ import (
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/rs/zerolog"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -219,17 +220,16 @@ func (m *MaliciousScan) FindInPackage(content string) []model.WebFrameInfo {
 	indexExpress := strings.Index(content, "\"express\": \"")
 	indexHapi := strings.Index(content, "\"hapi\": \"")
 	lastExpress := indexExpress + 13
-	res := []model.WebFrameInfo{}
+	res := make([]model.WebFrameInfo, 0)
 	lastHapi := indexHapi + 10
-	if indexExpress == -1 && indexHapi == -1 {
-		return res
-	} else {
+	if indexExpress != -1 || indexHapi != -1 {
 		if indexExpress != -1 {
 			tmp := m.SubFindInPackage(content, "express", indexExpress, lastExpress)
 			if tmp.Version != "" {
 				res = append(res, tmp)
 			}
 		}
+
 		if indexHapi != -1 {
 			tmp := m.SubFindInPackage(content, "hapi", indexExpress, lastHapi)
 			if tmp.Version != "" {
@@ -261,9 +261,7 @@ func (m *MaliciousScan) SubFindInPackage(content string, ptype string, index int
 func (m *MaliciousScan) FindInComposer(content string) string {
 	index := strings.Index(content, "laravel/framework\":")
 	version := ""
-	if index == -1 {
-		return ""
-	} else {
+	if index != -1 {
 		if len(content) < index+21 {
 			return ""
 		}
@@ -274,6 +272,7 @@ func (m *MaliciousScan) FindInComposer(content string) string {
 			}
 		}
 	}
+
 	return version
 }
 
@@ -281,19 +280,17 @@ func (m *MaliciousScan) FindInGemfile(content string) string {
 	index := strings.Index(content, "rails (= ")
 	logging.GetLogger().Info().Msgf("index is %v", index)
 	version := ""
-	if index == -1 {
-		return ""
-	} else {
+	if index != -1 {
 		if len(content) > index+9 {
 			for k := index + 9; k < len(content); k++ {
 				if content[k] == ')' {
 					version = content[index+9 : k]
 					break
 				}
-
 			}
 		}
 	}
+
 	return version
 }
 

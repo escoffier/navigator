@@ -3,10 +3,11 @@ package model
 import (
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 )
 
 var VulnerabilityInImagesRiskFilters = map[string]int{
@@ -163,16 +164,16 @@ type VulnList struct {
 }
 
 type VulnDetailInfo struct {
-	Name        string                       `json:"name"`
-	Severity    string                       `json:"severity"`
-	Pkgname     string                       `json:"pkgname"`
-	Pkgversion  string                       `json:"pkgversion"`
-	Cvss        CVSSVulnerabilityInfo        `json:"cvss,omitempty"`
-	Cnvd        []cnvd.CnvdMetadata          `json:"cnvds,omitempty"`
-	CNNVDs      cnnvd.CNNVDVulnerabilityInfo `json:"cnnvds,omitempty"`
-	Links       []string                     `json:"links"`
-	Fixedby     string                       `json:"fixedby"`
-	Description string                       `json:"description"`
+	Name        string                  `json:"name"`
+	Severity    string                  `json:"severity"`
+	Pkgname     string                  `json:"pkgname"`
+	Pkgversion  string                  `json:"pkgversion"`
+	Cvss        CVSSVulnerabilityInfo   `json:"cvss,omitempty"`
+	Cnvd        []cnvd.Metadata         `json:"cnvds,omitempty"`
+	CNNVDs      cnnvd.VulnerabilityInfo `json:"cnnvds,omitempty"`
+	Links       []string                `json:"links"`
+	Fixedby     string                  `json:"fixedby"`
+	Description string                  `json:"description"`
 }
 
 type VulnDetailContainer struct {
@@ -209,7 +210,7 @@ type ReportImgBackInfo struct {
 	Malicious      []string  `json:"malicious"`
 	SensitiveFiles []string  `json:"sensitive_files"`
 	WebshellInfo   []string  `json:"webshell_info"`
-	ImageId        int64     `json:"image_id"`
+	ImageID        int64     `json:"image_id"`
 }
 
 type SimpleImageDetail struct {
@@ -255,8 +256,8 @@ type PerLayerLicenseResult struct {
 
 type NewVulnDetail struct {
 	CVEID string                        `json:"CVEID"`
-	Cnvd  []cnvd.CnvdMetadata           `json:"cnvd"`
-	Cnnvd cnnvd.CNNVDVulnerabilityInfo  `json:"cnnvd"`
+	Cnvd  []cnvd.Metadata               `json:"cnvd"`
+	Cnnvd cnnvd.VulnerabilityInfo       `json:"cnnvd"`
 	Trivy []types.DetectedVulnerability `json:"TVuln"`
 }
 

@@ -1,4 +1,4 @@
-package image_sync
+package imagesync
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type Config struct {
 }
 
 type ImageSync struct {
-	//config    Config
+	// config    Config
 	syncImage *component.SyncRepoImage
 }
 

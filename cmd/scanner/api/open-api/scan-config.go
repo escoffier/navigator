@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
+
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -11,16 +12,16 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-type ScanConfigOpenApiSrv struct {
+type ScanConfigOpenAPISrv struct {
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
 
-func NewScanConfigOpenApiSrv(scanConfigSrv component.ScanConfigSrvInterface) *ScanConfigOpenApiSrv {
-	return &ScanConfigOpenApiSrv{ScanConfigSrv: scanConfigSrv}
+func NewScanConfigOpenAPISrv(scanConfigSrv component.ScanConfigSrvInterface) *ScanConfigOpenAPISrv {
+	return &ScanConfigOpenAPISrv{ScanConfigSrv: scanConfigSrv}
 }
 
 // open-api扫描策略列表
-func (sc *ScanConfigOpenApiSrv) ListStrategy2(ctx *gin.Context) {
+func (sc *ScanConfigOpenAPISrv) ListStrategy2(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
 	filter.SortBy = "desc"
@@ -57,7 +58,7 @@ func (sc *ScanConfigOpenApiSrv) ListStrategy2(ctx *gin.Context) {
 }
 
 // open-api扫描策略详情
-func (sc *ScanConfigOpenApiSrv) GetStrategyByName(ctx *gin.Context) {
+func (sc *ScanConfigOpenAPISrv) GetStrategyByName(ctx *gin.Context) {
 	strategyName := ctx.Param("strategyName")
 
 	filter := model.GetFilter(ctx)
@@ -90,7 +91,7 @@ func (sc *ScanConfigOpenApiSrv) GetStrategyByName(ctx *gin.Context) {
 }
 
 // open-api 删除策略
-func (sc *ScanConfigOpenApiSrv) DeleteStrategyByName(ctx *gin.Context) {
+func (sc *ScanConfigOpenAPISrv) DeleteStrategyByName(ctx *gin.Context) {
 	strategyName := ctx.Param("strategyName")
 	strategies, _, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{Name: strategyName}, nil)
 	if err != nil {
@@ -110,7 +111,7 @@ func (sc *ScanConfigOpenApiSrv) DeleteStrategyByName(ctx *gin.Context) {
 }
 
 // open-api 创建扫描策略
-func (sc *ScanConfigOpenApiSrv) CreateStrategy2(ctx *gin.Context) {
+func (sc *ScanConfigOpenAPISrv) CreateStrategy2(ctx *gin.Context) {
 	preData := new(apimodel.ScanStrategy)
 	if err := ctx.BindJSON(preData); err != nil {
 		response.JSONError(ctx, err)
@@ -151,7 +152,7 @@ func (sc *ScanConfigOpenApiSrv) CreateStrategy2(ctx *gin.Context) {
 }
 
 // open-api 更新扫描策略
-func (sc *ScanConfigOpenApiSrv) UpdateStrategyByName(ctx *gin.Context) {
+func (sc *ScanConfigOpenAPISrv) UpdateStrategyByName(ctx *gin.Context) {
 	preData := new(apimodel.ScanStrategy)
 	if err := ctx.BindJSON(preData); err != nil {
 		response.JSONError(ctx, err)

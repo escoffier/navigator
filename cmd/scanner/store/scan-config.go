@@ -15,7 +15,7 @@ type ScanConfigDalInterface interface {
 	CreateScanConfig(ctx context.Context, data *model.ScanConfig) error
 	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 	UpdateStrategy(ctx context.Context, param SearchStrategyParam, updater map[string]interface{}) error
-	DeleteStrategy(ctx context.Context, strategyId int64) error
+	DeleteStrategy(ctx context.Context, strategyID int64) error
 	UpdateScanConfig(ctx context.Context, configID int64, updater map[string]interface{}) error
 	GetAllNodes(ctx context.Context) ([]string, error)
 	GetAllProject(ctx context.Context) ([]string, error)
@@ -170,11 +170,11 @@ func (s *ScanConfigDao) UpdateStrategy(ctx context.Context, parm SearchStrategyP
 	return err
 }
 
-func (s *ScanConfigDao) DeleteStrategy(ctx context.Context, strategyId int64) error {
+func (s *ScanConfigDao) DeleteStrategy(ctx context.Context, strategyID int64) error {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx)
-	err := db.Model(new(model.ScanStrategy)).Where("id = ?", strategyId).Delete(&model.ScanStrategy{}).Error
+	err := db.Model(new(model.ScanStrategy)).Where("id = ?", strategyID).Delete(&model.ScanStrategy{}).Error
 	return err
 }
 

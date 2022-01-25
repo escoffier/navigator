@@ -156,7 +156,7 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 			"password": encryPass,
 			"use_type": model.RegistryUseTypeCICDBuff,
 		}
-		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{Id: registries[0].ID}, updater); err != nil {
+		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: registries[0].ID}, updater); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
 			return err
 		}
@@ -215,7 +215,7 @@ func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
 			"password": encryPass,
 			"use_type": model.RegistryUseSafeNode,
 		}
-		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{Id: registries[0].ID}, updater); err != nil {
+		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: registries[0].ID}, updater); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
 			return err
 		}

@@ -11,18 +11,19 @@ import (
 	"unicode/utf8"
 
 	"github.com/gobwas/glob"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 )
 
 type VulnMatedata struct {
-	CVSS   CVSSVulnerabilityInfo        `json:"cvss,omitempty" bson:"cvss,omitempty"`
-	CNNVDs cnnvd.CNNVDVulnerabilityInfo `json:"cnnvds,omitempty" bson:"cnnvds,omitempty"`
-	CNVDs  []cnvd.CnvdMetadata          `json:"cnvds,omitempty" bson:"cnvds,omitempty"`
+	CVSS   CVSSVulnerabilityInfo   `json:"cvss,omitempty" bson:"cvss,omitempty"`
+	CNNVDs cnnvd.VulnerabilityInfo `json:"cnnvds,omitempty" bson:"cnnvds,omitempty"`
+	CNVDs  []cnvd.Metadata         `json:"cnvds,omitempty" bson:"cnvds,omitempty"`
 }
 
 type PostModel struct {
@@ -77,7 +78,7 @@ type ScanLayer struct { // 层级扫描结果
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
 	DeletedAt    int                `json:"deleted_at"`
-	ImageId      int64              `gorm:"uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
+	ImageID      int64              `gorm:"column:image_id;uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
 	LayerDigest  string             `gorm:"type:varchar(255);uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
 	VulnInfoJSON []byte             `gorm:"type:longblob" json:"-"` // 包含扫描结果的json
 	VulnInfo     []SingleScanDetail `gorm:"-" json:"vuln_info"`
@@ -106,7 +107,7 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	CreatedAt                *time.Time
 	UpdatedAt                *time.Time
 	DeletedAt                int
-	ImageId                  int64                      `gorm:"uniqueIndex:idx_scan_image"`
+	ImageID                  int64                      `gorm:"column:image_id,uniqueIndex:idx_scan_image"`
 	RiskScore                float64                    `gorm:"column:risk_score" json:"risk_score"`
 	VulnScore                float64                    `gorm:"column:vuln_score" json:"vuln_score"`
 	SensitiveScore           float64                    `gorm:"column:sensitive_score" json:"sensitive_score"`
@@ -169,7 +170,7 @@ type ImageList struct {
 	ImageScanEnv      []SummaryEnv           `gorm:"-"  json:"image_scan_env"`
 	OnLineCount       int                    `gorm:"column:on_line_count;default:0" json:"-"`
 	Status            int                    `gorm:"column:status;default:0" json:"status"`                                   //  status: -1 not ready images 0 normal status
-	RegistryId        int64                  `gorm:"uniqueIndex:uniq_idx_image_list,priority:3,default:0" json:"registry_id"` // 来源registry，id为registry表的id
+	RegistryID        int64                  `gorm:"uniqueIndex:uniq_idx_image_list,priority:3,default:0" json:"registry_id"` // 来源registry，id为registry表的id
 	FirstPushTime     time.Time
 	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
 	LastPullTime      time.Time  // 上次pull时间
@@ -179,10 +180,10 @@ type ImageList struct {
 
 	ManifestV1JSON []byte `gorm:"type:Blob"` // manifest内容
 	ManifestV2JSON []byte `gorm:"type:Blob"`
-	ConfigJson     []byte `gorm:"type:MediumBlob"`                                                       // config内容,包括layer diffid
+	ConfigJSON     []byte `gorm:"type:MediumBlob"`                                                       // config内容,包括layer diffid
 	FromType       int64  `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"from_type"` // 镜像来源
 	Layers         string `gorm:"type:text;index:idx_image_layers,length:200" json:"layers"`             // 把layer拼成字符串，为了找出基础镜像,用|分隔
-	NodeIp         string `gorm:"type:varchar(255);column:node_ip" json:"node_ip"`                       // 结点的Ip
+	NodeIP         string `gorm:"type:varchar(255);column:node_ip" json:"node_ip"`                       // 结点的Ip
 	NodeHostname   string `gorm:"type:varchar(255);column:node_hostname" json:"node_hostname"`           // 结点的HostName
 
 	ImageType int64 `gorm:"column:image_type;default:0" json:"image_type"`
@@ -604,8 +605,8 @@ func (Task) TableName() string {
 
 type SubTask struct {
 	ID         int64      `json:"id"`
-	TaskId     int64      `gorm:"column:task_id;index:task_id_idx" json:"task_id"`
-	ImageId    int64      `gorm:"image_id" json:"image_id"` // image id in db
+	TaskID     int64      `gorm:"column:task_id;index:task_id_idx" json:"task_id"`
+	ImageID    int64      `gorm:"image_id" json:"image_id"` // image id in db
 	Status     uint8      `gorm:"status" json:"status"`     // 1:pending,2:inprogress,3:scan success,4:scan failed
 	Result     uint8      `gorm:"result" json:"result"`     // deprecated,1:failed, 2:success
 	ErrMsg     string     `gorm:"type:varchar(255);column:err_msg" json:"err_msg"`

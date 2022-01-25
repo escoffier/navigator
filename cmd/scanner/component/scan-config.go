@@ -33,8 +33,8 @@ type SearchSoftWareParam struct {
 type ScanConfigSrvInterface interface {
 	CreateStrategy(ctx context.Context, data *model.ScanStrategy) error
 	SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
-	UpdateStrategy(ctx context.Context, strategyId int64, data *model.ScanStrategy) error
-	DeleteStrategy(ctx context.Context, strategyId int64) error
+	UpdateStrategy(ctx context.Context, strategyID int64, data *model.ScanStrategy) error
+	DeleteStrategy(ctx context.Context, strategyID int64) error
 	UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) error
 	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 
@@ -157,14 +157,13 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 			return all[start:end], int64(len(all)), nil
 		}
 		return all, cnt + int64(len(defaults)), nil
-	} else {
-		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, Name: param.Name, IsDefault: param.IsDefault}, filter)
-		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
-			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-		}
-		return strategies, cnt, nil
 	}
+	strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, Name: param.Name, IsDefault: param.IsDefault}, filter)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	return strategies, cnt, nil
 }
 
 func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStrategy) error {
@@ -184,7 +183,7 @@ func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStra
 	return nil
 }
 
-func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyId int64, data *model.ScanStrategy) error {
+func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyID int64, data *model.ScanStrategy) error {
 	if err := data.Check(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusExpectationFailed, err)
@@ -194,7 +193,7 @@ func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyId int64, da
 
 	updater := data.ToUpdater()
 
-	err := s.ScanConfigDal.UpdateStrategy(ctx, store.SearchStrategyParam{StrategyID: strategyId, IsDefault: consts.FalseString}, updater)
+	err := s.ScanConfigDal.UpdateStrategy(ctx, store.SearchStrategyParam{StrategyID: strategyID, IsDefault: consts.FalseString}, updater)
 	if err != nil {
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("该策略已存在，请重新设置策略名"))
@@ -205,7 +204,7 @@ func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyId int64, da
 	return nil
 }
 
-func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyId int64) error {
+func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) error {
 	// 删除之前先做检查，
 	// 没有配置
 	config, _, err := s.SearchScanConfig(ctx, SearchScanConfigParam{}, nil)
@@ -213,10 +212,10 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyId int64) er
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	for i := range config {
-		if config[i].LibraryImageConfig.StrategyId == strategyId {
+		if config[i].LibraryImageConfig.StrategyId == strategyID {
 			return fmt.Errorf("该策略已配置在扫描配置中，不能删除")
 		}
-		if config[i].NodeImageConfig.StrategyId == strategyId {
+		if config[i].NodeImageConfig.StrategyId == strategyID {
 			return fmt.Errorf("该策略已配置在扫描配置中，不能删除")
 		}
 	}
@@ -228,14 +227,14 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyId int64) er
 	}
 
 	for i := range strategy {
-		if strategy[i].ID == strategyId {
+		if strategy[i].ID == strategyID {
 			return fmt.Errorf("该策略属于默认策略，不能删除")
 		}
 	}
 	// 再看是否有该策略的扫描任务
 	tasks, _, err := s.ScanTaskDal.GetTasks(ctx, store.SearchTaskParam{
 		Statuses:   []int8{consts.Pending, consts.InProgress, consts.Pause},
-		StrategyID: strategyId,
+		StrategyID: strategyID,
 	}, nil)
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, err)
@@ -243,8 +242,8 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyId int64) er
 	if len(tasks) > 0 {
 		return fmt.Errorf("该策略下还有未完成的扫描任务，不能删除")
 	}
-	if err := s.ScanConfigDal.DeleteStrategy(ctx, strategyId); err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("DeleteStrategy:%d", strategyId)
+	if err := s.ScanConfigDal.DeleteStrategy(ctx, strategyID); err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("DeleteStrategy:%d", strategyID)
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nil
@@ -282,7 +281,7 @@ func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, da
 func (s *ScanConfigSrv) verifyLibrary(ctx context.Context, libs []int64) error {
 	for i := range libs {
 		registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-			Id:       libs[i],
+			ID:       libs[i],
 			NoDelete: true,
 		}, nil)
 		if err != nil {
@@ -369,7 +368,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 		if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 			Scope:       consts.FullScan,
 			TriggerType: consts.ScheduleTrigger,
-			StrategyId:  config.LibraryImageConfig.StrategyId,
+			StrategyID:  config.LibraryImageConfig.StrategyId,
 			Operator:    consts.SyncTriggerOperator,
 		}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add scan task failed")
@@ -405,7 +404,7 @@ func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanCo
 		if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 			Scope:       consts.SingleScan,
 			TriggerType: consts.ScheduleTrigger,
-			StrategyId:  config.NodeImageConfig.StrategyId,
+			StrategyID:  config.NodeImageConfig.StrategyId,
 			Operator:    consts.SyncTriggerOperator,
 		}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add  scan task failed")

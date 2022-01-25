@@ -1,6 +1,8 @@
 package apimodel
 
-import "gitlab.com/piccolo_su/vegeta/pkg/harbor"
+import (
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+)
 
 type ScanStatusRes struct {
 	ScanAllStatus harbor.ScanAllStatus `json:"harborStatus"`
@@ -10,8 +12,8 @@ type OnlyFlagRes struct {
 	Flag bool `json:"flag"`
 }
 
-type OnlyIdRes struct {
-	Id int `json:"id"`
+type OnlyIDRes struct {
+	ID int `json:"id"`
 }
 
 type OnlyStatusRes struct {
@@ -23,16 +25,16 @@ type OnlyAccountRes struct {
 	Password string `json:"password"`
 }
 
-type ApiItem struct {
+type ApiItem struct { // nolint
 	Item interface{} `json:"item"`
 }
 
-type ApiItems struct {
+type ApiItems struct { // nolint
 	Items interface{} `json:"items"`
 }
 
-type ApiWithItem struct {
-	ApiVersion string      `json:"apiVersion"`
+type ApiWithItem struct { // nolint
+	ApiVersion string      `json:"apiVersion"` // nolint
 	Data       interface{} `json:"data"`
 }
 type IDList struct {

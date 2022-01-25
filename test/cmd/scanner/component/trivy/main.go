@@ -12,7 +12,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/google/go-containerregistry/pkg/name"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"

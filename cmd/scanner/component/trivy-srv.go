@@ -7,11 +7,12 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
-	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy"
 	trivylog "scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/log"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
+	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var (

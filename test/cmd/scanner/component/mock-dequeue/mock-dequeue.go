@@ -21,15 +21,15 @@ type MockDequeue struct {
 }
 
 var defaultSubtask = task.SubTask{
-	Id:     0,
-	TaskId: 0,
+	ID:     0,
+	TaskID: 0,
 	Image: task.ImageInfo{
-		Id:       1,
+		ID:       1,
 		RepoName: "nginx",
 		Tag:      "1.20",
 	},
 	Registry: task.RegistryInfo{
-		Id:       "registry-1",
+		ID:       "registry-1",
 		Username: "xxx",
 		Password: "xxx",
 		Secure:   false,
@@ -82,7 +82,7 @@ func (d *MockDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 	// mock task
 	tasks := make([]task.Task, 0)
 	t := task.Task{
-		Id: 0,
+		ID: 0,
 		Scope: task.ScanScope{
 			Type:     task.FullScan,
 			SubTasks: subtasks,
@@ -95,11 +95,11 @@ func (d *MockDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 
 	// another task
 	st10 := defaultSubtask
-	st10.TaskId = 1
+	st10.TaskID = 1
 	sts1 := make([]task.SubTask, 0)
 	sts1 = append(sts1, st10)
 	t1 := task.Task{
-		Id: 1,
+		ID: 1,
 		Scope: task.ScanScope{
 			Type:     task.FullScan,
 			SubTasks: sts1,
@@ -120,7 +120,7 @@ func init() {
 	}
 }
 
-func newMockDequeue(config dequeue.DequeueConfig) (dequeue.Dequeue, error) {
+func newMockDequeue(config dequeue.Config) (dequeue.Dequeue, error) {
 	d := &MockDequeue{}
 
 	return d, nil

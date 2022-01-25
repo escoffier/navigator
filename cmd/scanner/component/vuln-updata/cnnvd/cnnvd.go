@@ -13,16 +13,17 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/boltdb/bolt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
-type CNNVDUpdata struct {
+type UpdateSrv struct {
 	db     *bolt.DB
-	config cnnvdConfig
+	config Config
 }
 
-type cnnvdConfig struct {
+type Config struct {
 	TrivyPath string
 }
 
@@ -34,13 +35,13 @@ func init() {
 }
 
 func openRegistry(registrableComponentConfig register.RegistrableComponentConfig, db *bolt.DB, dbPath string) (register.Registry, error) {
-	var cnnvd CNNVDUpdata
+	var cnnvd UpdateSrv
 	cnnvd.db = db
 	cnnvd.config.TrivyPath = filepath.Join(dbPath, "init_trivy.db")
 	return &cnnvd, nil
 }
 
-func (c *CNNVDUpdata) Updata(wg *sync.WaitGroup) {
+func (c *UpdateSrv) Updata(wg *sync.WaitGroup) {
 	defer wg.Done()
 	// fmt.Println("进入函数")
 	trivydb, err := bolt.Open(c.config.TrivyPath, 0600, nil)
@@ -52,7 +53,7 @@ func (c *CNNVDUpdata) Updata(wg *sync.WaitGroup) {
 	WriteToBolt(c.db, trivydb)
 }
 
-type CNNVDVulnerabilityInfo struct {
+type VulnerabilityInfo struct {
 	Number        string `json:"number" bson:"number"`
 	RefLink       string `json:"referenceLink" bson:"referenceLink"`
 	FixSuggestion string `json:"fix_suggestion"`
@@ -189,7 +190,7 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 					// fmt.Println("jump")
 					continue
 				}
-				vulnInfo := CNNVDVulnerabilityInfo{}
+				vulnInfo := VulnerabilityInfo{}
 				vulnInfo.FixSuggestion = fixDes
 				vulnInfo.Number = id
 				vulnInfo.RefLink = detailsLink

@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type TrustedImageInterface interface {
@@ -61,9 +62,8 @@ func (s *ScannerOrm) ImageRsaDetail(ctx context.Context, id int64) (*model.Image
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("暂无id<%d>数据", id)
-		} else {
-			return nil, errors.Wrapf(err, "查询Id:<%d>失败", id)
 		}
+		return nil, errors.Wrapf(err, "查询Id:<%d>失败", id)
 	}
 
 	return data, nil
@@ -109,9 +109,8 @@ func (s *ScannerOrm) ImageRsaQueryByPrivateKey(ctx context.Context, privateKey s
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.Wrapf(err, "暂无私钥<%s>数据", privateKey)
-		} else {
-			return nil, errors.Wrapf(err, "私钥<%s>查询失败", privateKey)
 		}
+		return nil, errors.Wrapf(err, "私钥<%s>查询失败", privateKey)
 	}
 
 	return &data, err

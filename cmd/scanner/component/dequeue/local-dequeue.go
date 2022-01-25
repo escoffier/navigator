@@ -3,10 +3,12 @@ package dequeue
 import (
 	"context"
 	"fmt"
+
+	"gopkg.in/yaml.v2"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/queue"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -42,7 +44,7 @@ func init() {
 	}
 }
 
-func newLocalDequeue(config DequeueConfig) (Dequeue, error) {
+func newLocalDequeue(config Config) (Dequeue, error) {
 	l := &LocalDequeue{}
 
 	// parse config

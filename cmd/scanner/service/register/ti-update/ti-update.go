@@ -1,5 +1,5 @@
 // Package ti_update update all thread intelligent database file where they are ready
-package ti_update
+package tiupdate
 
 import (
 	"context"

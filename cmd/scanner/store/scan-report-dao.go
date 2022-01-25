@@ -17,28 +17,28 @@ import (
 )
 
 var (
-	// NotCurrentTimeError 把tensor_scan_report的current_time_seq改成当月或者当周时，没有数据修改时返回的错误
-	NotCurrentTimeError = errors.New("NotCurrentTime")
+	// ErrNotCurrentTime 把tensor_scan_report的current_time_seq改成当月或者当周时，没有数据修改时返回的错误
+	ErrNotCurrentTime = errors.New("NotCurrentTime")
 )
 
 type ScanReportInterface interface {
-	// ScanReportCreate 创建一个扫描报告
-	ScanReportCreate(ctx context.Context, task *scanreport.TensorScanReportTasks) (uint, error)
+	// Create 创建一个扫描报告
+	Create(ctx context.Context, task *scanreport.TensorScanReportTasks) (uint, error)
 
-	// ScanReportUpdate 更新一个扫描报告
-	ScanReportUpdate(ctx context.Context, task *scanreport.TensorScanReportTasks) error
+	// Update 更新一个扫描报告
+	Update(ctx context.Context, task *scanreport.TensorScanReportTasks) error
 
-	// ScanReportDelete 删除一个扫描报告
-	ScanReportDelete(ctx context.Context, id uint) error
+	// Delete 删除一个扫描报告
+	Delete(ctx context.Context, id uint) error
 
-	// ScanReportList 扫描报告列表
-	ScanReportList(ctx context.Context, query string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error)
+	// List 扫描报告列表
+	List(ctx context.Context, query string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error)
 
-	// ScanReportDetail 获取报告详情
-	ScanReportDetail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error)
+	// Detail 获取报告详情
+	Detail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error)
 
-	// ScanReportFilesList 获取任务对应文件列表
-	ScanReportFilesList(ctx context.Context, scanReportId uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error)
+	// FilesList 获取任务对应文件列表
+	FilesList(ctx context.Context, scanReportID uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error)
 
 	// GetCurrentSubTask 获取可以执行的子任务
 	GetCurrentSubTask(ctx context.Context, now time.Time) ([]*scanreport.TensorScanReportSubTasks, error)
@@ -49,8 +49,8 @@ type ScanReportInterface interface {
 	// GetImagesByTask 通过task构建查询条件，然后获取Image的信息
 	GetImagesByTask(ctx context.Context, limit, offset int, task *scanreport.TensorScanReportSubTasks) ([]*scanreport.ImageInfo, error)
 
-	// ScanReportDownload 下载报告文件
-	ScanReportDownload(ctx context.Context, taskId, fileId uint) (*scanreport.TensorScanReportSubTasks, error)
+	// Download 下载报告文件
+	Download(ctx context.Context, taskID, fileID uint) (*scanreport.TensorScanReportSubTasks, error)
 
 	// UpdateSubTaskStatusWithRunning 标记子任务为 running 状态，并且在为周报或者月报时还会创建下一个周期的任务
 	UpdateSubTaskStatusWithRunning(ctx context.Context, subtask *scanreport.TensorScanReportSubTasks) error
@@ -58,11 +58,11 @@ type ScanReportInterface interface {
 	// SaveScanReportFile 保存报告结果文件，并且修改为success状态，同时修改task的last_time字段
 	SaveScanReportFile(ctx context.Context, subtask *scanreport.TensorScanReportSubTasks, file []byte) error
 
-	// ScanReportSubTaskCreate 创建一个扫描报告的子任务
-	ScanReportSubTaskCreate(ctx context.Context, task *scanreport.TensorScanReportSubTasks) (uint, error)
+	// SubTaskCreate 创建一个扫描报告的子任务
+	SubTaskCreate(ctx context.Context, task *scanreport.TensorScanReportSubTasks) (uint, error)
 }
 
-func (s *ScannerOrm) ScanReportCreate(ctx context.Context, task *scanreport.TensorScanReportTasks) (uint, error) {
+func (s *ScannerOrm) Create(ctx context.Context, task *scanreport.TensorScanReportTasks) (uint, error) {
 	subtask := task.GenSubtask()
 
 	err := s.psql.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -81,7 +81,7 @@ func (s *ScannerOrm) ScanReportCreate(ctx context.Context, task *scanreport.Tens
 	return task.ID, err
 }
 
-func (s *ScannerOrm) ScanReportUpdate(ctx context.Context, task *scanreport.TensorScanReportTasks) error {
+func (s *ScannerOrm) Update(ctx context.Context, task *scanreport.TensorScanReportTasks) error {
 	subtask := task.GenSubtask()
 
 	err := s.psql.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -136,7 +136,7 @@ func (s *ScannerOrm) ScanReportUpdate(ctx context.Context, task *scanreport.Tens
 	return err
 }
 
-func (s *ScannerOrm) ScanReportDelete(ctx context.Context, id uint) error {
+func (s *ScannerOrm) Delete(ctx context.Context, id uint) error {
 
 	err := s.psql.Get().WithContext(ctx).Transaction(
 
@@ -164,7 +164,7 @@ func (s *ScannerOrm) ScanReportDelete(ctx context.Context, id uint) error {
 	return err
 }
 
-func (s *ScannerOrm) ScanReportList(ctx context.Context, query string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error) {
+func (s *ScannerOrm) List(ctx context.Context, query string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error) {
 	db := s.psql.Get().WithContext(ctx).Model(scanreport.TensorScanReportTasks{})
 	if query != "" {
 		db = db.Where("name LIKE @query OR emails::TEXT LIKE @query", sql.Named("query", "%"+query+"%")) // fix don't use jsonb
@@ -194,7 +194,7 @@ func (s *ScannerOrm) ScanReportList(ctx context.Context, query string, limit, of
 	return data, count, nil
 }
 
-func (s *ScannerOrm) ScanReportDetail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error) {
+func (s *ScannerOrm) Detail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error) {
 	var data = new(scanreport.TensorScanReportTasks)
 
 	err := s.psql.Get().
@@ -211,11 +211,11 @@ func (s *ScannerOrm) ScanReportDetail(ctx context.Context, id uint) (*scanreport
 	return data, nil
 }
 
-func (s *ScannerOrm) ScanReportFilesList(ctx context.Context, scanReportId uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error) {
+func (s *ScannerOrm) FilesList(ctx context.Context, scanReportID uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error) {
 	db := s.psql.Get().
 		WithContext(ctx).
 		Model(scanreport.TensorScanReportSubTasks{}).
-		Where("scan_report_id = ?", scanReportId).
+		Where("scan_report_id = ?", scanReportID).
 		Where("status = ?", scanreport.SubTasksStatusSucceeded)
 
 	var count int64
@@ -291,7 +291,7 @@ func (s *ScannerOrm) UpdateSubTaskStatus(ctx context.Context, id uint, status sc
 	}
 
 	if db.RowsAffected == 0 {
-		return NotCurrentTimeError
+		return ErrNotCurrentTime
 	}
 
 	return nil
@@ -394,13 +394,13 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 	return data, nil
 }
 
-func (s *ScannerOrm) ScanReportDownload(ctx context.Context, taskId, fileId uint) (*scanreport.TensorScanReportSubTasks, error) {
+func (s *ScannerOrm) Download(ctx context.Context, taskID, fileID uint) (*scanreport.TensorScanReportSubTasks, error) {
 	var data scanreport.TensorScanReportSubTasks
 	err := s.psql.Get().
 		WithContext(ctx).
 		Model(&data).
-		Where("id = ?", fileId).
-		Where("scan_report_id = ?", taskId).
+		Where("id = ?", fileID).
+		Where("scan_report_id = ?", taskID).
 		Where("status = ?", scanreport.SubTasksStatusSucceeded).
 		First(&data).
 		Error
@@ -447,7 +447,7 @@ func (s *ScannerOrm) UpdateSubTaskStatusWithRunning(ctx context.Context, subtask
 		}
 
 		if db.RowsAffected == 0 {
-			return NotCurrentTimeError
+			return ErrNotCurrentTime
 		}
 
 		// 当是周期任务时，需要生成下一个周期的任务，这里创建下个周期的任务
@@ -486,7 +486,7 @@ func (s *ScannerOrm) SaveScanReportFile(ctx context.Context, subtask *scanreport
 			}
 
 			if db.RowsAffected == 0 {
-				return NotCurrentTimeError
+				return ErrNotCurrentTime
 			}
 
 			// 修改last_time
@@ -507,7 +507,7 @@ func (s *ScannerOrm) SaveScanReportFile(ctx context.Context, subtask *scanreport
 	return err
 }
 
-func (s *ScannerOrm) ScanReportSubTaskCreate(ctx context.Context, subtask *scanreport.TensorScanReportSubTasks) (uint, error) {
+func (s *ScannerOrm) SubTaskCreate(ctx context.Context, subtask *scanreport.TensorScanReportSubTasks) (uint, error) {
 	if err := s.psql.Get().WithContext(ctx).Create(subtask).Error; err != nil {
 		return 0, err
 	}

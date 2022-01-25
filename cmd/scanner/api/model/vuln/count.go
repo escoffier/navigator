@@ -92,7 +92,7 @@ func (s *StatisticResp) BuildCountByTops(d []*model.ImageListUnionScanImage) *St
 				continue
 			}
 
-			name := fmt.Sprintf("%s-%s-%s", v.NodeHostname, v.NodeIp, strings.Join(split[5:], "/"))
+			name := fmt.Sprintf("%s-%s-%s", v.NodeHostname, v.NodeIP, strings.Join(split[5:], "/"))
 			c.Image = fmt.Sprintf("%s:%s", name, v.Tags)
 		}
 

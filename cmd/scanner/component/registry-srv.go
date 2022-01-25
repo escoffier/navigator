@@ -41,7 +41,7 @@ func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
 }
 
 func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registry, error) {
-	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{Id: id, NoDelete: true}, nil)
+	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("ListRegistry SearchRegistry error %s", err.Error())
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库信息出错"))
@@ -67,7 +67,7 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 	}
 	update := make(map[string]interface{})
 	update["deleted_at"] = time.Now().Unix()
-	err := s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{Id: id}, update)
+	err := s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, update)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("DeleteRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除仓库出错"))
@@ -108,7 +108,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	if id <= 0 {
 		return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("请传入要更新仓库的ID"))
 	}
-	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{Id: id, NoDelete: true}, nil)
+	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("UpdateRegistry.SearchRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -143,7 +143,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 		updater["password"] = encryPass
 	}
 
-	err = s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{Id: id}, updater)
+	err = s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, updater)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("CreateRegistry")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {

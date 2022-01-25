@@ -32,7 +32,7 @@ type Tag struct {
 
 // Image dev/nginx:1.20, this is the image
 type Image struct {
-	RegistryId   uint
+	RegistryID   uint
 	ImageDigest  string
 	Repository   string
 	Tag          string
@@ -42,7 +42,7 @@ type Image struct {
 	LastPullTime time.Time
 	ManifestV2   string
 	ManifestV1   string
-	ConfigJson   string
+	ConfigJSON   string
 	Status       uint
 	Message      string
 }

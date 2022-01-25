@@ -12,7 +12,7 @@ import (
 
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/rs/zerolog"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 

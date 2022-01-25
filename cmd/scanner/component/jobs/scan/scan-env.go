@@ -47,14 +47,14 @@ func (e *ExecutorScanEnv) stringToBytes(s string) []byte {
 }
 
 func (e *ExecutorScanEnv) Scan(ctx context.Context, param Param) (Artifact, error) {
-	configJson, ok := param["configJson"].(string)
+	configJSON, ok := param["configJson"].(string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'configJson' in parameter")
 		return nil, errors.New("miss 'configJson' in parameter")
 	}
 
 	config := model.ConfigFile{}
-	err := json.Unmarshal(e.stringToBytes(configJson), &config)
+	err := json.Unmarshal(e.stringToBytes(configJSON), &config)
 	if err != nil {
 		logging.GetLogger().Error().Msg("ScanEnv can't unmarshal configJson")
 		return nil, errors.New("ScanEnv can't unmarshal configJson")

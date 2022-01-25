@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 

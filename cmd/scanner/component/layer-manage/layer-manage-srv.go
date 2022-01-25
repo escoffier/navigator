@@ -1,4 +1,4 @@
-package layerManage
+package layermanage
 
 import (
 	"context"
@@ -42,28 +42,28 @@ type LayerInfo struct {
 	repository string   // image repository
 	refCount   int      // reference count,0 means can be deleted
 	url        string   // registry url
-	layerUrl   string   // layer url
+	layerURL   string   // layer url
 	status     int      // layer status
 	flag       chan int // notify if pull end,when worker finish,it will do flag<-1
 	username   string
 	password   string
-	skipTls    bool
+	skipTLS    bool
 }
 
 type RequestLayerInfo struct {
 	Repository string `json:"repository"`
 	Digest     string `json:"digest"`
-	Url        string `json:"url"` // registry url
+	URL        string `json:"url"` // registry url
 	Username   string `json:"username"`
 	Password   string `json:"password"`
-	SkipTls    bool   `json:"skiptls"`
+	SkipTLS    bool   `json:"skiptls"`
 }
 
 type ResponseLayerInfo struct {
 	Code       int    `json:"code"`
 	Msg        string `json:"msg"`
-	Url        string `json:"url"`
-	LayerUrl   string `json:"layer-url"`
+	URL        string `json:"url"`
+	LayerURL   string `json:"layer-url"`
 	Digest     string `json:"digest"`
 	Repository string `json:"repository"`
 }
@@ -75,7 +75,7 @@ type ResponseLayerInfo struct {
 
 type LocalLayerManageSrv struct {
 	ctx       context.Context
-	serverIp  string
+	serverIP  string
 	port      int
 	server    *gin.Engine
 	layerList map[string]*LayerInfo // digest->layer info
@@ -87,12 +87,12 @@ type LocalLayerManageSrv struct {
 	WorkerGroup *WorkerGroup
 }
 
-func NewLocalLayerManageSrv(ctx context.Context, serverIp string, port, fsPort int, fsExternalIp string) (*LocalLayerManageSrv, error) {
+func NewLocalLayerManageSrv(ctx context.Context, serverIP string, port, fsPort int, fsExternalIP string) (*LocalLayerManageSrv, error) {
 	l := make(map[string]*LayerInfo)
-	fs, _ := NewFileServer(ctx, FileServerRootDir, fsExternalIp, serverIp, fsPort)
+	fs, _ := NewFileServer(ctx, FileServerRootDir, fsExternalIP, serverIP, fsPort)
 	llms := &LocalLayerManageSrv{
 		ctx:       ctx,
-		serverIp:  serverIp,
+		serverIP:  serverIP,
 		port:      port,
 		layerList: l,
 		fs:        fs,
@@ -163,12 +163,12 @@ func (llms *LocalLayerManageSrv) AddLayerRecord(rq *RequestLayerInfo) {
 	llms.layerList[rq.Digest] = &LayerInfo{
 		refCount:   1,
 		status:     LayerNotPull,
-		url:        rq.Url,
+		url:        rq.URL,
 		digest:     rq.Digest,
 		repository: rq.Repository,
 		username:   rq.Username,
 		password:   rq.Password,
-		skipTls:    rq.SkipTls,
+		skipTLS:    rq.SkipTLS,
 		flag:       make(chan int),
 	}
 }
@@ -216,14 +216,14 @@ func (llms *LocalLayerManageSrv) ResponseCodeAndMsg(code int, msg, digest string
 }
 
 func (llms *LocalLayerManageSrv) ResponseOK(digest string, ctx *gin.Context) {
-	LayerHttpPath := fmt.Sprintf("http://%s:%d/%s/%s", llms.fs.externalIp, llms.fs.port, digest, LayerFileName)
+	LayerHTTPPath := fmt.Sprintf("http://%s:%d/%s/%s", llms.fs.externalIP, llms.fs.port, digest, LayerFileName)
 	rsp := ResponseLayerInfo{
 		Code:       0,
 		Msg:        "ok",
-		Url:        LayerHttpPath,
+		URL:        LayerHTTPPath,
 		Digest:     digest,
 		Repository: llms.layerList[digest].repository,
-		LayerUrl:   llms.layerList[digest].layerUrl,
+		LayerURL:   llms.layerList[digest].layerURL,
 	}
 	ctx.JSON(http.StatusOK, rsp)
 }
@@ -232,8 +232,8 @@ func (llms *LocalLayerManageSrv) ResponseErr(digest string, ctx *gin.Context) {
 	rsp := ResponseLayerInfo{
 		Code:     1,
 		Msg:      fmt.Sprintf("get layer info err: %d", llms.layerList[digest].status),
-		Url:      llms.layerList[digest].url,
-		LayerUrl: llms.layerList[digest].layerUrl,
+		URL:      llms.layerList[digest].url,
+		LayerURL: llms.layerList[digest].layerURL,
 		Digest:   digest,
 	}
 
@@ -393,7 +393,7 @@ func (llms *LocalLayerManageSrv) CreateServer() {
 
 func (llms *LocalLayerManageSrv) StartServer() {
 	go func() {
-		address := fmt.Sprintf("%s:%d", llms.serverIp, llms.port)
+		address := fmt.Sprintf("%s:%d", llms.serverIP, llms.port)
 		err := llms.server.Run(address)
 		if err != nil {
 			logging.Get().Err(err).Msgf("start llms server err")
@@ -411,7 +411,7 @@ func (llms *LocalLayerManageSrv) FindAndModiyPullTask() (LayerInfo, error) {
 		if v.status == LayerNotPull {
 			res.username = v.username
 			res.password = v.password
-			res.skipTls = v.skipTls
+			res.skipTLS = v.skipTLS
 			res.digest = v.digest
 			res.repository = v.repository
 			res.url = v.url
@@ -426,14 +426,14 @@ func (llms *LocalLayerManageSrv) FindAndModiyPullTask() (LayerInfo, error) {
 	return res, nil
 }
 
-func (llms *LocalLayerManageSrv) UpdateTaskStatusAndLayerUrl(digest, layerUrl string, status int) error {
+func (llms *LocalLayerManageSrv) UpdateTaskStatusAndLayerURL(digest, layerURL string, status int) error {
 	if _, ok := llms.layerList[digest]; !ok {
 		return fmt.Errorf("not found layer %s", digest)
 	}
 	llms.taskLock.Lock()
 	llms.layerList[digest].status = status
-	if len(layerUrl) != 0 {
-		llms.layerList[digest].layerUrl = layerUrl
+	if len(layerURL) != 0 {
+		llms.layerList[digest].layerURL = layerURL
 	}
 	llms.taskLock.Unlock()
 

@@ -37,8 +37,8 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 		db = db.Where("deleted_at = ?", 0)
 	}
 
-	if param.Id > 0 {
-		db = db.Where("id = ?", param.Id)
+	if param.ID > 0 {
+		db = db.Where("id = ?", param.ID)
 	}
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.RegistryIds) > 0 {
@@ -48,8 +48,8 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 			db = db.Where("id IN ? ", param.RegistryIds)
 		}
 	}
-	if param.LibraryUrl != "" {
-		db = db.Where("url = ? ", param.LibraryUrl)
+	if param.LibraryURL != "" {
+		db = db.Where("url = ? ", param.LibraryURL)
 	}
 	if param.Name != "" {
 		db = db.Where("name = ? ", param.Name)
@@ -114,8 +114,8 @@ func (dal *RegistryDao) UpdateRegistry(ctx context.Context, param SearchRegistry
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(model.Registry{})
-	if param.Id > 0 {
-		db = db.Where("id = ?", param.Id)
+	if param.ID > 0 {
+		db = db.Where("id = ?", param.ID)
 	} else {
 		return errors.New("请指定要更新ID")
 	}
