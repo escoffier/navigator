@@ -182,6 +182,7 @@ int GetProcessName(int pid, char *basepath, char procname[128])
     //default process name length is 128 byte
     memset(procname, 0, 128);
     ret = read(fd, procname, 128);
+    //close fd
     close(fd);
     if(ret <= 0)
     {
@@ -196,8 +197,8 @@ int GetProcessName(int pid, char *basepath, char procname[128])
 int ResultPack(PidAssMnt *mnt, ProcessData *pstProcData, char *dstBuf)
 {
     int ret;
-    char *str;
-    cJSON *root;
+    char *str = NULL;
+    cJSON *root = NULL;
     if((!mnt) || (!pstProcData) || (!dstBuf))  return -1;
     //create json object
     root = cJSON_CreateObject();
@@ -318,6 +319,8 @@ int ReadAllPid(char *path, int *procNum, int pids[])
         if(i >= *procNum) break;
         pids[i++] = atoi(ent->d_name);
     }
+    //close
+    closedir(pDir);
     //
     if(i == 0)
     {
@@ -326,8 +329,6 @@ int ReadAllPid(char *path, int *procNum, int pids[])
     }
     //
     *procNum = i;
-    //close
-    closedir(pDir);
     return 0;
 }
 
@@ -507,9 +508,9 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
                 return 0;
             }
         }
+        //close
+        closedir(pDir);
     }
-    //close
-    closedir(pDir);
     //set pid
     *pid = 0;
     return -1;
