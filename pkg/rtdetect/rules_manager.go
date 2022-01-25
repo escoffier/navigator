@@ -10,11 +10,10 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type RulesManager struct {
-	rulesVal            atomic.Value // map[string]*model.RuleFromYaml
+	rulesVal            atomic.Value // map[string]string
 	localDataVersionVal uint64       /// please read/write it by method
 
 	consoleHost    string
@@ -26,7 +25,7 @@ func NewRulesManager(consoleAddr string, updateInterval time.Duration) *RulesMan
 		consoleHost:    consoleAddr,
 		updateInterval: updateInterval,
 	}
-	rm.setRules(make(map[string]*model.RuleFromYaml, 0))
+	rm.setRules(make(map[string]string, 0))
 
 	rm.loadRules(context.Background())
 	rm.asyncLoop()
@@ -34,10 +33,10 @@ func NewRulesManager(consoleAddr string, updateInterval time.Duration) *RulesMan
 	return &rm
 }
 
-func (rm *RulesManager) rules() map[string]*model.RuleFromYaml {
-	return rm.rulesVal.Load().(map[string]*model.RuleFromYaml)
+func (rm *RulesManager) rules() map[string]string {
+	return rm.rulesVal.Load().(map[string]string)
 }
-func (rm *RulesManager) setRules(newRules map[string]*model.RuleFromYaml) {
+func (rm *RulesManager) setRules(newRules map[string]string) {
 	rm.rulesVal.Store(newRules)
 }
 func (rm *RulesManager) localDataVersion() uint64 {
@@ -47,18 +46,10 @@ func (rm *RulesManager) setLocalDataVersion(v uint64) {
 	atomic.StoreUint64(&rm.localDataVersionVal, v)
 }
 
-func (rm *RulesManager) GetRules() []*model.RuleFromYaml {
+func (rm *RulesManager) GetCategoryOfRule(ruleName string) (string, bool) {
 	rulesMap := rm.rules()
-	rules := make([]*model.RuleFromYaml, 0, len(rulesMap))
-	for _, rule := range rulesMap {
-		rules = append(rules, rule)
-	}
-	return rules
-}
-func (rm *RulesManager) GetRule(ruleName string) (*model.RuleFromYaml, bool) {
-	rulesMap := rm.rules()
-	rule, exist := rulesMap[ruleName]
-	return rule, exist
+	category, exist := rulesMap[ruleName]
+	return category, exist
 }
 
 func (rm *RulesManager) loadRules(ctx context.Context) (err error) {
@@ -79,9 +70,9 @@ func (rm *RulesManager) loadRules(ctx context.Context) (err error) {
 		return nil
 	}
 
-	newRules := make(map[string]*model.RuleFromYaml, len(data.AttackRules))
+	newRules := make(map[string]string, len(data.AttackRules))
 	for _, rule := range data.AttackRules {
-		newRules[rule.Rule] = rule
+		newRules[rule.Rule] = rule.Category
 	}
 	rm.setRules(newRules)
 	rm.setLocalDataVersion(uint64(data.LatestDataVersion))
