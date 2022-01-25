@@ -16,6 +16,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/quay/clair/v2/database"
 	"github.com/quay/clair/v2/ext/vulnmdsrc"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -25,7 +26,7 @@ const (
 	appenderName string = "CNVD"
 )
 
-type CnvdMetadata struct {
+type Metadata struct {
 	Number      string `json:"cnvdNumber"`
 	Title       string `json:"title"`
 	Severity    string `json:"severity"`
@@ -33,7 +34,7 @@ type CnvdMetadata struct {
 	Description string `json:"desription"`
 }
 
-type cnvdMetadataArr *[]CnvdMetadata
+type cnvdMetadataArr *[]Metadata
 type cveIDtype string
 
 type cnvdAppender struct {
@@ -142,10 +143,10 @@ func (a *cnvdAppender) BuildCache(database.Datastore) error {
 						continue
 					}
 					if _, ok := a.metadata[cveID]; !ok {
-						a.metadata[cveID] = &[]CnvdMetadata{}
+						a.metadata[cveID] = &[]Metadata{}
 					}
 
-					entry := CnvdMetadata{
+					entry := Metadata{
 						Number:      vuln.Number,
 						Title:       vuln.Title,
 						Severity:    vuln.Severity,

@@ -36,7 +36,7 @@ func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 	// update task status
 	ids := make([]int64, 0)
 	for _, v := range tasks {
-		ids = append(ids, v.Id)
+		ids = append(ids, v.ID)
 	}
 	err = ts.SetTasksInProgress(ids)
 	if err != nil {
@@ -55,7 +55,7 @@ func init() {
 	}
 }
 
-func newDbDequeue(config DequeueConfig) (Dequeue, error) {
+func newDbDequeue(config Config) (Dequeue, error) {
 	d := &DbDequeue{}
 	d.config.DequeNum = DefaultDbDeqNum
 

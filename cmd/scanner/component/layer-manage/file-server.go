@@ -1,4 +1,4 @@
-package layerManage
+package layermanage
 
 import (
 	"context"
@@ -22,19 +22,19 @@ type FileServer struct {
 	ctx            context.Context
 	rootPath       string
 	port           int
-	serverIp       string
-	externalIp     string
+	serverIP       string
+	externalIP     string
 	server         *http.Server
 	serverRootPath string // actual server root path: /tmp/xxx
 }
 
-func NewFileServer(ctx context.Context, rootPath, externalIp, serverIp string, port int) (*FileServer, error) {
+func NewFileServer(ctx context.Context, rootPath, externalIP, serverIP string, port int) (*FileServer, error) {
 	fs := &FileServer{
 		ctx:        ctx,
 		rootPath:   rootPath,
 		port:       port,
-		serverIp:   serverIp,
-		externalIp: externalIp,
+		serverIP:   serverIP,
+		externalIP: externalIP,
 	}
 
 	return fs, nil
@@ -54,7 +54,7 @@ func (fs *FileServer) CreateFileServer() error {
 	mux.Handle("/", http.FileServer(http.Dir(fs.serverRootPath)))
 	fs.server = &http.Server{
 		// listen on all IPs
-		Addr:    fmt.Sprintf("%s:%d", fs.serverIp, fs.port),
+		Addr:    fmt.Sprintf("%s:%d", fs.serverIP, fs.port),
 		Handler: mux,
 	}
 	return nil
@@ -63,9 +63,7 @@ func (fs *FileServer) CreateFileServer() error {
 func (fs *FileServer) StartFileServer() error {
 	go func() {
 		if err := fs.server.ListenAndServe(); err != nil {
-			if err != nil {
-				logging.Get().Error().Msgf("file server start err %v", err)
-			}
+			logging.Get().Error().Msgf("file server start err %v", err)
 		}
 	}()
 	// It takes some time to open the port, just to be sure we wait a bit

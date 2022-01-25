@@ -75,7 +75,7 @@ type DetailReq struct {
 	Name string `json:"name" query:"name" form:"name" uri:"name"`
 }
 
-func (d *DetailReq) SqlBuild(db *gorm.DB) *gorm.DB {
+func (d *DetailReq) SqlBuild(db *gorm.DB) *gorm.DB { // nolint
 	return db.Where("name = ?", d.Name)
 }
 

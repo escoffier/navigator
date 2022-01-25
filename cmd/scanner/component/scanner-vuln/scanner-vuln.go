@@ -1,4 +1,4 @@
-package scanner_vuln
+package scanvuln
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -29,8 +30,8 @@ type ScannerVuln struct {
 }
 
 type VulnDetail struct {
-	Cnvd  []cnvd.CnvdMetadata
-	Cnnvd cnnvd.CNNVDVulnerabilityInfo
+	Cnvd  []cnvd.Metadata
+	Cnnvd cnnvd.VulnerabilityInfo
 }
 
 var (
@@ -159,9 +160,8 @@ func (s *ScannerVuln) getVulnPath() string {
 	version := s.ReadVersion("custom")
 	if version == "last" {
 		return filepath.Join(s.PvcPath, "last_custom.db")
-	} else {
-		return filepath.Join(s.PvcPath, "offline", "init_custom.db")
 	}
+	return filepath.Join(s.PvcPath, "offline", "init_custom.db")
 }
 
 func (s *ScannerVuln) InitDB() error {
@@ -259,7 +259,7 @@ func (s *ScannerVuln) GetVulnDetail(name string) (VulnDetail, error) {
 				return fmt.Errorf("get cnvdBucket err")
 			}
 			cnvdResByte := cnvdBucket.Get([]byte(name))
-			cnvdRes := []cnvd.CnvdMetadata{}
+			cnvdRes := []cnvd.Metadata{}
 			if cnvdResByte != nil {
 				err = json.Unmarshal(cnvdResByte, &cnvdRes)
 				if err != nil {
@@ -274,7 +274,7 @@ func (s *ScannerVuln) GetVulnDetail(name string) (VulnDetail, error) {
 				return fmt.Errorf("get cnnvdBucker err")
 			}
 			cnnvdResByte := cnnvdBucket.Get([]byte(name))
-			cnnvdRes := cnnvd.CNNVDVulnerabilityInfo{}
+			cnnvdRes := cnnvd.VulnerabilityInfo{}
 			if cnnvdResByte != nil {
 				err = json.Unmarshal(cnnvdResByte, &cnnvdRes)
 				if err != nil {

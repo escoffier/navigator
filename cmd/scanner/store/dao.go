@@ -13,6 +13,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/datatypes"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -20,9 +24,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/datatypes"
-	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -45,9 +46,9 @@ type ScannerDalInterface interface {
 	CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error)
 	CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error)
 
-	GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList)
+	GetScanimageFromImageList(ctx context.Context, imgID int64) (model.ScanImage, model.ImageList)
 
-	GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string, auth string) (model.ScanTask, model.VirusScanTask, error)
+	GetTaskFromImageList(ctx context.Context, imgID int64, fromURL string, auth string) (model.ScanTask, model.VirusScanTask, error)
 	SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnTotal(ctx context.Context) (int, error)
 	GetVulnSeverityCount(ctx context.Context) (model.SeverityCount, error)
@@ -76,7 +77,7 @@ type ScannerDalInterface interface {
 	AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error)
 	UpdatePolicy(ctx context.Context, param SearchRejectPolicyParam, updater map[string]interface{}) error
 	UpdateGlobalPolicy(ctx context.Context, updater map[string]interface{}) error
-	DeletePolicy(ctx context.Context, policyId int64) error
+	DeletePolicy(ctx context.Context, policyID int64) error
 	IsInRegistry(ctx context.Context, library string) bool
 
 	GetK8sRejectImageList(ctx context.Context, image model.ImageList) *model.ImageList
@@ -97,8 +98,8 @@ type ScanTaskInterface interface {
 	UpdateSubTasksInfo(ctx context.Context, param SearchSubTaskParam, updateInfo map[string]interface{}) error
 	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
 	GetTotalTaskNum(ctx context.Context) (int64, error)
-	GetImageInfo(ctx context.Context, imgId int64) (*model.ImageList, error)
-	GetRegistryInfo(ctx context.Context, Id int64) (*model.Registry, error)
+	GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error)
+	GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error)
 	AddTask(ctx context.Context, task model.Task) (int64, error)
 	AddSubTask(ctx context.Context, subtask []model.SubTask) error
 	GetSubTasks(ctx context.Context, param SearchSubTaskParam, filter *model.Filter) ([]model.SubTask, int64, error)
@@ -107,11 +108,11 @@ type ScanTaskInterface interface {
 
 	UpdateTaskStatus(ctx context.Context, id int64, status uint8) error
 	GetTaskList(ctx context.Context, limit, offset int) ([]*model.Task, int64, error)
-	GetSubTaskListWithImage(ctx context.Context, taskId int64, limit, offset int) ([]model.SubTask, int64, error)
+	GetSubTaskListWithImage(ctx context.Context, taskID int64, limit, offset int) ([]model.SubTask, int64, error)
 
 	GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error)
 	// GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
-	SetSingleStrategy(ctx context.Context, envName string, policyId []int64) error
+	SetSingleStrategy(ctx context.Context, envName string, policyID []int64) error
 }
 
 type ScannerOrm struct {
@@ -162,7 +163,7 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 	defer cancelFunc()
 
 	tmp := make([]model.ImageList, 0)
-	err := s.psql.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryId).Find(&tmp).Error
+	err := s.psql.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryID).Find(&tmp).Error
 	if err != nil {
 		return nil, err
 	}
@@ -191,9 +192,9 @@ type ImageListWithScan struct {
 	Library        string    `json:"library"`
 	ImageUUID      uint32    `json:"image_uuid"`
 	CompleteTime   string    `json:"complete_time"`
-	RegistryId     int64     `json:"registry_id"`
+	RegistryID     int64     `json:"registry_id"`
 	FromType       int64     `json:"from_type"`
-	NodeIp         string    `json:"node_ip"`
+	NodeIP         string    `json:"node_ip"`
 	NodeHostname   string    `json:"node_hostname"`
 	ImageType      int64     `json:"image_type"`
 	IsReinforce    int64     `json:"is_reinforce"`
@@ -354,12 +355,12 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			ID:             res[i].ID,
 			Digest:         res[i].Digest,
 			Library:        res[i].Library,
-			NodeIp:         res[i].NodeIp,
+			NodeIP:         res[i].NodeIP,
 			FullRepoName:   res[i].FullRepoName,
 			CompleteTime:   res[i].FinishAt,
 			Tags:           res[i].Tags,
 			ImageType:      res[i].ImageType,
-			RegistryId:     res[i].RegistryId,
+			RegistryID:     res[i].RegistryID,
 			FromType:       res[i].FromType,
 			HasFixedVulu:   res[i].HasFixedVuln,
 			Os:             res[i].OS,
@@ -432,8 +433,8 @@ func (s *ScannerOrm) GetImage(ctx context.Context, param GetImageParam) (*model.
 	if param.Digest != "" {
 		db = db.Where("digest = ? ", param.Digest)
 	}
-	if param.Id > 0 {
-		db = db.Where("id = ?", param.Id)
+	if param.ID > 0 {
+		db = db.Where("id = ?", param.ID)
 	}
 	if param.Library != "" {
 		db = db.Where("library = ? ", param.Library)
@@ -486,9 +487,9 @@ func (s *ScannerOrm) GetImage(ctx context.Context, param GetImageParam) (*model.
 		}
 	}
 
-	if len(res.ConfigJson) > 0 {
+	if len(res.ConfigJSON) > 0 {
 		configFile := new(model.ConfigFile)
-		if err := json.Unmarshal(res.ConfigJson, configFile); err == nil {
+		if err := json.Unmarshal(res.ConfigJSON, configFile); err == nil {
 			res.ConfigFile = *configFile
 		} else {
 			logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize ConfigFile error:%s", err.Error()))
@@ -512,11 +513,11 @@ func (s *ScannerOrm) DeleteImage(ctx context.Context, param DeleteImageParam) er
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx)
-	if param.ImageId <= 0 && (param.Library == "" && param.Tags == "" && param.FullRepoName == "" && param.FromType <= 0) {
+	if param.ImageID <= 0 && (param.Library == "" && param.Tags == "" && param.FullRepoName == "" && param.FromType <= 0) {
 		return errors.New("no condition for delete image")
 	}
-	if param.ImageId > 0 {
-		db = db.Where("id = ? ", param.ImageId)
+	if param.ImageID > 0 {
+		db = db.Where("id = ? ", param.ImageID)
 	}
 	if param.Library != "" {
 		db = db.Where("library = ? ", param.Library)
@@ -538,7 +539,7 @@ func (s *ScannerOrm) DeleteScanImage(ctx context.Context, param DeleteScanImageP
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	db := s.psql.Get().Model(new(model.ScanImage)).WithContext(ctx)
-	db = db.Where("image_id = ? ", param.ImageId)
+	db = db.Where("image_id = ? ", param.ImageID)
 	err := db.Delete(&model.ScanImage{}).Error
 	return err
 }
@@ -550,13 +551,13 @@ func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
 	return res.Error == nil
 }
 
-func (s *ScannerOrm) GetScanimageFromImageList(ctx context.Context, imgId int64) (model.ScanImage, model.ImageList) {
+func (s *ScannerOrm) GetScanimageFromImageList(ctx context.Context, imgID int64) (model.ScanImage, model.ImageList) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
 	resScanImage := model.ScanImage{}
-	s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Where("image_id = ?", imgId).First(&resScanImage)
+	s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Where("image_id = ?", imgID).First(&resScanImage)
 	resImageList := model.ImageList{}
-	s.psql.Get().Model(model.ImageList{}).Where("id = ?", imgId).First(&resImageList)
+	s.psql.Get().Model(model.ImageList{}).Where("id = ?", imgID).First(&resImageList)
 	return resScanImage, resImageList
 }
 
@@ -696,13 +697,13 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.Image
 	return nil
 }
 
-func (s ScannerOrm) DeletePolicy(ctx context.Context, policyId int64) error {
+func (s ScannerOrm) DeletePolicy(ctx context.Context, policyID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyId).Delete(model.RejectVuln{}).Error; err != nil {
+	if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyID).Delete(model.RejectVuln{}).Error; err != nil {
 		return err
 	}
-	if err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ? ", policyId).Delete(model.RejectPolicy{}).Error; err != nil {
+	if err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ? ", policyID).Delete(model.RejectPolicy{}).Error; err != nil {
 		return err
 	}
 	return nil
@@ -804,18 +805,16 @@ func (s ScannerOrm) GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.
 func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	var imageId int
-	var librarys []string
-	librarys = append(librarys, library)
-	librarys = append(librarys, "http://"+library)
-	librarys = append(librarys, "https://"+library)
-	res := s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").Where("tags = ? AND library In ? AND full_repo_name = ?", tag, librarys, fullRepoName).First(&imageId)
+	var imageID int
+	librarys := []string{library, "http://" + library, "https://" + library}
+
+	res := s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").Where("tags = ? AND library In ? AND full_repo_name = ?", tag, librarys, fullRepoName).First(&imageID)
 	if res.Error != nil {
 		return model.SimpleImageDetail{}
 	}
 	resDetail := model.SimpleImageDetail{}
 	tmpScanImage := model.ScanImage{}
-	res = s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("vuln_info_json,sensitive_file_json").Where("image_id = ?", imageId).First(&tmpScanImage)
+	res = s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("vuln_info_json,sensitive_file_json").Where("image_id = ?", imageID).First(&tmpScanImage)
 	if res.Error != nil {
 		return model.SimpleImageDetail{}
 	}
@@ -1051,7 +1050,7 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 			if len(split) <= 6 {
 				continue
 			}
-			tmpRiskScore.Name = fmt.Sprintf("%s-%s-%s", tmpInfo.NodeHostname, tmpInfo.NodeIp, strings.Join(split[5:], "/"))
+			tmpRiskScore.Name = fmt.Sprintf("%s-%s-%s", tmpInfo.NodeHostname, tmpInfo.NodeIP, strings.Join(split[5:], "/"))
 		}
 		res = append(res, tmpRiskScore)
 	}
@@ -1069,17 +1068,17 @@ func (s *ScannerOrm) GetVulnSeverityCount(ctx context.Context) (model.SeverityCo
 	res := model.SeverityCount{}
 	for _, v := range tmp {
 		if v == model.SeverityCritical {
-			res.Critical += 1
+			res.Critical++
 		} else if v == model.SeverityHigh {
-			res.High += 1
+			res.High++
 		} else if v == model.SeverityMedium {
-			res.Medium += 1
+			res.Medium++
 		} else if v == model.SeverityLow {
-			res.Low += 1
+			res.Low++
 		} else if v == model.SeverityNegligible {
-			res.Negligible += 1
+			res.Negligible++
 		} else if v == model.SeverityUnknown {
-			res.Unknown += 1
+			res.Unknown++
 		}
 	}
 	return res, nil
@@ -1189,7 +1188,7 @@ func (s *ScannerOrm) InsertToScanImage(ctx context.Context, ScanImage *model.Sca
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ScanImage{}
-	res := s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageId: ScanImage.ImageId}).First(&tmp)
+	res := s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: ScanImage.ImageID}).First(&tmp)
 	if res.Error != nil {
 		err := s.psql.Get().Create(ScanImage).Error
 		if err != nil {
@@ -1216,22 +1215,22 @@ func (s *ScannerOrm) UpdateToScanImage(ctx context.Context, ScanImage *model.Sca
 	return nil
 }
 
-func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, fromUrl string, auth string) (model.ScanTask, model.VirusScanTask, error) {
+func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgID int64, fromURL string, auth string) (model.ScanTask, model.VirusScanTask, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgId).First(&tmp).Error; err != nil {
+	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应镜像记录: %+v", err)
 	}
 	// 支持多仓库，而且有节点镜像，所以这里的URL最好通过regestryID去查
 	logging.GetLogger().Info().Msgf("GetTaskFromImageList:Tem:%+v", tmp)
-	regs, _, err := s.SearchRegistry(ctx, SearchRegistryParam{Id: tmp.RegistryId}, nil)
+	regs, _, err := s.SearchRegistry(ctx, SearchRegistryParam{ID: tmp.RegistryID}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("GetTaskFromImageList imageID:%d,regestryId:%d", imgId, tmp.RegistryId)
+		logging.GetLogger().Error().Err(err).Msgf("GetTaskFromImageList imageID:%d,regestryId:%d", imgID, tmp.RegistryID)
 		return model.ScanTask{}, model.VirusScanTask{}, err
 	}
 	if len(regs) == 0 {
-		logging.GetLogger().Info().Msgf("GetTaskFromImageList not find registry imageID:%d,registryId:%d", imgId, tmp.RegistryId)
+		logging.GetLogger().Info().Msgf("GetTaskFromImageList not find registry imageID:%d,registryId:%d", imgID, tmp.RegistryID)
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("not find registry")
 	}
 
@@ -1251,7 +1250,7 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgId int64, from
 	ttmp := &model.ScanImage{}
 	if imageID != -1 {
 		ttmp.StartedAt = time.Now().Unix()
-		ttmp.ImageId = imageID
+		ttmp.ImageID = imageID
 		ttmp.Status = model.ScanStatusInProgress
 		err := s.InsertToScanImage(ctx, ttmp)
 		if err != nil {
@@ -1288,7 +1287,7 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 		return "not_scan"
 	}
 	tmpScanImage := model.ScanImage{}
-	res = s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageId: tmp.ID}).First(&tmpScanImage)
+	res = s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: tmp.ID}).First(&tmpScanImage)
 	if res.Error != nil {
 		return "not_scan"
 	}
@@ -1460,11 +1459,11 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 			db = db.Where("id IN ? ", param.RegistryIds)
 		}
 	}
-	if param.Id > 0 {
-		db = db.Where("id = ? ", param.Id)
+	if param.ID > 0 {
+		db = db.Where("id = ? ", param.ID)
 	}
-	if param.LibraryUrl != "" {
-		db = db.Where("url = ? ", param.LibraryUrl)
+	if param.LibraryURL != "" {
+		db = db.Where("url = ? ", param.LibraryURL)
 	}
 	if param.UseType > 0 {
 		db = db.Where("use_type = ? ", param.UseType)
@@ -1544,11 +1543,11 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.TagSearch != "" {
 		db = db.Where("tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagSearch))
 	}
-	if param.StartId > 0 {
-		db = db.Where("id > ?", param.StartId)
+	if param.StartID > 0 {
+		db = db.Where("id > ?", param.StartID)
 	}
-	if param.LastId > 0 {
-		db = db.Where("id < ?", param.LastId)
+	if param.LastID > 0 {
+		db = db.Where("id < ?", param.LastID)
 	}
 	if param.Where != "" {
 		db = db.Where(param.Where)
@@ -1621,9 +1620,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 			}
 		}
 
-		if len(res[i].ConfigJson) > 0 {
+		if len(res[i].ConfigJSON) > 0 {
 			configFile := new(model.ConfigFile)
-			if err := json.Unmarshal(res[i].ConfigJson, configFile); err == nil {
+			if err := json.Unmarshal(res[i].ConfigJSON, configFile); err == nil {
 				res[i].ConfigFile = *configFile
 			} else {
 				logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize ConfigFile error:%s", err.Error()))
@@ -1638,7 +1637,7 @@ func (s *ScannerOrm) InsertAdapterImageList(ctx context.Context, im model.ImageL
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	res := s.psql.Get().WithContext(ctx).Where("full_repo_name=? AND digest = ? AND registry_id = ?", im.FullRepoName, im.Digest, im.RegistryId).First(&tmp)
+	res := s.psql.Get().WithContext(ctx).Where("full_repo_name=? AND digest = ? AND registry_id = ?", im.FullRepoName, im.Digest, im.RegistryID).First(&tmp)
 	if res.Error != nil {
 		err := s.psql.Get().Create(&im).Error
 		return im.ID, err
@@ -1937,7 +1936,7 @@ func (s *ScannerOrm) DeleteImageWhitelist(ctx context.Context, param DeleteImage
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
-	err := s.psql.Get().WithContext(ctx).Where("id = ?", param.WhiteId).Delete(&model.ImageWhitelist{}).Error
+	err := s.psql.Get().WithContext(ctx).Where("id = ?", param.WhiteID).Delete(&model.ImageWhitelist{}).Error
 	return err
 }
 
@@ -2041,22 +2040,22 @@ func (s *ScannerOrm) GetTotalTaskNum(ctx context.Context) (int64, error) {
 	return cnt, nil
 }
 
-func (s *ScannerOrm) GetImageInfo(ctx context.Context, imgId int64) (*model.ImageList, error) {
+func (s *ScannerOrm) GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgId).First(&tmp).Error; err != nil {
-		return nil, fmt.Errorf("not find image id :%d,%v", imgId, err)
+	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
+		return nil, fmt.Errorf("not find image id :%d,%v", imgID, err)
 	}
 
 	return &tmp, nil
 }
 
-func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, Id int64) (*model.Registry, error) {
+func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	tmp := model.Registry{}
-	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", Id).First(&tmp).Error; err != nil {
+	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", ID).First(&tmp).Error; err != nil {
 		return nil, fmt.Errorf("not find registry:%v", err)
 	}
 
@@ -2196,7 +2195,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 
 	type SubTaskCount struct {
 		SuccessCount int   `gorm:"column:sc"`
-		TaskId       int64 `gorm:"column:task_id"`
+		TaskID       int64 `gorm:"column:task_id"`
 	}
 
 	c := make([]SubTaskCount, 0, len(data))
@@ -2215,13 +2214,13 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 
 	// 数据做聚合
 	for i := range c {
-		taskIdsMap[c[i].TaskId].SuccessSubTaskCount = c[i].SuccessCount
+		taskIdsMap[c[i].TaskID].SuccessSubTaskCount = c[i].SuccessCount
 	}
 
 	return datas, count, nil
 }
 
-func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, limit, offset int) ([]model.SubTask, int64, error) {
+func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskID int64, limit, offset int) ([]model.SubTask, int64, error) {
 	var (
 		data  = make([]model.SubTask, 0, limit)
 		count int64
@@ -2231,7 +2230,7 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, 
 	db := s.psql.Get().WithContext(ctx)
 
 	err = db.Model(model.SubTask{}).
-		Where("task_id = ?", taskId).
+		Where("task_id = ?", taskID).
 		Count(&count).
 		Error
 	if err != nil {
@@ -2240,7 +2239,7 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, 
 
 	err = db.
 		Model(model.SubTask{}).
-		Where("task_id = ?", taskId).
+		Where("task_id = ?", taskID).
 		Limit(limit).
 		Offset(offset).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "status"}, Desc: true}).
@@ -2252,20 +2251,20 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, 
 		return nil, 0, errors.Wrap(err, "get subtask data failed")
 	}
 
-	var imagesId = make([]int64, 0, len(data))
-	var imagesInfo = make([]model.ImageList, 0, len(data))
-	var imagesIdMap = make(map[int64]*model.SubTask, len(data))
+	imagesID := make([]int64, 0, len(data))
+	imagesInfo := make([]model.ImageList, 0, len(data))
+	imagesIDMap := make(map[int64]*model.SubTask, len(data))
 
 	for i := range data {
-		imagesId = append(imagesId, data[i].ImageId)
-		imagesIdMap[data[i].ImageId] = &data[i]
+		imagesID = append(imagesID, data[i].ImageID)
+		imagesIDMap[data[i].ImageID] = &data[i]
 	}
 
 	// 不用join，直接查询吧
 	err = db.
 		Model(model.ImageList{}).
 		Select("id, full_repo_name, tags, node_ip, library, os, node_hostname, from_type").
-		Where("id in ?", imagesId).
+		Where("id in ?", imagesID).
 		Find(&imagesInfo).
 		Error
 	if err != nil {
@@ -2273,15 +2272,15 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, 
 	}
 
 	for i := range imagesInfo {
-		imagesIdMap[imagesInfo[i].ID].ImageInfo.Tag = imagesInfo[i].Tags
+		imagesIDMap[imagesInfo[i].ID].ImageInfo.Tag = imagesInfo[i].Tags
 		if imagesInfo[i].FromType == model.ImageFromSafeNode {
 			split := strings.SplitN(imagesInfo[i].FullRepoName, "/", 6)
-			imagesIdMap[imagesInfo[i].ID].ImageInfo.FullRepoName = split[len(split)-1]
-			imagesIdMap[imagesInfo[i].ID].ImageInfo.Library = fmt.Sprintf("%s(%s)%s",
-				imagesInfo[i].NodeHostname, imagesInfo[i].NodeIp, imagesInfo[i].OS)
+			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = split[len(split)-1]
+			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = fmt.Sprintf("%s(%s)%s",
+				imagesInfo[i].NodeHostname, imagesInfo[i].NodeIP, imagesInfo[i].OS)
 		} else {
-			imagesIdMap[imagesInfo[i].ID].ImageInfo.FullRepoName = imagesInfo[i].FullRepoName
-			imagesIdMap[imagesInfo[i].ID].ImageInfo.Library = imagesInfo[i].Library
+			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = imagesInfo[i].FullRepoName
+			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = imagesInfo[i].Library
 		}
 
 	}
@@ -2289,11 +2288,11 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskId int64, 
 	return data, count, nil
 }
 
-func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, policyId []int64) error {
+func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, policyID []int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	res := []model.ScanStrategy{}
-	err := s.psql.Get().WithContext(ctx).Where("is_default != ? and id in ?", true, policyId).Find(&res).Error
+	res := make([]model.ScanStrategy, 0)
+	err := s.psql.Get().WithContext(ctx).Where("is_default != ? and id in ?", true, policyID).Find(&res).Error
 	if err != nil {
 		return err
 	}

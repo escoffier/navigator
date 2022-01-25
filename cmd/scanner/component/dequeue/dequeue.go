@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 )
 
-type DequeueConfig struct {
+type Config struct {
 	Type    string
 	Options map[string]interface{}
 }
@@ -15,7 +16,7 @@ type DequeueConfig struct {
 var dequeues = make(map[string]Creator)
 
 // Creator is a function that create job with specify config
-type Creator func(config DequeueConfig) (Dequeue, error)
+type Creator func(config Config) (Dequeue, error)
 
 func Register(name string, creator Creator) error {
 	if creator == nil {
@@ -29,7 +30,7 @@ func Register(name string, creator Creator) error {
 }
 
 // Open opens a registry specified by a configuration.
-func Open(cfg DequeueConfig) (Dequeue, error) {
+func Open(cfg Config) (Dequeue, error) {
 	driver, ok := dequeues[cfg.Type]
 	if !ok {
 		return nil, fmt.Errorf("unknown Creator %q (forgotten configuration or import?)", cfg.Type)

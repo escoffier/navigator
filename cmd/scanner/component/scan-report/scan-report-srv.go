@@ -1,4 +1,4 @@
-package scan_report
+package scanreport
 
 import (
 	"context"
@@ -35,7 +35,7 @@ const contentFormat = `<div>已为您成功生成一份报告：</div>
 <div>报告周期: %s - %s</div>
 <div>平台链接: %s/#/image-scanning/recent-scan?reportId=%d&ctab=4</div>`
 
-type ScanReportSrv struct {
+type ScanReportSrv struct { // nolint
 	dao       store.ScanReportInterface
 	interval  time.Duration
 	batchSize int

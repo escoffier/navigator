@@ -16,7 +16,7 @@ type ListReq struct {
 	Keyword string `json:"keyword" query:"keyword" form:"keyword"`
 }
 
-func (l *ListReq) SqlBuild(db *gorm.DB) *gorm.DB {
+func (l *ListReq) SqlBuild(db *gorm.DB) *gorm.DB { // nolint
 	db = l.Page.SqlBuild(db)
 	if l.Keyword != "" {
 		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", l.Keyword))

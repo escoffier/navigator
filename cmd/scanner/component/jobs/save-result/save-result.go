@@ -1,4 +1,4 @@
-package save_result
+package saveresult
 
 import (
 	"context"
@@ -9,18 +9,19 @@ import (
 	"strings"
 	"time"
 
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
-	pull_image "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
+	pullImage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
-	scanner_vuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
+	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
-	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
+	imageCache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 const (
@@ -125,15 +126,15 @@ func (s *ScanResultHandle) makeSeverityHistogramAndVulnScore(scanDetails *model.
 	scanDetails.SeverityHistogram = sevHistorgram
 }
 
-func (s *ScanResultHandle) defalutEnvFill(scanDetails *model.ScanDetailScanImage, param jobs.Param) {
-	configJson, ok := param["configJson"].(string)
+func (s *ScanResultHandle) defaultEnvFill(scanDetails *model.ScanDetailScanImage, param jobs.Param) {
+	configJSON, ok := param["configJson"].(string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'configJson' in parameter")
 		return
 	}
 
 	config := model.ConfigFile{}
-	err := json.Unmarshal([]byte(configJson), &config)
+	err := json.Unmarshal([]byte(configJSON), &config)
 	if err != nil {
 		logging.GetLogger().Error().Msg("ScanEnv can't unmarshal configJson")
 		return
@@ -167,7 +168,7 @@ func (s *ScanResultHandle) AddRHSAAndCnnvd(VulnDetails *model.SingleScanDetail, 
 }
 
 func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers []string, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
-	vulnQuery := scanner_vuln.GetScannerVuln()
+	vulnQuery := scanVuln.GetScannerVuln()
 	fixedFlag := 0
 	for i, v := range trivyReport.Results {
 		mp := make(map[string]*model.NewVulnDetail)
@@ -328,10 +329,10 @@ func (s *ScanResultHandle) arrangeLicense(licenseResult []model.PerLayerLicenseR
 	}
 }
 
-func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageId int64) {
+func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
 	scannerOrm := store.GetScannerDb()
 	for k, v := range layerMp {
-		tmpScanLayer := model.ScanLayer{ImageId: imageId}
+		tmpScanLayer := model.ScanLayer{ImageID: imageID}
 		tmpScanLayer.LayerDigest = k
 		if v.VulnDetails != nil {
 			var tmpSingleDetails []model.SingleScanDetail
@@ -342,105 +343,105 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 				}
 				tmpSingleDetails = append(tmpSingleDetails, model.SingleScanDetail{Class: t.Class, Type: t.Type, Target: t.Target, Vulns: tmpVulnDetails})
 			}
-			vulnJson, err := json.Marshal(tmpSingleDetails)
+			vulnJSON, err := json.Marshal(tmpSingleDetails)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
 			}
-			tmpScanLayer.VulnInfoJSON = vulnJson
+			tmpScanLayer.VulnInfoJSON = vulnJSON
 		}
 
 		if len(v.MaliciousDetails) > 0 {
-			maliciousJson, err := json.Marshal(v.MaliciousDetails)
+			maliciousJSON, err := json.Marshal(v.MaliciousDetails)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
 			}
-			tmpScanLayer.MaliciousInfoJSON = maliciousJson
+			tmpScanLayer.MaliciousInfoJSON = maliciousJSON
 		}
 
 		if len(v.Sentitives) > 0 {
-			sensitiveJson, err := json.Marshal(v.Sentitives)
+			sensitiveJSON, err := json.Marshal(v.Sentitives)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
 			}
-			tmpScanLayer.SensitiveFileJSON = sensitiveJson
+			tmpScanLayer.SensitiveFileJSON = sensitiveJSON
 		}
 
 		if len(v.WebshellInfos) > 0 {
-			webshellJson, err := json.Marshal(v.WebshellInfos)
+			webshellJSON, err := json.Marshal(v.WebshellInfos)
 			if err != nil {
 				logging.GetLogger().Error().Err(err)
 			}
-			tmpScanLayer.WebshellInfoJSON = webshellJson
+			tmpScanLayer.WebshellInfoJSON = webshellJSON
 		}
 
 		scannerOrm.InsertToScanLayer(ctx, &tmpScanLayer)
 	}
 }
 
-func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageId int64) {
+func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
 	scannerOrm := store.GetScannerDb()
-	tmpScanImage := model.ScanImage{ImageId: imageId}
+	tmpScanImage := model.ScanImage{ImageID: imageID}
 	if len(scanDetails.MaliciousDetails) > 0 {
-		maliciousJson, err := json.Marshal(scanDetails.MaliciousDetails)
+		maliciousJSON, err := json.Marshal(scanDetails.MaliciousDetails)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.MaliciousInfoJSON = maliciousJson
+		tmpScanImage.MaliciousInfoJSON = maliciousJSON
 	}
 
 	if len(scanDetails.Sentitives) > 0 {
-		sensitiveJson, err := json.Marshal(scanDetails.Sentitives)
+		sensitiveJSON, err := json.Marshal(scanDetails.Sentitives)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.SensitiveFileJSON = sensitiveJson
+		tmpScanImage.SensitiveFileJSON = sensitiveJSON
 	}
 
 	if len(scanDetails.VulnDetails) > 0 {
-		vulnJson, err := json.Marshal(scanDetails.VulnDetails)
+		vulnJSON, err := json.Marshal(scanDetails.VulnDetails)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.VulnInfoJSON = vulnJson
+		tmpScanImage.VulnInfoJSON = vulnJSON
 	}
 
 	if len(scanDetails.WebshellInfos) > 0 {
-		webshellJson, err := json.Marshal(scanDetails.WebshellInfos)
+		webshellJSON, err := json.Marshal(scanDetails.WebshellInfos)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.WebshellInfoJSON = webshellJson
+		tmpScanImage.WebshellInfoJSON = webshellJSON
 	}
 
 	if len(scanDetails.EnvDetails) > 0 {
-		envJson, err := json.Marshal(scanDetails.EnvDetails)
+		envJSON, err := json.Marshal(scanDetails.EnvDetails)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.EnvJSON = envJson
+		tmpScanImage.EnvJSON = envJSON
 	}
 
 	if len(scanDetails.Software) > 0 {
-		softwareJson, err := json.Marshal(scanDetails.Software)
+		softwareJSON, err := json.Marshal(scanDetails.Software)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.SoftwareJSON = softwareJson
+		tmpScanImage.SoftwareJSON = softwareJSON
 	}
 
 	if len(scanDetails.LicenseDetail) > 0 {
-		licenseJson, err := json.Marshal(scanDetails.LicenseDetail)
+		licenseJSON, err := json.Marshal(scanDetails.LicenseDetail)
 		if err != nil {
 			logging.GetLogger().Error().Err(err)
 		}
-		tmpScanImage.LicenseInfoJSON = licenseJson
+		tmpScanImage.LicenseInfoJSON = licenseJSON
 	}
 
-	severityCountJson, err := json.Marshal(scanDetails.SeverityHistogram)
+	severityCountJSON, err := json.Marshal(scanDetails.SeverityHistogram)
 	if err != nil {
 		logging.GetLogger().Error().Err(err)
 	} else {
-		tmpScanImage.SeverityHistogramJSON = severityCountJson
+		tmpScanImage.SeverityHistogramJSON = severityCountJSON
 	}
 
 	// 计分
@@ -450,18 +451,18 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 	tmpScanImage.SensitiveScore = scanDetails.SensitiveScore
 	tmpScanImage.RiskScore = tmpScanImage.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + tmpScanImage.SensitiveScore
 
-	collectionJson, err := json.Marshal(scanDetails.ScanEnableCollection)
+	collectionJSON, err := json.Marshal(scanDetails.ScanEnableCollection)
 	if err != nil {
 		logging.GetLogger().Error().Err(err)
 	} else {
-		tmpScanImage.ScanEnableCollectionJson = string(collectionJson)
+		tmpScanImage.ScanEnableCollectionJson = string(collectionJSON)
 	}
 	tmpScanImage.Status = model.ScanStatusSucceeded
 	tmpScanImage.HasFixedVuln = scanDetails.HasFixedVuln
 	scannerOrm.InsertToScanImage(ctx, &tmpScanImage)
 }
 
-func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageId int64) {
+func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
 	scannerOrm := store.GetScannerDb()
 	for _, v := range scanDetails.VulnDetails {
 		for _, vuln := range v.Vulns {
@@ -481,7 +482,7 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 					tmpMate.CVSS.CVSSv3Vector = cvss.V3Vector
 					break
 				}
-				mateDateJson, err := json.Marshal(tmpMate)
+				mateDateJSON, err := json.Marshal(tmpMate)
 				if err != nil {
 					logging.GetLogger().Error().Err(err)
 				}
@@ -491,9 +492,9 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 				}
 
 				tmpVuln := model.Vuln{Name: vuln.CVEID, Namespace: v.Type, Target: v.Target, Description: trivyVuln.Description,
-					MetadataJSON: mateDateJson, PkgName: trivyVuln.PkgName, PkgVersion: trivyVuln.InstalledVersion,
+					MetadataJSON: mateDateJSON, PkgName: trivyVuln.PkgName, PkgVersion: trivyVuln.InstalledVersion,
 					LinkJSON: linkjson, FixedBy: trivyVuln.FixedVersion, Severity: trivyVuln.Severity, SeverityInt: s.transSeverityInt(trivyVuln.Severity)}
-				err = scannerOrm.InsertToVuln(ctx, &tmpVuln, imageId)
+				err = scannerOrm.InsertToVuln(ctx, &tmpVuln, imageID)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msgf("InsertoVuln failed ")
 				}
@@ -503,7 +504,7 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 }
 
 func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.Param) {
-	jobUrl, ok := param["url"].(string)
+	jobURL, ok := param["url"].(string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'url' in parameter")
 		return
@@ -538,7 +539,7 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 		return
 	}
 	var err error
-	url := strings.TrimPrefix(jobUrl, "http://") // trimPrefix http or https
+	url := strings.TrimPrefix(jobURL, "http://") // trimPrefix http or https
 	url = strings.TrimPrefix(url, "https://")
 	url = strings.TrimRight(url, "/")
 	imageID := fmt.Sprintf("%s/%s:%s", url, jobRepo, jobTag)
@@ -558,7 +559,7 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 }
 
 func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
-	jobUrl, ok := param["url"].(string)
+	jobURL, ok := param["url"].(string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'url' in parameter")
 		return
@@ -574,7 +575,7 @@ func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param j
 		return
 	}
 
-	url := strings.Replace(jobUrl, "https://", "", 1)
+	url := strings.Replace(jobURL, "https://", "", 1)
 	url = strings.Replace(url, "http://", "", 1)
 	image := "riskexp-image-vulns-" + url + "/" + jobRepo + ":" + jobTag
 	sumData := model.ImageVulnsSumData{}
@@ -600,7 +601,7 @@ func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param j
 }
 
 func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
-	jobUrl, ok := param["url"].(string)
+	jobURL, ok := param["url"].(string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'url' in parameter")
 		return
@@ -616,7 +617,7 @@ func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param 
 		return
 	}
 
-	url := strings.Replace(jobUrl, "https://", "", 1)
+	url := strings.Replace(jobURL, "https://", "", 1)
 	url = strings.Replace(url, "http://", "", 1)
 	image := "riskexp-image-virus-" + url + "/" + jobRepo + ":" + jobTag
 	sumData := model.ImageVirusSumData{}
@@ -732,7 +733,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	// 整合Env
 	scanEnv, ok := scanResult["scan-env"].(scan.Artifact)
 	if !ok {
-		s.defalutEnvFill(&scanDetails, param)
+		s.defaultEnvFill(&scanDetails, param)
 		logging.GetLogger().Warn().Msg("miss 'scan-env' in parameter")
 	} else {
 		envReuslt, ok := scanEnv["result"].([]model.EnvKeyValue)
@@ -765,15 +766,15 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		}
 	}
 
-	s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
-	s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
-	s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.Id)
+	s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
 	s.updateRiskVulnCacheEntry(ctx, param, &scanDetails)
 	s.updateRiskVirusCacheEntry(ctx, param, &scanDetails)
 	s.logPostgresWebFrame(ctx, param)
-	_, ok = param["pullImageJob"].(pull_image.Config)
+	_, ok = param["pullImageJob"].(pullImage.Config)
 	if ok {
-		client1, err := image_cache.NewLocalLayerManageClientT("/layer")
+		client1, err := imageCache.NewLocalLayerManageClientT("/layer")
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("delete layers Failed!")
 		} else {

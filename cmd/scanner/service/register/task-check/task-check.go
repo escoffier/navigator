@@ -3,7 +3,7 @@
 // task-check will set these subtasks to timeout, and also set task to exception.
 // engine will retry these task
 
-package task_check
+package taskcheck
 
 import (
 	"context"
@@ -37,16 +37,16 @@ func (t *TaskCheck) checkSubTaskTimeout() error {
 	for _, st := range sts {
 		tc := time.Since(*st.HeartBeat).Minutes()
 		if tc > defaultTimeOutMin {
-			err := t.taskSrv.SetSubTaskFailed(st.Id, HeartBeatTimeOutMsg)
+			err := t.taskSrv.SetSubTaskFailed(st.ID, HeartBeatTimeOutMsg)
 			if err != nil {
 				logging.GetLogger().Err(err).
-					Int64("taskId", st.TaskId).
-					Int64("subtaskId", st.Id).
+					Int64("taskId", st.TaskID).
+					Int64("subtaskId", st.ID).
 					Msg("subtask timeout,but update db failed")
 			} else {
 				logging.GetLogger().Info().
-					Int64("taskId", st.TaskId).
-					Int64("subtaskId", st.Id).
+					Int64("taskId", st.TaskID).
+					Int64("subtaskId", st.ID).
 					Msg("subtask timeout")
 			}
 		}
@@ -62,42 +62,42 @@ func (t *TaskCheck) checkTaskStatus() error {
 		return err
 	}
 	for _, v := range pt {
-		sts, err := t.taskSrv.GetProgressingSubTasks([]int64{v.Id})
+		sts, err := t.taskSrv.GetProgressingSubTasks([]int64{v.ID})
 		if err != nil {
-			logging.GetLogger().Err(err).Int64("taskId", v.Id).Msg("get progressing subtask err")
+			logging.GetLogger().Err(err).Int64("taskId", v.ID).Msg("get progressing subtask err")
 			continue
 		}
 
-		pendingSubtasks, err := t.taskSrv.GetPendingSubTasks([]int64{v.Id})
+		pendingSubtasks, err := t.taskSrv.GetPendingSubTasks([]int64{v.ID})
 		if err != nil {
-			logging.GetLogger().Err(err).Int64("taskId", v.Id).Msg("get pending subtask err")
+			logging.GetLogger().Err(err).Int64("taskId", v.ID).Msg("get pending subtask err")
 			continue
 		}
 
 		if len(sts) == 0 && len(pendingSubtasks) == 0 {
 			// not processing subtask,so we set task end and set result failed
-			if err := t.taskSrv.SetTaskFailed(v.Id, TaskStatusInConsistentWithSubtasks); err != nil {
+			if err := t.taskSrv.SetTaskFailed(v.ID, TaskStatusInConsistentWithSubtasks); err != nil {
 				logging.GetLogger().Err(err).
-					Int64("taskId", v.Id).
+					Int64("taskId", v.ID).
 					Msg("task is processing status while all subtasks are finished. but update task db status failed.")
 			} else {
 				logging.GetLogger().Info().
-					Int64("taskId", v.Id).
+					Int64("taskId", v.ID).
 					Msg("task is processing status while all subtasks are finished.")
 			}
 		}
 
-		if len(pendingSubtasks) != 0 && v.ScannerId != global.ScannerId {
+		if len(pendingSubtasks) != 0 && v.ScannerID != global.ScannerID {
 			// a processing task with pending subtasks,but scanner id not mine
 			// which means original scanner give up control of the task (eg: scanner reboot)
 			// so we take over,reset task status to pending
-			if err := t.taskSrv.ReScheduleTask([]int64{v.Id}); err != nil {
+			if err := t.taskSrv.ReScheduleTask([]int64{v.ID}); err != nil {
 				logging.GetLogger().Err(err).
-					Int64("taskId", v.Id).
+					Int64("taskId", v.ID).
 					Msg("reschedule task err")
 			} else {
 				logging.GetLogger().Info().
-					Int64("taskId", v.Id).
+					Int64("taskId", v.ID).
 					Msg("reschedule task ok")
 			}
 		}

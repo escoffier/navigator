@@ -1,4 +1,4 @@
-package layerManage
+package layermanage
 
 import (
 	"crypto/x509"

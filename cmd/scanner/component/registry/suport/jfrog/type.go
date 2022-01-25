@@ -3,7 +3,7 @@ package jfrog
 type Repository struct {
 	Key         string `json:"key"`
 	Type        string `json:"type"`
-	Url         string `json:"url"`
+	URL         string `json:"url"`
 	PackageType string `json:"packageType"`
 }
 
@@ -16,9 +16,9 @@ type ImageTage struct {
 	Tags []string `json:"tags"`
 }
 
-type JfrogConfig struct {
+type Config struct {
 	Type          string `json:"type"`
-	RegistryId    int64  `json:"registry_id"`
+	RegistryID    int64  `json:"registry_id"`
 	URL           string `json:"url"`
 	Username      string `json:"username"`
 	Password      string `json:"password"`

@@ -15,6 +15,7 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -76,11 +77,11 @@ func getNextLink(resp *http.Response) (string, error) {
 	return "", ErrNoMorePages
 }
 
-func (r *RegistryV2) completeNextUrl(nextUrl string) (string, error) {
-	if strings.HasPrefix(nextUrl, r.RegistryClient.URL) {
-		return nextUrl, nil
+func (r *RegistryV2) completeNextURL(nextURL string) (string, error) {
+	if strings.HasPrefix(nextURL, r.RegistryClient.URL) {
+		return nextURL, nil
 	}
-	return r.RegistryClient.URL + nextUrl, nil
+	return r.RegistryClient.URL + nextURL, nil
 }
 
 func (r *RegistryV2) Repositories() ([]string, error) {
@@ -88,14 +89,14 @@ func (r *RegistryV2) Repositories() ([]string, error) {
 	repos := make([]string, 0, 10)
 	var response repositoriesResponse
 	for {
-		nextUrl, err := r.getPaginatedJSON(url, &response)
-		logging.GetLogger().Debug().Msgf("docker registry repositories next url %v,err %v", nextUrl, err)
+		nextURL, err := r.getPaginatedJSON(url, &response)
+		logging.GetLogger().Debug().Msgf("docker registry repositories next url %v,err %v", nextURL, err)
 		switch err {
 		case ErrNoMorePages:
 			repos = append(repos, response.Repositories...)
 			return repos, nil
 		case nil:
-			url, err = r.completeNextUrl(nextUrl)
+			url, err = r.completeNextURL(nextURL)
 			logging.GetLogger().Debug().Msgf("docker registry repositories complete url %v,err:%v", url, err)
 			repos = append(repos, response.Repositories...)
 			continue
@@ -195,13 +196,13 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 			i.ImageDigest = imageDigest
 			i.ManifestV2 = string(manifestV2Str)
 			i.ManifestV1 = string(manifestV1Str)
-			i.ConfigJson = configBlob
+			i.ConfigJSON = configBlob
 
 			cnt++
 
 			im, err := extender(*i)
 			if err != nil {
-				if err != consts.NotNodeImageErr {
+				if err != consts.ErrNotNodeImage {
 					logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
 				}
 				continue
@@ -306,7 +307,7 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 	image.ImageDigest = imageDigest
 	image.ManifestV2 = string(manifestV2Str)
 	image.ManifestV1 = string(manifestV1Str)
-	image.ConfigJson = configBlob
+	image.ConfigJSON = configBlob
 
 	return image, nil
 }

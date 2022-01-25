@@ -1,4 +1,4 @@
-package scan_report
+package scanreport
 
 import (
 	"crypto/tls"

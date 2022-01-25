@@ -41,9 +41,9 @@ type Tag struct {
 	PushTime time.Time `json:"push_time"`
 	PullTime time.Time `json:"pull_time"`
 }
-type HarborV2Config struct {
+type Config struct {
 	Type          string `json:"type"`
-	RegistryId    int64  `json:"registry_id"`
+	RegistryID    int64  `json:"registry_id"`
 	URL           string `json:"url"`
 	Username      string `json:"username"`
 	Password      string `json:"password"`

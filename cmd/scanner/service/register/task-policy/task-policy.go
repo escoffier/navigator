@@ -1,5 +1,5 @@
 // Package task_policy generate task by config policy
-package task_policy
+package taskpolicy
 
 import (
 	"context"
@@ -19,12 +19,12 @@ type Config struct {
 	Options *flag2.ScannerOpts
 }
 
-type TaskPolicyService struct {
+type Service struct {
 	// config        Config
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
 
-func (s *TaskPolicyService) Start(ctx context.Context) error {
+func (s *Service) Start(ctx context.Context) error {
 	err := s.ScanConfigSrv.AddTaskByStrategy(ctx)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy start failure")
@@ -34,8 +34,7 @@ func (s *TaskPolicyService) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *TaskPolicyService) Stop(ctx context.Context) error {
-
+func (s *Service) Stop(ctx context.Context) error {
 	return nil
 }
 
@@ -47,7 +46,7 @@ func init() {
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	s := &TaskPolicyService{}
+	s := &Service{}
 	scanConfigSrv := component.NewScanConfigSrv(
 		store.NewScanConfigDao(store.GetScannerWrapperDb()),
 		store.NewRegistryDao(store.GetScannerWrapperDb()),

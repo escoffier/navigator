@@ -70,7 +70,7 @@ func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, 
 				if v == 2 {
 					continue
 				}
-				customLicenseListMap[tmpRes[k].Name] += 1
+				customLicenseListMap[tmpRes[k].Name]++
 				tmpLayerResult.LicenseInfos = append(tmpLayerResult.LicenseInfos, tmpRes[k])
 				sum++
 			}

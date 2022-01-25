@@ -19,18 +19,21 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"go.mongodb.org/mongo-driver/mongo"
+
+	// 引入驱动
 	_ "github.com/lib/pq"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
+
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redclair"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -160,13 +163,13 @@ func (rcSvc *RedClairService) ForceInvalidateCache(ctx context.Context) error {
 		// In this case, it is not specified in any of the redis.conf inside the containers, so you need to specify it in your Redis YAML:
 		// 	master:
 		// 	  disableCommands: []
-		return NewRedisError(http.StatusInternalServerError, fmt.Errorf("Failed to flush redis "+
-			"(if using redis official helm chart, check master.disableCommands): %w", err))
+		return apperror.NewRedisError(http.StatusInternalServerError,
+			fmt.Errorf("failed to flush redis (if using redis official helm chart, check master.disableCommands): %s", err.Error()))
 	}
 
 	err = rcSvc.updateLayerCache(ctx)
 	if err != nil {
-		return NewAnError(http.StatusInternalServerError, fmt.Errorf("Failed to recreate cache after invalidation: %w", err))
+		return apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("failed to recreate cache after invalidation: %w", err))
 	}
 
 	return nil
@@ -387,12 +390,10 @@ func (rcSvc *RedClairService) invalidateCacheEntries(ctx context.Context, namesp
 		}
 		for iter.Next(redisCtx) {
 			layerToRemove := iter.Val()
-			err := rcSvc.redisClient.Del(redisCtx, layerToRemove).Err()
-			if err != nil {
+			if err := rcSvc.redisClient.Del(redisCtx, layerToRemove).Err(); err != nil {
 				return fmt.Errorf("Failed to remove layer from cache: %w", err)
-			} else {
-				logging.Get().Info().Str("digest", layerToRemove).Msg("Successfully removed from cache")
 			}
+			logging.Get().Info().Str("digest", layerToRemove).Msg("Successfully removed from cache")
 		}
 	}
 	return nil
@@ -464,12 +465,10 @@ func (rcSvc *RedClairService) appendRemovedVulnerabilities(ctx context.Context, 
 	}
 	defer rows.Close()
 	for rows.Next() {
-		err := rows.Scan(&vulnerabilityEntry.Name, &vulnerabilityEntry.NameSpace)
-		if err != nil {
+		if err := rows.Scan(&vulnerabilityEntry.Name, &vulnerabilityEntry.NameSpace); err != nil {
 			return fmt.Errorf("Failed to get removed vulnerability entry: %w", err)
-		} else {
-			*namespacesToRemoveFromCache = util.AppendIfMissing(*namespacesToRemoveFromCache, vulnerabilityEntry.NameSpace)
 		}
+		*namespacesToRemoveFromCache = util.AppendIfMissing(*namespacesToRemoveFromCache, vulnerabilityEntry.NameSpace)
 	}
 	return nil
 }
@@ -509,12 +508,10 @@ func (rcSvc *RedClairService) appendNewVulnerabilities(ctx context.Context, db *
 	}
 	defer rows.Close()
 	for rows.Next() {
-		err := rows.Scan(&vulnerabilityEntry.Name, &vulnerabilityEntry.NameSpace)
-		if err != nil {
+		if err := rows.Scan(&vulnerabilityEntry.Name, &vulnerabilityEntry.NameSpace); err != nil {
 			return fmt.Errorf("Failed to get new vulnerability entry: %w", err)
-		} else {
-			*namespacesToRemoveFromCache = util.AppendIfMissing(*namespacesToRemoveFromCache, vulnerabilityEntry.NameSpace)
 		}
+		*namespacesToRemoveFromCache = util.AppendIfMissing(*namespacesToRemoveFromCache, vulnerabilityEntry.NameSpace)
 	}
 	return nil
 }
@@ -539,7 +536,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		var err error
 		username, password, err = rcSvc.decodeUsernamePassword(scanTask)
 		if err != nil {
-			rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't decode username and password", err)
+			rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't decode username and password", err)
 			return
 		}
 	}
@@ -563,7 +560,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		}
 	}
 	if err != nil {
-		rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't initialize docker registry client", err)
+		rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't initialize docker registry client", err)
 		return
 	}
 
@@ -571,31 +568,31 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	version := "v2"
 	layers, err := rcSvc.readManifest(ctx, version, hub, scanTask)
 	if err != nil {
-		rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't read manifest", err)
+		rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't read manifest", err)
 		return
 	}
 
 	currentlyCachedLayers, toScan, err := rcSvc.getCachedGraph(ctx, layers, scanTask)
 	if err != nil {
-		rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't get cache graph", err)
+		rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't get cache graph", err)
 		return
 	}
 
 	client, err := layerManage.NewLocalLayerManageClient(llms)
 	if err != nil {
 		logging.Get().Err(err).Msg("LLMS CLIENT NEW FAULT")
-		rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't get LLMS Client", err)
+		rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Couldn't get LLMS Client", err)
 		return
 	}
 
 	for i := range toScan {
 		err := rcSvc.processLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
 		if err != nil {
-			var cErr ClairUnprocessableLayerError
+			var cErr apperror.ClairUnprocessableLayerError
 			if errors.As(err, &cErr) {
-				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while Clair scanning layers", cErr)
+				rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while Clair scanning layers", cErr)
 			} else {
-				rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
+				rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Error occured while scanning layers", err)
 			}
 			return
 		}
@@ -614,7 +611,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	for layerNo, digest := range layers {
 		cachedLayer, err := rcSvc.getCachedEntry(scanCtx, digest, currentlyCachedLayers)
 		if err != nil {
-			rcSvc.logPostgres(ctx, &model.ScanImage{ImageId: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Failed to get entries from cache from just-finished scan", err)
+			rcSvc.logPostgres(ctx, &model.ScanImage{ImageID: scanTask.ImageID}, scanTask.TableID, scanTask, model.ScanStatusFailed, "Failed to get entries from cache from just-finished scan", err)
 			return
 		}
 
@@ -691,11 +688,11 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 	for retryCounter <= currentMaxScanRetries {
 		layerNamespace, vulnInfo, sensitive, err := rcSvc.redclairEngine.ScanLayer(ctx, hub, currLayer.Digest, currLayer.Parent, scanTask.Repository, client, scanTask)
 		if err != nil {
-			var cuErr ClairUnprocessableLayerError
+			var cuErr apperror.ClairUnprocessableLayerError
 			if errors.As(err, &cuErr) {
 				return err
 			}
-			var cmErr ClairMissingParentLayerError
+			var cmErr apperror.ClairMissingParentLayerError
 			if errors.As(err, &cmErr) {
 				logging.Get().Info().Msg("Clair missing parent layer scan. Trying to scan parent next")
 				layersBench = append(layersBench, currLayer)
@@ -900,26 +897,28 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 	(*currentLayerCache)[layer].ScanReport = scanResult
 	(*currentLayerCache)[layer].NameSpace = namespace
 	_, err := rcSvc.redisClient.Get(ctx, "vulnScan"+"_"+layer).Result()
+	if err != nil {
+		logging.Get().Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
+		return nil
+	}
+
 	if err == redis.Nil {
 		logging.Get().Info().Str("layerDigest", layer).Msg("Persisting in cache")
 		cacheEntry, err := json.Marshal((*currentLayerCache)[layer])
 		if err != nil {
 			logging.Get().Err(err).Str("layerDigest", layer).Msg("Layer could not be marshaled. Not persisting")
 			return nil
-		} else {
-			redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
-			defer redisCtxCancel()
-			_, err := rcSvc.redisClient.Set(redisCtx, "vulnScan"+"_"+layer, cacheEntry, redisTTL).Result()
-			if err != nil {
-				logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
-				return nil
-			}
-			logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
+		}
+		redisCtx, redisCtxCancel := context.WithTimeout(ctx, redisTimeout)
+		defer redisCtxCancel()
+		_, err = rcSvc.redisClient.Set(redisCtx, "vulnScan"+"_"+layer, cacheEntry, redisTTL).Result()
+		if err != nil {
+			logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 			return nil
 		}
-	} else if err != nil {
-		logging.Get().Err(err).Str("layerDigest", layer).Msg("Error getting layer from cache. Not persisting")
+		logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
 		return nil
+
 	}
 
 	logging.Get().Info().Str("layerDigest", layer).Msg("Another worker recently scanned this layer. No need to persist")
@@ -955,15 +954,15 @@ func (rcSvc *RedClairService) getParentLayerFromCache(ctx context.Context, paren
 				Digest: parentLayer,
 			}
 			err = json.Unmarshal([]byte(cacheEntry), cachedLayer)
+
 			if err != nil {
 				logging.Get().Err(err).Str("layerDigest", parentLayer).Msg("Layer from cache could not be unmarshaled.")
 				if currLayer, exists := currentLayerCache[parentLayer]; exists {
 					return currLayer, nil
 				}
 				return nil, fmt.Errorf("Layer exists neither in global, nor local cache")
-			} else {
-				return cachedLayer, nil
 			}
+			return cachedLayer, nil
 		}
 	} else {
 		logging.Get().Info().Str("layerDigest", parentLayer).Msg("Parent layer not found in cache")
@@ -1203,7 +1202,7 @@ func (rcSvc *RedClairService) logLayerTable(ctx context.Context, scanTask model.
 	var err error
 	for _, v := range scanTask.ScanReport.Vulns.PerLayerReport {
 		layer := model.ScanLayer{}
-		layer.ImageId = imageID
+		layer.ImageID = imageID
 		layer.LayerDigest = v.LayerDigest
 		if len(v.VulnerabilitiesAdded) > 0 {
 			layer.VulnInfoJSON, err = json.Marshal(v.VulnerabilitiesAdded)

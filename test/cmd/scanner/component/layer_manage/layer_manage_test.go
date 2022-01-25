@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/heroku/docker-registry-client/registry"
-	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer_manage"
+	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 )
 
 func ClientPullLayer(t *testing.T, llms *layerManage.LocalLayerManageSrv, num int) {

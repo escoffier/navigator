@@ -1,4 +1,4 @@
-package flow_conf
+package flowconf
 
 import (
 	"encoding/json"
@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
+	flowConf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 func TestAddFlowConf(t *testing.T) {
 	tmpFlow := []string{"mock-pull-image", "mock-scan-image", "mock-score-image"}
-	flow_conf.AddFlowConf("mock-flow", tmpFlow)
-	flow_conf.DumpFlowConf()
+	flowConf.AddFlowConf("mock-flow", tmpFlow)
+	flowConf.DumpFlowConf()
 }
 
 func parseConfigEnv(env []string) []model.EnvKeyValue {

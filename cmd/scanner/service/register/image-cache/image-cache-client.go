@@ -1,4 +1,4 @@
-package image_cache
+package imagecache
 
 import (
 	"bytes"
@@ -11,40 +11,40 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-type ImageCacheClient struct {
+type Client struct {
 	serverAddr string
 	//sics       *ScannerImageCacheService
 }
 
-func GenerateImageCacheUrl(repoName, tag string) string {
-	return fmt.Sprintf("%s:%d/%s:%s", innerRegistryIp, innerRegistryPort, repoName, tag)
+func GenerateImageCacheURL(repoName, tag string) string {
+	return fmt.Sprintf("%s:%d/%s:%s", innerRegistryIP, innerRegistryPort, repoName, tag)
 }
 
-func NewLocalLayerManageClientT(URI string) (*ImageCacheClient, error) {
-	icc := &ImageCacheClient{
+func NewLocalLayerManageClientT(URI string) (*Client, error) {
+	icc := &Client{
 		//sics: sics,
 	}
 
-	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIp, innerRegistryPort, URI)
+	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIP, innerRegistryPort, URI)
 	return icc, nil
 }
 
-func NewLocalLayerManageClient() (*ImageCacheClient, error) {
-	icc := &ImageCacheClient{
+func NewLocalLayerManageClient() (*Client, error) {
+	icc := &Client{
 		//sics: sics,
 	}
 
-	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIp, innerRegistryPort, httpRequestPath)
+	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIP, innerRegistryPort, httpRequestPath)
 	return icc, nil
 }
-func (icc *ImageCacheClient) GetManifest(username, password, url, repository, tag string, skipTls bool) (string, error) {
+func (icc *Client) GetManifest(username, password, url, repository, tag string, skipTLS bool) (string, error) {
 	rq := RequestLayerInfo{
 		Username:   username,
 		Password:   password,
-		Url:        url,
+		URL:        url,
 		Repository: repository,
 		Tag:        tag,
-		SkipTls:    skipTls,
+		SkipTLS:    skipTLS,
 	}
 	jsonStr, err := json.Marshal(rq)
 	if err != nil {
@@ -74,14 +74,14 @@ func (icc *ImageCacheClient) GetManifest(username, password, url, repository, ta
 	return string(body), nil
 }
 
-func (icc *ImageCacheClient) GetLayer(username, password, url, repository, digest string, skipTls bool) (string, string, error) {
+func (icc *Client) GetLayer(username, password, url, repository, digest string, skipTLS bool) (string, string, error) {
 	rq := RequestLayerInfo{
 		Username:   username,
 		Password:   password,
-		Url:        url,
+		URL:        url,
 		Repository: repository,
 		Digest:     digest,
-		SkipTls:    skipTls,
+		SkipTLS:    skipTLS,
 	}
 	jsonStr, err := json.Marshal(rq)
 	if err != nil {
@@ -120,10 +120,10 @@ func (icc *ImageCacheClient) GetLayer(username, password, url, repository, diges
 		return "", "", err
 	}
 	logging.Get().Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
-	return rspLayerInfo.LayerUrl, rspLayerInfo.Url, nil
+	return rspLayerInfo.LayerURL, rspLayerInfo.URL, nil
 }
 
-func (icc *ImageCacheClient) DeleteLayer(digest string) error {
+func (icc *Client) DeleteLayer(digest string) error {
 	req, err := http.NewRequest("DELETE", icc.serverAddr, nil)
 	if err != nil {
 		return err

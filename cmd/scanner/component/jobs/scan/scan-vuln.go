@@ -7,11 +7,12 @@ import (
 	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 )
 
 type ExecutorScanVuln struct {
-	imageCacheUrl string
+	imageCacheURL string
 	policy        interface{}
 }
 
@@ -62,10 +63,10 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 		logging.GetLogger().Error().Msg("miss 'imageCacheUrl' in parameter")
 		return nil, errors.New("miss 'imageCacheUrl' in parameter")
 	}
-	e.imageCacheUrl = u
+	e.imageCacheURL = u
 	var nameOpts []name.Option
 	nameOpts = append(nameOpts, name.Insecure)
-	ref, err := name.ParseReference(e.imageCacheUrl, nameOpts...)
+	ref, err := name.ParseReference(e.imageCacheURL, nameOpts...)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("parse image failed")
 		return nil, errors.New("parse image failed")

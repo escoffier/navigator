@@ -1,34 +1,35 @@
-package vulnDbUpdate
+package vulnupdate
 
 import (
 	"context"
 
 	"github.com/mileusna/crontab"
-	vuln_updata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
+
+	vulnUpdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
-	serviceName = "vulnDb-update-service"
+	serviceName = "vuln-update-service"
 )
 
 type Config struct {
 }
 
-type VulnDbUpdateService struct {
+type VulnUpdateService struct { // nolint
 }
 
-func (s *VulnDbUpdateService) Vuln_updata_fn() {
-	err := vuln_updata.GetUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发")
+func (s *VulnUpdateService) VulnUpdateFn() {
+	err := vulnUpdata.GetUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发")
 	logging.GetLogger().Error().Err(err).Msg("VulnDb auto Updata error")
 }
 
-func (s *VulnDbUpdateService) Start(ctx context.Context) error {
+func (s *VulnUpdateService) Start(ctx context.Context) error {
 
 	cleanJob := crontab.New() // create cron table
 	// AddJob ,每天1点过2分时运行一次
-	if err := cleanJob.AddJob("2 1 * * *", s.Vuln_updata_fn); err != nil {
+	if err := cleanJob.AddJob("2 1 * * *", s.VulnUpdateFn); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("VulnDb auto Updata error")
 		return err
 	}
@@ -36,7 +37,7 @@ func (s *VulnDbUpdateService) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *VulnDbUpdateService) Stop(ctx context.Context) error {
+func (s *VulnUpdateService) Stop(ctx context.Context) error {
 
 	return nil
 }
@@ -49,7 +50,7 @@ func init() {
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	c := &VulnDbUpdateService{}
+	c := &VulnUpdateService{}
 
 	return c, nil
 }

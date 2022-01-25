@@ -1,4 +1,4 @@
-package trivy_updata
+package trivyupdata
 
 import "testing"
 

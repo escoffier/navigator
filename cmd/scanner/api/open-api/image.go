@@ -7,25 +7,27 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-type ImageOpenApiSvc struct {
+type ImageOpenAPISvc struct {
 	ImageSrv      component.ScannerSrv
 	RegistrySrv   component.RegistrySrvInterface
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
 
-func NewScannerOpenApiSrv(srv component.ScannerSrv,
-	registrySrv component.RegistrySrvInterface,
-	scanConfigSrv component.ScanConfigSrvInterface) *ImageOpenApiSvc {
-	return &ImageOpenApiSvc{
+func NewScannerOpenAPISrv(srv component.ScannerSrv,
+	registrySrv component.RegistrySrvInterface, // nolint
+	scanConfigSrv component.ScanConfigSrvInterface,
+) *ImageOpenAPISvc {
+	return &ImageOpenAPISvc{
 		ImageSrv:      srv,
 		RegistrySrv:   registrySrv,
 		ScanConfigSrv: scanConfigSrv,
@@ -33,7 +35,7 @@ func NewScannerOpenApiSrv(srv component.ScannerSrv,
 }
 
 // open-api镜像列表
-func (s *ImageOpenApiSvc) ListImages(ctx *gin.Context) {
+func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 	search := ctx.Query("keyword")
 	if len(search) > 64 {
 		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
@@ -94,11 +96,11 @@ func (s *ImageOpenApiSvc) ListImages(ctx *gin.Context) {
 			ImageType:     images[i].FromType,
 			Reinforced:    images[i].IsReinforce,
 			NodeHostname:  images[i].NodeHostname,
-			NodeIp:        images[i].NodeIp,
+			NodeIP:        images[i].NodeIP,
 			Online:        images[i].Online,
 			SecurityIssue: make([]int, 0),
 			RegistryName:  images[i].RegistryName,
-			RegistryUrl:   images[i].Library,
+			RegistryURL:   images[i].Library,
 			RiskScore:     images[i].RiskScore,
 			ScanStatus:    images[i].ScanStatus,
 			Image:         fmt.Sprintf("%s:%s", images[i].FullRepoName, images[i].Tags),
@@ -123,7 +125,7 @@ func (s *ImageOpenApiSvc) ListImages(ctx *gin.Context) {
 }
 
 // open-api镜像统计
-func (s *ImageOpenApiSvc) ImageStatistic(ctx *gin.Context) {
+func (s *ImageOpenAPISvc) ImageStatistic(ctx *gin.Context) {
 	fromTypeString := ctx.Query("fromType")
 	if fromTypeString == "" {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("no fromType")))
@@ -171,7 +173,7 @@ func (s *ImageOpenApiSvc) ImageStatistic(ctx *gin.Context) {
 }
 
 // open-api 镜像详情
-func (s *ImageOpenApiSvc) GetImageDetails(ctx *gin.Context) {
+func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 	registryName := ctx.Query("registryName")
 	imageName := ctx.Query("imageName")
 
@@ -205,7 +207,7 @@ func (s *ImageOpenApiSvc) GetImageDetails(ctx *gin.Context) {
 	image, _, err := s.ImageSrv.SearchImages(ctx, component.SearchImageParam{
 		FullRepoName: repoName,
 		Tags:         tag,
-		RegistryId:   registries[0].ID,
+		RegistryID:   registries[0].ID,
 	}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -232,12 +234,12 @@ func (s *ImageOpenApiSvc) GetImageDetails(ctx *gin.Context) {
 		ImageType:      img.ImageType,
 		Reinforced:     img.IsReinforce,
 		NodeHostname:   img.NodeHostname,
-		NodeIp:         img.NodeIp,
+		NodeIP:         img.NodeIP,
 		PrivilegedBoot: img.PrivilegedBoot,
 		Size:           img.Size,
 	}
 	if img.Registry != nil {
-		res.RegistryUrl = img.Registry.Url
+		res.RegistryURL = img.Registry.Url
 	}
 	if img.FromType == model.ImageFromTypeNormal {
 		res.FromType = consts.ImageFromRegistry
@@ -278,7 +280,7 @@ func (s *ImageOpenApiSvc) GetImageDetails(ctx *gin.Context) {
 }
 
 //  open api 镜像层级信息,返回全部数据，不分页
-func (s *ImageOpenApiSvc) ListImgLayersByImageName(ctx *gin.Context) {
+func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 	registryName := ctx.Query("registryName")
 	imageName := ctx.Query("imageName")
 
@@ -312,7 +314,7 @@ func (s *ImageOpenApiSvc) ListImgLayersByImageName(ctx *gin.Context) {
 	image, _, err := s.ImageSrv.SearchImages(ctx, component.SearchImageParam{
 		FullRepoName: repoName,
 		Tags:         tag,
-		RegistryId:   registries[0].ID,
+		RegistryID:   registries[0].ID,
 	}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -338,14 +340,14 @@ func (s *ImageOpenApiSvc) ListImgLayersByImageName(ctx *gin.Context) {
 			Viruses:       images[i].Malicious,
 			SensitiveFile: images[i].SensitiveFiles,
 			WebshellInfo:  images[i].WebshellInfo,
-			ImageId:       images[i].ImageId,
+			ImageID:       images[i].ImageID,
 		})
 	}
 	response.JSONOK(ctx, response.WithItems(res))
 }
 
 // 创建扫描任务
-func (s *ImageOpenApiSvc) CreateScanTask(ctx *gin.Context) {
+func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 	type tem struct {
 		Online        string `json:"online"`
 		Keyword       string `json:"keyword"`
@@ -398,7 +400,7 @@ func (s *ImageOpenApiSvc) CreateScanTask(ctx *gin.Context) {
 			response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 			return
 		}
-		scanInfo.StrategyId = strategy[0].ID
+		scanInfo.StrategyID = strategy[0].ID
 	}
 
 	if err := s.ImageSrv.ScanAllNow(ctx, scanInfo, search); err != nil {

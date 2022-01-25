@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 )
 
 var dbInitOnce sync.Once

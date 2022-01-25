@@ -8,12 +8,13 @@ import (
 	"math"
 	"time"
 
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 type ScannerDB struct {
@@ -30,7 +31,7 @@ func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, ScanImage *model.S
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ScanImage{}
-	res := scdb.PostgresDB.Get().WithContext(ctx).Where(&model.ScanImage{ImageId: ScanImage.ImageId}).First(&tmp)
+	res := scdb.PostgresDB.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: ScanImage.ImageID}).First(&tmp)
 	if res.Error != nil {
 		scdb.PostgresDB.Get().WithContext(ctx).Create(ScanImage)
 	} else {
@@ -129,15 +130,15 @@ func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, ScanLayer *model.S
 	defer cancelFunc()
 
 	tmp := model.ScanLayer{}
-	res := scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).First(&tmp)
+	res := scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageID).First(&tmp)
 	if res.Error == nil {
-		scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageId).Select("*").Omit("id", "created_at").Updates(&ScanLayer)
+		scdb.PostgresDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageID).Select("*").Omit("id", "created_at").Updates(&ScanLayer)
 		return
 	}
 	scdb.PostgresDB.Get().WithContext(ctx).Create(&ScanLayer)
 }
 
-func (scdb *ScannerDB) FindRegistryFromUrl(ctx context.Context, url string) model.Registry {
+func (scdb *ScannerDB) FindRegistryFromURL(ctx context.Context, url string) model.Registry {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
@@ -214,7 +215,7 @@ func (scdb *ScannerDB) GetAuthFromRegistry(ctx context.Context, url string) stri
 	return authStr
 }
 
-func (scdb *ScannerDB) GetScanOneStatus(ctx context.Context, repositoryName string, tag string, digest string, fromUrl string) string {
+func (scdb *ScannerDB) GetScanOneStatus(ctx context.Context, repositoryName string, tag string, digest string, fromURL string) string {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 
@@ -224,7 +225,7 @@ func (scdb *ScannerDB) GetScanOneStatus(ctx context.Context, repositoryName stri
 		return "not_scan"
 	}
 	tmpScanImage := model.ScanImage{}
-	res = scdb.PostgresDB.Get().WithContext(ctx).Where(&model.ScanImage{ImageId: tmp.ID}).First(&tmpScanImage)
+	res = scdb.PostgresDB.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: tmp.ID}).First(&tmpScanImage)
 	if res.Error != nil {
 		return "not_scan"
 	}
@@ -236,7 +237,7 @@ func (scdb *ScannerDB) InsertImageList(ctx context.Context, im model.ImageList) 
 	defer cancelFunc()
 
 	tmp := model.ImageList{}
-	res := scdb.PostgresDB.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND library = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.Library, im.FromType, im.RegistryId).First(&tmp)
+	res := scdb.PostgresDB.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND library = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.Library, im.FromType, im.RegistryID).First(&tmp)
 	if res.Error != nil {
 		err := scdb.PostgresDB.Get().WithContext(ctx).Create(&im).Error
 		return im.ID, err
@@ -255,7 +256,7 @@ func (scdb *ScannerDB) InsertVirusLayer(ctx context.Context, si model.ScanLayer)
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	tmp := model.ScanLayer{}
-	res := scdb.PostgresDB.Get().WithContext(ctx).Model(model.ScanLayer{}).Where("layer_digest = ? AND image_id= ?", si.LayerDigest, si.ImageId).First(&tmp)
+	res := scdb.PostgresDB.Get().WithContext(ctx).Model(model.ScanLayer{}).Where("layer_digest = ? AND image_id= ?", si.LayerDigest, si.ImageID).First(&tmp)
 	if res.Error != nil {
 		scdb.PostgresDB.Get().WithContext(ctx).Model(model.ScanLayer{}).Create(&si)
 	} else {
@@ -263,7 +264,7 @@ func (scdb *ScannerDB) InsertVirusLayer(ctx context.Context, si model.ScanLayer)
 			"malicious_info_json": si.MaliciousInfoJSON,
 			"webshell_info_json":  si.WebshellInfoJSON,
 		}
-		scdb.PostgresDB.Get().Model(model.ScanLayer{}).Where("layer_digest = ? AND image_id= ?", si.LayerDigest, si.ImageId).Omit("created_at").Updates(data)
+		scdb.PostgresDB.Get().Model(model.ScanLayer{}).Where("layer_digest = ? AND image_id= ?", si.LayerDigest, si.ImageID).Omit("created_at").Updates(data)
 	}
 }
 
@@ -293,9 +294,8 @@ func (scdb *ScannerDB) QueryMaliciousResult(ctx context.Context, layerDigest str
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return tmpScanLayer, nil
-		} else {
-			return tmpScanLayer, err
 		}
+		return tmpScanLayer, err
 	}
 	oldTime := nowTime.Add(-144 * time.Hour)
 	oldUnix := oldTime.Unix()

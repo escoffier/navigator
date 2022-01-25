@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/olekukonko/tablewriter"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/structures"
 )
 

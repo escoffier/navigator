@@ -17,6 +17,7 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/model"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/region"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -32,7 +33,7 @@ var (
 
 type HwSwr struct {
 	Ctx            context.Context
-	Config         HwSwrConfig
+	Config         Config
 	RegistryClient *registry2.Registry // client for pull config json
 	SwrClient      *swr.SwrClient      // client for swr
 }
@@ -132,7 +133,7 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.Lis
 				i.Size = uint(tag.Size)
 				i.ImageDigest = tag.Digest
 				i.ManifestV2 = tag.Manifest
-				i.ConfigJson = configBlob
+				i.ConfigJSON = configBlob
 				tm1, err := time.Parse(time.RFC3339, tag.Created)
 				if err != nil {
 					logging.GetLogger().Warn().Msgf("time parse warning:%v", err)
@@ -205,7 +206,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 		logging.GetLogger().Error().Err(err).Msg("hw-swr marshal config")
 		return nil, err
 	}
-	conf := new(HwSwrConfig)
+	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("hw-swr Unmarshal config")
@@ -220,7 +221,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	// generate region and credential
 	if len(h.Config.Region) == 0 || len(h.Config.Username) == 0 || len(h.Config.Password) == 0 {
 		logging.GetLogger().Info().Msg("get region and credential")
-		region1, err := getRegionBySwrUrl(h.Config.URL)
+		region1, err := getRegionBySwrURL(h.Config.URL)
 		if err != nil {
 			return nil, fmt.Errorf("huawei swr: parse region from url err.%v", err)
 		}
@@ -251,7 +252,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	return &h, nil
 }
 
-func getRegionBySwrUrl(url string) (string, error) {
+func getRegionBySwrURL(url string) (string, error) {
 	res := RegionReg.FindStringSubmatch(url)
 	if len(res) != 2 {
 		return "", fmt.Errorf("not found match region for url:%s,%v", url, res)

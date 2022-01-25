@@ -12,7 +12,7 @@ type AccountData struct {
 	Items []AccountRes `json:"items"`
 }
 type AccountInfo struct {
-	ApiVersion string      `json:"apiVersion"`
+	APIVersion string      `json:"apiVersion"`
 	Data       AccountData `json:"data"`
 }
 
@@ -36,15 +36,15 @@ type resultData struct {
 	Item ScanOneForCICDResponse `json:"item"`
 }
 
-type ResJson struct {
-	ApiVersion string  `json:"apiVersion"`
+type ResJSON struct {
+	APIVersion string  `json:"apiVersion"`
 	Data       resdata `json:"data"`
 }
 type ResultInfo struct {
-	ApiVersion string     `json:"apiVersion"`
+	APIVersion string     `json:"apiVersion"`
 	Data       resultData `json:"data"`
 }
-type JsonData struct {
+type JSONData struct {
 	Image     string `json:"image"`
 	MaxSecond string `json:"max_second"`
 	Library   string `json:"library"`

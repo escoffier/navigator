@@ -7,7 +7,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
-	flow_conf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
+	flowconf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -17,11 +17,11 @@ import (
 type UpdateTaskInfo struct {
 	Scope       int    `json:"scope"`
 	TriggerType int    `json:"trigger_type"`
-	StrategyId  int64  `json:"strategy_id"`
+	StrategyID  int64  `json:"strategy_id"`
 	Operator    string `json:"operator"`
 }
 
-type TaskSrv struct {
+type TaskSrv struct { // nolint
 	scannerGormDb *store.ScannerOrm
 	registryDal   *store.RegistryDao
 	scanConfigDal store.ScanConfigDalInterface
@@ -44,7 +44,7 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		return fmt.Errorf("not find image")
 	}
 
-	strategyID := info.StrategyId
+	strategyID := info.StrategyID
 	if strategyID <= 0 {
 		// get default policy
 		strategies, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
@@ -66,10 +66,10 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		SubTaskCount: len(imageIds), // scan one image
 		Trigger:      info.TriggerType,
 		Status:       consts.Pending,
-		FlowConf:     flow_conf.DefaultImageScanFlowName,
+		FlowConf:     flowconf.DefaultImageScanFlowName,
 		PolicyId:     strategyID,
 	}
-	taskId, err := scannerGormDb.AddTask(ctx, tmpTask)
+	taskID, err := scannerGormDb.AddTask(ctx, tmpTask)
 	if err != nil {
 		return err
 	}
@@ -78,8 +78,8 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		tmpTime := time.Now()
 		// generate subtasks
 		subtask := model.SubTask{
-			TaskId:    taskId,
-			ImageId:   imageIds[i],
+			TaskID:    taskID,
+			ImageID:   imageIds[i],
 			Status:    consts.ImageScanPending,
 			HeartBeat: &tmpTime,
 		}
@@ -88,7 +88,7 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 
 	err = scannerGormDb.AddSubTask(ctx, subtasks)
 	if err != nil {
-		err2 := t.SetTaskFailed(taskId, fmt.Sprintf("add subtask err:%v", err))
+		err2 := t.SetTaskFailed(taskID, fmt.Sprintf("add subtask err:%v", err))
 		if err2 != nil {
 			return err2
 		}
@@ -135,7 +135,7 @@ func (t *TaskSrv) GetPendingTasks(ctx context.Context, limit int64) ([]Task, err
 	for _, v := range tasks {
 
 		// get subtasks by task id
-		subtasks, err := t.GetPendingSubTasksByTaskId(ctx, v.ID)
+		subtasks, err := t.GetPendingSubTasksByTaskID(ctx, v.ID)
 		if err != nil {
 			// set task failed
 			_ = t.SetTaskFailed(v.ID, fmt.Sprintf("get subtask err:%v", err))
@@ -161,7 +161,7 @@ func (t *TaskSrv) GetPendingTasks(ctx context.Context, limit int64) ([]Task, err
 		}
 
 		tmpTask := Task{
-			Id:       v.ID,
+			ID:       v.ID,
 			FlowConf: v.FlowConf,
 			Scope:    ss,
 			ScanType: st,
@@ -174,56 +174,56 @@ func (t *TaskSrv) GetPendingTasks(ctx context.Context, limit int64) ([]Task, err
 	return pendingTasks, nil
 }
 
-func (t *TaskSrv) GetPendingSubTasksByTaskId(ctx context.Context, taskId int64) ([]SubTask, error) {
+func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) ([]SubTask, error) {
 	scannerGormDb := store.GetScannerOrmDb()
 	stSearch := store.SearchSubTaskParam{
-		TaskIds:  []int64{taskId},
+		TaskIds:  []int64{taskID},
 		Statuses: []int{consts.ImageScanPending},
 	}
 	subtasks, _, err := scannerGormDb.GetSubTasks(ctx, stSearch, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).
-			Int64("taskId", taskId).
+			Int64("taskId", taskID).
 			Msg("get subtasks failed")
 		return nil, err
 	}
 
 	pendingSubTasks := make([]SubTask, 0)
 	for _, v := range subtasks {
-		imageId := v.ImageId
+		imageID := v.ImageID
 
 		// get image info
-		i, err := scannerGormDb.GetImageInfo(ctx, imageId)
+		i, err := scannerGormDb.GetImageInfo(ctx, imageID)
 		if err != nil {
 			// set subtask err
 			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("get image info failed.%v", err))
 			logging.GetLogger().Err(err).
-				Int64("taskId", taskId).
+				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
-				Int64("imageId", imageId).
+				Int64("imageId", imageID).
 				Msg("get image info failed")
 			continue
 		}
 
 		// get registry info
-		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Id: i.RegistryId}, nil)
+		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: i.RegistryID}, nil)
 		if err != nil {
-			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("get registry info failed.registry id:%d,%v", i.RegistryId, err))
+			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("get registry info failed.registry id:%d,%v", i.RegistryID, err))
 			logging.GetLogger().Err(err).
-				Int64("taskId", taskId).
+				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
-				Int64("imageId", imageId).
-				Int64("registryId", i.RegistryId).
+				Int64("imageId", imageID).
+				Int64("registryId", i.RegistryID).
 				Msg("get registry info failed")
 			continue
 		}
 		if len(registries) == 0 {
-			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("not found registry info.registry id:%d,%v", i.RegistryId, err))
+			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("not found registry info.registry id:%d,%v", i.RegistryID, err))
 			logging.GetLogger().Error().
-				Int64("taskId", taskId).
+				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
-				Int64("imageId", imageId).
-				Int64("registryId", i.RegistryId).
+				Int64("imageId", imageID).
+				Int64("registryId", i.RegistryID).
 				Msg("not found registry info")
 			continue
 		}
@@ -232,8 +232,8 @@ func (t *TaskSrv) GetPendingSubTasksByTaskId(ctx context.Context, taskId int64) 
 		subtaskImage := transImage(i)
 		subtaskRegistry := transRegistry(r)
 		ps := SubTask{
-			Id:       v.ID,
-			TaskId:   taskId,
+			ID:       v.ID,
+			TaskID:   taskID,
 			Image:    subtaskImage,
 			Registry: subtaskRegistry,
 			Status:   v.Status,
@@ -254,7 +254,7 @@ func (t *TaskSrv) SetTasksInProgress(ids []int64) error {
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
 	updateInfo["status"] = consts.InProgress
-	updateInfo["scanner_id"] = global.ScannerId
+	updateInfo["scanner_id"] = global.ScannerID
 	err := store.GetScannerOrmDb().UpdateTasksInfo(context.Background(), search, updateInfo)
 	if err != nil {
 		return err
@@ -269,7 +269,7 @@ func (t *TaskSrv) ReScheduleTask(ids []int64) error {
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
 	updateInfo["status"] = consts.Pending
-	updateInfo["scanner_id"] = global.ScannerId
+	updateInfo["scanner_id"] = global.ScannerID
 	err := store.GetScannerOrmDb().UpdateTasksInfo(context.Background(), search, updateInfo)
 	if err != nil {
 		return err
@@ -376,7 +376,7 @@ func (t *TaskSrv) GetProgressingTasks() ([]Task, error) {
 	return res, nil
 }
 
-func (t *TaskSrv) GetDefaultPolicyId(ctx context.Context) (int64, error) {
+func (t *TaskSrv) GetDefaultPolicyID(ctx context.Context) (int64, error) {
 	p, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("get default scan policy err")
@@ -391,15 +391,15 @@ func (t *TaskSrv) GetDefaultPolicyId(ctx context.Context) (int64, error) {
 	return p[0].ID, nil
 }
 
-func (t *TaskSrv) GenerateScanTypeByPolicy(ctx context.Context, policyId int64) (map[ScanType]ScanPolicy, error) {
-	p, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: policyId}, nil)
+func (t *TaskSrv) GenerateScanTypeByPolicy(ctx context.Context, policyID int64) (map[ScanType]ScanPolicy, error) {
+	p, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: policyID}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Int64("policyId", policyId).Msg("get scan policy err")
+		logging.GetLogger().Error().Err(err).Int64("policyId", policyID).Msg("get scan policy err")
 		return nil, err
 	}
 
 	if len(p) != 1 {
-		logging.GetLogger().Error().Int64("policyId", policyId).Msg("match multi policies")
+		logging.GetLogger().Error().Int64("policyId", policyID).Msg("match multi policies")
 		return nil, fmt.Errorf("get scan policy number not one: %v", len(p))
 	}
 	dbPolicy := p[0]
@@ -435,9 +435,9 @@ func (t *TaskSrv) GetTaskSuspendStatus() []int {
 	return s
 }
 
-func (t *TaskSrv) GetTaskStatus(taskId int64) (int, error) {
+func (t *TaskSrv) GetTaskStatus(taskID int64) (int, error) {
 	search := store.SearchTaskParam{
-		Ids: []int64{taskId},
+		Ids: []int64{taskID},
 	}
 	tasks, _, err := store.GetScannerOrmDb().GetTasks(context.Background(), search, nil)
 	if err != nil {
@@ -450,8 +450,8 @@ func (t *TaskSrv) GetTaskStatus(taskId int64) (int, error) {
 	return tasks[0].Status, nil
 }
 
-func (t *TaskSrv) IsTaskSuspended(taskId int64) (bool, error) {
-	status, err := t.GetTaskStatus(taskId)
+func (t *TaskSrv) IsTaskSuspended(taskID int64) (bool, error) {
+	status, err := t.GetTaskStatus(taskID)
 	if err != nil {
 		return false, err
 	}
@@ -467,7 +467,7 @@ func (t *TaskSrv) IsTaskSuspended(taskId int64) (bool, error) {
 func (t *TaskSrv) FilterTasksInProgress(tasks []Task) ([]Task, error) {
 	processTaskIds := make([]int64, 0)
 	for _, v := range tasks {
-		processTaskIds = append(processTaskIds, v.Id)
+		processTaskIds = append(processTaskIds, v.ID)
 	}
 	search := store.SearchTaskParam{
 		Ids:      processTaskIds,
@@ -480,7 +480,7 @@ func (t *TaskSrv) FilterTasksInProgress(tasks []Task) ([]Task, error) {
 	res := make([]Task, 0)
 	for _, v := range ts {
 		for _, m := range tasks {
-			if v.ID == m.Id {
+			if v.ID == m.ID {
 				res = append(res, m)
 			}
 		}
@@ -556,20 +556,20 @@ func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
 
 func transTask(dbTask model.Task) Task {
 	t := Task{
-		Id:        dbTask.ID,
+		ID:        dbTask.ID,
 		Status:    dbTask.Status,
 		Result:    dbTask.Result,
 		UpdateAt:  dbTask.UpdatedAt,
 		CreateAt:  dbTask.CreatedAt,
 		HeartBeat: dbTask.HeartBeat,
-		ScannerId: dbTask.ScannerId,
+		ScannerID: dbTask.ScannerId,
 	}
 	return t
 }
 
 func transSubTask(dbSubTask model.SubTask) SubTask {
 	t := SubTask{
-		Id:        dbSubTask.ID,
+		ID:        dbSubTask.ID,
 		Status:    dbSubTask.Status,
 		UpdatedAt: dbSubTask.UpdatedAt,
 		CreateAt:  dbSubTask.CreatedAt,
@@ -580,7 +580,7 @@ func transSubTask(dbSubTask model.SubTask) SubTask {
 
 func transImage(i *model.ImageList) ImageInfo {
 	return ImageInfo{
-		Id:       i.ID,
+		ID:       i.ID,
 		RepoName: i.FullRepoName,
 		Tag:      i.Tags,
 	}
@@ -588,7 +588,7 @@ func transImage(i *model.ImageList) ImageInfo {
 
 func transRegistry(r *model.Registry) RegistryInfo {
 	return RegistryInfo{
-		Id:       r.ID,
+		ID:       r.ID,
 		Host:     r.Url,
 		Username: r.Username,
 		Password: r.PasswordString,

@@ -1,4 +1,4 @@
-package trust_image
+package trustimage
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption/rsa"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -48,18 +49,18 @@ func NewClient(privatePath string, httpClient *request.Request) (*Client, error)
 	return &Client{private: private, httpClient: httpClient, privateDigest: privateDigest, dockerClient: dockerClient}, nil
 }
 
-func (c *Client) Sign(ctx context.Context, image string, insecure bool, bufRegistryUrl string) error {
+func (c *Client) Sign(ctx context.Context, image string, insecure bool, bufRegistryURL string) error {
 	inspect, _, err := c.dockerClient.ImageInspectWithRaw(ctx, image)
 	if err != nil {
 		return errors.Wrapf(err, "获取镜像digest失败，image: %s", image)
 	}
 
-	bufRegistryUrl = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(bufRegistryUrl, "http://"), "https://"), "/")
+	bufRegistryURL = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(bufRegistryURL, "http://"), "https://"), "/")
 
 	var digest string
 
 	for _, v := range inspect.RepoDigests {
-		if strings.Contains(v, bufRegistryUrl) {
+		if strings.Contains(v, bufRegistryURL) {
 			digest = strings.Split(v, "@")[1]
 			break
 		}

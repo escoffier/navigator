@@ -5,10 +5,11 @@ import (
 	"errors"
 
 	registry2 "github.com/heroku/docker-registry-client/registry"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
-func RegistryClientLog(format string, args ...interface{}) {
+func ClientLogFormatter(format string, args ...interface{}) {
 	logging.GetLogger().Trace().Msgf(format, args...)
 }
 
@@ -29,6 +30,6 @@ func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool)
 		logging.GetLogger().Err(err).Msg("new registry client failed.")
 		return nil, err
 	}
-	hub.Logf = RegistryClientLog
+	hub.Logf = ClientLogFormatter
 	return hub, nil
 }

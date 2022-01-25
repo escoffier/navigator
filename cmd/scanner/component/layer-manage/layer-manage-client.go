@@ -1,4 +1,4 @@
-package layerManage
+package layermanage
 
 import (
 	"bytes"
@@ -23,18 +23,18 @@ func NewLocalLayerManageClient(llms *LocalLayerManageSrv) (*LocalLayerManageClie
 		llms: llms,
 	}
 
-	llmc.serverAddr = fmt.Sprintf("http://%s:%d%s", llms.serverIp, llms.port, httpRequestPath)
+	llmc.serverAddr = fmt.Sprintf("http://%s:%d%s", llms.serverIP, llms.port, httpRequestPath)
 	return llmc, nil
 }
 
-func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, password, url, repository, digest string, skipTls bool) (string, string, error) {
+func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, password, url, repository, digest string, skipTLS bool) (string, string, error) {
 	rq := RequestLayerInfo{
 		Username:   username,
 		Password:   password,
-		Url:        url,
+		URL:        url,
 		Repository: repository,
 		Digest:     digest,
-		SkipTls:    skipTls,
+		SkipTLS:    skipTLS,
 	}
 	jsonStr, err := json.Marshal(rq)
 	if err != nil {
@@ -74,7 +74,7 @@ func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, pass
 		return "", "", err
 	}
 	logging.Get().Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
-	return rspLayerInfo.LayerUrl, rspLayerInfo.Url, nil
+	return rspLayerInfo.LayerURL, rspLayerInfo.URL, nil
 }
 
 func (llmc *LocalLayerManageClient) DeleteLayer(ctx context.Context, digest string) error {

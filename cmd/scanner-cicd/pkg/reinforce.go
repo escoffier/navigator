@@ -13,12 +13,13 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/rs/zerolog/log"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
 	CopyString          = "\nCOPY dp.so /tmp/dp.so \nCOPY file-checker /tmp/file-checker \nRUN /tmp/file-checker"
-	LocalFileCheckerUrl = "/api/openapi/scanner/imagereject/result/file-checker"
+	LocalFileCheckerURL = "/api/openapi/scanner/imagereject/result/file-checker"
 )
 
 func getAbsolutePath() (string, error) {
@@ -76,7 +77,7 @@ func getFileChecker(dockerBuildPath string, filename string, maxSecond int, cons
 			consoleURL = consoleURL[:len(consoleURL)-1]
 		}
 
-		request, _ := http.NewRequest("GET", consoleURL+LocalFileCheckerUrl+"?name="+filename, nil)
+		request, _ := http.NewRequest("GET", consoleURL+LocalFileCheckerURL+"?name="+filename, nil)
 		request.Header.Add("X-Tensorsec-cicd-key", apikey)
 		request.Header.Add("Content-Type", "application/json")
 

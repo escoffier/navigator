@@ -10,6 +10,7 @@ import (
 	"github.com/gobwas/glob"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/pkg/errors"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption/rsa"
@@ -24,7 +25,7 @@ type ImageRejectSrv interface {
 	ListRejectRecord(ctx context.Context, search string, libraries []string, rejectReasons []int64, filter *model.Filter) ([]model.RejectRecord, int64, error)
 	CreateImageWhitelist(ctx context.Context, name, library, tag, digest string) (*model.ImageWhitelist, error)
 	ListImageWhitelist(ctx context.Context, search string, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
-	DeleteImageWhitelist(ctx context.Context, imageWhiteId int64) error
+	DeleteImageWhitelist(ctx context.Context, imageWhiteID int64) error
 
 	DeletePolicy(ctx context.Context, id int64) error
 	SearchRejectPolicy(ctx context.Context, library, globle string) ([]model.RejectPolicy, error)
@@ -228,7 +229,7 @@ func (s *ImageReject) ListRejectRecord(ctx context.Context, search string, libra
 
 func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, tag, digest string) (*model.ImageWhitelist, error) {
 	// library必须在我们的注册仓库，镜像可以不在我们的数据库中(7-19确定方案),K8s的阻断记录是没有digest的，
-	rys, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryUrl: library}, nil)
+	rys, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryURL: library}, nil)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("CreateImageWhitelist")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("创建白名单出错"))
@@ -263,12 +264,11 @@ func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, t
 					logging.GetLogger().WithContext(ctx).Infof("updating the digest of the whitelist")
 					if err := s.dbdal.UpdateImageWhitelist(ctx,
 						fmt.Sprintf("library = '%s' AND full_repo_name = '%s' AND tag = '%s'",
-							library, name, tag), map[string]interface{}{"digest": digest}); err == nil {
-						return iw, nil
-					} else {
+							library, name, tag), map[string]interface{}{"digest": digest}); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("Error updating the digest of the whitelist")
 						return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("更新白名单的Digest出错"))
 					}
+					return iw, nil
 				}
 			}
 			return nil, response.NewHttpError(http.StatusBadRequest, errors.New("已存在，请不要重复添加"))
@@ -287,8 +287,8 @@ func (s *ImageReject) ListImageWhitelist(ctx context.Context, search string, fil
 	return lists, cnt, nil
 }
 
-func (s *ImageReject) DeleteImageWhitelist(ctx context.Context, imageWhiteId int64) error {
-	err := s.dbdal.DeleteImageWhitelist(ctx, store.DeleteImageWhitelistParam{WhiteId: imageWhiteId})
+func (s *ImageReject) DeleteImageWhitelist(ctx context.Context, imageWhiteID int64) error {
+	err := s.dbdal.DeleteImageWhitelist(ctx, store.DeleteImageWhitelistParam{WhiteID: imageWhiteID})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("DeleteImageWhitelist")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除镜像白名单出错"))

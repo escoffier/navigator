@@ -33,7 +33,7 @@ type ReasonAndDetail struct {
 }
 
 // interval 表示时间间隔,多少分钟，
-func generateUUId(img model.ImageList, msgType string, interval int) uint64 {
+func generateUUID(img model.ImageList, msgType string, interval int) uint64 {
 	now, t := time.Now().UTC(), time.Now().UTC()
 	if interval > 0 && interval < 60 {
 		minute := now.Minute()
@@ -207,7 +207,7 @@ func compareSeverity(s1, s2 string) bool {
 // 发送消息到事件中心
 func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
 
-	caCert, err := ioutil.ReadFile(consts.GRPC_CA_PATH)
+	caCert, err := ioutil.ReadFile(consts.GrpcCAPath)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "CICD open /auth/ca/tls.crr error ")
 		return err
@@ -218,7 +218,7 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
 		return err
 	}
 
-	cert, err := tls.LoadX509KeyPair(consts.HTTPS_CLIENT_CERT_PATH, consts.HTTPS_CLIENT_PRIVATE_KEY)
+	cert, err := tls.LoadX509KeyPair(consts.HTTPSClientCertPath, consts.HTTPSClientPrivateKey)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "CICD LoadX509KeyPair/eventcenter-config/tls.crt error")
 		return err
@@ -239,11 +239,11 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
 
 	logging.GetLogger().Debug().Msg(fmt.Sprintf("send msg to event center：%s", string(JSONBytes)))
 
-	host := consts.TENSORSEC_EVENTCENTER_SERVICE_HOST
+	host := consts.EventCenterServiceHost
 	port := os.Getenv("EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP")
 	if port == "" {
 		logging.GetLogger().Debug().Msgf("CICD event center port:%s", port)
-		port = consts.TENSORSEC_EVENTCENTER_SERVICE_PORT
+		port = consts.EventCenterServicePort
 	}
 
 	uri := fmt.Sprintf("%s:%s%s", host, port, consts.EventcenterURI)
@@ -517,7 +517,7 @@ func (l *ScannerList) ReUpdataDBPop() ScannerDbFunc {
 func (l *ScannerList) ReUpdataDBPush(s ScannerDbFunc) {
 	l.Lock.Lock()
 	defer l.Lock.Unlock()
-	s.RetryNum += 1
+	s.RetryNum++
 	if s.RetryNum > 5 {
 		logging.GetLogger().Error().Msg("ReUpdataDBPush has Retry 5 times")
 	} else {

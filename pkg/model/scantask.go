@@ -87,7 +87,7 @@ type ImageResponse struct {
 	ID                int64          `json:"id"`
 	Digest            string         `json:"digest"`
 	Library           string         `json:"library"`
-	NodeIp            string         `json:"node_ip"`
+	NodeIP            string         `json:"node_ip"`
 	ScanStatus        int            `json:"scan_status"`
 	CompleteTime      int64          `json:"complete_time"`
 	Questions         []QuestionInfo `json:"questions"`
@@ -95,7 +95,7 @@ type ImageResponse struct {
 	Tags              string         `json:"tags"`
 	ImageType         int64          `json:"image_type"`
 	RiskScore         float64        `json:"risk_score"`
-	RegistryId        int64          `json:"registry_id"`
+	RegistryID        int64          `json:"registry_id"`
 	RegistryName      string         `json:"registry_name"`
 	RegistryDeletedAt int64          `json:"registry_deleted_at"`
 	FromType          int64          `json:"from_type"`
@@ -118,7 +118,7 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		FullRepoName: img.FullRepoName,
 		Tags:         img.Tags,
 		ImageType:    img.ImageType,
-		NodeIp:       img.NodeIp,
+		NodeIP:       img.NodeIP,
 		NodeHostname: img.NodeHostname,
 		Os:           img.OS,
 	}
@@ -342,7 +342,7 @@ type ScanLayerResponse struct { // 层级扫描结果
 	CreatedAt     time.Time              `json:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at"`
 	DeletedAt     int                    `json:"deleted_at"`
-	ImageId       int64                  `json:"image_id"`
+	ImageID       int64                  `json:"image_id"`
 	LayerDigest   string                 `json:"layer_digest"`
 	VulnInfo      []RespSingleVulnDetail `json:"vuln_info"`
 	PkgInfo       interface{}            `json:"pkg_info"`

@@ -257,7 +257,7 @@ func (m *mockdal) SearchScanLayer(ctx context.Context, param store.SearchScanLay
 func (m *mockdal) SearchScanImage(ctx context.Context, param store.SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error) {
 	var si = model.ScanImage{
 		ID:                1,
-		ImageId:           1,
+		ImageID:           1,
 		RiskScore:         0.3,
 		VulnScore:         3,
 		SensitiveScore:    3,
@@ -423,7 +423,7 @@ func (m *mockdal) AddSinglePolicy(ctx context.Context, policy model.RejectPolicy
 	panic("implement me")
 }
 
-func (m *mockdal) DeletePolicy(ctx context.Context, policyId int64) error {
+func (m *mockdal) DeletePolicy(ctx context.Context, policyID int64) error {
 	panic("implement me")
 }
 

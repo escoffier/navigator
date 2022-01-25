@@ -1,4 +1,4 @@
-package trivy_srv
+package trivysrv
 
 import (
 	"context"

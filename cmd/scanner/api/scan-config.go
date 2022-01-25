@@ -5,18 +5,19 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
-type ScanConfigApiSrv struct {
+type ScanConfigAPISrv struct {
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
 
-func NewScanConfigApiSrv(scanConfigSrv component.ScanConfigSrvInterface) *ScanConfigApiSrv {
-	return &ScanConfigApiSrv{ScanConfigSrv: scanConfigSrv}
+func NewScanConfigAPISrv(scanConfigSrv component.ScanConfigSrvInterface) *ScanConfigAPISrv {
+	return &ScanConfigAPISrv{ScanConfigSrv: scanConfigSrv}
 }
 
 // CreateStrategy
@@ -28,7 +29,7 @@ func NewScanConfigApiSrv(scanConfigSrv component.ScanConfigSrvInterface) *ScanCo
 // @Param body body	model.ScanStrategy true "JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/scan-config/strategy [post]
-func (sc *ScanConfigApiSrv) CreateStrategy(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) CreateStrategy(ctx *gin.Context) {
 	data := new(model.ScanStrategy)
 	if err := ctx.BindJSON(data); err != nil {
 		response.JSONError(ctx, err)
@@ -51,7 +52,7 @@ func (sc *ScanConfigApiSrv) CreateStrategy(ctx *gin.Context) {
 // @Param body body	model.ScanStrategy true "JSON数据"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/scan-config/strategy/:id [put]
-func (sc *ScanConfigApiSrv) UpdateStrategy(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) UpdateStrategy(ctx *gin.Context) {
 	data := new(model.ScanStrategy)
 	if err := ctx.BindJSON(data); err != nil {
 		response.JSONError(ctx, err)
@@ -78,7 +79,7 @@ func (sc *ScanConfigApiSrv) UpdateStrategy(ctx *gin.Context) {
 // @Param id path int true "策略ID"
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/scan-config/strategy/:id [delete]
-func (sc *ScanConfigApiSrv) DeleteStrategy(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) DeleteStrategy(ctx *gin.Context) {
 	strategyID, err := strconv.ParseInt(ctx.Param("strategyID"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("no strategyID for delete"))
@@ -99,7 +100,7 @@ func (sc *ScanConfigApiSrv) DeleteStrategy(ctx *gin.Context) {
 // @Tags scan config
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.ScanStrategy{}}}
 // @Router	/api/v1/scan-config/strategies [get]
-func (sc *ScanConfigApiSrv) ListStrategy(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) ListStrategy(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
 	filter.SortBy = "desc"
@@ -126,22 +127,22 @@ func (sc *ScanConfigApiSrv) ListStrategy(ctx *gin.Context) {
 // @Param id path int true "策略ID"
 // @Success 200 {object} ApiWithItem{data=ApiItems{item=model.ScanStrategy{}}}
 // @Router	/api/v1/scan-config/strategy/:id [get]
-func (sc *ScanConfigApiSrv) GetStrategy(ctx *gin.Context) {
-	strategyId, err := strconv.ParseInt(ctx.Param("strategyId"), 10, 64)
+func (sc *ScanConfigAPISrv) GetStrategy(ctx *gin.Context) {
+	strategyID, err := strconv.ParseInt(ctx.Param("strategyId"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("no strategyID "))
 		return
 	}
 
 	filter := model.GetFilter(ctx)
-	strategies, _, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{StrategyID: strategyId}, filter)
+	strategies, _, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{StrategyID: strategyID}, filter)
 
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("no strategyID for create software"))
 		return
 	}
 	if len(strategies) == 0 {
-		response.JSONError(ctx, fmt.Errorf("not fond stategy,strategyId:%d", strategyId))
+		response.JSONError(ctx, fmt.Errorf("not fond stategy,strategyId:%d", strategyID))
 		return
 	}
 
@@ -157,7 +158,7 @@ func (sc *ScanConfigApiSrv) GetStrategy(ctx *gin.Context) {
 // @Param id path int true "扫描配置ID"
 // @Success 200 {object} ApiWithItem{data=ApiItems{}}
 // @Router	/api/v1/scan-config/config/:id [put]
-func (sc *ScanConfigApiSrv) UpdateScanConfig(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) UpdateScanConfig(ctx *gin.Context) {
 	data := new(model.ScanConfig)
 	if err := ctx.BindJSON(data); err != nil {
 		response.JSONError(ctx, err)
@@ -186,7 +187,7 @@ func (sc *ScanConfigApiSrv) UpdateScanConfig(ctx *gin.Context) {
 // @Param id path int true "扫描配置ID"
 // @Success 200 {object} ApiWithItem{data=ApiItems{item=model.ScanConfig{}}}
 // @Router	/api/v1/scan-config/config/global [get]
-func (sc *ScanConfigApiSrv) SearchGlobalScanConfig(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) SearchGlobalScanConfig(ctx *gin.Context) {
 	//  暂时只会有一个config，所这里只返回一条数据,后期如果有
 	configs, _, err := sc.ScanConfigSrv.SearchScanConfig(ctx, component.SearchScanConfigParam{}, nil)
 	if err != nil {
@@ -208,7 +209,7 @@ func (sc *ScanConfigApiSrv) SearchGlobalScanConfig(ctx *gin.Context) {
 // @Tags scan config
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]string{}}}
 // @Router	/api/v1/scan-config/strategy/open-sources [get]
-func (sc *ScanConfigApiSrv) ListOpenSource(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) ListOpenSource(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(model.OpenLicense),
 		response.WithTotalItems(int64(len(model.OpenLicense))))
 }
@@ -221,7 +222,7 @@ func (sc *ScanConfigApiSrv) ListOpenSource(ctx *gin.Context) {
 // @Tags scan config
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]string{}}}
 // @Router	/api/v1/scan-config/strategy/node-hostnames [get]
-func (sc *ScanConfigApiSrv) GetAllNodes(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) GetAllNodes(ctx *gin.Context) {
 	nodes, err := sc.ScanConfigSrv.GetAllNodes(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -231,7 +232,7 @@ func (sc *ScanConfigApiSrv) GetAllNodes(ctx *gin.Context) {
 		response.WithTotalItems(int64(len(nodes))))
 }
 
-func (sc *ScanConfigApiSrv) GetAllProject(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) GetAllProject(ctx *gin.Context) {
 	nodes, err := sc.ScanConfigSrv.GetAllProject(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -240,7 +241,7 @@ func (sc *ScanConfigApiSrv) GetAllProject(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(nodes),
 		response.WithTotalItems(int64(len(nodes))))
 }
-func (sc *ScanConfigApiSrv) GetAllRepoName(ctx *gin.Context) {
+func (sc *ScanConfigAPISrv) GetAllRepoName(ctx *gin.Context) {
 	nodes, err := sc.ScanConfigSrv.GetAllRepoName(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)

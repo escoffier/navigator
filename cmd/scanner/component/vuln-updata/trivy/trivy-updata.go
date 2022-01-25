@@ -1,4 +1,4 @@
-package trivy_updata
+package trivyupdata
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -111,9 +112,9 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 	downClient := &http.Client{Timeout: 1800 * time.Second, Transport: tr}
 	// var docVal string
 
-	jumpUrl := "https://github.com/aquasecurity/trivy-db/releases/latest"
+	jumpURL := "https://github.com/aquasecurity/trivy-db/releases/latest"
 
-	request, err := http.NewRequest("GET", jumpUrl, nil) // 2
+	request, err := http.NewRequest("GET", jumpURL, nil) // 2
 	if err != nil {
 		logging.GetLogger().Error().Msgf("new http request err")
 		return fmt.Errorf("NewRequest failed from scannert")
@@ -124,9 +125,8 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 		// fmt.Println(resp)
 		if resp != nil {
 			return fmt.Errorf("Connect Scannert version  code is %v", resp.StatusCode)
-		} else {
-			return fmt.Errorf("Connect Scannert version failed ")
 		}
+		return fmt.Errorf("Connect Scannert version failed ")
 	}
 	respLocation, err := resp.Location()
 	if err != nil {
@@ -158,8 +158,8 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 		return fmt.Errorf("equal")
 	}
 
-	dbUrl := "https://github.com/aquasecurity/trivy-db/releases/download/" + trivyVersion + "/trivy.db.gz"
-	request, err = http.NewRequest("GET", dbUrl, nil) // 2
+	dbURL := "https://github.com/aquasecurity/trivy-db/releases/download/" + trivyVersion + "/trivy.db.gz"
+	request, err = http.NewRequest("GET", dbURL, nil) // 2
 	if err != nil {
 		return fmt.Errorf("NewRequest failed from scannert")
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestMockDequeue(t *testing.T) {
 	deqName := "mock-dequeue"
-	config := dequeue.DequeueConfig{
+	config := dequeue.Config{
 		Type: deqName,
 	}
 	deq, err := dequeue.Open(config)

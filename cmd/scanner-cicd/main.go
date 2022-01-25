@@ -29,8 +29,8 @@ import (
 var (
 	image           string
 	maxSecond       int
-	consoleUrl      string
-	bufRegistryUrl  string
+	consoleURL      string
+	bufRegistryURL  string
 	debug           bool
 	apikey          string
 	insecure        bool
@@ -68,8 +68,8 @@ var (
 func init() {
 	rootCmd.Flags().StringVarP(&image, "image-name", "i", "", "[REGISTRY_HOST[:REGISTRY_PORT]/]REPOSITORY[:TAG]") // 1
 	rootCmd.Flags().IntVarP(&maxSecond, "timeout", "t", 300, "timeout(unit:second)")
-	rootCmd.Flags().StringVarP(&consoleUrl, "cloud-url", "c", "", "cloud-url")
-	rootCmd.Flags().StringVarP(&bufRegistryUrl, "remote-cache", "r", "", "scanner cache address")
+	rootCmd.Flags().StringVarP(&consoleURL, "cloud-url", "c", "", "cloud-url")
+	rootCmd.Flags().StringVarP(&bufRegistryURL, "remote-cache", "r", "", "scanner cache address")
 	rootCmd.Flags().StringVarP(&apikey, "token", "k", "", "for authentication")
 	rootCmd.Flags().BoolVarP(&debug, "debug", "", false, "")
 	rootCmd.Flags().BoolVarP(&insecure, "insecure", "s", false, "allow insecurity connections when use http")
@@ -90,7 +90,7 @@ func main() {
 func run(ctx context.Context) {
 	if reinforceEnable {
 		log.Info().Msg("reinforceEnable is true,It will execute reinfroce image,if you need cicd,please set this filed false")
-		err := pkg.ReinforceImage(maxSecond, consoleUrl, apikey)
+		err := pkg.ReinforceImage(maxSecond, consoleURL, apikey)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed reinfoce Image")
 			os.Exit(2)
@@ -119,14 +119,14 @@ func run(ctx context.Context) {
 	// 登录docker
 	stdout, stderr, err := cmd.RunCmd(
 		"docker", "login", "-u",
-		accountInfo.Data.Items[0].UserName, "-p", accountInfo.Data.Items[0].PassWord, bufRegistryUrl,
+		accountInfo.Data.Items[0].UserName, "-p", accountInfo.Data.Items[0].PassWord, bufRegistryURL,
 	)
 	if err != nil {
 		log.Error().Err(err).Msgf("docker login err :%v %v %v\n", err, stderr.String(), stdout.String())
 		os.Exit(2)
 	}
 
-	newTag := pkg.ImageReTag(image, bufRegistryUrl)
+	newTag := pkg.ImageReTag(image, bufRegistryURL)
 
 	stdout, stderr, err = cmd.RunCmd("docker", "tag", image, newTag)
 	if err != nil {
@@ -145,10 +145,10 @@ func run(ctx context.Context) {
 	log.Info().Msg("start scanning, please wait...")
 
 	// 调用cicd接口
-	data := structures.JsonData{
+	data := structures.JSONData{
 		Insecure:  insecure,
 		Image:     image,
-		Library:   bufRegistryUrl,
+		Library:   bufRegistryURL,
 		MaxSecond: strconv.Itoa(maxSecond),
 	}
 
@@ -156,7 +156,7 @@ func run(ctx context.Context) {
 	if err != nil {
 		log.Error().Err(err).Msg("marshal json error")
 	}
-	resInfo := structures.ResJson{}
+	resInfo := structures.ResJSON{}
 	err = util.RetryWithBackoff(ctx, func() error {
 		return httpClient.Do("/api/openapi/scanner/imagereject/scanone/cicd", http.MethodPost, bytes.NewBuffer(jsonSrt), &resInfo)
 	}, retry.Attempts(3))
@@ -169,7 +169,7 @@ func run(ctx context.Context) {
 	log.Info().Msgf("触发cicd扫描成功")
 
 	tmpData := resInfo.Data.Item
-	resJsonStr, err := json.Marshal(tmpData)
+	resJSONStr, err := json.Marshal(tmpData)
 	if err != nil {
 		log.Error().Err(err).Msg("marshal json error")
 	}
@@ -184,7 +184,7 @@ func run(ctx context.Context) {
 		retry.Delay(time.Duration(tryInterval) * time.Second),
 	}
 	err = util.RetryWithBackoff(ctx, func() error {
-		return httpClient.Do("/api/openapi/scanner/imagereject/result/cicd", http.MethodPost, bytes.NewBuffer(resJsonStr), &resultInfo)
+		return httpClient.Do("/api/openapi/scanner/imagereject/result/cicd", http.MethodPost, bytes.NewBuffer(resJSONStr), &resultInfo)
 	}, retryOptions...)
 
 	if err != nil {
@@ -208,7 +208,7 @@ func run(ctx context.Context) {
 
 	if privateClient != nil {
 		//  可信镜像 将镜像的 digest 和 image_name 签名后发送到 scanner
-		err = privateClient.Sign(ctx, image, insecure, bufRegistryUrl)
+		err = privateClient.Sign(ctx, image, insecure, bufRegistryURL)
 		if err != nil {
 			log.Error().Msgf("sign image err.%v", err)
 			os.Exit(2)
@@ -236,11 +236,11 @@ func checkArgs() {
 		log.Error().Msg("镜像参数不得为空")
 		os.Exit(2)
 	}
-	if consoleUrl == "" {
+	if consoleURL == "" {
 		log.Error().Msg("console链接不能为空")
 		os.Exit(2)
 	}
-	if bufRegistryUrl == "" {
+	if bufRegistryURL == "" {
 		log.Error().Msg("临时仓库地址不能为空")
 		os.Exit(2)
 	}
@@ -255,7 +255,7 @@ func checkArgs() {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 	outputFunc = output.Terminal
-	httpClient, err = request.NewRequest(apikey, consoleUrl, maxSecond)
+	httpClient, err = request.NewRequest(apikey, consoleURL, maxSecond)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to initial http client")
 		os.Exit(1)
@@ -269,5 +269,5 @@ func checkArgs() {
 		}
 	}
 
-	log.Info().Msgf("image=%s maxSecond=%d consoleUrl=%s bufRegistryUrl=%s aki_key=%s \n", image, maxSecond, consoleUrl, bufRegistryUrl, apikey)
+	log.Info().Msgf("image=%s maxSecond=%d consoleUrl=%s bufRegistryUrl=%s aki_key=%s \n", image, maxSecond, consoleURL, bufRegistryURL, apikey)
 }

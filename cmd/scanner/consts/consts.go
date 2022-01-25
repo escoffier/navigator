@@ -42,11 +42,11 @@ const (
 	AlertKindOnline              = "scan online image"
 	AlertModuleContainerSecurity = "ContainerSecurity"
 
-	HTTPS_CLIENT_CERT_PATH             = "/eventcenter-config/tls.crt"
-	HTTPS_CLIENT_PRIVATE_KEY           = "/eventcenter-config/tls.key"
-	GRPC_CA_PATH                       = "/auth/ca/tls.crt"
-	TENSORSEC_EVENTCENTER_SERVICE_HOST = "https://eventcenter"
-	TENSORSEC_EVENTCENTER_SERVICE_PORT = "8080"
+	HTTPSClientCertPath    = "/eventcenter-config/tls.crt"
+	HTTPSClientPrivateKey  = "/eventcenter-config/tls.key"
+	GrpcCAPath             = "/auth/ca/tls.crt"
+	EventCenterServiceHost = "https://eventcenter"
+	EventCenterServicePort = "8080"
 
 	EventIntervalUUID = 2 // 表示每2分钟生成一个uuid
 )
@@ -113,7 +113,7 @@ const (
 	IsNotReinforceImageString = "0"
 )
 
-var NotNodeImageErr = fmt.Errorf("not find node info")
+var ErrNotNodeImage = fmt.Errorf("not find node info")
 
 const SpecialImageTypeK8s = "k8s"
 

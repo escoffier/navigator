@@ -18,8 +18,8 @@ type SearchImageParam struct {
 	Status         int64  // 是否删除等状态
 	FullRepoName   string // 这里是精确匹配
 	Where          string // 外面传一个附加的字符串的where条件
-	StartId        int64  // 取大于该ID的数据
-	LastId         int64  // 取大于该ID的数据
+	StartID        int64  // 取大于该ID的数据
+	LastID         int64  // 取大于该ID的数据
 	FromType       int64
 	NotFromType    int64
 	ImageType      string
@@ -51,7 +51,7 @@ type SearchImageWithScanParam struct {
 
 type GetImageParam struct {
 	Library        string
-	Id             int64
+	ID             int64
 	FullRepoSearch string // full_repo_name字段的模糊匹配
 	TagSearch      string // tag字段的模糊匹配
 	Tag            string // tag字段的精确匹配
@@ -63,7 +63,7 @@ type GetImageParam struct {
 }
 
 type DeleteImageParam struct {
-	ImageId      int64
+	ImageID      int64
 	FullRepoName string
 	Tags         string
 	Library      string
@@ -71,7 +71,7 @@ type DeleteImageParam struct {
 }
 
 type DeleteScanImageParam struct {
-	ImageId int64
+	ImageID int64
 }
 
 type SearchScanLayerParam struct {
@@ -96,11 +96,11 @@ type SearchScanImageParam struct {
 type SearchRegistryParam struct {
 	RegistryIds []int64
 	Fields      []string // 只想要的字端
-	LibraryUrl  string
+	LibraryURL  string
 	UseTypes    []int64
 	UseType     int64
 	RegType     []string
-	Id          int64
+	ID          int64
 	Search      string
 
 	Name     string
@@ -129,7 +129,7 @@ type SearchScanOneStatusParam struct {
 	RepositoryName string
 	Tag            string
 	Digest         string
-	FromUrl        string
+	FromURL        string
 }
 
 type OnlineImage struct {
@@ -139,7 +139,7 @@ type OnlineImage struct {
 
 type ImageGroup struct {
 	Digest    string `json:"digest"`
-	ImageId   int64  `json:"image_id"`
+	ImageID   int64  `json:"image_id"`
 	Library   string `json:"library"`
 	ImageUUID uint32 `json:"image_uuid"`
 	Count     int    `json:"count"`
@@ -170,7 +170,7 @@ type SearchImageWhitelistParam struct {
 }
 
 type DeleteImageWhitelistParam struct {
-	WhiteId int64
+	WhiteID int64
 }
 
 type IntervalDateGroups []IntervalDateGroup

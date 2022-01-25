@@ -15,6 +15,7 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -26,7 +27,7 @@ const Version = "jfrog"
 type Jfrog struct {
 	// RegistryClient is a RegistryClient to access jfrog
 	RegistryClient *registry2.Registry
-	Config         JfrogConfig
+	Config         Config
 	JfrogClient    *http.Client // client for jfrog
 }
 
@@ -230,7 +231,7 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.Lis
 					Repository:  repo.Key + "/" + imgNames[i],
 					Tag:         tags[j],
 					ManifestV2:  string(manifestByte),
-					ConfigJson:  configBlob,
+					ConfigJSON:  configBlob,
 				}
 
 				im, err := extender(img)
@@ -269,7 +270,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 		logging.GetLogger().Error().Err(err).Msg("jfrog marshal config")
 		return nil, err
 	}
-	conf := new(JfrogConfig)
+	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("jfrog Unmarshal config")

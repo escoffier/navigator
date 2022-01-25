@@ -1,4 +1,4 @@
-package image_cache
+package imagecache
 
 import (
 	"context"
@@ -102,9 +102,9 @@ func (wg *WorkerGroup) workerRun(i int, swg *sync.WaitGroup) {
 	wg.workers[i].doTask(swg)
 }
 
-func (w *Worker) createRegistryClient(username, password, repository, url string, skipTls bool) (err2 error) {
+func (w *Worker) createRegistryClient(username, password, repository, url string, skipTLS bool) (err2 error) {
 	for i := 0; i < RegistryConnectRetryCnt; i++ {
-		rc, err := NewRegistryClient(username, password, repository, url, skipTls)
+		rc, err := NewRegistryClient(username, password, repository, url, skipTLS)
 		if err == nil {
 			w.rc = rc
 			return nil
@@ -145,16 +145,16 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 
 		if w.rc == nil {
 			// create registry client
-			err = w.createRegistryClient(task.username, task.password, task.repository, task.url, task.skipTls)
+			err = w.createRegistryClient(task.username, task.password, task.repository, task.url, task.skipTLS)
 			// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 			if err != nil {
 				errMsg = fmt.Sprintf("download layer err,repo %s ,digest %s,err %v", task.repository, task.digest, err)
 				logging.Get().Error().Msgf("worker %d create registry client err:%s", w.id, errMsg)
 
 				// reset task status,wait other worker pick it
-				err := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+				err := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)
 				if err != nil {
-					logging.Get().Err(err).Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl", w.id)
+					logging.Get().Err(err).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
 					err = w.llms.NotifyLayerPulled(task.digest)
 					if err != nil {
 						logging.Get().Err(err).Msgf("worker %d create registry client  NotifyLayerPulled err:%s", w.id, err)
@@ -170,7 +170,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		// reader, err := w.rc.registryClient.DownloadBlob(task.repository, d)
 		reader, err := w.rc.DownloadBlob(task.repository, d)
 		if err != nil {
-			err = w.createRegistryClient(task.username, task.password, task.repository, task.url, task.skipTls)
+			err = w.createRegistryClient(task.username, task.password, task.repository, task.url, task.skipTLS)
 			if err == nil {
 				reader, err = w.rc.DownloadBlob(task.repository, d)
 			}
@@ -180,9 +180,9 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			logging.Get().Err(err).Msgf("worker %d pull task err:%s", w.id, errMsg)
 
 			// update task to pull err
-			err := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+			err := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)
 			if err != nil {
-				logging.Get().Err(err).Msgf("worker %d pull task UpdateTaskStatusAndLayerUrl", w.id)
+				logging.Get().Err(err).Msgf("worker %d pull task UpdateTaskStatusAndLayerURL", w.id)
 				err = w.llms.NotifyLayerPulled(task.digest)
 				if err != nil {
 					logging.Get().Err(err).Msgf("worker %d pull tasks  NotifyLayerPulled", w.id)
@@ -195,16 +195,16 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		fullFilePath, err := w.llms.fs.SaveFile(task.digest, reader)
 		reader.Close()
 		if err != nil {
-			inerr := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, "", LayerPullErr)
+			inerr := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)
 			if inerr != nil {
-				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl", w.id)
+				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
 			}
 			logging.Get().Err(err).Msgf("worker %d pull task err.repository %s,digest %s", w.id, task.repository, task.digest)
 		} else {
 			// update task to succeed
-			inerr := w.llms.UpdateTaskStatusAndLayerUrl(task.digest, fullFilePath, LayerPulled)
+			inerr := w.llms.UpdateTaskStatusAndLayerURL(task.digest, fullFilePath, LayerPulled)
 			if inerr != nil {
-				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerUrl", w.id)
+				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
 			}
 			logging.Get().Info().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
 		}
@@ -228,9 +228,9 @@ func (w *Worker) doManifestTask(wg *sync.WaitGroup) {
 }
 
 func (w *Worker) saveManifest(task RequestLayerInfo) {
-	if w.rc == nil || w.rc.url != task.Url {
+	if w.rc == nil || w.rc.url != task.URL {
 		// create registry client
-		err := w.createRegistryClient(task.Username, task.Password, task.Repository, task.Url, task.SkipTls)
+		err := w.createRegistryClient(task.Username, task.Password, task.Repository, task.URL, task.SkipTLS)
 		// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("create registry client err")

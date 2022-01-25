@@ -2,6 +2,7 @@ package queue
 
 import (
 	"github.com/oleiade/lane"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 )
 

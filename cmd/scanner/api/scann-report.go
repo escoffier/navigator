@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -159,18 +160,18 @@ func (s *Scanner) ScanReportFiles(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=scanreport.ScanReportResult}
 // @Router	/api/v1/scan-report/:id/file/:sub_task_id [get]
 func (s *Scanner) ScanReportDownload(ctx *gin.Context) {
-	type Uri struct {
+	type URI struct {
 		model.ID
-		SubTaskId uint `uri:"sub_task_id" binding:"required"`
+		SubTaskID uint `uri:"sub_task_id" binding:"required"`
 	}
 
-	var uri Uri
+	var uri URI
 	if err := ctx.BindUri(&uri); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 
-	data, err := s.Srv.ScanReportDownload(ctx, uri.ID.ID, uri.SubTaskId)
+	data, err := s.Srv.ScanReportDownload(ctx, uri.ID.ID, uri.SubTaskID)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

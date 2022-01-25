@@ -19,8 +19,8 @@ var (
 
 var defaultSubtask = model.SubTask{
 	ID:      1,
-	TaskId:  1,
-	ImageId: 1,
+	TaskID:  1,
+	ImageID: 1,
 	//RepoName: "nginx",
 	//Tag:      "1.20",
 	Status: 0,

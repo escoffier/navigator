@@ -1,4 +1,4 @@
-package clean_registry
+package cleanregistry
 
 import (
 	"context"
@@ -17,15 +17,15 @@ const (
 )
 
 type Config struct {
-	BuffRegistryUrl string // buffer registry url, store in ENV variables
+	BuffRegistryURL string // buffer registry url, store in ENV variables
 	Options         *flag2.ScannerOpts
 }
 
-type CleanRegistryService struct {
+type Service struct {
 	config Config // nolint:structcheck,unused
 }
 
-func (s *CleanRegistryService) Start(ctx context.Context) error {
+func (s *Service) Start(ctx context.Context) error {
 	dal := store.GetScannerOrmDb()
 	sdb := store.GetScannerDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
@@ -42,7 +42,7 @@ func (s *CleanRegistryService) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *CleanRegistryService) Stop(ctx context.Context) error {
+func (s *Service) Stop(ctx context.Context) error {
 
 	return nil
 }
@@ -55,7 +55,7 @@ func init() {
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	c := &CleanRegistryService{}
+	c := &Service{}
 
 	return c, nil
 }
