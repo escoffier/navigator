@@ -47,9 +47,9 @@ func NewEcHandler(rman *rtdetect.RulesManager) (*EcHandler, error) {
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, item := range events {
 		ruleCategory := "ATT&CK"
-		ruleData, ok := ec.rulesManager.GetRule(item.data.Rule)
+		category, ok := ec.rulesManager.GetCategoryOfRule(item.data.Rule)
 		if ok {
-			ruleCategory = ruleData.Category
+			ruleCategory = category
 		}
 
 		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
