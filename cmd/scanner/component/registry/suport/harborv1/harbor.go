@@ -262,7 +262,7 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 			} // end of for artifacts
 		} // end of for repos
 	}
-	logging.GetLogger().Info().Msgf("harborv1 List images count:%d", cnt)
+	logging.GetLogger().Info().Msgf("harborV1 List images count:%d", cnt)
 
 	return res, nil
 }
@@ -443,9 +443,9 @@ func (h *HarborV1) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 func init() {
 	err := registry.Register(HarborVersion, openRegistry)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+		logging.GetLogger().Error().Msgf("init harborV1 error:%v", err)
 	}
-	logging.GetLogger().Info().Msg("harborv1 dirver register success")
+	logging.GetLogger().Info().Msg("harborV1 dirver register success")
 }
 
 func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry, error) {
@@ -455,13 +455,13 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 
 	byt, err := json.Marshal(config.Options)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("harborv1 marshal config")
+		logging.GetLogger().Error().Err(err).Msg("harborV1 marshal config")
 		return nil, err
 	}
 	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("harborv1 Unmarshal config")
+		logging.GetLogger().Error().Err(err).Msg("harborV1 Unmarshal config")
 		return nil, err
 	}
 

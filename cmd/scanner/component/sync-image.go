@@ -302,6 +302,8 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 	opt["insecure"] = true
 	opt["access_key"] = reg.AccessKey
 	opt["access_secret"] = reg.AccessSecret
+	opt["instance_id"] = reg.InstanceID
+	opt["region_id"] = reg.RegionID
 
 	if reg.RegType == hwswr.Version {
 		opt["access_key"] = reg.Username

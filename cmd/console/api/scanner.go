@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
 
 // 转发scanner中的接口
@@ -52,6 +53,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/register/registry", api.RedirectToScanner())
 		r.Delete("/register/registry/{id}", api.RedirectToScanner())
 		r.Get("/register/reg-type", api.RedirectToScanner())
+		r.Get("/register/regions", api.RedirectToScanner())
 
 		r.Get("/imagereject/result/file-checker", api.RedirectToScanner())
 		r.Get("/imagereject/overview", api.RedirectToScanner())

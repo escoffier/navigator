@@ -241,6 +241,8 @@ type Registry struct {
 	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"-"`   // 最后一次同步时间
 	AccessKey      string `gorm:"access_key" json:"access_key"`              // 阿里云仓库的AccessKey
 	AccessSecret   string `gorm:"access_secret" json:"access_secret"`        // 阿里云仓库的AccessSecret
+	InstanceID     string `gorm:"instance_id" json:"instance_id"`            // 阿里云仓库企业版实例ID
+	RegionID       string `gorm:"region_id" json:"region_id"`                // 阿里云仓库企业版地域ID
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
