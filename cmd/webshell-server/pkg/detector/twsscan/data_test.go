@@ -1,4 +1,4 @@
-package twsscan_go
+package twsscan
 
 import (
 	"fmt"

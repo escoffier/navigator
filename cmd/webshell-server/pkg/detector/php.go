@@ -6,9 +6,10 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	phpruntime "scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker/tool/webshell-detector/php"
 	phpdetector "scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker/tool/webshell-detector/src"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var (
@@ -22,7 +23,7 @@ type phpDetector struct {
 }
 
 // NewPHPDetector is the singleton constructor of phpDetector.
-func NewPHPDetector() *phpDetector {
+func NewPHPDetector() Detector {
 	once.Do(func() {
 		err := phpruntime.Start()
 		if err != nil {

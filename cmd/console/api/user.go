@@ -76,7 +76,7 @@ func getFromModel(m *model.TensorConfig) (usercenter.LimiterConfig, error) {
 }
 func (api *api) readConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		config, err := dal.GetConfig(r.Context(), api.postgresDB, usercenter.ConfigKey)
+		config, err := dal.GetConfig(r.Context(), api.rdb, usercenter.ConfigKey)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -121,7 +121,7 @@ func (api *api) setConfig() http.HandlerFunc {
 					fmt.Errorf("failed to encode json: %w", err)))
 			return
 		}
-		err = dal.SetConfig(r.Context(), api.postgresDB, usercenter.ConfigKey, configBytes)
+		err = dal.SetConfig(r.Context(), api.rdb, usercenter.ConfigKey, configBytes)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -160,7 +160,7 @@ func (api *api) userBan() http.HandlerFunc {
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-		err = dal.SetAccountBanStatus(r.Context(), api.postgresDB, rq.User, true)
+		err = dal.SetAccountBanStatus(r.Context(), api.rdb, rq.User, true)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -193,7 +193,7 @@ func (api *api) userUnban() http.HandlerFunc {
 					fmt.Errorf("no acess: %w", authErr)))
 			return
 		}
-		err = dal.SetAccountBanStatus(r.Context(), api.postgresDB, rq.User, false)
+		err = dal.SetAccountBanStatus(r.Context(), api.rdb, rq.User, false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -273,7 +273,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
-		ok, _, err = dal.GetUserByPassword(ctx, api.postgresDB, userSession.Username, rq.OldPwd)
+		ok, _, err = dal.GetUserByPassword(ctx, api.rdb, userSession.Username, rq.OldPwd)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return
@@ -286,7 +286,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
-		err = dal.UpdateUserPwd(ctx, api.postgresDB, userSession.Username, rq.Pwd)
+		err = dal.UpdateUserPwd(ctx, api.rdb, userSession.Username, rq.Pwd)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -312,7 +312,7 @@ func (api *api) userList() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		docNum, userList, err := dal.SelectUserAll(ctx, api.postgresDB, limit, offset)
+		docNum, userList, err := dal.SelectUserAll(ctx, api.rdb, limit, offset)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusInternalServerError,
@@ -338,7 +338,7 @@ func (api *api) userModule() http.HandlerFunc {
 			return
 		}
 		if user.External {
-			mdgroup, err := dal.GetModuleGroup(ctx, api.postgresDB, user.ModuleID)
+			mdgroup, err := dal.GetModuleGroup(ctx, api.rdb, user.ModuleID)
 			if err != nil {
 				RespAndLog(w, ctx, err)
 			} else {
@@ -348,10 +348,10 @@ func (api *api) userModule() http.HandlerFunc {
 		}
 
 		if user.Username == model.UserSuperAdmin {
-			moduleGroup := dal.GetAdminModuleGroup(ctx, api.postgresDB)
+			moduleGroup := dal.GetAdminModuleGroup(ctx, api.rdb)
 			response.Ok(w, response.WithItems(moduleGroup))
 		} else {
-			moduleGroup, err := dal.GetModuleGroup(ctx, api.postgresDB, user.ModuleID)
+			moduleGroup, err := dal.GetModuleGroup(ctx, api.rdb, user.ModuleID)
 			if err == nil {
 				response.Ok(w, response.WithItems(moduleGroup))
 			} else {
@@ -414,7 +414,7 @@ func (api *api) addUser() http.HandlerFunc {
 			return
 		}
 
-		err = api.postgresDB.Get().Transaction(func(tx *gorm.DB) error {
+		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
 			innerErr := dal.InsertUser(ctx, tx, req.UserName, req.RoleName, req.ModuleID)
 			if innerErr != nil {
 				if util.IsPostgresDuplicateError(innerErr) {
@@ -499,7 +499,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		exist, queryUser, err := dal.SelectUser(ctx, api.postgresDB.Get(), cliReq.UserName)
+		exist, queryUser, err := dal.SelectUser(ctx, api.rdb.Get(), cliReq.UserName)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -517,7 +517,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		err = dal.UpdateUser(ctx, api.postgresDB, cliReq.UserName, cliReq.RoleName, cliReq.ModuleID)
+		err = dal.UpdateUser(ctx, api.rdb, cliReq.UserName, cliReq.RoleName, cliReq.ModuleID)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -531,7 +531,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		var findUser *model.User
-		ok, findUser, err = dal.SelectUser(ctx, api.postgresDB.Get(), cliReq.UserName)
+		ok, findUser, err = dal.SelectUser(ctx, api.rdb.Get(), cliReq.UserName)
 		if err != nil || !ok {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,

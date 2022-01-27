@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/detector"
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/re"
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/tools"
@@ -17,7 +18,7 @@ type Server struct {
 	re                 re.Regexes
 }
 
-func NewApiServer() *Server {
+func NewAPIServer() *Server {
 	return &Server{
 		phpDetector:        detector.NewPHPDetector(),
 		simpleScanDetector: detector.NewSimpleScanDetector(),

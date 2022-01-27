@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"go.uber.org/zap"
 	batchV1 "k8s.io/api/batch/v1"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +47,7 @@ func (s *Service) RunGC(ctx context.Context, dataType string, ttl int) (task *mo
 	err = s.launchK8sJob(ctx, kubeClient, t, task.Hash, ttl)
 	if err != nil {
 		if _err := s.taskManager.UpdateTaskStatus(ctx, task.Hash, model.GCFailed); _err != nil {
-			logging.GetLogger().Error().Msgf("UpdateTaskStatus fail", zap.Error(err))
+			logging.GetLogger().Err(_err).Msgf("UpdateTaskStatus fail")
 		}
 		return nil, err
 	}

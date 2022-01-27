@@ -34,11 +34,8 @@ func Init(db *rdbtools.GormWrapper) error {
 			logrus.Infoln("begin a go routine to clean unfinished api scan job")
 			ticker := time.NewTicker(time.Minute * 1)
 			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					cleanUnfinishedJob(scanDB)
-				}
+			for range ticker.C {
+				cleanUnfinishedJob(scanDB)
 			}
 		}(db.Get())
 	})

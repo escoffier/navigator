@@ -1,4 +1,4 @@
-package twsscan_go
+package twsscan
 
 import (
 	"crypto/sha1"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-var UnknownHashScanError = errors.New("un known hash scan")
+var ErrUnknownHashScan = errors.New("un known hash scan")
 
 type hashScanResult struct {
 	filename string
@@ -18,7 +18,7 @@ func (h *hashScanResult) Score() float64 { return 1 }
 
 func (h *hashScanResult) Type() ScanType { return HashScanType }
 
-func Hash(content []byte) (*hashScanResult, error) {
+func Hash(content []byte) (Result, error) {
 	h := sha1.New()
 	h.Write(content)
 	v := fmt.Sprintf("%x", h.Sum(nil))
@@ -26,5 +26,5 @@ func Hash(content []byte) (*hashScanResult, error) {
 		return &hashScanResult{filename: filename}, nil
 	}
 
-	return nil, UnknownHashScanError
+	return nil, ErrUnknownHashScan
 }

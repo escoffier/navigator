@@ -14,15 +14,6 @@ import (
 
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,11 +24,20 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type Scapper struct {
 	ClusterAddr string
-	PostgresDB  *rdbtools.GormWrapper
+	rdb  *rdbtools.GormWrapper
 	ScapService *ScapService
 }
 
@@ -52,11 +52,11 @@ const (
 func newScapper(
 	scapOpts *flag.ScapOpts,
 	scapService *ScapService,
-	postgresDB *rdbtools.GormWrapper,
+	rdb *rdbtools.GormWrapper,
 ) *Scapper {
 	s := &Scapper{
 		ScapService: scapService,
-		PostgresDB:  postgresDB,
+		rdb:  rdb,
 		ClusterAddr: scapOpts.ClusterAddr,
 	}
 
@@ -78,7 +78,7 @@ func (s *Scapper) setCheckHistoryFinishedAndJobStatusesFailed(ctx context.Contex
 		tbname := scanRecord.TableName()
 		query := "task_id = ?"
 		checkId := check.CheckUUID
-		ret := s.PostgresDB.Get().WithContext(cleanCtx).Table(tbname).Where(query, checkId).Updates(scanRecord).Error
+		ret := s.rdb.Get().WithContext(cleanCtx).Table(tbname).Where(query, checkId).Updates(scanRecord).Error
 		if ret != nil {
 			logging.GetLogger().WithContext(cleanCtx).Errorf(ret, "update scan record failed, checkID : %s", check.CheckUUID)
 		}
@@ -103,17 +103,15 @@ func (s *Scapper) checkCheckStatusWithDelay(check model.Check, delayedTime time.
 	timerCtx, cancel := context.WithDeadline(context.Background(), delayedTime)
 	defer cancel()
 
-	select {
-	case <-timerCtx.Done():
-		logging.GetLogger().Warn().Msgf("Task timeout when console boots, try to finish these tasks")
+	<-timerCtx.Done()
+	logging.GetLogger().Warn().Msgf("Task timeout when console boots, try to finish these tasks")
 
-		msg := "timeout in booting delayed timeout checking"
-		err := s.setCheckHistoryFinishedAndJobStatusesFailed(context.Background(), check, msg)
-		if err == nil {
-			logging.GetLogger().Info().Msgf("Booting check: unfinished job %+v setting finished.", check)
-		} else {
-			logging.GetLogger().Err(err).Msgf("Booting check Error: unfinished job %+v setting finished fail.", check)
-		}
+	msg := "timeout in booting delayed timeout checking"
+	err := s.setCheckHistoryFinishedAndJobStatusesFailed(context.Background(), check, msg)
+	if err == nil {
+		logging.GetLogger().Info().Msgf("Booting check: unfinished job %+v setting finished.", check)
+	} else {
+		logging.GetLogger().Err(err).Msgf("Booting check Error: unfinished job %+v setting finished fail.", check)
 	}
 }
 
@@ -125,7 +123,7 @@ func (s *Scapper) InitCheckUnFinishedJobs(ctx context.Context) error {
 	defer cancel()
 
 	var scanHistory []model.ScanHistory
-	err := s.PostgresDB.Get().WithContext(pgCtx).Where("finished_at = 0").Find(&scanHistory).Error
+	err := s.rdb.Get().WithContext(pgCtx).Where("finished_at = 0").Find(&scanHistory).Error
 	if err != nil {
 		return errors.Errorf("get scan history list failed, %v", err)
 	}
@@ -171,7 +169,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 
 	var scanTask model.ScanHistory
 	query := "check_type = ? and cluster_key = ?"
-	err := s.PostgresDB.Get().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, query, checkType, clusterID).Error
+	err := s.rdb.Get().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, query, checkType, clusterID).Error
 	if err != nil {
 		return false
 	}
@@ -279,7 +277,7 @@ func (s *Scapper) RunComplianceCheck(
 		State:       model.ScanStateInProgress,
 		FinishedAt:  0,
 	}
-	err = s.PostgresDB.Get().WithContext(ctx).Create(scanHistory).Error
+	err = s.rdb.Get().WithContext(ctx).Create(scanHistory).Error
 	if err != nil {
 		logging.GetLogger().Error().Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
 	}
@@ -317,7 +315,7 @@ func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.Langua
 	//update mongo data
 	tbname := task.TableName()
 	query := "task_id = ? and username = ?"
-	err = s.PostgresDB.Get().WithContext(ctx).Table(tbname).Select("status", "finished_at", "content").Where(query, task.CheckId, task.UserName).Updates(&task).Error
+	err = s.rdb.Get().WithContext(ctx).Table(tbname).Select("status", "finished_at", "content").Where(query, task.CheckId, task.UserName).Updates(&task).Error
 	if err != nil {
 		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", err)
 	}
@@ -454,7 +452,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, c
 
 				msg := fmt.Sprintf("Failed to schedule job: %s", err)
 				check.NodeName = targetNode.Name
-				err = s.PgJobStatusUpdate(model.ScanStateFailed, check, msg, time.Now().Unix())
+				err = s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, time.Now().Unix())
 				if err != nil {
 					logging.GetLogger().Error().Msgf("update job status failed, %v", err)
 				}
@@ -587,7 +585,7 @@ func (s *Scapper) PgAddJobStatusInProgress(ctx context.Context, check *model.Che
 		FinishedAt: 0,
 	}
 
-	err := s.PostgresDB.Get().WithContext(ctx).Create(task).Error
+	err := s.rdb.Get().WithContext(ctx).Create(task).Error
 	if err != nil {
 		return errors.Errorf("create scan task failed, %v", err)
 	}
@@ -598,7 +596,7 @@ func (s *Scapper) CreateJobName(checkId, checkType, targetNodeName string) strin
 	return fmt.Sprintf("%s-%s-%s", checkId[:8], checkType, targetNodeName)
 }
 
-func (s *Scapper) PgJobStatusUpdate(state int32, check *model.Check, msg string, timeEpochSecs int64) error {
+func (s *Scapper) dbJobStatusUpdate(state int32, check *model.Check, msg string, timeEpochSecs int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -612,7 +610,7 @@ func (s *Scapper) PgJobStatusUpdate(state int32, check *model.Check, msg string,
 	taskId := check.CheckUUID
 	nodeName := check.NodeName
 	query := "node_name = ? and task_id = ?"
-	tx := s.PostgresDB.Get().WithContext(ctx).Table(tbname).Select("state", "finished_at", "message")
+	tx := s.rdb.Get().WithContext(ctx).Table(tbname).Select("state", "finished_at", "message")
 	err := tx.Where(query, nodeName, taskId).Updates(scanRecord).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("Failed the scap update job status setting failed, task id : %s, node name : %s.", check.CheckUUID, nodeName)
@@ -666,7 +664,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 				alreadyFinishedNodes[thisNodeName] = true
 				check.NodeName = thisNodeName
-				err := s.PgJobStatusUpdate(model.ScanStateCompleted, check, "success", time.Now().Unix())
+				err := s.dbJobStatusUpdate(model.ScanStateCompleted, check, "success", time.Now().Unix())
 				if err != nil {
 					logging.GetLogger().Error().Msgf("update job status(success) failed, %v.", err)
 				}
@@ -686,7 +684,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				msg := fmt.Sprintf("Message: %s; Reason: %s", failedCondition.Message, failedCondition.Reason)
 
 				check.NodeName = thisNodeName
-				err := s.PgJobStatusUpdate(model.ScanStateFailed, check, msg, transTime.Unix())
+				err := s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, transTime.Unix())
 				if err != nil {
 					logging.GetLogger().Error().Msgf("update job status(failed) failed, %v.", err)
 				}
@@ -756,7 +754,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 				var count int64
 				taskId := check.CheckUUID
 				nodeState := model.ScanNodeRecord{}
-				err := s.PostgresDB.Get().WithContext(ctxDb).Table(nodeState.TableName()).Where("task_id = ? and state=0", taskId).Count(&count).Error
+				err := s.rdb.Get().WithContext(ctxDb).Table(nodeState.TableName()).Where("task_id = ? and state=0", taskId).Count(&count).Error
 				if err != nil {
 					logging.GetLogger().Error().Msgf("get scan success node number failed, %v", err)
 				}
@@ -769,7 +767,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 
 				tbname := scanHistory.TableName()
 				condition := "task_id = ? and check_type = ? and cluster_key = ?"
-				tx := s.PostgresDB.Get().WithContext(ctxDb).Table(tbname).Select("suc_node", "state", "finished_at")
+				tx := s.rdb.Get().WithContext(ctxDb).Table(tbname).Select("suc_node", "state", "finished_at")
 				err = tx.Where(condition, taskId, check.CheckType, check.ClusterID).Updates(scanHistory).Error
 				if err != nil {
 					logging.GetLogger().Error().Msgf("update scan history failed, task Id : %v, clusterID : %v, %v.", taskId, check.ClusterID, err)

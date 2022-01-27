@@ -2,10 +2,12 @@ package scapper
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"time"
 
+	"github.com/pkg/errors"
+
 	uuid "github.com/satori/go.uuid"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -31,7 +33,7 @@ func (s *Scapper) RunHarborCheck(ctx context.Context, harborClient *harbor.Harbo
 	for _, v := range item {
 		projectCfg, err := harborClient.GetHarborProjectConfig(ctx, v.ProjectID)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("get harbor project config error：%w", err)
+			logging.GetLogger().Error().Err(err).Msg("get harbor project config error")
 			continue
 		}
 		harborCfg.Report[v.Name] = projectCfg

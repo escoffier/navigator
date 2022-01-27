@@ -1,8 +1,8 @@
-package twsscan_go
+package twsscan
 
 import "errors"
 
-var NoResultError = errors.New("no scan result")
+var ErrNoResult = errors.New("no scan result")
 
 func Scan(content []byte) (Result, error) {
 	h, err := Hash(content)
@@ -16,7 +16,7 @@ func Scan(content []byte) (Result, error) {
 
 	}
 
-	return nil, NoResultError
+	return nil, ErrNoResult
 }
 
 type ScanType uint8

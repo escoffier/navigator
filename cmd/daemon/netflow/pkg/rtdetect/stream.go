@@ -9,9 +9,9 @@ import (
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/falcosecurity/client-go/pkg/client"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/grpc"
 )
 
@@ -110,9 +110,8 @@ func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 	for _, ah := range s.handlers {
 		if ah.CheckTarget(ctx, item) {
 			if err := ah.Put(ctx, item); err != nil {
-				logging.GetLogger().Err(err).Msg("put item for handler err.")
+				logging.Get().Err(err).Msg("put item error")
 			}
-
 		}
 	}
 	return nil
@@ -176,7 +175,7 @@ func (s *RuntimeEventStream) Start(ctx context.Context) error {
 	sleepDur := 50 * time.Millisecond
 	for {
 		if err := s.outputsWatch(ctx); err != nil {
-			logging.GetLogger().Err(err).Msg("OutputsWatch error")
+			logging.Get().Err(err).Msg("OutputsWatch error")
 			contErrCnt++
 			if contErrCnt > 10 {
 				if sleepDur*2 <= 10*time.Second {

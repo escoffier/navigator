@@ -5,12 +5,13 @@ import (
 	"io/ioutil"
 
 	"github.com/pkg/errors"
-	twsscan "gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/detector/twsscan-go"
+
+	twsscan "gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/detector/twsscan"
 )
 
 type simpleScanDetector struct{}
 
-func NewSimpleScanDetector() *simpleScanDetector {
+func NewSimpleScanDetector() Detector {
 	return &simpleScanDetector{}
 }
 

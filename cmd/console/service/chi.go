@@ -14,14 +14,13 @@ import (
 	"github.com/go-chi/jwtauth"
 	redis "github.com/go-redis/redis/v8"
 	elastic "github.com/olivere/elastic/v7"
-	"gitlab.com/security-rd/go-pkg/pb"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 var (
@@ -30,7 +29,7 @@ var (
 
 func setupChiRouter(
 	ctx context.Context,
-	postgresDB *rdbtools.GormWrapper,
+	rdb *rdbtools.GormWrapper,
 	es *elastic.Client,
 	scannerURL string,
 	secProfilesCoreURL string,
@@ -59,7 +58,7 @@ func setupChiRouter(
 
 	api.SetupRoutes(ctx, r,
 		tokenAuth,
-		postgresDB,
+		rdb,
 		scannerURL,
 		secProfilesCoreURL,
 		microsegURL,

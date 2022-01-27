@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	cr "github.com/robfig/cron/v3"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"

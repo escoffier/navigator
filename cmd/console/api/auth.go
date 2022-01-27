@@ -86,7 +86,7 @@ func (api *api) login() http.HandlerFunc {
 		}
 
 		var findUser *model.User
-		ok, findUser, err = dal.GetUserByPassword(ctx, api.postgresDB, creds.Username, creds.Password)
+		ok, findUser, err = dal.GetUserByPassword(ctx, api.rdb, creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -192,7 +192,7 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
-		username, ok := dal.CheckHashCode(r.Context(), api.postgresDB, ru.HashCode)
+		username, ok := dal.CheckHashCode(r.Context(), api.rdb, ru.HashCode)
 		if !ok {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("hashcode is error")))
@@ -200,7 +200,7 @@ func (api *api) activeUser() http.HandlerFunc {
 		}
 
 		// active user
-		err = dal.ActiveUser(r.Context(), api.postgresDB.Get(), username, ru.Pwd)
+		err = dal.ActiveUser(r.Context(), api.rdb.Get(), username, ru.Pwd)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("database error:%+v", err)))
@@ -245,7 +245,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		exist, _, err := dal.SelectUser(ctx, api.postgresDB.Get(), rf.Username)
+		exist, _, err := dal.SelectUser(ctx, api.rdb.Get(), rf.Username)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
@@ -266,7 +266,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		err = dal.InsertEmail(ctx, api.postgresDB.Get(), rf.Username, emailHashCode)
+		err = dal.InsertEmail(ctx, api.rdb.Get(), rf.Username, emailHashCode)
 		if err != nil {
 			RespAndLog(w, ctx,
 				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))

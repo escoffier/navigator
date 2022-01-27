@@ -34,12 +34,12 @@ const (
 	UDP
 )
 
-func Init(postgresDB *rdbtools.GormWrapper) error {
-	if postgresDB == nil {
+func Init(rdb *rdbtools.GormWrapper) error {
+	if rdb == nil {
 		return errors.New("illegal argument")
 	}
 	once.Do(func() {
-		instance = newNetworkTopoService(postgresDB)
+		instance = newNetworkTopoService(rdb)
 	})
 	return nil
 }
@@ -49,7 +49,7 @@ func Get(ctx context.Context) (*NetworkTopoService, bool) {
 }
 
 type NetworkTopoService struct {
-	postgresDB *rdbtools.GormWrapper
+	rdb *rdbtools.GormWrapper
 	topoCache  *ttlcache.Cache
 }
 
@@ -62,16 +62,16 @@ func newTopoCache() *ttlcache.Cache {
 	}
 	return cache
 }
-func newNetworkTopoService(postgresDB *rdbtools.GormWrapper) *NetworkTopoService {
+func newNetworkTopoService(rdb *rdbtools.GormWrapper) *NetworkTopoService {
 	return &NetworkTopoService{
-		postgresDB: postgresDB,
+		rdb: rdb,
 		topoCache:  newTopoCache(),
 	}
 }
 
 func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns, skind, sname string, qw int) ([]ResourceInfo, int64, error) {
 	var tfs []*model.TensorNetworkFlow
-	err := n.postgresDB.Get().WithContext(ctx).
+	err := n.rdb.Get().WithContext(ctx).
 		Where("updated_at > ?", time.Now().Add(-time.Duration(qw)*time.Hour)).
 		Where("src_cluster = ?", scluster).
 		Where("src_namespace = ?", sns).
@@ -103,7 +103,7 @@ func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns
 
 func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, dns, dkind, dname string, qw int) ([]ResourceInfo, int64, error) {
 	var tfs []*model.TensorNetworkFlow
-	err := n.postgresDB.Get().WithContext(ctx).
+	err := n.rdb.Get().WithContext(ctx).
 		Where("updated_at > ?", time.Now().Add(-time.Duration(qw)*time.Hour)).
 		Where("dst_cluster = ?", dcluster).
 		Where("dst_namespace = ?", dns).
@@ -179,7 +179,7 @@ func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.Ten
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
 	defer cancel()
 	err := util.RetryWithBackoff(ctx, func() error {
-		return n.addNetworkTopo(ctx, flow, n.postgresDB.Get(), time.Now())
+		return n.addNetworkTopo(ctx, flow, n.rdb.Get(), time.Now())
 	})
 	if err == nil {
 		err = n.putToCache(flow)
@@ -207,11 +207,11 @@ func (n *NetworkTopoService) ListNetTopologies(ctx context.Context, t time.Time)
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		oneErr := n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Find(&nts).Error
+		oneErr := n.rdb.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Find(&nts).Error
 		if oneErr != nil {
 			return oneErr
 		}
-		return n.postgresDB.Get().WithContext(ctx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Count(&totalCnt).Error
+		return n.rdb.Get().WithContext(ctx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Count(&totalCnt).Error
 	})
 	return
 }
@@ -224,7 +224,7 @@ func (n NetworkTopoService) CountNetTopology(ctx context.Context, uuid uint32) (
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Count(&totalCnt).Error
+		return n.rdb.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Count(&totalCnt).Error
 	})
 	return
 }
@@ -237,7 +237,7 @@ func (n *NetworkTopoService) UpdateStatus(ctx context.Context, t time.Time, stat
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		return n.postgresDB.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Update("status", status).Error
+		return n.rdb.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Update("status", status).Error
 	})
 	return
 }
