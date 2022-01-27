@@ -51,7 +51,7 @@ type PodInfo struct {
 }
 
 type Conf struct {
-	PostgresDB *rdbtools.GormWrapper
+	RDB *rdbtools.GormWrapper
 	EmailConf  *notifyhandler.EmailConf
 
 	ESPod      *PodInfo
@@ -62,10 +62,10 @@ func newService(conf *Conf) *Service {
 	service := &Service{
 		esPod:            conf.ESPod,
 		postgrePod:       conf.PostgrePod,
-		taskManager:      taskmanager.NewManager(conf.PostgresDB, def.TaskMaxTime+time.Hour),
-		ttlManager:       ttlmanager.NewManager(conf.PostgresDB),
-		waterlineManager: waterlinemanager.NewManager(conf.PostgresDB),
-		notifyHandler:    notifyhandler.NewHandler(conf.PostgresDB, conf.EmailConf),
+		taskManager:      taskmanager.NewManager(conf.RDB, def.TaskMaxTime+time.Hour),
+		ttlManager:       ttlmanager.NewManager(conf.RDB),
+		waterlineManager: waterlinemanager.NewManager(conf.RDB),
+		notifyHandler:    notifyhandler.NewHandler(conf.RDB, conf.EmailConf),
 	}
 
 	go service.checkStorageLoop()

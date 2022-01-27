@@ -1,4 +1,4 @@
-package twsscan_go
+package twsscan
 
 // ExtractFile extracts a part of content
 func ExtractFile(content []byte) []byte {
@@ -10,7 +10,7 @@ func ExtractFile(content []byte) []byte {
 
 		if len(s)-number <= 20 {
 			runes = append(runes, v)
-			number += 1
+			number++
 			continue
 		}
 
@@ -31,7 +31,7 @@ func ExtractFile(content []byte) []byte {
 			}
 		}
 
-		number += 1
+		number++
 	}
 
 	return StringToBytes(string(runes))

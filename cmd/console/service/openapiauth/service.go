@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"go.uber.org/atomic"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -19,13 +18,13 @@ var (
 	once     sync.Once
 )
 
-func Init(postgresDB *rdbtools.GormWrapper, redisCli *redis.Client) error {
-	if postgresDB == nil || redisCli == nil {
+func Init(rdb *rdbtools.GormWrapper, redisCli *redis.Client) error {
+	if rdb == nil || redisCli == nil {
 		return errors.New("unexpected empty pointer")
 	}
 
 	once.Do(func() {
-		var service = newService(postgresDB, redisCli)
+		var service = newService(rdb, redisCli)
 		instance.Store(service)
 	})
 
@@ -46,9 +45,9 @@ type Service struct {
 	redisCli *redis.Client
 }
 
-func newService(postgresDB *rdbtools.GormWrapper, redisCli *redis.Client) *Service {
+func newService(rdb *rdbtools.GormWrapper, redisCli *redis.Client) *Service {
 	return &Service{
-		db:       postgresDB,
+		db:       rdb,
 		redisCli: redisCli,
 	}
 }

@@ -10,18 +10,17 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/gorm"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/tealeg/xlsx"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 var (
@@ -33,18 +32,18 @@ var (
 func Init(mainCtx context.Context,
 	scapOpts *flag.ScapOpts,
 	redisClient *redis.Client,
-	postgresDB *rdbtools.GormWrapper,
+	rdb *rdbtools.GormWrapper,
 ) error {
 	if redisClient == nil {
 		return errors.New("illegal argument")
 	}
 	var err error
 	once.Do(func() {
-		svcInstance, err = newScapService(scapOpts, postgresDB)
+		svcInstance, err = newScapService(scapOpts, rdb)
 		if err != nil {
 			return
 		}
-		scapperInstance = newScapper(scapOpts, svcInstance, postgresDB)
+		scapperInstance = newScapper(scapOpts, svcInstance, rdb)
 
 	})
 	return err
@@ -763,7 +762,7 @@ func (s *ScapService) GetFileData(filename string) ([]byte, error) {
 }
 
 func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.LanguageType) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	var scanRet []model.ScanResult

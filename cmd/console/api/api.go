@@ -14,18 +14,17 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type api struct {
 	tokenAuth   *jwtauth.JWTAuth
-	postgresDB  *rdbtools.GormWrapper
+	rdb         *rdbtools.GormWrapper
 	microsegURL string
 	webhookURL  *url.URL
 
@@ -41,7 +40,7 @@ type api struct {
 
 func newAPI(
 	tokenAuth *jwtauth.JWTAuth,
-	postgresDB *rdbtools.GormWrapper,
+	rdb *rdbtools.GormWrapper,
 	scannerURL string,
 	secProfileCoreURL string,
 	microsegURL string,
@@ -58,7 +57,7 @@ func newAPI(
 
 	return &api{
 		tokenAuth:         tokenAuth,
-		postgresDB:        postgresDB,
+		rdb:               rdb,
 		scannerURL:        scannerURL,
 		secProfileCoreURL: secProfileCoreURL,
 		microsegURL:       microsegURL,

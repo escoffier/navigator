@@ -142,17 +142,17 @@ func NetInit(ctx context.Context) error {
 	//new k8s resource
 	k8sResSync, err := netflow.NewK8sResourceSyncer(hostName, hostIP)
 	if err != nil {
-		return errors.Errorf("Failed to initialize k8s resource sycner, : %v", err)
+		return fmt.Errorf("Failed to initialize k8s resource sycner, : %w", err)
 	}
 	//start k8s service
 	err = k8sResSync.StartK8sServiceSyncer()
 	if err != nil {
-		return errors.Errorf("listen k8s event failed, %v.", err)
+		return fmt.Errorf("listen k8s event failed, %v.", err)
 	}
 	//new flow session
 	flow, err := netflow.NewFlowSession(k8sResSync, clusterManager, consoleAddr)
 	if err != nil {
-		return errors.Errorf("Failed to initialize flow session, %v", err)
+		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
 	//free resource
 	defer flow.Close()

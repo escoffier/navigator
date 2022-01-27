@@ -146,12 +146,9 @@ func (h *AsyncHandler) asyncLoop() {
 			ticker := time.NewTicker(h.interval)
 			defer ticker.Stop()
 
-			for {
-				select {
-				case <-ticker.C:
-					h.consumePeriodically(context.Background())
-					atomic.StoreInt32(&h.missCnt, 0)
-				}
+			for range ticker.C {
+				h.consumePeriodically(context.Background())
+				atomic.StoreInt32(&h.missCnt, 0)
 			}
 		}
 

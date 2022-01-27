@@ -24,8 +24,8 @@ import (
 
 const (
 	TensorJobKey     string = "console-job"
-	ApiScanJobValue         = "apiscan"
-	ApiScanJobPrefix        = "security-apiscan"
+	ApiScanJobValue  string = "apiscan"
+	ApiScanJobPrefix string = "security-apiscan"
 )
 
 var vulMap = map[string]string{
@@ -82,8 +82,8 @@ func (s *Service) ApiScanStoreResult(ctx context.Context, apiID int64, result st
 func (s *Service) ApiScanLaunchJob(ctx context.Context, clusterID string, apiID int64) error {
 	tensorApi := &model.TensorApi{}
 	err := s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.First(tensorApi, "id = ?", apiID).Error
-		return err
+		inErr := tx.First(tensorApi, "id = ?", apiID).Error
+		return inErr
 	})
 
 	if tensorApi.Method != "GET" {

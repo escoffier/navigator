@@ -10,15 +10,14 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"gitlab.com/security-rd/go-pkg/syslog"
-	"go.uber.org/atomic"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/syslog"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -31,13 +30,13 @@ var (
 	ErrInvalidSyslogSetting = errors.New("invalid syslog setting")
 )
 
-func Init(postgresDB *rdbtools.GormWrapper, esCli *elastic.Client) error {
-	if postgresDB == nil || esCli == nil {
+func Init(rdb *rdbtools.GormWrapper, esCli *elastic.Client) error {
+	if rdb == nil || esCli == nil {
 		return errors.New("unexpected empty pointer")
 	}
 	once.Do(func() {
 		var service *Service
-		service, initServiceErr = newService(postgresDB, esCli)
+		service, initServiceErr = newService(rdb, esCli)
 		if initServiceErr == nil {
 			instance.Store(service)
 		}
@@ -55,13 +54,13 @@ func GetServiceInstance() (*Service, bool) {
 	return service.(*Service), true
 }
 
-func newService(postgresDB *rdbtools.GormWrapper, esCli *elastic.Client) (*Service, error) {
-	syslogHandler, err := syslog.NewHandler(&store{db: postgresDB})
+func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) (*Service, error) {
+	syslogHandler, err := syslog.NewHandler(&store{db: rdb})
 	if err != nil {
 		return nil, err
 	}
 	s := &Service{
-		db:            postgresDB,
+		db:            rdb,
 		esCli:         esCli,
 		ch:            make(chan []*model.AuditRecord, 1000),
 		indexPrefix:   util.GetEnvWithDefault(AuditIndexPrefixEnv, DefaultAuditIndexPrefix),

@@ -16,13 +16,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
@@ -44,7 +37,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -56,10 +48,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-)
-
-const (
-	defaultK8sClusterName = "default"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -71,21 +65,18 @@ const (
 
 	eventGrpcCertServerNameEnv     = "EVENT_GRPC_CERT_SERVER_NAME"
 	defaultEventGrpcCertServerName = "eventcenter"
-
-	maxClusterNum = 1000
 )
 
 // Console represents the Vegeta Console server.
 type Console struct {
 	lifecycle.Service
-	server          *http.Server
-	webHookServer   *http.Server
-	postgresDB      *rdbtools.GormWrapper
-	es              *elastic.Client
-	harborClient    *harbor.HarborRESTClient
-	cancel          context.CancelFunc
-	scannerURL      string
-	resourceWatcher *assets.Watcher
+	server        *http.Server
+	webHookServer *http.Server
+	postgresDB    *rdbtools.GormWrapper
+	es            *elastic.Client
+	harborClient  *harbor.HarborRESTClient
+	cancel        context.CancelFunc
+	scannerURL    string
 }
 
 // NewConsole is to create a new Console struct.
@@ -142,7 +133,7 @@ func NewConsole(
 		return nil, err
 	}
 
-	postgresDB, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
+	rdb, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
 		db, err := databases.GetMysqlWithEnv(context.Background())
 		if err != nil {
 			logging.GetLogger().Err(err).Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
@@ -177,10 +168,10 @@ func NewConsole(
 		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
 	}
 
-	if err = immune.Init(postgresDB); err != nil {
+	if err = immune.Init(rdb); err != nil {
 		logging.GetLogger().Err(err).Msg("Init immune error")
 	}
-	if err = palace.Init(postgresDB, es); err != nil {
+	if err = palace.Init(rdb, es); err != nil {
 		logging.GetLogger().Err(err).Msg("Init palace error")
 	}
 
@@ -191,7 +182,7 @@ func NewConsole(
 	}
 
 	err = data.Init(&data.Conf{
-		PostgresDB: postgresDB,
+		RDB: rdb,
 		EmailConf: &notifyhandler.EmailConf{
 			Username: env.GetEmailUsername(),
 			Password: env.GetEmailPassword(),
@@ -216,97 +207,107 @@ func NewConsole(
 		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
 	}
 
-	rlErr := assetsSvc.InitResourcesService(postgresDB, scannerURL)
+	rlErr := assetsSvc.InitResourcesService(rdb, scannerURL)
 	if rlErr != nil {
-		logging.GetLogger().Err(rlErr).Msgf("ERROR: InitResourcesService init error")
+		logging.GetLogger().Err(rlErr).Msg("ERROR: InitResourcesService init error")
 	}
 
-	ucErr := usercenter.Init(postgresDB)
+	ucErr := usercenter.Init(rdb)
 	if ucErr != nil {
-		logging.GetLogger().Err(ucErr).Msgf("ERROR: usercenter limiter init error")
+		logging.GetLogger().Err(ucErr).Msg("ERROR: usercenter limiter init error")
 	}
 
 	// scap service
-	err = sp.Init(mainCtx, scapOpts, redisClient, postgresDB)
+	err = sp.Init(mainCtx, scapOpts, redisClient, rdb)
 	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: scapService  init error :%s ", err))
+		logging.GetLogger().Err(err).Msg("ERROR: scapService  init error")
 	}
 
 	// cron service
 	c := cr.New()
 	c.Start()
-	cron.Init(c, postgresDB)
+	err = cron.Init(c, rdb)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("ERROR: cronService  init error")
+	}
 
 	reErr := riskexplorer.Init(scannerURL, redisClient)
 	if reErr != nil {
-		logging.GetLogger().Err(reErr).Msgf("ERROR: riskexplorerService init error")
+		logging.GetLogger().Err(reErr).Msg("ERROR: riskexplorerService init error")
 	}
 
 	// networkTopo service
-	ntErr := networktopo.Init(postgresDB)
+	ntErr := networktopo.Init(rdb)
 	if ntErr != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: networkFlowService init error")
+		logging.GetLogger().Err(ntErr).Msg("ERROR: networkFlowService init error")
 	}
 
-	err = config.Init(postgresDB, redisClient)
+	err = config.Init(rdb, redisClient)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ERROR: config service init error")
+		logging.GetLogger().Err(err).Msg("ERROR: config service init error")
 	}
 
-	err = k8saudit.Init(postgresDB, es)
+	err = k8saudit.Init(rdb, es)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ERROR: k8s-audit service init error")
+		logging.GetLogger().Err(err).Msg("ERROR: k8s-audit service init error")
+		mainCancel()
 		return nil, err
 	}
 
-	err = openapiauth.Init(postgresDB, redisClient)
+	err = openapiauth.Init(rdb, redisClient)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ERROR: openapi auth service init error")
+		logging.GetLogger().Err(err).Msg("ERROR: openapi auth service init error")
+		mainCancel()
 		return nil, err
 	}
 
-	err = hunter.Init(postgresDB)
+	err = hunter.Init(rdb)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ERROR: hunter service init error")
+		mainCancel()
 		return nil, err
 	}
 
 	err = captcha.Init(redisClient, captcha.DefaultConf)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: captcha service init error")
+		logging.GetLogger().Err(ntErr).Msg("ERROR: captcha service init error")
+		mainCancel()
 		return nil, err
 	}
 
 	err = session.Init(redisClient, session.DefaultConf)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: session service init error")
+		logging.GetLogger().Err(ntErr).Msg("ERROR: session service init error")
+		mainCancel()
 		return nil, err
 	}
 
-	err = apiscan.Init(postgresDB)
+	err = apiscan.Init(rdb)
 	if err != nil {
 		logging.GetLogger().Err(ntErr).Msgf("ERROR: apiscan service init error")
 	}
-	err = platformreport.Init(postgresDB, &def.EmailConf{
+	err = platformreport.Init(rdb, &def.EmailConf{
 		Username: env.GetEmailUsername(),
 		Password: env.GetEmailPassword(),
 		Host:     env.GetEmailHost(),
 		Port:     emailPort,
 	})
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: platform report service init error")
+		logging.GetLogger().Err(ntErr).Msg("ERROR: platform report service init error")
+		mainCancel()
 		return nil, err
 	}
 
 	// init cluster manager
-	err = k8s.InitClusterManager(postgresDB, nil, clusterManagerURL)
+	err = k8s.InitClusterManager(rdb, nil, clusterManagerURL)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("cluster manager init error")
+		mainCancel()
 		return nil, err
 	}
 
 	err = processingcenter.Init(&processingcenter.ServiceComponent{
-		DB:              postgresDB,
+		DB:              rdb,
 		EsCli:           es,
 		RedisCli:        redisClient,
 		MicroSegBaseURL: microsegURL,
@@ -317,7 +318,7 @@ func NewConsole(
 			Addr: httpOpts.HTTPListen,
 			Handler: setupChiRouter(
 				mainCtx,
-				postgresDB,
+				rdb,
 				es,
 				scannerURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
@@ -330,7 +331,7 @@ func NewConsole(
 			),
 		},
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},
-		postgresDB:    postgresDB,
+		postgresDB:    rdb,
 		es:            es,
 		cancel:        mainCancel,
 		harborClient:  nil, //harborClient,

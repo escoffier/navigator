@@ -41,10 +41,10 @@ type ClusterManager struct {
 type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
 
 // InitClusterManager 通过 CreateWatcherFunc 解耦cluster manager与service
-func InitClusterManager(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
+func InitClusterManager(db *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
 	rlOnce.Do(func() {
 		for i := 0; i < 3; i++ {
-			instance, initErr = newClusterManger(postgre, creator, clusterManagerURL)
+			instance, initErr = newClusterManger(db, creator, clusterManagerURL)
 			if initErr == nil {
 				break
 			} else {
@@ -59,13 +59,13 @@ func GetClusterManager() (*ClusterManager, bool) {
 	return instance, instance != nil
 }
 
-func newClusterManger(postgre *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
+func newClusterManger(rdb *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clsm := &ClusterManager{
 		clientMap:         make(map[string]*kubernetes.Clientset),
 		watcher:           nil,
-		rdb:               postgre,
+		rdb:               rdb,
 		clusterManagerURL: clusterManagerURL,
 		RWMutex:           sync.RWMutex{},
 		creator:           creator,

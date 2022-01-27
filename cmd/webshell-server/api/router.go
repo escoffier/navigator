@@ -13,6 +13,6 @@ func InitRouter(router *gin.Engine) {
 }
 
 func Detector(group gin.IRouter) {
-	api := detector.NewApiServer()
+	api := detector.NewAPIServer()
 	group.POST("/:type/detector", api.File)
 }

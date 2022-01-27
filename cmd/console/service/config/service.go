@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/go-redis/redis/v8"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
@@ -15,14 +14,14 @@ var (
 	once     sync.Once
 )
 
-func Init(postgresDB *rdbtools.GormWrapper, redisCli *redis.Client) error {
-	if postgresDB == nil || redisCli == nil {
+func Init(rdb *rdbtools.GormWrapper, redisCli *redis.Client) error {
+	if rdb == nil || redisCli == nil {
 		return errors.New("empty db client")
 	}
 	var err error
 	once.Do(func() {
 		var service *Service
-		service, err = newService(postgresDB, redisCli)
+		service, err = newService(rdb, redisCli)
 		if err == nil {
 			instance.Store(service)
 		}

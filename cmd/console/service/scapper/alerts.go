@@ -12,6 +12,7 @@ var (
 	// In the future, we may let user adjust alerts.
 	// Values come from:
 	// https://tensorsecurity.feishu.cn/sheets/shtcnDRmdGD2nWT89XiLGOfVcBc
+	// nolint:structcheck,unused,deadcode
 	benchAlerts = map[model.ComplianceCheckType]map[string]severity{
 		// Kube bench supports multiple CIS versions.
 		// Kube bench decides which version to use based on detected Kubernetes version.

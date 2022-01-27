@@ -72,7 +72,7 @@ func (api *api) UpdateLdapConf() http.HandlerFunc {
 			return
 		}
 
-		err = dal.SetConfig(ctx, api.postgresDB, model.LdapConfKey, conf.Encode())
+		err = dal.SetConfig(ctx, api.rdb, model.LdapConfKey, conf.Encode())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -144,7 +144,7 @@ func (api *api) UpdateLdapCert() http.HandlerFunc {
 			return
 		}
 
-		err = dal.BatchSetConfig(ctx, api.postgresDB, configs)
+		err = dal.BatchSetConfig(ctx, api.rdb, configs)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -182,7 +182,7 @@ func (api *api) GetLdapCertInfo() http.HandlerFunc {
 }
 
 func (api *api) getLdapCertInfo(ctx context.Context) (*LdapCertInfo, error) {
-	configs, err := dal.BatchGetConfig(ctx, api.postgresDB,
+	configs, err := dal.BatchGetConfig(ctx, api.rdb,
 		[]string{model.LdapCAKey, model.LdapClientKey, model.LdapClientCertKey})
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func (api *api) UpdateRadiusConf() http.HandlerFunc {
 			return
 		}
 
-		err = dal.SetConfig(ctx, api.postgresDB, model.RadiusConfKey, conf.Encode())
+		err = dal.SetConfig(ctx, api.rdb, model.RadiusConfKey, conf.Encode())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -252,7 +252,7 @@ func (api *api) GetRadiusConf() http.HandlerFunc {
 }
 
 func (api *api) getLdapConf(ctx context.Context) (*model.LdapServerConf, error) {
-	conf, err := dal.GetConfig(ctx, api.postgresDB, model.LdapConfKey)
+	conf, err := dal.GetConfig(ctx, api.rdb, model.LdapConfKey)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (api *api) getLdapConf(ctx context.Context) (*model.LdapServerConf, error) 
 }
 
 func (api *api) getRadiusConf(ctx context.Context) (*model.RadiusServerConf, error) {
-	conf, err := dal.GetConfig(ctx, api.postgresDB, model.RadiusConfKey)
+	conf, err := dal.GetConfig(ctx, api.rdb, model.RadiusConfKey)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func (api *api) getLdapTlsConfig(ctx context.Context, serverName string) *tls.Co
 	if result.ServerName == "" {
 		result.InsecureSkipVerify = true
 	}
-	configs, err := dal.BatchGetConfig(ctx, api.postgresDB,
+	configs, err := dal.BatchGetConfig(ctx, api.rdb,
 		[]string{model.LdapCAKey, model.LdapClientKey, model.LdapClientCertKey})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("getLdapTlsConfig from db fail")
@@ -611,7 +611,7 @@ func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *e
 }
 
 func (api *api) makeUserSessionByGroup(ctx context.Context, username, group string) (*model.UserSession, error) {
-	ldapGroup, err := dal.GetLdapGroupByName(ctx, api.postgresDB.Get(), group)
+	ldapGroup, err := dal.GetLdapGroupByName(ctx, api.rdb.Get(), group)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			ldapGroup = &model.LdapGroup{Role: model.RoleNormal, Modules: "[]"}
@@ -663,20 +663,20 @@ func (api *api) GetLdapGroupList() http.HandlerFunc {
 			limit = maxLdapGroupBatchSize
 		}
 
-		count, err := dal.GetLdapGroupCount(ctx, api.postgresDB.Get())
+		count, err := dal.GetLdapGroupCount(ctx, api.rdb.Get())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
-		groups, err := dal.GetLdapGroupList(ctx, api.postgresDB.Get(), int(offset), int(limit))
+		groups, err := dal.GetLdapGroupList(ctx, api.rdb.Get(), int(offset), int(limit))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
 		moduleIDs := model.GetModuleIDByGroups(groups)
-		modules, err := dal.GetModules(ctx, api.postgresDB.Get(), moduleIDs)
+		modules, err := dal.GetModules(ctx, api.rdb.Get(), moduleIDs)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -750,7 +750,7 @@ func (api *api) CreateLdapGroup() http.HandlerFunc {
 			Modules: string(modulesJSONBytes),
 		}
 
-		err = dal.CreateLdapGroup(ctx, api.postgresDB.Get(), group)
+		err = dal.CreateLdapGroup(ctx, api.rdb.Get(), group)
 		if err != nil {
 			if util.IsPostgresDuplicateError(err) {
 				apperror.RespAndLog(w, ctx,
@@ -796,7 +796,7 @@ func (api *api) UpdateLdapGroup() http.HandlerFunc {
 			return
 		}
 
-		exist, err := dal.CheckLdapGroupExists(ctx, api.postgresDB.Get(), cliReq.ID)
+		exist, err := dal.CheckLdapGroupExists(ctx, api.rdb.Get(), cliReq.ID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -826,7 +826,7 @@ func (api *api) UpdateLdapGroup() http.HandlerFunc {
 			Modules: string(modulesJSONBytes),
 		}
 
-		err = dal.UpdateLdapGroup(ctx, api.postgresDB.Get(), group)
+		err = dal.UpdateLdapGroup(ctx, api.rdb.Get(), group)
 		if err != nil {
 			if util.IsPostgresDuplicateError(err) {
 				apperror.RespAndLog(w, ctx,
@@ -862,7 +862,7 @@ func (api *api) checkLdapGroup(ctx context.Context, name, role string, modules [
 	var moduleGroups []*model.ModuleGroup
 	if len(modules) > 0 {
 		var err error
-		moduleGroups, err = dal.GetModules(ctx, api.postgresDB.Get(), modules)
+		moduleGroups, err = dal.GetModules(ctx, api.rdb.Get(), modules)
 		if err != nil {
 			return nil, CheckLdapGroupInterError
 		}
@@ -898,7 +898,7 @@ func (api *api) DeleteLdapGroup() http.HandlerFunc {
 			return
 		}
 
-		err = dal.DeleteLdapGroup(ctx, api.postgresDB.Get(), cliReq.ID)
+		err = dal.DeleteLdapGroup(ctx, api.rdb.Get(), cliReq.ID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return

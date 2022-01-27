@@ -56,7 +56,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.postgresDB.Get(), user.Username)
+		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.rdb.Get(), user.Username)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -66,7 +66,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		modules, err := dal.GetModuleGroup(ctx, api.postgresDB, user.ModuleID)
+		modules, err := dal.GetModuleGroup(ctx, api.rdb, user.ModuleID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -97,7 +97,7 @@ func (api *api) newOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		user, ok, err := dal.GetUserByToken(ctx, api.postgresDB.Get(), cliReq.AuthToken)
+		user, ok, err := dal.GetUserByToken(ctx, api.rdb.Get(), cliReq.AuthToken)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return

@@ -23,7 +23,7 @@ func (api *api) userCenter() func(chi.Router) {
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.postgresDB))
+			r.Use(jwtAccessCheck(api.rdb))
 			r.Post("/config/ldap", api.UpdateLdapConf())
 			r.Get("/config/ldap", api.GetLdapConf())
 			r.Post("/config/ldap/cert", api.UpdateLdapCert())

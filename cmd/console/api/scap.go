@@ -498,14 +498,14 @@ func (api *api) exportFile() http.HandlerFunc {
 		var task model.ExportTask
 		tbname := task.TableName()
 		query := "task_id = ? and username = ?"
-		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
+		err = api.rdb.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err == nil {
 			if task.Status == 1 && (time.Now().Unix()-task.CreatedAt > 300) {
 				task.Status = 2
 			}
 
 			if task.Status == 2 {
-				delErr := api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
+				delErr := api.rdb.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 				if delErr != nil {
 					logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
 				}
@@ -522,7 +522,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		task.CreatedAt = time.Now().Unix()
 		task.FileName = fmt.Sprintf("/var/www/%s-%s-%v.xlsx", string(checkType), string(language), task.CreatedAt)
 		// insert task data to mongo
-		err = api.postgresDB.Get().WithContext(ctx).Create(&task).Error
+		err = api.rdb.Get().WithContext(ctx).Create(&task).Error
 		if err != nil {
 			task.Status = 2
 		} else {
@@ -558,7 +558,7 @@ func (api *api) getFile() http.HandlerFunc {
 		var task model.ExportTask
 		tbname := task.TableName()
 		query := "task_id = ? and username = ?"
-		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
+		err = api.rdb.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get export task failed, taskId : %v, username : %v, %v", checkID, username, err)
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("get export task failed, %v", err)))
@@ -570,7 +570,7 @@ func (api *api) getFile() http.HandlerFunc {
 			return
 		}
 		// delete record
-		err = api.postgresDB.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
+		err = api.rdb.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 		if err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "delete export tasks error")
 		}

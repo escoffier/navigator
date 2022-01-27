@@ -33,7 +33,7 @@ func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
 	tokenAuth *jwtauth.JWTAuth,
-	postgresDB *rdbtools.GormWrapper,
+	rdb *rdbtools.GormWrapper,
 	scannerURL string,
 	secProfileCoreURL string,
 	microsegURL string,
@@ -47,7 +47,7 @@ func SetupRoutes(
 
 	api := newAPI(
 		tokenAuth,
-		postgresDB,
+		rdb,
 		scannerURL,
 		secProfileCoreURL,
 		microsegURL,
@@ -75,7 +75,7 @@ func SetupRoutes(
 	r.Route(OpenAPIURLPrefix, func(r chi.Router) {
 		r.Route("/auth", api.openapiAuth())
 		r.Group(func(r chi.Router) {
-			r.Use(openAPIAccessCheck(api.postgresDB))
+			r.Use(openAPIAccessCheck(api.rdb))
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.OpenApiContainerSec())
 			// proxy to tensor-microseg
@@ -89,7 +89,7 @@ func SetupRoutes(
 		r.Group(func(r chi.Router) {
 			// normal check
 			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.postgresDB))
+			r.Use(jwtAccessCheck(api.rdb))
 
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())
