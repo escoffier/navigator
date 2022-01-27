@@ -162,7 +162,7 @@ func (s *RuntimeEventStream) outputsWatch(ctx context.Context, opts ...grpc.Call
 			return err
 		case <-time.After(timeout):
 			if err := fcs.Send(&outputs.Request{}); err != nil {
-				logging.GetLogger().Err(err).Msg("send req err")
+				logging.Get().Err(err).Msg("send req err")
 			}
 
 		case <-ctx.Done():
@@ -178,7 +178,7 @@ func (s *RuntimeEventStream) Start(ctx context.Context) error {
 			logging.Get().Err(err).Msg("OutputsWatch error")
 			contErrCnt++
 			if contErrCnt > 10 {
-				if sleepDur*2 <= 10*time.Second {
+				if sleepDur*2 <= 2*time.Second {
 					sleepDur *= 2
 				}
 				contErrCnt = 0
