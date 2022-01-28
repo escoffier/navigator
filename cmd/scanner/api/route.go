@@ -123,6 +123,7 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v6.POST("/registry", apiRegistrySrv.CreateRegistry)
 		v6.DELETE("/registry/:id", apiRegistrySrv.DeleteRegistry)
 		v6.GET("/reg-type", apiRegistrySrv.GetRegistryType)
+		v6.GET("/regions", apiRegistrySrv.GetRegions)
 	}
 	// 对接harbor扫描器
 	v7 := router.Group("/harbor/api/v1")

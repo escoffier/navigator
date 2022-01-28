@@ -152,8 +152,7 @@ func (aa *AliAcr) listNamespaces(c *cr.Client) (namespaces []string, err error) 
 	for _, ns := range resp.Data.Namespaces {
 		namespaces = append(namespaces, ns.Namespace)
 	}
-
-	logging.Get().Info().Strs("namespaces", namespaces).Msg("FetchArtifacts.listNamespace")
+	logging.Get().Info().Str("driver", Version).Strs("namespaces", namespaces).Msg("FetchArtifacts.listNamespace")
 	return namespaces, nil
 }
 
@@ -311,7 +310,7 @@ func (aa *AliAcr) PullConfigBlob(repo string, configDigest digest.Digest) (strin
 // example:
 // https://registry.%s.aliyuncs.com  表示阿里云镜像仓库的地址
 // https://cr.%s.aliyuncs.com 表示阿里云镜像实列的的管理地址
-var regRegion = regexp.MustCompile(`https://(registry|cr)\\.([\\w\\-]+)\\.aliyuncs\\.com`)
+var regRegion = regexp.MustCompile(`https://(registry|cr)\.([\w-]+)\.aliyuncs\.com`)
 
 // 通过阿里云的url获取Region(服务器区域)信息
 func getRegion(url string) (region string, err error) {
