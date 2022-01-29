@@ -34,18 +34,18 @@ const (
 	defaultRTRulesLoadInterval = 5 * time.Minute
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, rman *rtpkg.RulesManager) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, rman *rtpkg.RulesManager, nodeResourceInfo *netflow.NodeResourceInfo) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler, err := rtdetect.NewEcHandler(rman)
+	ecHandler, err := rtdetect.NewEcHandler(rman, nodeResourceInfo)
 	if err != nil {
 		return nil, err
 	}
-	imHandler := rtdetect.NewImmuneHandler(stanConn)
-	aeHandler := rtdetect.NewAssociatedEventsHandler(stanConn)
+	// imHandler := rtdetect.NewImmuneHandler(stanConn)
+	aeHandler := rtdetect.NewAssociatedEventsHandler(stanConn, nodeResourceInfo)
 	bui.WithHandler(rtdetect.NewAsyncHandler(ecHandler, defaultRTBuffInterval, defaultRTBuffSize))
-	bui.WithHandler(rtdetect.NewAsyncHandler(imHandler, defaultRTBuffInterval, defaultRTBuffSize))
+	// bui.WithHandler(rtdetect.NewAsyncHandler(imHandler, defaultRTBuffInterval, defaultRTBuffSize))
 	bui.WithHandler(rtdetect.NewSyncHandler(aeHandler))
 
 	s, err := bui.Build(context.Background())
@@ -139,8 +139,9 @@ func NetInit(ctx context.Context) error {
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
+	nodeResourceInfo := netflow.NewNodeResourceInfo()
 	//new k8s resource
-	k8sResSync, err := netflow.NewK8sResourceSyncer(hostName, hostIP)
+	k8sResSync, err := netflow.NewK8sResourceSyncer(hostName, hostIP, nodeResourceInfo)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize k8s resource sycner, : %w", err)
 	}
@@ -177,7 +178,7 @@ func NetInit(ctx context.Context) error {
 		} else if strings.Index(consoleAddr, "https://") == 0 {
 			caddr = consoleAddr[8:]
 		}
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, rtpkg.NewRulesManager(caddr, defaultRTRulesLoadInterval))
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, rtpkg.NewRulesManager(caddr, defaultRTRulesLoadInterval), nodeResourceInfo)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		}

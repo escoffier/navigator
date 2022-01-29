@@ -28,7 +28,7 @@ type FlowSession struct {
 	CtFlow         ConntrackTools
 	sockClient     *net.UnixConn
 	hostIP         string
-	k8sResInfos    *K8sResInfos
+	k8sResInfos    *NodeResourceInfo
 	url            string
 	clusterManager ClusterManager
 	submitter      *Submitter
@@ -177,7 +177,7 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, cons
 	fs := FlowSession{
 		CtFlow:         ctFlow,
 		hostIP:         myHostIP,
-		k8sResInfos:    k8sClient.K8sPods,
+		k8sResInfos:    k8sClient.nodeResInfo,
 		clusterManager: clusterManager,
 		url:            url,
 		nsDataChan:     make(chan daemon.NetSessionLink, 300),

@@ -23,7 +23,7 @@ const (
 	FieldParentProcessName = "proc.pname"
 	FieldK8sNsName         = "k8s.ns.name"
 	FieldK8sPodName        = "k8s.pod.name"
-	FieldContainerId       = "container.id"
+	FieldContainerID       = "container.id"
 )
 
 var filteredOutFields = map[string]struct{}{
@@ -119,7 +119,7 @@ var eventKVsMap = map[string]map[string]pb.KV{
 		"en": {Key: "Container Name"},
 		"zh": {Key: "容器名称"},
 	},
-	FieldContainerId: {
+	FieldContainerID: {
 		"en": {Key: "containerId"},
 		"zh": {Key: "容器ID"},
 	},

@@ -2,13 +2,15 @@ package rtdetect
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
+	"gitlab.com/security-rd/go-pkg/logging"
 	pb "gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -25,9 +27,13 @@ type EcHandler struct {
 	ecCli        pb.EventsCenterCollectionServiceClient
 	uuidGen      *uuid.Generator
 	rulesManager *rtdetect.RulesManager
+	nodeResInfo  *netflow.NodeResourceInfo
 }
 
-func NewEcHandler(rman *rtdetect.RulesManager) (*EcHandler, error) {
+func NewEcHandler(rman *rtdetect.RulesManager, nodeResInfo *netflow.NodeResourceInfo) (*EcHandler, error) {
+	if nodeResInfo == nil || rman == nil {
+		return nil, errors.New("argument is nil")
+	}
 	ech, err := echelper.NewGRPCClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -41,11 +47,18 @@ func NewEcHandler(rman *rtdetect.RulesManager) (*EcHandler, error) {
 		ecCli:        ech,
 		uuidGen:      uuidGen,
 		rulesManager: rman,
+		nodeResInfo:  nodeResInfo,
 	}, nil
 }
 
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, item := range events {
+		containerID := item.data.OutputFields[rtdetect.FieldContainerID]
+		if _, exist := ec.nodeResInfo.FindContainerCacheData(containerID); exist {
+			logging.Get().Info().Msgf("Filter out container creation post events. data: %v. ContainerID: %s", item.data, containerID)
+			continue
+		}
+
 		ruleCategory := "ATT&CK"
 		category, ok := ec.rulesManager.GetCategoryOfRule(item.data.Rule)
 		if ok {
@@ -59,7 +72,7 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 			defer cancel()
 			_, err := ec.ecCli.SendNotification(oneCtx, eventReq)
 			if err != nil {
-				logging.GetLogger().WithContext(oneCtx).Errorf(err, "send events center error. data: %+v", eventReq)
+				logging.Get().WithContext(oneCtx).Errorf(err, "send events center error. data: %+v", eventReq)
 			}
 		}()
 
