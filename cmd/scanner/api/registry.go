@@ -132,40 +132,40 @@ func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
 	if regType == aliacree.Version {
 		data := []map[string]string{
 			{
-				"region_id":  "cn-shenzhen",
-				"local_name": "华南1（深圳）",
-			},
-			{
-				"region_id":  "cn-beijing",
-				"local_name": "华北2（北京）",
-			},
-			{
-				"region_id":  "ap-south-1",
-				"local_name": "印度（孟买）",
-			},
-			{
-				"region_id":  "eu-west-1",
-				"local_name": "英国（伦敦）",
-			},
-			{
-				"region_id":  "ap-northeast-1",
-				"local_name": "日本（东京）",
-			},
-			{
-				"region_id":  "cn-chengdu",
-				"local_name": "西南1（成都）",
+				"region_id":  "cn-hangzhou",
+				"local_name": "华东1（杭州）",
 			},
 			{
 				"region_id":  "cn-shanghai",
 				"local_name": "华东2（上海）",
 			},
 			{
-				"region_id":  "cn-hongkong",
-				"local_name": "中国（香港）",
+				"region_id":  "cn-beijing",
+				"local_name": "华北2（北京）",
+			},
+			{
+				"region_id":  "cn-zhangjiakou",
+				"local_name": "华北3（张家口）",
+			},
+			{
+				"region_id":  "cn-shenzhen",
+				"local_name": "华南1（深圳）",
 			},
 			{
 				"region_id":  "cn-heyuan",
 				"local_name": "华南2（河源）",
+			},
+			{
+				"region_id":  "cn-chengdu",
+				"local_name": "西南1（成都）",
+			},
+			{
+				"region_id":  "cn-hongkong",
+				"local_name": "中国（香港）",
+			},
+			{
+				"region_id":  "ap-northeast-1",
+				"local_name": "日本（东京）",
 			},
 			{
 				"region_id":  "ap-southeast-1",
@@ -176,29 +176,30 @@ func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
 				"local_name": "澳大利亚（悉尼）",
 			},
 			{
+				"region_id":  "ap-southeast-5",
+				"local_name": "印度尼西亚（雅加达）",
+			},
+			{
 				"region_id":  "eu-central-1",
 				"local_name": "德国（法兰克福）",
+			},
+			{
+				"region_id":  "eu-west-1",
+				"local_name": "英国（伦敦）",
 			},
 			{
 				"region_id":  "us-east-1",
 				"local_name": "美国（弗吉尼亚）",
 			},
 			{
-				"region_id":  "ap-southeast-5",
-				"local_name": "印度尼西亚（雅加达）",
-			},
-			{
 				"region_id":  "us-west-1",
 				"local_name": "美国（硅谷）",
 			},
 			{
-				"region_id":  "cn-zhangjiakou",
-				"local_name": "华北3（张家口）",
+				"region_id":  "ap-south-1",
+				"local_name": "印度（孟买）",
 			},
-			{
-				"region_id":  "cn-hangzhou",
-				"local_name": "华东1（杭州）",
-			}}
+		}
 		response.JSONOK(ctx, response.WithItems(data))
 		return
 	}
