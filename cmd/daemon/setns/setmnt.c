@@ -563,7 +563,8 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             pstProcData->status = MATCH_SUCC;
             //match inode
             ret = MatchInode(inode, pidNums, pids, &pid);
-            if(ret != 0) BREAK_ERROR("match tcp inode failed! need enter other container, inode : %s.", inode);
+            //if(ret != 0) BREAK_ERROR("match tcp inode failed! need enter other container, inode : %s.", inode);
+            if(ret != 0) break;
             //get process name by pid
             ret = GetProcessName(pid, "", pstProcData->procname);
             if(ret != 0) LOG_ERROR("get tcp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
@@ -583,7 +584,7 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
         ret = GetProcessName(pid, "", pstProcData->procname);
         if(ret != 0) LOG_ERROR("get tcp process name failed by default pid! pid : %d, %s.", pid, PrintAddress(mnt));
         //print information
-        LOG_WARN("get tcp default process, pid : %d, process name : %s, %s.", pid, pstProcData->procname, PrintAddress(mnt));
+        //LOG_WARN("get tcp default process, pid : %d, process name : %s, %s.", pid, pstProcData->procname, PrintAddress(mnt));
     }
     //return
     return ret;
@@ -717,7 +718,7 @@ int ParseRcvData(int fd, char *buf)
     if(ret < 0) goto out;
     //get process data
     ret = GetProcessData(&mnt, &stProcData);
-    if(ret != 0) LOG_ERROR("get process failed! ret : %d.", ret);
+    //if(ret != 0) LOG_ERROR("get process failed! ret : %d, %s.", ret,  PrintAddress(&mnt));
     
 out:
     //unshare mnt
