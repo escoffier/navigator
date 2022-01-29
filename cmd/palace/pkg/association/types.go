@@ -132,7 +132,7 @@ func getLocation(resp *outputs.Response) (*PodContainerLoc, bool) {
 	if !ok {
 		return nil, false
 	}
-	containerID, ok := resp.OutputFields[rtdetect.FieldContainerId]
+	containerID, ok := resp.OutputFields[rtdetect.FieldContainerID]
 	if !ok {
 		return nil, false
 	}

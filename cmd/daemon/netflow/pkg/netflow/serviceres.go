@@ -3,14 +3,16 @@ package netflow
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"runtime/debug"
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -19,14 +21,14 @@ import (
 )
 
 type K8sResClient struct {
-	k8sClient *kubernetes.Clientset
-	dockerCli *client.Client
-	K8sPods   *K8sResInfos
-	hostIP    string
-	hostName  string
+	k8sClient   *kubernetes.Clientset
+	dockerCli   *client.Client
+	nodeResInfo *NodeResourceInfo
+	hostIP      string
+	hostName    string
 }
 
-func NewK8sResourceSyncer(hostName, hostIP string) (*K8sResClient, error) {
+func NewK8sResourceSyncer(hostName, hostIP string, nodeResInfo *NodeResourceInfo) (*K8sResClient, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't initialize k8s config: %w", err)
@@ -43,11 +45,11 @@ func NewK8sResourceSyncer(hostName, hostIP string) (*K8sResClient, error) {
 	}
 
 	rs := K8sResClient{
-		k8sClient: k8sClient,
-		dockerCli: dockerCli,
-		K8sPods:   newK8sResInfos(),
-		hostIP:    hostIP,
-		hostName:  hostName,
+		k8sClient:   k8sClient,
+		dockerCli:   dockerCli,
+		nodeResInfo: nodeResInfo,
+		hostIP:      hostIP,
+		hostName:    hostName,
 	}
 
 	return &rs, nil
@@ -63,11 +65,11 @@ func (rs K8sResClient) GetContainerPid(containerId string) (int, error) {
 
 	container, err := rs.dockerCli.ContainerInspect(ctx, containerId)
 	if err != nil {
-		return 0, errors.Errorf("container inspace failed, %v", err)
+		return 0, fmt.Errorf("container inspace failed, %v", err)
 	}
 
 	if container.State.Pid <= 0 {
-		return 0, errors.Errorf("get container's pid failed, pid : %v", container.State.Pid)
+		return 0, fmt.Errorf("get container's pid failed, pid : %v", container.State.Pid)
 	}
 
 	return container.State.Pid, nil
@@ -76,7 +78,7 @@ func (rs K8sResClient) GetContainerPid(containerId string) (int, error) {
 func (rs K8sResClient) GetPodOwnerReferences(ctx context.Context, ns, podname string) (string, string) {
 	pod, err := rs.k8sClient.CoreV1().Pods(ns).Get(ctx, podname, metav1.GetOptions{})
 	if err != nil {
-		logging.GetLogger().Error().Msgf("get pod failed, namespace : %v, pod name : %v.", ns, podname)
+		logging.Get().Error().Msgf("get pod failed, namespace : %v, pod name : %v.", ns, podname)
 		return "", ""
 	}
 
@@ -99,20 +101,20 @@ func (rs K8sResClient) GetOwnerReferences(pod *corev1.Pod) (string, string) {
 	ownername := owner.Name
 	ownerkind := owner.Kind
 	//debug log
-	//logging.GetLogger().Info().Msgf("ownername : %v, ownerkind : %v", ownername, ownerkind)
+	//logging.Get().Info().Msgf("ownername : %v, ownerkind : %v", ownername, ownerkind)
 	//get owner reference
 	switch ownerkind {
 	case "ReplicaSet":
 		namespace := pod.GetNamespace()
 		rset, err := rs.k8sClient.AppsV1().ReplicaSets(namespace).Get(ctx, ownername, metav1.GetOptions{})
 		if err != nil {
-			//logging.GetLogger().Error().Msgf("pod name : %s, ns : %s, err : %v.", pod.GetName(), namespace, err)
+			//logging.Get().Error().Msgf("pod name : %s, ns : %s, err : %v.", pod.GetName(), namespace, err)
 			return ownername, ownerkind
 		}
 
 		owners := rset.GetOwnerReferences()
 		for _, o := range owners {
-			//logging.GetLogger().Info().Msgf("pod name : %s, ns : %s, Controller : %v, kind : %v, name : %v.", pod.GetName(), namespace, *owner.Controller, owner.Kind, owner.Name)
+			//logging.Get().Info().Msgf("pod name : %s, ns : %s, Controller : %v, kind : %v, name : %v.", pod.GetName(), namespace, *owner.Controller, owner.Kind, owner.Name)
 			if !(*o.Controller) {
 				continue
 			}
@@ -153,7 +155,7 @@ func (rs K8sResClient) GetContainerData(pod *corev1.Pod) map[string]*daemon.Cont
 		id := strings.TrimPrefix(container.ContainerID, "docker://")
 		cPid, err := rs.GetContainerPid(id)
 		if len(cname) == 0 || err != nil {
-			logging.GetLogger().Warn().Msgf("get container info failed, namespace : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
+			logging.Get().Warn().Msgf("get container info failed, namespace : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
 			continue
 		}
 		//save container information
@@ -164,7 +166,7 @@ func (rs K8sResClient) GetContainerData(pod *corev1.Pod) map[string]*daemon.Cont
 	}
 
 	if len(containerData) == 0 {
-		logging.GetLogger().Warn().Msgf("get container id failed, namespace : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
+		logging.Get().Warn().Msgf("get container id failed, namespace : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
 	}
 
 	return containerData
@@ -198,9 +200,9 @@ func (rs K8sResClient) ListenLocalNodePods(stopChan chan struct{}) {
 				//get owner reference
 				ownerName, kind := rs.GetOwnerReferences(pod)
 				ownerNamespace := pod.GetNamespace()
-				//logging.GetLogger().Info().Msgf("[pods add] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), kind, ownerNamespace)
+				//logging.Get().Info().Msgf("[pods add] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), kind, ownerNamespace)
 				//save k8s resource data
-				rs.K8sPods.SaveK8sResData(podIp, ownerName, kind, ownerNamespace, pod.GetName(), rs.GetContainerData(pod))
+				rs.nodeResInfo.SaveK8sResData(podIp, ownerName, kind, ownerNamespace, pod.GetName(), rs.GetContainerData(pod))
 			},
 
 			DeleteFunc: func(obj interface{}) {
@@ -215,8 +217,8 @@ func (rs K8sResClient) ListenLocalNodePods(stopChan chan struct{}) {
 					return
 				}
 				//delete k8s resource
-				rs.K8sPods.DeleteK8sResData(podIp)
-				//logging.GetLogger().Info().Msgf("[pods delete] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), pod.Kind, pod.GetNamespace())
+				rs.nodeResInfo.DeleteK8sResData(podIp)
+				//logging.Get().Info().Msgf("[pods delete] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), pod.Kind, pod.GetNamespace())
 			},
 
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -231,27 +233,59 @@ func (rs K8sResClient) ListenLocalNodePods(stopChan chan struct{}) {
 					return
 				}
 
-				_, err := rs.K8sPods.GetK8sResData(podIp)
+				_, err := rs.nodeResInfo.GetK8sResData(podIp)
 				if err == nil {
 					return
 				}
 				//get owner reference
 				ownername, kind := rs.GetOwnerReferences(pod)
 				namespace := pod.GetNamespace()
-				//logging.GetLogger().Info().Msgf("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), pod.Kind, pod.GetNamespace())
+				//logging.Get().Info().Msgf("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), pod.Kind, pod.GetNamespace())
 				//update k8s resource data
-				rs.K8sPods.UpdateK8sResData(podIp, ownername, kind, namespace, pod.GetName(), rs.GetContainerData(pod))
+				rs.nodeResInfo.UpdateK8sResData(podIp, ownername, kind, namespace, pod.GetName(), rs.GetContainerData(pod))
 			}})
 	//controller run
 	controller.Run(stopChan)
 }
 
+func (rs *K8sResClient) DockerEvents() {
+	filter := filters.NewArgs(
+		filters.Arg("event", "create"),
+		filters.Arg("type", "container"),
+	)
+
+	msg, errs := rs.dockerCli.Events(context.Background(), types.EventsOptions{
+		Filters: filter,
+	})
+
+	for {
+		select {
+		case m := <-msg:
+			rs.nodeResInfo.SaveContainerData(m.ID, m.Time)
+			//logging.Get().Info().Msgf("status : %v, ID : %v, Image : %v, time : %v, now time : %v", m.Status, m.ID, m.Actor.Attributes["image"], m.Time, time.Now().Unix())
+		case err := <-errs:
+			logging.Get().Error().Msgf("%+v", err)
+		}
+	}
+}
+
 func (rs *K8sResClient) StartK8sServiceSyncer() error {
+	//docker events
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		//docker events
+		rs.DockerEvents()
+	}()
+
 	//get pods information
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 		//stop channel

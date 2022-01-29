@@ -6,10 +6,10 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/golang/protobuf/proto"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
@@ -38,13 +38,13 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 		if ok {
 			stanconn, ok := ih.stanConn.Conn()
 			if !ok {
-				logging.GetLogger().WithContext(ctx).Errorf(nil, "stan connection not avaiable. data: %+v", e)
+				logging.Get().WithContext(ctx).Errorf(nil, "stan connection not avaiable. data: %+v", e)
 				continue
 			}
 			e.data.OutputFields[rtdetect.KeyClusterKey] = e.clusterKey
 			ebytes, err := proto.Marshal(e.data)
 			if err != nil {
-				logging.GetLogger().WithContext(ctx).Errorf(err, "failed to marshal data: %v", e)
+				logging.Get().WithContext(ctx).Errorf(err, "failed to marshal data: %v", e)
 				continue
 			}
 
@@ -52,7 +52,7 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 				return stanconn.Publish(subject, ebytes)
 			}, retry.Attempts(3))
 			if err != nil {
-				logging.GetLogger().WithContext(ctx).Errorf(err, "publish immune events error. data: %s", string(ebytes))
+				logging.Get().WithContext(ctx).Errorf(err, "publish immune events error. data: %s", string(ebytes))
 			}
 		}
 	}
