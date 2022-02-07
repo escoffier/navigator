@@ -3,9 +3,16 @@ package assets
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"hash/fnv"
+)
+
+const (
+	typeIngress  = "ingress"
+	typeEgress   = "egress"
+	valueUnknown = "unknown"
 )
 
 type OnlineVulnListItem struct {

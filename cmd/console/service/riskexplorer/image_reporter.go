@@ -143,7 +143,7 @@ func (s ImageVulnsSummary) ResourceSummary(tx context.Context, clusterKey, names
 	key := getResKey(clusterKey, namespace, resourceKind, resourceName)
 	imageIDs := s.resToImages.Get(key)
 	if len(imageIDs) == 0 {
-		return make(map[string]Summary, 0), nil
+		return make(map[string]Summary, 0), nil // nolint
 	}
 
 	sums = make(map[string]Summary, 3)

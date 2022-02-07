@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -41,7 +40,7 @@ func (api *api) scapCheckOpenApi() http.HandlerFunc {
 			return
 		}
 
-		if req.CheckType != "docker" && req.CheckType != "host" && req.CheckType != "kube" {
+		if !checkType(req.CheckType) {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type")))
 			return
 		}
@@ -53,6 +52,10 @@ func (api *api) scapCheckOpenApi() http.HandlerFunc {
 
 		api.scapCheckHandler(ctx, w, model.ComplianceCheckType(req.CheckType), req.ClusterKey, req.Operator)
 	}
+}
+
+func checkType(checkType string) bool {
+	return checkType == string(model.ComplianceCheckTargetTypeDocker) || checkType == string(model.ComplianceCheckTargetTypeHost) || checkType == string(model.ComplianceCheckTargetTypeKube)
 }
 
 func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
@@ -88,8 +91,8 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 		// 如果没有传就是空，就会取默认值，所以这里不处理错误
 		checkId, _ := param.QueryString(r, "checkId")
 
-		checkType, err := param.QueryString(r, "checkType")
-		if err != nil || (checkType != "docker" && checkType != "host" && checkType != "kube") {
+		complianceType, err := param.QueryString(r, "checkType")
+		if err != nil || !checkType(complianceType) {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
@@ -109,7 +112,7 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 			offset = 0
 		}
 
-		checkId, _, _, _, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, checkId, model.ComplianceCheckType(checkType), "desc")
+		checkId, _, _, _, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, checkId, model.ComplianceCheckType(complianceType), "desc")
 		if !ok {
 			return
 		}
@@ -169,8 +172,8 @@ func (api *api) getCheckHistoryOpenApi() http.HandlerFunc {
 			return
 		}
 
-		checkType, err := param.QueryString(r, "checkType")
-		if err != nil || (checkType != "docker" && checkType != "host" && checkType != "kube") {
+		complianceType, err := param.QueryString(r, "checkType")
+		if err != nil || !checkType(complianceType) {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
@@ -185,7 +188,7 @@ func (api *api) getCheckHistoryOpenApi() http.HandlerFunc {
 		offset, limit := api.getOffsetAndLimit(r)
 		scapService, _ := scapper.GetService(ctx)
 
-		items, _, err := scapService.GetCheckHistory(ctx, offset, limit, clusterKey, string(checkType), sortBy, sortOrder)
+		items, _, err := scapService.GetCheckHistory(ctx, offset, limit, clusterKey, string(complianceType), sortBy, sortOrder)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't get host history entries: %w", err)))
 			return
@@ -241,8 +244,8 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 			return
 		}
 
-		checkType, err := param.QueryString(r, "checkType")
-		if err != nil || (checkType != "docker" && checkType != "host" && checkType != "kube") {
+		complianceType, err := param.QueryString(r, "checkType")
+		if err != nil || !checkType(complianceType) {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
@@ -253,7 +256,7 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 			return
 		}
 
-		result, ok := api.getPolicyDetailsHandler(ctx, w, model.ComplianceCheckType(checkType), policyNumber, checkId)
+		result, ok := api.getPolicyDetailsHandler(ctx, w, model.ComplianceCheckType(complianceType), policyNumber, checkId)
 		if !ok {
 			return
 		}

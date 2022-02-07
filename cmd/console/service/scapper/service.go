@@ -16,10 +16,10 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
 
@@ -27,6 +27,13 @@ var (
 	scapperInstance *Scapper
 	svcInstance     *ScapService
 	once            sync.Once
+)
+
+const (
+	testLevelWarn = "WARN"
+	testLevelFail = "FAIL"
+	testLevelPass = "PASS"
+	testLevelInfo = "INFO"
 )
 
 func Init(mainCtx context.Context,
@@ -69,7 +76,7 @@ func newScapService(scapOpts *flag.ScapOpts, postgresDB *rdbtools.GormWrapper) (
 	go func() {
 		err := scapSvc.PolicyInit(scapOpts.PolicyCounts)
 		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("policy init failed, %v", err))
+			logging.Get().Error().Msg(fmt.Sprintf("policy init failed, %v", err))
 		}
 	}()
 
@@ -88,7 +95,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 		return errors.Errorf("get policy count failed, %v", err)
 	}
 	//print debug log
-	logging.GetLogger().Info().Msgf("default policy counts : %v, actual policy counts : %v.", policyCounts, policyNum)
+	logging.Get().Info().Msgf("default policy counts : %v, actual policy counts : %v.", policyCounts, policyNum)
 	if policyNum >= int64(policyCounts) {
 		return nil
 	}
@@ -102,24 +109,24 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	for _, file := range files {
 		data, err := ioutil.ReadFile(file)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("read data failed from %s, %v.", file, err)
+			logging.Get().Error().Msgf("read data failed from %s, %v.", file, err)
 			continue
 		}
 
 		var policys []model.PolicyDetailInfo
 		err = json.Unmarshal(data, &policys)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("json unmarshal policy failed, file : %s, %v", file, err)
+			logging.Get().Error().Msgf("json unmarshal policy failed, file : %s, %v", file, err)
 			continue
 		}
 		//print debug log
-		logging.GetLogger().Info().Msgf("policy count : %v.", len(policys))
+		logging.Get().Info().Msgf("policy count : %v.", len(policys))
 		//write policy to pg
 		for _, rule := range policys {
 			policyNum = 0
 			err = s.postgresDB.Get().Where(ctx).Table(tbname).Where("policy_id = ? and check_type = ?", rule.PolicyId, rule.CheckType).Count(&policyNum).Error
 			if err != nil {
-				logging.GetLogger().Error().Msgf("get policy_id = %s failed, %v.", rule.PolicyId, err)
+				logging.Get().Error().Msgf("get policy_id = %s failed, %v.", rule.PolicyId, err)
 				continue
 			}
 
@@ -129,7 +136,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 
 			err = s.postgresDB.Get().WithContext(ctx).Table(tbname).Create(&rule).Error
 			if err != nil {
-				logging.GetLogger().Error().Msgf("write policy to postgre db failed, %v.", err)
+				logging.Get().Error().Msgf("write policy to postgre db failed, %v.", err)
 			}
 		}
 	}
@@ -137,15 +144,17 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	return nil
 }
 
-func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterId string, timeout int64) error {
+func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterId string, timeout int64) (bool, error) {
 	var task model.ScanHistory
 	query := "check_type = ? and cluster_key = ? and state = 1"
 	err := s.postgresDB.Get().WithContext(ctx).First(&task, query, checkType, clusterId).Error
-	if err != nil || task.TaskID == "" {
-		return nil
+	if err == gorm.ErrRecordNotFound {
+		return false, nil
+	} else if err != nil {
+		return false, err
 	}
 
-	return errors.Errorf("have been scanning task")
+	return true, nil
 }
 
 func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error {
@@ -177,21 +186,18 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 			continue
 		}
 
-		status := ""
-		status, err = scap.GetJobStatus(nodeRecord.ClusterKey, nodeRecord.Namespace, nodeRecord.JobName)
+		status, err := scap.GetJobStatus(nodeRecord.ClusterKey, nodeRecord.Namespace, nodeRecord.JobName)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get jobs status failed, %v.", err)
+			logging.Get().Error().Msgf("get jobs status failed, %v.", err)
 			continue
 		}
 
-		if status == "running" {
+		if status == model.ScanStateCompleted {
 			return nil
 		}
 
-		nodeRecord.State = model.ScanStateCompleted
-		if status == "failed" {
-			nodeRecord.State = model.ScanStateFailed
-		} else {
+		nodeRecord.State = status
+		if status != model.ScanStateFailed {
 			sucNode++
 		}
 
@@ -204,7 +210,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 		//update state
 		err = s.postgresDB.Get().WithContext(ctx).Table(tb).Where(query, taskId, nodename).Update("state", state).Update("finished_at", finishAt).Error
 		if err != nil {
-			logging.GetLogger().Error().Msgf("updates scan node record failed, %v.", err)
+			logging.Get().Error().Msgf("updates scan node record failed, %v.", err)
 		}
 	}
 
@@ -224,7 +230,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 	query = "task_id = ? and check_type = ?"
 	err = s.postgresDB.Get().WithContext(ctx).Model(tb).Where(query, taskId, checkHistory.CheckType).Select("state", "suc_node", "finished_at").Updates(tb).Error
 	if err != nil {
-		logging.GetLogger().Error().Msgf("update scan history state=0 failed, task_id : %s, %v.", taskId, err)
+		logging.Get().Error().Msgf("update scan history state=0 failed, task_id : %s, %v.", taskId, err)
 	}
 
 	return nil
@@ -232,7 +238,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 
 func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int, error) {
 	//print debug log
-	//logging.GetLogger().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
+	//logging.Get().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
 
 	pgCtx, mpgCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mpgCancel()
@@ -259,7 +265,7 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		if data.FinishedAt <= 0 || value.State == model.ScanStateInProgress {
 			err = s.SynScanState(&data)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("syn scan history failed, %v.", err)
+				logging.Get().Error().Msgf("syn scan history failed, %v.", err)
 			}
 		}
 
@@ -378,7 +384,7 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 		var cpMap model.ComplianceMapEntry
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 		if err != nil {
-			logging.GetLogger().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
+			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
 			continue
 		}
 
@@ -422,7 +428,7 @@ func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, c
 		var cpMap model.ComplianceMapEntry
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 		if err != nil {
-			logging.GetLogger().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
+			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
 			continue
 		}
 
@@ -466,7 +472,7 @@ func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, che
 		var cpMap model.ComplianceMapEntry
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 		if err != nil {
-			logging.GetLogger().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
+			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
 			continue
 		}
 
@@ -538,7 +544,7 @@ func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, che
 		autoVar := make(map[string]string)
 		err = json.Unmarshal([]byte(node.AutoVariate), &autoVar)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
+			logging.Get().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
 			continue
 		}
 		nodeAutoVar[node.NodeName] = autoVar
@@ -578,7 +584,7 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 		if !ok {
 			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
+				logging.Get().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
 				continue
 			}
 
@@ -599,13 +605,13 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 
 		testStatus := value.State
 		switch testStatus {
-		case "FAIL":
+		case testLevelFail:
 			checkMap[value.PolicyID].NumFailed++
-		case "WARN":
+		case testLevelWarn:
 			checkMap[value.PolicyID].NumWarn++
-		case "PASS":
+		case testLevelPass:
 			checkMap[value.PolicyID].NumSuccessful++
-		case "INFO":
+		case testLevelInfo:
 			checkMap[value.PolicyID].NumInfo++
 		default:
 			break
@@ -647,16 +653,16 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *m
 		}
 
 		switch nodeRet.TestStatus {
-		case "FAIL":
+		case testLevelFail:
 			policyDetails.NumFailed++
 			policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
-		case "WARN":
+		case testLevelWarn:
 			policyDetails.NumWarn++
 			policyDetails.WarnOn = append(policyDetails.WarnOn, nodeRet)
-		case "PASS":
+		case testLevelPass:
 			policyDetails.NumSuccessful++
 			policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
-		case "INFO":
+		case testLevelInfo:
 			policyDetails.NumInfo++
 			policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
 		default:
@@ -678,7 +684,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 		if !ok {
 			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
+				logging.Get().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
 				continue
 			}
 
@@ -694,8 +700,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
 		}
 
-		testStatus := value.State
-		switch testStatus {
+		switch value.State {
 		case "fail":
 			checkMap[value.PolicyID].NumFailed++
 		case "notselected":
@@ -757,7 +762,7 @@ func (s *ScapService) GetFileData(filename string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Errorf("get data from %v failed, %v", filename, err)
 	}
-	logging.GetLogger().Info().Msgf("file content length : %v", len(data))
+	logging.Get().Info().Msgf("file content length : %v", len(data))
 	return data, nil
 }
 
@@ -772,7 +777,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 		return errors.Errorf("get scan result to file failed, %v", err)
 	}
 	//print debug log
-	//logging.GetLogger().Info().Msgf("get scan result data num : %v.", len(scanRet))
+	//logging.Get().Info().Msgf("get scan result data num : %v.", len(scanRet))
 	//xlsx file
 	var exfile model.ScapRetData
 	//new xlsx file
@@ -781,7 +786,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 	defer func() {
 		err = file.Save(task.FileName)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("save xlsx file failed, %v", err)
+			logging.Get().Error().Msgf("save xlsx file failed, %v", err)
 		}
 	}()
 	//add sheet
@@ -800,7 +805,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 	for _, value := range scanRet {
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, task.CheckType)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get policy %s failed, %v.", value.PolicyID, err)
+			logging.Get().Error().Msgf("get policy %s failed, %v.", value.PolicyID, err)
 			continue
 		}
 		exfile.NodeName = value.NodeName
@@ -836,7 +841,7 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 		if !ok {
 			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
+				logging.Get().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
 				continue
 			}
 

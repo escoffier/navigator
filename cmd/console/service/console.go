@@ -43,12 +43,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -136,13 +136,13 @@ func NewConsole(
 	rdb, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
 		db, err := databases.GetMysqlWithEnv(context.Background())
 		if err != nil {
-			logging.GetLogger().Err(err).Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+			logging.Get().Err(err).Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
 			return nil, err
 		}
 		return db, nil
 	})
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("Init postgre error")
+		logging.Get().Err(err).Msg("Init postgre error")
 		return nil, err
 	}
 
@@ -157,7 +157,7 @@ func NewConsole(
 	// temperately comment,need refactor
 	//harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
 	//if err != nil {
-	//	logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
+	//	logging.Get().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	//}
 
 	es, err := elastic.NewClient(
@@ -165,20 +165,20 @@ func NewConsole(
 		elastic.SetBasicAuth(env.GetElasticUsername(), env.GetElasticPassword()),
 	)
 	if err != nil {
-		logging.GetLogger().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
+		logging.Get().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
 	}
 
 	if err = immune.Init(rdb); err != nil {
-		logging.GetLogger().Err(err).Msg("Init immune error")
+		logging.Get().Err(err).Msg("Init immune error")
 	}
 	if err = palace.Init(rdb, es); err != nil {
-		logging.GetLogger().Err(err).Msg("Init palace error")
+		logging.Get().Err(err).Msg("Init palace error")
 	}
 
 	// data service
 	emailPort, err := strconv.Atoi(env.GetEmailPort())
 	if err != nil {
-		logging.GetLogger().Error().Msgf("invalid email port:%s", env.GetEmailPort())
+		logging.Get().Error().Msgf("invalid email port:%s", env.GetEmailPort())
 	}
 
 	err = data.Init(&data.Conf{
@@ -204,23 +204,23 @@ func NewConsole(
 		},
 	})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ERROR: DataService init error")
+		logging.Get().Err(err).Msgf("ERROR: DataService init error")
 	}
 
 	rlErr := assetsSvc.InitResourcesService(rdb, scannerURL)
 	if rlErr != nil {
-		logging.GetLogger().Err(rlErr).Msg("ERROR: InitResourcesService init error")
+		logging.Get().Err(rlErr).Msg("ERROR: InitResourcesService init error")
 	}
 
 	ucErr := usercenter.Init(rdb)
 	if ucErr != nil {
-		logging.GetLogger().Err(ucErr).Msg("ERROR: usercenter limiter init error")
+		logging.Get().Err(ucErr).Msg("ERROR: usercenter limiter init error")
 	}
 
 	// scap service
 	err = sp.Init(mainCtx, scapOpts, redisClient, rdb)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("ERROR: scapService  init error")
+		logging.Get().Err(err).Msg("ERROR: scapService  init error")
 	}
 
 	// cron service
@@ -228,63 +228,63 @@ func NewConsole(
 	c.Start()
 	err = cron.Init(c, rdb)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("ERROR: cronService  init error")
+		logging.Get().Err(err).Msg("ERROR: cronService  init error")
 	}
 
 	reErr := riskexplorer.Init(scannerURL, redisClient)
 	if reErr != nil {
-		logging.GetLogger().Err(reErr).Msg("ERROR: riskexplorerService init error")
+		logging.Get().Err(reErr).Msg("ERROR: riskexplorerService init error")
 	}
 
 	// networkTopo service
 	ntErr := networktopo.Init(rdb)
 	if ntErr != nil {
-		logging.GetLogger().Err(ntErr).Msg("ERROR: networkFlowService init error")
+		logging.Get().Err(ntErr).Msg("ERROR: networkFlowService init error")
 	}
 
 	err = config.Init(rdb, redisClient)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("ERROR: config service init error")
+		logging.Get().Err(err).Msg("ERROR: config service init error")
 	}
 
 	err = k8saudit.Init(rdb, es)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("ERROR: k8s-audit service init error")
+		logging.Get().Err(err).Msg("ERROR: k8s-audit service init error")
 		mainCancel()
 		return nil, err
 	}
 
 	err = openapiauth.Init(rdb, redisClient)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("ERROR: openapi auth service init error")
+		logging.Get().Err(err).Msg("ERROR: openapi auth service init error")
 		mainCancel()
 		return nil, err
 	}
 
 	err = hunter.Init(rdb)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("ERROR: hunter service init error")
+		logging.Get().Err(err).Msg("ERROR: hunter service init error")
 		mainCancel()
 		return nil, err
 	}
 
 	err = captcha.Init(redisClient, captcha.DefaultConf)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msg("ERROR: captcha service init error")
+		logging.Get().Err(ntErr).Msg("ERROR: captcha service init error")
 		mainCancel()
 		return nil, err
 	}
 
 	err = session.Init(redisClient, session.DefaultConf)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msg("ERROR: session service init error")
+		logging.Get().Err(ntErr).Msg("ERROR: session service init error")
 		mainCancel()
 		return nil, err
 	}
 
 	err = apiscan.Init(rdb)
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msgf("ERROR: apiscan service init error")
+		logging.Get().Err(ntErr).Msgf("ERROR: apiscan service init error")
 	}
 	err = platformreport.Init(rdb, &def.EmailConf{
 		Username: env.GetEmailUsername(),
@@ -293,7 +293,7 @@ func NewConsole(
 		Port:     emailPort,
 	})
 	if err != nil {
-		logging.GetLogger().Err(ntErr).Msg("ERROR: platform report service init error")
+		logging.Get().Err(ntErr).Msg("ERROR: platform report service init error")
 		mainCancel()
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func NewConsole(
 	// init cluster manager
 	err = k8s.InitClusterManager(rdb, nil, clusterManagerURL)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("cluster manager init error")
+		logging.Get().Err(err).Msg("cluster manager init error")
 		mainCancel()
 		return nil, err
 	}
@@ -312,6 +312,9 @@ func NewConsole(
 		RedisCli:        redisClient,
 		MicroSegBaseURL: microsegURL,
 	})
+	if err != nil {
+		logging.Get().Err(err).Msg("init process center error")
+	}
 
 	return &Console{
 		server: &http.Server{
@@ -346,14 +349,14 @@ func (c *Console) Run() func() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 			}
 		}()
 
 		defer wg.Done()
 		if err := c.server.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				logging.GetLogger().Error().Err(err).Msg("error in http.Server.ListenAndServe")
+				logging.Get().Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()
@@ -361,14 +364,14 @@ func (c *Console) Run() func() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 			}
 		}()
 
 		defer wg.Done()
 		if err := c.webHookServer.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				logging.GetLogger().Error().Err(err).Msg("error in http.Server.ListenAndServe")
+				logging.Get().Error().Err(err).Msg("error in http.Server.ListenAndServe")
 			}
 		}
 	}()
@@ -381,37 +384,37 @@ func (c *Console) Run() func() {
 	//canDowngrade := true
 	//err := c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
 	//if err != nil {
-	//	logging.GetLogger().Error().Err(err).Msg("Harbor connection and admin privilege check failed")
+	//	logging.Get().Error().Err(err).Msg("Harbor connection and admin privilege check failed")
 	//}
 
 	err := postgreCheck(c.postgresDB)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("When check admin data in postgres")
+		logging.Get().Err(err).Msg("When check admin data in postgres")
 	}
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if ok {
 		err = clusterManager.Start(ctx)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("When starting cluster manager")
+			logging.Get().Error().Err(err).Msg("When starting cluster manager")
 		}
 	} else {
-		logging.GetLogger().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
+		logging.Get().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
 	}
 
 	cronService, _ := cron.Get(ctx)
 	err = cronService.StartCrons(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("When starting cron jobs")
+		logging.Get().Error().Err(err).Msg("When starting cron jobs")
 	}
 
 	scapper, _ := scapper.GetScapper(ctx)
 	err = scapper.InitCheckUnFinishedJobs(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("When scapper InitCheckUnFinishedJobs")
+		logging.Get().Error().Err(err).Msg("When scapper InitCheckUnFinishedJobs")
 	}
 
-	logging.GetLogger().Info().Msg("TensorNavigator started")
+	logging.Get().Info().Msg("TensorNavigator started")
 
 	return func() {
 		c.cancel()
@@ -419,11 +422,11 @@ func (c *Console) Run() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := c.server.Shutdown(ctx); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Error in shutting down HTTP server")
+			logging.Get().Error().Err(err).Msg("Error in shutting down HTTP server")
 		}
 		wg.Wait()
 
-		logging.GetLogger().Info().Msg("TensorNavigator stopped")
+		logging.Get().Info().Msg("TensorNavigator stopped")
 	}
 }
 
@@ -486,7 +489,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(module).Error; err != nil {
-			logging.GetLogger().Err(err).Msgf("init module:%s fail", module.ModuleNameEn)
+			logging.Get().Err(err).Msgf("init module:%s fail", module.ModuleNameEn)
 			return err
 		}
 	}
@@ -502,7 +505,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(url).Error; err != nil {
-			logging.GetLogger().Err(err).Msgf("init url:%s fail", url.UrlName)
+			logging.Get().Err(err).Msgf("init url:%s fail", url.UrlName)
 			return err
 		}
 	}

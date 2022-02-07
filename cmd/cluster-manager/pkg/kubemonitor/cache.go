@@ -2,10 +2,12 @@ package kubemonitor
 
 import (
 	"bytes"
+	"runtime/debug"
 	"sync"
 	"time"
 
 	pkg "gitlab.com/piccolo_su/vegeta/pkg/kubemonitor"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type DupCache struct {
@@ -55,25 +57,28 @@ func (c *DupCache) checkDuplicate(evt pkg.KubeMonitorEvent, ruleName string) boo
 
 func (c *DupCache) asyncUpdate() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case now := <-ticker.C:
-				nowstamp := now.Unix()
-				toDelete := make([]string, 0, 5)
-				c.data.Range(func(k, v interface{}) bool {
-					createdStamp := v.(int64)
-					if nowstamp-createdStamp > c.ttlSec {
-						toDelete = append(toDelete, k.(string))
-					}
-					return true
-				})
-
-				for _, id := range toDelete {
-					c.data.Delete(id)
+		for now := range ticker.C {
+			nowstamp := now.Unix()
+			toDelete := make([]string, 0, 5)
+			c.data.Range(func(k, v interface{}) bool {
+				createdStamp := v.(int64)
+				if nowstamp-createdStamp > c.ttlSec {
+					toDelete = append(toDelete, k.(string))
 				}
+				return true
+			})
+
+			for _, id := range toDelete {
+				c.data.Delete(id)
 			}
 		}
 	}()

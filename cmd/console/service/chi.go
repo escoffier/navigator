@@ -101,7 +101,12 @@ func AccessMiddlewares(ch chan model.AccessLog) func(http.Handler) http.Handler 
 			)
 
 			headerData, _ := json.Marshal(r.Header)
-			json.Unmarshal(headerData, &headerMap)
+			err := json.Unmarshal(headerData, &headerMap)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("unmarshal err")
+				next.ServeHTTP(w, r)
+				return
+			}
 			delete(headerMap, "Authorization")
 			body, _ := ioutil.ReadAll(r.Body)
 

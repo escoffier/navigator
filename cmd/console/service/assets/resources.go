@@ -242,7 +242,7 @@ func (rl *TensorResourcesService) GetArguments(r *http.Request, dataType string)
 		return nil, errors.Errorf("route is error")
 	}
 
-	if arg.Route != "ingress" && arg.Route != "egress" {
+	if arg.Route != typeIngress && arg.Route != typeEgress {
 		return nil, errors.Errorf("route is error, ingress or egress")
 	}
 
@@ -273,7 +273,7 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 	defer cancel()
 
 	var query string
-	if arg.Route == "ingress" {
+	if arg.Route == typeIngress {
 		query = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ?"
 	} else {
 		query = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ?"
@@ -290,7 +290,7 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
 		var res ProcessInfo
-		if arg.Route == "ingress" {
+		if arg.Route == typeIngress {
 			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
@@ -317,7 +317,7 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 	defer cancel()
 
 	var query string
-	if arg.Route == "ingress" {
+	if arg.Route == typeIngress {
 		query = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and dst_container_name = ?"
 	} else {
 		query = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and src_container_name = ?"
@@ -333,12 +333,12 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 	uuid := make(map[uint32]struct{})
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
-		if netflows[i].SrcContainerName == "unknown" || netflows[i].DstContainerName == "unknown" {
+		if netflows[i].SrcContainerName == valueUnknown || netflows[i].DstContainerName == valueUnknown {
 			continue
 		}
 
 		var res ProcessInfo
-		if arg.Route == "ingress" {
+		if arg.Route == typeIngress {
 			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
@@ -367,7 +367,7 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 	defer cancel()
 
 	var query string
-	if arg.Route == "ingress" {
+	if arg.Route == typeIngress {
 		query = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and dst_container_name = ? and dst_process = ?"
 	} else {
 		query = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and src_container_name = ? and src_process = ?"
@@ -383,12 +383,12 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 	uuid := make(map[uint32]struct{})
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
-		if netflows[i].SrcProcess == "unknown" || netflows[i].DstProcess == "unknown" {
+		if netflows[i].SrcProcess == valueUnknown || netflows[i].DstProcess == valueUnknown {
 			continue
 		}
 
 		var res ProcessInfo
-		if arg.Route == "ingress" {
+		if arg.Route == typeIngress {
 			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
@@ -418,21 +418,21 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
-	defProcess := "unknown"
+	defProcess := valueUnknown
 	var dstQuery, srcQuery string
 	dstQuery = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and not dst_process = ?"
 	srcQuery = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and not src_process = ?"
 
-	netflows := make([]model.TensorNetworkFlow, 0)
-	tmpflows := make([]model.TensorNetworkFlow, 0)
-	uuid := make(map[uint32]struct{}, 0)
-	resource := make([]ProcessInfo, 0)
+	netflows := make([]model.TensorNetworkFlow, 0, 5)
 
 	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with dst info, %v", err)
 	}
 
+	tmpflows := make([]model.TensorNetworkFlow, 0, len(netflows))
+	uuid := make(map[uint32]struct{}, len(netflows))
+	resource := make([]ProcessInfo, 0, len(netflows))
 	for i := 0; i < len(netflows); i++ {
 		if netflows[i].DstProcess == "" {
 			continue

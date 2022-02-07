@@ -9,9 +9,9 @@ import (
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
 
@@ -306,11 +306,11 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 
 	resources, err := dal.GetResources(tctx, tm.rdb.Get(), dal.ResourcesQuery().WithCustom("id", task.ResourceUUID), 0, 1)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("load resource for task err: %v. task: %v", err, task)
+		logging.Get().Err(err).Msgf("load resource for task err: %v. task: %v", err, task)
 		return err
 	}
 	if len(resources) == 0 {
-		logging.GetLogger().Err(err).Msgf("load resource for task no resource found. task: %v", err, task)
+		logging.Get().Err(err).Msgf("load resource for task no resource found. task: %v", task)
 		return err
 	}
 	policy := &model.ImmunePolicy{
@@ -365,7 +365,7 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 							v.RW = rws[i]
 							valBytes, err := json.Marshal(&v)
 							if err != nil {
-								logging.GetLogger().Err(err).Msgf("json marshal error. data: %+v", v)
+								logging.Get().Err(err).Msgf("json marshal error. data: %+v", v)
 								continue
 							}
 							profile.Value = valBytes
@@ -385,7 +385,7 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 						v.Env = ""
 						valBytes, err := json.Marshal(&v)
 						if err != nil {
-							logging.GetLogger().Err(err).Msgf("json marshal error. data: %+v", v)
+							logging.Get().Err(err).Msgf("json marshal error. data: %+v", v)
 							continue
 						}
 						profile.Value = valBytes
@@ -400,7 +400,7 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 		for _, profile := range profiles {
 			_, err := dal.CreateImmuneProfile(ctx, tx, profile)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("create profile error. data: %+v", profile)
+				logging.Get().Err(err).Msgf("create profile error. data: %+v", profile)
 				return err
 			}
 		}
@@ -413,17 +413,17 @@ func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, 
 func (tm *TaskManager) checkTaskState(ctx context.Context, now time.Time) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("panic: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("panic: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
-	logging.GetLogger().Info().Msgf("check Tasks state starts")
+	logging.Get().Info().Msgf("check Tasks state starts")
 
 	offset := 0
 	for {
 		tasks, err := dal.GetImmuneTasks(context.Background(), tm.rdb.Get(), dal.NewImmuneTasksQuery().WithState(model.TStateLearning), offset, 30)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get tasks error")
+			logging.Get().Err(err).Msgf("get tasks error")
 			break
 		}
 		offset += len(tasks)
@@ -434,15 +434,15 @@ func (tm *TaskManager) checkTaskState(ctx context.Context, now time.Time) {
 			if task.TerminatedAt.Before(now) {
 				err := tm.setTaskDone(ctx, task, now)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("Set task done error. task: %+v", task)
+					logging.Get().Err(err).Msgf("Set task done error. task: %+v", task)
 				} else {
-					logging.GetLogger().Info().Msgf("Set task done. task: %+v", task)
+					logging.Get().Info().Msgf("Set task done. task: %+v", task)
 				}
 			}
 		}
 
 	}
-	logging.GetLogger().Info().Msgf("check Tasks state ends")
+	logging.Get().Info().Msgf("check Tasks state ends")
 }
 func (tm *TaskManager) asyncLoop() {
 	go func() {

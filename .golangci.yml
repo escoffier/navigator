@@ -30,8 +30,33 @@ linters:
     - golint
     - govet
     - staticcheck
+    - bodyclose
+    - goconst
+    - gocritic
+    - nilerr
+    - gosec
+
+  disable:
+    - deadcode
+    - unused
+    - gomnd
 
 linters-settings:
+  gosec:
+    # To select a subset of rules to run.
+    # Available rules: https://github.com/securego/gosec#available-rules
+    excludes:
+      - G501
+      - G502
+      - G503
+      - G504
+      - G505
+      - G307
+      - G401
+      - G204
+    exclude-generated: true
+    severity: medium
+    confidence: medium
   gosimple:
     go: "1.17"  
     checks: [ "all" ]

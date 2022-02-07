@@ -11,10 +11,10 @@ import (
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
 
@@ -86,7 +86,7 @@ func (s *Service) ListPolicies(ctx context.Context, queryOpt *dal.ImmunePolicies
 		return oneErr
 	})
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "count immune polices error. query: %+v", queryOpt)
+		logging.Get().WithContext(ctx).Errorf(err, "count immune polices error. query: %+v", queryOpt)
 		return policyViews, int64(len(policies)), nil
 	}
 	return policyViews, totalCount, nil
@@ -149,7 +149,7 @@ func (s *Service) fetchProfiles(ctx context.Context, policy *model.ImmunePolicy)
 				cprof.ContainerName = containerName
 				bytes, err := json.Marshal(syscallConfs)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("marshal syscall confs error. containerName: %s data: %+v", containerName, syscallConfs)
+					logging.Get().Err(err).Msgf("marshal syscall confs error. containerName: %s data: %+v", containerName, syscallConfs)
 					continue
 				}
 				cprof.Configuration = string(bytes)
@@ -166,7 +166,7 @@ func (s *Service) fetchProfiles(ctx context.Context, policy *model.ImmunePolicy)
 				var elem model.FRWElement
 				err := json.Unmarshal(p.Value, &elem)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("unmarshal fileRW confs error. data: %s. profile: %+v", string(p.Value), p)
+					logging.Get().Err(err).Msgf("unmarshal fileRW confs error. data: %s. profile: %+v", string(p.Value), p)
 					continue
 				}
 				rwConfs = append(rwConfs, elem)
@@ -178,7 +178,7 @@ func (s *Service) fetchProfiles(ctx context.Context, policy *model.ImmunePolicy)
 				cprof.ContainerName = containerName
 				bytes, err := json.Marshal(fileRWConfs)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("marshal PolicyKindFileRW confs error. containerName: %s data: %+v", containerName, fileRWConfs)
+					logging.Get().Err(err).Msgf("marshal PolicyKindFileRW confs error. containerName: %s data: %+v", containerName, fileRWConfs)
 					continue
 				}
 				cprof.Configuration = string(bytes)
@@ -197,7 +197,7 @@ func (s *Service) fetchProfiles(ctx context.Context, policy *model.ImmunePolicy)
 				var elem model.CmdExecElement
 				err := json.Unmarshal(p.Value, &elem)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("unmarshal fileRW confs error. data: %s. profile: %+v", string(p.Value), p)
+					logging.Get().Err(err).Msgf("unmarshal fileRW confs error. data: %s. profile: %+v", string(p.Value), p)
 					continue
 				}
 				cmdConfs = append(cmdConfs, elem)
@@ -209,7 +209,7 @@ func (s *Service) fetchProfiles(ctx context.Context, policy *model.ImmunePolicy)
 				cprof.ContainerName = containerName
 				bytes, err := json.Marshal(cmdConfs)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("marshal PolicyKindCmdExec confs error. containerName: %s data: %+v", containerName, cmdConfs)
+					logging.Get().Err(err).Msgf("marshal PolicyKindCmdExec confs error. containerName: %s data: %+v", containerName, cmdConfs)
 					continue
 				}
 				cprof.Configuration = string(bytes)
@@ -249,7 +249,7 @@ func (s *Service) GetPolicy(ctx context.Context, policyID int64) (*PolicyView, e
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().WithContext(ctx).Errorf(nil, "Panic when fetching policy's resource: %v. stack: %s", r, debug.Stack())
+				logging.Get().WithContext(ctx).Errorf(nil, "Panic when fetching policy's resource: %v. stack: %s", r, debug.Stack())
 				resourceChan <- errors.New("panic")
 			}
 		}()
@@ -264,7 +264,7 @@ func (s *Service) GetPolicy(ctx context.Context, policyID int64) (*PolicyView, e
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().WithContext(ctx).Errorf(nil, "Panic when fetching policy's profiles: %v. stack: %s", r, debug.Stack())
+				logging.Get().WithContext(ctx).Errorf(nil, "Panic when fetching policy's profiles: %v. stack: %s", r, debug.Stack())
 				profilesChan <- errors.New("panic")
 			}
 		}()
@@ -280,24 +280,24 @@ func (s *Service) GetPolicy(ctx context.Context, policyID int64) (*PolicyView, e
 	resourceObj := <-resourceChan
 	switch val := resourceObj.(type) {
 	case error:
-		logging.GetLogger().WithContext(ctx).Errorf(val, "fetch resources error for policy %+v", pview)
+		logging.Get().WithContext(ctx).Errorf(val, "fetch resources error for policy %+v", pview)
 		return nil, val
 	case *Resource:
 		pview.RelatedResource = val
 	default:
-		logging.GetLogger().WithContext(ctx).Errorf(nil, "fetch resources return invalid value %v for policy %+v", val, pview)
+		logging.Get().WithContext(ctx).Errorf(nil, "fetch resources return invalid value %v for policy %+v", val, pview)
 		return nil, errors.New("invalid result")
 	}
 
 	profilesObj := <-profilesChan
 	switch val := profilesObj.(type) {
 	case error:
-		logging.GetLogger().WithContext(ctx).Errorf(val, "fetch profiles error for policy %+v", pview)
+		logging.Get().WithContext(ctx).Errorf(val, "fetch profiles error for policy %+v", pview)
 		return nil, val
 	case []*ContainerProfile:
 		pview.Profiles = val
 	default:
-		logging.GetLogger().WithContext(ctx).Errorf(nil, "fetch profiles return invalid value %v for policy %+v", val, pview)
+		logging.Get().WithContext(ctx).Errorf(nil, "fetch profiles return invalid value %v for policy %+v", val, pview)
 		return nil, errors.New("invalid result")
 	}
 
@@ -333,7 +333,7 @@ func (s *Service) AddPolicy(ctx context.Context, policy *PolicyView) (int64, err
 		for _, profile := range policy.Profiles {
 			profileModels, err := getModelsFromProfile(profile, policyModel, now, userName)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("get model from profile error. profile: %+v", profile)
+				logging.Get().Err(err).Msgf("get model from profile error. profile: %+v", profile)
 				continue
 			}
 			profiles = append(profiles, profileModels...)
@@ -352,7 +352,7 @@ func (s *Service) AddPolicy(ctx context.Context, policy *PolicyView) (int64, err
 	})
 
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("createImmuneProfile submit policy and profiles error", err)
+		logging.Get().Err(err).Msg("createImmuneProfile submit policy and profiles error")
 		return 0, err
 	}
 
@@ -403,7 +403,7 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 			for _, toAdd := range policyView.ProfilesChanges.Add {
 				profiles, err := getModelsFromProfile(toAdd, newPolicy, now, userName)
 				if err != nil {
-					logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toAdd)
+					logging.Get().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toAdd)
 					continue
 				}
 				for _, profile := range profiles {
@@ -415,7 +415,7 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 			for _, toDelete := range policyView.ProfilesChanges.Delete {
 				profiles, err := getModelsFromProfile(toDelete, newPolicy, now, userName)
 				if err != nil {
-					logging.GetLogger().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toDelete)
+					logging.Get().WithContext(ctx).Errorf(err, "getModelsFromProfile error. data: %+v", toDelete)
 					continue
 				}
 				for _, profile := range profiles {
@@ -458,7 +458,7 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 		return nil
 	})
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("editImmuneProfile submit policy and profiles error", err)
+		logging.Get().Err(err).Msg("editImmuneProfile submit policy and profiles error")
 		return err
 	}
 	return nil
@@ -554,12 +554,12 @@ func (s *Service) fromResourceToView(ctx context.Context, res *model.TensorResou
 	var err error
 	r.State, err = s.CheckTaskState(ctx, res.ID)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "check task state error for resource: %+v", r)
+		logging.Get().WithContext(ctx).Errorf(err, "check task state error for resource: %+v", r)
 		r.State = model.TStateNoLearning
 	}
 	r.PoliciesNum, err = dal.CountImmunePolicies(ctx, s.rdb.Get(), dal.NewImmunePoliciesQuery().WithResourceUUID(r.UUID))
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "get policies num error for resource: %+v", r)
+		logging.Get().WithContext(ctx).Errorf(err, "get policies num error for resource: %+v", r)
 		r.PoliciesNum = 0
 	}
 	return r
@@ -577,7 +577,7 @@ func (s *Service) GetResources(ctx context.Context, query *dal.ResourcesQueryOpt
 		return err
 	}, retry.Attempts(3))
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "count resources error. query: %+v", query)
+		logging.Get().WithContext(ctx).Errorf(err, "count resources error. query: %+v", query)
 		totalCnt = int64(limit)
 	}
 

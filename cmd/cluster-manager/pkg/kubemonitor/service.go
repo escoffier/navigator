@@ -11,8 +11,8 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	pkg "gitlab.com/piccolo_su/vegeta/pkg/kubemonitor"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc/status"
 	yaml "gopkg.in/yaml.v2"
@@ -31,7 +31,9 @@ var (
 )
 
 func init() {
-	parseRules()
+	if err := parseRules(); err != nil {
+		logging.Get().Err(err).Msg("parse rules error for kubemonitor")
+	}
 }
 
 type Service struct {
@@ -45,7 +47,7 @@ type Service struct {
 func parseRules() error {
 	parseErr = yaml.Unmarshal([]byte(rulesDatastring), &rules)
 	if parseErr != nil {
-		logging.GetLogger().Err(parseErr).Msg("parse kubemonitor rules error")
+		logging.Get().Err(parseErr).Msg("parse kubemonitor rules error")
 	}
 	return parseErr
 }
@@ -62,14 +64,14 @@ func NewService() (*Service, error) {
 
 	err = svc.doRegisterEventsCenterRules(context.Background())
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
+		logging.Get().Err(err).Msg("register event center rules not all ok. will retry...")
 		svc.asyncRegisterEventsCenterRules()
 	}
 	svc.asyncRiskMonitor()
 
 	err = svc.doRegisterEventsCenterRules(context.Background())
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
+		logging.Get().Err(err).Msg("register event center rules not all ok. will retry...")
 		svc.asyncRegisterEventsCenterRules()
 	}
 	svc.asyncRiskMonitor()
@@ -170,6 +172,7 @@ func (s *Service) newDetectionRule(rawRule *pkg.RiskyRoleItem) []*pb.DetectionRu
 	}
 	rules = append(rules, &roleRule)
 
+	// nolint
 	croleRule := roleRule
 	croleRule.Name = getEventsRuleName(string(pkg.KindClusterRole), rawRule.Metadata.Name)
 	rules = append(rules, &croleRule)
@@ -198,7 +201,7 @@ func getEventTargetID(roleName string, kind string) string {
 func (s *Service) newNotifReq(ctx context.Context, evt pkg.KubeMonitorEvent, rule *pkg.RiskyRoleItem) *pb.SendNotificationReq {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
 	req := new(pb.SendNotificationReq)
@@ -279,7 +282,7 @@ func (s *Service) newNotifReq(ctx context.Context, evt pkg.KubeMonitorEvent, rul
 func (s *Service) sendNotifToEventsCenter(ctx context.Context, req *pb.SendNotificationReq) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -287,7 +290,7 @@ func (s *Service) sendNotifToEventsCenter(ctx context.Context, req *pb.SendNotif
 	defer cancel()
 	_, err := s.eventsCenterCli.SendNotification(oneCtx, req)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("send notification error. req: %+v", req)
+		logging.Get().Err(err).Msgf("send notification error. req: %+v", req)
 		return err
 	}
 	return nil
@@ -296,7 +299,7 @@ func (s *Service) handleMonitorEvent(ctx context.Context, evt pkg.KubeMonitorEve
 
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -318,7 +321,7 @@ func (s *Service) asyncRiskMonitor() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -326,7 +329,7 @@ func (s *Service) asyncRiskMonitor() {
 		for eclientErr != nil {
 			ecenterColCli, eclientErr = echelper.NewGRPCClientFromEnv()
 			if eclientErr != nil {
-				logging.GetLogger().Err(eclientErr).Msg("init events center error")
+				logging.Get().Err(eclientErr).Msg("init events center error")
 				time.Sleep(1 * time.Second)
 			} else {
 				break
@@ -336,16 +339,13 @@ func (s *Service) asyncRiskMonitor() {
 
 		err := s.doRegisterEventsCenterRules(context.Background())
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
+			logging.Get().Err(err).Msg("register event center rules not all ok. will retry...")
 			s.asyncRegisterEventsCenterRules()
 		}
 
-		for {
-			select {
-			case evt := <-s.monitor.OutputChannel():
-				if err := s.handleMonitorEvent(context.Background(), evt); err != nil {
-					logging.GetLogger().Err(err).Msgf("handle monitor event error. event: %+v", evt)
-				}
+		for evt := range s.monitor.OutputChannel() {
+			if err := s.handleMonitorEvent(context.Background(), evt); err != nil {
+				logging.Get().Err(err).Msgf("handle monitor event error. event: %+v", evt)
 			}
 		}
 	}()
@@ -355,7 +355,7 @@ func (s *Service) asyncRegisterEventsCenterRules() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic when registering eventsCenter: %v. stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic when registering eventsCenter: %v. stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -368,7 +368,7 @@ func (s *Service) asyncRegisterEventsCenterRules() {
 				if err := s.doRegisterEventsCenterRules(context.Background()); err == nil {
 					stop = true
 				} else {
-					logging.GetLogger().Err(err).Msg("register event center rules not all ok. will retry...")
+					logging.Get().Err(err).Msg("register event center rules not all ok. will retry...")
 				}
 			}
 		}
@@ -382,7 +382,7 @@ func (s *Service) doRegisterEventsCenterRules(ctx context.Context) error {
 
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when registerint eventsCenter: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic when registerint eventsCenter: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -413,7 +413,7 @@ func (s *Service) doRegisterEventsCenterRules(ctx context.Context) error {
 					err = clientErr
 				}
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("add rule for eventsCenter error. data: %+v", detectionRule)
+					logging.Get().Err(err).Msgf("add rule for eventsCenter error. data: %+v", detectionRule)
 					allSuccess = false
 				}
 			}(drule)

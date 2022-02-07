@@ -14,9 +14,9 @@ import (
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
@@ -24,7 +24,7 @@ import (
 	certutil "k8s.io/client-go/util/cert"
 )
 
-const ApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
+const APIKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
 
 const (
 	defaultK8sClusterName = "default"
@@ -48,9 +48,9 @@ type ClusterManager struct {
 }
 
 const (
-	tokenFile      = "/etc/secrets/cluster-admin/token"
+	tokenFile      = "/etc/secrets/cluster-admin/token" //nolint
 	rootCAFile     = "/etc/secrets/cluster-admin/ca.crt"
-	masterAssetUrl = "/internal/platform/assets/cluster"
+	masterAssetURL = "/internal/platform/assets/cluster"
 	tlsCAFile      = "/etc/tensorsec/cluster-manager/tls.crt"
 	tlsKeyFile     = "/etc/tensorsec/cluster-manager/tls.key"
 )
@@ -59,16 +59,16 @@ func NewClusterManager(config *config.Config) *ClusterManager {
 	return &ClusterManager{
 		masterAddr:      config.MasterAddr,
 		Name:            config.Name,
-		apiServerAddr:   config.ApiServerAddr,
+		apiServerAddr:   config.APIServerAddr,
 		workerNamespace: config.WorkerNamespace,
 	}
 }
 
-func (c *ClusterManager) getHttpClient() (*http.Client, error) {
+func (c *ClusterManager) getHTTPClient() (*http.Client, error) {
 	if c.tlsClient {
 		caCert, err := ioutil.ReadFile(tlsCAFile)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("open /auth/ca/tls.crr error")
+			logging.Get().Err(err).Msg("open /auth/ca/tls.crr error")
 			return nil, err
 		}
 
@@ -83,7 +83,7 @@ func (c *ClusterManager) getHttpClient() (*http.Client, error) {
 		}
 		return &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
+				TLSClientConfig: &tls.Config{ //nolint
 					Certificates: []tls.Certificate{cert},
 					RootCAs:      clientCertPool,
 				},
@@ -101,7 +101,7 @@ func (c *ClusterManager) getHttpClient() (*http.Client, error) {
 }
 
 func (c *ClusterManager) Init() error {
-	client, err := c.getHttpClient()
+	client, err := c.getHTTPClient()
 	if err != nil {
 		return err
 	}
@@ -130,17 +130,17 @@ func (c *ClusterManager) Init() error {
 	c.Token = string(token)
 
 	if _, err := certutil.NewPool(rootCAFile); err != nil {
-		logging.GetLogger().Err(err).Msg("load-file-err")
+		logging.Get().Err(err).Msg("load-file-err")
 		return err
-	} else {
-		caData, err := ioutil.ReadFile(rootCAFile)
-		if err != nil {
-			return err
-		}
-		c.CaData = string(caData)
 	}
 
-	logging.GetLogger().Info().Msgf("cluster id : %s", c.CusterID)
+	caData, err := ioutil.ReadFile(rootCAFile)
+	if err != nil {
+		return err
+	}
+	c.CaData = string(caData)
+
+	logging.Get().Info().Msgf("cluster id : %s", c.CusterID)
 	return nil
 }
 
@@ -153,7 +153,7 @@ func (c *ClusterManager) Run() {
 			close(stopChan)
 		}
 	}, time.Second*60, stopChan)
-	logging.GetLogger().Info().Msg("successfully registered to master cluster")
+	logging.Get().Info().Msg("successfully registered to master cluster")
 }
 
 type TensorCluster struct {
@@ -183,32 +183,32 @@ func (c *ClusterManager) registerClusterInfo() error {
 
 	data, err := json.Marshal(cluster)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("Failed to marshal cluster")
+		logging.Get().Err(err).Msg("Failed to marshal cluster")
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, buildUrl(c.masterAddr, masterAssetUrl), bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
 	respHandler := func(resp *http.Response, err error) error {
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("post cluster info err : %v", err)
+			logging.Get().Err(err).Msgf("post cluster info err : %v", err)
 			return err
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			logging.GetLogger().Error().Msgf("http resp error: %s", resp.Status)
+			logging.Get().Error().Msgf("http resp error: %s", resp.Status)
 			return fmt.Errorf("http resp error: %s", resp.Status)
 		}
 		data, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
-		logging.GetLogger().Debug().Msg(string(data))
+		logging.Get().Debug().Msg(string(data))
 		return nil
 	}
 
-	logging.GetLogger().Debug().Msgf("post cluster info to master cluster %v", string(data))
+	logging.Get().Debug().Msgf("post cluster info to master cluster %v", string(data))
 	err = util.HTTPRequest(ctx, c.httpClient, request, respHandler, retry.Attempts(3))
 	if err != nil {
 		return err
@@ -234,48 +234,48 @@ func (c ClusterManager) updateClusterInfo() {
 
 	data, err := json.Marshal(req)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("Failed to marshal cluster")
+		logging.Get().Err(err).Msg("Failed to marshal cluster")
 		return
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, buildUrl(c.masterAddr, masterAssetUrl), bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
 	if err != nil {
 		return
 	}
 
 	respHandler := func(resp *http.Response, err error) error {
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("post cluster info err")
+			logging.Get().Err(err).Msg("post cluster info err")
 			return err
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			logging.GetLogger().Error().Msgf("http resp error: %s", resp.Status)
+			logging.Get().Error().Msgf("http resp error: %s", resp.Status)
 			return fmt.Errorf("http resp error: %s", resp.Status)
 		}
 		data, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
-		logging.GetLogger().Debug().Msg(string(data))
+		logging.Get().Debug().Msg(string(data))
 		return nil
 	}
 
-	logging.GetLogger().Debug().Msgf("post cluster info to master cluster %s", string(data))
+	logging.Get().Debug().Msgf("post cluster info to master cluster %s", string(data))
 	err = util.HTTPRequest(ctx, c.httpClient, request, respHandler, retry.Attempts(3))
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("post cluster info to master cluster err")
+		logging.Get().Err(err).Msg("post cluster info to master cluster err")
 		return
 	}
 }
 
-func fullHttpsUrl(str string) string {
+func fullHTTPSUrl(str string) string {
 	if strings.Contains(str, "https") {
 		return str
 	}
 	return "https://" + str
 }
 
-func buildUrl(host, path string) string {
+func buildURL(host, path string) string {
 	if strings.Contains(host, "http") {
 		return host + path
 	}
@@ -292,7 +292,7 @@ func buildInClusterInfo() *model.TensorCluster {
 
 	ca, err := ioutil.ReadFile(clusterConfig.TLSClientConfig.CAFile)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
+		logging.Get().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
 		return nil
 	}
 

@@ -186,11 +186,8 @@ func (l *LoginRateLimiter) asyncLoop() {
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case now := <-ticker.C:
-				l.clean(now)
-			}
+		for now := range ticker.C {
+			l.clean(now)
 		}
 	}()
 }
