@@ -5,3 +5,4 @@ database:
   user: postgres
   password: password
   name: test
+  

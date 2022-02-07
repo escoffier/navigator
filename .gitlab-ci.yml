@@ -14,8 +14,8 @@ workflow:
 
 stages:
   - build
-  - reviewdog
   - test
+  - reviewdog
 
 ### build & deploy
 all:
@@ -369,6 +369,21 @@ webshell-server:
         - build/webshell-server/**/*
         - configs/webshell-server/**/*
 
+## api test
+api-test:
+  image: harbor.tensorsecurity.com/library/openjdk:17.0.1
+  stage: test
+  resource_group: api-test
+  retry: 2
+  tags:
+    - k8s
+  before_script:
+    - cp ~/.docker/metersphere.jar /root/metersphere.jar
+  script:
+    - java -jar /root/metersphere.jar
+  when: delayed
+  start_in: 2 minutes
+
 ## reviewdog
 reviewdog:
   stage: reviewdog
@@ -385,21 +400,4 @@ reviewdog:
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
   script:
     - reviewdog -reporter=gitlab-mr-discussion -debug -tee
-  rules:
-    - changes:
-        - cmd/**/*
-
-## api test
-api-test:
-  image: harbor.tensorsecurity.com/library/openjdk:17.0.1
-  stage: test
-  resource_group: api-test
-  retry: 2
-  tags:
-    - k8s
-  before_script:
-    - cp ~/.docker/metersphere.jar /root/metersphere.jar
-  script:
-    - java -jar /root/metersphere.jar
-  when: delayed
-  start_in: 2 minutes
+  when: always
