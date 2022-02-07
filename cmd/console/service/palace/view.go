@@ -31,7 +31,7 @@ type Rule struct {
 	DisplayAdapter map[string]string `json:"displayAdapter"`
 }
 
-func toApiRule(or *model.EvtCenterRule, language string) *Rule {
+func toAPIRule(or *model.EvtCenterRule, language string) *Rule {
 	r := new(Rule)
 	r.EvtCenterRule = or
 	r.CustomKV = make(map[string]string, len(or.CustomKV))
@@ -68,7 +68,7 @@ func toApiRule(or *model.EvtCenterRule, language string) *Rule {
 	return r
 }
 
-func toApiSignal(s *model.Signal, language string) *SignalElem {
+func toAPISignal(s *model.Signal, language string) *SignalElem {
 	elem := new(SignalElem)
 	elem.Signal = s
 	elem.CustomKV = make(map[string]string, len(s.CustomKV))

@@ -17,11 +17,15 @@ import (
 	conf "gitlab.com/piccolo_su/vegeta/cmd/cluster-manager/pkg/config"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
+)
+
+const (
+	defaultPort = 9443
 )
 
 type server struct {
@@ -39,12 +43,12 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 
 	s.initConfig()
 
-	logging.GetLogger().Info().Msgf("config: %+v", s.config)
+	logging.Get().Info().Msgf("config: %+v", s.config)
 
 	clsm := clusterManager.NewClusterManager(s.config)
 	err := clsm.Init()
 	if err != nil {
-		logging.GetLogger().Error().Msg("faild to init cluster manager")
+		logging.Get().Error().Msg("faild to init cluster manager")
 		return nil, err
 	}
 
@@ -52,7 +56,7 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 
 	httpserver, err := clusterserver.NewHttpServer(s.config)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("cluster server err")
+		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err
 	}
 	s.httpserver = httpserver
@@ -82,13 +86,13 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 		rdb, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
 			db, err := databases.GetMysqlWithEnv(context.Background())
 			if err != nil {
-				logging.GetLogger().Err(err).Msg(fmt.Sprintf("rdb client init error :%s ", err))
+				logging.Get().Err(err).Msg(fmt.Sprintf("rdb client init error :%s ", err))
 				return nil, err
 			}
 			return db, nil
 		})
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("Init postgre error")
+			logging.Get().Err(err).Msg("Init postgre error")
 			return nil, err
 		}
 
@@ -100,17 +104,17 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return assets.Watcher(rdb, redisClient, scannerURL)
 		}, "")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("cluster manager init error")
+			logging.Get().Err(err).Msg("cluster manager init error")
 			return nil, err
 		}
 		k8sManager, ok := k8s.GetClusterManager()
 		if !ok {
-			logging.GetLogger().Error().Msg("cluster manager init error")
+			logging.Get().Error().Msg("cluster manager init error")
 			return nil, err
 		} else {
 			err := k8sManager.Start(context.Background())
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("start k8s manager err")
+				logging.Get().Err(err).Msg("start k8s manager err")
 				return nil, err
 			} else {
 				httpserver.SetClusterManager(k8sManager)
@@ -130,7 +134,7 @@ func (s *server) Run() error {
 	return <-errChn
 }
 
-func fullHttpsUrl(str string) string {
+func fullHTTPSURL(str string) string {
 	if strings.Contains(str, "https") {
 		return str
 	}
@@ -140,9 +144,9 @@ func fullHttpsUrl(str string) string {
 func (s *server) initConfig() {
 	apiServerAddr := os.Getenv("API_SERVER_URL")
 	if apiServerAddr != "" {
-		s.config.ApiServerAddr = apiServerAddr
+		s.config.APIServerAddr = apiServerAddr
 	} else {
-		s.config.ApiServerAddr = fullHttpsUrl(s.config.ApiServerAddr)
+		s.config.APIServerAddr = fullHTTPSURL(s.config.APIServerAddr)
 	}
 
 	workerNs := os.Getenv("MY_POD_NAMESPACE")
@@ -167,10 +171,10 @@ func (s *server) initConfig() {
 func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.StringVar(&ServerConfig.MasterAddr, "master-addr", "nil", "address of master cluster")
 	fs.StringVar(&ServerConfig.Name, "cluster-name", "kubernetes-cluster", "set cluster name")
-	fs.StringVar(&ServerConfig.ApiServerAddr, "api-server-address", "127.0.0.1:6443", "api server address of current cluster")
-	fs.BoolVar(&ServerConfig.TlsClient, "tls-client", false, "use https client")
-	fs.IntVar(&ServerConfig.Port, "port", 9443, "The port of inject server to listen.")
+	fs.StringVar(&ServerConfig.APIServerAddr, "api-server-address", "127.0.0.1:6443", "api server address of current cluster")
+	fs.BoolVar(&ServerConfig.TLSClient, "tls-client", false, "use https client")
+	fs.IntVar(&ServerConfig.Port, "port", defaultPort, "The port of inject server to listen.")
 	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")
 	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/cluster-manager/certs/tls.key", "The path of tls key")
-	fs.BoolVar(&ServerConfig.TlsServer, "tlsServer", false, "use tls server")
+	fs.BoolVar(&ServerConfig.TLSServer, "tlsServer", false, "use tls server")
 }

@@ -22,6 +22,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	userUnknown = "unknown"
+)
+
 type api struct {
 	tokenAuth   *jwtauth.JWTAuth
 	rdb         *rdbtools.GormWrapper
@@ -91,7 +95,7 @@ func (api *api) sortOrderFromQuery(r *http.Request, defaultSortOrder string) (st
 	if sortOrder != "asc" && sortOrder != "desc" {
 		return "desc", NewFieldError(http.StatusBadRequest,
 			fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
-			Suberror{"sortOrder", "allowed: asc/desc"})
+			Suberror{Location: keySortOrder, Message: sortOrderEnums})
 	}
 	return sortOrder, nil
 }
@@ -112,7 +116,7 @@ func (api *api) sortByFromQuery(r *http.Request, firstAllowedValue string, nextA
 	allowed := fmt.Sprintf("allowed: %s", strings.Join(nextAllowedValues, "/"))
 	return firstAllowedValue, NewFieldError(http.StatusBadRequest,
 		fmt.Errorf("invalid kind param value (%s)", allowed),
-		Suberror{"sortBy", allowed})
+		Suberror{Location: "sortBy", Message: allowed})
 }
 
 func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sortOrder string) bool {

@@ -11,8 +11,6 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
-	"gopkg.in/gomail.v2"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
@@ -22,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gopkg.in/gomail.v2"
 )
 
 const (
@@ -68,7 +67,7 @@ func (api *api) login() http.HandlerFunc {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("missing field 'password' or 'username'"),
-					Suberror{"username", ""}, Suberror{"password", ""}))
+					Suberror{Location: "username", Message: ""}, Suberror{Location: "password", Message: ""}))
 			return
 		}
 

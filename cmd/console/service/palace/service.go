@@ -120,10 +120,10 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 
 	signalElems := make([]*SignalElem, 0, len(signalsFinals))
 	for _, signal := range signalsFinals {
-		se := toApiSignal(signal, language)
+		se := toAPISignal(signal, language)
 		rule, _ := s.rulesManager.GetRule(signal.RuleModule, signal.RuleCategory, signal.RuleName)
 		if rule != nil {
-			se.Rule = toApiRule(rule, language)
+			se.Rule = toAPIRule(rule, language)
 
 		}
 		signalElems = append(signalElems, se)

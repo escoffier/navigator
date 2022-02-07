@@ -14,8 +14,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
@@ -150,9 +150,12 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 	}
 
 	frameInfos, err := resSvc.GetFrameworks(ctx)
+	if err != nil {
+		return nil, err
+	}
 	//TODO: may be removed later
 	appType := queryOpt.WhereEqCondition["app_type"]
-	if appType == "web" {
+	if appType == apptypeWeb {
 		delete(queryOpt.WhereEqCondition, "app_type")
 	}
 
@@ -160,7 +163,7 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 	for offset < totalCount {
 		containers, tcount, err := resSvc.GetResourceContainers(ctx, queryOpt, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("query resource containers error. opt: %+v offset: %d limit: %d", queryOpt, offset, limit)
+			logging.Get().Err(err).Msgf("query resource containers error. opt: %+v offset: %d limit: %d", queryOpt, offset, limit)
 			failCnt++
 			if failCnt == 3 {
 				offset += limit
@@ -173,9 +176,9 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 		offset += len(containers)
 
 		for _, container := range containers {
-			if appType == "web" {
+			if appType == apptypeWeb {
 				// not web application
-				if container.AppType != nil && *container.AppType != "web" {
+				if container.AppType != nil && *container.AppType != apptypeWeb {
 					continue
 				}
 				if frameInfos != nil && container.AppTargetName == nil {
@@ -184,15 +187,15 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 							var infos []model.WebFrameInfo
 							err = json.Unmarshal(frm.WebFrameInfoJSON, &infos)
 							if err != nil {
-								logging.GetLogger().Err(err).Msg("get web frame")
+								logging.Get().Err(err).Msg("get web frame")
 								continue
 							}
 							if len(infos) > 0 {
-								cAppType := "web"
+								cAppType := apptypeWeb
 								container.AppType = &cAppType
 								container.AppTargetName = &infos[0].FrameName
 								container.AppTargetVersion = &infos[0].Version
-								logging.GetLogger().Info().Msgf("AppType: %s", *container.AppType)
+								logging.Get().Info().Msgf("AppType: %s", *container.AppType)
 							}
 							break
 						}
@@ -279,7 +282,7 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 	for _, reporter := range s.reporters {
 		summary, lsErr := reporter.LoadSummary(ctx, nsSlice)
 		if lsErr != nil {
-			logging.GetLogger().Err(lsErr).Msgf("reporter %s error", reporter.Name())
+			logging.Get().Err(lsErr).Msgf("reporter %s error", reporter.Name())
 			continue
 		}
 		summaries = append(summaries, summary)
@@ -289,7 +292,7 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 			for _, svcSum := range nsSum.ResourcesList {
 				sums, err := summ.ResourceSummary(ctx, nsSum.ClusterKey, svcSum.Namespace, svcSum.ResourceKind, svcSum.ResourceName)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("%s-%s-%s-%s reporter %s summary err. summary: %v", nsSum.ClusterKey, svcSum.Namespace, svcSum.ResourceKind, svcSum.ResourceName, summ.Name(), sums)
+					logging.Get().Err(err).Msgf("%s-%s-%s-%s reporter %s summary err. summary: %v", nsSum.ClusterKey, svcSum.Namespace, svcSum.ResourceKind, svcSum.ResourceName, summ.Name(), sums)
 					continue
 				}
 				for _, sum := range sums {
@@ -332,7 +335,7 @@ func getImageVulnsRiskData(ctx context.Context, Vulns []model.VulnerabilityInfo,
 
 	mar, err := json.Marshal(imageVulns)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("marshal vulns error. data: %+v", imageVulns)
+		logging.Get().Err(err).Msgf("marshal vulns error. data: %+v", imageVulns)
 		return nil, false
 	}
 	return mar, true
@@ -357,7 +360,7 @@ type imageInfo struct {
 func (s *RiskExplorerService) getImageScanDetail(ctx context.Context, container *ContainerDetail) (model.SimpleImageDetail, error) {
 	var tmpLibary, tmpFullRepoName string
 	repo := strings.Replace(container.Repository, "http://", "", 1)
-	repo = strings.Replace(container.Repository, "https://", "", 1)
+	repo = strings.Replace(repo, "https://", "", 1)
 	idx := strings.Index(repo, "/")
 	if idx > 0 {
 		tmpLibary = repo[:idx]
@@ -367,22 +370,22 @@ func (s *RiskExplorerService) getImageScanDetail(ctx context.Context, container 
 		tmpFullRepoName = ""
 	}
 	url := fmt.Sprintf("%s/api/v1/scan/reportsBySimpleImageDetails/?full_repo_name=%s&library=%s&tag=%s", s.scannerURL, tmpFullRepoName, tmpLibary, container.RepoTag)
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) // nolint
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("getImageScanDetail http get error. url: %s", url)
+		logging.Get().Err(err).Msgf("getImageScanDetail http get error. url: %s", url)
 		return model.SimpleImageDetail{}, err
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		logging.GetLogger().Error().Msgf("getImageScanDetail http get error. url: %s status code: %d", url, resp.StatusCode)
+		logging.Get().Error().Msgf("getImageScanDetail http get error. url: %s status code: %d", url, resp.StatusCode)
 		return model.SimpleImageDetail{}, errors.New("http code not 200")
 	}
 
 	resScanImage := imageInfo{}
 	err = json.NewDecoder(resp.Body).Decode(&resScanImage)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get image scan decode error")
+		logging.Get().Err(err).Msgf("get image scan decode error")
 		return model.SimpleImageDetail{}, err
 	}
 	return resScanImage.Data.Item, nil
@@ -393,7 +396,7 @@ func (s *RiskExplorerService) ResourceDetail(ctx context.Context, clusterKey, na
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 	containers, _, err := resSvc.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCluster(clusterKey).WithNamespace(namespace).WithResourceKind(assets.ResourceKind(resourceKind)).WithResourceName(resourceName), 0, 100)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get resource containers in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
+		logging.Get().Err(err).Msgf("get resource containers in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
 		return nil, err
 	}
 	pods, _, err := resSvc.GetResourcePods(ctx,
@@ -404,7 +407,7 @@ func (s *RiskExplorerService) ResourceDetail(ctx context.Context, clusterKey, na
 			WithResourceName(resourceName),
 		-1, -1)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get resource pods in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
+		logging.Get().Err(err).Msgf("get resource pods in ResourceDetail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
 	}
 	rdetail := new(ResourceDetail)
 	rdetail.Containers = make([]*ContainerDetail, len(containers))
@@ -423,7 +426,7 @@ func (s *RiskExplorerService) ResourceDetail(ctx context.Context, clusterKey, na
 		}
 		imageDetail, err := s.getImageScanDetail(ctx, rdetail.Containers[i])
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get image scan detail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
+			logging.Get().Err(err).Msgf("get image scan detail error: %s %s %s %s", clusterKey, namespace, resourceKind, resourceName)
 			continue
 		}
 		imageVulnsData, ok := getImageVulnsRiskData(ctx, imageDetail.Vulnerabilities, imageDetail.Sensitives)

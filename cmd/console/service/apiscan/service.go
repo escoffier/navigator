@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -17,9 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"os"
-	"strings"
-	"time"
 )
 
 const (
@@ -85,6 +86,9 @@ func (s *Service) ApiScanLaunchJob(ctx context.Context, clusterID string, apiID 
 		inErr := tx.First(tensorApi, "id = ?", apiID).Error
 		return inErr
 	})
+	if err != nil {
+		return err
+	}
 
 	if tensorApi.Method != "GET" {
 		return errors.New("only support scanning GET api")

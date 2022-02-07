@@ -67,16 +67,16 @@ func (ScanResult) TableName() string {
 }
 
 type ScanHistory struct {
-	TaskID      string `gorm:"column:task_id"`
-	CheckType   string `gorm:"varchar(255);column:check_type"`
-	ClusterKey  string `gorm:"varchar(255);column:cluster_key"`
-	ClusterName string `gorm:"varchar(255);column:cluster_name"`
-	Operator    string `gorm:"varchar(255);column:operator"`
-	State       int32  `gorm:"column:state"`
-	SucNode     int32  `gorm:"column:suc_node"`
-	FailNode    int32  `gorm:"column:fail_node"`
-	CreatedAt   int64  `gorm:"column:created_at"`
-	FinishedAt  int64  `gorm:"column:finished_at"`
+	TaskID      string    `gorm:"column:task_id"`
+	CheckType   string    `gorm:"varchar(255);column:check_type"`
+	ClusterKey  string    `gorm:"varchar(255);column:cluster_key"`
+	ClusterName string    `gorm:"varchar(255);column:cluster_name"`
+	Operator    string    `gorm:"varchar(255);column:operator"`
+	State       ScanState `gorm:"column:state"`
+	SucNode     int32     `gorm:"column:suc_node"`
+	FailNode    int32     `gorm:"column:fail_node"`
+	CreatedAt   int64     `gorm:"column:created_at"`
+	FinishedAt  int64     `gorm:"column:finished_at"`
 }
 
 func (ScanHistory) TableName() string {
@@ -84,18 +84,18 @@ func (ScanHistory) TableName() string {
 }
 
 type ScanNodeRecord struct {
-	TaskID      string `gorm:"column:task_id"`
-	CheckType   string `gorm:"type:varchar(255);column:check_type"`
-	ClusterKey  string `gorm:"type:varchar(255);column:cluster_key"`
-	Operator    string `gorm:"type:varchar(255);column:operator"`
-	NodeName    string `gorm:"type:varchar(255);column:node_name"`
-	Namespace   string `gorm:"type:varchar(255);column:namespace"`
-	JobName     string `gorm:"type:varchar(255);column:job_name"`
-	State       int32  `gorm:"column:state"`
-	Message     string `gorm:"type:varchar(255);column:message"`
-	CreatedAt   int64  `gorm:"column:created_at"`
-	FinishedAt  int64  `gorm:"column:finished_at"`
-	AutoVariate string `gorm:"type:text;column:auto_variate"`
+	TaskID      string    `gorm:"column:task_id"`
+	CheckType   string    `gorm:"type:varchar(255);column:check_type"`
+	ClusterKey  string    `gorm:"type:varchar(255);column:cluster_key"`
+	Operator    string    `gorm:"type:varchar(255);column:operator"`
+	NodeName    string    `gorm:"type:varchar(255);column:node_name"`
+	Namespace   string    `gorm:"type:varchar(255);column:namespace"`
+	JobName     string    `gorm:"type:varchar(255);column:job_name"`
+	State       ScanState `gorm:"column:state"`
+	Message     string    `gorm:"type:varchar(255);column:message"`
+	CreatedAt   int64     `gorm:"column:created_at"`
+	FinishedAt  int64     `gorm:"column:finished_at"`
+	AutoVariate string    `gorm:"type:text;column:auto_variate"`
 }
 
 func (ScanNodeRecord) TableName() string {

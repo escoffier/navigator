@@ -2,12 +2,13 @@ package clusterManager
 
 import (
 	"crypto/tls"
-	"github.com/sirupsen/logrus"
-	v1 "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/kubernetes"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	v1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 func Test_clusterManager_postClusterInfo(t *testing.T) {

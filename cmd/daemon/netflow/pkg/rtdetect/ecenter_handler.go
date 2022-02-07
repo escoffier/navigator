@@ -52,6 +52,7 @@ func NewEcHandler(rman *rtdetect.RulesManager, nodeResInfo *netflow.NodeResource
 }
 
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
+
 	for _, item := range events {
 		containerID := item.data.OutputFields[rtdetect.FieldContainerID]
 		if _, exist := ec.nodeResInfo.FindContainerCacheData(containerID); exist {

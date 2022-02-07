@@ -6,6 +6,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
+const (
+	apptypeWeb = "web"
+)
+
 type NamespaceSummary struct {
 	Name          string             `json:"namespaceName"`
 	ClusterKey    string             `json:"clusterKey"`

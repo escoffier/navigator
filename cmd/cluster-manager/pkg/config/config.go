@@ -3,11 +3,11 @@ package config
 type Config struct {
 	MasterAddr      string
 	Name            string
-	ApiServerAddr   string
-	TlsClient       bool
+	APIServerAddr   string
+	TLSClient       bool
 	CertFile        string
 	KeyFile         string
 	Port            int
-	TlsServer       bool
+	TLSServer       bool
 	WorkerNamespace string
 }

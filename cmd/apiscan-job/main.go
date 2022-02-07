@@ -5,14 +5,19 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+)
+
+const (
+	defaultTimeout = 10 * time.Second
 )
 
 func main() {
@@ -66,16 +71,17 @@ func NewCmd() *cobra.Command {
 			client := &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
+						InsecureSkipVerify: true, //nolint
 					},
 				},
-				Timeout: 10 * time.Second,
+				Timeout: defaultTimeout,
 			}
 
-			_, err = client.Post(reqURL, "application/json", bytes.NewBuffer(cliReqBytes))
+			resp, err := client.Post(reqURL, "application/json", bytes.NewBuffer(cliReqBytes))
 			if err != nil {
 				return err
 			}
+			defer resp.Body.Close()
 			return nil
 		},
 	}

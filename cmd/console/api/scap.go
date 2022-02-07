@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -408,7 +407,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 		}
 
 		// username
-		username := "unknown"
+		username := userUnknown
 		// get token
 		_, claims, err := jwtauth.FromContext(r.Context())
 		if err == nil && claims != nil {
@@ -475,7 +474,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		defer cancel()
 
 		// username
-		username := "unknown"
+		username := userUnknown
 		// get token
 		_, claims, err := jwtauth.FromContext(ctx)
 		if err == nil && claims != nil {
@@ -542,8 +541,7 @@ func (api *api) getFile() http.HandlerFunc {
 		defer cancel()
 
 		// username
-		username := "unknown"
-		// get token
+		username := userUnknown // get token
 		_, claims, err := jwtauth.FromContext(r.Context())
 		if err == nil && claims != nil {
 			// get username from token
@@ -667,9 +665,12 @@ func (api *api) updateRecordVariate() http.HandlerFunc {
 func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, checkType model.ComplianceCheckType, clusterKey, username string) {
 	// check scanning task
 	scapService, _ := scapper.GetService(ctx)
-	err := scapService.CheckScanningTask(ctx, string(checkType), clusterKey, 3600)
+	taskExist, err := scapService.CheckScanningTask(ctx, string(checkType), clusterKey, 3600)
 	if err != nil {
 		RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
+		return
+	} else if taskExist {
+		RespAndLog(w, ctx, fmt.Errorf("task already exist"))
 		return
 	}
 

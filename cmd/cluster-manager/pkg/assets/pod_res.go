@@ -64,18 +64,6 @@ func (cb *PodResourcesService) WatchedTypes() map[assets.WatchedType]struct{} {
 	}
 }
 
-func (cb *PodResourcesService) getClusterRefreshTimestamp(clusterName string) (int64, bool) {
-	cb.RLock()
-	defer cb.RUnlock()
-
-	ccb, exist := cb.clusterCallbacks[clusterName]
-	if !exist {
-		return 0, false
-	}
-	ts := ccb.refreshUnixTimestamp()
-	return ts, ts > 0
-}
-
 type syncSignal struct{}
 
 // BeforWatchNewCluster called before watch events

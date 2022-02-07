@@ -14,6 +14,15 @@ import (
 
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,20 +33,11 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type Scapper struct {
 	ClusterAddr string
-	rdb  *rdbtools.GormWrapper
+	rdb         *rdbtools.GormWrapper
 	ScapService *ScapService
 }
 
@@ -47,6 +47,9 @@ const (
 	checkTimeout           = time.Hour * 1
 	historicalChecksToKeep = 3
 	jobLabel               = "SCAPPER"
+	jobStatusSucceed       = "success"
+	jobStatusFailed        = "failed"
+	jobStatusRunning       = "running"
 )
 
 func newScapper(
@@ -56,7 +59,7 @@ func newScapper(
 ) *Scapper {
 	s := &Scapper{
 		ScapService: scapService,
-		rdb:  rdb,
+		rdb:         rdb,
 		ClusterAddr: scapOpts.ClusterAddr,
 	}
 
@@ -76,17 +79,16 @@ func (s *Scapper) setCheckHistoryFinishedAndJobStatusesFailed(ctx context.Contex
 
 	err := util.RetryWithBackoff(cleanCtx, func() error {
 		tbname := scanRecord.TableName()
-		query := "task_id = ?"
 		checkId := check.CheckUUID
-		ret := s.rdb.Get().WithContext(cleanCtx).Table(tbname).Where(query, checkId).Updates(scanRecord).Error
+		ret := s.rdb.Get().WithContext(cleanCtx).Table(tbname).Where("task_id = ?", checkId).Updates(scanRecord).Error
 		if ret != nil {
-			logging.GetLogger().WithContext(cleanCtx).Errorf(ret, "update scan record failed, checkID : %s", check.CheckUUID)
+			logging.Get().WithContext(cleanCtx).Errorf(ret, "update scan record failed, checkID : %s", check.CheckUUID)
 		}
 		return ret
 	})
 
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "Failed the scap update job status setting failed. checkID: %s", check.CheckUUID)
+		logging.Get().WithContext(ctx).Errorf(err, "Failed the scap update job status setting failed. checkID: %s", check.CheckUUID)
 	}
 
 	return err
@@ -96,7 +98,7 @@ func (s *Scapper) setCheckHistoryFinishedAndJobStatusesFailed(ctx context.Contex
 func (s *Scapper) checkCheckStatusWithDelay(check model.Check, delayedTime time.Time) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when timer to set task timeout: %v. Stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic when timer to set task timeout: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -104,14 +106,14 @@ func (s *Scapper) checkCheckStatusWithDelay(check model.Check, delayedTime time.
 	defer cancel()
 
 	<-timerCtx.Done()
-	logging.GetLogger().Warn().Msgf("Task timeout when console boots, try to finish these tasks")
+	logging.Get().Warn().Msgf("Task timeout when console boots, try to finish these tasks")
 
 	msg := "timeout in booting delayed timeout checking"
 	err := s.setCheckHistoryFinishedAndJobStatusesFailed(context.Background(), check, msg)
 	if err == nil {
-		logging.GetLogger().Info().Msgf("Booting check: unfinished job %+v setting finished.", check)
+		logging.Get().Info().Msgf("Booting check: unfinished job %+v setting finished.", check)
 	} else {
-		logging.GetLogger().Err(err).Msgf("Booting check Error: unfinished job %+v setting finished fail.", check)
+		logging.Get().Err(err).Msgf("Booting check Error: unfinished job %+v setting finished fail.", check)
 	}
 }
 
@@ -137,17 +139,17 @@ func (s *Scapper) InitCheckUnFinishedJobs(ctx context.Context) error {
 		}
 
 		if value.CreatedAt > 0 && nowStamp-value.CreatedAt > int64(checkTimeout/time.Second) {
-			logging.GetLogger().Warn().Msgf("Task timeout when console boots, try to finish task %+v", value)
+			logging.Get().Warn().Msgf("Task timeout when console boots, try to finish task %+v", value)
 
 			err := s.setCheckHistoryFinishedAndJobStatusesFailed(context.Background(), check, "timeout in booting timeout check")
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("Booting check Error: unfinished job %+v setting finished fail.", check)
+				logging.Get().Err(err).Msgf("Booting check Error: unfinished job %+v setting finished fail.", check)
 				continue
 			}
 
-			logging.GetLogger().Info().Msgf("Booting check: unfinished job %+v setting finished.", check)
+			logging.Get().Info().Msgf("Booting check: unfinished job %+v setting finished.", check)
 		} else { // not timeout, we should set up a customized timer to set timeout: when timeout reaches, we set the job finished.
-			logging.GetLogger().Warn().Msgf("Task timeout when console boots, try to watch the task async: %+v", value)
+			logging.Get().Warn().Msgf("Task timeout when console boots, try to watch the task async: %+v", value)
 
 			createTs := nowStamp
 			if value.CreatedAt > 0 {
@@ -168,13 +170,12 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	defer cancel()
 
 	var scanTask model.ScanHistory
-	query := "check_type = ? and cluster_key = ?"
-	err := s.rdb.Get().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, query, checkType, clusterID).Error
+	err := s.rdb.Get().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, "check_type = ? and cluster_key = ?", checkType, clusterID).Error
 	if err != nil {
 		return false
 	}
 	//print debug log
-	logging.GetLogger().Info().Msgf("scan task info : %v.", scanTask)
+	logging.Get().Info().Msgf("scan task info : %v.", scanTask)
 	//task id
 	if scanTask.TaskID == "" || scanTask.CheckType != checkType {
 		return false
@@ -251,7 +252,7 @@ func (s *Scapper) RunComplianceCheck(
 	}
 
 	// schedule jobs
-	logging.GetLogger().Info().
+	logging.Get().Info().
 		Str("check-type", string(check.CheckType)).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
 		Str("namespace", check.Namespace).Str("operator", check.Operator).Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
 		Int("node-items-num", len(nodes.Items)).Msg("Scheduling SCAP check jobs")
@@ -262,7 +263,7 @@ func (s *Scapper) RunComplianceCheck(
 
 		err := s.PgAddJobStatusInProgress(ctx, &check, targetNode.Name)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("set node %s for check task %+v error", targetNode.Name, check)
+			logging.Get().Err(err).Msgf("set node %s for check task %+v error", targetNode.Name, check)
 			continue
 		}
 	}
@@ -279,7 +280,7 @@ func (s *Scapper) RunComplianceCheck(
 	}
 	err = s.rdb.Get().WithContext(ctx).Create(scanHistory).Error
 	if err != nil {
-		logging.GetLogger().Error().Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
+		logging.Get().Error().Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
 	}
 	// async context is rooted in application context
 	go s.asyncScheduleAndManageJobs(kubeClient, &check, jobObj, nodes, scanHistory.ClusterName)
@@ -291,18 +292,18 @@ func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.Langua
 	// export file to xlsx
 	err := s.ScapService.GetScanResultToFile(task, language)
 	//print debug log
-	//logging.GetLogger().Info().Msgf("save scan result to xlsx over!!")
+	//logging.Get().Info().Msgf("save scan result to xlsx over!!")
 	//update task status
 	finishedAt := time.Now().Unix()
 	task.Status = 0
 	if err != nil {
 		task.Status = 2
 		finishedAt = 0
-		logging.GetLogger().Error().Msgf("run export file task failed! %v.", err)
+		logging.Get().Error().Msgf("run export file task failed! %v.", err)
 	} else {
 		task.Content, err = s.ScapService.GetFileData(task.FileName)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get file content failed, %v.", err)
+			logging.Get().Error().Msgf("get file content failed, %v.", err)
 		}
 		//remove file
 		_ = os.Remove(task.FileName)
@@ -314,10 +315,9 @@ func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.Langua
 	task.FinishedAt = finishedAt
 	//update mongo data
 	tbname := task.TableName()
-	query := "task_id = ? and username = ?"
-	err = s.rdb.Get().WithContext(ctx).Table(tbname).Select("status", "finished_at", "content").Where(query, task.CheckId, task.UserName).Updates(&task).Error
+	err = s.rdb.Get().WithContext(ctx).Table(tbname).Select("status", "finished_at", "content").Where("task_id = ? and username = ?", task.CheckId, task.UserName).Updates(&task).Error
 	if err != nil {
-		logging.GetLogger().Error().Msgf("update export file task state failed! %v.", err)
+		logging.Get().Error().Msgf("update export file task state failed! %v.", err)
 	}
 }
 
@@ -344,7 +344,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 		}
 
 		if job.Status.StartTime == nil {
-			logging.GetLogger().Info().Str("job-name", job.Name).Msg("StartTime is nil, skipping")
+			logging.Get().Info().Str("job-name", job.Name).Msg("StartTime is nil, skipping")
 			continue
 		}
 		thisJobStartTime := job.Status.StartTime.Time
@@ -403,7 +403,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 			if err != nil {
 				return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to cleanup historical job: %v", err))
 			}
-			logging.GetLogger().Info().Str("job-name", job.Name).Msg("Cleaned up historical job")
+			logging.Get().Info().Str("job-name", job.Name).Msg("Cleaned up historical job")
 			break
 		}
 	}
@@ -414,7 +414,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, check *model.Check, jobObj *batchv1.Job, nodes *corev1.NodeList, clusterName string) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -425,7 +425,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, c
 	finishedNodesCh, listenerStopCh, cacheSynced := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
 
 	if !cacheSynced {
-		logging.GetLogger().Warn().Msg("Informer cache failed to sync, not sure how to handle this. Ignoring.")
+		logging.Get().Warn().Msg("Informer cache failed to sync, not sure how to handle this. Ignoring.")
 	}
 
 	go s.awaitAndUpdateJobsStatuses(check, scheduledNodesCh, finishedNodesCh, listenerStopCh)
@@ -433,7 +433,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, c
 	for _, targetNode := range nodes.Items {
 		select {
 		case <-ctx.Done():
-			logging.GetLogger().Error().Err(ctx.Err()).Msg("Ctx timeout while scheduling jobs")
+			logging.Get().Error().Err(ctx.Err()).Msg("Ctx timeout while scheduling jobs")
 			close(scheduledNodesCh)
 			return
 		default:
@@ -448,13 +448,13 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, c
 			//schedule job
 			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, targetNode.Name)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("Failed to schedule job, %v.", err)
+				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
 
 				msg := fmt.Sprintf("Failed to schedule job: %s", err)
 				check.NodeName = targetNode.Name
 				err = s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, time.Now().Unix())
 				if err != nil {
-					logging.GetLogger().Error().Msgf("update job status failed, %v", err)
+					logging.Get().Error().Msgf("update job status failed, %v", err)
 				}
 				//
 				finishedNodesCh <- targetNode.Name
@@ -470,7 +470,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, c
 func (s Scapper) prepareJobObject(check *model.Check) (*batchv1.Job, error) {
 	jobObj, err := s.readJobObjFromYamlFile(model.ComplianceCheckType(check.CheckType))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Can't read job .yaml file")
+		logging.Get().Error().Err(err).Msg("Can't read job .yaml file")
 		return nil, err
 	}
 
@@ -563,7 +563,7 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Cli
 
 	jobsName := res.ObjectMeta.Name
 
-	logging.GetLogger().Info().Str("target-node", jobObj.Spec.Template.Spec.NodeName).
+	logging.Get().Info().Str("target-node", jobObj.Spec.Template.Spec.NodeName).
 		Str("job-name", jobsName).Msg("Scheduled SCAP check job")
 
 	return nil
@@ -596,7 +596,7 @@ func (s *Scapper) CreateJobName(checkId, checkType, targetNodeName string) strin
 	return fmt.Sprintf("%s-%s-%s", checkId[:8], checkType, targetNodeName)
 }
 
-func (s *Scapper) dbJobStatusUpdate(state int32, check *model.Check, msg string, timeEpochSecs int64) error {
+func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, msg string, timeEpochSecs int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -609,14 +609,13 @@ func (s *Scapper) dbJobStatusUpdate(state int32, check *model.Check, msg string,
 	tbname := scanRecord.TableName()
 	taskId := check.CheckUUID
 	nodeName := check.NodeName
-	query := "node_name = ? and task_id = ?"
 	tx := s.rdb.Get().WithContext(ctx).Table(tbname).Select("state", "finished_at", "message")
-	err := tx.Where(query, nodeName, taskId).Updates(scanRecord).Error
+	err := tx.Where("node_name = ? and task_id = ?", nodeName, taskId).Updates(scanRecord).Error
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("Failed the scap update job status setting failed, task id : %s, node name : %s.", check.CheckUUID, nodeName)
+		logging.Get().Err(err).Msgf("Failed the scap update job status setting failed, task id : %s, node name : %s.", check.CheckUUID, nodeName)
 	}
 	//print debug log
-	//logging.GetLogger().Info().Msgf("update scan node record, %v.", *scanRecord)
+	//logging.Get().Info().Msgf("update scan node record, %v.", *scanRecord)
 
 	return err
 }
@@ -642,14 +641,14 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 		DeleteFunc: func(obj interface{}) {
 			_, ok := obj.(*batchv1.Job)
 			if !ok {
-				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *batchv1.Job")
+				logging.Get().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *batchv1.Job")
 				return
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			job, ok := newObj.(*batchv1.Job)
 			if !ok {
-				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *batchv1.Job")
+				logging.Get().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *batchv1.Job")
 				return
 			}
 
@@ -660,13 +659,13 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 			// Finished successfuly?
 			if job.Status.Succeeded > 0 {
-				logging.GetLogger().Info().Msgf("Managed job succeeded, job-name : %v.", job.Name)
+				logging.Get().Info().Msgf("Managed job succeeded, job-name : %v.", job.Name)
 
 				alreadyFinishedNodes[thisNodeName] = true
 				check.NodeName = thisNodeName
 				err := s.dbJobStatusUpdate(model.ScanStateCompleted, check, "success", time.Now().Unix())
 				if err != nil {
-					logging.GetLogger().Error().Msgf("update job status(success) failed, %v.", err)
+					logging.Get().Error().Msgf("update job status(success) failed, %v.", err)
 				}
 				finishedNodesCh <- thisNodeName
 				return
@@ -674,7 +673,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 			// Finished and failed?
 			if isFailed, failedCondition := s.isJobFailed(job); isFailed {
-				logging.GetLogger().Info().Str("job-name", job.Name).Msg("Managed job failed")
+				logging.Get().Info().Str("job-name", job.Name).Msg("Managed job failed")
 
 				thisNodeName = job.Spec.Template.Spec.NodeName
 				finishedNodesCh <- thisNodeName
@@ -686,7 +685,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 				check.NodeName = thisNodeName
 				err := s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, transTime.Unix())
 				if err != nil {
-					logging.GetLogger().Error().Msgf("update job status(failed) failed, %v.", err)
+					logging.Get().Error().Msgf("update job status(failed) failed, %v.", err)
 				}
 			}
 		},
@@ -694,7 +693,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 
 	stopCh := make(chan struct{})
 
-	logging.GetLogger().Info().Msgf("Starting to watch for job events, checkId : %s.", check.CheckUUID)
+	logging.Get().Info().Msgf("Starting to watch for job events, checkId : %s.", check.CheckUUID)
 	kubeInformerFactory.Start(stopCh)
 
 	var jobType *batchv1.Job
@@ -706,7 +705,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kube
 func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesCh, finishedNodesCh chan string, listenerStopCh chan struct{}) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -721,11 +720,11 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 	for {
 		select {
 		case <-ctx.Done():
-			logging.GetLogger().Error().Err(ctx.Err()).Msg("Ctx timeout while waiting for jobs to finish, will mark them as timed out")
+			logging.Get().Error().Err(ctx.Err()).Msg("Ctx timeout while waiting for jobs to finish, will mark them as timed out")
 			// mark remaining running jobs as timed out.
 			err := s.setCheckHistoryFinishedAndJobStatusesFailed(ctx, *check, "context timeout when executing")
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("set finished job statuses failed when context timeout")
+				logging.Get().Err(err).Msg("set finished job statuses failed when context timeout")
 			}
 			return
 
@@ -735,7 +734,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 				continue
 			}
 			runningNodeNames = append(runningNodeNames, scheduledNodeName)
-			logging.GetLogger().Info().Str("node-name", scheduledNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job scheduled")
+			logging.Get().Info().Str("node-name", scheduledNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job scheduled")
 
 		case finishedNodeName, ok := <-finishedNodesCh:
 			if !ok {
@@ -743,20 +742,20 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 				continue
 			}
 			runningNodeNames = removeElement(finishedNodeName, runningNodeNames)
-			logging.GetLogger().Info().Str("node-name", finishedNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job finished")
+			logging.Get().Info().Str("node-name", finishedNodeName).Int("num-running-jobs-left", len(runningNodeNames)).Msg("Job finished")
 
 			if len(runningNodeNames) == 0 {
 				ctxDb, cancelDb := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancelDb()
 
-				logging.GetLogger().Info().Str("checkId", check.CheckUUID).Msg("All managed jobs accounted for, done watching for events")
+				logging.Get().Info().Str("checkId", check.CheckUUID).Msg("All managed jobs accounted for, done watching for events")
 
 				var count int64
 				taskId := check.CheckUUID
 				nodeState := model.ScanNodeRecord{}
 				err := s.rdb.Get().WithContext(ctxDb).Table(nodeState.TableName()).Where("task_id = ? and state=0", taskId).Count(&count).Error
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get scan success node number failed, %v", err)
+					logging.Get().Error().Msgf("get scan success node number failed, %v", err)
 				}
 
 				scanHistory := &model.ScanHistory{
@@ -766,18 +765,17 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 				}
 
 				tbname := scanHistory.TableName()
-				condition := "task_id = ? and check_type = ? and cluster_key = ?"
 				tx := s.rdb.Get().WithContext(ctxDb).Table(tbname).Select("suc_node", "state", "finished_at")
-				err = tx.Where(condition, taskId, check.CheckType, check.ClusterID).Updates(scanHistory).Error
+				err = tx.Where("task_id = ? and check_type = ? and cluster_key = ?", taskId, check.CheckType, check.ClusterID).Updates(scanHistory).Error
 				if err != nil {
-					logging.GetLogger().Error().Msgf("update scan history failed, task Id : %v, clusterID : %v, %v.", taskId, check.ClusterID, err)
+					logging.Get().Error().Msgf("update scan history failed, task Id : %v, clusterID : %v, %v.", taskId, check.ClusterID, err)
 				}
 				return
 			}
 		}
 
 		if scheduledNodesCh == nil && finishedNodesCh == nil {
-			logging.GetLogger().Error().Msg("Both chans are nil, this shouldn't happen")
+			logging.Get().Error().Msg("Both chans are nil, this shouldn't happen")
 		}
 	}
 
@@ -810,37 +808,37 @@ func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *kubernetes.C
 	return nil
 }
 
-func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (string, error) {
+func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (model.ScanState, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	//get cluster manager
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
-		return "", errors.Errorf("get cluster manager failed")
+		return model.ScanStateUnknown, errors.Errorf("get cluster manager failed")
 	}
 	//get k8s client
 	kubeClient, ok := clusterManager.GetClient(clusterID)
 	if !ok {
-		return "", errors.Errorf("get k8s client failed")
+		return model.ScanStateUnknown, errors.Errorf("get k8s client failed")
 	}
 
 	job, err := kubeClient.BatchV1().Jobs(namespaces).Get(ctx, jobName, metav1.GetOptions{})
 	if err != nil {
-		logging.GetLogger().Error().Msgf("get scap jobs info failed, %v.", err)
-		return "failed", nil
+		logging.Get().Error().Msgf("get scap jobs info failed, %v.", err)
+		return model.ScanStateFailed, nil
 	}
 
 	if job.Status.Succeeded > 0 {
-		return "success", nil
+		return model.ScanStateCompleted, nil
 	}
 
 	state := job.Status.Succeeded + job.Status.Failed + job.Status.Active
 	if job.Status.Active > 0 || state == 0 {
-		return "running", nil
+		return model.ScanStateInProgress, nil
 	}
 
-	return "failed", nil
+	return model.ScanStateFailed, nil
 }
 
 func removeAtIdx(s []string, index int) []string {

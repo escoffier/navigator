@@ -156,7 +156,7 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) http.Ha
 				logging.Get().Err(err).Msgf("refresh session fail")
 			}
 
-			if userSession.Checked == false {
+			if !userSession.Checked {
 				RespAndLog(w, r.Context(),
 					AccountUnActive(http.StatusForbidden,
 						fmt.Errorf("account is not activated")))

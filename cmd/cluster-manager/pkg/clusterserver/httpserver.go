@@ -117,7 +117,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 
 	tlsConfig := &tls.Config{}
-	if config.TlsServer {
+	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("failed to load tls key from file")
@@ -131,7 +131,7 @@ func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 		TLSConfig: tlsConfig,
 	}
 
-	clusterID := getClusterID(config.Name, config.ApiServerAddr)
+	clusterID := getClusterID(config.Name, config.APIServerAddr)
 	s := &ClusterServer{
 		ClusterID: clusterID,
 		Name:      config.Name,
@@ -145,7 +145,7 @@ func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 	cs.Handler = mutex
 
 	s.server = cs
-	s.TlsServer = config.TlsServer
+	s.TlsServer = config.TLSServer
 	return s, nil
 }
 

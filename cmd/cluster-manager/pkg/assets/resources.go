@@ -63,24 +63,6 @@ func (rl *ResourcesWatcher) addClusterListener(clusterKey string, l *ResourcesCl
 	rl.clusterListeners[clusterKey] = l
 }
 
-func (rl *ResourcesWatcher) getClusters() []string {
-	rl.clMux.RLock()
-	defer rl.clMux.RUnlock()
-
-	clusters := make([]string, 0, len(rl.clusterListeners))
-	for clusterKey := range rl.clusterListeners {
-		clusters = append(clusters, clusterKey)
-	}
-	return clusters
-}
-func (rl *ResourcesWatcher) getClusterListener(clusterKey string) (*ResourcesClusterListener, bool) {
-	rl.clMux.RLock()
-	defer rl.clMux.RUnlock()
-
-	l, ok := rl.clusterListeners[clusterKey]
-	return l, ok
-}
-
 type resourceEvent struct {
 	wtype        assets.WatchedType
 	newResource  *assets.TensorResource

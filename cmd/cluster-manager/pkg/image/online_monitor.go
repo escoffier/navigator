@@ -20,6 +20,10 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 func getImageSHAFromContainer(container corev1.ContainerStatus) string {
 	// imageID: docker-pullable://192.168.1.203:5000/tensorsec-console@sha256:2166fca0902583220885c81e7dd194e51c05c2b58029c00d33b3c25a1448f108
 	shaDigestAndPullInfo := strings.Split(container.ImageID, "@")
@@ -133,7 +137,7 @@ func (s *OnlineMonitorCB) cleanUpMap(now time.Time) {
 		}
 
 		// to prevent the memory leak of go map
-		if rand.Float64() < 0.1 {
+		if rand.Float64() < 0.1 { //nolint
 			newMap := make(map[string]int64, len(s.exitMap))
 			for key, val := range s.exitMap {
 				newMap[key] = val
@@ -177,7 +181,7 @@ func (s *OnlineMonitorCB) OnTensorResourceEvent(newResource, oldResource *assets
 	// monitor resource creation and chages including replicasets, statefulsets, daemonsets, cronjobs, jobs, deployments, replicationcontrollers, pods with no owner.
 	return nil
 }
-func (cb *OnlineMonitorCB) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+func (s *OnlineMonitorCB) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
 	return nil
 }
 

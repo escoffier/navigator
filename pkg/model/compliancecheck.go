@@ -7,15 +7,17 @@ import (
 )
 
 type ComplianceCheckType string
+type ScanState uint8
 
 const (
 	ComplianceCheckStatusInProgress = "inprogress"
 	ComplianceCheckStatusCompleted  = "completed"
 	ComplianceCheckStatusFailed     = "failed"
 
-	ScanStateCompleted  = 0
-	ScanStateInProgress = 1
-	ScanStateFailed     = 2
+	ScanStateCompleted  ScanState = 0
+	ScanStateInProgress ScanState = 1
+	ScanStateFailed     ScanState = 2
+	ScanStateUnknown    ScanState = 3
 
 	ComplianceCheckTargetTypeKube   ComplianceCheckType = "kube"
 	ComplianceCheckTargetTypeDocker ComplianceCheckType = "docker"

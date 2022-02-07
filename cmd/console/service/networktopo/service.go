@@ -10,15 +10,15 @@ import (
 
 	"github.com/ReneKroon/ttlcache/v2"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
 
 var (
-	instance *NetworkTopoService
+	instance *Service
 	once     sync.Once
 )
 
@@ -44,13 +44,13 @@ func Init(rdb *rdbtools.GormWrapper) error {
 	return nil
 }
 
-func Get(ctx context.Context) (*NetworkTopoService, bool) {
+func Get(ctx context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 
-type NetworkTopoService struct {
-	rdb *rdbtools.GormWrapper
-	topoCache  *ttlcache.Cache
+type Service struct {
+	rdb       *rdbtools.GormWrapper
+	topoCache *ttlcache.Cache
 }
 
 func newTopoCache() *ttlcache.Cache {
@@ -58,18 +58,18 @@ func newTopoCache() *ttlcache.Cache {
 	cache.SetCacheSizeLimit(cacheSize)
 	err := cache.SetTTL(cacheTTL)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("set ttl error, %v", err)
+		logging.Get().Error().Msgf("set ttl error, %v", err)
 	}
 	return cache
 }
-func newNetworkTopoService(rdb *rdbtools.GormWrapper) *NetworkTopoService {
-	return &NetworkTopoService{
-		rdb: rdb,
-		topoCache:  newTopoCache(),
+func newNetworkTopoService(rdb *rdbtools.GormWrapper) *Service {
+	return &Service{
+		rdb:       rdb,
+		topoCache: newTopoCache(),
 	}
 }
 
-func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns, skind, sname string, qw int) ([]ResourceInfo, int64, error) {
+func (n *Service) ListUpstreamInfo(ctx context.Context, scluster, sns, skind, sname string, qw int) ([]ResourceInfo, int64, error) {
 	var tfs []*model.TensorNetworkFlow
 	err := n.rdb.Get().WithContext(ctx).
 		Where("updated_at > ?", time.Now().Add(-time.Duration(qw)*time.Hour)).
@@ -101,7 +101,7 @@ func (n *NetworkTopoService) ListUpstreamInfo(ctx context.Context, scluster, sns
 	return res, int64(len(res)), nil
 }
 
-func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, dns, dkind, dname string, qw int) ([]ResourceInfo, int64, error) {
+func (n *Service) ListDownstreamInfo(ctx context.Context, dcluster, dns, dkind, dname string, qw int) ([]ResourceInfo, int64, error) {
 	var tfs []*model.TensorNetworkFlow
 	err := n.rdb.Get().WithContext(ctx).
 		Where("updated_at > ?", time.Now().Add(-time.Duration(qw)*time.Hour)).
@@ -133,7 +133,7 @@ func (n *NetworkTopoService) ListDownstreamInfo(ctx context.Context, dcluster, d
 	return res, int64(len(res)), nil
 }
 
-func (n *NetworkTopoService) checkCache(flow *model.TensorNetworkFlow) bool {
+func (n *Service) checkCache(flow *model.TensorNetworkFlow) bool {
 	if n.topoCache == nil {
 		return false
 	}
@@ -144,14 +144,14 @@ func (n *NetworkTopoService) checkCache(flow *model.TensorNetworkFlow) bool {
 	return err == nil
 }
 
-func (n *NetworkTopoService) putToCache(flow *model.TensorNetworkFlow) error {
+func (n *Service) putToCache(flow *model.TensorNetworkFlow) error {
 	if n.topoCache == nil {
 		return nil
 	}
 	return n.topoCache.Set(strconv.FormatUint(uint64(flow.UUID), 10), struct{}{})
 }
 
-func (n *NetworkTopoService) addNetworkTopo(ctx context.Context, flow *model.TensorNetworkFlow, db *gorm.DB, t time.Time) error {
+func (n *Service) addNetworkTopo(ctx context.Context, flow *model.TensorNetworkFlow, db *gorm.DB, t time.Time) error {
 	if n.checkCache(flow) {
 		return nil
 	}
@@ -166,7 +166,7 @@ func (n *NetworkTopoService) addNetworkTopo(ctx context.Context, flow *model.Ten
 
 	return err
 }
-func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.TensorNetworkFlow) error {
+func (n *Service) AddNetTopology(ctx context.Context, flow *model.TensorNetworkFlow) error {
 	if flow == nil {
 		return errors.New("nil")
 	}
@@ -187,19 +187,19 @@ func (n *NetworkTopoService) AddNetTopology(ctx context.Context, flow *model.Ten
 	return err
 }
 
-func (n *NetworkTopoService) AddNetTopologies(ctx context.Context, flows []*model.TensorNetworkFlow) error {
+func (n *Service) AddNetTopologies(ctx context.Context, flows []*model.TensorNetworkFlow) error {
 	var eErr error
 	for _, flow := range flows {
 		err := n.AddNetTopology(ctx, flow)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("insert flow error. flow: %+v", flow)
+			logging.Get().Err(err).Msgf("insert flow error. flow: %+v", flow)
 			eErr = err
 		}
 	}
 	return eErr
 }
 
-func (n *NetworkTopoService) ListNetTopologies(ctx context.Context, t time.Time) (nts []*model.TensorNetworkFlow, totalCnt int64, err error) {
+func (n *Service) ListNetTopologies(ctx context.Context, t time.Time) (nts []*model.TensorNetworkFlow, totalCnt int64, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
@@ -216,7 +216,7 @@ func (n *NetworkTopoService) ListNetTopologies(ctx context.Context, t time.Time)
 	return
 }
 
-func (n NetworkTopoService) CountNetTopology(ctx context.Context, uuid uint32) (totalCnt int64, err error) {
+func (n Service) CountNetTopology(ctx context.Context, uuid uint32) (totalCnt int64, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
@@ -229,7 +229,7 @@ func (n NetworkTopoService) CountNetTopology(ctx context.Context, uuid uint32) (
 	return
 }
 
-func (n *NetworkTopoService) UpdateStatus(ctx context.Context, t time.Time, status int) (err error) {
+func (n *Service) UpdateStatus(ctx context.Context, t time.Time, status int) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
