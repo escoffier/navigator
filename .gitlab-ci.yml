@@ -13,29 +13,9 @@ workflow:
       when: always
 
 stages:
-  - reviewdog
   - build
+  - reviewdog
   - test
-
-## reviewdog
-reviewdog:
-  stage: reviewdog
-  tags:
-    - k8s
-  before_script:
-    - export REVIEWDOG_GITLAB_API_TOKEN=Ux_Ex4z5-payZMS_evgC
-    - export GITLAB_API="http://gitlab.gitlab-ce.svc.cluster.local/api/v4"
-    - export CI_REPO_OWNER=tensorsecurity-rd
-    - export CI_REPO_NAME=tensornavigator
-    - export CI_COMMIT=$(git rev-parse HEAD)
-    - export REVIEWDOG_INSECURE_SKIP_VERIFY=true
-    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  script:
-    - reviewdog -reporter=gitlab-mr-discussion -debug -tee
-  rules:
-    - changes:
-        - cmd/**/*
 
 ### build & deploy
 all:
@@ -388,6 +368,26 @@ webshell-server:
         - cmd/webshell-server/**/*
         - build/webshell-server/**/*
         - configs/webshell-server/**/*
+
+## reviewdog
+reviewdog:
+  stage: reviewdog
+  tags:
+    - k8s
+  before_script:
+    - export REVIEWDOG_GITLAB_API_TOKEN=Ux_Ex4z5-payZMS_evgC
+    - export GITLAB_API="http://gitlab.gitlab-ce.svc.cluster.local/api/v4"
+    - export CI_REPO_OWNER=tensorsecurity-rd
+    - export CI_REPO_NAME=tensornavigator
+    - export CI_COMMIT=$(git rev-parse HEAD)
+    - export REVIEWDOG_INSECURE_SKIP_VERIFY=true
+    - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+    - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+  script:
+    - reviewdog -reporter=gitlab-mr-discussion -debug -tee
+  rules:
+    - changes:
+        - cmd/**/*
 
 ## api test
 api-test:
