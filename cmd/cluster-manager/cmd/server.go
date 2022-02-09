@@ -96,9 +96,10 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return nil, err
 		}
 
-		scannerHost := os.Getenv("SCANNER_HOST")
-		scannerPort := os.Getenv("SCANNER_PORT")
-		scannerURL := fmt.Sprintf("http://%s:%s", scannerHost, scannerPort)
+		scannerURL := os.Getenv("SCANNER_URL")
+		if scannerURL == "" {
+			scannerURL = "http://tensorsec-scanner:8888"
+		}
 
 		err = k8s.InitClusterManager(rdb, func(ctx context.Context) (*pkgassets.Watcher, error) {
 			return assets.Watcher(rdb, redisClient, scannerURL)
