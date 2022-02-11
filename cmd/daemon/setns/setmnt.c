@@ -482,7 +482,7 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
         pDir = opendir(dirPath);
         if(!pDir)
         {
-            LOG_ERROR("open dir : %s failed!", dirPath);
+            LOG_WARN("open dir : %s failed!", dirPath);
             continue;
         }
         while((ent = readdir(pDir)) != NULL)
@@ -496,7 +496,7 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
             ret = readlink(path, link, sizeof(link));
             if(ret < 0)
             {
-                LOG_ERROR("readlink failed, path : %s, %s.", path, strerror(errno));
+                LOG_WARN("readlink failed, path : %s, %s.", path, strerror(errno));
                 continue;
             }
             //compare
