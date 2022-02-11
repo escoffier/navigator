@@ -58,6 +58,8 @@ type SearchImageParam struct {
 	FullRepoName string
 	Tags         string
 	RegistryID   int64
+	Search       string
+	FromType     int64
 }
 
 type ScannerSrv interface {
@@ -119,15 +121,40 @@ type ConScannerSrv struct {
 }
 
 func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
+	// 先查仓库
+	registryIds := make([]int64, 0)
+	if param.RegistryID > 0 {
+		registryIds = append(registryIds, param.RegistryID)
+	}
+
+	regMap := make(map[int64]*model.Registry)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImages.SearchRegistry")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+
+	for i := range registries {
+		regMap[registries[i].ID] = &registries[i]
+	}
+
 	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
 		Ids:          param.ImageIds,
 		Tag:          param.Tags,
 		FullRepoName: param.FullRepoName,
-		RegistryIds:  []int64{param.RegistryID},
+		Search:       param.Search,
+		FromType:     param.FromType,
+		RegistryIds:  registryIds,
 	}, filter)
 	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImages.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
+
+	for i := range images {
+		images[i].Registry = regMap[images[i].RegistryID]
+	}
+
 	return images, cnt, nil
 }
 

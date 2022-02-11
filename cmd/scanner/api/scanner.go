@@ -580,6 +580,80 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
+// SearchImages
+// @Summary SearchImages
+// @Title SearchImages
+// @Author liuqiang@tensorsecurity.cn
+// @Description 只查询镜像列表，不查询有镜像相关的数据
+// @Tags scan image
+// @Param search query string false "for image like "
+// @Param offset query int true "int"
+// @Param limit query int true "int"
+// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.ImageResponse{}}}
+// @Router	/api/v1/images/sampleList [get]
+func (s *Scanner) SearchImages(ctx *gin.Context) {
+	search := ctx.Query("search")
+	if len(search) > 64 {
+		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
+		return
+	}
+
+	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
+	if err != nil || fromType == 0 {
+		fromType = model.ImageFromTypeNormal
+	}
+
+	filter := model.GetFilter(ctx)
+
+	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImageParam{
+		Search:   search,
+		FromType: fromType,
+	}, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	// 数据规整
+	for i := range images {
+		if images[i].FromType == model.ImageFromSafeNode {
+			split := strings.Split(images[i].FullRepoName, "/")
+			// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
+			// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+			if len(split) >= 6 {
+				images[i].FullRepoName = strings.Join(split[5:], "/")
+			}
+		}
+	}
+
+	res := make([]model.ImageResponse, 0)
+	for i := range images {
+		ans := model.ImageResponse{
+			ID:           images[i].ID,
+			Digest:       images[i].Digest,
+			NodeIP:       images[i].NodeIP,
+			FullRepoName: images[i].FullRepoName,
+			Tags:         images[i].Tags,
+			ImageType:    images[i].ImageType,
+			FromType:     images[i].FromType,
+			NodeHostname: images[i].NodeHostname,
+			RegistryID:   images[i].RegistryID,
+		}
+		if images[i].Registry != nil {
+			ans.Library = images[i].Registry.Url
+			ans.RegistryDeletedAt = images[i].Registry.DeletedAt
+			ans.RegistryName = images[i].Registry.Name
+		}
+
+		res = append(res, ans)
+	}
+
+	response.JSONOK(ctx, response.WithItems(res),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
+}
+
 // ListImgLayers 镜像的回溯信息
 // @Summary ListImgLayers
 // @Title 镜像的回溯信息
@@ -947,6 +1021,20 @@ func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx)
+}
+
+func (s *Scanner) GetOpenapiDoc(ctx *gin.Context) {
+	type Doc struct {
+		Description string `json:"description"`
+		Path        string `json:"path"`
+	}
+	res := make([]Doc, 0)
+	res = append(res, Doc{Description: "简介", Path: "openapi-common.html"})
+	res = append(res, Doc{Description: "镜像安全api接口", Path: "openapi-scanner.html"})
+	res = append(res, Doc{Description: "合规检测api接口", Path: "openapi-scap.html"})
+	res = append(res, Doc{Description: "集群与资产api接口", Path: "openapi-assets.html"})
+
+	response.JSONOK(ctx, response.WithItems(res))
 }
 
 func (s *Scanner) GetFileChecker(ctx *gin.Context) {

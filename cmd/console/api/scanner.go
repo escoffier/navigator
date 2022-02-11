@@ -37,6 +37,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/images/base/{imageID}/apps", api.RedirectToScanner())
 		r.Get("/images/env/{envName}", api.RedirectToScanner())
 		r.Put("/images/env/{envName}", api.RedirectToScanner())
+		r.Get("/images/sampleList", api.RedirectToScanner())
 
 		r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
 
@@ -103,6 +104,8 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/scan-report/{id}/subtask", api.RedirectToScanner())
 		r.Put("/scan-report/{id}", api.RedirectToScanner())
 		r.Get("/scan-report/{id}/file/{sub_task_id}", api.RedirectToScanner())
+
+		r.Get("/managementCenter/openapi/docs", api.RedirectToScanner())
 	}
 }
 
