@@ -17,9 +17,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
-	rtpkg "gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -34,11 +33,11 @@ const (
 	defaultRTRulesLoadInterval = 5 * time.Minute
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, rman *rtpkg.RulesManager, nodeResourceInfo *netflow.NodeResourceInfo) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, nodeResourceInfo *netflow.NodeResourceInfo) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler, err := rtdetect.NewEcHandler(rman, nodeResourceInfo)
+	ecHandler, err := rtdetect.NewEcHandler(nodeResourceInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -96,11 +95,11 @@ func NetInit(ctx context.Context) error {
 	//get rt uds addr
 	rtUdsAddr := os.Getenv("RTDETECT_UDS_ADDR")
 	if rtUdsAddr == "" {
-		logging.GetLogger().Warn().Msg("env RTDETECT_UDS_ADDR not found")
+		logging.Get().Warn().Msg("env RTDETECT_UDS_ADDR not found")
 	}
 	clusterAddr := os.Getenv("CLUSTER_MANAGER_URL")
 	if clusterAddr == "" {
-		logging.GetLogger().Warn().Msg("env CLUSTER_MANAGER_URL not found")
+		logging.Get().Warn().Msg("env CLUSTER_MANAGER_URL not found")
 		return errors.Errorf("get cluster address failed.")
 	}
 	//get console address
@@ -114,18 +113,18 @@ func NetInit(ctx context.Context) error {
 		addrStr = "CONSOLE_EXTERNAL_URL"
 	}
 	if consoleAddr == "" {
-		logging.GetLogger().Warn().Msgf("env %v not found", addrStr)
+		logging.Get().Warn().Msgf("env %v not found", addrStr)
 		return errors.Errorf("get console address failed.")
 	}
 
 	stanURL := os.Getenv("STAN_URL")
 	if stanURL == "" {
-		logging.GetLogger().Warn().Msg("env STAN_URL not found")
+		logging.Get().Warn().Msg("env STAN_URL not found")
 		return errors.Errorf("get STAN address failed.")
 	}
 	stanClusterID := os.Getenv("STAN_CLUSTER_ID")
 	if stanClusterID == "" {
-		logging.GetLogger().Warn().Msg("env STAN_CLUSTER_ID not found")
+		logging.Get().Warn().Msg("env STAN_CLUSTER_ID not found")
 		stanClusterID = "tensorsec"
 	}
 	stanConn := mqtools.NewStanConn(func() (stan.Conn, error) {
@@ -163,7 +162,7 @@ func NetInit(ctx context.Context) error {
 		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -172,13 +171,7 @@ func NetInit(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		caddr := consoleAddr
-		if strings.Index(consoleAddr, "http://") == 0 {
-			caddr = consoleAddr[7:]
-		} else if strings.Index(consoleAddr, "https://") == 0 {
-			caddr = consoleAddr[8:]
-		}
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, rtpkg.NewRulesManager(caddr, defaultRTRulesLoadInterval), nodeResourceInfo)
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, nodeResourceInfo)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		}
@@ -187,11 +180,11 @@ func NetInit(ctx context.Context) error {
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 				}
 			}()
 			if err = rtStream.Start(ctx); err != nil {
-				logging.GetLogger().Err(err).Msgf("runtime detection start error %v", err)
+				logging.Get().Err(err).Msgf("runtime detection start error %v", err)
 			}
 		}()
 	}
@@ -210,7 +203,7 @@ func main() {
 
 	err := NetInit(mainCtx)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("net init failed, %v.", err)
+		logging.Get().Error().Msgf("net init failed, %v.", err)
 		os.Exit(1)
 	}
 }

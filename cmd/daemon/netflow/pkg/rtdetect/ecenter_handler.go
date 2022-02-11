@@ -24,14 +24,13 @@ var (
 )
 
 type EcHandler struct {
-	ecCli        pb.EventsCenterCollectionServiceClient
-	uuidGen      *uuid.Generator
-	rulesManager *rtdetect.RulesManager
-	nodeResInfo  *netflow.NodeResourceInfo
+	ecCli       pb.EventsCenterCollectionServiceClient
+	uuidGen     *uuid.Generator
+	nodeResInfo *netflow.NodeResourceInfo
 }
 
-func NewEcHandler(rman *rtdetect.RulesManager, nodeResInfo *netflow.NodeResourceInfo) (*EcHandler, error) {
-	if nodeResInfo == nil || rman == nil {
+func NewEcHandler(nodeResInfo *netflow.NodeResourceInfo) (*EcHandler, error) {
+	if nodeResInfo == nil {
 		return nil, errors.New("argument is nil")
 	}
 	ech, err := echelper.NewGRPCClientFromEnv()
@@ -44,10 +43,9 @@ func NewEcHandler(rman *rtdetect.RulesManager, nodeResInfo *netflow.NodeResource
 		return nil, err
 	}
 	return &EcHandler{
-		ecCli:        ech,
-		uuidGen:      uuidGen,
-		rulesManager: rman,
-		nodeResInfo:  nodeResInfo,
+		ecCli:       ech,
+		uuidGen:     uuidGen,
+		nodeResInfo: nodeResInfo,
 	}, nil
 }
 
@@ -61,9 +59,8 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 		}
 
 		ruleCategory := "ATT&CK"
-		category, ok := ec.rulesManager.GetCategoryOfRule(item.data.Rule)
-		if ok {
-			ruleCategory = category
+		if len(item.data.Tags) > 0 {
+			ruleCategory = item.data.Tags[0]
 		}
 
 		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
