@@ -264,7 +264,9 @@ func (rs *K8sResClient) DockerEvents() {
 			rs.nodeResInfo.SaveContainerData(m.ID, m.Time)
 			//logging.Get().Info().Msgf("status : %v, ID : %v, Image : %v, time : %v, now time : %v", m.Status, m.ID, m.Actor.Attributes["image"], m.Time, time.Now().Unix())
 		case err := <-errs:
-			logging.Get().Error().Msgf("%+v", err)
+			if err != nil {
+				logging.Get().Err(err).Msgf("err returned")
+			}
 		}
 	}
 }
