@@ -105,7 +105,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/scan-report/{id}", api.RedirectToScanner())
 		r.Get("/scan-report/{id}/file/{sub_task_id}", api.RedirectToScanner())
 
-		r.Get("/managementCenter/openapi/docs", api.RedirectToScanner())
+		r.Get("/managementCenter/docs", api.RedirectToScanner())
 	}
 }
 

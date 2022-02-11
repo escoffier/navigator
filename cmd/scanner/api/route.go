@@ -172,7 +172,7 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 
 	v11 := router.Group("/api/v1/managementCenter")
 	{
-		v11.GET("/openapi/docs", apiScannerSrv.GetOpenapiDoc)
+		v11.GET("/docs", apiScannerSrv.GetOpenapiDoc)
 	}
 
 	return router
