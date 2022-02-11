@@ -178,7 +178,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 			finishAt = nodeRecord.FinishedAt
 		}
 
-		if nodeRecord.State == model.ScanStateInProgress {
+		if nodeRecord.State == model.ScanStateCompleted {
 			sucNode++
 		}
 
@@ -192,12 +192,12 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 			continue
 		}
 
-		if status == model.ScanStateCompleted {
+		if status == model.ScanStateInProgress {
 			return nil
 		}
 
 		nodeRecord.State = status
-		if status != model.ScanStateFailed {
+		if status == model.ScanStateCompleted {
 			sucNode++
 		}
 
