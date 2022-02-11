@@ -15,7 +15,6 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -49,6 +48,7 @@ func (h *HarborV1) reqHarbor(url string) (io.ReadCloser, error) {
 		if err != nil {
 			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
 			return fmt.Errorf("status code is %d", resp.StatusCode)
 		}
@@ -362,6 +362,7 @@ func (h *HarborV1) CreateProject(projectName string, public bool) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf(fmt.Sprintf("status code is %d", resp.StatusCode))
 	}
@@ -381,6 +382,7 @@ func (h *HarborV1) CheckProject(projectName string) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf(fmt.Sprintf("status code is %d", resp.StatusCode))
 	}

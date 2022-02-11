@@ -317,10 +317,10 @@ func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.Re
 
 }
 
-func getImageVulnsRiskData(ctx context.Context, Vulns []model.VulnerabilityInfo, Sensitive []model.Sensitive) (json.RawMessage, bool) {
+func getImageVulnsRiskData(ctx context.Context, vulns []model.VulnerabilityInfo, sensitive []model.Sensitive) (json.RawMessage, bool) {
 	imageVulns := ImageVulnsDetails{
-		SensitiveFiles:  Sensitive,
-		Vulnerabilities: Vulns,
+		SensitiveFiles:  sensitive,
+		Vulnerabilities: vulns,
 	}
 
 	for i, _ := range imageVulns.SensitiveFiles {

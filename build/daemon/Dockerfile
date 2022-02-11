@@ -6,6 +6,6 @@ RUN yum install -y supervisor
 
 COPY bin/daemon /
 COPY bin/ns-mnt /
-COPY ./configs/holmes/supervisord.conf /etc/
+COPY ./configs/daemon/supervisord.conf /etc/
 
 CMD ["supervisord"]

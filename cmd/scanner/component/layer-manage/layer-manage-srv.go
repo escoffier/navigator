@@ -134,7 +134,7 @@ func (llms *LocalLayerManageSrv) IsLayerPulled(digest string) bool {
 }
 
 func (llms *LocalLayerManageSrv) IncLayerRefCount(digest string) {
-	llms.layerList[digest].refCount = llms.layerList[digest].refCount + 1
+	llms.layerList[digest].refCount++
 	logging.Get().Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, llms.layerList[digest].refCount)
 }
 
@@ -154,7 +154,7 @@ func (llms *LocalLayerManageSrv) DecLayerRefCount(digest string) error {
 		// still return nil,deleted by caller
 		return nil
 	}
-	llms.layerList[digest].refCount = llms.layerList[digest].refCount - 1
+	llms.layerList[digest].refCount--
 	logging.Get().Info().Msgf("DecRef refcount(%d) ", llms.layerList[digest].refCount)
 	return nil
 }

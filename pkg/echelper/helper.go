@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	grpcCertPathEnv           = "GRPC_CERT_PATH"
-	defaultGrpcCertPath       = "/auth/server/tls.crt"
-	grpcCertServerNameEnv     = "GRPC_CERT_SERVER_NAME"
-	defaultGrpcCertServerName = "eventcenter"
-	eventGrpcURLEnv           = "EVENT_GRPC_URL"
-	defaultEventGrpcURL       = "eventcenter:9090"
+	GrpcCertPathEnv           = "EVENT_GRPC_CERT_PATH"
+	DefaultGrpcCertPath       = "/auth/server/tls.crt"
+	GrpcCertServerNameEnv     = "EVENT_GRPC_CERT_SERVER_NAME"
+	DefaultGrpcCertServerName = "eventcenter"
+	EventGrpcURLEnv           = "EVENT_GRPC_URL"
+	DefaultEventGrpcURL       = "eventcenter:9090"
 )
 
 const (
@@ -84,9 +84,9 @@ func NewEventCenterClient(options ...EventCenterClientOption) (*EventCenterClien
 
 func NewGRPCClientFromEnv() (pb.EventsCenterCollectionServiceClient, error) {
 	conf := &GrpcConf{
-		CertPath:       util.GetEnvWithDefault(grpcCertPathEnv, defaultGrpcCertPath),
-		CertServerName: util.GetEnvWithDefault(grpcCertServerNameEnv, defaultGrpcCertServerName),
-		URL:            util.GetEnvWithDefault(eventGrpcURLEnv, defaultEventGrpcURL),
+		CertPath:       util.GetEnvWithDefault(GrpcCertPathEnv, DefaultGrpcCertPath),
+		CertServerName: util.GetEnvWithDefault(GrpcCertServerNameEnv, DefaultGrpcCertServerName),
+		URL:            util.GetEnvWithDefault(EventGrpcURLEnv, DefaultEventGrpcURL),
 	}
 
 	return NewGRPCClient(conf)

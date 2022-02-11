@@ -55,6 +55,4 @@ if [[ -z "${SKIP_DRIVER_LOADER}" ]] && [[ -z "${SKIP_MODULE_LOAD}" ]]; then
     /usr/bin/holmes-driver-loader
 fi
 
-#/holmes-rules-update --output /tmp/test.yaml
-#/usr/bin/holmes --cri /run/containerd/containerd.sock -K /var/run/secrets/kubernetes.io/serviceaccount/token -k \"https://$(KUBERNETES_SERVICE_HOST)\" -pk
 exec /holmes-scheduler --output /tmp/latest_rules.yaml --holmes-args "$*"

@@ -301,7 +301,7 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 		}
 		res.DstPort = netflows[i].DstPort
 
-		key := res.CreateUuid()
+		key := res.CreateUUID()
 		_, ok := uuid[key]
 		if !ok {
 			uuid[key] = struct{}{}
@@ -351,7 +351,7 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 		}
 		res.DstPort = netflows[i].DstPort
 
-		key := res.CreateUuid()
+		key := res.CreateUUID()
 		_, ok := uuid[key]
 		if !ok {
 			uuid[key] = struct{}{}
@@ -403,7 +403,7 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 		}
 		res.DstPort = netflows[i].DstPort
 
-		key := res.CreateUuid()
+		key := res.CreateUUID()
 		_, ok := uuid[key]
 		if !ok {
 			uuid[key] = struct{}{}
@@ -444,7 +444,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		res.ContainerName = netflows[i].DstContainerName
 		res.ProcessName = netflows[i].DstProcess
 
-		key := res.CreateUuid()
+		key := res.CreateUUID()
 		_, ok := uuid[key]
 		if !ok {
 			uuid[key] = struct{}{}
@@ -469,7 +469,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		res.ContainerName = tmpflows[i].SrcContainerName
 		res.ProcessName = tmpflows[i].SrcProcess
 
-		key := res.CreateUuid()
+		key := res.CreateUUID()
 		_, ok := uuid[key]
 		if !ok {
 			uuid[key] = struct{}{}
@@ -480,8 +480,8 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 	return resource, nil
 }
 
-func (rl *TensorResourcesService) GetFramework(ctx context.Context, imageId uint32) (*model.WebFrameScan, error) {
-	return dal.GetFramework(ctx, rl.rdb.Get(), imageId)
+func (rl *TensorResourcesService) GetFramework(ctx context.Context, imageID uint32) (*model.WebFrameScan, error) {
+	return dal.GetFramework(ctx, rl.rdb.Get(), imageID)
 }
 
 func (rl *TensorResourcesService) GetFrameworks(ctx context.Context) ([]*model.WebFrameScan, error) {

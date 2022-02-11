@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type ProcessTreeAssociation struct {
@@ -207,7 +207,7 @@ type postAction struct {
 	submitOK   bool
 }
 type ProcessTreeAggregator struct {
-	config AssociationConfiguration
+	config Configuration
 
 	nodes     map[string]*processNode
 	targetLoc TargetLocation
@@ -215,7 +215,7 @@ type ProcessTreeAggregator struct {
 	txid      uint64 // incr txid after one building of trees
 
 	input         chan PodContainerEvent
-	output        chan AssociationEvent
+	output        chan Event
 	postActonChan chan postAction
 	stopChan      chan struct{}
 	stopped       uint32
@@ -232,7 +232,7 @@ func (ta *ProcessTreeAggregator) setStopped() {
 	atomic.StoreUint32(&ta.stopped, 1)
 }
 
-func NewProcessTreeAggregator(bconf AssociationConfiguration, targetLoc TargetLocation, output chan AssociationEvent) *ProcessTreeAggregator {
+func NewProcessTreeAggregator(bconf Configuration, targetLoc TargetLocation, output chan Event) *ProcessTreeAggregator {
 	a := &ProcessTreeAggregator{
 		config:        bconf,
 		targetLoc:     targetLoc,
@@ -249,7 +249,7 @@ func NewProcessTreeAggregator(bconf AssociationConfiguration, targetLoc TargetLo
 
 // RequireStop : It will be blocking till aggregator begins to do stop.
 func (ta *ProcessTreeAggregator) RequireStop() {
-	logging.GetLogger().Info().Msgf("aggr %s is required to stop.", ta.targetLoc.String())
+	logging.Get().Info().Msgf("aggr %s is required to stop.", ta.targetLoc.String())
 	ta.stopChan <- struct{}{}
 }
 
@@ -274,7 +274,7 @@ func (ta *ProcessTreeAggregator) AddEvent(ctx context.Context, event PodContaine
 func (ta *ProcessTreeAggregator) doCleanBufferOfTree(tree *processTree) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -288,7 +288,7 @@ func (ta *ProcessTreeAggregator) doCleanBufferOfTree(tree *processTree) {
 func (ta *ProcessTreeAggregator) doStop() {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when stopping aggr: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic when stopping aggr: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -304,7 +304,7 @@ func (ta *ProcessTreeAggregator) doStop() {
 				break
 			}
 			if err := ta.addEvent(r); err != nil {
-				logging.GetLogger().Err(err).Msgf("add event err. evt: %+v", r)
+				logging.Get().Err(err).Msgf("add event err. evt: %+v", r)
 			}
 		default:
 			stop = true
@@ -314,18 +314,18 @@ func (ta *ProcessTreeAggregator) doStop() {
 
 	trees := ta.treeBuilding()
 	if err := ta.treeReviews(trees, time.Now()); err != nil {
-		logging.GetLogger().Err(err).Msg("tree reviews error")
+		logging.Get().Err(err).Msg("tree reviews error")
 	}
 
 	close(ta.postActonChan)
 
-	logging.GetLogger().Info().Msgf("aggr %s has stopped", ta.targetLoc.String())
+	logging.Get().Info().Msgf("aggr %s has stopped", ta.targetLoc.String())
 }
 
 func (ta *ProcessTreeAggregator) postAction(action postAction) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -344,14 +344,17 @@ func (ta *ProcessTreeAggregator) postAction(action postAction) {
 func (ta *ProcessTreeAggregator) periodicallyBuild(now time.Time) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
 	ta.treeDelBuffer = make(map[*processTree]struct{}, len(ta.treeDelBuffer)+5)
 
 	trees := ta.treeBuilding()
-	ta.treeReviews(trees, now)
+	if err := ta.treeReviews(trees, now); err != nil {
+		logging.Get().Err(err).Msg("tree reviews error")
+	}
+
 }
 func (ta *ProcessTreeAggregator) asyncLoop() {
 	go func() {
@@ -364,7 +367,7 @@ func (ta *ProcessTreeAggregator) asyncLoop() {
 				ta.postAction(action)
 			case r := <-ta.input:
 				if err := ta.addEvent(r); err != nil {
-					logging.GetLogger().Err(err).Msgf("add event err. evt: %+v", r)
+					logging.Get().Err(err).Msgf("add event err. evt: %+v", r)
 				}
 			case now := <-ticker.C:
 				// when time to build, first consume all buffers of postActions
@@ -397,7 +400,7 @@ func (ta *ProcessTreeAggregator) getNode(id string) (*processNode, bool) {
 }
 
 func (ta *ProcessTreeAggregator) cleanTree(t *processTree, cleanBuffer bool) {
-	logging.GetLogger().Info().Msgf("[%d] tree(%s-%s) is cleaned. try to cleanBuffer: %v", t.txid, t.root.id, ta.targetLoc.String(), cleanBuffer)
+	logging.Get().Info().Msgf("[%d] tree(%s-%s) is cleaned. try to cleanBuffer: %v", t.txid, t.root.id, ta.targetLoc.String(), cleanBuffer)
 	t.bfs(func(node *processNode, level int) {
 		if node.updateTxid < ta.txid {
 			delete(ta.nodes, node.id)
@@ -426,7 +429,7 @@ func (ta *ProcessTreeAggregator) evtIDNegotiation(tree *processTree) uint64 {
 	}
 	if maxCntSid > 0 {
 		if len(idCount) > 0 {
-			logging.GetLogger().Warn().Msgf("consistent to one sid: %d from: %v", maxCntSid, idCount)
+			logging.Get().Warn().Msgf("consistent to one sid: %d from: %v", maxCntSid, idCount)
 		}
 
 		tree.bfs(func(node *processNode, level int) {
@@ -444,7 +447,7 @@ func (ta *ProcessTreeAggregator) outputs(tree *processTree) error {
 
 	op := newProcessTreeAssociation(sid, tree, ta)
 
-	logging.GetLogger().Info().Msgf("Output a agEvent: %+v. evtID: %d", *tree, op.agEvtID)
+	logging.Get().Info().Msgf("Output a agEvent: %+v. evtID: %d", *tree, op.agEvtID)
 
 	// move the submitted events to historical for the object of cleanning out the previous buffers
 	tree.bfs(func(node *processNode, level int) {
@@ -457,7 +460,7 @@ func (ta *ProcessTreeAggregator) outputs(tree *processTree) error {
 	case ta.output <- op:
 		return nil
 	default:
-		logging.GetLogger().Warn().Msgf("tree output timeout: tree: %+v", tree)
+		logging.Get().Warn().Msgf("tree output timeout: tree: %+v", tree)
 		return ErrTimeout
 	}
 }
@@ -469,7 +472,7 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 		// for the timeout historical nodes, recover them.
 		tree.bfs(func(node *processNode, level int) {
 			if len(node.historicalEvents) > 0 {
-				logging.GetLogger().Info().Msgf("node %s in %s histEvents not cleaned", node.id, ta.targetLoc.String())
+				logging.Get().Info().Msgf("node %s in %s histEvents not cleaned", node.id, ta.targetLoc.String())
 
 				node.events = append(node.events, node.historicalEvents...)
 				node.historicalEvents = nil
@@ -483,7 +486,7 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 				ta.cleanTree(tree, false)
 			} else {
 				if err := ta.outputs(tree); err != nil {
-					logging.GetLogger().Err(err).Msg("output error")
+					logging.Get().Err(err).Msg("output error")
 				} else {
 					ta.scheduleDeleteTree(tree)
 				}
@@ -491,7 +494,7 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 		} else {
 			if tree.eventsNum > 1 {
 				if err := ta.outputs(tree); err != nil {
-					logging.GetLogger().Err(err).Msg("output error")
+					logging.Get().Err(err).Msg("output error")
 				}
 			}
 		}
@@ -511,7 +514,7 @@ func (ta *ProcessTreeAggregator) treeBuilding() (treesList []*processTree) {
 			if len(root.parentID) > 0 {
 				parent, exist := ta.getNode(root.parentID)
 				if !exist {
-					logging.GetLogger().Warn().Msgf("cannot find parent node of ID: %s for node: %s", root.parentID, root.id)
+					logging.Get().Warn().Msgf("cannot find parent node of ID: %s for node: %s", root.parentID, root.id)
 					break
 				}
 				parent.childrenIDs[root.id] = struct{}{}
@@ -543,7 +546,7 @@ func (ta *ProcessTreeAggregator) treeBuilding() (treesList []*processTree) {
 func (ta *ProcessTreeAggregator) addEvent(r PodContainerEvent) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v when adding event: %+v. stack: %s", r, r, debug.Stack())
+			logging.Get().Error().Msgf("Panic: %v when adding event: %+v. stack: %s", r, r, debug.Stack())
 		}
 	}()
 
@@ -571,10 +574,8 @@ func (ta *ProcessTreeAggregator) addEvent(r PodContainerEvent) error {
 	if !exist {
 		node = newProcessNode(aggID, parentAggID, r.Time())
 		ta.nodes[aggID] = node
-	} else {
-		if parentAggID != "" && node.parentID != parentAggID {
-			logging.GetLogger().Warn().Msgf("[inconsistency] parent process ID doesn't match: %s != %s. data: %+v", parentAggID, node.parentID, r)
-		}
+	} else if parentAggID != "" && node.parentID != parentAggID {
+		logging.Get().Warn().Msgf("[inconsistency] parent process ID doesn't match: %s != %s. data: %+v", parentAggID, node.parentID, r)
 	}
 	node.addEvent(r, ta.txid)
 
@@ -587,7 +588,7 @@ func (ta *ProcessTreeAggregator) addEvent(r PodContainerEvent) error {
 			if node.agEvtID == 0 {
 				node.setAssociationID(parNode.agEvtID)
 			} else if node.agEvtID != parNode.agEvtID {
-				logging.GetLogger().Warn().Msg("[inconsistency] node asID %d != parent node asID %d.")
+				logging.Get().Warn().Msg("[inconsistency] node asID %d != parent node asID %d.")
 			}
 		}
 		node.parentID = parentAggID

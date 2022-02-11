@@ -14,11 +14,11 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/netflow"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/netflow/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
+	"gitlab.com/security-rd/go-pkg/logging"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -28,9 +28,8 @@ func init() {
 
 const (
 	// 定时上报，缓存的间隔和缓存大小，实现简单的频控
-	defaultRTBuffInterval      = 250 * time.Millisecond
-	defaultRTBuffSize          = 100
-	defaultRTRulesLoadInterval = 5 * time.Minute
+	defaultRTBuffInterval = 250 * time.Millisecond
+	defaultRTBuffSize     = 100
 )
 
 func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, nodeResourceInfo *netflow.NodeResourceInfo) (*rtdetect.RuntimeEventStream, error) {
@@ -204,6 +203,7 @@ func main() {
 	err := NetInit(mainCtx)
 	if err != nil {
 		logging.Get().Error().Msgf("net init failed, %v.", err)
+		mainCancel()
 		os.Exit(1)
 	}
 }

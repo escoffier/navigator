@@ -352,10 +352,8 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 		earliestJobStartTimeSoFar, ok := startTimesOfChecks[checkID]
 		if !ok {
 			startTimesOfChecks[checkID] = thisJobStartTime
-		} else {
-			if earliestJobStartTimeSoFar.After(thisJobStartTime) {
-				startTimesOfChecks[checkID] = thisJobStartTime
-			}
+		} else if earliestJobStartTimeSoFar.After(thisJobStartTime) {
+			startTimesOfChecks[checkID] = thisJobStartTime
 		}
 	}
 

@@ -60,19 +60,19 @@ func (api *api) getNodeCheckDetails() http.HandlerFunc {
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{"checkID", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{Location: "checkID", Message: ""}))
 			return
 		}
 
 		nodeName := chi.URLParam(r, "nodeName")
 		if nodeName == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("nodeName param missing"), Suberror{"nodeName", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("nodeName param missing"), Suberror{Location: "nodeName", Message: ""}))
 			return
 		}
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
 			return
 		}
 
