@@ -10,29 +10,29 @@ import (
 	"github.com/avast/retry-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // receives events by constant events from the same pods
-type AssociationProcessor struct {
+type Processor struct {
 	aggregators map[string]*ProcessTreeAggregator // key: targetLocation
 
 	inputsChan chan PodContainerEvent
-	eventsChan chan AssociationEvent
+	eventsChan chan Event
 
-	config       AssociationConfiguration
+	config       Configuration
 	rdb          *rdbtools.GormWrapper
 	rulesManager *echelper.RulesManager
 }
 
-func NewAssociationProcessor(config AssociationConfiguration, rdb *rdbtools.GormWrapper, rulesManager *echelper.RulesManager) *AssociationProcessor {
-	proc := AssociationProcessor{
+func NewAssociationProcessor(config Configuration, rdb *rdbtools.GormWrapper, rulesManager *echelper.RulesManager) *Processor {
+	proc := Processor{
 		aggregators:  make(map[string]*ProcessTreeAggregator, 10),
 		inputsChan:   make(chan PodContainerEvent, 50),
-		eventsChan:   make(chan AssociationEvent, 250),
+		eventsChan:   make(chan Event, 250),
 		config:       config,
 		rdb:          rdb,
 		rulesManager: rulesManager,
@@ -43,7 +43,7 @@ func NewAssociationProcessor(config AssociationConfiguration, rdb *rdbtools.Gorm
 	return &proc
 }
 
-func (ap *AssociationProcessor) Send(ctx context.Context, e PodContainerEvent) error {
+func (ap *Processor) Send(ctx context.Context, e PodContainerEvent) error {
 	_, ok := e.Location()
 	if !ok {
 		return nil
@@ -62,7 +62,7 @@ func (ap *AssociationProcessor) Send(ctx context.Context, e PodContainerEvent) e
 	}
 }
 
-func (ap *AssociationProcessor) getOrCreateAggregator(location TargetLocation) *ProcessTreeAggregator {
+func (ap *Processor) getOrCreateAggregator(location TargetLocation) *ProcessTreeAggregator {
 	locationStr := location.String()
 	aggr, exist := ap.aggregators[locationStr]
 	if !exist {
@@ -72,10 +72,10 @@ func (ap *AssociationProcessor) getOrCreateAggregator(location TargetLocation) *
 
 	return aggr
 }
-func (ap *AssociationProcessor) handleEvent(ctx context.Context, e PodContainerEvent) (err error) {
+func (ap *Processor) handleEvent(ctx context.Context, e PodContainerEvent) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when handle event %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic when handle event %v. stack: %s", r, debug.Stack())
 			err = ErrPanic
 		}
 	}()
@@ -85,14 +85,14 @@ func (ap *AssociationProcessor) handleEvent(ctx context.Context, e PodContainerE
 		aggr := ap.getOrCreateAggregator(loc)
 		err := aggr.AddEvent(context.Background(), e)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("Error adding event %+v.", e)
+			logging.Get().Err(err).Msgf("Error adding event %+v.", e)
 			return err
 		}
 	}
 	return nil
 }
 
-func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt AssociationEvent, now time.Time) (*model.PalaceAssociatedGraphEvent, error) {
+func (ap *Processor) generateAGEvent(ctx context.Context, evt Event, now time.Time) (*model.PalaceAssociatedGraphEvent, error) {
 	e := new(model.PalaceAssociatedGraphEvent)
 	e.ID = evt.GetID()
 	locationsMap := make(map[string]model.Location, 2)
@@ -150,7 +150,7 @@ func (ap *AssociationProcessor) generateAGEvent(ctx context.Context, evt Associa
 	e.Severity = maxSeverity
 	return e, nil
 }
-func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt AssociationEvent, now time.Time) (uint64, error) {
+func (ap *Processor) createAGEvent(ctx context.Context, evt Event, now time.Time) (uint64, error) {
 	evtModel, err := ap.generateAGEvent(ctx, evt, now)
 	if err != nil {
 		return 0, err
@@ -160,7 +160,7 @@ func (ap *AssociationProcessor) createAGEvent(ctx context.Context, evt Associati
 }
 
 // createSignalAssociations uses transaction to ensure the consistency.
-func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, agEvtID uint64, evt AssociationEvent, now time.Time) error {
+func (ap *Processor) createSignalAssociations(ctx context.Context, agEvtID uint64, evt Event, now time.Time) error {
 	for _, evt := range evt.GetEvents() {
 		asso := new(model.PalaceEventSignalAssociation)
 		asso.AggrEvtID = agEvtID
@@ -177,14 +177,14 @@ func (ap *AssociationProcessor) createSignalAssociations(ctx context.Context, ag
 			return err
 		}, retry.Attempts(2))
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("create signal association error", err)
+			logging.Get().Err(err).Msg("create signal association error")
 		}
 
 	}
 	return nil
 }
 
-func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEvtID uint64, evt AssociationEvent, now time.Time) error {
+func (ap *Processor) createAssociationLinks(ctx context.Context, agEvtID uint64, evt Event, now time.Time) error {
 	for _, link := range evt.GetAssociatedLinks() {
 		linkModel := new(model.PalaceAssociationLink)
 		linkModel.AggrEvtID = agEvtID
@@ -210,13 +210,13 @@ func (ap *AssociationProcessor) createAssociationLinks(ctx context.Context, agEv
 			return err
 		}, retry.Attempts(2))
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("create association link error", err)
+			logging.Get().Err(err).Msg("create association link error")
 		}
 	}
 	return nil
 }
 
-func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context, evt AssociationEvent) (uint64, error) {
+func (ap *Processor) upsertAssociationGraphEvent(ctx context.Context, evt Event) (uint64, error) {
 	now := time.Now()
 	evtID, err := ap.createAGEvent(ctx, evt, now)
 	if err != nil {
@@ -236,10 +236,10 @@ func (ap *AssociationProcessor) upsertAssociationGraphEvent(ctx context.Context,
 	return evtID, err
 }
 
-func (ap *AssociationProcessor) handleAssocatedEvent(ctx context.Context, evt AssociationEvent) error {
+func (ap *Processor) handleAssocatedEvent(ctx context.Context, evt Event) error {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when handleAssocatedEvent: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic when handleAssocatedEvent: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -249,16 +249,16 @@ func (ap *AssociationProcessor) handleAssocatedEvent(ctx context.Context, evt As
 	evtID, err := ap.upsertAssociationGraphEvent(tctx, evt)
 	evt.PostActionSetting(evtID, err == nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("upsert agraph event err. evt: %+v", evt)
+		logging.Get().Err(err).Msgf("upsert agraph event err. evt: %+v", evt)
 		return err
 	}
 	return nil
 }
 
-func (ap *AssociationProcessor) cleanUp(now time.Time) {
+func (ap *Processor) cleanUp(now time.Time) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when cleanUp: %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic when cleanUp: %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -270,16 +270,16 @@ func (ap *AssociationProcessor) cleanUp(now time.Time) {
 		}
 	}
 
-	logging.GetLogger().Info().Msgf("to clean aggregators: %v", toClean)
+	logging.Get().Info().Msgf("to clean aggregators: %v", toClean)
 	for key := range toClean {
 		delete(ap.aggregators, key)
 	}
 }
-func (ap *AssociationProcessor) asyncLoop() {
+func (ap *Processor) asyncLoop() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic for AssociationProcessor: %v. Stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic for AssociationProcessor: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -291,12 +291,12 @@ func (ap *AssociationProcessor) asyncLoop() {
 			case e := <-ap.inputsChan:
 				err := ap.handleEvent(context.Background(), e)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("handle event error. event: %+v", e)
+					logging.Get().Err(err).Msgf("handle event error. event: %+v", e)
 				}
 			case aevt := <-ap.eventsChan:
 				err := ap.handleAssocatedEvent(context.Background(), aevt)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("handle association event error. event: %+v", aevt)
+					logging.Get().Err(err).Msgf("handle association event error. event: %+v", aevt)
 				}
 			case now := <-ticker.C:
 				ap.cleanUp(now)

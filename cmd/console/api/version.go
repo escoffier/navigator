@@ -8,8 +8,7 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -62,7 +61,7 @@ func (api *api) getATTCKVersion() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultVersionTimeout)
 		defer cancel()
-		service, ok := config.GetServiceInstance()
+		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
@@ -111,7 +110,7 @@ func (api *api) getATTCKVersionHistory() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultVersionTimeout)
 		defer cancel()
-		service, ok := config.GetServiceInstance()
+		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return

@@ -19,7 +19,7 @@ var (
 type LocType string
 
 const (
-	LocType_PodContainer LocType = "pod_container" // namespace/pod_name/container_id
+	LocTypePodContainer LocType = "pod_container" // namespace/pod_name/container_id
 )
 
 type TargetLocation interface {
@@ -36,7 +36,7 @@ type Link struct {
 	DestAggrKey string
 }
 
-type AssociationEvent interface {
+type Event interface {
 	GetID() uint64
 	GetEvents() []PodContainerEvent
 	GetEventsNum() int
@@ -48,7 +48,7 @@ type AssociationEvent interface {
 
 type Aggragator interface {
 	AddEvent(e *outputs.Response) error
-	Outputs() <-chan AssociationEvent
+	Outputs() <-chan Event
 }
 
 type PodContainerLoc struct {
@@ -60,7 +60,7 @@ type PodContainerLoc struct {
 func (pcl PodContainerLoc) ClusterKey() string {
 	return pcl.ckey
 }
-func (pcl PodContainerLoc) Type() LocType { return LocType_PodContainer }
+func (pcl PodContainerLoc) Type() LocType { return LocTypePodContainer }
 func (pcl PodContainerLoc) GetLocationElem(elemIdx int) (string, bool) {
 	if elemIdx >= len(pcl.locIndexes) || elemIdx < 0 {
 		return "", false
@@ -234,7 +234,7 @@ func getPName(resp *outputs.Response) (string, bool) {
 	return pname, exist
 }
 
-type AssociationConfiguration struct {
+type Configuration struct {
 	WindowDivisionLatency time.Duration // The latency that the aggregator will wait for submitting.
 	BuildInterval         time.Duration
 	MaxEventsNum          int

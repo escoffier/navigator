@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,13 +15,11 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/docker/distribution/manifest/schema2"
+	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-
-	registry2 "github.com/heroku/docker-registry-client/registry"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -28,6 +27,7 @@ const (
 	RepoStatusNormal = "NORMAL"
 	DefaultPageSize  = "30"
 	DefaultVersion   = "2018-12-01"
+	ProtocolHTTPS    = "https"
 	CodeSuccess      = "success"
 )
 
@@ -164,8 +164,8 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 
 func (aa *AliAcrEE) listNamespaces() (namespaces []Namespace, err error) {
 	request := requests.NewCommonRequest()
-	request.Method = "POST"
-	request.Scheme = "https"
+	request.Method = http.MethodPost
+	request.Scheme = ProtocolHTTPS
 	request.Domain = aa.Config.Domain
 	request.Version = DefaultVersion
 	request.ApiName = "ListNamespace"
@@ -200,8 +200,8 @@ func (aa *AliAcrEE) listNamespaces() (namespaces []Namespace, err error) {
 
 func (aa *AliAcrEE) listReposByNamespace(namespace Namespace) (repos []Repository, err error) {
 	request := requests.NewCommonRequest()
-	request.Method = "POST"
-	request.Scheme = "https"
+	request.Method = http.MethodPost
+	request.Scheme = ProtocolHTTPS
 	request.Domain = aa.Config.Domain
 	request.Version = "2018-12-01"
 	request.ApiName = "ListRepository"
@@ -238,8 +238,8 @@ func (aa *AliAcrEE) listReposByNamespace(namespace Namespace) (repos []Repositor
 
 func (aa *AliAcrEE) getTags(repo Repository) (tags []Image, err error) {
 	request := requests.NewCommonRequest()
-	request.Method = "POST"
-	request.Scheme = "https"
+	request.Method = http.MethodPost
+	request.Scheme = ProtocolHTTPS
 	request.Domain = aa.Config.Domain
 	request.Version = DefaultVersion
 	request.ApiName = "ListRepoTag"

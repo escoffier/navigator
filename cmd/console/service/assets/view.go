@@ -81,7 +81,7 @@ type ProcessInfo struct {
 	DstPort       uint16 `json:"dst_port,omitempty"`
 }
 
-func (t *ProcessInfo) CreateUuid() uint32 {
+func (t *ProcessInfo) CreateUUID() uint32 {
 	bui := bytes.NewBufferString(t.Namespace)
 	bui.WriteByte(',')
 	bui.WriteString(t.ResourceName)

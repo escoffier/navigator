@@ -18,8 +18,8 @@ import (
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
@@ -38,6 +38,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -54,17 +55,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-)
-
-const (
-	eventGrpcUrlEnv     = "EVENT_GRPC_URL"
-	defaultEventGrpcUrl = "eventcenter:9090"
-
-	eventGrpcCertPathEnv     = "EVENT_GRPC_CERT_PATH"
-	defaultEventGrpcCertPath = "/auth/server/tls.crt"
-
-	eventGrpcCertServerNameEnv     = "EVENT_GRPC_CERT_SERVER_NAME"
-	defaultEventGrpcCertServerName = "eventcenter"
 )
 
 // Console represents the Vegeta Console server.
@@ -89,19 +79,19 @@ func NewConsole(
 	harborOpts *flag.HarborOpts,
 	secProfilesOpts *flag.SecProfilesOpts,
 ) (*Console, error) {
-	eventGrpcUrl := os.Getenv(eventGrpcUrlEnv)
+	eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
 	if eventGrpcUrl == "" {
-		eventGrpcUrl = defaultEventGrpcUrl
+		eventGrpcUrl = echelper.DefaultEventGrpcURL
 	}
 
-	eventGrpcCertPath := os.Getenv(eventGrpcCertPathEnv)
+	eventGrpcCertPath := os.Getenv(echelper.GrpcCertPathEnv)
 	if eventGrpcCertPath == "" {
-		eventGrpcCertPath = defaultEventGrpcCertPath
+		eventGrpcCertPath = echelper.DefaultGrpcCertPath
 	}
 
-	eventGrpcCertServerName := os.Getenv(eventGrpcCertServerNameEnv)
+	eventGrpcCertServerName := os.Getenv(echelper.GrpcCertServerNameEnv)
 	if eventGrpcCertServerName == "" {
-		eventGrpcCertServerName = defaultEventGrpcCertServerName
+		eventGrpcCertServerName = echelper.DefaultGrpcCertServerName
 	}
 
 	cred, err := credentials.NewClientTLSFromFile(eventGrpcCertPath, eventGrpcCertServerName)
@@ -120,6 +110,10 @@ func NewConsole(
 	}
 	ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
 
+	ecenterCli, err := echelper.NewEventCenterClient()
+	if err != nil {
+		return nil, err
+	}
 	// Redis DB client
 	redisEndpoint := env.GetRedisEndpoint()
 	sa := strings.Split(redisEndpoint, ",")
@@ -242,7 +236,7 @@ func NewConsole(
 		logging.Get().Err(ntErr).Msg("ERROR: networkFlowService init error")
 	}
 
-	err = config.Init(rdb, redisClient)
+	err = attck.Init(rdb, redisClient, ecenterCli)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: config service init error")
 	}

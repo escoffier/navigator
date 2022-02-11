@@ -179,7 +179,7 @@ func UpdateProfile(ctx context.Context, m *stan.Msg, kind model.SecurityKind) {
 				if mode == "r" {
 					profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access = "r" + profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access
 				} else if mode == "w" {
-					profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access = profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access + "w"
+					profile.SecProfileEnvelope.ApparmorProfileData[fileIndex].Access += "w"
 				} else {
 					logging.GetLogger().Error().Err(err).Str("mode", mode).Str("pod", f.OutputFields["k8s.pod.name"]).Msg("Unknown mode")
 					return
@@ -197,7 +197,7 @@ func UpdateProfile(ctx context.Context, m *stan.Msg, kind model.SecurityKind) {
 				File:   f.OutputFields["fd.name"],
 				Access: mode,
 			})
-			profile.NewEventsInTimeFrame = profile.NewEventsInTimeFrame + 1
+			profile.NewEventsInTimeFrame++
 			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", fmt.Sprintf("%s %s", f.OutputFields["fd.name"], mode)).Msg("New event added to the profile")
 		}
 	} else if kind == model.SecurityKindCommandWhitelist {
@@ -245,7 +245,7 @@ func UpdateProfile(ctx context.Context, m *stan.Msg, kind model.SecurityKind) {
 				Command:          command,
 				WorkingDirectory: cwd,
 			})
-			profile.NewEventsInTimeFrame = profile.NewEventsInTimeFrame + 1
+			profile.NewEventsInTimeFrame++
 			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", fmt.Sprintf("%s %s", command, cwd)).Msg("New event added to the profile")
 		} else {
 			logging.GetLogger().Info().Str("event", fmt.Sprintf("%s %s", command, cwd)).Msg("Event already registered in the profile")
@@ -265,7 +265,7 @@ func UpdateProfile(ctx context.Context, m *stan.Msg, kind model.SecurityKind) {
 			profile.SecProfileEnvelope.SeccompProfileData = append(profile.SecProfileEnvelope.SeccompProfileData, model.SeccompProfileData{
 				Syscall: f.OutputFields["syscall.type"],
 			})
-			profile.NewEventsInTimeFrame = profile.NewEventsInTimeFrame + 1
+			profile.NewEventsInTimeFrame++
 			logging.GetLogger().Info().Int("current_event_count", profile.NewEventsInTimeFrame).Str("event", f.OutputFields["syscall.type"]).Msg("New event added to the profile")
 		} else {
 			logging.GetLogger().Info().Str("event", f.OutputFields["syscall.type"]).Msg("Event already registered in the profile")

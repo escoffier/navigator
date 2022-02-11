@@ -33,7 +33,6 @@ func RespAndLog(w http.ResponseWriter, ctx context.Context, err error) {
 	}
 
 	// Fallback to internal error
-	logging.GetLogger().Warn().Msg("Expected detailedError, responding with AnError.")
-	logging.GetLogger().Info().Err(err).Msg("Error")
+	logging.GetLogger().Err(err).Msg("Error")
 	response.RespError(w, http.StatusInternalServerError, response.WithMessage(http.StatusText(http.StatusInternalServerError)))
 }

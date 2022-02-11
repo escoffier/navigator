@@ -3,11 +3,11 @@ package dal
 import (
 	"context"
 	"errors"
-
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -16,8 +16,11 @@ var (
 )
 
 func LoadATTCKConfData(ctx context.Context, db *gorm.DB) (*model.ATTCKRuleData, error) {
+	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
 	var data model.ATTCKRuleData
-	var err = db.WithContext(ctx).Last(&data).Error
+	var err = db.WithContext(tctx).Last(&data).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, ErrATTCKConfDataNotFound
@@ -35,7 +38,7 @@ func LoadATTCKConfVersion(ctx context.Context, db *gorm.DB) (uint32, error) {
 	return data.ID, err
 }
 
-func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleData, deprecatedRuleMasks []string) (baseOffset uint32, err error) {
+func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleData, deprecatedRuleMasks []string) (d *model.ATTCKRuleData, err error) {
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if _err := tx.WithContext(ctx).Create(data).Error; _err != nil {
 			return _err
@@ -54,7 +57,7 @@ func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleDa
 		return nil
 	})
 
-	return data.ID, err
+	return data, err
 }
 
 func LoadATTCKRuleMaskVersion(ctx context.Context, db *gorm.DB) (version uint32, err error) {

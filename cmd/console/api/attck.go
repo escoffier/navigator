@@ -12,14 +12,14 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -45,7 +45,7 @@ func (api *api) getATTCKLatestData() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
 		defer cancel()
-		service, ok := config.GetServiceInstance()
+		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
@@ -78,7 +78,7 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
 		defer cancel()
-		service, ok := config.GetServiceInstance()
+		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
@@ -104,10 +104,10 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 			return
 		}
 
-		logging.GetLogger().Debug().Msgf("filename:%s", header.Filename)
+		logging.Get().Debug().Msgf("filename:%s", header.Filename)
 		item, err := service.UpdateConfig(ctx, username, data)
 		if err != nil {
-			if err == config.ErrInvalidRuleData {
+			if err == attck.ErrInvalidRuleData {
 				apperror.RespAndLog(w, ctx,
 					apperror.NewFieldError(http.StatusBadRequest, err))
 				return
@@ -147,7 +147,7 @@ func (api *api) getATTCKRuleList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
 		defer cancel()
-		service, ok := config.GetServiceInstance()
+		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
@@ -179,7 +179,7 @@ func (api *api) getATTCKRuleList() http.HandlerFunc {
 			hthreatsFilter = parseFilter(hthreatsFilterStr)
 		}
 
-		total, ruleList, err := service.GetRuleList(ctx, &config.GetRuleListArg{
+		total, ruleList, err := service.GetRuleList(ctx, &attck.GetRuleListArg{
 			Offset:         int(offset),
 			Limit:          int(limit),
 			SeverityFilter: severityFilter,
@@ -215,7 +215,7 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
 		defer cancel()
-		service, ok := config.GetServiceInstance()
+		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return

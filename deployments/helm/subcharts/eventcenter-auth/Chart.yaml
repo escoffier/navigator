@@ -1,5 +1,0 @@
-apiVersion: v1
-name: eventcenter-auth
-description: A Helm chart for events-center auth
-version: 0.1.0
-appVersion: "0.1.0"

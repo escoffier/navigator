@@ -3,14 +3,15 @@ package redistools
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"time"
 )
 
 func NewTensorRedisClient(opt *redis.FailoverOptions) (*redis.Client, error) {
 	redisClient := redis.NewFailoverClient(opt)
-	rt, rc := context.WithTimeout(context.Background(), 10*time.Second)
+	rt, rc := context.WithTimeout(context.Background(), 1*time.Second)
 	defer rc()
 	res, err := redisClient.Ping(rt).Result()
 	if err != nil {

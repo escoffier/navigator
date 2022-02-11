@@ -101,7 +101,7 @@ func (rc *RegistryClient) DownloadBlob(repository string, digest digest.Digest) 
 	for i := 0; i < RegistryClientRetryCount; i++ {
 		r, err = rc.registryClient.DownloadBlob(repository, digest)
 		if err == nil {
-			return r, err
+			return r, nil
 		} /*else {
 			tmp, err := NewRegistryClient(username, password, repository, url, true)
 			if err == nil {

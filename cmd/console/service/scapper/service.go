@@ -566,7 +566,7 @@ func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) 
 			value = "'" + value + "'"
 		}
 
-		dst = strings.Replace(dst, key, value, -1)
+		dst = strings.ReplaceAll(dst, key, value)
 	}
 
 	return dst

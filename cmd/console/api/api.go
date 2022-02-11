@@ -22,10 +22,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-const (
-	userUnknown = "unknown"
-)
-
 type api struct {
 	tokenAuth   *jwtauth.JWTAuth
 	rdb         *rdbtools.GormWrapper
@@ -92,7 +88,7 @@ func (api *api) sortOrderFromQuery(r *http.Request, defaultSortOrder string) (st
 	if sortOrder == "" {
 		sortOrder = defaultSortOrder
 	}
-	if sortOrder != "asc" && sortOrder != "desc" {
+	if sortOrder != orderAsc && sortOrder != orderDesc {
 		return "desc", NewFieldError(http.StatusBadRequest,
 			fmt.Errorf("invalid sortOrder param value (allowed: asc/desc)"),
 			Suberror{Location: keySortOrder, Message: sortOrderEnums})
@@ -129,7 +125,7 @@ func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sor
 			val2 := d2.Field(i)
 			switch val1.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				if sortOrder == "asc" {
+				if sortOrder == orderAsc {
 					return val1.Int() < val2.Int()
 				}
 				return val1.Int() > val2.Int()
@@ -143,19 +139,19 @@ func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sor
 					matched = false
 				}
 				if matched {
-					if sortOrder == "asc" {
+					if sortOrder == orderAsc {
 						return version.CompareSimple(val1.String(), val2.String()) < 0
 					}
 					return version.CompareSimple(val2.String(), val1.String()) > 0
 				}
-				if sortOrder == "asc" {
+				if sortOrder == orderAsc {
 					return val1.String() < val2.String()
 				}
 				return val1.String() > val2.String()
 			}
 		}
 	}
-	if sortOrder == "asc" {
+	if sortOrder == orderAsc {
 		return fmt.Sprintf("%v", first) < fmt.Sprintf("%v", second)
 	}
 	return fmt.Sprintf("%v", first) > fmt.Sprintf("%v", second)

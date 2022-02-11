@@ -10,13 +10,12 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 )
 
 type ImageList struct {
@@ -57,7 +56,7 @@ type ScanImage struct {
 	MaliciousInfoJSON        datatypes.JSON       `gorm:"type:jsonb" json:"-"`     // 恶意文件
 	MaliciousInfo            []model.Malicious    `gorm:"-" json:"malicious_info"` // 恶意文件
 	ScanEnableCollection     ScanEnableCollection `gorm:"-" json:"scan_enable_collection"`
-	ScanEnableCollectionJson string               `gorm:"column:scan_enable_collection_json"`
+	ScanEnableCollectionJSON string               `gorm:"column:scan_enable_collection_json"`
 	HasFixedVuln             int                  `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
 }
 
@@ -80,9 +79,9 @@ func (r *Record) AfterFind(_ *gorm.DB) error {
 		}
 	}
 
-	if len(r.ScanEnableCollectionJson) > 0 {
-		if err := json.Unmarshal(util.String2BytesNoCopy(r.ScanEnableCollectionJson), &r.ScanEnableCollection); err != nil {
-			logrus.Errorf("unmarshal ScanEnableCollectionJson fail, err:%s, content:%s", err, r.ScanEnableCollectionJson)
+	if len(r.ScanEnableCollectionJSON) > 0 {
+		if err := json.Unmarshal(util.String2BytesNoCopy(r.ScanEnableCollectionJSON), &r.ScanEnableCollection); err != nil {
+			logrus.Errorf("unmarshal ScanEnableCollectionJson fail, err:%s, content:%s", err, r.ScanEnableCollectionJSON)
 		}
 	}
 

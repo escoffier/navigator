@@ -19,7 +19,7 @@ type RejectOnlineMonitorImage struct {
 }
 
 type Result struct {
-	ApiVersion string `json:"apiVersion"`
+	APIVersion string `json:"apiVersion"`
 	Data       Data   `json:"data"`
 }
 
@@ -45,7 +45,7 @@ func (v *PodValidator) ValidateImage(pod *v1.Pod) error {
 		return err
 	}
 
-	resp, err = http.Post(v.validatorUrl, "application/json", bytes.NewReader(data))
+	resp, err = http.Post(v.validatorURL, "application/json", bytes.NewReader(data))
 	if err != nil {
 		log.Warn(err)
 		return nil
@@ -162,15 +162,13 @@ func getLibrary(image string) string {
 	if strings.Contains(image, "http") {
 		if index == -1 {
 			return "https://" + image
-		} else {
-			return "https://" + image[:index]
 		}
+		return "https://" + image[:index]
 	} else {
 		if index == -1 {
 			return image
-		} else {
-			return image[:index]
 		}
+		return image[:index]
 	}
 }
 

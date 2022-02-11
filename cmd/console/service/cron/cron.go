@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	cr "github.com/robfig/cron/v3"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -110,13 +109,13 @@ func (s *CronService) StartCrons(ctx context.Context) error {
 	return nil
 }
 
-func (s *CronService) idInCronEntries(ID int, cronEntries []cr.Entry) bool {
-	if ID == 0 {
+func (s *CronService) idInCronEntries(id int, cronEntries []cr.Entry) bool {
+	if id == 0 {
 		return false
 	}
 
 	for _, entry := range cronEntries {
-		if ID == int(entry.ID) {
+		if id == int(entry.ID) {
 			return true
 		}
 	}

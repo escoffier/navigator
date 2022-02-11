@@ -46,7 +46,7 @@ func initAssociationDispatchers(rdb *rdbtools.GormWrapper) error {
 	associationDispatcher, err = association.NewEventDispatcher(association.DispatchConfig{
 		ParallelNum: 2,
 	},
-		association.AssociationConfiguration{
+		association.Configuration{
 			WindowDivisionLatency: 10 * time.Minute,
 			BuildInterval:         1 * time.Minute,
 		},
@@ -195,9 +195,9 @@ func main() {
 	defer associationSub.Close()
 
 	// api discovery
-	apiInfoSub, err := stanconn.Subscribe(apiinfo.ApiSubject, func(msg *stan.Msg) {
+	apiInfoSub, err := stanconn.Subscribe(apiinfo.APISubject, func(msg *stan.Msg) {
 		apiinfo.Process(msg)
-	}, stan.StartWithLastReceived(), stan.DurableName(apiinfo.ApiSubject))
+	}, stan.StartWithLastReceived(), stan.DurableName(apiinfo.APISubject))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("subscribe apiInfo error.")
 	} else {

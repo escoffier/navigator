@@ -67,7 +67,15 @@ console: generate 		## Build console binary
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
 	upx dist/console
+
+	# add default rules to console
+	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
+		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
+	./dist/holmes-rules-pack --input configs/holmes/rules/holmes_rules.yaml --output ./dist/holmes-rules.thr
+
 	docker build -t $(REPOPREFIX)/console:latest -f ./build/console/Dockerfile .
+	
 
 .PHONY: data-base
 data-base: ## Build data base image
@@ -308,9 +316,13 @@ endif
 holmes:     ## Build holmes docker
 	@echo "+ $@"
 	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler/cmd.Version=$(VERSION)" \
-		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmes-scheduler
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/cmd.Version=$(VERSION)" \
+		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler
 	upx dist/holmes-scheduler
+	# go build -v \
+	# 	--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/enginesider/cmd.Version=$(VERSION)" \
+	# 	-o dist/holmes-engine-sider gitlab.com/piccolo_su/vegeta/cmd/holmes/enginesider
+	# upx dist/holmes-engine-sider
 	rm -rf ./dist/*.thr > /dev/null 2>&1
 	sync
 	go build -v \
@@ -365,7 +377,7 @@ webhook: generate
 cluster-manager: generate
 	@echo "build webhook"
 	go build -v \
-		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/cluster-manager
+		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
 	upx dist/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
 

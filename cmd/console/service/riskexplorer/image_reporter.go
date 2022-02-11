@@ -31,8 +31,8 @@ type cmdInfo struct {
 	riskType RiskTypeDesc
 }
 
-func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []string) (map[string]map[string]resSumm, error) {
-	imageSums := make(map[string]map[string]resSumm, len(images))
+func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []string) (map[string]map[string]ResSumm, error) {
+	imageSums := make(map[string]map[string]ResSumm, len(images))
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -71,7 +71,7 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 		isumRes := getSeverityFrom(isum)
 		isumm, ok := imageSums[cmd.image]
 		if !ok {
-			isumm = make(map[string]resSumm, 3)
+			isumm = make(map[string]ResSumm, 3)
 			imageSums[cmd.image] = isumm
 		}
 		isumm[cmd.riskType.Key] = isumRes
@@ -79,8 +79,8 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 	return imageSums, nil
 }
 
-func getSeverityFrom(isum model.ImageVulnsSumData) resSumm {
-	res := resSumm{}
+func getSeverityFrom(isum model.ImageVulnsSumData) ResSumm {
+	res := ResSumm{}
 	if isum.CriticalNum > 0 {
 		res.severity = SeverityCritical
 	} else if isum.HighNum > 0 {
@@ -130,12 +130,12 @@ func getRedisKey(riskTypeKey, imageID string) string {
 	return fmt.Sprintf("riskexp-%s-%s", riskTypeKey, imageID)
 }
 
-type resSumm struct {
+type ResSumm struct {
 	severity   Severity
 	statsCount int64
 }
 type ImageVulnsSummary struct {
-	summaryData map[string]map[string]resSumm // imageID -> summary
+	summaryData map[string]map[string]ResSumm // imageID -> summary
 	resToImages util.Multimap                 // resourceKey -> the list of imageIDs
 }
 
@@ -174,6 +174,6 @@ func (s ImageVulnsSummary) ResourceSummary(tx context.Context, clusterKey, names
 	return sums, nil
 }
 
-func (i ImageVulnsSummary) Name() string {
+func (s ImageVulnsSummary) Name() string {
 	return "image_reporter"
 }

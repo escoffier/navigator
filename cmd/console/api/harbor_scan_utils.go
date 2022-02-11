@@ -76,8 +76,8 @@ func (api *api) harborScanStatus() http.HandlerFunc {
 		}
 		Doingnum, Waitnum := dal.GetAllVirusScanStatus(ctx, api.scannerURL)
 		status.Total = status.Total + Doingnum + Waitnum
-		status.Metrics.Running = status.Metrics.Running + Doingnum
-		status.Metrics.Pending = status.Metrics.Pending + Waitnum
+		status.Metrics.Running += Doingnum
+		status.Metrics.Pending += Waitnum
 		if Doingnum+Waitnum > 0 {
 			status.IsOngoing = true
 		}
@@ -160,14 +160,14 @@ func (api *api) harborScanOneStatus() http.HandlerFunc {
 		if digest == "" || fullRepoName == "" || tag == "" || len(fullRepoName) > 64 || len(tag) > 32 {
 			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest,
 				fmt.Errorf("digest/repoName/tag len error"),
-				Suberror{"digest/repoName/tag", ""}))
+				Suberror{Location: "digest/repoName/tag", Message: ""}))
 			return
 		}
 
 		projectNameRepoName := strings.SplitN(fullRepoName, "/", 2)
 		projectName := projectNameRepoName[0]
 		repoName := projectNameRepoName[1]
-		frepoName := strings.Replace(repoName, "/", "%252F", -1)
+		frepoName := strings.ReplaceAll(repoName, "/", "%252F")
 		tags := strings.SplitN(tag, ";", 2)
 
 		endTime, status, err := api.harborClient.ScanOneStatus(ctx, projectName, frepoName, tags[0], digest)

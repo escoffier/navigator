@@ -1,4 +1,0 @@
-glable:
-  image:
-    regsitry: harbor.local.example.com
-    repository: library

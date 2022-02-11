@@ -74,6 +74,21 @@ type RuleFromYaml struct {
 	Suggestion map[string]*KV `yaml:"suggestion"`
 	Category   string         `yaml:"category"`
 	CategoryZh string         `yaml:"categoryZh"`
+	EnabledPtr *bool          `yaml:"enabled,omitempty"` // the default value is true, so set it to a pointer
+}
+
+func (r *RuleFromYaml) Enabled() bool {
+	if r.EnabledPtr == nil {
+		return true
+	}
+	return *r.EnabledPtr
+}
+func (r *RuleFromYaml) SetEnabled(e bool) {
+	if e {
+		r.EnabledPtr = nil
+	} else {
+		r.EnabledPtr = &e
+	}
 }
 
 type KV struct {

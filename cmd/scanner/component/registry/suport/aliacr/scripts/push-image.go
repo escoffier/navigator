@@ -120,8 +120,8 @@ func rmImage(imageName string) error {
 }
 
 func getLib(url string) string {
-	lib := strings.Replace(url, "http://", "", -1)
-	lib = strings.Replace(lib, "https://", "", -1)
+	lib := strings.ReplaceAll(url, "http://", "")
+	lib = strings.ReplaceAll(lib, "https://", "")
 
 	return lib
 }

@@ -34,7 +34,7 @@ func CommandHandler(m *stan.Msg) {
 	redisCtx, redisCtxCancel := context.WithTimeout(mainCtx, 10*time.Second)
 	defer redisCtxCancel()
 	invalidState := false
-	if len(c.Resources) <= 0 {
+	if len(c.Resources) == 0 {
 		logging.GetLogger().Error().Msg("Resources is nil")
 		invalidState = true
 		goto sendMessageInvalidState
@@ -234,7 +234,7 @@ func CommandHandler(m *stan.Msg) {
 			goto sendMessageInvalidState
 		}
 		profile.Paused = true
-		profile.ElapsedTime = profile.ElapsedTime + int(time.Since(profile.StartTime).Seconds())
+		profile.ElapsedTime += int(time.Since(profile.StartTime).Seconds())
 
 		profileMarshalled, err := json.Marshal(profile)
 		if err != nil {

@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"google.golang.org/protobuf/proto"
 )
 
-const ApiSubject = "security-api"
+const APISubject = "security-api"
 
 var pgConn *rdbtools.GormWrapper
 
@@ -35,7 +35,7 @@ func Process(msg *stan.Msg) {
 		}
 	}
 
-	tensorApi := model.TensorApi{
+	tensorAPI := model.TensorApi{
 		ID:          0,
 		Cluster:     info.ClusterKey,
 		Namespace:   info.Namespace,
@@ -51,7 +51,7 @@ func Process(msg *stan.Msg) {
 		Kind:        info.OwnerKind,
 	}
 
-	err = UpsertApiInfo(ctx, pgConn, &tensorApi)
+	err = UpsertApiInfo(ctx, pgConn, &tensorAPI)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("save api info err")
 		return
