@@ -28,7 +28,6 @@ all:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
     ## Configuration of Make
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
@@ -89,7 +88,6 @@ console:
     - git merge origin/master
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-    - git clone ssh://git@10.99.201.85/tensorsecurity-rd/tensor-compliance-check.git
     - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
     - sed -i "s#latest#ci#g" Makefile
     - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g" Makefile
