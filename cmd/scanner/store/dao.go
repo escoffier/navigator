@@ -1534,14 +1534,11 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.Library != "" {
 		db = db.Where("library = ? ", param.Library)
 	}
-	if param.FullRepoSearch != "" {
-		db = db.Where("full_repo_name LIKE ? ", fmt.Sprintf("%%%s%%", param.FullRepoSearch))
+	if param.Search != "" {
+		db = db.Where("full_repo_name LIKE ?  OR tags LIKE ? ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))
 	}
 	if param.FullRepoName != "" {
 		db = db.Where("full_repo_name = ? ", param.FullRepoName)
-	}
-	if param.TagSearch != "" {
-		db = db.Where("tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagSearch))
 	}
 	if param.StartID > 0 {
 		db = db.Where("id > ?", param.StartID)

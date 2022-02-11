@@ -28,6 +28,7 @@ const (
 	RepoStatusNormal = "NORMAL"
 	DefaultPageSize  = "30"
 	DefaultVersion   = "2018-12-01"
+	CodeSuccess      = "success"
 )
 
 type AliAcrEE struct {
@@ -50,6 +51,10 @@ func (aa *AliAcrEE) GetImage(projectName, fullRepoName, tag string) (*registry.I
 }
 
 func (aa *AliAcrEE) Ping() error {
+	if _, err := aa.listNamespaces(); err != nil {
+		return err
+	}
+
 	return aa.RegistryClient.Ping()
 }
 
@@ -180,6 +185,9 @@ func (aa *AliAcrEE) listNamespaces() (namespaces []Namespace, err error) {
 		if err := json.Unmarshal(response.GetHttpContentBytes(), res); err != nil {
 			return nil, err
 		}
+		if res.Code != CodeSuccess {
+			return nil, fmt.Errorf(res.Code)
+		}
 		ans = append(ans, res.Namespaces...)
 		if res.PageSize*res.PageNo >= res.TotalCount {
 			break
@@ -215,6 +223,9 @@ func (aa *AliAcrEE) listReposByNamespace(namespace Namespace) (repos []Repositor
 		if err := json.Unmarshal(response.GetHttpContentBytes(), res); err != nil {
 			return nil, err
 		}
+		if res.Code != CodeSuccess {
+			return nil, fmt.Errorf(res.Code)
+		}
 		ans = append(ans, res.Repositories...)
 		if res.PageSize*res.PageNo >= res.TotalCount {
 			break
@@ -248,6 +259,10 @@ func (aa *AliAcrEE) getTags(repo Repository) (tags []Image, err error) {
 		res := new(HTTPResponse)
 		if err := json.Unmarshal(response.GetHttpContentBytes(), res); err != nil {
 			return ans, err
+		}
+
+		if res.Code != CodeSuccess {
+			return nil, fmt.Errorf(res.Code)
 		}
 		ans = append(ans, res.Images...)
 		if res.PageSize*res.PageNo >= res.TotalCount {

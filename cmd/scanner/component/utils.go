@@ -492,6 +492,8 @@ func registryToUpdater(reg model.Registry) map[string]interface{} {
 		"sync_interval": reg.SyncInterval,
 		"access_key":    reg.AccessKey,
 		"access_secret": reg.AccessSecret,
+		"region_id":     reg.RegionID,
+		"instance_id":   reg.InstanceID,
 	}
 	return updater
 }

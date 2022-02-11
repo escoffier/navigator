@@ -65,6 +65,7 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v2.GET("/app/:imageID/bases", apiScannerSrv.ListAppToBaseImage)
 		v2.GET("/env/:envName", apiScannerSrv.QueryEnvInStrategy)
 		v2.PUT("/env/:envName", apiScannerSrv.SetEnvToStrategy)
+		v2.GET("/sampleList", apiScannerSrv.SearchImages)
 	}
 
 	v3 := router.Group("/api/v1/layers")
@@ -167,6 +168,11 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v10.POST("/:id/subtask", apiScannerSrv.ScanReportGenerate)
 		v10.PUT("/:id", apiScannerSrv.ScanReportUpdate)
 		v10.GET("/:id/file/:sub_task_id", apiScannerSrv.ScanReportDownload)
+	}
+
+	v11 := router.Group("/api/v1/managementCenter")
+	{
+		v11.GET("/openapi/docs", apiScannerSrv.GetOpenapiDoc)
 	}
 
 	return router
