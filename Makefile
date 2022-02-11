@@ -58,43 +58,6 @@ clean:				## Clean all artifacts
 	@echo "+ $@"
 	rm -fr dist
 
-.PHONY: host-bench-base
-host-bench-base:
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	cd configs/scap/jobs/host-bench && \
-		docker build -t $(REPOPREFIX)/baseimage-host-bench:latest \
-    	--build-arg REPO=$(REPOPREFIX) --build-arg MIRROR=mirrors.aliyun.com -f ./baseimage-dockerfile .
-else
-	cd configs/scap/jobs/host-bench && \
-		docker build -t $(REPOPREFIX)/baseimage-host-bench:latest \
-    	--build-arg REPO=$(REPOPREFIX) -f ./baseimage-dockerfile .
-endif
-
-.PHONY: scap-jobs
-scap-jobs:
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	@echo "scap-jobs will use mirror"
-	cd tensor-compliance-check/kube-bench && \
-		docker build -t $(REPOPREFIX)/kube-bench:latest \
-			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
-	cd tensor-compliance-check/docker-bench-security && \
-		docker build -t $(REPOPREFIX)/docker-bench-security:latest \
-			--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
-	cd tensor-compliance-check/host-bench && \
-		docker build -t $(REPOPREFIX)/host-bench:latest \
-			--build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
-else
-	@echo "scap-jobs will not use mirror"
-	cd tensor-compliance-check/kube-bench && \
-		$(MAKE) DOCKER_REGISTRY=$(REPOPREFIX)/ VERSION=latest build-docker
-	cd tensor-compliance-check/docker-bench-security && \
-		docker build -t $(REPOPREFIX)/docker-bench-security:latest .
-	cd tensor-compliance-check/host-bench && \
-		docker build --build-arg REPO=$(REPOPREFIX) -t $(REPOPREFIX)/host-bench:latest .
-endif
-
 .PHONY: console
 console: generate 		## Build console binary
 	# This target depends on scap-jobs, but for optimisation, if we want to build only console, they won't be built.
@@ -423,12 +386,12 @@ apiscan-job: generate
 	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty scanner scanner-cicd scap-jobs scarecrow console data holmes daemon  \
+all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
 webshell-server webhook cluster-manager security-profiles-manager security-profiles-loader \
 palace go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
 
 .PHONY: base
-base: scanner-base host-bench-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
+base: scanner-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
 
 .PHONY: deps
 deps: alpine redis elasticsearch mongodb mongo-arbiter mongodb-init postgres-init postgres nats-streaming
@@ -449,7 +412,6 @@ ifeq ($(USERELEASE),true)
 	@echo "push all base images release"
 	docker push $(REPOPREFIX)/baseimage-faulty:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-holmes:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/baseimage-host-bench:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-scanner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-data:$(RELEASEVERSION)
@@ -458,7 +420,6 @@ else
 	@echo "push all base images latest"
 	docker push $(REPOPREFIX)/baseimage-faulty:latest
 	docker push $(REPOPREFIX)/baseimage-holmes:latest
-	docker push $(REPOPREFIX)/baseimage-host-bench:latest
 	docker push $(REPOPREFIX)/baseimage-scanner:latest
 	docker push $(REPOPREFIX)/baseimage-drift-prevention-client:latest
 	docker push $(REPOPREFIX)/baseimage-data:latest
@@ -471,9 +432,6 @@ ifeq ($(USERELEASE),true)
 	@echo "push all images release"
 	docker push $(REPOPREFIX)/console:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scanner:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
@@ -496,9 +454,6 @@ else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/console:latest
 	docker push $(REPOPREFIX)/scanner:latest
-	docker push $(REPOPREFIX)/kube-bench:latest
-	docker push $(REPOPREFIX)/docker-bench-security:latest
-	docker push $(REPOPREFIX)/host-bench:latest
 	docker push $(REPOPREFIX)/cleaner:latest
 	docker push $(REPOPREFIX)/drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
@@ -524,9 +479,6 @@ rm-local-images:
 	@echo "rm all local images latest"
 	docker rmi $(REPOPREFIX)/console:latest
 	docker rmi $(REPOPREFIX)/scanner:latest
-	docker rmi $(REPOPREFIX)/kube-bench:latest
-	docker rmi $(REPOPREFIX)/docker-bench-security:latest
-	docker rmi $(REPOPREFIX)/host-bench:latest
 	docker rmi $(REPOPREFIX)/cleaner:latest
 	docker rmi $(REPOPREFIX)/drift-prevention-client:latest
 	docker rmi $(REPOPREFIX)/faulty:latest
@@ -552,9 +504,6 @@ ifeq ($(USERELEASE),true)
 	@echo "tag all images release"
 	docker tag $(REPOPREFIX)/console:latest $(REPOPREFIX)/console:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/scanner:latest $(REPOPREFIX)/scanner:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/kube-bench:latest $(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/host-bench:latest $(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cleaner:latest $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
@@ -576,9 +525,6 @@ else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
 	docker tag $(REPOPREFIXOLD)/scanner:latest $(REPOPREFIX)/scanner:latest
-	docker tag $(REPOPREFIXOLD)/kube-bench:latest $(REPOPREFIX)/kube-bench:latest
-	docker tag $(REPOPREFIXOLD)/docker-bench-security:latest $(REPOPREFIX)/docker-bench-security:latest
-	docker tag $(REPOPREFIXOLD)/host-bench:latest $(REPOPREFIX)/host-bench:latest
 	docker tag $(REPOPREFIXOLD)/cleaner:latest $(REPOPREFIX)/cleaner:latest
 	docker tag $(REPOPREFIXOLD)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
@@ -607,9 +553,6 @@ ifeq ($(USERELEASE),true)
 	@echo "ci check all images release"
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-bench:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/docker-bench-security:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/host-bench:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:$(RELEASEVERSION)
@@ -632,9 +575,6 @@ else
 	@echo "ci check all images latest"
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-bench:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/docker-bench-security:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/host-bench:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:latest
