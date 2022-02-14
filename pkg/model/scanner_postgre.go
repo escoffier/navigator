@@ -107,7 +107,7 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	CreatedAt                *time.Time
 	UpdatedAt                *time.Time
 	DeletedAt                int
-	ImageID                  int64                      `gorm:"column:image_id,uniqueIndex:idx_scan_image"`
+	ImageID                  int64                      `gorm:"column:image_id;uniqueIndex:idx_scan_image"`
 	RiskScore                float64                    `gorm:"column:risk_score" json:"risk_score"`
 	VulnScore                float64                    `gorm:"column:vuln_score" json:"vuln_score"`
 	SensitiveScore           float64                    `gorm:"column:sensitive_score" json:"sensitive_score"`
@@ -137,9 +137,9 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	ScanEnableCollection     ScanEnableCollection       `gorm:"-" json:"scan_enable_collection"`
 	ScanEnableCollectionJson string                     `gorm:"type:varchar(255);column:scan_enable_collection_json"`
 	HasFixedVuln             int                        `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
-	ScanTaskId               string                     `gorm:"type:varchar(255)"`
-	Status                   string                     `gorm:"type:varchar(255)"` // 扫描状态
-	Message                  string                     `gorm:"type:varchar(255)"` // 错误信息
+	ScanTaskID               string                     `gorm:"type:varchar(255)" json:"scan_task_id"`
+	Status                   string                     `gorm:"type:varchar(255)" json:"status"`  // 扫描状态
+	Message                  string                     `gorm:"type:varchar(255)" json:"message"` // 错误信息
 	StartedAt                int64                      // 扫描开始时间
 	FinishAt                 int64                      // 扫描结束时间
 }

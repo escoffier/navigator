@@ -1144,7 +1144,7 @@ func (rcSvc *RedClairService) constructNewLogStruct(ctx context.Context, scanTas
 	res.OverallSeverity = scanTask.ScanReport.OverallSeverity
 	res.OverallSeverityInt = scanTask.ScanReport.OverallSeverityInt
 	res.SeverityHistogramJSON, err = json.Marshal(scanTask.ScanReport.Vulns.SeverityHistogram)
-	res.ScanTaskId = scanTask.ID.Hex()
+	res.ScanTaskID = scanTask.ID.Hex()
 	res.RiskScore = 0
 	criticalScore := rcSvc.caculateScore("Critical", scanTask.ScanReport.Vulns.SeverityHistogram.NumCritical)
 	highScore := rcSvc.caculateScore("High", scanTask.ScanReport.Vulns.SeverityHistogram.NumHigh)
