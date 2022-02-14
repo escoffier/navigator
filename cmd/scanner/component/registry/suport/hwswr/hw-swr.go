@@ -17,7 +17,9 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/model"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/region"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -179,7 +181,10 @@ func (h *HwSwr) GetImage(projectName, fullRepoName, tag string) (*registry.Image
 }
 
 func (h *HwSwr) Ping() error {
-	return h.RegistryClient.Ping()
+	if err := h.RegistryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+	return nil
 }
 
 func (h *HwSwr) DeleteImages(projectName, repoName, digest string) error {
@@ -237,14 +242,16 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	// create client to pull image manifest and config
 	rc, err := registry.NewDockerRegistryClient(h.Config.URL, h.Config.Username, h.Config.Password, h.Config.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("huawei swr: new registry client err:%v", err)
+		logging.GetLogger().Err(err).Msgf("huawei swr: new registry client err:%v", err)
+		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.RegistryClient = rc
 
 	// create swr client to get namespaces,images,tags
 	sc, err := newSwrClient(h.Config.AccessKey, h.Config.SecretKey, h.Config.Region)
 	if err != nil {
-		return nil, fmt.Errorf("huawei swr: create swr client err:%v", err)
+		logging.GetLogger().Err(err).Msgf("huawei swr: new registry client err:%v", err)
+		return nil, consts.ErrAccessKeyOrAccessSecret
 	}
 	h.SwrClient = sc
 

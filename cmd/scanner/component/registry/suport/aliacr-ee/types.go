@@ -34,6 +34,7 @@ type HTTPResponse struct {
 	PageSize     int64        `json:"PageSize"`
 	PageNo       int64        `json:"PageNo"`
 	Code         string       `json:"Code"`
+	Message      string       `json:"Message"`
 }
 
 type Instance struct {

@@ -14,7 +14,9 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -288,7 +290,10 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 }
 
 func (h *HarborV2) Ping() error {
-	return h.registryClient.Ping()
+	if err := h.registryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+	return nil
 }
 
 func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image, error) {
@@ -495,7 +500,8 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	// create client to pull image manifest and config
 	r, err := registry.NewDockerRegistryClient(h.config.URL, h.config.Username, h.config.Password, h.config.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("harbor-v2:new registry client err:%v", err)
+		logging.GetLogger().Err(err).Msgf("harbor-v2:new registry client err:%v", err)
+		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.registryClient = r
 	return &h, nil

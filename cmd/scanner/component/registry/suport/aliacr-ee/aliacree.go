@@ -17,9 +17,10 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -55,7 +56,10 @@ func (aa *AliAcrEE) Ping() error {
 		return err
 	}
 
-	return aa.RegistryClient.Ping()
+	if err := aa.RegistryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+	return nil
 }
 
 func (aa *AliAcrEE) DeleteImages(projectName, repoName, digest string) error {
@@ -177,10 +181,8 @@ func (aa *AliAcrEE) listNamespaces() (namespaces []Namespace, err error) {
 	for {
 		request.QueryParams["PageNo"] = strconv.Itoa(page)
 
-		response, err := aa.AliAcrClient.ProcessCommonRequest(request)
-		if err != nil {
-			return nil, err
-		}
+		// 这里可以忽略这个错误，因为如果有错，也会返回response,通过response的Code来判断是否成功
+		response, _ := aa.AliAcrClient.ProcessCommonRequest(request)
 		res := new(HTTPResponse)
 		if err := json.Unmarshal(response.GetHttpContentBytes(), res); err != nil {
 			return nil, err
@@ -224,7 +226,7 @@ func (aa *AliAcrEE) listReposByNamespace(namespace Namespace) (repos []Repositor
 			return nil, err
 		}
 		if res.Code != CodeSuccess {
-			return nil, fmt.Errorf(res.Code)
+			return nil, fmt.Errorf(res.Message)
 		}
 		ans = append(ans, res.Repositories...)
 		if res.PageSize*res.PageNo >= res.TotalCount {
@@ -262,7 +264,7 @@ func (aa *AliAcrEE) getTags(repo Repository) (tags []Image, err error) {
 		}
 
 		if res.Code != CodeSuccess {
-			return nil, fmt.Errorf(res.Code)
+			return nil, fmt.Errorf(res.Message)
 		}
 		ans = append(ans, res.Images...)
 		if res.PageSize*res.PageNo >= res.TotalCount {
@@ -309,14 +311,15 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	// create client to pull image manifest and config
 	rc, err := registry.NewDockerRegistryClient(aa.Config.URL, aa.Config.Username, aa.Config.Password, aa.Config.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("%s:new registry client err:%v", Version, err)
+		logging.Get().Err(err).Msg("openRegistry.NewDockerRegistryClient")
+		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	aa.RegistryClient = rc
 
 	sc, err := sdk.NewClientWithAccessKey(aa.Config.RegionID, aa.Config.AccessKey, aa.Config.AccessSecret)
 	if err != nil {
 		logging.Get().Err(err).Msg("openRegistry.NewClientWithAccessKey")
-		return nil, fmt.Errorf("%s:create acr client err:%v", Version, err)
+		return nil, consts.ErrAccessKeyOrAccessSecret
 	}
 
 	aa.AliAcrClient = sc
@@ -368,7 +371,7 @@ func getRegion(url string) (region string, err error) {
 	}
 	rs := regRegion.FindStringSubmatch(strings.Trim(url, " "))
 	if len(rs) < 3 {
-		return "", errors.New("invalid Registry|CR service url")
+		return "", errors.New("invalid registry url")
 	}
 	return rs[2], nil
 }

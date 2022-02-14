@@ -15,6 +15,7 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -320,7 +321,10 @@ func (r *RegistryV2) DeleteImages(projectName, repoName, dig string) error {
 }
 
 func (r *RegistryV2) Ping() error {
-	return r.RegistryClient.Ping()
+	if err := r.RegistryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+	return nil
 }
 
 func (r *RegistryV2) CheckProject(projectName string) error {
@@ -415,7 +419,8 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	r.Config = *conf
 	rc, err := registry.NewDockerRegistryClient(r.Config.URL, r.Config.Username, r.Config.Password, r.Config.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("registryV2:new registry client err:%v", err)
+		logging.GetLogger().Err(err).Msgf("registryV2:new registry client err:%v", err)
+		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	r.RegistryClient = rc
 

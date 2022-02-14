@@ -15,7 +15,9 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -47,7 +49,10 @@ func (c *Jfrog) DeleteImages(projectName, repoName, digest string) error {
 }
 
 func (c *Jfrog) Ping() error {
-	return c.RegistryClient.Ping()
+	if err := c.RegistryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+	return nil
 }
 
 func (c *Jfrog) ListRepos(packageType string) ([]Repository, error) {
@@ -280,7 +285,8 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	// rc, err := NewDockerRegistryClient(r.Config)
 	rc, err := registry.NewDockerRegistryClient(r.Config.URL, r.Config.Username, r.Config.Password, r.Config.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("jfrog:new registry client err:%v", err)
+		logging.GetLogger().Err(err).Msgf("jfrog:new registry client err:%v", err)
+		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	r.RegistryClient = rc
 
