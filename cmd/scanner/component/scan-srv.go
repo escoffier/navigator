@@ -1123,7 +1123,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	sort.Sort(model.RespSingleVulnDetails(respVuln))
 
 	// 增加漏洞和敏感文件信息
-	scanTaskID, _ := primitive.ObjectIDFromHex(scs[0].ScanTaskId)
+	scanTaskID, _ := primitive.ObjectIDFromHex(scs[0].ScanTaskID)
 	imageScanResult := model.ImageScanSummaryResult{
 		TopVulns:          respVuln,
 		SensitiveFiles:    scs[0].SensitiveFile,
