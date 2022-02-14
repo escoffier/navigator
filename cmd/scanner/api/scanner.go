@@ -1034,7 +1034,7 @@ func (s *Scanner) GetOpenapiDoc(ctx *gin.Context) {
 	res = append(res, Doc{Description: "合规检测api接口", Path: "openapi-scap.html"})
 	res = append(res, Doc{Description: "集群与资产api接口", Path: "openapi-assets.html"})
 
-	response.JSONOK(ctx, response.WithItems(res))
+	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
 }
 
 func (s *Scanner) GetFileChecker(ctx *gin.Context) {
