@@ -32,23 +32,23 @@ import (
 )
 
 type SearchImageWithScanParam struct {
-	SearchWord       string  `json:"search_word"`
-	FromType         int64   `json:"from_type"`
-	Kind             string  `json:"kind"`
-	Online           string  `json:"online"`
-	ImageType        string  `json:"image_type"`
-	ImageID          int64   `json:"image_id"`
-	ImageIds         []int64 `json:"image_ids"`
-	Library          string  `json:"library"`
-	ScanStatus       []int   `json:"scan_status"`
-	Trusted          string  `json:"trusted"`
-	HasFixedVulu     string  `json:"has_fixed_vulu"`
-	IsReinforce      string  `json:"is_reinforce"`
-	NodeHostname     string  `json:"node_hostname"`
-	SpecialImageType string  `json:"special_image_type"`
-	JustReturnImage  bool    `json:"just_return_image"`
-
-	NotDeleteRegistry string // 不返回已经删除的仓库的镜像
+	SearchWord        string   `json:"search_word"`
+	FromType          int64    `json:"from_type"`
+	Kind              string   `json:"kind"`
+	Online            string   `json:"online"`
+	ImageType         string   `json:"image_type"`
+	ImageID           int64    `json:"image_id"`
+	ImageIds          []int64  `json:"image_ids"`
+	Library           string   `json:"library"`
+	ScanStatus        []int    `json:"scan_status"`
+	Trusted           string   `json:"trusted"`
+	HasFixedVulu      string   `json:"has_fixed_vulu"`
+	IsReinforce       string   `json:"is_reinforce"`
+	NodeHostname      string   `json:"node_hostname"`
+	SpecialImageType  string   `json:"special_image_type"`
+	JustReturnImage   bool     `json:"just_return_image"`
+	UUIDs             []uint32 `json:"uuids"`
+	NotDeleteRegistry string   // 不返回已经删除的仓库的镜像
 }
 
 type SearchImageParam struct {
@@ -60,6 +60,7 @@ type SearchImageParam struct {
 	RegistryID   int64
 	Search       string
 	FromType     int64
+	UUIDs        []uint32
 }
 
 type ScannerSrv interface {
@@ -145,6 +146,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 		Search:       param.Search,
 		FromType:     param.FromType,
 		RegistryIds:  registryIds,
+		UUIDs:        param.UUIDs,
 	}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchImage")
@@ -1422,6 +1424,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 
 	daoParam := store.SearchImageWithScanParam{
+		UUIDs:            param.UUIDs,
 		RegistryIds:      registryIds,
 		FromType:         param.FromType,
 		ImageType:        param.ImageType,

@@ -275,6 +275,10 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		}
 	}
 
+	if len(param.UUIDs) > 0 {
+		db = db.Where("ivan_scanner_image_list.image_uuid IN ? ", param.UUIDs)
+	}
+
 	if param.FromType > 0 {
 		db = db.Where("ivan_scanner_image_list.from_type = ? ", param.FromType)
 	}
@@ -1513,6 +1517,10 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 			db = db.Where("digest IN ? ", param.Digests)
 		}
 	}
+	if len(param.UUIDs) > 0 {
+		db = db.Where("image_uuid IN ? ", param.UUIDs)
+	}
+
 	if len(param.Ids) > 0 {
 		if len(param.Ids) == 1 {
 			db = db.Where("id = ? ", param.Ids[0])

@@ -545,7 +545,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 
-	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{
+	param := component.SearchImageWithScanParam{
 		SearchWord:       search,
 		Kind:             kind,
 		Online:           online,
@@ -558,7 +558,21 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		IsReinforce:      isReinforce,
 		NodeHostname:     nodeHostname,
 		SpecialImageType: specialImageType,
-	}, filter)
+	}
+	uuids := ctx.Query("uuids")
+	if uuids != "" {
+		uuid := make([]uint32, 0)
+		split := strings.Split(uuids, ",")
+		for i := range split {
+			if parseInt, err := strconv.ParseInt(split[i], 10, 64); err != nil {
+				logging.Get().Err(err).Msg("UUID 格式不正确")
+			} else {
+				uuid = append(uuid, uint32(parseInt))
+			}
+		}
+		param.UUIDs = uuid
+	}
+	images, cnt, err := s.Srv.SearchImageWithScan(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -604,11 +618,25 @@ func (s *Scanner) SearchImages(ctx *gin.Context) {
 	}
 
 	filter := model.GetFilter(ctx)
-
-	images, cnt, err := s.Srv.SearchImages(ctx, component.SearchImageParam{
+	param := component.SearchImageParam{
 		Search:   search,
 		FromType: fromType,
-	}, filter)
+	}
+	uuids := ctx.Query("uuids")
+	if uuids != "" {
+		uuid := make([]uint32, 0)
+		split := strings.Split(uuids, ",")
+		for i := range split {
+			if parseInt, err := strconv.ParseInt(split[i], 10, 64); err != nil {
+				logging.Get().Err(err).Msg("UUID 格式不正确")
+			} else {
+				uuid = append(uuid, uint32(parseInt))
+			}
+		}
+		param.UUIDs = uuid
+	}
+
+	images, cnt, err := s.Srv.SearchImages(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

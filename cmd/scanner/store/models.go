@@ -27,6 +27,7 @@ type SearchImageParam struct {
 	RegistryIds   []int64 // 仓库Id列表
 	NodeHostnames []string
 	JustCount     bool
+	UUIDs         []uint32
 }
 
 type SearchImageWithScanParam struct {
@@ -43,9 +44,9 @@ type SearchImageWithScanParam struct {
 	NotInDigests     []string //
 	NodeHostname     string
 	SpecialImageType string
-
-	HasFixedVulu string
-	IsReinforce  string
+	UUIDs            []uint32
+	HasFixedVulu     string
+	IsReinforce      string
 }
 
 type GetImageParam struct {
