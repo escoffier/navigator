@@ -18,6 +18,11 @@
 #include "log.h"
 
 #include "hash_search.c"
+
+#ifdef _TRIE
+#include "trie_search.c"
+#endif
+
 #include "config.c"
 #include "crc32.c"
 #include "remote_alert.c"
@@ -47,8 +52,10 @@ enum function_stat
 {
     DRIFT_DETECT = 1,
     DRIFT_PREVENT = 1 << 1,
+    DRIFT_ON = DRIFT_DETECT | DRIFT_PREVENT,
     COMMAND_DETECT = 1 << 2,
     COMMAND_PREVENT = 1 << 3,
+    COMMAND_ON = COMMAND_DETECT | COMMAND_PREVENT,
 };
 
 typedef struct
@@ -76,16 +83,25 @@ typedef struct
 } shm_command_whitelist_entry;
 
 static Whitelist g_whitelist_config;
-static hash_tbl_t *g_whitelist_hash;
-
 static CommandWhitelist g_command_whitelist_config;
+
 static hash_tbl_t *g_command_whitelist_hash; // TODO: this hashtable should have only filename_args entries and we look only for existence, not value stored (we do it this way, as one binary can have multiple args lists)
+
+#ifdef _HASH
+static hash_tbl_t *g_whitelist_hash;
+#elif defined(_TRIE)
+static struct trie_node *g_whitelist_trie_root;
+#else
+static shm_whitelist_entry *g_whitelist;
+static size_t g_whitelist_size;
+
+#endif
 
 static unsigned int func_switch = 0;
 
 static unsigned int config_err_flag = 0;
 
-#ifdef DEBUG
+#ifdef _DEBUG
 
 #else
 
@@ -98,9 +114,17 @@ static void finish() __attribute__((destructor));
 static void finish()
 {
     whitelist_free(&g_whitelist_config);
-    hashtbl_node_free(g_whitelist_hash);
     command_whitelist_free(&g_command_whitelist_config);
     hashtbl_node_free(g_command_whitelist_hash);
+
+
+#ifdef _HASH
+    hashtbl_node_free(g_whitelist_hash);
+#elif defined(_TRIE)
+    trie_delete(g_whitelist_trie_root);
+#else
+    free(g_whitelist);
+#endif
 }
 
 static void init_command_whitelist()
@@ -209,6 +233,7 @@ finish:
     return;
 }
 
+#ifndef _TRIE
 static void init_whitelist()
 {
     void *shm_ref;
@@ -240,6 +265,15 @@ static void init_whitelist()
         int shm_whitelist_size = sizeof(shm_whitelist_entry) * g_whitelist_config.used;
         shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, shm_whitelist_size, IPC_CREAT | S_IRUSR | S_IWUSR);
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *)shmat(shm_whitelist_fd, 0, 0);
+        #ifndef _HASH
+        g_whitelist = malloc(shm_whitelist_size * sizeof(shm_whitelist_entry));
+        g_whitelist_size = g_whitelist_config.used;
+        if (!g_whitelist) {
+            drift_prevent_write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
+            goto use_data_from_file;
+        }
+
+        #else
         g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
         if (!g_whitelist_hash)
         {
@@ -247,11 +281,17 @@ static void init_whitelist()
             errno = 0;
             goto use_data_from_file;
         }
+        #endif
+
         for (int i = 0; i < g_whitelist_config.used; i++)
         {
+            #ifndef _HASH
             shm_whitelist_entry file = {.checksum = g_whitelist_config.checksums[i]};
             strncpy(file.filename, g_whitelist_config.filenames[i], PATH_MAX * sizeof(char));
             memcpy(file_shmaddr, &file, sizeof(shm_whitelist_entry));
+            strncpy(g_whitelist[i].filename, file_shmaddr[0].filename, PATH_MAX * sizeof(char));
+            g_whitelist[i].checksum = file_shmaddr[0].checksum;
+            #else
             entry *node = hashtbl_node_insert(file_shmaddr[0].filename, &(file_shmaddr[0].checksum), g_whitelist_hash);
             if (!node)
             {
@@ -261,6 +301,8 @@ static void init_whitelist()
                 continue;
             }
             node->checksum = file_shmaddr[0].checksum;
+            #endif
+
             file_shmaddr += 1;
         }
         goto finish;
@@ -268,6 +310,9 @@ static void init_whitelist()
     else
     {
         size_t *shm_whitelist_size = (size_t *)shmat(shm_file_size_fd, 0, 0);
+        g_whitelist_size = *shm_whitelist_size;
+        g_whitelist_config.used = g_whitelist_size;
+        #ifdef _HASH
         g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
         if (!g_whitelist_hash)
         {
@@ -275,10 +320,19 @@ static void init_whitelist()
             errno = 0;
             goto read_data_from_file;
         }
+        #else
+        g_whitelist = malloc(*shm_whitelist_size * sizeof(shm_whitelist_entry));
+        if (!g_whitelist) {
+            drift_prevent_write_log(ERROR, "Could not allocate memory for whitelist: %s\n", strerror(errno));
+            goto read_data_from_file;
+        }
+        #endif
+
         shm_whitelist_fd = shmget(SHM_WHITELIST_NAME, *shm_whitelist_size, S_IRUSR);
         shm_whitelist_entry *file_shmaddr = (shm_whitelist_entry *)shmat(shm_whitelist_fd, 0, 0);
         for (int i = 0; i < *shm_whitelist_size; i++)
         {
+            #ifdef _HASH
             entry *node = hashtbl_node_insert(file_shmaddr[0].filename, &(file_shmaddr[0].checksum), g_whitelist_hash);
             if (!node)
             {
@@ -288,6 +342,11 @@ static void init_whitelist()
                 continue;
             }
             node->checksum = file_shmaddr[0].checksum;
+            #else
+
+            strncpy(g_whitelist[i].filename, file_shmaddr[0].filename, PATH_MAX * sizeof(char));
+            g_whitelist[i].checksum = file_shmaddr[0].checksum;
+            #endif
             file_shmaddr += 1;
         }
         goto finish;
@@ -299,6 +358,7 @@ read_data_from_file:
         goto finish;
     }
 use_data_from_file:
+    #ifdef _HASH
     g_whitelist_hash = hashtbl_init(&whitelist_hash_config);
     for (int i = 0; i < g_whitelist_config.used; i++)
     {
@@ -312,9 +372,20 @@ use_data_from_file:
         }
         node->checksum = file.checksum;
     }
+    #else
+
+    g_whitelist = malloc(g_whitelist_config.used * sizeof(shm_whitelist_entry));
+    for (int i = 0; i < g_whitelist_config.used; i++) {
+        shm_whitelist_entry file = { .checksum = g_whitelist_config.checksums[i]};
+        strncpy(g_whitelist[i].filename, g_whitelist_config.filenames[i], PATH_MAX * sizeof(char));
+        g_whitelist[i].checksum = file.checksum;
+    }
+    #endif
+
 finish:
     return;
 }
+#endif
 
 /*
  * As .so library is loaded for each exec, we need to initialize the whitelist as fast as possible
@@ -346,12 +417,16 @@ static void init()
         func_switch |= COMMAND_DETECT;
     }
 
-    if (func_switch & 3)
+    if (func_switch & DRIFT_ON)
     {
+        #ifndef _TRIE
         init_whitelist();
+        #else
+        trie_init(g_whitelist_trie_root);
+        #endif
     }
 
-    if (func_switch & 12)
+    if (func_switch & COMMAND_ON)
     {
         init_command_whitelist();
     }
@@ -370,6 +445,26 @@ static void *hash_search(hash_tbl_t *table, void *key, void *value)
     }
     return node;
 }
+
+#if !defined(_HASH) && !defined(_TRIE)
+static int binary_search(shm_whitelist_entry *list_of_files, int size, const char *target) {
+    int bottom= 0;
+    int mid;
+    int top = size - 1;
+    while(bottom <= top){
+        mid = (bottom + top)/2;
+        if (strcmp(list_of_files[mid].filename, target) == 0 && strlen(list_of_files[mid].filename) == strlen(target)){
+            return mid;
+        } else if (strcmp(list_of_files[mid].filename, target) > 0){
+            top    = mid - 1;
+        } else if (strcmp(list_of_files[mid].filename, target) < 0){
+            bottom = mid + 1;
+        }
+    }
+    return -1;
+}
+#endif
+
 
 // CRC fields will be ignored if reason is not checksum related.
 static int send_alert(const char *filepath, const char *syscall, const char *reason, const char *action, const uint32_t crc32_expected, const uint32_t crc32_actual)
@@ -487,10 +582,51 @@ undo:
     return NULL;
 }
 
+#define WHICH_DELIMITER ":"
+
+char * which_path(const char *name, const char *_path, char *result) {
+  char *path = strdup(_path);
+  if (NULL == path) return NULL;
+  char *tok = strtok(path, WHICH_DELIMITER);
+
+  while (tok) {
+    // path
+    int len = strlen(tok) + 2 + strlen(name);
+    char *file = malloc(len);
+    if (!file) {
+      free(path);
+      return NULL;
+    }
+    sprintf(file, "%s/%s", tok, name);
+
+    // executable
+    if (0 == access(file, X_OK)) {
+      free(path);
+      memcpy(result, file, len);
+      return file;
+    }
+
+    // next token
+    tok = strtok(NULL, WHICH_DELIMITER);
+    free(file);
+  }
+
+  free(path);
+
+  return NULL;
+}
+
+char * which(const char *name, void *dest) {
+  return which_path(name, getenv("PATH"), dest);
+}
+
 static char *init_pre_data(const char *path, pre_info *pre_data)
 {
     pre_data->real_path[0] = '\0';
     char *ret = realpath(path, pre_data->real_path);
+    if(!ret){
+        ret = which(path, pre_data->real_path);
+    }
     return ret;
 }
 
@@ -553,7 +689,32 @@ static int splice_cmdline(char *const argv[], char *args)
 
 // TODO: https://stackoverflow.com/questions/10312787/setting-the-ld-preload-environment-variable-for-commands-run-without-typing-the
 
+// typedef entry  *(*result_ret_func)(const char *target);
+
+// result_ret_func result_ret_func_ptr;
+
+// #ifdef _HASH
+// static entry *ret_hash_result(const char *target)
+// {
+//     return (entry *)hash_search(g_whitelist_hash, (void  *)target, 0);
+// }
+// result_ret_func_ptr = ret_hash_result;
+// #elif defined(_TRIE)
+// static entry *ret_trie_result(const char *target)
+// {
+//     trie_search(g_whitelist_trie_root, target);
+// }
+// result_ret_func_ptr = ret_trie_result;
+// #else
+
+// #endif
+
+
+
+
 #define VA_STR(...) __VA_ARGS__
+
+#ifdef _HASH
 
 #define CHECKPROCESS(exec_str, exec_name, file_path, input_str, ret_str)                 \
     typedef ssize_t (*exec_name##_func_t)(input_str);                                    \
@@ -594,7 +755,7 @@ static int splice_cmdline(char *const argv[], char *args)
         strncpy(args, pre_data.real_path, strlen(pre_data.real_path));                   \
         splice_cmdline(argv, args);                                                      \
         int block_flag = 0;                                                              \
-        if (func_switch & 3)                                                             \
+        if (func_switch & DRIFT_ON)                                                      \
         {                                                                                \
             entry *node = (entry *)hash_search(g_whitelist_hash, pre_data.real_path, 0); \
             if (!node)                                                                   \
@@ -649,7 +810,7 @@ static int splice_cmdline(char *const argv[], char *args)
             }                                                                            \
         }                                                                                \
                                                                                          \
-        if (func_switch & 12)                                                            \
+        if (func_switch & COMMAND_ON)                                                    \
         {                                                                                \
             getcwd(pwd, sizeof(pwd));                                                    \
             if (strlen(pwd) > 0 && pwd[strlen(pwd) - 1] != '/')                          \
@@ -724,6 +885,350 @@ static int splice_cmdline(char *const argv[], char *args)
         return old_##exec_name(ret_str);                                                 \
     }
 
+#elif defined(_TRIE)
+
+#define CHECKPROCESS(exec_str, exec_name, file_path, input_str, ret_str)                 \
+    typedef ssize_t (*exec_name##_func_t)(input_str);                                    \
+    static exec_name##_func_t old_##exec_name = NULL;                                    \
+    int exec_name(input_str)                                                             \
+    {                                                                                    \
+        if(config_err_flag)                                                              \
+        {                                                                                \
+            drift_prevent_write_log(ERROR, "read config file fail, skip detect %u\n",    \
+                        func_switch);                                                    \
+           goto old_ret;                                                                 \
+        }                                                                                \
+        if (drift_prevent_init_log() != 0)                                               \
+        {                                                                                \
+            drift_prevent_write_log(WARN, "Failed to fully initialize log: %s\n",        \
+                                    strerror(errno));                                    \
+        }                                                                                \
+                                                                                         \
+        pre_info pre_data = {""};                                                        \
+        char *content = NULL;                                                            \
+        char *action = NULL;                                                             \
+        char *reason = NULL;                                                             \
+        uint32_t expected_crc32 = 0;                                                     \
+        uint32_t calculated_crc32 = 0;                                                   \
+        if (!func_switch)                                                                \
+        {                                                                                \
+            goto cleanup;                                                                \
+        }                                                                                \
+        if (!init_pre_data(file_path, &pre_data))                                        \
+        {                                                                                \
+            drift_prevent_write_log(ERROR, "Failed to get real path: %s\n",              \
+                                    strerror(errno));                                    \
+            errno = 0;                                                                   \
+            goto cleanup;                                                                \
+        }                                                                                \
+        char args[2 * PATH_MAX + 1] = {'\0'};                                            \
+        char pwd[PATH_MAX] = {'\0'};                                                     \
+        strncpy(args, pre_data.real_path, strlen(pre_data.real_path));                   \
+        splice_cmdline(argv, args);                                                      \
+        int block_flag = 0;                                                              \
+        if (func_switch & DRIFT_ON)                                                      \
+        {                                                                                \
+            struct trie_node *node = trie_search(g_whitelist_trie_root,                  \
+                                                pre_data.real_path);                     \
+            if (!node)                                                                   \
+            {                                                                            \
+                reason = malloc(strlen(REASON_NOT_IN_WHITELIST) + 1);                    \
+                strcpy(reason, REASON_NOT_IN_WHITELIST);                                 \
+                if (func_switch & DRIFT_DETECT)                                          \
+                {                                                                        \
+                    action = malloc(strlen(ACTION_NOTIFIED) + 1);                        \
+                    strcpy(action, ACTION_NOTIFIED);                                     \
+                    send_alert(pre_data.real_path, exec_str, reason,                     \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+                else if (func_switch & DRIFT_PREVENT)                                    \
+                {                                                                        \
+                    block_flag = 1;                                                      \
+                    action = malloc(strlen(ACTION_BLOCKED) + 1);                         \
+                    strcpy(action, ACTION_BLOCKED);                                      \
+                    send_alert(pre_data.real_path, exec_str, reason,                     \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+            }                                                                            \
+            else                                                                         \
+            {                                                                            \
+                long l_size = file_opt(pre_data.real_path, &content);                    \
+                if (l_size < 0)                                                          \
+                {                                                                        \
+                    goto cleanup;                                                        \
+                }                                                                        \
+                expected_crc32 = node->checksum;                                         \
+                calculated_crc32 = rc_crc32(0, content, l_size);                         \
+                if (calculated_crc32 != expected_crc32)                                  \
+                {                                                                        \
+                    reason = malloc(strlen(REASON_CHECKSUM_MISMATCH) + 1);               \
+                    strcpy(reason, REASON_CHECKSUM_MISMATCH);                            \
+                    if (func_switch & DRIFT_DETECT)                                      \
+                    {                                                                    \
+                        action = malloc(strlen(ACTION_NOTIFIED) + 1);                    \
+                        strcpy(action, ACTION_NOTIFIED);                                 \
+                        send_alert(pre_data.real_path, exec_str, reason,                 \
+                                   action, calculated_crc32, expected_crc32);            \
+                    }                                                                    \
+                    else if (func_switch & DRIFT_PREVENT)                                \
+                    {                                                                    \
+                        block_flag = 1;                                                  \
+                        action = malloc(strlen(ACTION_BLOCKED) + 1);                     \
+                        strcpy(action, ACTION_BLOCKED);                                  \
+                        send_alert(pre_data.real_path, exec_str, reason,                 \
+                                   action, calculated_crc32, expected_crc32);            \
+                    }                                                                    \
+                }                                                                        \
+            }                                                                            \
+        }                                                                                \
+                                                                                         \
+        if (func_switch & COMMAND_ON)                                                    \
+        {                                                                                \
+            getcwd(pwd, sizeof(pwd));                                                    \
+            if (strlen(pwd) > 0 && pwd[strlen(pwd) - 1] != '/')                          \
+            {                                                                            \
+                pwd[strlen(pwd)] = '/';                                                  \
+            }                                                                            \
+            command_whitelist_entry *command_node = (command_whitelist_entry *)          \
+                hash_search(g_command_whitelist_hash,                                    \
+                            args, pwd);                                                  \
+            if (command_node)                                                            \
+            {                                                                            \
+                if (!strcmp(pwd, command_node->cwd))                                     \
+                {                                                                        \
+                    goto cleanup;                                                        \
+                }                                                                        \
+                reason = malloc(strlen(REASON_COMMAND_CWD_NOT_ALLOW) + 1);               \
+                strcpy(reason, REASON_COMMAND_CWD_NOT_ALLOW);                            \
+                if (func_switch & COMMAND_DETECT)                                        \
+                {                                                                        \
+                    action = malloc(strlen(ACTION_NOTIFIED) + 1);                        \
+                    strcpy(action, ACTION_NOTIFIED);                                     \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+                else if (func_switch & COMMAND_PREVENT)                                  \
+                {                                                                        \
+                    block_flag = 1;                                                      \
+                    action = malloc(strlen(ACTION_BLOCKED) + 1);                         \
+                    strcpy(action, ACTION_BLOCKED);                                      \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+            }                                                                            \
+            else                                                                         \
+            {                                                                            \
+                reason = malloc(strlen(REASON_COMMAND_NOT_INT_WHITELIST) + 1);           \
+                strcpy(reason, REASON_COMMAND_NOT_INT_WHITELIST);                        \
+                if (func_switch & COMMAND_DETECT)                                        \
+                {                                                                        \
+                    action = malloc(strlen(ACTION_NOTIFIED) + 1);                        \
+                    strcpy(action, ACTION_NOTIFIED);                                     \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+                else if (func_switch & COMMAND_PREVENT)                                  \
+                {                                                                        \
+                    block_flag = 1;                                                      \
+                    action = malloc(strlen(ACTION_BLOCKED) + 1);                         \
+                    strcpy(action, ACTION_BLOCKED);                                      \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+            }                                                                            \
+        }                                                                                \
+    cleanup:                                                                             \
+        free(content);                                                                   \
+        free(reason);                                                                    \
+        free(action);                                                                    \
+        if (drift_prevent_teardown_log() != 0)                                           \
+        {                                                                                \
+            drift_prevent_write_log(WARN, "Failed to properly teardown log: %s\n",       \
+                                    strerror(errno));                                    \
+            errno = 0;                                                                   \
+        }                                                                                \
+        if (block_flag)                                                                  \
+        {                                                                                \
+            errno = EACCES;                                                              \
+            return errno;                                                                \
+        }                                                                                \
+    old_ret:                                                                             \
+        old_##exec_name = dlsym(RTLD_NEXT, exec_str);                                    \
+        return old_##exec_name(ret_str);                                                 \
+    }
+
+#else
+
+#define CHECKPROCESS(exec_str, exec_name, file_path, input_str, ret_str)                 \
+    typedef ssize_t (*exec_name##_func_t)(input_str);                                    \
+    static exec_name##_func_t old_##exec_name = NULL;                                    \
+    int exec_name(input_str)                                                             \
+    {                                                                                    \
+        if(config_err_flag)                                                              \
+        {                                                                                \
+            drift_prevent_write_log(ERROR, "read config file fail, skip detect %u\n",    \
+                        func_switch);                                                    \
+           goto old_ret;                                                                 \
+        }                                                                                \
+        if (drift_prevent_init_log() != 0)                                               \
+        {                                                                                \
+            drift_prevent_write_log(WARN, "Failed to fully initialize log: %s\n",        \
+                                    strerror(errno));                                    \
+        }                                                                                \
+                                                                                         \
+        pre_info pre_data = {""};                                                        \
+        char *content = NULL;                                                            \
+        char *action = NULL;                                                             \
+        char *reason = NULL;                                                             \
+        uint32_t expected_crc32 = 0;                                                     \
+        uint32_t calculated_crc32 = 0;                                                   \
+        if (!func_switch)                                                                \
+        {                                                                                \
+            goto cleanup;                                                                \
+        }                                                                                \
+        if (!init_pre_data(file_path, &pre_data))                                        \
+        {                                                                                \
+            drift_prevent_write_log(ERROR, "Failed to get real path: %s\n",              \
+                                    strerror(errno));                                    \
+            errno = 0;                                                                   \
+        }                                                                                \
+        char args[2 * PATH_MAX + 1] = {'\0'};                                            \
+        char pwd[PATH_MAX] = {'\0'};                                                     \
+        strncpy(args, pre_data.real_path, strlen(pre_data.real_path));                   \
+        splice_cmdline(argv, args);                                                      \
+        int block_flag = 0;                                                              \
+        if (func_switch & DRIFT_ON)                                                      \
+        {                                                                                \
+            int index = binary_search(g_whitelist, g_whitelist_size, pre_data.real_path);\
+            if (index < 0)                                                               \
+            {                                                                            \
+                reason = malloc(strlen(REASON_NOT_IN_WHITELIST) + 1);                    \
+                strcpy(reason, REASON_NOT_IN_WHITELIST);                                 \
+                if (func_switch & DRIFT_DETECT)                                          \
+                {                                                                        \
+                    action = malloc(strlen(ACTION_NOTIFIED) + 1);                        \
+                    strcpy(action, ACTION_NOTIFIED);                                     \
+                    send_alert(pre_data.real_path, exec_str, reason,                     \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+                else if (func_switch & DRIFT_PREVENT)                                    \
+                {                                                                        \
+                    block_flag = 1;                                                      \
+                    action = malloc(strlen(ACTION_BLOCKED) + 1);                         \
+                    strcpy(action, ACTION_BLOCKED);                                      \
+                    send_alert(pre_data.real_path, exec_str, reason,                     \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+            }                                                                            \
+            else                                                                         \
+            {                                                                            \
+                long l_size = file_opt(pre_data.real_path, &content);                    \
+                if (l_size < 0)                                                          \
+                {                                                                        \
+                    goto cleanup;                                                        \
+                }                                                                        \
+                expected_crc32 = g_whitelist[index].checksum;                            \
+                calculated_crc32 = rc_crc32(0, content, l_size);                         \
+                if (calculated_crc32 != expected_crc32)                                  \
+                {                                                                        \
+                    reason = malloc(strlen(REASON_CHECKSUM_MISMATCH) + 1);               \
+                    strcpy(reason, REASON_CHECKSUM_MISMATCH);                            \
+                    if (func_switch & DRIFT_DETECT)                                      \
+                    {                                                                    \
+                        action = malloc(strlen(ACTION_NOTIFIED) + 1);                    \
+                        strcpy(action, ACTION_NOTIFIED);                                 \
+                        send_alert(pre_data.real_path, exec_str, reason,                 \
+                                   action, calculated_crc32, expected_crc32);            \
+                    }                                                                    \
+                    else if (func_switch & DRIFT_PREVENT)                                \
+                    {                                                                    \
+                        block_flag = 1;                                                  \
+                        action = malloc(strlen(ACTION_BLOCKED) + 1);                     \
+                        strcpy(action, ACTION_BLOCKED);                                  \
+                        send_alert(pre_data.real_path, exec_str, reason,                 \
+                                   action, calculated_crc32, expected_crc32);            \
+                    }                                                                    \
+                }                                                                        \
+            }                                                                            \
+        }                                                                                \
+                                                                                         \
+        if (func_switch & COMMAND_ON)                                                    \
+        {                                                                                \
+            getcwd(pwd, sizeof(pwd));                                                    \
+            if (strlen(pwd) > 0 && pwd[strlen(pwd) - 1] != '/')                          \
+            {                                                                            \
+                pwd[strlen(pwd)] = '/';                                                  \
+            }                                                                            \
+            command_whitelist_entry *command_node = (command_whitelist_entry *)          \
+                hash_search(g_command_whitelist_hash,                                    \
+                            args, pwd);                                                  \
+            if (command_node)                                                            \
+            {                                                                            \
+                if (!strcmp(pwd, command_node->cwd))                                     \
+                {                                                                        \
+                    goto cleanup;                                                        \
+                }                                                                        \
+                reason = malloc(strlen(REASON_COMMAND_CWD_NOT_ALLOW) + 1);               \
+                strcpy(reason, REASON_COMMAND_CWD_NOT_ALLOW);                            \
+                if (func_switch & COMMAND_DETECT)                                        \
+                {                                                                        \
+                    action = malloc(strlen(ACTION_NOTIFIED) + 1);                        \
+                    strcpy(action, ACTION_NOTIFIED);                                     \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+                else if (func_switch & COMMAND_PREVENT)                                  \
+                {                                                                        \
+                    block_flag = 1;                                                      \
+                    action = malloc(strlen(ACTION_BLOCKED) + 1);                         \
+                    strcpy(action, ACTION_BLOCKED);                                      \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+            }                                                                            \
+            else                                                                         \
+            {                                                                            \
+                reason = malloc(strlen(REASON_COMMAND_NOT_INT_WHITELIST) + 1);           \
+                strcpy(reason, REASON_COMMAND_NOT_INT_WHITELIST);                        \
+                if (func_switch & COMMAND_DETECT)                                        \
+                {                                                                        \
+                    action = malloc(strlen(ACTION_NOTIFIED) + 1);                        \
+                    strcpy(action, ACTION_NOTIFIED);                                     \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+                else if (func_switch & COMMAND_PREVENT)                                  \
+                {                                                                        \
+                    block_flag = 1;                                                      \
+                    action = malloc(strlen(ACTION_BLOCKED) + 1);                         \
+                    strcpy(action, ACTION_BLOCKED);                                      \
+                    send_alert(args, exec_str, reason,                                   \
+                               action, calculated_crc32, expected_crc32);                \
+                }                                                                        \
+            }                                                                            \
+        }                                                                                \
+    cleanup:                                                                             \
+        free(content);                                                                   \
+        free(reason);                                                                    \
+        free(action);                                                                    \
+        if (drift_prevent_teardown_log() != 0)                                           \
+        {                                                                                \
+            drift_prevent_write_log(WARN, "Failed to properly teardown log: %s\n",       \
+                                    strerror(errno));                                    \
+            errno = 0;                                                                   \
+        }                                                                                \
+        if (block_flag)                                                                  \
+        {                                                                                \
+            errno = EACCES;                                                              \
+            return errno;                                                                \
+        }                                                                                \
+    old_ret:                                                                             \
+        old_##exec_name = dlsym(RTLD_NEXT, exec_str);                                    \
+        return old_##exec_name(ret_str);                                                 \
+    }
+
+#endif
+
 /*because can't pass VA_ARGS， the functions of execl* all use execve() */
 #define CHECKPROCESS_VA(exec_str, exec_name, file_path, input_str, ret_str)       \
     typedef ssize_t (*exec_name##_func_t)(input_str);                             \
@@ -746,47 +1251,43 @@ static int splice_cmdline(char *const argv[], char *args)
         return ret;                                                               \
     }
 
-CHECKPROCESS("execv", execv, path, VA_STR(const char *path, char *const argv[]), VA_STR(path, argv))
-CHECKPROCESS("execvp", execvp, file, VA_STR(const char *file, char *const argv[]), VA_STR(file, argv))
-CHECKPROCESS("execve", execve, filename, VA_STR(const char *filename, char *const argv[], char *const envp[]), VA_STR(filename, argv, envp))
+
+CHECKPROCESS("execv", execv, path, VA_STR(const char *path, char *const argv[]), VA_STR(pre_data.real_path, argv))
+CHECKPROCESS("execvp", execvp, file, VA_STR(const char *file, char *const argv[]), VA_STR(pre_data.real_path, argv))
+CHECKPROCESS("execve", execve, filename, VA_STR(const char *filename, char *const argv[], char *const envp[]), VA_STR(pre_data.real_path, argv, envp))
 
 CHECKPROCESS_VA("execl", execl, path, VA_STR(const char *path, const char *arg, ...), VA_STR(path, argv, environ))
 CHECKPROCESS_VA("execlp", execlp, file, VA_STR(const char *file, const char *arg, ...), VA_STR(file, argv, environ))
 CHECKPROCESS_VA("execle", execle, path, VA_STR(const char *path, const char *arg, ... /*, (char *)0, char *const envp[] */), VA_STR(path, argv, envp))
 
-#ifdef DEBUG
+#ifdef _DEBUG
 
 int main(int argc, char *argv[], char *envp[])
 {
-    init();
+    init_whitelist();
+    printf("%d\n", sizeof(entry));
+    printf("total size : %lu\n", used_size);
+    printf("%llu\n", config_used_size);
+    printf("%lld\n", PATH_MAX * sizeof(char)*g_whitelist_config.used + g_whitelist_config.size);
 
     char cmd_args[1000] = {'\0'};
     char filepath[1000] = {'\0'};
     char *arg = NULL;
+    printf("Please input the command you want to check: ");
 
-    scanf("%[^\n]", &cmd_args);
-    getchar();
-    printf("intput: %s\n", cmd_args);
-    strncpy(filepath, cmd_args, sizeof(cmd_args));
+    while(~scanf("%s", filepath)){
+        #ifdef _HASH
+        entry *node = (entry *)hash_search(g_whitelist_hash, filepath, "0");
 
-    for (int i = 0; i < strlen(cmd_args); i++)
-    {
-        if (cmd_args[i] == ' ')
+        if (node)
         {
-            filepath[i] = '\0';
-            arg = cmd_args + i + 1;
-            break;
+            printf("%x\n", node->checksum);
         }
-    }
-
-    entry *node = (entry *)hash_search(g_whitelist_hash, filepath, "0");
-    if (node)
-    {
-        printf("%d\n", node->checksum);
-    }
-    else
-    {
-        printf("not find %lu %s\n", strlen(filepath), filepath);
+        else
+        {
+            printf("not found %lu %s\n", strlen(filepath), filepath);
+        }
+        #endif
     }
 
     command_whitelist_entry *cmdline_node = (command_whitelist_entry *)hash_search(g_command_whitelist_hash, cmd_args, "/c");
