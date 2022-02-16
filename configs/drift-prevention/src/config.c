@@ -10,6 +10,11 @@
 
 static int CHECKSUM_LEN = 8;
 
+#ifdef _DEBUG
+uint64_t config_used_size = 0;
+uint64_t file_bytes = 0;
+#endif
+
 typedef struct
 {
     char **filenames;
@@ -57,8 +62,8 @@ static void command_whitelist_insert(CommandWhitelist *a, char *filename_command
         a->filename_commands = realloc(a->filename_commands, a->size * sizeof(char *));
         a->ok = realloc(a->ok, a->size * sizeof(bool));
     }
-    a->filename_commands[a->used] = malloc(2 * PATH_MAX * sizeof(char));
-    a->cwd[a->used] = malloc(PATH_MAX * sizeof(char));
+    a->filename_commands[a->used] = malloc(PATH_MAX * sizeof(char));
+    a->cwd[a->used] = malloc(2 * PATH_MAX * sizeof(char));
 
     strcpy(a->filename_commands[a->used], filename_command);
     strcpy(a->cwd[a->used], cwd);
@@ -74,6 +79,9 @@ static void whitelist_insert(Whitelist *a, char *filename, uint32_t checksum)
         a->filenames = realloc(a->filenames, a->size * sizeof(char *));
         a->checksums = realloc(a->checksums, a->size * sizeof(uint32_t));
     }
+    #ifdef _DEBUG
+    config_used_size += PATH_MAX * sizeof(char);
+    #endif
     a->filenames[a->used] = malloc(PATH_MAX * sizeof(char));
     strcpy(a->filenames[a->used], filename);
     a->checksums[a->used] = checksum;
@@ -141,7 +149,7 @@ static int read_config(Whitelist *whitelist)
     FILE *fp;
     char line[PATH_MAX + CHECKSUM_LEN + 1];
 
-    // char *whitelist_file = "/tmp/tensorsec/whitelist.txt";
+    // char *whitelist_file = "/tensorsec/whitelist.txt.10000";
     char *whitelist_file = "/tmp/whitelist.txt";
 
     fp = fopen(whitelist_file, "r");

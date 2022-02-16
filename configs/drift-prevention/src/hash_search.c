@@ -7,6 +7,12 @@
 #include "log.h"
 
 static const unsigned int HASH_SEED = 131;
+#ifdef _DEBUG
+
+#define DEBUG_PRINT(fmt, ...) printf("[%s-%d] "fmt, __func__, __LINE__, ##__VA_ARGS__)
+uint64_t used_size = 0;
+
+#endif
 
 typedef int (*cmp_func)(void * node, void * key, void *value, uint32_t key_size);
 typedef int (*add_node_func)(void * node, void * key, uint32_t key_size);
@@ -161,6 +167,9 @@ static void * hashtbl_node_insert(void *key, void *value, hash_tbl_t *table)
             }
             if(node_index == bucket->total_cnt){
                 uint64_t new_bucket_size = table->bucket_size + (bucket->total_cnt +1) * table->entry_size;
+                #ifdef _DEBUG
+                used_size += table->entry_size;
+                #endif
                 tmp_bucket = realloc(bucket, new_bucket_size);
                 if(!tmp_bucket){
                     return NULL;
@@ -172,6 +181,9 @@ static void * hashtbl_node_insert(void *key, void *value, hash_tbl_t *table)
         }else{
             node_index = 0;
             uint64_t new_bucket_size = table->bucket_size + table->entry_size;
+            #ifdef _DEBUG
+            used_size += new_bucket_size;
+            #endif
             tmp_bucket = (hash_bucket_t *)malloc(new_bucket_size);
             if(!tmp_bucket){
                 return NULL;
@@ -243,7 +255,10 @@ static hash_tbl_t * hashtbl_init(hash_config_t *config)
 
     bucket_size_cl = config->bucket_size + config->entry_size * config->n_entries_per_bucket;
     total_size = sizeof(hash_tbl_t) + (bucket_size_cl * n_buckets);
-
+    #ifdef _DEBUG
+    DEBUG_PRINT("initial size: %lu\n", total_size);
+    used_size += total_size;
+    #endif
     hash_table = malloc(total_size);
     if(!hash_table){
         return NULL;
@@ -359,7 +374,7 @@ static int cmp_command_whitelist_func(void * node, void *key, void *value, uint3
 
 static hash_config_t whitelist_hash_config = {
     .n_entries = 4096,
-    .n_entries_per_bucket = 2,
+    .n_entries_per_bucket = 5,
     .key_size = PATH_MAX,//sizeof key
     .entry_size = sizeof(entry),
     .bucket_size = sizeof(hash_bucket_t),

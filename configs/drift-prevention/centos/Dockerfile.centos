@@ -15,6 +15,6 @@ ADD src /src
 
 WORKDIR /src
 
-RUN gcc -shared -std=c11 -D_XOPEN_SOURCE=700 -fPIC -o dp.so preload.c log.c -ldl -lssl -lcrypto
-
+# RUN gcc -shared -std=c11 -D_XOPEN_SOURCE=700 -fPIC -o dp.so preload.c log.c -ldl -lssl -lcrypto
+RUN make centoscompile
 CMD ["tail", "-f", "/dev/null"]
