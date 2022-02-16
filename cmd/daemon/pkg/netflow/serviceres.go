@@ -232,12 +232,12 @@ func (rs K8sResClient) ListenLocalNodePods(stopChan chan struct{}) {
 				}
 
 				network := pod.Spec.HostNetwork
-				podIp := pod.Status.PodIP
-				if network || podIp == "" || podIp == NoneValue {
+				podIP := pod.Status.PodIP
+				if network || podIP == "" || podIP == NoneValue {
 					return
 				}
 
-				_, err := rs.nodeResInfo.GetK8sResData(podIp)
+				_, err := rs.nodeResInfo.GetK8sResData(podIP)
 				if err == nil {
 					return
 				}
@@ -246,7 +246,7 @@ func (rs K8sResClient) ListenLocalNodePods(stopChan chan struct{}) {
 				namespace := pod.GetNamespace()
 				//logging.Get().Info().Msgf("[pods update] ip : %v, name : %v, kind : %v, namespace : %v", podIp, pod.GetName(), pod.Kind, pod.GetNamespace())
 				//update k8s resource data
-				rs.nodeResInfo.UpdateK8sResData(podIp, ownername, kind, namespace, pod.GetName(), rs.GetContainerData(pod))
+				rs.nodeResInfo.UpdateK8sResData(podIP, ownername, kind, namespace, pod.GetName(), rs.GetContainerData(pod))
 			}})
 	//controller run
 	controller.Run(stopChan)

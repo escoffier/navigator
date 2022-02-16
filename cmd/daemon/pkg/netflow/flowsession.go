@@ -120,7 +120,7 @@ func AllowProto(proto uint8) bool {
 	return false
 }
 
-func AllowTcpState(flow *ConntrackFlow, state uint8) bool {
+func AllowTCPState(flow *ConntrackFlow, state uint8) bool {
 	//tcp protocol
 	if flow.Forward.Protocol != IPPROTO_TCP {
 		return true
@@ -144,7 +144,7 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, consoleUrl string) (*FlowSession, error) {
+func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
 
 	redisClient, err := RedisInit()
 	if err != nil {
@@ -172,7 +172,7 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, cons
 		return nil, errors.Errorf("Pod IP (found=%s) must equal Host IP (found=%s), check if hostNetwork is true", myPodIP, myHostIP)
 	}
 
-	url := fmt.Sprintf("%s/internal/platform/networkTopo/topologies", consoleUrl)
+	url := fmt.Sprintf("%s/internal/platform/networkTopo/topologies", consoleURL)
 
 	fs := FlowSession{
 		CtFlow:         ctFlow,
@@ -659,7 +659,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 		} else {
 			nfType = NFCT_T_UPDATE
 			//tcp state != established
-			if !AllowTcpState(flow, TCP_CONNTRACK_ESTABLISHED) {
+			if !AllowTCPState(flow, TCP_CONNTRACK_ESTABLISHED) {
 				return nil
 			}
 		}

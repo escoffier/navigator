@@ -13,13 +13,12 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -75,13 +74,13 @@ func (s *Service) getRequestURL(relativePath string) (string, error) {
 }
 
 func (s *Service) IsolatePod(ctx context.Context, pods []*model.PodInfo) (successfulPods, isolatedPods, deletedPods []*model.PodInfo) {
-	isolateUrl, err := s.getRequestURL(IsolatePath)
+	isolateURL, err := s.getRequestURL(IsolatePath)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("getRequestURL fail, microSegBaseURL:%s", s.microSegBaseURL)
 		return nil, nil, nil
 	}
 
-	rsp, err := s.sendRequestToMicroSeg(ctx, pods, isolateUrl)
+	rsp, err := s.sendRequestToMicroSeg(ctx, pods, isolateURL)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("sendRequestToMicroSeg fail")
 		return nil, nil, nil
@@ -91,13 +90,13 @@ func (s *Service) IsolatePod(ctx context.Context, pods []*model.PodInfo) (succes
 }
 
 func (s *Service) CancelIsolatePod(ctx context.Context, pods []*model.PodInfo) (successfulPods []*model.PodInfo) {
-	isolateUrl, err := s.getRequestURL(ReleasePath)
+	isolateURL, err := s.getRequestURL(ReleasePath)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("getRequestURL fail, microSegBaseURL:%s", s.microSegBaseURL)
 		return nil
 	}
 
-	rsp, err := s.sendRequestToMicroSeg(ctx, pods, isolateUrl)
+	rsp, err := s.sendRequestToMicroSeg(ctx, pods, isolateURL)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("sendRequestToMicroSeg fail")
 		return nil
