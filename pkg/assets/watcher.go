@@ -16,8 +16,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const (
@@ -68,12 +70,14 @@ type ClusterCallback interface {
 	OnTensorResourceEvent(newResource, oldResource *TensorResource, action AssetsAction) error
 	OnNodeEvent(newNode, oldNode *corev1.Node, action AssetsAction) error
 	AfterDataSynced(ctx context.Context, dataSynced bool)
+	OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action AssetsAction) error
 	Name() string
 }
 
 type Watcher struct {
-	callbacks    []AssetsCallback
-	clusterChans map[string]chan struct{}
+	callbacks         []AssetsCallback
+	honeyspotCallback AssetsCallback
+	clusterChans      map[string]chan struct{}
 	sync.RWMutex
 }
 
@@ -219,7 +223,7 @@ func ShouldResourceBeFiltered(res *TensorResource) bool {
 	return false
 }
 
-func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newClient *kubernetes.Clientset, stopChan chan struct{}) {
+func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newClient *Clientset, stopChan chan struct{}) {
 	toWatchedTypes := make(map[WatchedType]struct{}, 4)
 	callbacks := make([]ClusterCallback, len(w.callbacks))
 	for i, cb := range w.callbacks {
@@ -237,6 +241,7 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(newClient, resyncInterval)
+	defenseInforerFactory := externalversions.NewSharedInformerFactory(newClient.TensorClientset, resyncInterval)
 
 	informerStatuses := make([]*informerStatus, 0, 5)
 
@@ -969,10 +974,67 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 		})
 	}
 
+	honeyspotInformers := defenseInforerFactory.Defense().V1().Honeypots().Informer()
+
+	honeyspotInformers.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			hs, ok := obj.(*defensev1.Honeypot)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *corev1.Endpoints")
+				return
+			}
+			for _, cb := range callbacks {
+				eptErr := cb.OnHoneyspot(hs, nil, ActionAdd)
+				if eptErr != nil {
+					logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on honeyspot event %s error", cb.Name()))
+				}
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			newHs, ok := newObj.(*defensev1.Honeypot)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *defensev1.Honeypot")
+				return
+			}
+			oldHs, ok := oldObj.(*defensev1.Honeypot)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", newObj)).Msg("Failed to cast to *defensev1.Honeypot")
+				return
+			}
+			for _, cb := range callbacks {
+				eptErr := cb.OnHoneyspot(newHs, oldHs, ActionUpdate)
+				if eptErr != nil {
+					logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on honeyspot event %s error", cb.Name()))
+				}
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			hs, ok := obj.(*defensev1.Honeypot)
+			if !ok {
+				logging.GetLogger().Error().Str("obj-type", fmt.Sprintf("%T", obj)).Msg("Failed to cast to *defensev1.Honeypot")
+				return
+			}
+			for _, cb := range callbacks {
+				eptErr := cb.OnHoneyspot(nil, hs, ActionDelete)
+				if eptErr != nil {
+					logging.GetLogger().Err(eptErr).Msg(fmt.Sprintf("on honeyspot event %s error", cb.Name()))
+				}
+			}
+		},
+	})
+	honeyspotSynced := honeyspotInformers.HasSynced
+
 	stopChan = make(chan struct{})
 	w.putClusterStopChan(clusterKey, stopChan)
 
 	informerFactory.Start(stopChan)
+	defenseInforerFactory.Start(stopChan)
+
+	go func() {
+		if ok := cache.WaitForCacheSync(stopChan, honeyspotSynced); !ok {
+			logging.GetLogger().Warn().Msgf("cluster %s synced failed for %s", clusterKey, "honeyspot")
+		}
+	}()
 
 	// async wait for cache sync
 	go func(cname string, ifactory informers.SharedInformerFactory, stopChan chan struct{}, informers []*informerStatus, clusterCallbacks []ClusterCallback) {
@@ -1022,7 +1084,7 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 
 	logging.GetLogger().Info().Msg(fmt.Sprintf("Wait for informers for cluster %s cache synced", clusterKey))
 }
-func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*kubernetes.Clientset) error {
+func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*Clientset) error {
 	logging.GetLogger().Info().Msg("starts to watch kubernetes informers")
 
 	if k8sClients == nil || len(k8sClients) == 0 {

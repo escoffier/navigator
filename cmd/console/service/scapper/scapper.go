@@ -16,6 +16,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -26,12 +27,12 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -321,7 +322,7 @@ func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.Langua
 	}
 }
 
-func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *kubernetes.Clientset, checkType model.ComplianceCheckType, namespace string) error {
+func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *pkgassets.Clientset, checkType model.ComplianceCheckType, namespace string) error {
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			jobLabel: "true",
@@ -409,7 +410,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 	return nil
 }
 
-func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *kubernetes.Clientset, check *model.Check, jobObj *batchv1.Job, nodes *corev1.NodeList, clusterName string) {
+func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, nodes *corev1.NodeList, clusterName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
@@ -502,7 +503,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *kubernetes.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName string) error {
+func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName string) error {
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
@@ -618,7 +619,7 @@ func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, m
 	return err
 }
 
-func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *kubernetes.Clientset, check *model.Check, maxNumJobs int) (chan string, chan struct{}, bool) {
+func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check, maxNumJobs int) (chan string, chan struct{}, bool) {
 	finishedNodesCh := make(chan string, maxNumJobs)
 
 	kubeInformerFactory := informers.NewFilteredSharedInformerFactory(kubeClient, time.Second*30, check.Namespace, func(listOpts *v1.ListOptions) {
@@ -790,7 +791,7 @@ func (s Scapper) isJobFailed(job *batchv1.Job) (bool, *batchv1.JobCondition) {
 	return false, nil
 }
 
-func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *kubernetes.Clientset, namespace string, job *batchv1.Job) error {
+func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *pkgassets.Clientset, namespace string, job *batchv1.Job) error {
 	err := kubeClient.BatchV1().Jobs(namespace).Delete(ctx, job.Name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("Failed to delete job: %v", err)

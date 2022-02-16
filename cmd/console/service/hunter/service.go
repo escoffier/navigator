@@ -19,12 +19,12 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/kubernetes"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/taskmanager"
+	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -143,7 +143,7 @@ func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 	return s.launchK8sJob(ctx, kubeClient, uuid, namespace, consoleBaseURL)
 }
 
-func (s *Service) launchK8sJob(ctx context.Context, client *kubernetes.Clientset, uuid, namespace, consoleBaseURL string) error {
+func (s *Service) launchK8sJob(ctx context.Context, client *pkgassets.Clientset, uuid, namespace, consoleBaseURL string) error {
 	jobObj, err := s.loadJobTemplate()
 	if err != nil {
 		return fmt.Errorf("loadJobTemplate fail, err:%w", err)

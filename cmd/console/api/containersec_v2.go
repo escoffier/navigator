@@ -8,6 +8,7 @@ func (api *api) containerSec() func(chi.Router) {
 		r.Route("/scap", api.scap())
 		r.Route("/scanner", api.scanner())
 		r.Route("/immune", api.immune())
+		r.Route("/watson", api.defense())
 		// proxy to security profiles management
 		// TODO remove
 		r.Handle("/secprofiles/*", api.secProfiles())

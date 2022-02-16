@@ -1,12 +1,13 @@
 package imagetrust
 
 import (
+	"sync"
+	"testing"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"sync"
-	"testing"
 )
 
 func TestClusterManager_syncK8sClient(t *testing.T) {
@@ -45,9 +46,7 @@ func TestClusterManager_syncK8sClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &ClusterManager{
 				clientMap: tt.fields.clientMap,
-				in:        tt.fields.in,
-				stopChans: tt.fields.stopChans,
-				rdb:       tt.fields.rdb,
+				rdb:       tt.fields.rdb.Get(),
 				RWMutex:   tt.fields.RWMutex,
 			}
 

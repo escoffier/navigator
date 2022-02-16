@@ -40,6 +40,7 @@ func Watcher(rdb *rdbtools.GormWrapper,
 		}
 		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
 		wInstance.AddCallback(image.NewOnlineMonitor(rdb, scannerURL))
+		wInstance.AddCallback(newHoneyspotService(rdb))
 	})
 	return wInstance, nil
 }

@@ -105,6 +105,7 @@ func SetupRoutes(
 		r.Route("/platform/apiscan", api.apiScan())
 		r.Handle("/webhook/*", api.webhook())
 		r.Route("/scap", api.scapInternal())
+		r.Route("/defense", api.defense())
 	})
 }
 

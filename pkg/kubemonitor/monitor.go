@@ -11,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 const (
@@ -302,6 +303,9 @@ func (l *KubeClusterMonitor) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceA
 	return nil
 }
 func (l *KubeClusterMonitor) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *KubeClusterMonitor) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
 	return nil
 }
 func (l *KubeClusterMonitor) AfterDataSynced(ctx context.Context, dataSynced bool) {

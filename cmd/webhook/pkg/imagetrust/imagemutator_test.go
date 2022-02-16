@@ -3,12 +3,13 @@ package imagetrust
 import (
 	"context"
 	"encoding/json"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"io/ioutil"
 	"net/http"
 	"reflect"
 	"testing"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 func Test_patchImageDigest(t *testing.T) {
@@ -88,42 +89,6 @@ func setUpServer() {
 	err := server.ListenAndServe()
 	if err != nil {
 		return
-	}
-}
-
-func TestMutator_Init(t *testing.T) {
-	type fields struct {
-		client            *http.Client
-		digestUrl         string
-		IgnoredNameSpaces []string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		wantErr bool
-	}{
-		{
-			name: "test-1",
-			fields: fields{
-				client:            nil,
-				digestUrl:         "",
-				IgnoredNameSpaces: []string{"tensorsec", "tensor-test-cn"},
-			},
-			wantErr: false,
-		},
-	}
-	processors.ConfigBasePath = "./testdata"
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := &Mutator{
-				client:            tt.fields.client,
-				digestUrl:         tt.fields.digestUrl,
-				IgnoredNameSpaces: tt.fields.IgnoredNameSpaces,
-			}
-			if err := m.Init(); (err != nil) != tt.wantErr {
-				t.Errorf("Init() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
 	}
 }
 
