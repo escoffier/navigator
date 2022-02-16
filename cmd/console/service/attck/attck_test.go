@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -47,6 +48,8 @@ func TestParseItems(t *testing.T) {
 	}
 }
 
+
+
 func TestFlushCache(t *testing.T) {
 	dsn := "root:123456@tcp(127.0.0.1:3306)/local_test?charset=utf8mb4&parseTime=True&loc=Local"
 
@@ -67,7 +70,7 @@ func TestFlushCache(t *testing.T) {
 	redisCli := redis.NewClient(&redis.Options{
 		Addr: "127.0.0.1:6379",
 	})
-	handler, err := NewATTCKHandler(dbWrapper, redisCli)
+	handler, err := NewATTCKHandler(dbWrapper, redisCli, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +98,7 @@ func TestFlushCache_2(t *testing.T) {
 	redisCli := redis.NewClient(&redis.Options{
 		Addr: "127.0.0.1:6379",
 	})
-	handler, err := NewATTCKHandler(dbWrapper, redisCli)
+	handler, err := NewATTCKHandler(dbWrapper, redisCli, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
