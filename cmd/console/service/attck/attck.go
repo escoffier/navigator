@@ -114,6 +114,8 @@ func parseItems(header cryption.FileHeader, rulesContext []byte) (version string
 		tsAdapter[string(lang.LanguageZH)][typeKey] = ruleTypeZh
 		tsAdapter[string(lang.LanguageZH)][descriptionKey] = descZh
 
+		// for the prevention of ambiguity, we have "_" instead of " "(space). This is for the recovery
+		ruleType = strings.ReplaceAll(ruleType, "_", " ")
 		rules[item.Rule] = &ruleItem{
 			name:        item.Rule,
 			description: item.Desc,
@@ -137,7 +139,7 @@ func NewATTCKHandler(db *rdbtools.GormWrapper, redisCli *redis.Client, ecCli *ec
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	err := handler.initialize(ctx)
+	err := handler.updateConfigs(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +216,7 @@ func (h *ATTCKHandler) asyncUploadRulesToEventsCenter(ruleBytes []byte, version 
 	}()
 
 }
-func (h *ATTCKHandler) initialize(ctx context.Context) error {
+func (h *ATTCKHandler) updateConfigs(ctx context.Context) error {
 	var rules map[string]*ruleItem
 	storeConf, err := h.loadFromStore(ctx)
 	if err == dal.ErrATTCKConfDataNotFound {
@@ -610,7 +612,7 @@ func (h *ATTCKHandler) flushCache() {
 		logging.Get().Info().Msgf(
 			"baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
 			h.baseOffset, h.onlineOffset, latestOffset, latestOnlineOffset)
-		if err = h.initialize(ctx); err != nil {
+		if err = h.updateConfigs(ctx); err != nil {
 			logging.Get().Err(err).Msg("load fail")
 		}
 	}

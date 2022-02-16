@@ -119,11 +119,18 @@ func Str2SeverityNum(s string) uint8 {
 	return retNum
 }
 
-func GetInfoFromOutput(k, output string) (string, error) {
+var (
+	ErrKeyNotFound = errors.New("key not found")
+)
+
+func GetInfoFromOutput(key, output string) (string, error) {
+	if key == "" || output == "" {
+		return "", ErrKeyNotFound
+	}
 	retStr := ""
-	resultList := strings.Split(output, k)
+	resultList := strings.Split(output, key)
 	if len(resultList) < 2 {
-		return "", errors.New("can't find key")
+		return "", ErrKeyNotFound
 	}
 	retStr = resultList[1]
 	resultList = strings.Split(retStr, ",")
@@ -140,19 +147,19 @@ func TranslateRuleType(in string) string {
 	switch in {
 	case "Execution":
 		return "命令执行"
-	case "Privilege Escalation":
+	case "Privilege_Escalation":
 		return "权限提升"
 	case "Persistence":
 		return "后门维持"
 	case "Discovery":
 		return "内网信息探测"
-	case "Credential Access":
+	case "Credential_Access":
 		return "凭证获取"
-	case "Defense Evasion":
+	case "Defense_Evasion":
 		return "检测避免"
 	case "Exfiltration":
 		return "数据泄漏"
-	case "Lateral Movement":
+	case "Lateral_Movement":
 		return "横向移动"
 	}
 	return retStr
