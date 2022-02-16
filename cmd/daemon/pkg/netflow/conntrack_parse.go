@@ -134,7 +134,7 @@ func (s *ConntrackFlow) String() string {
 // <len, NLA_F_NESTED|CTA_TUPLE_PROTO, 1 byte for the protocol, 3 bytes of padding>
 // <len, CTA_PROTO_SRC_PORT, 2 bytes for the source port, 2 bytes of padding>
 // <len, CTA_PROTO_DST_PORT, 2 bytes for the source port, 2 bytes of padding>
-func parseIpTuple(reader *bytes.Reader, tpl *ipTuple) uint8 {
+func parseIPTuple(reader *bytes.Reader, tpl *ipTuple) uint8 {
 	for i := 0; i < 2; i++ {
 		_, t, _, v := parseNfAttrTLV(reader)
 		switch t {
@@ -297,7 +297,7 @@ func parseProtoInfoTcpState(r *bytes.Reader, length uint16) (uint8, uint16) {
 	//get tcp state
 	_ = binary.Read(r, NativeEndian(), &tcpState)
 	//offset
-	offset += 1
+	offset++
 
 	return tcpState, offset
 }
@@ -323,11 +323,11 @@ func ParseRawData(data []byte) *ConntrackFlow {
 			switch t {
 			case CTA_TUPLE_ORIG:
 				if nested, t, _ = parseNfAttrTL(reader); nested && t == CTA_TUPLE_IP {
-					parseIpTuple(reader, &s.Forward)
+					parseIPTuple(reader, &s.Forward)
 				}
 			case CTA_TUPLE_REPLY:
 				if nested, t, l = parseNfAttrTL(reader); nested && t == CTA_TUPLE_IP {
-					parseIpTuple(reader, &s.Reverse)
+					parseIPTuple(reader, &s.Reverse)
 				} else {
 					// Header not recognized skip it
 					skipNfAttrValue(reader, l)

@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	singleton *RiskExplorerService
+	singleton *Service
 	initOnce  sync.Once
 )
 
@@ -30,7 +30,7 @@ const (
 
 func Init(scannerURL string, redisCli *redis.Client) error {
 	initOnce.Do(func() {
-		singleton = &RiskExplorerService{
+		singleton = &Service{
 			reporters:  make([]RiskTypeReporter, 0, 2),
 			scannerURL: scannerURL,
 		}
@@ -40,7 +40,7 @@ func Init(scannerURL string, redisCli *redis.Client) error {
 	return nil
 }
 
-func Get(ctx context.Context) (*RiskExplorerService, bool) {
+func Get(ctx context.Context) (*Service, bool) {
 	return singleton, singleton != nil
 }
 
@@ -128,12 +128,12 @@ func (s Severity) String() string {
 	}
 }
 
-type RiskExplorerService struct {
+type Service struct {
 	scannerURL string
 	reporters  []RiskTypeReporter
 }
 
-func (s *RiskExplorerService) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQueryOption) ([]*NamespaceSummary, error) {
+func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQueryOption) ([]*NamespaceSummary, error) {
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 	totalCount := maxCount
 	offset := 0
@@ -323,7 +323,7 @@ func getImageVulnsRiskData(ctx context.Context, vulns []model.VulnerabilityInfo,
 		Vulnerabilities: vulns,
 	}
 
-	for i, _ := range imageVulns.SensitiveFiles {
+	for i := range imageVulns.SensitiveFiles {
 		if lang.Language(ctx) == lang.LanguageZH {
 			description := imageVulns.SensitiveFiles[i].DescriptionZh
 			imageVulns.SensitiveFiles[i].Description = description
@@ -353,11 +353,11 @@ type data struct {
 	Item model.SimpleImageDetail `json:"item"`
 }
 type imageInfo struct {
-	ApiVersion string `json:"apiVersion"`
+	APIVersion string `json:"apiVersion"`
 	Data       data   `json:"data"`
 }
 
-func (s *RiskExplorerService) getImageScanDetail(ctx context.Context, container *ContainerDetail) (model.SimpleImageDetail, error) {
+func (s *Service) getImageScanDetail(ctx context.Context, container *ContainerDetail) (model.SimpleImageDetail, error) {
 	var tmpLibary, tmpFullRepoName string
 	repo := strings.Replace(container.Repository, "http://", "", 1)
 	repo = strings.Replace(repo, "https://", "", 1)
@@ -391,7 +391,7 @@ func (s *RiskExplorerService) getImageScanDetail(ctx context.Context, container 
 	return resScanImage.Data.Item, nil
 }
 
-func (s *RiskExplorerService) ResourceDetail(ctx context.Context, clusterKey, namespace, resourceKind, resourceName string) (*ResourceDetail, error) {
+func (s *Service) ResourceDetail(ctx context.Context, clusterKey, namespace, resourceKind, resourceName string) (*ResourceDetail, error) {
 
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
 	containers, _, err := resSvc.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCluster(clusterKey).WithNamespace(namespace).WithResourceKind(assets.ResourceKind(resourceKind)).WithResourceName(resourceName), 0, 100)

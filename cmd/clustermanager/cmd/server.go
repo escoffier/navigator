@@ -54,7 +54,7 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 
 	s.manager = clsm
 
-	httpserver, err := clusterserver.NewHttpServer(s.config)
+	httpserver, err := clusterserver.NewHTTPServer(s.config)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err

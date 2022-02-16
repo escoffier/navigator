@@ -23,7 +23,7 @@ type ClusterServer struct {
 	server    *http.Server
 	ClusterID string
 	Name      string
-	TlsServer bool
+	TLSServer bool
 	config    *config.Config
 
 	clusterManager *k8s.ClusterManager
@@ -36,7 +36,7 @@ func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, r *http.Reque
 	clusterInfo := &TensorCluster{
 		Key:         cs.ClusterID,
 		Name:        cs.config.Name,
-		ConsoleUrl:  getConsoleUrlPrefix(cs.config.MasterAddr),
+		ConsoleURL:  getConsoleURLPrefix(cs.config.MasterAddr),
 		Description: "",
 		Status:      0,
 	}
@@ -114,7 +114,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 	resp.Message = "OK"
 }
 
-func NewHttpServer(config *config.Config) (*ClusterServer, error) {
+func NewHTTPServer(config *config.Config) (*ClusterServer, error) {
 
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
@@ -145,16 +145,16 @@ func NewHttpServer(config *config.Config) (*ClusterServer, error) {
 	cs.Handler = mutex
 
 	s.server = cs
-	s.TlsServer = config.TLSServer
+	s.TLSServer = config.TLSServer
 	return s, nil
 }
 
-func (s *ClusterServer) Run() {
+func (cs *ClusterServer) Run() {
 	var err error
-	if s.TlsServer {
-		err = s.server.ListenAndServeTLS("", "")
+	if cs.TLSServer {
+		err = cs.server.ListenAndServeTLS("", "")
 	} else {
-		err = s.server.ListenAndServe()
+		err = cs.server.ListenAndServe()
 	}
 
 	if err != nil {
@@ -176,7 +176,7 @@ func getClusterID(clusterName, apiServerAddr string) string {
 	}
 }
 
-func getConsoleUrlPrefix(masterAddr string) string {
+func getConsoleURLPrefix(masterAddr string) string {
 	if strings.Contains(masterAddr, "http") {
 		return masterAddr
 	}

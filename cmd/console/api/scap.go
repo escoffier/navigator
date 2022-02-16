@@ -138,7 +138,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
 			return
 		}
 
@@ -190,20 +190,15 @@ func (api *api) getCheckBreakdown() http.HandlerFunc {
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{"checkID", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{Location: "checkID", Message: ""}))
 			return
 		}
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
-			return
-		}
-
-		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest,
 				fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
-				Suberror{"checkType", "allowed: kube/docker/host"}))
+				Suberror{Location: "checkType", Message: "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -285,14 +280,14 @@ func (api *api) getLatestScanRecord() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
 			return
 		}
 
 		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest,
 				fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
-				Suberror{"checkType", "allowed: kube/docker/host"}))
+				Suberror{Location: "checkType", Message: "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -347,25 +342,25 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{"checkID", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing"), Suberror{Location: "checkID", Message: ""}))
 			return
 		}
 
 		policyId := chi.URLParam(r, "policyNumber")
 		if policyId == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("policyNumber param missing"), Suberror{"policyNumber", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("policyNumber param missing"), Suberror{Location: "policyNumber", Message: ""}))
 			return
 		}
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
 			return
 
 		}
 		if !model.IsAnyCheckType(checkType) {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
-				Suberror{"checkType", "allowed: kube/docker/host"}))
+				Suberror{Location: "checkType", Message: "allowed: kube/docker/host"}))
 			return
 		}
 
@@ -397,7 +392,7 @@ func (api *api) scapCheck() http.HandlerFunc {
 
 		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
 		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{"checkType", ""}))
+			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
 			return
 		}
 

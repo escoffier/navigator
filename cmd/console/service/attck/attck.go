@@ -182,10 +182,7 @@ func (h *ATTCKHandler) loadFromStore(ctx context.Context) (*model.ATTCKRuleData,
 
 func (h *ATTCKHandler) asyncUploadRulesToEventsCenter(ruleBytes []byte, version string) {
 	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-
-		for range ticker.C {
+		for {
 			toContinue := func() bool {
 				defer func() {
 					if r := recover(); r != nil {
@@ -208,7 +205,9 @@ func (h *ATTCKHandler) asyncUploadRulesToEventsCenter(ruleBytes []byte, version 
 					return false
 				}
 			}()
-			if !toContinue {
+			if toContinue {
+				time.Sleep(1 * time.Minute)
+			} else {
 				break
 			}
 		}
