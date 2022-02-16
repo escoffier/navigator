@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 const (
@@ -195,6 +196,9 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 		logging.GetLogger().Err(err).Msg("data synced. update databases error")
 	}
 
+}
+func (cl *ResourcesClusterListener) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+	return nil
 }
 func (cl *ResourcesClusterListener) Name() string {
 	return name

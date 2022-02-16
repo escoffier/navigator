@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 const (
@@ -377,5 +378,8 @@ func (cl *ResourcesClusterListener) OnClusterRoleBindingEvent(newB, oldB *rbacv1
 }
 func (cl *ResourcesClusterListener) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
 	// do nothing
+	return nil
+}
+func (cl *ResourcesClusterListener) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
 	return nil
 }

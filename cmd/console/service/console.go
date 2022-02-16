@@ -22,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
@@ -308,6 +309,11 @@ func NewConsole(
 	})
 	if err != nil {
 		logging.Get().Err(err).Msg("init process center error")
+	}
+
+	err = defense.InitDefenseService(rdb, ecBuzCli, scannerURL)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: bait service init error")
 	}
 
 	return &Console{

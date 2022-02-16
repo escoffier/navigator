@@ -18,6 +18,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 func init() {
@@ -210,6 +211,9 @@ func (s *OnlineMonitorCB) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRo
 	return nil
 }
 func (s *OnlineMonitorCB) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
+	return nil
+}
+func (s *OnlineMonitorCB) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
 	return nil
 }
 func (s *OnlineMonitorCB) AfterDataSynced(ctx context.Context, dataSynced bool) {

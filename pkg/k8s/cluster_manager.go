@@ -15,7 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 )
@@ -29,10 +28,11 @@ var (
 )
 
 type ClusterManager struct {
-	clientMap map[string]*kubernetes.Clientset
-	watcher   *assets.Watcher
-	rdb       *rdbtools.GormWrapper
-	creator   CreateWatcherFunc
+	clientMap    map[string]*assets.Clientset
+	clientsetMap map[string]*assets.Clientset
+	watcher      *assets.Watcher
+	rdb          *rdbtools.GormWrapper
+	creator      CreateWatcherFunc
 
 	clusterManagerURL string
 	sync.RWMutex
@@ -63,7 +63,7 @@ func newClusterManger(rdb *rdbtools.GormWrapper, creator CreateWatcherFunc, clus
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clsm := &ClusterManager{
-		clientMap:         make(map[string]*kubernetes.Clientset),
+		clientMap:         make(map[string]*assets.Clientset),
 		watcher:           nil,
 		rdb:               rdb,
 		clusterManagerURL: clusterManagerURL,
@@ -101,8 +101,8 @@ func (m *ClusterManager) Start(ctx context.Context) error {
 		}
 	}
 
-	copy := make(map[string]*kubernetes.Clientset)
-	m.TraverseClient(func(key string, client *kubernetes.Clientset) bool {
+	copy := make(map[string]*assets.Clientset)
+	m.TraverseClient(func(key string, client *assets.Clientset) bool {
 		copy[key] = client
 		return true
 	})
@@ -164,12 +164,13 @@ func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model
 		}
 	}
 
-	k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	// k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	clientset, err := CreateClientset(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
 	if err != nil {
 		return err
 	}
 
-	clientMap := map[string]*kubernetes.Clientset{cluster.Key: k8sClient}
+	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
 	m.addClient(clientMap)
 	err = m.watcher.StartsToWatch(ctx, clientMap)
 	if err != nil {
@@ -183,7 +184,7 @@ func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model
 }
 
 func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
-	clientMap := make(map[string]*kubernetes.Clientset)
+	clientMap := make(map[string]*assets.Clientset)
 	clusters, num, err := dal.GetClusters(ctx, m.rdb, 0, maxClusterNum)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("get cluster failed")
@@ -199,7 +200,7 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 		} else {
 			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
 		}
-		clientSet, err := kubernetes.NewForConfig(&rest.Config{
+		clientSet, err := assets.NewForConfig(&rest.Config{
 			Host:            c.APIServerAddr,
 			TLSClientConfig: tlsClientConfig,
 			BearerToken:     c.SecretToken,
@@ -228,14 +229,14 @@ func (m *ClusterManager) UnWatchCluster(ctx context.Context, clusterKey string) 
 	return nil
 }
 
-func (m *ClusterManager) GetClient(clusterKey string) (*kubernetes.Clientset, bool) {
+func (m *ClusterManager) GetClient(clusterKey string) (*assets.Clientset, bool) {
 	m.RLock()
 	defer m.RUnlock()
 	client, ok := m.clientMap[clusterKey]
 	return client, ok
 }
 
-func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *kubernetes.Clientset) bool) {
+func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *assets.Clientset) bool) {
 	m.RLock()
 	defer m.RUnlock()
 	for key, cli := range m.clientMap {
@@ -246,17 +247,18 @@ func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *kuber
 }
 
 func (m *ClusterManager) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
-	k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	// k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	clientset, err := CreateClientset(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
 	if err != nil {
 		return err
 	}
 
-	clientMap := map[string]*kubernetes.Clientset{cluster.Key: k8sClient}
+	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
 	m.addClient(clientMap)
 	return nil
 }
 
-func (m *ClusterManager) addClient(clientMap map[string]*kubernetes.Clientset) {
+func (m *ClusterManager) addClient(clientMap map[string]*assets.Clientset) {
 	m.Lock()
 	defer m.Unlock()
 	for key, c := range clientMap {

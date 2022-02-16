@@ -1,0 +1,559 @@
+package defense
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/pb"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
+)
+
+const (
+	ImageListPath = "/api/v1/images/sampleList"
+	RegistryPath  = "/api/v1/register/registry/"
+)
+
+var (
+	instance *TensorDefenseService
+	rlOnce   sync.Once
+)
+
+type Signal struct {
+	ID           string `json:"id,omitempty"`
+	Cluster      string `json:"cluster,omitempty"`
+	Namespace    string `json:"namespace,omitempty"`
+	ResourceType string `json:"nodeType,omitempty"`
+	Resource     string `json:"nodeKey,omitempty"`
+	Category     string `json:"category,omitempty"`
+	Severity     uint32 `json:"severity,omitempty"`
+	Description  string `json:"description,omitempty"`
+	Timestamp    int64  `json:"timestamp,omitempty"`
+}
+
+type RegistryInfo struct {
+	UserName string `json:"username"`
+	Password string `json:"password"`
+	URL      string `json:"url"`
+}
+
+func InitDefenseService(rdb *rdbtools.GormWrapper, ecCli pb.EventsCenterBizServiceClient, scannerURL string) error {
+	rlOnce.Do(func() {
+		instance = &TensorDefenseService{
+			rdb:        rdb,
+			EsCli:      ecCli,
+			scannerURL: scannerURL,
+		}
+		instance.CheckAlertEvents()
+	})
+	return nil
+}
+
+type TensorDefenseService struct {
+	rdb        *rdbtools.GormWrapper
+	EsCli      pb.EventsCenterBizServiceClient
+	scannerURL string
+}
+
+func GetDefenseService(_ context.Context) (*TensorDefenseService, bool) {
+	return instance, instance != nil
+}
+
+func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.BaitService) error {
+	image, err := dal.GetBaitImageById(ctx, s.rdb.Get(), bait.BaitId)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("get image failed")
+		return err
+	}
+	if image == nil {
+		return fmt.Errorf("not found image: %d", bait.BaitId)
+	}
+
+	registry, err := s.GetImageRepoInfo(ctx, bait.RegistryId)
+	if err != nil {
+		return err
+	}
+
+	bait.Prefix = image.EventPrefix
+	err = s.addBaitServiceToKube(ctx, bait, image.Ports, registry, image.EventPrefix)
+	if err != nil {
+		return err
+	}
+	err = dal.InsertBaitService(ctx, s.rdb.Get(), bait)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *TensorDefenseService) GetBaitService(ctx context.Context, option *dal.BaitsQueryOption) (*model.BaitService, error) {
+	baitServices, err := dal.GetBaitServices(ctx, s.rdb.Get(), option, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(baitServices) == 0 {
+		return nil, fmt.Errorf("not found bait service")
+	}
+
+	return baitServices[0], nil
+}
+
+func (s *TensorDefenseService) GetBaitServices(ctx context.Context, option *dal.BaitsQueryOption, limit, offset int) ([]*model.BaitService, error) {
+	var baitServices []*model.BaitService
+	var err error
+	baitServices, err = dal.GetBaitServices(ctx, s.rdb.Get(), option, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	return baitServices, nil
+}
+
+func (s *TensorDefenseService) DeleteBaitService(ctx context.Context, id uint32) error {
+	queryOpt := dal.BaitsQuery()
+	queryOpt.WithId(id)
+
+	baitService, err := dal.GetBaitService(ctx, s.rdb.Get(), queryOpt)
+	if err != nil {
+		return err
+	}
+	baitName, err := getHoneyspotName(baitService)
+	if err != nil {
+		return err
+	}
+	err = s.deleteBaitServiceFromKube(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
+	if err != nil {
+		return err
+	}
+	return dal.DeleteBaitServiceById(ctx, s.rdb.Get(), id)
+}
+
+func (s *TensorDefenseService) UpdateBaitService(ctx context.Context, bait *model.BaitService) error {
+	// only update bait name
+	return dal.UpsertBaitService(ctx, s.rdb.Get(), bait)
+}
+
+func (s *TensorDefenseService) UpdateBaitServiceAlert(ctx context.Context, bait *model.BaitService) error {
+	return dal.UpdateBaitService(ctx, s.rdb.Get(), bait)
+}
+
+func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *model.BaitService, ports []int32, registry *RegistryInfo, prefix string) error {
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return fmt.Errorf("cluster manager not available")
+	}
+	clientset, ok := clusterManager.GetClient(bait.ClusterKey)
+	if !ok {
+		return fmt.Errorf("clientset not available")
+	}
+
+	honeyspotName, err := getHoneyspotName(bait)
+	if err != nil {
+		return err
+	}
+
+	logging.GetLogger().Info().Msgf("ports: %v", ports)
+
+	servicePorts := make([]v1.ServicePort, 0, len(ports))
+	for _, p := range ports {
+		servicePorts = append(servicePorts, v1.ServicePort{
+			Port:       p,
+			TargetPort: p,
+		})
+	}
+
+	secrets := []v1.ImagePullSecret{
+		{
+			UserName: registry.UserName,
+			Password: registry.Password,
+			Server:   registry.URL,
+		},
+	}
+
+	resourceName := fmt.Sprintf("%s-%s", prefix, bait.ResourceName)
+	honeypot := &v1.Honeypot{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: bait.Namespace,
+			Name:      honeyspotName,
+		},
+		Spec: v1.HoneypotSpec{
+			ClusterKey: bait.ClusterKey,
+			WorkLoad:   resourceName,
+			Ports:      servicePorts,
+			Service:    bait.ResourceName,
+			Image:      bait.Image,
+			Secrets:    secrets,
+		},
+	}
+	logging.GetLogger().Info().Msgf("image: %s", bait.Image)
+	_, err = clientset.TensorClientset.DefenseV1().Honeypots(bait.Namespace).Create(ctx, honeypot, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *TensorDefenseService) updateBaitServiceToKube(ctx context.Context, bait *model.BaitService) error {
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return fmt.Errorf("cluster manager not available")
+	}
+	clientset, ok := clusterManager.GetClient(bait.ClusterKey)
+	if !ok {
+		return fmt.Errorf("clientset not available")
+	}
+	patchData := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"image":    bait.Image,
+			"workload": bait.ResourceName,
+			"service":  bait.ResourceName,
+		},
+	}
+	patchByte, err := json.Marshal(patchData)
+	if err != nil {
+		return err
+	}
+	logging.GetLogger().Info().Msgf("patch data : %+v", string(patchByte))
+
+	baitName, err := getHoneyspotName(bait)
+	if err != nil {
+		return err
+	}
+
+	_, err = clientset.TensorClientset.DefenseV1().Honeypots(bait.Namespace).
+		Patch(ctx, baitName, types.MergePatchType, patchByte, metav1.PatchOptions{})
+	return err
+}
+
+func (s *TensorDefenseService) deleteBaitServiceFromKube(ctx context.Context, clusterKey, namespace, name string) error {
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return fmt.Errorf("cluster manager not available")
+	}
+	clientset, ok := clusterManager.GetClient(clusterKey)
+	if !ok {
+		return fmt.Errorf("clientset not available")
+	}
+
+	err := clientset.TensorClientset.DefenseV1().Honeypots(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	return err
+}
+
+func (s *TensorDefenseService) GetBaitServiceFromKube(ctx context.Context, clusterKey string, Namespace, name string) (*v1.Honeypot, error) {
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return nil, fmt.Errorf("cluster manager not available")
+	}
+	clientset, ok := clusterManager.GetClient(clusterKey)
+	if !ok {
+		return nil, fmt.Errorf("clientset not available")
+	}
+	honeypot, err := clientset.TensorClientset.DefenseV1().Honeypots(Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return honeypot, nil
+}
+
+func getBaitServicesFromKube(ctx context.Context, option *dal.BaitsQueryOption) ([]v1.Honeypot, error) {
+	clusterKey, ok := option.GetClusterOption()
+	if !ok {
+		return nil, fmt.Errorf("invalid cluster key")
+	}
+	ns, ok := option.GetNamespace()
+	if !ok {
+		ns = ""
+	}
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return nil, fmt.Errorf("cluster manager not available")
+	}
+	clientset, ok := clusterManager.GetClient(clusterKey)
+	if !ok {
+		return nil, fmt.Errorf("clientset not available")
+	}
+	honeypots, err := clientset.TensorClientset.DefenseV1().Honeypots(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return honeypots.Items, nil
+}
+
+func getHoneyspotName(baitService *model.BaitService) (string, error) {
+	if baitService == nil || baitService.Name == "" {
+		return "", fmt.Errorf("invalid bait service")
+	}
+	return fmt.Sprintf("honeyspot-%d", baitService.ID), nil
+}
+
+func (s *TensorDefenseService) CountBaitServices(ctx context.Context, option *dal.BaitsQueryOption) (int64, error) {
+	cnt, err := dal.CountBaitServices(ctx, s.rdb.Get(), option)
+	if err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
+func (s *TensorDefenseService) GetBaitImages(ctx context.Context, offset, limit int) ([]*model.BaitImages, error) {
+	baitImages, err := dal.GetBaitImages(ctx, s.rdb.Get(), offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	return baitImages, nil
+}
+
+func (s *TensorDefenseService) CountBaitImages(ctx context.Context) (int64, error) {
+	cnt, err := dal.CountBaitImages(ctx, s.rdb.Get())
+	if err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
+func (s *TensorDefenseService) GetBaitImageByID(ctx context.Context, id uint32) (*model.BaitImages, error) {
+	baitImages, err := dal.GetBaitImageById(ctx, s.rdb.Get(), id)
+	if err != nil {
+		return nil, err
+	}
+	return baitImages, nil
+}
+
+func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, namespace, resource string, limit uint32) ([]*Signal, error) {
+
+	if limit <= 0 {
+		limit = 200
+	}
+	req := &pb.GetSignalsReq{
+		OffsetSignalID: "",
+		SortOrder:      pb.SortOrder_Desc,
+		Limit:          limit,
+		Filter: map[string]string{
+			"cluster":      clusterKey,
+			"namespace":    namespace,
+			"nodeType":     "Deployment",
+			"nodeKey":      resource,
+			"ruleModule":   "ContainerSecurity",
+			"ruleCategory": "Watson",
+		},
+		Lang: string(lang.Language(ctx)),
+	}
+	resp, err := s.EsCli.GetSignals(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	logging.GetLogger().Debug().Msgf("got %d signals", len(resp.Signals))
+	result := make([]*Signal, 0, len(resp.Signals))
+	for _, item := range resp.Signals {
+		result = append(result, &Signal{
+			Severity: item.Rule.Severity,
+		})
+	}
+	return result, nil
+}
+
+type ImageDetail struct {
+	RegistryID int    `json:"registryId"`
+	Image      string `json:"image"`
+}
+
+func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageName string) ([]*ImageDetail, error) {
+	type ImageBase struct {
+		FullRepoName      string `json:"full_repo_name"`
+		Library           string `json:"library"`
+		Tag               string `json:"tags"`
+		RegistryId        int    `json:"registry_id"`
+		RegistryDeletedAt int64  `json:"registry_deleted_at"`
+	}
+
+	var tag string
+	names := strings.SplitN(imageName, ":", 2)
+	if len(names) < 1 {
+		return nil, fmt.Errorf("invalid image name %s", imageName)
+	}
+	if len(names) == 1 {
+		tag = "latest"
+	} else {
+		tag = names[1]
+	}
+
+	url := fmt.Sprintf("%s%s%s%s", s.scannerURL, ImageListPath, "?search=", names[0])
+	logging.GetLogger().Info().Msgf("image list url %s", url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("create request failed")
+		return nil, err
+	}
+	var images []*ImageDetail
+	var base []*ImageBase
+	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode >= http.StatusBadRequest {
+			return fmt.Errorf("request err")
+		}
+
+		if resp.Body == nil {
+			return err
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		var rawResp response.HTTPEnvelope
+		err = json.Unmarshal(body, &rawResp)
+		if err != nil {
+			return err
+		}
+		if len(rawResp.Data.Items) > 0 {
+			err = json.Unmarshal(rawResp.Data.Items, &base)
+			if err != nil {
+				return err
+			}
+			for _, item := range base {
+				if tag != item.Tag || item.RegistryDeletedAt > 0 {
+					continue
+				}
+				registryInfo, err := s.GetImageRepoInfo(ctx, item.RegistryId)
+				if err != nil {
+					return err
+				}
+
+				logging.GetLogger().Debug().Msgf("registryInfo %+v", *registryInfo)
+				library := removePrefix(item.Library)
+				images = append(images, &ImageDetail{
+					RegistryID: item.RegistryId,
+					Image:      fmt.Sprintf("%s/%s:%s", library, item.FullRepoName, item.Tag),
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return images, nil
+}
+
+func (s *TensorDefenseService) GetImageRepoInfo(ctx context.Context, registryID int) (*RegistryInfo, error) {
+
+	url := fmt.Sprintf("%s%s%d", s.scannerURL, RegistryPath, registryID)
+	logging.GetLogger().Info().Msgf("registry url %s", url)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("create request failed")
+		return nil, err
+	}
+
+	var registry RegistryInfo
+	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode >= http.StatusBadRequest {
+			return fmt.Errorf("request err")
+		}
+		if resp.Body == nil {
+			return err
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		var rawResp response.HTTPEnvelope
+		err = json.Unmarshal(body, &rawResp)
+		if err != nil {
+			return err
+		}
+		if rawResp.Data == nil {
+			return fmt.Errorf("resp data is empty")
+		}
+
+		if len(rawResp.Data.Item) > 0 {
+			err = json.Unmarshal(rawResp.Data.Item, &registry)
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	logging.GetLogger().Debug().Msgf("registry: %+v", registry)
+	return &registry, nil
+}
+
+func (s *TensorDefenseService) CheckAlertEvents() {
+	stopChan := make(chan struct{})
+	go func() {
+		wait.Until(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			queryOpt := dal.BaitsQuery()
+			baitServices, err := s.GetBaitServices(ctx, queryOpt, -1, -1)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("failed to get bait services")
+				return
+			}
+			for _, bait := range baitServices {
+				prefixName := fmt.Sprintf("%s-%s", bait.Prefix, bait.ResourceName)
+
+				events, err := s.GetAlertEvent(ctx, bait.ClusterKey, bait.Namespace, prefixName, 1)
+				if err != nil {
+					logging.GetLogger().Err(err).Msg("failed to get bait events")
+					continue
+				}
+				haveAlerts := false
+				if len(events) > 0 {
+					haveAlerts = true
+				}
+
+				logging.GetLogger().Info().Msgf("update bait service alerts flag %t", haveAlerts)
+				err = dal.UpdateBaitService(ctx, s.rdb.Get(), &model.BaitService{
+					TableBase: model.TableBase{
+						ID: bait.ID,
+					},
+					HaveAlerts: haveAlerts,
+				})
+				if err != nil {
+					logging.GetLogger().Err(err).Msg("failed to update bait services")
+					continue
+				}
+			}
+		}, time.Second*120, stopChan)
+	}()
+}
+
+func removePrefix(url string) string {
+	if strings.Contains(url, "https://") {
+		return url[8:]
+	} else if strings.Contains(url, "http://") {
+		return url[7:]
+	} else {
+		return url
+	}
+}

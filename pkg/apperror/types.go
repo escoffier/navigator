@@ -89,6 +89,9 @@ type InvalidAccessSentError struct{ detailedError }
 type InvalidSyscallSentError struct{ detailedError }
 type CannotUpdateProfileThatIsTrained struct{ detailedError }
 type DuplicateEntrySentError struct{ detailedError }
+type BaitNameDuplicateError struct{ detailedError }
+type ResourceNameDuplicateError struct{ detailedError }
+type AddBaitServiceError struct{ detailedError }
 
 // Example usage:
 // return NewMongoError(err, http.StatusInternalServerError)
@@ -1682,6 +1685,54 @@ func NewDuplicateEntrySentError(httpCode int, err error, suberrors ...Suberror) 
 			err:       err,
 			English:   "Duplicate entry sent",
 			Chinese:   "输入的条目已经存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewBaitNameDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return BaitNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   "服务名称重复",
+			Chinese:   "服务名称重复",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewResourceNameDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return ResourceNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   "资源名称重复",
+			Chinese:   "资源名称重复",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewAddBaitServiceError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "新增失败，请重试",
+			Chinese:   "新增失败，请重试",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 			File:      file,

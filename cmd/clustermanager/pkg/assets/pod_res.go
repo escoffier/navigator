@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 type PodResourcesService struct {
@@ -344,6 +345,9 @@ func (cb *PodResourcesClusterCallback) OnNamespaceEvent(newNs, oldNs *corev1.Nam
 	return nil
 }
 func (cb *PodResourcesClusterCallback) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
+	return nil
+}
+func (cb *PodResourcesClusterCallback) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
 	return nil
 }
 

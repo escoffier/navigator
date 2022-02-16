@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -88,6 +89,24 @@ func CreateK8sClient(token, ca, addr string) (*kubernetes.Clientset, error) {
 		tlsClientConfig.CAData = []byte(ca)
 	}
 	clientSet, err := kubernetes.NewForConfig(&rest.Config{
+		Host:            addr,
+		TLSClientConfig: tlsClientConfig,
+		BearerToken:     token,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return clientSet, nil
+}
+
+func CreateClientset(token, ca, addr string) (*assets.Clientset, error) {
+	tlsClientConfig := rest.TLSClientConfig{}
+	if _, err := certutil.NewPoolFromBytes([]byte(ca)); err != nil {
+		return nil, err
+	} else {
+		tlsClientConfig.CAData = []byte(ca)
+	}
+	clientSet, err := assets.NewForConfig(&rest.Config{
 		Host:            addr,
 		TLSClientConfig: tlsClientConfig,
 		BearerToken:     token,
