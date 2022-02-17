@@ -24,6 +24,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     software-properties-common \
     curl \
     python3.8 \
+    python3-pip \
     dnsutils \
     tcpdump \
     nmap \
@@ -39,6 +40,10 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     libapache2-mod-php7.2 \
     git \
     jq \
+    redis-tools \
+    && rm /usr/bin/python3 \
+    && ln -s /usr/bin/python3.8 /usr/bin/python3 \
+    && pip3 install PyMySQL \
     && curl -o /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-18.09.9.tgz \
     && wget https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz \
     && tar xvzf /jdk-8u151-linux-x64.tar.gz \
