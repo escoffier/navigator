@@ -53,6 +53,7 @@ type ruleItem struct {
 	hthreats    uint8
 	adapter     map[string]map[string]string
 	disabled    bool
+	category    string
 }
 
 const (
@@ -123,6 +124,7 @@ func parseItems(header cryption.FileHeader, rulesContext []byte) (version string
 			hthreats:    item.Hthreats,
 			ruleType:    ruleType,
 			adapter:     tsAdapter,
+			category:    item.Category,
 		}
 	}
 	return version, rules, nil
@@ -421,7 +423,8 @@ func (h *ATTCKHandler) GetRuleList(_ context.Context, arg *GetRuleListArg) (int6
 	for _, rule := range h.sortedItems {
 		if (arg.Query == "" || checkRuleMatchQuery(rule, arg.Query, arg.Lang)) &&
 			(len(arg.SeverityFilter) == 0 || checkSeverityFilter(rule, arg.SeverityFilter)) &&
-			(len(arg.HthreatsFilter) == 0 || checkHthreatsFilter(rule, arg.HthreatsFilter)) {
+			(len(arg.HthreatsFilter) == 0 || checkHthreatsFilter(rule, arg.HthreatsFilter)) &&
+			isAttck(rule) {
 			offset--
 			total++
 			if offset < 0 && len(items) < arg.Limit {
@@ -531,6 +534,10 @@ func checkSeverityFilter(rule *ruleItem, filter map[uint8]struct{}) bool {
 func checkHthreatsFilter(rule *ruleItem, filter map[uint8]struct{}) bool {
 	_, ok := filter[rule.hthreats]
 	return ok
+}
+
+func isAttck(rule *ruleItem) bool {
+	return rule.category == "" || rule.category == "ATT&CK"
 }
 
 func (h *ATTCKHandler) GetATTCKVersion(_ context.Context) (*model.ATTCKConfVersion, error) {
