@@ -7,4 +7,4 @@ RUN chmod u+x webshell-server
 
 ENV GIN_MODE=release
 
-CMD ["./webshell-server"]
+ENTRYPOINT ["./webshell-server"]

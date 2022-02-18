@@ -3,6 +3,7 @@ package detector
 import (
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -10,7 +11,22 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/detector"
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/re"
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/tools"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
+
+// 牧云开启的开关，默认开启
+var closeCloudWalker = false
+
+func init() {
+	closeCloudWalker = os.Getenv("CLOSE_CLOUD_WALKER") == "1"
+	if closeCloudWalker {
+		logging.GetLogger().Warn().Msgf(
+			"environment variable `CLOSE_CLOUD_WALKER` has been set, value is `%s`",
+			os.Getenv("CLOSE_CLOUD_WALKER"),
+		)
+		logging.GetLogger().Warn().Msg("cloudwalker detector has been closed")
+	}
+}
 
 type Server struct {
 	phpDetector        detector.Detector
@@ -38,10 +54,14 @@ func (s *Server) File(ctx *gin.Context) {
 
 	score, err := s.simpleScanDetector.Detect(body)
 	if err == nil && score < 9 {
-		phpScore, err := s.phpDetector.Detect(body)
-		if err != nil {
-			_ = ctx.AbortWithError(http.StatusInternalServerError, err)
-			return
+		var phpScore int
+
+		if !closeCloudWalker {
+			phpScore, err = s.phpDetector.Detect(body)
+			if err != nil {
+				_ = ctx.AbortWithError(http.StatusInternalServerError, err)
+				return
+			}
 		}
 
 		score += phpScore
