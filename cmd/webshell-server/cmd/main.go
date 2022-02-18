@@ -17,8 +17,16 @@ import (
 )
 
 var port = flag.Int("port", 80, "http port")
+var debug = flag.Bool("debug", false, "debug mode")
 
 func main() {
+	flag.Parse()
+
+	if *debug {
+		logging.SetVerbose()
+		logging.GetLogger().Warn().Msg("start with DEBUG mode. DONT use in release.")
+	}
+
 	router := gin.Default()
 	api.InitRouter(router)
 

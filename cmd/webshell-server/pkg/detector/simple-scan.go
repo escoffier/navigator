@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 
 	twsscan "gitlab.com/piccolo_su/vegeta/cmd/webshell-server/pkg/detector/twsscan"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type simpleScanDetector struct{}
@@ -16,12 +17,18 @@ func NewSimpleScanDetector() Detector {
 }
 
 func (s *simpleScanDetector) Detect(b []byte) (int, error) {
+	logging.GetLogger().Debug().Msg("regex detection start")
+
 	r, err := twsscan.Scan(b)
 	if err != nil {
 		return 0, err
 	}
 
-	return s.score(r), nil
+	score := s.score(r)
+
+	logging.GetLogger().Debug().Msgf("regex detection end. score: %d", score)
+
+	return score, nil
 }
 
 func (s *simpleScanDetector) DetectFromReader(reader io.Reader) (int, error) {

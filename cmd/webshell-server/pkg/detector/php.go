@@ -53,12 +53,17 @@ func (d *phpDetector) DetectFromReader(reader io.Reader) (int, error) {
 
 // Detect detects the content.
 func (d *phpDetector) Detect(b []byte) (int, error) {
+	logging.GetLogger().Debug().Msg("php detection start")
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	score, err := d.Predict(b)
 	if err != nil {
 		return 0, errors.Wrap(err, "detect failed")
 	}
+
+	logging.GetLogger().Debug().Msgf("php detection, end. score: %d", score)
 	return d.risk(score), nil
 }
 
