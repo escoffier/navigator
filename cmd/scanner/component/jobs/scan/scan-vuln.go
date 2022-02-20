@@ -87,8 +87,8 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 
 	result, err := component.TrivyService.Scan(ctx, Newimage)
 	if err != nil {
-		logging.GetLogger().Error().Msg("Scan image failed")
-		return nil, errors.New("Scan image failed")
+		logging.GetLogger().Err(err).Msg("Scan image failed")
+		return nil, errors.New("scan image failed")
 	}
 	r := make(map[string]interface{})
 
