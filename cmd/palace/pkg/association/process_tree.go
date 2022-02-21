@@ -481,7 +481,7 @@ func (ta *ProcessTreeAggregator) treeReviews(trees []*processTree, now time.Time
 		})
 
 		if now.Sub(tree.lastUpdateTime) >= ta.config.WindowDivisionLatency {
-			if tree.eventsNum == 1 {
+			if tree.eventsNum <= 1 {
 				// ignore single events with few relations
 				ta.cleanTree(tree, false)
 			} else {
