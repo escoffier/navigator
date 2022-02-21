@@ -2,6 +2,12 @@ package migrate
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"time"
+
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/mitchellh/go-homedir"
@@ -9,11 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"os"
-	"path"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 var (
@@ -82,14 +83,14 @@ func RunMigrate(action string, cmd *cobra.Command) {
 	var m = NewFileMigration(conf.Database)
 	var absPath, err = filepath.Abs(VersionsDir)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("get version files directory failed,versionDir %s,err %v", absPath, err)
+		logging.GetLogger().Err(err).Msgf("get version files directory failed,versionDir %s", absPath)
 		return
 	}
 
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		err := os.Mkdir(absPath, os.ModePerm)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("create versionDir %s,err %v", absPath, err)
+			logging.GetLogger().Err(err).Msgf("create versionDir %s", absPath)
 			return
 		}
 	}
@@ -113,7 +114,7 @@ func RunMigrate(action string, cmd *cobra.Command) {
 
 		var shortTitle string
 		if err != nil {
-			logging.GetLogger().Error().Msgf("error while parsing params title", err)
+			logging.GetLogger().Err(err).Msgf("error while parsing params title")
 			return
 		}
 		if len(title) > MaxTitleLen {
@@ -126,12 +127,12 @@ func RunMigrate(action string, cmd *cobra.Command) {
 		var down = fmt.Sprintf("%s/%s_%s.down.sql", absPath, timeStr, shortTitle)
 		upFile, err := os.Create(up)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Error while creating migration up file,%s,err %v", up, err)
+			logging.GetLogger().Err(err).Msgf("Error while creating migration up file,%s", up)
 			return
 		}
 		downFile, err := os.Create(down)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Error while creating migration down file %s,%v", down, err)
+			logging.GetLogger().Err(err).Msgf("Error while creating migration down file %s", down)
 			return
 		}
 		defer upFile.Close()
@@ -142,7 +143,7 @@ func RunMigrate(action string, cmd *cobra.Command) {
 	} else {
 		var forceDown, err = cmd.Flags().GetBool("force-down")
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Get flag failed %v", err)
+			logging.GetLogger().Err(err).Msg("Get flag failed")
 		} else {
 			if forceDown {
 				m.ForceResetDown()

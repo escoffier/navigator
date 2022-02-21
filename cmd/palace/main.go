@@ -74,7 +74,7 @@ func initRedis() (err error) {
 		DB:            0,
 	})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to get redis client")
+		logging.GetLogger().Err(err).Msg("Failed to get redis client")
 		return
 	}
 	return

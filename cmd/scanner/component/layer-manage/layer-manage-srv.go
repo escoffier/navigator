@@ -313,7 +313,7 @@ func (llms *LocalLayerManageSrv) handlePost(ctx *gin.Context) {
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
 	if err != nil {
-		logging.Get().Error().Msgf(" json unmarshal err %v", err)
+		logging.Get().Err(err).Msg(" json unmarshal err")
 
 		ctx.JSON(http.StatusBadRequest, ResponseLayerInfo{
 			Code:       1,

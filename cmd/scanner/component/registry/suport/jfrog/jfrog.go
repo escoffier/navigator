@@ -15,7 +15,6 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -256,7 +255,7 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.Lis
 func init() {
 	err := registry.Register(Version, openRegistry)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+		logging.GetLogger().Err(err).Msgf("init harborV2 error")
 	}
 	logging.GetLogger().Info().Msg("jfrog dirver register success")
 }
@@ -267,7 +266,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 
 	byt, err := json.Marshal(config.Options)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("jfrog marshal config")
+		logging.GetLogger().Err(err).Msg("jfrog marshal config")
 		return nil, err
 	}
 	conf := new(Config)

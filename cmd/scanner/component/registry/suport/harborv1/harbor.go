@@ -15,7 +15,6 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -91,7 +90,7 @@ func (h *HarborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("req harbor projects err %v", err)
+		logging.GetLogger().Err(err).Msg("req harbor projects err")
 		return nil, err
 	}
 
@@ -144,7 +143,7 @@ func (h *HarborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repo
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("req harbor repos err %+v", err)
+		logging.GetLogger().Err(err).Msg("req harbor repos err")
 		return nil, err
 	}
 
@@ -205,7 +204,7 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 		repos, err := h.ListProjectRepos(v.ProjectID)
 		if err != nil {
 			// just log and try next project
-			logging.GetLogger().Err(err).Msgf("project %s get repo err,try next project.%v", v.Name, err)
+			logging.GetLogger().Err(err).Msgf("project %s get repo err,try next project. ", v.Name)
 			continue
 		}
 
@@ -214,7 +213,7 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 			// repo name like 'library/xxx'
 			tags, err := h.ListRepoTags(r.Name)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("repo %s get artifacts err,try next repo.%v", r.Name, err)
+				logging.GetLogger().Err(err).Msgf("repo %s get artifacts err,try next repo.", r.Name)
 				continue
 			}
 
@@ -254,7 +253,7 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 				cnt++
 				im, err := extender(*i)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("HarborV1 Insert imagelist error %v", err)
+					logging.GetLogger().Err(err).Msgf("HarborV1 Insert imagelist error")
 					continue
 				}
 				if req.NeedToReturnAll {
@@ -282,7 +281,7 @@ func (h *HarborV1) GetImage(projectName, repoName, tag string) (*registry.Image,
 
 	tags, err := h.ListRepoTags(fullRopoName)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("repo %s get artifacts err,try next repo.%v", fullRopoName, err)
+		logging.GetLogger().Err(err).Msgf("repo %s get artifacts err,try next repo.", fullRopoName)
 	}
 	var artifact Tag
 	for _, t := range tags {

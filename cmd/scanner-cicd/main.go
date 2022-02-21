@@ -16,7 +16,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/cmd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/output"
@@ -24,6 +23,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/structures"
 	trustimage "gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/trust-image"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
@@ -82,17 +82,17 @@ func main() {
 
 	if err := rootCmd.Execute(); err != nil {
 		// log.Error().Err(err).Msg("Failed to startup")
-		log.Error().Err(err).Msg("Failed to startup")
+		logging.Get().Err(err).Msg("Failed to startup")
 		os.Exit(1)
 	}
 }
 
 func run(ctx context.Context) {
 	if reinforceEnable {
-		log.Info().Msg("reinforceEnable is true,It will execute reinfroce image,if you need cicd,please set this filed false")
+		logging.Get().Info().Msg("reinforceEnable is true,It will execute reinfroce image,if you need cicd,please set this filed false")
 		err := pkg.ReinforceImage(maxSecond, consoleURL, apikey)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed reinfoce Image")
+			logging.Get().Err(err).Msg("Failed reinfoce Image")
 			os.Exit(2)
 		}
 
@@ -106,13 +106,13 @@ func run(ctx context.Context) {
 	}, retry.Attempts(3))
 
 	if err != nil {
-		log.Error().Err(err).Msg("get cache certificate err")
+		logging.Get().Err(err).Msg("get cache certificate err")
 		os.Exit(2)
 	}
 
 	// push到自己的仓库中
 	if len(accountInfo.Data.Items) == 0 {
-		log.Error().Msg("未查询到中转仓库")
+		logging.Get().Error().Msg("未查询到中转仓库")
 		os.Exit(2)
 	}
 
@@ -122,7 +122,7 @@ func run(ctx context.Context) {
 		accountInfo.Data.Items[0].UserName, "-p", accountInfo.Data.Items[0].PassWord, bufRegistryURL,
 	)
 	if err != nil {
-		log.Error().Err(err).Msgf("docker login err :%v %v %v\n", err, stderr.String(), stdout.String())
+		logging.Get().Err(err).Msgf("docker login err :%v %v %v\n", err, stderr.String(), stdout.String())
 		os.Exit(2)
 	}
 
@@ -130,13 +130,13 @@ func run(ctx context.Context) {
 
 	stdout, stderr, err = cmd.RunCmd("docker", "tag", image, newTag)
 	if err != nil {
-		log.Error().Err(err).Msgf("docker tag err :%v %v %v\n", err, stderr.String(), stdout.String())
+		logging.Get().Err(err).Msgf("docker tag err :%v %v %v\n", err, stderr.String(), stdout.String())
 		os.Exit(2)
 	}
 
 	stdout, stderr, err = cmd.RunCmd("docker", "push", newTag)
 	if err != nil {
-		log.Error().Err(err).Msgf("docker push err :%v %v %v\n", err, stderr.String(), stdout.String())
+		logging.Get().Err(err).Msgf("docker push err :%v %v %v\n", err, stderr.String(), stdout.String())
 		if strings.Contains(stderr.String(), "Error") {
 			os.Exit(2)
 		}
@@ -154,24 +154,24 @@ func run(ctx context.Context) {
 
 	jsonSrt, err := json.Marshal(data)
 	if err != nil {
-		log.Error().Err(err).Msg("marshal json error")
+		logging.Get().Err(err).Msg("marshal json error")
 	}
 	resInfo := structures.ResJSON{}
 	err = util.RetryWithBackoff(ctx, func() error {
 		return httpClient.Do("/api/openapi/scanner/imagereject/scanone/cicd", http.MethodPost, bytes.NewBuffer(jsonSrt), &resInfo)
 	}, retry.Attempts(3))
 	if err != nil {
-		log.Error().Err(err).Msgf("request scan err %v", err)
+		logging.Get().Err(err).Msgf("request scan err %v", err)
 		os.Exit(2)
 	}
 
-	log.Debug().Msgf("返回数据为%+v", resInfo)
-	log.Info().Msgf("触发cicd扫描成功")
+	logging.Get().Debug().Msgf("返回数据为%+v", resInfo)
+	logging.Get().Info().Msgf("触发cicd扫描成功")
 
 	tmpData := resInfo.Data.Item
 	resJSONStr, err := json.Marshal(tmpData)
 	if err != nil {
-		log.Error().Err(err).Msg("marshal json error")
+		logging.Get().Err(err).Msg("marshal json error")
 	}
 	resultInfo := structures.ResultInfo{}
 
@@ -188,7 +188,7 @@ func run(ctx context.Context) {
 	}, retryOptions...)
 
 	if err != nil {
-		log.Error().Err(err).Msgf("get scan result err.%v", err)
+		logging.Get().Err(err).Msgf("get scan result err.%v", err)
 		os.Exit(2)
 	}
 
@@ -197,12 +197,12 @@ func run(ctx context.Context) {
 	// 输出结果
 	err = outputFunc(resultInfo)
 	if err != nil {
-		log.Error().Err(err).Msgf("failed to output")
+		logging.Get().Err(err).Msgf("failed to output")
 		os.Exit(2)
 	}
 
 	if !resultInfo.Data.Item.Safe {
-		log.Info().Msgf("scan found vulnerabilities.")
+		logging.Get().Info().Msgf("scan found vulnerabilities.")
 		os.Exit(2)
 	}
 
@@ -210,12 +210,12 @@ func run(ctx context.Context) {
 		//  可信镜像 将镜像的 digest 和 image_name 签名后发送到 scanner
 		err = privateClient.Sign(ctx, image, insecure, bufRegistryURL)
 		if err != nil {
-			log.Error().Msgf("sign image err.%v", err)
+			logging.Get().Err(err).Msg("sign image err.")
 			os.Exit(2)
 		}
 	}
 
-	log.Info().Msgf("scan image vulnerabilities pass.")
+	logging.Get().Info().Msg("scan image vulnerabilities pass.")
 }
 
 // 检查参数是否正确
@@ -233,19 +233,19 @@ func checkArgs() {
 	log.Logger = log.Output(zOutput).With().Caller().Logger()
 
 	if image == "" {
-		log.Error().Msg("镜像参数不得为空")
+		logging.Get().Error().Msg("镜像参数不得为空")
 		os.Exit(2)
 	}
 	if consoleURL == "" {
-		log.Error().Msg("console链接不能为空")
+		logging.Get().Error().Msg("console链接不能为空")
 		os.Exit(2)
 	}
 	if bufRegistryURL == "" {
-		log.Error().Msg("临时仓库地址不能为空")
+		logging.Get().Error().Msg("临时仓库地址不能为空")
 		os.Exit(2)
 	}
 	if apikey == "" {
-		log.Error().Msg("token不能为空")
+		logging.Get().Error().Msg("token不能为空")
 		os.Exit(2)
 	}
 
@@ -257,17 +257,17 @@ func checkArgs() {
 	outputFunc = output.Terminal
 	httpClient, err = request.NewRequest(apikey, consoleURL, maxSecond)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to initial http client")
+		logging.Get().Error().Err(err).Msg("Failed to initial http client")
 		os.Exit(1)
 	}
 
 	if privateKeyFile != "" {
 		privateClient, err = trustimage.NewClient(privateKeyFile, httpClient)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to initial private client")
+			logging.Get().Error().Err(err).Msg("Failed to initial private client")
 			os.Exit(1)
 		}
 	}
 
-	log.Info().Msgf("image=%s maxSecond=%d consoleUrl=%s bufRegistryUrl=%s aki_key=%s \n", image, maxSecond, consoleURL, bufRegistryURL, apikey)
+	logging.Get().Info().Msgf("image=%s maxSecond=%d consoleUrl=%s bufRegistryUrl=%s aki_key=%s \n", image, maxSecond, consoleURL, bufRegistryURL, apikey)
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -78,7 +77,7 @@ func (s *ScannerVuln) GetDBPath() (string, error) {
 	osCMD := exec.Command("cp", "-f", lastDbPath, fp)
 	err = osCMD.Run()
 	if err != nil {
-		logging.GetLogger().Error().Msgf("failed to cp %v", err)
+		logging.GetLogger().Err(err).Msg("failed to cp")
 		return "", err
 	}
 	return tmpDir, nil
@@ -180,7 +179,7 @@ func (s *ScannerVuln) InitDB() error {
 	fmt.Println(osCMD.Args)
 	if err != nil {
 		os.RemoveAll(tmpDir)
-		logging.GetLogger().Error().Msgf("failed to cp %v", err)
+		logging.GetLogger().Err(err).Msg("failed to cp")
 		return err
 	}
 	if s.customDB != nil {
@@ -222,7 +221,7 @@ func (s *ScannerVuln) Run() {
 	err := util.RetryWithBackoff(ctx, func() error {
 		err := s.InitDB()
 		if err != nil {
-			logging.GetLogger().Error().Msgf("Init Db failed,try restart %v", err)
+			logging.GetLogger().Err(err).Msg("Init Db failed,try restart")
 		}
 		return err
 	}, retryOptions...)
@@ -237,7 +236,7 @@ func (s *ScannerVuln) Run() {
 	for range ticker.C {
 		err := s.TickerRun()
 		if err != nil {
-			logging.GetLogger().Error().Msgf("failed to TickerRun %v", err)
+			logging.GetLogger().Err(err).Msgf("failed to TickerRun")
 		}
 	}
 }
@@ -263,7 +262,7 @@ func (s *ScannerVuln) GetVulnDetail(name string) (VulnDetail, error) {
 			if cnvdResByte != nil {
 				err = json.Unmarshal(cnvdResByte, &cnvdRes)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("unmarshal cnvdRes err :%v", err)
+					logging.GetLogger().Err(err).Msgf("unmarshal cnvdRes err")
 					return err
 				}
 			}
@@ -278,7 +277,7 @@ func (s *ScannerVuln) GetVulnDetail(name string) (VulnDetail, error) {
 			if cnnvdResByte != nil {
 				err = json.Unmarshal(cnnvdResByte, &cnnvdRes)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("unmarshal cnnvdRes err :%v", err)
+					logging.GetLogger().Err(err).Msgf("unmarshal cnnvdRes err")
 					return err
 				}
 

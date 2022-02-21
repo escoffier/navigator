@@ -15,7 +15,6 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -101,7 +100,7 @@ func (r *RegistryV2) Repositories() ([]string, error) {
 			repos = append(repos, response.Repositories...)
 			continue
 		default:
-			logging.GetLogger().Error().Msgf("docker registry repositories unexpected err:%v", err)
+			logging.GetLogger().Err(err).Msg("docker registry repositories unexpected err")
 			return nil, err
 		}
 	}
@@ -134,7 +133,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 	for _, repo := range repos {
 		tags, err := r.ListRepoTags(repo)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get repo %s tags err %v", repo, err)
+			logging.GetLogger().Err(err).Msgf("get repo %s tags err", repo)
 			continue
 		}
 		for _, tag := range tags {
@@ -152,12 +151,12 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 				// pull config json
 				imageDigest, err = ManifestV2Digest(manifestV2)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
+					logging.GetLogger().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
 					continue
 				}
 				manifestV2Str, err = manifestV2.MarshalJSON()
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get manifest string err, repo %s ,tag %s", repo, tag)
+					logging.GetLogger().Err(err).Msgf("get manifest string err, repo %s ,tag %s", repo, tag)
 					continue
 				}
 
@@ -165,20 +164,20 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 				configDigest = manifestV2.Config.Digest
 				configBlob, err = r.PullConfigBlob(repo, configDigest)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get config blob err, repo %s ,tag %s", repo, tag)
+					logging.GetLogger().Err(err).Msgf("get config blob err, repo %s ,tag %s", repo, tag)
 					continue
 				}
 			} else {
 				// pull manifest v2 err,try v1
-				logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,tag %s", err, repo, tag)
+				logging.GetLogger().Info().Msgf("get manifest v2 err,try v1, repo %s ,tag %s", repo, tag)
 				manifestV1, err = r.PullImageManifestV1(repo, tag)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,tag %s", err, repo, tag)
+					logging.GetLogger().Err(err).Msgf("get manifest (both v1,v2) err, repo %s ,tag %s", repo, tag)
 					continue
 				}
 				manifestV1Str, err = manifestV1.MarshalJSON()
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get manifest v1 str err %v, repo %s ,tag %s", err, repo, tag)
+					logging.GetLogger().Err(err).Msgf("get manifest v1 str err, repo %s ,tag %s", repo, tag)
 					continue
 				}
 
@@ -186,7 +185,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 				// use http-header "Docker-Content-digest" as manifest-v1 image digest
 				tmp, err := r.RegistryClient.ManifestDigest(repo, tag)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,digest %s", err, repo, tag)
+					logging.GetLogger().Err(err).Msgf("get manifest v1 image list err, repo %s ,digest %s", repo, tag)
 					continue
 				}
 				imageDigest = tmp.String()
@@ -203,7 +202,7 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 			im, err := extender(*i)
 			if err != nil {
 				if err != consts.ErrNotNodeImage {
-					logging.GetLogger().Error().Msgf("HarborV2 Insert imagelist error %v", err)
+					logging.GetLogger().Err(err).Msg("HarborV2 Insert imagelist error")
 				}
 				continue
 			}
@@ -258,12 +257,12 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		// pull config json
 		imageDigest, err = ManifestV2Digest(manifestV2)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest digest err, repo %s ,tag %s", repoName, tag)
+			logging.GetLogger().Err(err).Msgf("get manifest digest err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 		}
 		manifestV2Str, err = manifestV2.MarshalJSON()
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest string err, repo %s ,tag %s", repoName, tag)
+			logging.GetLogger().Err(err).Msgf("get manifest string err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 		}
 
@@ -272,7 +271,7 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		configBlob, err = r.PullConfigBlob(repoName, configDigest)
 
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,tag %s", repoName, tag)
+			logging.GetLogger().Err(err).Msgf("get config blob err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 
 		}
@@ -282,12 +281,12 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		manifestV1, err = r.PullImageManifestV1(repoName, tag)
 
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest (both v1,v2) err %v, repo %s ,tag %s", err, repoName, tag)
+			logging.GetLogger().Err(err).Msgf("get manifest (both v1,v2) err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 		}
 		manifestV1Str, err = manifestV1.MarshalJSON()
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest v1 str err %v, repo %s ,tag %s", err, repoName, tag)
+			logging.GetLogger().Err(err).Msgf("get manifest v1 str err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 		}
 
@@ -296,7 +295,7 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		tmp, err := r.RegistryClient.ManifestDigest(repoName, tag)
 
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get manifest v1 image list err %v, repo %s ,tag %s", err, repoName, tag)
+			logging.GetLogger().Err(err).Msgf("get manifest v1 image list err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 		}
 		imageDigest = tmp.String()

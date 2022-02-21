@@ -17,7 +17,6 @@ import (
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/rs/zerolog"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -333,11 +332,11 @@ func (m *MaliciousScan) parseLayerTar(tarFileName string, dst string) (uint64, e
 			file, _ := m.createFile(filepath.Join(dst, header.Name))
 			_, err := io.Copy(file, tarReader)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("virusScan io.Copy error %v", err)
+				logging.GetLogger().Err(err).Msg("virusScan io.Copy error")
 			}
 			err = os.Chmod(filepath.Join(dst, header.Name), 0666)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("virusScan os.Chmod error %v", err)
+				logging.GetLogger().Err(err).Msg("virusScan os.Chmod error")
 			}
 			count++
 		}

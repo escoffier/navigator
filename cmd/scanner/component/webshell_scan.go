@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sync/atomic"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -140,7 +140,7 @@ func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*mod
 
 	defer func() {
 		if err := recover(); err != nil {
-			logging.GetLogger().Error().Msgf("call webshell server failed, err: %v ", err)
+			logging.GetLogger().Error().Msgf("call webshell server failed, panic: %v Stack: %s", err, string(debug.Stack()))
 		}
 	}()
 

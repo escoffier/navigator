@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,10 +27,6 @@ import (
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -37,6 +34,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type VirusScan struct {
@@ -123,13 +123,13 @@ func (virusScan *VirusScan) Run(ctx context.Context, llms *layerManage.LocalLaye
 	// TODO FailTaskRestart
 	err := virusScan.failDanglingTasks(ctx)
 	if err != nil {
-		logging.Get().Error().Msgf("virusScan failDanglingTasks error %v", err)
+		logging.Get().Err(err).Msg("virusScan failDanglingTasks error")
 	}
 
 	var wg sync.WaitGroup
 	err = os.Mkdir("/tmpscan", 0777)
 	if err != nil {
-		logging.Get().Error().Msgf("virusScan Mkdir error %v", err)
+		logging.Get().Err(err).Msgf("virusScan Mkdir error")
 		return err
 	}
 	for i := 0; i < virusScan.numWorkers; i++ {
@@ -241,11 +241,11 @@ func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string, ch cha
 				file, _ := virusScan.createFile(dst + header.Name)
 				_, err := io.Copy(file, tarReader)
 				if err != nil {
-					logging.Get().Error().Msgf("virusScan io.Copy error %v", err)
+					logging.Get().Err(err).Msg("virusScan io.Copy error ")
 				}
 				err = os.Chmod(dst+header.Name, 0666)
 				if err != nil {
-					logging.Get().Error().Msgf("virusScan os.Chmod error %v", err)
+					logging.Get().Err(err).Msg("virusScan os.Chmod error")
 				}
 				count++
 			} else {
@@ -259,11 +259,11 @@ func (virusScan *VirusScan) parseLayerTar(tarFileName string, dst string, ch cha
 					file, _ := virusScan.createFile(dst + header.Name)
 					_, err := io.Copy(file, tarReader)
 					if err != nil {
-						logging.Get().Error().Msgf("virusScan io.Copy error %v", err)
+						logging.Get().Err(err).Msg("virusScan io.Copy error")
 					}
 					err = os.Chmod(dst+header.Name, 0666)
 					if err != nil {
-						logging.Get().Error().Msgf("virusScan os.Chmod error %v", err)
+						logging.Get().Err(err).Msg("virusScan os.Chmod error")
 					}
 					count++
 				}
@@ -400,7 +400,7 @@ func (virusScan *VirusScan) processScanTask(ctx context.Context, scanTask model.
 	for i := range toScan {
 		err := virusScan.virusProcessLayer(scanCtx, hub, scanTask, &currentlyCachedLayers, toScan[i], client)
 		if err != nil {
-			logging.Get().Error().Msgf("VirusScan get ToScan error :%v", err)
+			logging.Get().Err(err).Msgf("VirusScan get ToScan error")
 		}
 	}
 	logging.Get().Info().Msg("Virus scan finished, processed all layers")
@@ -862,7 +862,7 @@ func (virusScan *VirusScan) DeleteLayerPath(ctx context.Context, client *layerMa
 	logging.Get().Info().Str("Digest:", digest).Msg("VirusScan Delete Layer")
 	err := client.DeleteLayer(ctx, digest)
 	if err != nil {
-		logging.Get().Error().Msgf("virusScan DeleteLayerPath error %v", err)
+		logging.Get().Err(err).Msg("virusScan DeleteLayerPath error")
 	}
 }
 
@@ -926,7 +926,7 @@ func (virusScan *VirusScan) webShellCall(ctx context.Context, reader io.Reader) 
 
 	defer func() {
 		if err := recover(); err != nil {
-			logging.Get().Error().Msgf("call webshell server failed, err: %v ", err)
+			logging.Get().Error().Msgf("call webshell server failed, panic: %v stack: %s", err, string(debug.Stack()))
 		}
 	}()
 

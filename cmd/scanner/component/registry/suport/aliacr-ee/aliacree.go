@@ -144,7 +144,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 				im, err := extender(preImage)
 				if err != nil {
 					if err != consts.ErrNotNodeImage {
-						logging.Get().Error().Msgf("Insert imagelist error %v", err)
+						logging.Get().Err(err).Msg("Insert imagelist error")
 					}
 					continue
 				}
@@ -296,7 +296,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	if aa.Config.RegionID == "" {
 		region, err := getRegion(aa.Config.URL)
 		if err != nil {
-			logging.Get().Error().Msgf("get region :%s", aa.Config.URL)
+			logging.Get().Err(err).Msgf("get region :%s", aa.Config.URL)
 			return nil, err
 		}
 		aa.Config.RegionID = region
@@ -327,7 +327,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 func init() {
 	err := registry.Register(Version, openRegistry)
 	if err != nil {
-		logging.Get().Error().Msgf("init ali acr error:%v", err)
+		logging.Get().Err(err).Msg("init ali acr error")
 		return
 	}
 	logging.Get().Info().Str("driver", Version).Msg("register success")

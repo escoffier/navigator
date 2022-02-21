@@ -14,7 +14,6 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -98,7 +97,7 @@ func (h *HarborV2) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("req harbor projects err %v", err)
+		logging.GetLogger().Err(err).Msg("req harbor projects err")
 		return nil, err
 	}
 
@@ -139,7 +138,7 @@ func (h *HarborV2) ListProjectReposWithPage(project string, page, pageSize int) 
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("req harbor repos err %v", err)
+		logging.GetLogger().Err(err).Msg("req harbor repos err")
 		return nil, err
 	}
 
@@ -180,7 +179,7 @@ func (h *HarborV2) ListRepoArtifactsWithPage(project, repo string, page, pageSiz
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("req harbor repo artifacts err %v", err)
+		logging.GetLogger().Err(err).Msg("req harbor repo artifacts err")
 		return nil, err
 	}
 
@@ -210,7 +209,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 		repos, err := h.ListProjectRepos(v.Name)
 		if err != nil {
 			// just log and try next project
-			logging.GetLogger().Error().Msgf("ListImages project %s get repo err,try next project.%v", v.Name, err)
+			logging.GetLogger().Err(err).Msgf("ListImages project %s get repo err,try next project.", v.Name)
 			continue
 		}
 
@@ -226,7 +225,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 			repoName := tmp
 			artifacts, err := h.ListRepoArtifacts(v.Name, repoName)
 			if err != nil {
-				logging.GetLogger().Error().Msgf("ListImages repo %s get artifacts err,try next repo.%v", r.Name, err)
+				logging.GetLogger().Err(err).Msgf("ListImages repo %s get artifacts err,try next repo.", r.Name)
 				continue
 			}
 
@@ -244,7 +243,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 					// pull config json
 					configBlob, err = h.pullConfigBlob(r.Name, configDigest)
 					if err != nil {
-						logging.GetLogger().Error().Msgf("ListImages get config blob err, repo %s ,digest %s", r.Name, a.Digest)
+						logging.GetLogger().Err(err).Msgf("ListImages get config blob err, repo %s ,digest %s", r.Name, a.Digest)
 						continue
 					}
 				} else {
@@ -252,7 +251,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 					//	logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, r.Name, a.Digest)
 					manifestV1, err = h.pullImageManifestV1(r.Name, a.Digest)
 					if err != nil {
-						logging.GetLogger().Error().Msgf("ListImages get manifest (both v1,v2) err %v, repo %s ,digest %s", err, r.Name, a.Digest)
+						logging.GetLogger().Err(err).Msgf("ListImages get manifest (both v1,v2) err %v, repo %s ,digest %s", err, r.Name, a.Digest)
 						continue
 					}
 				}
@@ -266,7 +265,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 					// do some extend stuff
 					im, err := extender(*i)
 					if err != nil {
-						logging.GetLogger().Error().Msgf("ListImages HarborV2 Insert imagelist error %v", err)
+						logging.GetLogger().Err(err).Msgf("ListImages HarborV2 Insert imagelist error %v", err)
 						continue
 					}
 					cnt++
@@ -295,7 +294,7 @@ func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image,
 	data, err := h.reqHarbor(url)
 	defer util.CloseBodyWithLog(data)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("req harbor repo artifacts err %v", err)
+		logging.GetLogger().Err(err).Msg("req harbor repo artifacts err")
 		return nil, err
 	}
 
@@ -320,13 +319,13 @@ func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image,
 	if err == nil {
 		configBlob, err = h.pullConfigBlob(fullRepoNeme, configDigest)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get config blob err, repo %s ,digest %s", fullRepoNeme, artifact.Digest)
+			logging.GetLogger().Err(err).Msgf("get config blob err, repo %s ,digest %s", fullRepoNeme, artifact.Digest)
 		}
 	} else {
 		manifestV1, err = h.pullImageManifestV1(fullRepoNeme, artifact.Digest)
 		if err != nil {
 			msg := fmt.Sprintf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, fullRepoNeme, artifact.Digest)
-			logging.GetLogger().Error().Msgf(msg)
+			logging.GetLogger().Err(err).Msg(msg)
 			return nil, errors.New(msg)
 		}
 	}
@@ -459,7 +458,7 @@ func (h *HarborV2) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 func init() {
 	err := registry.Register(HarborVersion, openRegistry)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
+		logging.GetLogger().Err(err).Msgf("init harborV2 error")
 	}
 	logging.GetLogger().Info().Msg("harborV2 dirver register success")
 }
@@ -470,13 +469,13 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	h.ctx = context.Background()
 	byt, err := json.Marshal(config.Options)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("harborV2 marshal config")
+		logging.GetLogger().Err(err).Err(err).Msg("harborV2 marshal config")
 		return nil, err
 	}
 	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("harborV2 Unmarshal config")
+		logging.GetLogger().Err(err).Err(err).Msg("harborV2 Unmarshal config")
 		return nil, err
 	}
 

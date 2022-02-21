@@ -13,13 +13,11 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cr"
 	"github.com/docker/distribution/manifest/schema2"
+	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-
-	registry2 "github.com/heroku/docker-registry-client/registry"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -83,13 +81,13 @@ func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.L
 
 				manifestV2, err := aa.PullImageManifestV2(fullRepoName, tag)
 				if err != nil {
-					logging.Get().Error().Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
+					logging.Get().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
 					continue
 				}
 				// pull config json
 				imageDigest, err := ManifestV2Digest(manifestV2)
 				if err != nil {
-					logging.Get().Error().Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
+					logging.Get().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
 					continue
 				}
 				manifestV2Str, err := manifestV2.MarshalJSON()
@@ -102,7 +100,7 @@ func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.L
 				configDigest := manifestV2.Config.Digest
 				configBlob, err := aa.PullConfigBlob(fullRepoName, configDigest)
 				if err != nil {
-					logging.Get().Error().Msgf("get config blob err, repo %s ,tag %s", fullRepoName, tag)
+					logging.Get().Err(err).Msgf("get config blob err, repo %s ,tag %s", fullRepoName, tag)
 					continue
 				}
 				var preImage = registry.Image{
@@ -117,7 +115,7 @@ func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.L
 				im, err := extender(preImage)
 				if err != nil {
 					if err != consts.ErrNotNodeImage {
-						logging.Get().Error().Msgf("ali acr Insert imagelist error %v", err)
+						logging.Get().Err(err).Msgf("ali acr Insert imagelist error")
 					}
 					continue
 				}
@@ -202,7 +200,7 @@ func (aa *AliAcr) getTags(repo aliRepo, c *cr.Client) (tags []string, err error)
 
 		var resp = &aliTagResp{}
 		if err := json.Unmarshal(tagsResp.GetHttpContentBytes(), resp); err != nil {
-			logging.Get().Error().Msgf("getTags Unmarshal")
+			logging.Get().Err(err).Msg("getTags Unmarshal")
 		}
 		for _, tag := range resp.Data.Tags {
 			tags = append(tags, tag.Tag)
@@ -237,7 +235,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	h.Config = *conf
 	region, err := getRegion(h.Config.URL)
 	if err != nil {
-		logging.Get().Error().Msgf("get region :%s", h.Config.URL)
+		logging.Get().Err(err).Msgf("get region :%s", h.Config.URL)
 		return nil, err
 	}
 	h.Config.Region = region
@@ -265,7 +263,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 func init() {
 	err := registry.Register(Version, openRegistry)
 	if err != nil {
-		logging.Get().Error().Msgf("init ali acr error:%v", err)
+		logging.Get().Err(err).Msgf("init ali acr error")
 		return
 	}
 	logging.Get().Info().Msg("ali acr dirver register success")

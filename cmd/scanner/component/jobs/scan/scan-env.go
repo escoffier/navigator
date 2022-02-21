@@ -56,7 +56,7 @@ func (e *ExecutorScanEnv) Scan(ctx context.Context, param Param) (Artifact, erro
 	config := model.ConfigFile{}
 	err := json.Unmarshal(e.stringToBytes(configJSON), &config)
 	if err != nil {
-		logging.GetLogger().Error().Msg("ScanEnv can't unmarshal configJson")
+		logging.GetLogger().Err(err).Msg("ScanEnv can't unmarshal configJson")
 		return nil, errors.New("ScanEnv can't unmarshal configJson")
 	}
 
@@ -71,7 +71,7 @@ func (e *ExecutorScanEnv) Scan(ctx context.Context, param Param) (Artifact, erro
 	if len(policyRule.EnvName) != 0 {
 		err := json.Unmarshal([]byte(policyRule.EnvName), &envs)
 		if err != nil {
-			logging.GetLogger().Error().Msg("EnvPolicyRule can't unmarshal configJson")
+			logging.GetLogger().Err(err).Msg("EnvPolicyRule can't unmarshal configJson")
 			return nil, errors.New("EnvPolicyRule can't unmarshal configJson")
 		}
 	}
