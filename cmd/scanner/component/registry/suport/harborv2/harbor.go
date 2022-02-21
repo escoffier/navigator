@@ -34,7 +34,7 @@ type HarborV2 struct {
 	registryClient *registry2.Registry // client for pull manifest
 }
 
-func (h *HarborV2) reqHarbor(url string) (io.ReadCloser, error) {
+func (h *HarborV2) reqHarbor(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
@@ -55,12 +55,18 @@ func (h *HarborV2) reqHarbor(url string) (io.ReadCloser, error) {
 		return nil
 	}, retry.Attempts(RetryCount))
 
-	// defer util.CloseBodyWithLog(resp.Body)
+	defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}
 
-	return resp.Body, nil
+	bys, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("reqHarbor")
+		return nil, err
+	}
+
+	return bys, nil
 }
 
 func (h *HarborV2) ListProjects() ([]Project, error) {
@@ -96,15 +102,14 @@ func (h *HarborV2) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 	// logging.GetLogger().Info().Msgf("req harbor projects url %s", url)
 
 	data, err := h.reqHarbor(url)
-	defer util.CloseBodyWithLog(data)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("req harbor projects err %v", err)
 		return nil, err
 	}
 
 	var projects []Project
-	err = json.NewDecoder(data).Decode(&projects)
-	if err != nil {
+	if err := json.Unmarshal(data, &projects); err != nil {
+		logging.GetLogger().Err(err).Msgf("req harbor projects err %v", err)
 		return nil, fmt.Errorf(fmt.Sprintf("decode harbor projects body err.%v", err.Error()))
 	}
 
@@ -137,15 +142,14 @@ func (h *HarborV2) ListProjectReposWithPage(project string, page, pageSize int) 
 	//	logging.GetLogger().Info().Msgf("req harbor repo url %s", url)
 
 	data, err := h.reqHarbor(url)
-	defer util.CloseBodyWithLog(data)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("req harbor repos err %v", err)
 		return nil, err
 	}
 
 	var repos []Repository
-	err = json.NewDecoder(data).Decode(&repos)
-	if err != nil {
+	if err := json.Unmarshal(data, &repos); err != nil {
+		logging.GetLogger().Err(err).Msgf("req harbor projects err %v", err)
 		return nil, fmt.Errorf(fmt.Sprintf("decode harbor repos body err.%v", err.Error()))
 	}
 
@@ -178,15 +182,14 @@ func (h *HarborV2) ListRepoArtifactsWithPage(project, repo string, page, pageSiz
 	//	logging.GetLogger().Info().Msgf("req harbor repo artifacts url %s", url)
 
 	data, err := h.reqHarbor(url)
-	defer util.CloseBodyWithLog(data)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("req harbor repo artifacts err %v", err)
 		return nil, err
 	}
 
 	var artifacts []Artifact
-	err = json.NewDecoder(data).Decode(&artifacts)
-	if err != nil {
+	if err := json.Unmarshal(data, &artifacts); err != nil {
+		logging.GetLogger().Err(err).Msgf("req harbor projects err %v", err)
 		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifacts body err.%v", err.Error()))
 	}
 
@@ -293,15 +296,14 @@ func (h *HarborV2) GetImage(projectName, repoName, tag string) (*registry.Image,
 	url := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s", h.config.URL, APIVersion, projectName, repoName, tag)
 	// logging.GetLogger().WithContext(h.ctx).Infof(fmt.Sprintf("getImage url:%s", url))
 	data, err := h.reqHarbor(url)
-	defer util.CloseBodyWithLog(data)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("req harbor repo artifacts err %v", err)
 		return nil, err
 	}
 
 	var artifact Artifact
-	err = json.NewDecoder(data).Decode(&artifact)
-	if err != nil {
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		logging.GetLogger().Err(err).Msgf("req harbor projects err %v", err)
 		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifact body err.%v", err.Error()))
 	}
 	// add mainfest
