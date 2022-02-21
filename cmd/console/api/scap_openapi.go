@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -283,17 +286,22 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 }
 
 func (api *api) scapOpenApi() func(chi.Router) {
+	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT"))
+	if err != nil || rate <= 0 {
+		rate = 20
+	}
+
 	return func(r chi.Router) {
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/scan/scantask", api.scapCheckOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/record", api.getLatestScanRecordOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/task", api.getCheckHistoryOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/record/tasks/{checkId}", api.getPolicyDetailsOpenApi())
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 

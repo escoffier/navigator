@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi"
@@ -110,49 +112,55 @@ func (api *api) scanner() func(chi.Router) {
 }
 
 func (api *api) scannerOpenApi() func(router chi.Router) {
+
+	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT"))
+	if err != nil || rate <= 0 {
+		rate = 20
+	}
+
 	return func(r chi.Router) {
 		// r.Get("/*", api.ForwardScannerOpenApi())
 		// r.Post("/*", api.ForwardScannerOpenApi())
 		// r.Put("/*", api.ForwardScannerOpenApi())
 		// r.Delete("/*", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/images/list", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/images/scan/scantask", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/statistic/images", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/images/detail", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/images/layers", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scanConfig/strategies", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/scanConfig/strategies", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scanConfig/strategies/{strategyName}", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Put("/scanConfig/strategies/{strategyName}", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Delete("/scanConfig/strategies/{strategyName}", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/statistic/vulns", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/vulns", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, 20)).
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/vulns/{vulnName}", api.ForwardScannerOpenApi())
 	}
 }
