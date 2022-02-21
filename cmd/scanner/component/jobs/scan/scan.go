@@ -54,7 +54,7 @@ func (i *ImageScan) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, e
 		go func(scanType task.ScanType, policy task.ScanPolicy) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.GetLogger().Error().Msgf("exec %s scan error : %v. stack: %s", string(scanType), r, debug.Stack())
+					logging.GetLogger().Error().Msgf("exec %s scan panic : %v. stack: %s", string(scanType), r, debug.Stack())
 				}
 			}()
 

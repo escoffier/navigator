@@ -8,7 +8,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune/mutation"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -52,7 +51,7 @@ func (i *immuneMutator) Init(webHookConfig *processors.WebHookConfig) error {
 		ReloadInterval:       reloadInterval,
 	})
 	if err != nil {
-		logging.GetLogger().Error().Msgf("Failed to load config: %v", err)
+		logging.GetLogger().Err(err).Msgf("Failed to load config")
 		return err
 	}
 	i.holder = holder

@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	pullImage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
@@ -22,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 const (
@@ -136,7 +135,7 @@ func (s *ScanResultHandle) defaultEnvFill(scanDetails *model.ScanDetailScanImage
 	config := model.ConfigFile{}
 	err := json.Unmarshal([]byte(configJSON), &config)
 	if err != nil {
-		logging.GetLogger().Error().Msg("ScanEnv can't unmarshal configJson")
+		logging.GetLogger().Err(err).Msg("ScanEnv can't unmarshal configJson")
 		return
 	}
 	envs := component.ParseConfigEnv(config.Config.Env)
@@ -496,7 +495,7 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 					LinkJSON: linkjson, FixedBy: trivyVuln.FixedVersion, Severity: trivyVuln.Severity, SeverityInt: s.transSeverityInt(trivyVuln.Severity)}
 				err = scannerOrm.InsertToVuln(ctx, &tmpVuln, imageID)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("InsertoVuln failed ")
+					logging.GetLogger().Error().Err(err).Msg("InsertoVuln failed ")
 				}
 			}
 		}

@@ -84,7 +84,7 @@ func (wg *WorkerGroup) startWorker() {
 		go func(i int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.Get().Error().Msgf("Layer_mannger Worker error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("Layer_mannger Worker panic : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 			defer wg.swg.Done()
@@ -128,7 +128,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		// get to-pull task
 		task, err := w.llms.FindAndModiyPullTask()
 		if err != nil {
-			logging.Get().Error().Msgf("worker %d get task err.%v", w.id, err)
+			logging.Get().Err(err).Msgf("worker %d get task err", w.id)
 			continue
 		}
 

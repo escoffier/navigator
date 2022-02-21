@@ -16,15 +16,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+	// 引入驱动
 
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.mongodb.org/mongo-driver/mongo"
-
-	// 引入驱动
 	_ "github.com/lib/pq"
-
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -187,7 +185,7 @@ func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.
 	defer wg.Done()
 	err := rcSvc.updateLayerCache(ctx)
 	if err != nil {
-		logging.Get().Error().Msgf("updateLayerCache error %v", err)
+		logging.Get().Err(err).Msg("updateLayerCache error")
 	}
 	ticker := time.NewTicker(cacheInvalidatorInterval)
 loop:
@@ -700,11 +698,11 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 				currentMaxScanRetries = maxLayerScanRetires
 				currLayer, err = rcSvc.getParentLayerFromCache(ctx, parentLayerDigest, *currentlyCachedLayers)
 				if err != nil {
-					logging.Get().Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
+					logging.Get().Warn().Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
 					return err
 				}
 			} else {
-				logging.Get().Error().Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
+				logging.Get().Err(err).Err(err).Int("retryCounter", retryCounter).Str("layerDigest", currLayer.Digest).Msg("Redclair scan failed. Retrying")
 				time.Sleep(retryInterval)
 				retryCounter++
 			}
@@ -718,25 +716,25 @@ func (rcSvc *RedClairService) processLayer(ctx context.Context, hub *registry.Re
 			} else {
 				parentLayer, err := rcSvc.getParentLayerFromCache(ctx, currLayer.Parent, *currentlyCachedLayers)
 				if err != nil {
-					logging.Get().Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
+					logging.Get().Err(err).Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get parent layer from cache")
 					return err
 				}
 				vulnInfoAdded, vulnInfoRemoved, err = rcSvc.getLayerVulnDiff(parentLayer.ScanReport.Vulns, vulnInfo)
 				if err != nil {
-					logging.Get().Error().Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
+					logging.Get().Err(err).Str("parentlayerDigest", currLayer.Parent).Str("layerDigest", currLayer.Digest).Msg("Couldn't get layer diff between current and parent")
 					return err
 				}
 			}
 
 			scanWorkerResult := rcSvc.generateScanWorkerResult(vulnInfo, vulnInfoAdded, vulnInfoRemoved, sensitive)
 			if err != nil {
-				logging.Get().Error().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
+				logging.Get().Err(err).Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
 				return err
 			}
 
 			err = rcSvc.updateCacheEntry(ctx, scanWorkerResult, currentlyCachedLayers, currLayer.Digest, layerNamespace)
 			if err != nil {
-				logging.Get().Info().Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
+				logging.Get().Err(err).Str("layerDigest", currLayer.Digest).Msg("Couldn't update cache entry")
 				return err
 			}
 
@@ -913,7 +911,7 @@ func (rcSvc *RedClairService) updateCacheEntry(ctx context.Context, scanResult *
 		defer redisCtxCancel()
 		_, err = rcSvc.redisClient.Set(redisCtx, "vulnScan"+"_"+layer, cacheEntry, redisTTL).Result()
 		if err != nil {
-			logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
+			logging.Get().Err(err).Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 			return nil
 		}
 		logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
@@ -1103,7 +1101,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 			if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 				err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
 				if err != nil {
-					logging.Get().Error().Msgf("update  image  scan finish time error：%+v", err)
+					logging.Get().Err(err).Msgf("update  image  scan finish time error")
 					return err
 				}
 			}
@@ -1116,7 +1114,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
 		err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
 		if err != nil {
-			logging.Get().Error().Msgf("update  image  scan finish time error：%+v", err)
+			logging.Get().Err(err).Msgf("update  image  scan finish time error")
 		}
 	}
 	if scanImage.Message != "" {
@@ -1193,7 +1191,7 @@ func (rcSvc *RedClairService) logVulnTable(ctx context.Context, scanTask model.S
 		}
 		err := rcSvc.postgresSvc.InsertToVuln(ctx, &vuln, imageID)
 		if err != nil {
-			logging.Get().Error().Msgf("InsertToVuln error %v", err)
+			logging.Get().Err(err).Msg("InsertToVuln error")
 		}
 	}
 }

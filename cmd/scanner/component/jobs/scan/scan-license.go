@@ -45,7 +45,7 @@ func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, 
 	if len(policyRule.LicenseName) != 0 {
 		err := json.Unmarshal([]byte(policyRule.LicenseName), &customLicenseList)
 		if err != nil {
-			logging.GetLogger().Error().Msg("Unmarshal policyRule.LicenseName Failed will not scan license")
+			logging.GetLogger().Err(err).Msg("Unmarshal policyRule.LicenseName Failed will not scan license")
 			return nil, errors.New("Unmarshal policyRule.LicenseName Failed will not scan license")
 		}
 	}

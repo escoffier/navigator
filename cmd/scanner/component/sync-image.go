@@ -9,16 +9,15 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type SyncImageInterface interface {
@@ -92,7 +91,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 
 		res, err := reg.Registry.ListImages(extender, registry.ListImagesRequest{NeedToReturnAdded: true})
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get images err.%v", err)
+			logging.GetLogger().Err(err).Msg("get images err")
 			exitMap.Store(reg.Config.Name, true)
 			return
 		}

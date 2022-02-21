@@ -17,7 +17,6 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/model"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/region"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -190,7 +189,7 @@ func (h *HwSwr) DeleteImages(projectName, repoName, digest string) error {
 func init() {
 	err := registry.Register(Version, openRegistry)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("init huawei-swr error:%v", err)
+		logging.GetLogger().Err(err).Msgf("init huawei-swr error")
 		return
 	}
 	logging.GetLogger().Info().Msg("huawei-swr dirver register success")

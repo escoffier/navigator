@@ -72,7 +72,7 @@ func (wg *WorkerGroup) startWorker() {
 		go func(i int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.Get().Error().Msgf("image cache server worker error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("image cache server worker panic : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 			defer wg.swg.Done()
@@ -82,7 +82,7 @@ func (wg *WorkerGroup) startWorker() {
 		go func(i int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.Get().Error().Msgf("image cache server worker error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("image cache server worker panic : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 			defer wg.swg.Done()
@@ -149,7 +149,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 			if err != nil {
 				errMsg = fmt.Sprintf("download layer err,repo %s ,digest %s,err %v", task.repository, task.digest, err)
-				logging.Get().Error().Msgf("worker %d create registry client err:%s", w.id, errMsg)
+				logging.Get().Err(err).Msgf("worker %d create registry client err:%s", w.id, errMsg)
 
 				// reset task status,wait other worker pick it
 				err := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)

@@ -12,9 +12,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/rs/zerolog/log"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
@@ -83,19 +82,19 @@ func getFileChecker(dockerBuildPath string, filename string, maxSecond int, cons
 
 		resp, err := client.Do(request)
 		if err != nil {
-			log.Error().Err(err).Msgf("request Filechecker err: %v,try again", err)
+			logging.Get().Err(err).Msgf("request Filechecker err: %v,try again", err)
 			return err
 		}
 		if resp.StatusCode != 200 {
 			errRes, _ := ioutil.ReadAll(resp.Body)
 			fmt.Println(request.URL)
-			log.Warn().Msgf("get Filechecker err,try again.%v", string(errRes))
+			logging.Get().Warn().Msgf("get Filechecker err,try again.%v", string(errRes))
 			return fmt.Errorf("response err.%d", resp.StatusCode)
 		}
 		defer resp.Body.Close()
 		err = createFileChecker(dockerBuildPath, filename, resp)
 		if err != nil {
-			log.Warn().Msgf("createFileChecker err,try again.%v", err)
+			logging.Get().Warn().Msgf("createFileChecker err,try again.%v", err)
 			return err
 		}
 		return nil
@@ -130,7 +129,7 @@ func writeDockerFile(dockerFilePath string) error {
 func ReinforceImage(maxSecond int, consoleURL string, apikey string) error {
 	dockerFilePath := os.Getenv("CICDDockerPath")
 	dockerBuildPath := os.Getenv("CICDDockerBuildPath")
-	log.Info().Msgf("CICDDockerPath:%v CICDDockerBuildPath:%v\n", dockerFilePath, dockerBuildPath)
+	logging.Get().Info().Msgf("CICDDockerPath:%v CICDDockerBuildPath:%v\n", dockerFilePath, dockerBuildPath)
 	if dockerFilePath == "" || dockerBuildPath == "" {
 		return nil
 	}
@@ -144,12 +143,12 @@ func ReinforceImage(maxSecond int, consoleURL string, apikey string) error {
 	if err != nil {
 		return err
 	}
-	log.Info().Msg("getFileChecker succeed")
+	logging.Get().Info().Msg("getFileChecker succeed")
 
 	err = writeDockerFile(dockerFilePath)
 	if err != nil {
 		return err
 	}
-	log.Info().Msg("writeDockerFile succeed")
+	logging.Get().Info().Msg("writeDockerFile succeed")
 	return nil
 }

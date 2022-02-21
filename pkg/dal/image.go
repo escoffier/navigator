@@ -117,7 +117,7 @@ func GetAllVirusScanStatus(ctx context.Context, scannerURL string) (int, int) {
 
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		logging.GetLogger().Error().Msgf("failed to send get scan all status request to Virus: %+v", err)
+		logging.GetLogger().Err(err).Msg("failed to send get scan all status request to Virus")
 		return 0, 0
 	}
 	defer util.CloseBodyWithLog(resp.Body)
@@ -128,7 +128,7 @@ func GetAllVirusScanStatus(ctx context.Context, scannerURL string) (int, int) {
 
 	err = json.NewDecoder(resp.Body).Decode(&p)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("Failed to decode message from Virus: %+v", err)
+		logging.GetLogger().Err(err).Msg("Failed to decode message from Virus")
 		return 0, 0
 	}
 	return p.Data.Item.Doingnum, p.Data.Item.Waitnum
@@ -152,7 +152,7 @@ func GetAllVirusScanOneStatus(ctx context.Context, scannerURL, digest string) (s
 
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		logging.GetLogger().Error().Msgf("failed to send get scan one status request to Virus: %+v", err)
+		logging.GetLogger().Err(err).Msgf("failed to send get scan one status request to Virus")
 		return "", err
 	}
 	defer util.CloseBodyWithLog(resp.Body)
@@ -163,7 +163,7 @@ func GetAllVirusScanOneStatus(ctx context.Context, scannerURL, digest string) (s
 
 	err = json.NewDecoder(resp.Body).Decode(&p)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("Failed to decode message from Virus: %+v", err)
+		logging.GetLogger().Err(err).Msgf("Failed to decode message from Virus")
 		return "", err
 	}
 	return p.Data.Item.Status, nil

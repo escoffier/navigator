@@ -14,9 +14,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -234,7 +233,7 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 	// dec refcount
 	err := s.DecLayerRefCount(digest)
 	if err != nil {
-		logging.Get().Error().Msgf("delete layer file refcount err,digest %s", digest)
+		logging.Get().Err(err).Msgf("delete layer file refcount err,digest %s", digest)
 	}
 
 	// delete layer from file server
@@ -242,7 +241,7 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 		delete(s.layerList, digest)
 		err = s.fs.DeleteFile(digest)
 		if err != nil {
-			logging.Get().Error().Msgf("delete layer file err,digest %s", digest)
+			logging.Get().Err(err).Msgf("delete layer file err,digest %s", digest)
 		}
 	} else {
 		logging.Get().Info().Msgf("digest %s still has ref,no delete", digest)
@@ -316,14 +315,14 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 	}
 	if len(body) == 0 {
 		if err := ctx.AbortWithError(http.StatusBadRequest, fmt.Errorf("empty body")); err != nil {
-			logging.Get().Error().Msgf("failed to abort request: %s", err.Error())
+			logging.Get().Err(err).Msg("failed to abort request")
 		}
 		return
 	}
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
 	if err != nil {
-		logging.Get().Error().Msgf(" json unmarshal err %v", err)
+		logging.Get().Err(err).Msgf(" json unmarshal err")
 
 		ctx.JSON(http.StatusBadRequest, ResponseLayerInfo{
 			Code:       1,
@@ -365,7 +364,7 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 	rq := &RequestLayerInfo{}
 	err := json.Unmarshal(body, rq)
 	if err != nil {
-		logging.Get().Error().Msgf(" json unmarshal err %v", err)
+		logging.Get().Err(err).Msgf(" json unmarshal err")
 
 		ctx.JSON(http.StatusBadRequest, ResponseLayerInfo{
 			Code:       1,
@@ -475,7 +474,7 @@ func (s *ScannerImageCacheService) StartServer() {
 		logging.Get().Info().Msgf("image cache start server :%s", address)
 		err := s.server.Run(address)
 		if err != nil {
-			logging.Get().Error().Msgf("start s server err %v", err)
+			logging.Get().Err(err).Msg("start s server err")
 		}
 		logging.Get().Info().Msg("image cache server end")
 	}()

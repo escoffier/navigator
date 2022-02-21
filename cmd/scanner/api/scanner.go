@@ -9,14 +9,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type Scanner struct {
@@ -841,7 +840,7 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 	for k := range policyStrs {
 		tmpID, err := strconv.ParseInt(policyStrs[k], 10, 64)
 		if err != nil {
-			logging.Get().Error().Err(err).Msgf("ParseInt error SetEnvToStrategy")
+			logging.Get().Error().Err(err).Msg("ParseInt error SetEnvToStrategy")
 		}
 		policyIds = append(policyIds, tmpID)
 	}

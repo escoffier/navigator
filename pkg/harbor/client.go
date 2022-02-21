@@ -696,7 +696,7 @@ func (h HarborRESTClient) GetOneArtifacts(fullRepoName string) (model.Artifacts,
 				teeReader := io.TeeReader(response.Body, &rawBodyBuf)
 				err = json.NewDecoder(teeReader).Decode(&errorResp)
 				if err != nil {
-					logging.GetLogger().Error().Msgf("Failed to decode error message from Harbor:%+w", err)
+					logging.GetLogger().Err(err).Msgf("Failed to decode error message from Harbor")
 					loop = false
 					return err
 				}

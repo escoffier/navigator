@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	flowconf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
@@ -16,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -132,7 +131,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 			go func(t *task.Task) {
 				defer func() {
 					if r := recover(); r != nil {
-						logging.GetLogger().Error().Msgf("task exception : %v. stack: %s", r, debug.Stack())
+						logging.GetLogger().Error().Msgf("task panic: %v. stack: %s", r, debug.Stack())
 					}
 				}()
 				defer limit.Release(1)
@@ -148,7 +147,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 						go func(tmpTask *task.Task, tmpSubTask *task.SubTask) {
 							defer func() {
 								if r := recover(); r != nil {
-									logging.GetLogger().Error().Msgf("subtask exception : %v. stack: %s", r, debug.Stack())
+									logging.GetLogger().Error().Msgf("subtask panic : %v. stack: %s", r, debug.Stack())
 								}
 							}()
 							defer subLimit.Release(1)

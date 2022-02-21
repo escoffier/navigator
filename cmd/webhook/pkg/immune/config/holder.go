@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"gorm.io/gorm"
 	"io/ioutil"
 	"runtime/debug"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
+	"gorm.io/gorm"
 	"k8s.io/api/settings/v1alpha1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -18,7 +18,6 @@ var (
 	errFileRead  = fmt.Errorf("failed to read config file")
 	errUnmarshal = fmt.Errorf("failed to unmarshal config data")
 )
-
 
 // NewReloadingConfig sets up a new holder that periodically reloads the configuration from disk.
 // The reloaded configuration then replaces the current version in memory.
@@ -45,7 +44,7 @@ func NewReloadingConfig(path string, db *gorm.DB, k8sCli *kubernetes.Clientset, 
 		for true {
 			sleepDuration := reloadConfig.ReloadInterval
 			if err := holder.Reload(); err != nil {
-				logging.GetLogger().Error().Msgf("failed to reload config: %s", err.Error())
+				logging.GetLogger().Err(err).Msg("failed to reload config")
 				sleepDuration = reloadConfig.FailureRetryInterval
 			}
 			time.Sleep(sleepDuration)
@@ -73,7 +72,7 @@ func (c *Holder) Reload() error {
 
 	newVersion := &v1alpha1.PodPresetSpec{}
 	if err := yaml.Unmarshal(data, newVersion); err != nil {
-		logging.GetLogger().Error().Msgf("failed to unmarshal config data: %s", err.Error())
+		logging.GetLogger().Err(err).Msgf("failed to unmarshal config data")
 		return errUnmarshal
 	}
 

@@ -15,7 +15,6 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -116,8 +115,8 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 
 	request, err := http.NewRequest("GET", jumpURL, nil) // 2
 	if err != nil {
-		logging.GetLogger().Error().Msgf("new http request err")
-		return fmt.Errorf("NewRequest failed from scannert")
+		logging.GetLogger().Err(err).Msgf("new http request err")
+		return fmt.Errorf("NewRequest failed from scannert %v", err)
 	}
 
 	resp, err := client.Do(request)
@@ -132,7 +131,6 @@ func (t *TrivyUpdata) GetTrivyDb() error {
 	if err != nil {
 		return fmt.Errorf("Redirct Error %v ", err)
 	}
-	fmt.Println(respLocation)
 	defer resp.Body.Close()
 
 	trivyInitVersion := ""

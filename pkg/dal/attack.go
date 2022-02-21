@@ -66,7 +66,7 @@ func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, cu
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logging.GetLogger().Error().Msg("read all error.")
+		logging.GetLogger().Err(err).Msg("read all error.")
 		return nil, err
 	}
 

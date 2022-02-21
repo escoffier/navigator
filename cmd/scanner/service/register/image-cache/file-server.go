@@ -91,7 +91,7 @@ func (fs *FileServer) CreateFileServer() error {
 func (fs *FileServer) StartFileServer() error {
 	go func() {
 		if err := fs.server.ListenAndServe(); err != nil {
-			logging.Get().Error().Msgf("file server start err %v", err)
+			logging.Get().Err(err).Msg("file server start err")
 		}
 	}()
 	// It takes some time to open the port, just to be sure we wait a bit

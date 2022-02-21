@@ -53,14 +53,14 @@ func (icc *Client) GetManifest(username, password, url, repository, tag string, 
 	logging.Get().Info().Msgf("client server addr %s,repo %s,tag %s", icc.serverAddr, rq.Repository, rq.Tag)
 	req, err := http.NewRequest("POST", icc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
-		logging.Get().Error().Msgf("new req err %v", err)
+		logging.Get().Err(err).Msg("new req err")
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
 	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		logging.Get().Error().Msgf("client do req err %v", err)
+		logging.Get().Err(err).Msg("client do req err")
 		return "", err
 	}
 	defer rsp.Body.Close()
@@ -92,15 +92,14 @@ func (icc *Client) GetLayer(username, password, url, repository, digest string, 
 
 	req, err := http.NewRequest("POST", icc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
-
-		logging.Get().Error().Msgf("new req err %v", err)
+		logging.Get().Err(err).Msg("new req err")
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
 	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		logging.Get().Error().Msgf("client do req err %v", err)
+		logging.Get().Err(err).Msg("client do req err")
 		return "", "", err
 	}
 	defer rsp.Body.Close()

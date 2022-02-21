@@ -13,7 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
 	"github.com/pkg/errors"
 	"gopkg.in/gomail.v2"
 	"gorm.io/gorm"
@@ -50,7 +49,7 @@ func NewScanReportSrv(options ...Option) *ScanReportSrv {
 	}
 
 	if err := srv.checkEmail(); err != nil {
-		logging.GetLogger().Error().Msgf("email login error: %v", err)
+		logging.GetLogger().Err(err).Msg("email login error")
 	}
 
 	return srv
@@ -75,7 +74,7 @@ func (s *ScanReportSrv) run() {
 	// 获取可以执行的任务
 	tasks, err := s.dao.GetCurrentSubTask(ctx, now)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("scanner report execute failed, get subtask error: %v", err)
+		logging.GetLogger().Err(err).Msgf("scanner report execute failed, get subtask error")
 		return
 	}
 
@@ -97,7 +96,7 @@ func (s *ScanReportSrv) handleSubTask(ctx context.Context, v *scanreport.TensorS
 	defer func() {
 		if e := recover(); e != nil {
 			logging.GetLogger().Error().Msgf(
-				"scanner report execute failed, err: %v, subtask: %d, stack: %s",
+				"scanner report execute failed, panic: %v, subtask: %d, stack: %s",
 				e,
 				v.ID,
 				debug.Stack(),

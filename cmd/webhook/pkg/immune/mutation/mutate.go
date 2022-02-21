@@ -12,16 +12,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-
 	// "gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/settings/v1alpha1"
-	"k8s.io/client-go/kubernetes"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 type profile struct {
@@ -93,7 +90,7 @@ func getResources(ctx context.Context, clientset *kubernetes.Clientset, namespac
 func MakePatches(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *kubernetes.Clientset, db *gorm.DB, pod *corev1.Pod, parameters *processors.MutatorParameters) []*processors.Patch {
 	resources, err := getResources(ctx, clientset, parameters.Namespace, pod)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("Failed to get resources: %v", err)
+		logging.GetLogger().Err(err).Msg("Failed to get resources")
 		return nil
 	}
 
@@ -111,9 +108,9 @@ func MakePatches(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *k
 			First(&secResource)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				logging.GetLogger().Error().Msgf("No such resource defined in DB: %v", result.Error)
+				logging.GetLogger().Err(result.Error).Msg("No such resource defined in DB")
 			} else {
-				logging.GetLogger().Error().Msgf("Failed to get resource from DB: %v", result.Error)
+				logging.GetLogger().Err(result.Error).Msg("Failed to get resource from DB")
 			}
 			continue
 		}
@@ -125,7 +122,7 @@ func MakePatches(ctx context.Context, spec *v1alpha1.PodPresetSpec, clientset *k
 		}
 		result = db.WithContext(dbctx).Preload(clause.Associations).First(&p, *secResource.SecurityPolicyID)
 		if result.Error != nil {
-			logging.GetLogger().Error().Msgf("Failed to get policy from DB: %v", result.Error)
+			logging.GetLogger().Err(result.Error).Msg("Failed to get policy from DB")
 			continue
 		}
 

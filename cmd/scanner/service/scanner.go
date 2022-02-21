@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
@@ -14,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // Scanner represents the Vegeta Scanner server.
@@ -113,7 +112,7 @@ func (s *Scanner) StartServices() {
 		go func(serviceName string) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.Get().Error().Msgf("scanner service error : %v. stack: %s", r, debug.Stack())
+					logging.Get().Error().Msgf("scanner service panic : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 
