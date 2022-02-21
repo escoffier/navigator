@@ -266,10 +266,13 @@ func (rs *K8sResClient) DockerEvents() {
 		select {
 		case m := <-msg:
 			rs.nodeResInfo.SaveContainerData(m.ID, m.Time)
-			//logging.Get().Info().Msgf("status : %v, ID : %v, Image : %v, time : %v, now time : %v", m.Status, m.ID, m.Actor.Attributes["image"], m.Time, time.Now().Unix())
 		case err := <-errs:
 			if err != nil {
-				logging.Get().Err(err).Msgf("err returned")
+				logging.Get().Err(err).Msgf("err returned for docker events. try to restart")
+				// try to restart listening to container streams
+				msg, errs = rs.dockerCli.Events(context.Background(), types.EventsOptions{
+					Filters: filter,
+				})
 			}
 		}
 	}

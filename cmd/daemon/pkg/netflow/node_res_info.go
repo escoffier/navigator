@@ -92,6 +92,12 @@ func (kri *NodeResourceInfo) UpdateK8sResData(ip, ownerName, kind, namespace, po
 }
 
 func (kri *NodeResourceInfo) SaveContainerData(containerID string, timestamp int64) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	if len(containerID) == 0 || timestamp <= 0 {
 		return
 	}
