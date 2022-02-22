@@ -1324,10 +1324,10 @@ func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, a
 	type ImageGroup struct {
 		ImageID   int64  `json:"image_id"`
 		ImageUUID uint32 `json:"image_uuid"`
-		Count     int    `json:"count"`
+		Count     int    `gorm:"column:cnt"  json:"count"`
 	}
 
-	type ScanImageJonin struct {
+	type ScanImageJoin struct {
 		ImageID                  int64                       `json:"image_id"`
 		ImageUUID                uint32                      `json:"image_uuid"`
 		VulnScore                int                         `json:"vuln_score"`
@@ -1341,7 +1341,7 @@ func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, a
 	}
 
 	for _, searchType := range []string{consts.MaliciousInfoType, consts.SensitiveFileType, consts.WebsellInfoType} {
-		hasVuluSQL := fmt.Sprintf("select count(b.image_id), b.image_id,a.image_uuid from %s a join %s b on a.id = b.image_id where a.from_type = %d and  b.%s is not null group by b.image_id,a.image_uuid;", model.ImageList{}.TableName(), model.ScanImage{}.TableName(), fromType, searchType)
+		hasVuluSQL := fmt.Sprintf("select count(b.image_id) as cnt, b.image_id,a.image_uuid from %s a join %s b on a.id = b.image_id where a.from_type = %d and  b.%s is not null group by b.image_id,a.image_uuid;", model.ImageList{}.TableName(), model.ScanImage{}.TableName(), fromType, searchType)
 
 		res := make([]ImageGroup, 0)
 		err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasVuluSQL}, &res)
@@ -1358,7 +1358,7 @@ func (s *ConScannerSrv) getOverViewHelper(ctx context.Context, fromType int64, a
 	}
 	// 查漏洞，异常环境变量，不允许开源许可,漏洞
 	hasSQL := fmt.Sprintf("select  b.image_id,a.image_uuid,b.vuln_score,b.scan_enable_collection_json from %s a join %s b on a.id = b.image_id where a.from_type = %d ;", model.ImageList{}.TableName(), model.ScanImage{}.TableName(), fromType)
-	res := make([]ScanImageJonin, 0)
+	res := make([]ScanImageJoin, 0)
 	err := s.dbdal.GetImageOverView(ctx, store.GetImageOverViewParm{SQL: hasSQL}, &res)
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, err)
