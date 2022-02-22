@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -66,7 +67,7 @@ func WithItems(items interface{}) ResponseDataOptionFunc {
 func WithItem(item interface{}) ResponseDataOptionFunc {
 	val := reflect.ValueOf(item)
 	// 如果传入的item是一个指针，则判断指针关联的类型是否为结构体
-	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
+	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) || val.Kind() == reflect.Map {
 		return func(ev *HTTPEnvelope) {
 			// need to marshal since HTTPData.Item is of type json.RawMessage
 			marshalled, err := json.Marshal(item)

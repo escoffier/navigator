@@ -106,6 +106,7 @@ type ImageResponse struct {
 	NodeHostname      string         `json:"node_hostname"`
 	IsReinforce       int64          `json:"is_reinforce"`
 	PrivilegedBoot    int64          `json:"privileged_boot"`
+	ImageUUID         uint32         `json:"image_uuid"`
 }
 
 func ImageToImageResponse(img ImageList) ImageResponse {

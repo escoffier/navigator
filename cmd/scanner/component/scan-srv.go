@@ -61,6 +61,7 @@ type SearchImageParam struct {
 	Search       string
 	FromType     int64
 	UUIDs        []uint32
+	Fields       []string // 指定只需要的字段
 }
 
 type ScannerSrv interface {
@@ -147,6 +148,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 		FromType:     param.FromType,
 		RegistryIds:  registryIds,
 		UUIDs:        param.UUIDs,
+		Fields:       param.Fields,
 	}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchImage")

@@ -23,7 +23,7 @@ func GetFilter(ctx *gin.Context) *Filter {
 	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
 	sortBy := ctx.Query("sort_by")
 	sortFiled := ctx.Query("sort_filed")
-	if limit > 200 || limit == 0 {
+	if limit > 200 {
 		limit = 200
 	}
 	if offset <= 0 {
@@ -68,7 +68,7 @@ func (f *Filter) SetDefault() *Filter {
 		f.Offset = 0 // 取第一页
 	}
 	if f.Limit <= 0 {
-		f.Limit = math.MaxInt32 // 没传就表示取全部，这里赋一个最大值
+		f.Limit = math.MaxInt64 // 没传就表示取全部，这里赋一个最大值
 	}
 	return f
 }
