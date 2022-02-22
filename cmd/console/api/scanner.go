@@ -38,6 +38,8 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/images/env/{envName}", api.RedirectToScanner())
 		r.Put("/images/env/{envName}", api.RedirectToScanner())
 		r.Get("/images/sampleList", api.RedirectToScanner())
+		r.Get("/images/verifyExistence", api.RedirectToScanner())
+		r.Get("/images/existenceCount", api.RedirectToScanner())
 
 		r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
 

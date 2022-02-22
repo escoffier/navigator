@@ -665,6 +665,7 @@ func (s *Scanner) SearchImages(ctx *gin.Context) {
 			FromType:     images[i].FromType,
 			NodeHostname: images[i].NodeHostname,
 			RegistryID:   images[i].RegistryID,
+			ImageUUID:    images[i].ImageUUID,
 		}
 		if images[i].Registry != nil {
 			ans.Library = images[i].Registry.Url
@@ -679,6 +680,95 @@ func (s *Scanner) SearchImages(ctx *gin.Context) {
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
+}
+
+func (s *Scanner) VerifyExistence(ctx *gin.Context) {
+
+	filter := model.GetFilter(ctx)
+
+	param := component.SearchImageParam{}
+	uuids := ctx.Query("uuids")
+
+	uuid := make([]uint32, 0)
+	split := strings.Split(uuids, ",")
+	for i := range split {
+		if parseInt, err := strconv.ParseInt(split[i], 10, 64); err != nil {
+			logging.Get().Err(err).Msg("UUID 格式不正确")
+		} else {
+			uuid = append(uuid, uint32(parseInt))
+		}
+	}
+	if len(uuid) == 0 {
+		response.JSONError(ctx, fmt.Errorf("not get uuids"))
+		return
+	}
+	param.UUIDs = uuid
+
+	images, _, err := s.Srv.SearchImages(ctx, param, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	res := make(map[uint32]bool)
+	for i := range uuid {
+		res[uuid[i]] = false
+	}
+
+	for i := range images {
+		res[images[i].ImageUUID] = true
+	}
+	type exit struct {
+		VerifyExistence map[uint32]bool `json:"verifyExistence"`
+	}
+	response.JSONOK(ctx, response.WithItem(exit{VerifyExistence: res}))
+}
+
+func (s *Scanner) ExistenceCount(ctx *gin.Context) {
+	filter := model.GetFilter(ctx)
+	param := component.SearchImageParam{Fields: []string{"id", "image_uuid"}}
+	uuids := ctx.Query("uuids")
+	uuid := make([]uint32, 0)
+
+	split := strings.Split(uuids, ",")
+	for i := range split {
+		if parseInt, err := strconv.ParseInt(split[i], 10, 64); err != nil {
+			logging.Get().Err(err).Msg("UUID 格式不正确")
+		} else {
+			uuid = append(uuid, uint32(parseInt))
+		}
+	}
+	if len(uuid) == 0 {
+		response.JSONError(ctx, fmt.Errorf("not get uuids"))
+		return
+	}
+	param.UUIDs = uuid
+
+	images, _, err := s.Srv.SearchImages(ctx, param, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	res := make(map[uint32]bool)
+	for i := range param.UUIDs {
+		res[param.UUIDs[i]] = false
+	}
+	for i := range images {
+		res[images[i].ImageUUID] = true
+	}
+	exit, all := 0, 0
+
+	for _, v := range res {
+		if v {
+			exit++
+		}
+		all++
+	}
+	type exits struct {
+		Exit int `json:"exit"`
+		All  int `json:"all"`
+	}
+
+	response.JSONOK(ctx, response.WithItem(exits{Exit: exit, All: all}))
 }
 
 // ListImgLayers 镜像的回溯信息

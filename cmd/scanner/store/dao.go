@@ -371,6 +371,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			NodeHostname:   res[i].NodeHostname,
 			IsReinforce:    res[i].IsReinforce,
 			PrivilegedBoot: res[i].PrivilegedBoot,
+			ImageUUID:      res[i].ImageUUID,
 		}
 
 		ans = append(ans, &ir)

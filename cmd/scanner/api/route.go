@@ -66,6 +66,8 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v2.GET("/env/:envName", apiScannerSrv.QueryEnvInStrategy)
 		v2.PUT("/env/:envName", apiScannerSrv.SetEnvToStrategy)
 		v2.GET("/sampleList", apiScannerSrv.SearchImages)
+		v2.GET("/verifyExistence", apiScannerSrv.VerifyExistence)
+		v2.GET("/existenceCount", apiScannerSrv.ExistenceCount)
 	}
 
 	v3 := router.Group("/api/v1/layers")
