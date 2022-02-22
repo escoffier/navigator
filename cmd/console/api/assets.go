@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -21,7 +23,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	v1 "k8s.io/api/core/v1"
 )
 
 func (api *api) assets() func(chi.Router) {
@@ -77,6 +78,28 @@ func getLimitAndOffset(r *http.Request) (int, int, error) {
 		return 0, 0, err
 	}
 	return limit, offset, nil
+}
+
+func getLimitAndOffsetWithDefault(r *http.Request) (int, int) {
+	// 取默认值，所以忽略所有的err
+	defaultLimit, defaultOffset := 10, 0
+	limitStr, _ := param.QueryString(r, "limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	offsetStr, _ := param.QueryString(r, "offset")
+	offset, _ := strconv.Atoi(offsetStr) // 如果是"",还是会报错
+	if offset <= 0 {
+		offset = defaultOffset
+	}
+
+	return limit, offset
 }
 
 type resourceContainer struct {

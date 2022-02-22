@@ -20,3 +20,9 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/report", api.platformReport())
 	}
 }
+
+func (api *api) platformOpenapi() func(chi.Router) {
+	return func(r chi.Router) {
+		r.Route("/assets", api.assetsForOpenapi())
+	}
+}
