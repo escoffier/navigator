@@ -141,7 +141,7 @@ func (kri *NodeResourceInfo) clearContainerTimeoutData() {
 			if count >= 60 { // if a map keeps a stable size but is with continouous add or delete, it should be reconstructed after a period of time to prevent memory leak
 				newMap := make(map[string]int64, len(kri.containerData))
 				for containerID, timestamp := range kri.containerData {
-					if nowTime.Unix()-timestamp < containerIDTimeoutSec {
+					if nowTime.Unix()-timestamp >= containerIDTimeoutSec {
 						continue
 					}
 					newMap[containerID] = timestamp
