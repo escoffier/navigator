@@ -69,16 +69,13 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		FlowConf:     flowconf.DefaultImageScanFlowName,
 		PolicyId:     strategyID,
 	}
-	taskID, err := scannerGormDb.AddTask(ctx, tmpTask)
-	if err != nil {
-		return err
-	}
+
 	subtasks := make([]model.SubTask, 0)
 	for i := range imageIds {
 		tmpTime := time.Now()
 		// generate subtasks
 		subtask := model.SubTask{
-			TaskID:    taskID,
+			TaskID:    0, // fill in gorm function
 			ImageID:   imageIds[i],
 			Status:    consts.ImageScanPending,
 			HeartBeat: &tmpTime,
@@ -86,12 +83,8 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		subtasks = append(subtasks, subtask)
 	}
 
-	err = scannerGormDb.AddSubTask(ctx, subtasks)
+	_, err := scannerGormDb.AddTaskAndSubTask(ctx, tmpTask, subtasks)
 	if err != nil {
-		err2 := t.SetTaskFailed(taskID, fmt.Sprintf("add subtask err:%v", err))
-		if err2 != nil {
-			return err2
-		}
 		return err
 	}
 
@@ -552,6 +545,24 @@ func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
 		res = append(res, t)
 	}
 	return res, nil
+}
+
+func (t *TaskSrv) ReScheduleSubTask(subTasks []SubTask) error {
+	ids := make([]int64, 0)
+	for _, v := range subTasks {
+		ids = append(ids, v.ID)
+	}
+	search := store.SearchSubTaskParam{
+		Ids: ids,
+	}
+	updateInfo := make(map[string]interface{})
+	updateInfo["heart_beat"] = time.Now()
+	updateInfo["status"] = consts.ImageScanPending
+	err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), search, updateInfo)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func transTask(dbTask model.Task) Task {

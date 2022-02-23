@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sync/atomic"
+	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -21,6 +22,7 @@ import (
 
 type WebshellScan struct {
 	WebshellAddr string
+	TotalFileNum int64
 }
 
 func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath string) ([]model.WebShellInfo, error) {
@@ -107,8 +109,24 @@ func (w *WebshellScan) webShellTask(ctx context.Context, ch <-chan *fileContent,
 					break
 				}
 
+				w.TotalFileNum = w.TotalFileNum + 1
 				webshellInfo, err := w.webShellCall(ctx, file.reader)
-				if err != nil || webshellInfo == nil || webshellInfo.Score < 4 {
+				if err != nil {
+					logging.GetLogger().
+						Err(err).
+						Str("fileName", file.fileName).
+						Msg("webshell call failed ")
+					continue
+				}
+				if webshellInfo == nil {
+					logging.GetLogger().Error().
+						Msg("webshell info is nil")
+					continue
+				}
+				if webshellInfo.Score < 4 {
+					logging.GetLogger().Trace().
+						Int64("score", webshellInfo.Score).
+						Msg("webshell score below watermark")
 					continue
 				}
 
@@ -151,8 +169,13 @@ func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*mod
 	req = req.WithContext(ctx)
 	req.Close = true
 
-	res, err := http.DefaultClient.Do(req)
+	var tmpClient = &http.Client{
+		Timeout: time.Duration(2) * time.Second,
+	}
+	res, err := tmpClient.Do(req)
+	//res, err := http.DefaultClient.Do(req)
 	if err != nil {
+		logging.GetLogger().Err(err).Msg("request webshell server err")
 		return nil, err
 	}
 

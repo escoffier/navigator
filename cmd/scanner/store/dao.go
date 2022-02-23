@@ -100,6 +100,8 @@ type ScanTaskInterface interface {
 	GetTotalTaskNum(ctx context.Context) (int64, error)
 	GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error)
 	GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error)
+
+	AddTaskAndSubTask(ctx context.Context, task model.Task, subtask []model.SubTask) (int64, error)
 	AddTask(ctx context.Context, task model.Task) (int64, error)
 	AddSubTask(ctx context.Context, subtask []model.SubTask) error
 	GetSubTasks(ctx context.Context, param SearchSubTaskParam, filter *model.Filter) ([]model.SubTask, int64, error)
@@ -770,8 +772,7 @@ func (s ScannerOrm) UpdateGlobalPolicy(ctx context.Context, updater map[string]i
 		tx.Rollback()
 		return err
 	}
-	tx.Commit()
-	return nil
+	return tx.Commit().Error
 }
 
 func (s ScannerOrm) AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error) {
@@ -1506,7 +1507,7 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 }
 
 func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
@@ -2067,8 +2068,38 @@ func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*model.Regi
 
 	return &tmp, nil
 }
+
+func (s *ScannerOrm) AddTaskAndSubTask(ctx context.Context, task model.Task, subtask []model.SubTask) (int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	db := s.psql.Get().WithContext(ctx)
+	tx := db.Begin()
+
+	if err := tx.Model(model.Task{}).Create(&task).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// fill taskId to subTask
+	for k := range subtask {
+		subtask[k].TaskID = task.ID
+	}
+
+	if err := tx.Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	err := tx.Commit().Error
+	if err != nil {
+		return 0, err
+	}
+	return task.ID, nil
+}
+
 func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	if err := s.psql.Get().WithContext(ctx).Model(model.Task{}).Create(&task).Error; err != nil {
 		return 0, err
@@ -2077,7 +2108,7 @@ func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error
 	return task.ID, nil
 }
 func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
 	if err := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
 		return err
