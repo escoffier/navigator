@@ -286,7 +286,7 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 }
 
 func (api *api) scapOpenApi() func(chi.Router) {
-	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT"))
+	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT_PER_MIN"))
 	if err != nil || rate <= 0 {
 		rate = 20
 	}

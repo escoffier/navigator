@@ -115,7 +115,7 @@ func (api *api) scanner() func(chi.Router) {
 
 func (api *api) scannerOpenApi() func(router chi.Router) {
 
-	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT"))
+	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT_PER_MIN"))
 	if err != nil || rate <= 0 {
 		rate = 20
 	}
