@@ -9,13 +9,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type Scanner struct {
@@ -199,25 +200,26 @@ func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 	// nolint
 	type tem struct {
-		SearchWord       string  `json:"search"`
-		FromType         int64   `json:"from_type"`
-		Kind             string  `json:"kind"`
-		Online           string  `json:"online"`
-		ImageType        string  `json:"image_type"`
-		ImageID          int64   `json:"image_id"`
-		ImageIds         []int64 `json:"image_ids"`
-		Library          string  `json:"library"`
-		ScanStatus       []int   `json:"scan_status"`
-		Trusted          string  `json:"trusted"`
-		HasFixedVulu     string  `json:"has_fixed_vulu"`
-		IsReinforce      string  `json:"is_reinforce"`
-		NodeHostname     string  `json:"node_hostname"`
-		SpecialImageType string  `json:"special_image_type"`
-		JustReturnImage  bool    `json:"just_return_image"`
-		Scope            int     `json:"scope"`
-		TriggerType      int     `json:"trigger_type"`
-		StrategyID       int64   `json:"strategy_id"`
-		Operator         string  `json:"operator"`
+		SearchWord       string   `json:"search"`
+		FromType         int64    `json:"from_type"`
+		Kind             string   `json:"kind"`
+		Online           string   `json:"online"`
+		ImageType        string   `json:"image_type"`
+		ImageID          int64    `json:"image_id"`
+		ImageIds         []int64  `json:"image_ids"`
+		Library          string   `json:"library"`
+		ScanStatus       []int    `json:"scan_status"`
+		Trusted          string   `json:"trusted"`
+		HasFixedVulu     string   `json:"has_fixed_vulu"`
+		IsReinforce      string   `json:"is_reinforce"`
+		NodeHostname     string   `json:"node_hostname"`
+		SpecialImageType string   `json:"special_image_type"`
+		JustReturnImage  bool     `json:"just_return_image"`
+		Scope            int      `json:"scope"`
+		TriggerType      int      `json:"trigger_type"`
+		StrategyID       int64    `json:"strategy_id"`
+		Operator         string   `json:"operator"`
+		UUIDs            []uint32 `json:"uuids"`
 	}
 
 	t := new(tem)
@@ -242,6 +244,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		NodeHostname:     t.NodeHostname,
 		SpecialImageType: t.SpecialImageType,
 		JustReturnImage:  true,
+		UUIDs:            t.UUIDs,
 	}
 
 	scanInfo := task.UpdateTaskInfo{
