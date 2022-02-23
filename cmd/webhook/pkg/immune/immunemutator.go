@@ -7,6 +7,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune/mutation"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -35,7 +36,7 @@ func Register() {
 
 func (i *immuneMutator) Init(webHookConfig *processors.WebHookConfig) error {
 	var c *rest.Config
-	c, err := rest.InClusterConfig()
+	c, err := k8s.KubeConfig()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to get in-cluster config")
 		return err

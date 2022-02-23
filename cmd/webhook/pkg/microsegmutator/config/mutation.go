@@ -2,9 +2,9 @@ package config
 
 import (
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 func InitMutationConfig() error {
 	var err error
 
-	config, err := rest.InClusterConfig()
+	config, err := k8s.KubeConfig()
 	if err != nil {
 		return errors.Wrap(err, "failed to init k8s config")
 	}

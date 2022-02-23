@@ -19,7 +19,10 @@ import (
 	certutil "k8s.io/client-go/util/cert"
 )
 
-const maxClusterNum = 1000
+const (
+	maxClusterNum      = 1000
+	hostK8sClusterName = "default"
+)
 
 var (
 	instance *ClusterManager
@@ -30,6 +33,7 @@ var (
 type ClusterManager struct {
 	clientMap    map[string]*assets.Clientset
 	clientsetMap map[string]*assets.Clientset
+	HostClient   *assets.Clientset
 	watcher      *assets.Watcher
 	rdb          *rdbtools.GormWrapper
 	creator      CreateWatcherFunc
@@ -164,12 +168,14 @@ func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model
 		}
 	}
 
-	// k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
-	clientset, err := CreateClientset(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	clientset, err := CreateClientset(cluster)
 	if err != nil {
 		return err
 	}
 
+	if cluster.Name == hostK8sClusterName {
+		m.HostClient = clientset
+	}
 	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
 	m.addClient(clientMap)
 	err = m.watcher.StartsToWatch(ctx, clientMap)
@@ -193,23 +199,32 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 	logging.GetLogger().Info().Msgf("cluster number: %d", num)
 
 	for _, c := range clusters {
-		tlsClientConfig := rest.TLSClientConfig{}
+		tlsClientConfig := rest.TLSClientConfig{Insecure: false}
 		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("load root CA config for cluster %s err", c.Key)
-			continue
+			logging.GetLogger().Warn().Msgf("load root CA config for cluster %s err: %v", c.Key, err)
+			tlsClientConfig.Insecure = true
 		} else {
 			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
+		}
+
+		if c.SecretToken == "" {
+			tlsClientConfig.CertData = []byte(c.ClientCertData)
+			tlsClientConfig.KeyData = []byte(c.ClientKeyData)
 		}
 		clientSet, err := assets.NewForConfig(&rest.Config{
 			Host:            c.APIServerAddr,
 			TLSClientConfig: tlsClientConfig,
 			BearerToken:     c.SecretToken,
 		})
+
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msgf("create client for cluster %s err", c.Key)
 			continue
 		}
 		clientMap[c.Key] = clientSet
+		if c.Name == hostK8sClusterName {
+			m.HostClient = clientSet
+		}
 	}
 	logging.GetLogger().Info().Msgf("get %d k8s client", len(clientMap))
 	m.addClient(clientMap)
@@ -247,13 +262,16 @@ func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *asset
 }
 
 func (m *ClusterManager) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
-	// k8sClient, err := CreateK8sClient(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
-	clientset, err := CreateClientset(cluster.SecretToken, cluster.CertificateAuthData, cluster.APIServerAddr)
+	clientset, err := CreateClientset(cluster)
 	if err != nil {
 		return err
 	}
 
 	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
+
+	if cluster.Name == hostK8sClusterName {
+		m.HostClient = clientset
+	}
 	m.addClient(clientMap)
 	return nil
 }
@@ -270,4 +288,8 @@ func (m *ClusterManager) DeleteClient(clusterKey string) {
 	m.Lock()
 	defer m.Unlock()
 	delete(m.clientMap, clusterKey)
+}
+
+func (m *ClusterManager) GetHostClient() *assets.Clientset {
+	return m.HostClient
 }

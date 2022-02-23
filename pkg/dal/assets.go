@@ -1246,6 +1246,8 @@ func AddCluster(ctx context.Context, rdb *rdbtools.GormWrapper, cluster *model.T
 			DoUpdates: clause.AssignmentColumns([]string{
 				"certificate_auth_data",
 				"secret_token",
+				"client_cert_data",
+				"client_key_data",
 				"status",
 				"cluster_type",
 				"worker_namespace",

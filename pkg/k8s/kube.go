@@ -4,8 +4,12 @@ package k8s
 import (
 	"context"
 	b64 "encoding/base64"
+	"errors"
 	"fmt"
 	"os"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -15,6 +19,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	certutil "k8s.io/client-go/util/cert"
 )
+
+type K8SInfoForRestConfig struct {
+	CertData      []byte `json:"cert_data"`
+	KeyData       []byte `json:"key_data"`
+	CAData        []byte `json:"ca_data"`
+	Token         []byte `json:"token"`
+	APIServerAddr string `json:"apiserver_addr"`
+}
 
 // CreateK8sClientFromKubeConfig creates kubernetes.Clientset from kubeconfig byte array
 func CreateK8sClientFromKubeConfig(kubeconfig []byte) (*kubernetes.Clientset, error) {
@@ -81,17 +93,26 @@ func KubeClientFromServiceAccoount() (*kubernetes.Clientset, *rest.Config, error
 	return clientset, config, nil
 }
 
-func CreateK8sClient(token, ca, addr string) (*kubernetes.Clientset, error) {
-	tlsClientConfig := rest.TLSClientConfig{}
-	if _, err := certutil.NewPoolFromBytes([]byte(ca)); err != nil {
-		return nil, err
+func CreateK8sClient(cluster *model.TensorCluster) (*kubernetes.Clientset, error) {
+	tlsClientConfig := rest.TLSClientConfig{Insecure: false}
+	ca := []byte(cluster.CertificateAuthData)
+	_, err := certutil.NewPoolFromBytes(ca)
+	if err != nil {
+		tlsClientConfig.Insecure = true
 	} else {
-		tlsClientConfig.CAData = []byte(ca)
+		tlsClientConfig.CAData = ca
 	}
-	clientSet, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            addr,
+
+	var clientSet *kubernetes.Clientset
+	if cluster.SecretToken == "" {
+		tlsClientConfig.CertData = []byte(cluster.ClientCertData)
+		tlsClientConfig.KeyData = []byte(cluster.ClientKeyData)
+	}
+
+	clientSet, err = kubernetes.NewForConfig(&rest.Config{
+		Host:            cluster.APIServerAddr,
 		TLSClientConfig: tlsClientConfig,
-		BearerToken:     token,
+		BearerToken:     cluster.SecretToken,
 	})
 	if err != nil {
 		return nil, err
@@ -99,17 +120,68 @@ func CreateK8sClient(token, ca, addr string) (*kubernetes.Clientset, error) {
 	return clientSet, nil
 }
 
-func CreateClientset(token, ca, addr string) (*assets.Clientset, error) {
-	tlsClientConfig := rest.TLSClientConfig{}
-	if _, err := certutil.NewPoolFromBytes([]byte(ca)); err != nil {
-		return nil, err
-	} else {
-		tlsClientConfig.CAData = []byte(ca)
+func genKubeConfig(c *K8SInfoForRestConfig) (*rest.Config, error) {
+	if c == nil {
+		return nil, errors.New("invalid config")
 	}
-	clientSet, err := assets.NewForConfig(&rest.Config{
-		Host:            addr,
+	tlsClientConfig := rest.TLSClientConfig{Insecure: false}
+	if _, err := certutil.NewPoolFromBytes(c.CAData); err != nil {
+		logging.GetLogger().Warn().Msgf("load root CA config err: %v", err)
+		tlsClientConfig.Insecure = true
+	} else {
+		tlsClientConfig.CAData = c.CAData
+	}
+
+	if len(c.Token) == 0 {
+		if len(c.CertData) == 0 || len(c.KeyData) == 0 {
+			return nil, errors.New("invalid cert data")
+		}
+		tlsClientConfig.CertData = c.CertData
+		tlsClientConfig.KeyData = c.KeyData
+	}
+	return &rest.Config{
+		Host:            c.APIServerAddr,
 		TLSClientConfig: tlsClientConfig,
-		BearerToken:     token,
+		BearerToken:     string(c.Token),
+	}, nil
+}
+
+//KubeConfig get config from  cluster manager and generate rest.Config
+func KubeConfig() (*rest.Config, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	host := os.Getenv("CLUSTER_MANAGER_URL")
+	if host == "" {
+		return nil, fmt.Errorf("no cluster manager url")
+	}
+
+	cluster, err := getK8sClusterInfo(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	return genKubeConfig(cluster.K8SRestConfig)
+}
+
+func CreateClientset(cluster *model.TensorCluster) (*assets.Clientset, error) {
+	tlsClientConfig := rest.TLSClientConfig{Insecure: false}
+	ca := []byte(cluster.CertificateAuthData)
+	_, err := certutil.NewPoolFromBytes(ca)
+	if err != nil {
+		tlsClientConfig.Insecure = true
+	} else {
+		tlsClientConfig.CAData = ca
+	}
+
+	var clientSet *assets.Clientset
+	if cluster.SecretToken == "" {
+		tlsClientConfig.CertData = []byte(cluster.ClientCertData)
+		tlsClientConfig.KeyData = []byte(cluster.ClientKeyData)
+	}
+	clientSet, err = assets.NewForConfig(&rest.Config{
+		Host:            cluster.APIServerAddr,
+		TLSClientConfig: tlsClientConfig,
+		BearerToken:     cluster.SecretToken,
 	})
 	if err != nil {
 		return nil, err

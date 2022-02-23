@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
@@ -18,8 +20,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 )
@@ -30,29 +30,41 @@ const (
 	defaultK8sClusterName = "default"
 )
 
+type SAToken struct {
+	Token  []byte
+	CaData []byte
+}
+
+type CertsData struct {
+	keyData  []byte
+	certData []byte
+	caData   []byte
+}
+
 type ClusterManager struct {
 	masterAddr      string
 	CusterID        string
 	Name            string
-	Token           string
-	CaData          string
+	KubeRestConfig  *k8s.K8SInfoForRestConfig
 	apiServerAddr   string
 	description     string
 	ClusterType     model.ClusterType
 	httpClient      *http.Client
 	tlsClient       bool
-	client          clientset.Interface
-	nodeInformer    coreinformers.NodeInformer
-	resyncPeriod    time.Duration
 	workerNamespace string
 }
 
 const (
+	kubeRootCAFile = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	tokenFile      = "/etc/secrets/cluster-admin/token" //nolint
 	rootCAFile     = "/etc/secrets/cluster-admin/ca.crt"
 	masterAssetURL = "/internal/platform/assets/cluster"
 	tlsCAFile      = "/etc/tensorsec/cluster-manager/tls.crt"
 	tlsKeyFile     = "/etc/tensorsec/cluster-manager/tls.key"
+
+	ApiServerCaFile   = "/etc/secrets/cluster-admin/ca.crt"
+	ApiServerCertFile = "/etc/secrets/cluster-admin/tls.crt"
+	ApiServerKeyFile  = "/etc/secrets/cluster-admin/tls.key"
 )
 
 func NewClusterManager(config *config.Config) *ClusterManager {
@@ -122,24 +134,25 @@ func (c *ClusterManager) Init() error {
 		c.ClusterType = model.MemberCluster
 	}
 
-	token, err := ioutil.ReadFile(tokenFile)
-	if err != nil {
-		return err
+	restConfig := &k8s.K8SInfoForRestConfig{
+		APIServerAddr: c.apiServerAddr,
 	}
 
-	c.Token = string(token)
-
-	if _, err := certutil.NewPool(rootCAFile); err != nil {
-		logging.Get().Err(err).Msg("load-file-err")
-		return err
+	saToken, err := loadSATokenData()
+	if err == nil {
+		restConfig.CAData = saToken.CaData
+		restConfig.Token = saToken.Token
+	} else {
+		certData, err := loadCertsData()
+		if err != nil {
+			return err
+		} else {
+			restConfig.CAData = certData.caData
+			restConfig.CertData = certData.certData
+			restConfig.KeyData = certData.keyData
+		}
 	}
-
-	caData, err := ioutil.ReadFile(rootCAFile)
-	if err != nil {
-		return err
-	}
-	c.CaData = string(caData)
-
+	c.KubeRestConfig = restConfig
 	logging.Get().Info().Msgf("cluster id : %s", c.CusterID)
 	return nil
 }
@@ -173,10 +186,10 @@ func (c *ClusterManager) registerClusterInfo() error {
 		ClusterType:         c.ClusterType,
 		Description:         c.description,
 		APIServerAddr:       c.apiServerAddr,
-		CertificateAuthData: c.CaData,
-		SecretToken:         c.Token,
-		ClientKeyData:       "",
-		ClientCertData:      "",
+		CertificateAuthData: string(c.KubeRestConfig.CAData),
+		SecretToken:         string(c.KubeRestConfig.Token),
+		ClientCertData:      string(c.KubeRestConfig.CertData),
+		ClientKeyData:       string(c.KubeRestConfig.KeyData),
 		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
 	}
@@ -306,4 +319,65 @@ func buildInClusterInfo() *model.TensorCluster {
 		CertificateAuthData: string(ca),
 	}
 	return newCluster
+}
+
+func loadSATokenData() (*SAToken, error) {
+	token, err := ioutil.ReadFile(tokenFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var caData []byte
+	if _, err = certutil.NewPool(rootCAFile); err != nil {
+		logging.Get().Err(err).Msg("load-file-err")
+		return nil, err
+	} else {
+		caData, err = ioutil.ReadFile(rootCAFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &SAToken{
+		Token:  token,
+		CaData: caData,
+	}, nil
+}
+
+func loadCertsData() (*CertsData, error) {
+	certData, err := ioutil.ReadFile(ApiServerCertFile)
+	if err != nil {
+		return nil, err
+	}
+	keyData, err := ioutil.ReadFile(ApiServerKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	logging.Get().Info().Msgf("cert: %s", string(certData))
+	logging.Get().Info().Msgf("key: %s", string(keyData))
+	var caData []byte
+	var caFile string
+	if _, err = certutil.NewPool(ApiServerCaFile); err != nil {
+		logging.Get().Err(err).Msg("load custom root ca file err")
+		_, err = certutil.NewPool(kubeRootCAFile)
+		if err != nil {
+			logging.Get().Err(err).Msg("load kube default root ca file err")
+			return nil, err
+		}
+		caFile = kubeRootCAFile
+	} else {
+		caFile = ApiServerCaFile
+	}
+	caData, err = ioutil.ReadFile(caFile)
+	if err != nil {
+		return nil, err
+	}
+
+	logging.Get().Info().Msgf("ca: %s", string(caData))
+	return &CertsData{
+		keyData:  keyData,
+		certData: certData,
+		caData:   caData,
+	}, nil
 }

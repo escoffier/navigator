@@ -99,6 +99,7 @@ require (
 	k8s.io/client-go v0.19.16
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.0.0-20211013023834-4d8cd20c2071
+	//scm.tensorsecurity.cn/tensorsecurity-rd/api v0.1.3
 )
 
 require (

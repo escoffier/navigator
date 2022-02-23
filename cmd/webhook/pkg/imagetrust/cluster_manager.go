@@ -113,14 +113,20 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 	}
 
 	for _, c := range clusters {
-		tlsClientConfig := rest.TLSClientConfig{}
+		tlsClientConfig := rest.TLSClientConfig{Insecure: false}
 		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("load root CA config for cluster %s err", c.Key)
-			continue
+			logging.GetLogger().Warn().Msgf("load root CA config for cluster %s err: %v", c.Key, err)
+			tlsClientConfig.Insecure = true
 		} else {
 			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
 		}
-		clientSet, err := kubernetes.NewForConfig(&rest.Config{
+		var clientSet *kubernetes.Clientset
+		if c.SecretToken == "" {
+			tlsClientConfig.CertData = []byte(c.ClientCertData)
+			tlsClientConfig.KeyData = []byte(c.ClientKeyData)
+		}
+
+		clientSet, err = kubernetes.NewForConfig(&rest.Config{
 			Host:            c.APIServerAddr,
 			TLSClientConfig: tlsClientConfig,
 			BearerToken:     c.SecretToken,

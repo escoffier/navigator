@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/avast/retry-go"
 	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"io/ioutil"
 	"net/http"
@@ -13,10 +14,11 @@ import (
 )
 
 type TensorCluster struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Status      int32  `json:"status"`
+	Key           string                    `json:"key"`
+	Name          string                    `json:"name"`
+	Description   string                    `json:"description"`
+	Status        int32                     `json:"status"`
+	K8SRestConfig *k8s.K8SInfoForRestConfig `json:"k8s_rest_config"`
 }
 
 func GetClusterInfo(url string) *TensorCluster {

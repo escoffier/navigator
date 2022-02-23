@@ -3,6 +3,10 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
@@ -11,9 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 func (api *api) apiScan() func(chi.Router) {
