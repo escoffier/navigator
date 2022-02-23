@@ -104,10 +104,13 @@ func WalkSubTasks(ctx context.Context,
 		}
 	}
 	wg.Wait()
+
 	logging.GetLogger().Info().Int64("taskId", t.ID).Msg("task end")
 
 	// only set task status,not set scan result which decided by all subtask's scan result
 	// SetTaskEnd: will ignore suspended task
+
+	// todo: check if all subtask end,if not (eg: update subtask status failed due to db err),set task failed
 	_ = taskSrv.SetTaskEnd(t.ID)
 
 	return nil

@@ -49,6 +49,8 @@ func (e *ExecutorScanWebshell) Scan(ctx context.Context, param Param) (Artifact,
 		tmpWebshellInfo.WebShellInfos = append(tmpWebshellInfo.WebShellInfos, webshellInfos...)
 		resultWebshell = append(resultWebshell, tmpWebshellInfo)
 	}
+	logging.GetLogger().Info().Int64("fileNum", e.WebshellScan.TotalFileNum).Msg("webshell scan end")
+
 	r := make(map[string]interface{})
 	r["result"] = resultWebshell
 	return r, nil
