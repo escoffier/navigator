@@ -10,6 +10,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/nats-io/stan.go"
 	dp "github.com/novln/docker-parser"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +42,7 @@ func sendMessage(subject string, msg []byte) error {
 func Watch() error {
 	var err error
 	var config *rest.Config
-	config, err = rest.InClusterConfig()
+	config, err = k8s.KubeConfig()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to get in-cluster config")
 		return err

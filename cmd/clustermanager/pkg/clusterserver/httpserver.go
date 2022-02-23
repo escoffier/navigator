@@ -34,11 +34,12 @@ func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
 }
 func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, r *http.Request) {
 	clusterInfo := &TensorCluster{
-		Key:         cs.ClusterID,
-		Name:        cs.config.Name,
-		ConsoleURL:  getConsoleURLPrefix(cs.config.MasterAddr),
-		Description: "",
-		Status:      0,
+		Key:           cs.ClusterID,
+		Name:          cs.config.Name,
+		ConsoleUrl:    getConsoleURLPrefix(cs.config.MasterAddr),
+		Description:   "",
+		Status:        0,
+		K8SRestConfig: cs.config.K8SInfoForRestConfig,
 	}
 	data, err := json.Marshal(clusterInfo)
 	if err != nil {

@@ -12,11 +12,11 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -33,7 +33,7 @@ type K8sResClient struct {
 }
 
 func NewK8sResourceSyncer(hostName, hostIP string, nodeResInfo *NodeResourceInfo) (*K8sResClient, error) {
-	config, err := rest.InClusterConfig()
+	config, err := k8s.KubeConfig()
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't initialize k8s config: %w", err)
 	}

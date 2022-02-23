@@ -35,17 +35,14 @@ func Test_clusterManager_postClusterInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &ClusterManager{
-				masterAddr:    tt.fields.masterAddr,
-				CusterID:      tt.fields.CusterID,
-				Name:          tt.fields.Name,
-				Token:         tt.fields.Token,
-				CaData:        tt.fields.CaData,
+				masterAddr: tt.fields.masterAddr,
+				CusterID:   tt.fields.CusterID,
+				Name:       tt.fields.Name,
+				//Token:         tt.fields.Token,
+				//CaData:        tt.fields.CaData,
 				apiServerAddr: tt.fields.apiServerAddr,
 				description:   tt.fields.description,
 				httpClient:    tt.fields.httpClient,
-				client:        tt.fields.client,
-				nodeInformer:  tt.fields.nodeInformer,
-				resyncPeriod:  tt.fields.resyncPeriod,
 			}
 			if err := c.registerClusterInfo(); (err != nil) != tt.wantErr {
 				t.Errorf("registerClusterInfo() error = %v, wantErr %v", err, tt.wantErr)
@@ -119,22 +116,27 @@ func Test_clusterManager_postClusterInfo1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &ClusterManager{
-				masterAddr:    tt.fields.masterAddr,
-				CusterID:      tt.fields.CusterID,
-				Name:          tt.fields.Name,
-				Token:         tt.fields.Token,
-				CaData:        tt.fields.CaData,
+				masterAddr: tt.fields.masterAddr,
+				CusterID:   tt.fields.CusterID,
+				Name:       tt.fields.Name,
+				//Token:         tt.fields.Token,
+				//CaData:        tt.fields.CaData,
 				apiServerAddr: tt.fields.apiServerAddr,
 				description:   tt.fields.description,
 				httpClient:    tt.fields.httpClient,
 				tlsClient:     tt.fields.tlsClient,
-				client:        tt.fields.client,
-				nodeInformer:  tt.fields.nodeInformer,
-				resyncPeriod:  tt.fields.resyncPeriod,
 			}
 			if err := c.registerClusterInfo(); (err != nil) != tt.wantErr {
 				t.Errorf("registerClusterInfo() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
+}
+
+func TestSlice2String(t *testing.T) {
+	var aaa []byte
+	str := string(aaa)
+	t.Log(aaa == nil)
+	t.Log(str)
+	t.Log(len(aaa))
 }

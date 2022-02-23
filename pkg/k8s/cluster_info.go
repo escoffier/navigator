@@ -10,10 +10,20 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
+
+type TensorCluster struct {
+	Key           string                `json:"key"`
+	Name          string                `json:"name"`
+	Description   string                `json:"description"`
+	Status        int32                 `json:"status"`
+	ConsoleUrl    string                `json:"console_url"`
+	K8SRestConfig *K8SInfoForRestConfig `json:"k8s_rest_config"`
+}
 
 type ClusterInfoManager struct {
 	cinfoVal atomic.Value
@@ -75,16 +85,8 @@ func (m *ClusterInfoManager) ClusterKey() (string, bool) {
 	return cinfo.Key, true
 }
 
-type TensorCluster struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Status      int32  `json:"status"`
-	ConsoleUrl  string `json:"console_url"`
-}
-
 func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error) {
-	ctx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/internal/cluster", host), nil)
@@ -92,33 +94,30 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 		return nil, errors.Errorf("Error reading request, %v", err)
 	}
 
-	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, errors.Errorf("Error reading response, %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Errorf("Error reading body, %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("GET method's response code error, code = %v", resp.StatusCode)
-	}
-
 	clusterInfo := TensorCluster{}
-	err = json.Unmarshal(body, &clusterInfo)
-	if err != nil {
-		return nil, errors.Errorf("json unmarshal failed, %v", err)
-	}
+	util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode != http.StatusOK {
+			return errors.Errorf("GET method's response code error, code = %v", resp.StatusCode)
+		}
 
-	if clusterInfo.Status != 0 {
-		return nil, errors.Errorf("get cluster failed, status : %v", clusterInfo.Status)
-	}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return errors.Errorf("Error reading body, %v", err)
+		}
+
+		err = json.Unmarshal(body, &clusterInfo)
+		if err != nil {
+			return errors.Errorf("json unmarshal failed, %v", err)
+		}
+
+		if clusterInfo.Status != 0 {
+			return errors.Errorf("get cluster failed, status : %v", clusterInfo.Status)
+		}
+		return nil
+	}, retry.Attempts(100))
 
 	return &clusterInfo, nil
 }
