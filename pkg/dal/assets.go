@@ -1559,3 +1559,82 @@ func GetFrameworks(ctx context.Context, rdb *gorm.DB) ([]*model.WebFrameScan, er
 	})
 	return frms, err
 }
+
+func CountContainer(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption) (int64, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var count int64
+	notFound := false
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
+		if len(query.WhereEqCondition) > 0 {
+			db = db.Where(query.WhereEqCondition)
+		}
+		if len(query.whereInCondition) > 0 {
+			for column, val := range query.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column := range query.whereNotNullCondition {
+				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+		}
+		err := db.Distinct("image").Count(&count).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func GetResourceContainersUnique(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offset, limit int) (containers []*model.TensorContainer, err error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	err = util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
+		if len(query.WhereEqCondition) > 0 {
+			db = db.Where(query.WhereEqCondition)
+		}
+		if len(query.whereInCondition) > 0 {
+			for column, val := range query.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column := range query.whereNotNullCondition {
+				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+		}
+		if limit > 0 && offset >= 0 {
+			db = db.Offset(offset).Limit(limit)
+		}
+		return db.Distinct("image").Find(&containers).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}

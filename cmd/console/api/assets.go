@@ -37,6 +37,8 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/resources", api.getResources())
 		r.Post("/resource/userData", api.updateResourceUserData())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
+		r.Get("/imageinfos", api.getImageInfos())
+		r.Get("/imageProblems", api.getImageProblems())
 		r.Get("/resources/byImage", api.getResourcesByImage())
 		r.Get("/resources/byImageVulns", api.getResourcesByImageVuln())
 		r.Get("/pods", api.getPods())
@@ -45,6 +47,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/containers/count", api.countContainers())
 		r.Get("/pods/count", api.countPods())
 		r.Get("/namespaces/count", api.countNamespaces())
+		r.Get("/images/count", api.countImages())
 		r.Get("/nodes/count", api.countNodes())
 		r.Get("/nodes", api.getNodes())
 		r.Get("/frameworks", api.getFrameworks())
@@ -1398,5 +1401,182 @@ func (api *api) getFrameworks() http.HandlerFunc {
 			}
 		}
 		response.Ok(w, response.WithItems(items), response.WithTotalItems(int64(len(items))))
+	}
+}
+
+func (api *api) countImages() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		queryOpt := dal.ResourceContainersQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get namespace param error.")
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		cnt, err := resSvc.CountImages(ctx, queryOpt)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get images failed")))
+			return
+		}
+		response.Ok(w, response.WithItem(countResp{cnt}))
+	}
+}
+
+func (api *api) getImageInfos() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		queryOpt := dal.ResourceContainersQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get namespace param error.")
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+		imageInfos, err := resSvc.GetImageInfos(ctx, queryOpt)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		response.Ok(w, response.WithItems(imageInfos), response.WithTotalItems(int64(len(imageInfos))))
+	}
+}
+
+func (api *api) getImageProblems() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+
+		queryOpt := dal.ResourceContainersQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get namespace param error.")
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+		images, err := resSvc.GetImages(ctx, queryOpt, offset, limit)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get images failed")))
+			return
+		}
+		problems := make(map[int]struct{})
+		for _, i := range images {
+			for _, q := range i.Questions {
+				problems[q.ID] = struct{}{}
+			}
+		}
+
+		var resp []int
+		for k, _ := range problems {
+			resp = append(resp, k)
+		}
+		response.Ok(w, response.WithItems(resp), response.WithTotalItems(int64(len(resp))))
 	}
 }
