@@ -105,7 +105,7 @@ func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
 
 		SensitiveEnable: true,
 		VulEnable:       true,
-		WebshellEnable:  true,
+		WebshellEnable:  false, // default disable webshell scan
 		MaliciousEnable: true,
 	}
 	return s.ScanConfigDAl.CreateStrategy(ctx, &data)
