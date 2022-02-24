@@ -215,3 +215,9 @@ func IsPostgresDuplicateError(err error) bool {
 
 	return strings.Contains(strings.ToLower(err.Error()), "duplicate")
 }
+
+func ImageUUID(image string) uint32 {
+	im := strings.TrimPrefix(image, "http://") // trimPrefix http or https
+	im = strings.TrimPrefix(image, "https://")
+	return GenerateUUID(im)
+}

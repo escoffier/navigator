@@ -98,3 +98,32 @@ func (t *ProcessInfo) CreateUUID() uint32 {
 	h.Write(bui.Bytes())
 	return h.Sum32()
 }
+
+type ImageResponse struct {
+	ID                int64                `json:"id"`
+	Digest            string               `json:"digest"`
+	Library           string               `json:"library"`
+	NodeIP            string               `json:"node_ip"`
+	ScanStatus        int                  `json:"scan_status"`
+	CompleteTime      int64                `json:"complete_time"`
+	Questions         []model.QuestionInfo `json:"questions"`
+	FullRepoName      string               `json:"full_repo_name"`
+	Tags              string               `json:"tags"`
+	ImageType         int64                `json:"image_type"`
+	RiskScore         float64              `json:"risk_score"`
+	RegistryID        int64                `json:"registry_id"`
+	RegistryName      string               `json:"registry_name"`
+	RegistryDeletedAt int64                `json:"registry_deleted_at"`
+	FromType          int64                `json:"from_type"`
+	Trusted           int64                `json:"trusted"`
+	HasFixedVulu      int64                `json:"has_fixed_vulu"`
+	Online            bool                 `json:"online"`
+	Os                string               `json:"os"`
+	NodeHostname      string               `json:"node_hostname"`
+	IsReinforce       int64                `json:"is_reinforce"`
+	PrivilegedBoot    int64                `json:"privileged_boot"`
+}
+type ImageInfo struct {
+	Name string `json:"name"`
+	UUID uint32 `json:"uuid"`
+}
