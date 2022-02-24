@@ -48,7 +48,7 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 	clsm := clusterManager.NewClusterManager(s.config)
 	err := clsm.Init()
 	if err != nil {
-		logging.Get().Err(err).Msg("failed to init cluster manager")
+		logging.Get().Err(err).Msg("faild to init cluster manager")
 		return nil, err
 	}
 
