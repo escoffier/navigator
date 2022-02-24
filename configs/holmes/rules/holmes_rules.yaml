@@ -1364,7 +1364,7 @@
   output: >
     Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
   priority: WARNING
-  tags: [container, mitre_execution]
+  tags: [ATT&CK, container, mitre_execution]
 
 - rule: Launch Disallowed Container
   hid: move_04

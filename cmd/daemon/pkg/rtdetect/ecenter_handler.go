@@ -49,6 +49,14 @@ func NewEcHandler(nodeResInfo *netflow.NodeResourceInfo) (*EcHandler, error) {
 	}, nil
 }
 
+func isLegalTag(tag string) bool {
+	switch tag {
+	case "Watson", "ATT&CK":
+		return true
+	default:
+		return false
+	}
+}
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 
 	for _, item := range events {
@@ -60,7 +68,12 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 
 		ruleCategory := "ATT&CK"
 		if len(item.data.Tags) > 0 {
-			ruleCategory = item.data.Tags[0]
+			for _, tag := range item.data.Tags {
+				if isLegalTag(tag) {
+					ruleCategory = tag
+					break
+				}
+			}
 		}
 
 		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
