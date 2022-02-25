@@ -17,14 +17,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const (
 	defaultStartWatchTimeout = 10 * time.Second
-	resyncInterval           = 6 * time.Hour
+	resyncInterval           = 24 * time.Hour
 )
 
 type AssetsAction uint8
