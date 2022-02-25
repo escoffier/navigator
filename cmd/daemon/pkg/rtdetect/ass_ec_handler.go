@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -20,13 +20,13 @@ const (
 
 type AssociatedEventsHandler struct {
 	stanConn    *mqtools.StanConn
-	nodeResInfo *netflow.NodeResourceInfo
+	dockerInfo *nodeinfo.DockerInfoManager
 }
 
-func NewAssociatedEventsHandler(stanConn *mqtools.StanConn, nodeResInfo *netflow.NodeResourceInfo) *AssociatedEventsHandler {
+func NewAssociatedEventsHandler(stanConn *mqtools.StanConn, dockerInfo *nodeinfo.DockerInfoManager) *AssociatedEventsHandler {
 	return &AssociatedEventsHandler{
 		stanConn:    stanConn,
-		nodeResInfo: nodeResInfo,
+		dockerInfo: dockerInfo,
 	}
 }
 
@@ -36,7 +36,7 @@ func (ih *AssociatedEventsHandler) Handle(ctx context.Context, events []eventIte
 
 	for _, e := range events {
 		containerID := e.data.OutputFields[rtdetect.FieldContainerID]
-		if _, exist := ih.nodeResInfo.FindContainerCacheData(containerID); exist {
+		if _, exist := ih.dockerInfo.FindContainerCacheData(containerID); exist {
 			continue
 		}
 

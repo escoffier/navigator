@@ -260,7 +260,7 @@ func (h *HarborV2) ListImages(extender registry.ImageListExtender, req registry.
 				}
 
 				for _, t := range a.Tags {
-					i := h.makeImage(&r, &a, &t)
+					i := h.makeImage(r, a, t)
 					i.ManifestV2 = string(manifestV2)
 					i.ManifestV1 = string(manifestV1)
 					i.ConfigJSON = configBlob
@@ -404,7 +404,7 @@ func (h *HarborV2) CheckProject(projectName string) error {
 	return nil
 }
 
-func (h *HarborV2) makeImage(r *Repository, a *Artifact, t *Tag) *registry.Image {
+func (h *HarborV2) makeImage(r Repository, a Artifact, t Tag) *registry.Image {
 	i := &registry.Image{
 		ImageDigest:  a.Digest,
 		Repository:   r.Name,

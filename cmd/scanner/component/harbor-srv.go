@@ -11,7 +11,6 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"

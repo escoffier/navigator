@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/driftprevention/v1alpha1"
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/settings/v1alpha1"
 )
 
 var (

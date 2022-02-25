@@ -48,14 +48,13 @@ func (h *HarborV1) reqHarbor(url string) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-		// defer resp.Body.Close()
+		defer util.CloseBodyWithLog(resp.Body)
 		if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
 			return fmt.Errorf("status code is %d", resp.StatusCode)
 		}
 		return nil
 	}, retry.Attempts(RetryCount))
 
-	defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err))
 	}
@@ -243,7 +242,7 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 					}
 				}
 
-				i := h.makeImage(&r, &t)
+				i := h.makeImage(r, t)
 				i.Created = t.Created
 				i.ManifestV2 = string(manifestV2)
 				i.ManifestV1 = string(manifestV1)
@@ -392,7 +391,7 @@ func (h *HarborV1) CheckProject(projectName string) error {
 	return nil
 }
 
-func (h *HarborV1) makeImage(r *Repository, t *Tag) *registry.Image {
+func (h *HarborV1) makeImage(r Repository, t Tag) *registry.Image {
 
 	i := &registry.Image{
 		ImageDigest:  t.Digest,
