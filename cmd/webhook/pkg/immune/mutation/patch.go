@@ -5,9 +5,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/driftprevention/v1alpha1"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/settings/v1alpha1"
 )
 
 const (

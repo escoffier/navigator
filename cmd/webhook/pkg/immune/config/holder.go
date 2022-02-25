@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/driftprevention/v1alpha1"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
-	"k8s.io/api/settings/v1alpha1"
 	"k8s.io/client-go/kubernetes"
 )
 

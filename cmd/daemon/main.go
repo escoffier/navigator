@@ -15,6 +15,7 @@ import (
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
@@ -32,16 +33,16 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, nodeResourceInfo *netflow.NodeResourceInfo) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler, err := rtdetect.NewEcHandler(nodeResourceInfo)
+	ecHandler, err := rtdetect.NewEcHandler(dockerInfo, podResInfo)
 	if err != nil {
 		return nil, err
 	}
 	// imHandler := rtdetect.NewImmuneHandler(stanConn)
-	aeHandler := rtdetect.NewAssociatedEventsHandler(stanConn, nodeResourceInfo)
+	aeHandler := rtdetect.NewAssociatedEventsHandler(stanConn, dockerInfo)
 	bui.WithHandler(rtdetect.NewAsyncHandler(ecHandler, defaultRTBuffInterval, defaultRTBuffSize))
 	// bui.WithHandler(rtdetect.NewAsyncHandler(imHandler, defaultRTBuffInterval, defaultRTBuffSize))
 	bui.WithHandler(rtdetect.NewSyncHandler(aeHandler))
@@ -49,6 +50,30 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stan
 	s, err := bui.Build(context.Background())
 	return s, err
 }
+
+func initNodeInfos(hostName, hostIP string) (*nodeinfo.DockerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, error) {
+	dockerInfo, err := nodeinfo.NewDockerInfoManager(hostName, hostIP)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("Failed to initialize docker info manager : %w", err)
+	}
+	err = dockerInfo.Start()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
+	}
+
+	k8sInfo := netflow.NewNodePodInfo(dockerInfo)
+	podResInfo := nodeinfo.NewPodResInfo()
+	podsWatcher := nodeinfo.NewNodePodsWatcher(hostName).AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
+	err = podsWatcher.Start(context.Background())
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
+	}
+
+	return dockerInfo, k8sInfo, podResInfo, nil
+}
+
+
+
 
 var runes = []rune{
 	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
@@ -137,19 +162,12 @@ func NetInit(ctx context.Context) error {
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
-	nodeResourceInfo := netflow.NewNodeResourceInfo()
-	//new k8s resource
-	k8sResSync, err := netflow.NewK8sResourceSyncer(hostName, hostIP, nodeResourceInfo)
+	dockerInfo, k8sInfo, podResInfo, err := initNodeInfos(hostName, hostIP)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize k8s resource sycner, : %w", err)
-	}
-	//start k8s service
-	err = k8sResSync.StartK8sServiceSyncer()
-	if err != nil {
-		return fmt.Errorf("listen k8s event failed, %v.", err)
+		return err
 	}
 	//new flow session
-	flow, err := netflow.NewFlowSession(k8sResSync, clusterManager, consoleAddr)
+	flow, err := netflow.NewFlowSession(dockerInfo, k8sInfo, clusterManager, consoleAddr)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
@@ -170,7 +188,7 @@ func NetInit(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, nodeResourceInfo)
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, dockerInfo, podResInfo)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		}

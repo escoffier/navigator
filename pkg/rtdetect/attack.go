@@ -314,7 +314,9 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 	return kvs, podUID, podName, namespace
 }
 
-func GenerateAttackEvent(module, category string, uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string, uuid uint64) *pb.SendNotificationReq {
+type GetOwnerResourceFunc func(namespace, podName string) (kind, name string, ok bool)
+
+func GenerateAttackEvent(module, category string, uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string, uuid uint64, ownerFunc GetOwnerResourceFunc) *pb.SendNotificationReq {
 	if module == "" {
 		module = model.AlertModuleContainerSecurity
 	}
@@ -343,6 +345,12 @@ func GenerateAttackEvent(module, category string, uuidGenerator *uuid.Generator,
 		},
 		Timestamp: timestamp,
 		UUID:      uuid,
+	}
+	if ownerFunc != nil {
+		kind, name, ok := ownerFunc(namespace, podName)
+		if ok && len(name) > 0 && len(kind) > 0 {
+			req.NotifyContext.ServiceID = strings.Join([]string{kind, name}, "/")
+		}
 	}
 	if uuid == 0 {
 		req.UUID = uuidGenerator.GenerateUUID()

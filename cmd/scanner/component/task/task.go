@@ -6,17 +6,16 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	flowconf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"golang.org/x/sync/semaphore"
 )
 
 type WalkTaskFunc func(t *Task, limit *semaphore.Weighted, flow flowconf.FlowConf) error
 type WalkSubTaskFunc func(t *Task, st *SubTask, subLimit *semaphore.Weighted, flow flowconf.FlowConf, wg *sync.WaitGroup) error
 
-func GetFlowNameByTask(t *Task) string {
+func GetFlowNameByTask(t Task) string {
 	return t.FlowConf
 }
 
@@ -37,7 +36,7 @@ func WalkTasks(ctx context.Context, tasks []Task, limit *semaphore.Weighted, tas
 		}
 
 		// get flow conf by task info
-		flowConf, err := flowconf.GetFlowConf(GetFlowNameByTask(&t))
+		flowConf, err := flowconf.GetFlowConf(GetFlowNameByTask(t))
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("get flow err")
 			if err2 := taskSrv.SetTaskFailed(t.ID, fmt.Sprintf("not find task's flow config:%v", err)); err2 != nil {

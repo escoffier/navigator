@@ -3,8 +3,8 @@ package mutation_test
 import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention/mutation"
+	"gitlab.com/piccolo_su/vegeta/pkg/driftprevention/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/settings/v1alpha1"
 	"testing"
 )
 

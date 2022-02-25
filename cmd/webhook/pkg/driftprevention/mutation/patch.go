@@ -3,8 +3,8 @@ package mutation
 import (
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/pkg/driftprevention/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/settings/v1alpha1"
 )
 
 //// Patch represents a JSON patch to be applied

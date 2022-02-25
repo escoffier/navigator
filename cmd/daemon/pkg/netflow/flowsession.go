@@ -13,6 +13,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -28,7 +29,8 @@ type FlowSession struct {
 	CtFlow         ConntrackTools
 	sockClient     *net.UnixConn
 	hostIP         string
-	k8sResInfos    *NodeResourceInfo
+	nodePodsInfo   *NodePodsInfo
+	dockerInfo     *nodeinfo.DockerInfoManager
 	url            string
 	clusterManager ClusterManager
 	submitter      *Submitter
@@ -144,7 +146,7 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
+func NewFlowSession(dockerInfo *nodeinfo.DockerInfoManager, k8sInfo *NodePodsInfo, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
 
 	redisClient, err := RedisInit()
 	if err != nil {
@@ -177,7 +179,8 @@ func NewFlowSession(k8sClient *K8sResClient, clusterManager ClusterManager, cons
 	fs := FlowSession{
 		CtFlow:         ctFlow,
 		hostIP:         myHostIP,
-		k8sResInfos:    k8sClient.nodeResInfo,
+		nodePodsInfo:   k8sInfo,
+		dockerInfo:     dockerInfo,
 		clusterManager: clusterManager,
 		url:            url,
 		nsDataChan:     make(chan daemon.NetSessionLink, 300),
@@ -353,7 +356,6 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 }
 
 func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *daemon.FiveTuple) (*daemon.ProcessInfo, error) {
-
 	for _, containerData := range res.ContainerInfo {
 		//logging.Get().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 		netInfo := &daemon.PidAssociateMnt{
@@ -518,8 +520,8 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		return nil
 	}
 	//match pod information
-	src, err := fs.k8sResInfos.GetK8sResData(netSession.Origin.SrcIp)
-	dst, dstErr := fs.k8sResInfos.GetK8sResData(netSession.Reply.SrcIp)
+	src, err := fs.nodePodsInfo.GetPodDataByPodIP(netSession.Origin.SrcIp)
+	dst, dstErr := fs.nodePodsInfo.GetPodDataByPodIP(netSession.Reply.SrcIp)
 	if err != nil && dstErr != nil {
 		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
 		return err

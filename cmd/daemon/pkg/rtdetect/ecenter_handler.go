@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/logging"
 	pb "gitlab.com/security-rd/go-pkg/pb"
@@ -26,11 +26,12 @@ var (
 type EcHandler struct {
 	ecCli       pb.EventsCenterCollectionServiceClient
 	uuidGen     *uuid.Generator
-	nodeResInfo *netflow.NodeResourceInfo
+	dockerInfo *nodeinfo.DockerInfoManager
+	podResInfo *nodeinfo.PodResInfo
 }
 
-func NewEcHandler(nodeResInfo *netflow.NodeResourceInfo) (*EcHandler, error) {
-	if nodeResInfo == nil {
+func NewEcHandler(dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*EcHandler, error) {
+	if dockerInfo == nil {
 		return nil, errors.New("argument is nil")
 	}
 	ech, err := echelper.NewGRPCClientFromEnv()
@@ -45,7 +46,8 @@ func NewEcHandler(nodeResInfo *netflow.NodeResourceInfo) (*EcHandler, error) {
 	return &EcHandler{
 		ecCli:       ech,
 		uuidGen:     uuidGen,
-		nodeResInfo: nodeResInfo,
+		dockerInfo: dockerInfo,
+		podResInfo: podResInfo,
 	}, nil
 }
 
@@ -58,10 +60,9 @@ func isLegalTag(tag string) bool {
 	}
 }
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
-
 	for _, item := range events {
 		containerID := item.data.OutputFields[rtdetect.FieldContainerID]
-		if _, exist := ec.nodeResInfo.FindContainerCacheData(containerID); exist {
+		if _, exist := ec.dockerInfo.FindContainerCacheData(containerID); exist {
 			logging.Get().Info().Msgf("Filter out container creation post events. data: %v. ContainerID: %s", item.data, containerID)
 			continue
 		}
@@ -76,7 +77,13 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 			}
 		}
 
-		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid))
+		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid), func(namespace, podName string) (kind, name string, ok bool) {
+			res, exist := ec.podResInfo.GetPod(namespace, podName)
+			if exist {
+				return res.Kind, res.Name, true
+			}
+			return "", "", false
+		})
 
 		func() {
 			oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
