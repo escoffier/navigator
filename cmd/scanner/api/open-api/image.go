@@ -378,9 +378,12 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 		Online:          t.Online,
 		ImageType:       t.ImageType,
 		Trusted:         t.Trusted,
-		HasFixedVulu:    t.HasFixedVuln,
 		IsReinforce:     t.Reinforced,
 		JustReturnImage: true,
+	}
+	// 只支持存在可修复漏洞的筛选
+	if t.HasFixedVuln == consts.HasFixedvulnStringd {
+		search.HasFixedVulu = consts.HasFixedvulnStringd
 	}
 	if t.FromType == consts.ImageFromRegistry {
 		search.FromType = model.ImageFromTypeNormal
