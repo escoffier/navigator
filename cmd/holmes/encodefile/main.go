@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -13,18 +12,31 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gopkg.in/yaml.v2"
 )
 
 func checkRulesDuplication(rules []model.RuleFromYaml) error {
-	ruleMap := make(map[string]bool)
+	ruleMap := make(map[string]struct{}, len(rules))
+	listMap := make(map[string]struct{}, len(rules))
+	macroMap := make(map[string]struct{}, len(rules))
 	for _, rule := range rules {
-		if rule.Rule == "" {
-			continue
+		if rule.Rule != "" {
+			if _, ok := ruleMap[rule.Rule]; ok {
+				return fmt.Errorf("duplicate rule name: %s", rule.Rule)
+			}
+			ruleMap[rule.Rule] = struct{}{}
+		} else if rule.Macro != "" {
+			if _, ok := macroMap[rule.Macro]; ok {
+				return fmt.Errorf("duplicate macro name: %s", rule.Macro)
+			}
+			macroMap[rule.Macro] = struct{}{}
+		} else if rule.List != "" {
+			if _, ok := listMap[rule.List]; ok {
+				return fmt.Errorf("duplicate list name: %s", rule.List)
+			}
+			listMap[rule.List] = struct{}{}
 		}
-		if _, ok := ruleMap[rule.Rule]; ok {
-			return fmt.Errorf("duplicate rule name: %s", rule.Rule)
-		}
-		ruleMap[rule.Rule] = true
+
 	}
 	return nil
 }

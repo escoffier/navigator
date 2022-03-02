@@ -65,16 +65,22 @@ type LatestATTCKRuleInfo struct {
 }
 
 type RuleFromYaml struct {
-	Rule       string         `yaml:"rule"`
-	Hthreats   uint8          `yaml:"hthreats"`
-	HID        string         `yaml:"hid"`
-	Priority   string         `yaml:"priority"`
-	Desc       string         `yaml:"desc"`
-	Output     string         `yaml:"output"`
-	Suggestion map[string]*KV `yaml:"suggestion"`
-	Category   string         `yaml:"category"`
-	CategoryZh string         `yaml:"categoryZh"`
-	EnabledPtr *bool          `yaml:"enabled,omitempty"` // the default value is true, so set it to a pointer
+	Rule                  string         `yaml:"rule,omitempty"`
+	Hthreats              uint8          `yaml:"hthreats,omitempty"`
+	HID                   string         `yaml:"hid,omitempty"`
+	Priority              string         `yaml:"priority,omitempty"`
+	Desc                  string         `yaml:"desc,omitempty"`
+	Output                string         `yaml:"output,omitempty"`
+	Condition             string         `yaml:"condition,omitempty"`
+	Suggestion            map[string]*KV `yaml:"suggestion,omitempty"`
+	Category              string         `yaml:"category,omitempty"`
+	CategoryZh            string         `yaml:"categoryZh,omitempty"`
+	Tags                  []string       `yaml:"tags,omitempty"`
+	EnabledPtr            *bool          `yaml:"enabled,omitempty"` // the default value is true, so set it to a pointer
+	Macro                 string         `yaml:"macro,omitempty"`
+	List                  string         `yaml:"list,omitempty"`
+	Items                 []string       `yaml:"items,omitempty"`
+	RequiredEngineVersion int            `yaml:"required_engine_version,omitempty"`
 }
 
 func (r *RuleFromYaml) Enabled() bool {
