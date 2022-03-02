@@ -86,11 +86,22 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 
 	drive, err := registry.Open(RegToRegistryConf(reg))
 	if err != nil {
-		return 0, response.NewHttpError(http.StatusInternalServerError, err)
+		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		switch err {
+		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
+			return 0, response.NewHttpError(http.StatusBadRequest, err)
+		default:
+			return 0, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
+		}
 	}
 	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
-		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交"))
+		switch err {
+		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
+			return 0, response.NewHttpError(http.StatusBadRequest, err)
+		default:
+			return 0, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
+		}
 	}
 
 	id, err := s.RegistryDal.CreateRegistry(ctx, reg)
@@ -127,11 +138,22 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	drive, err := registry.Open(RegToRegistryConf(reg))
 
 	if err != nil {
-		return response.NewHttpError(http.StatusInternalServerError, err)
+		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		switch err {
+		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
+			return response.NewHttpError(http.StatusBadRequest, err)
+		default:
+			return response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
+		}
 	}
 	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
-		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交"))
+		switch err {
+		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
+			return response.NewHttpError(http.StatusBadRequest, err)
+		default:
+			return response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
+		}
 	}
 
 	updater := registryToUpdater(reg)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -15,9 +14,10 @@ import (
 	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -44,7 +44,10 @@ func (aa *AliAcr) GetImage(projectName, fullRepoName, tag string) (*registry.Ima
 }
 
 func (aa *AliAcr) Ping() error {
-	return aa.RegistryClient.Ping()
+	if err := aa.RegistryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+	return nil
 }
 
 func (aa *AliAcr) DeleteImages(projectName, repoName, digest string) error {
@@ -245,14 +248,15 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	// create client to pull image manifest and config
 	rc, err := registry.NewDockerRegistryClient(h.Config.URL, h.Config.Username, h.Config.Password, h.Config.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("ali acr: new registry client err:%v", err)
+		logging.Get().Err(err).Msg("openRegistry.NewClientWithAccessKey")
+		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.RegistryClient = rc
 
 	sc, err := cr.NewClientWithAccessKey(h.Config.Region, h.Config.AccessKey, h.Config.AccessSecret)
 	if err != nil {
 		logging.Get().Err(err).Msg("openRegistry.NewClientWithAccessKey")
-		return nil, fmt.Errorf("ali acr: create acr client err:%v", err)
+		return nil, consts.ErrAccessKeyOrAccessSecret
 	}
 
 	h.AliAcrClient = sc
@@ -318,7 +322,7 @@ func getRegion(url string) (region string, err error) {
 	}
 	rs := regRegion.FindStringSubmatch(strings.Trim(url, " "))
 	if len(rs) < 3 {
-		return "", errors.New("invalid Registry|CR service url")
+		return "", errors.New("invalid registry url")
 	}
 	return rs[2], nil
 }
