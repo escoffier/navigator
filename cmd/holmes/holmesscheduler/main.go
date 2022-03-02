@@ -3,11 +3,10 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/decode"
-	holmeshelper "gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/helper"
+	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/holmesengine"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/watch"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
@@ -16,21 +15,9 @@ const (
 	defaultThrPath = "/holmes-rules.thr"
 )
 
-func closeRules(streamBytes []byte, closeRules []string) []byte {
-	rulesStr := string(streamBytes)
-	addStr := "  enabled: false\n"
-	for _, v := range closeRules {
-		repStr := "- rule: " + v + "\n"
-		index := strings.Index(rulesStr, repStr)
-		if index < 0 {
-			continue
-		}
-		rulesStr = strings.Replace(rulesStr, repStr, repStr+addStr, len(addStr))
-
-	}
-	retBytes := []byte(rulesStr)
-	return retBytes
-}
+var (
+	namespaceMutator holmesengine.MutationFunc
+)
 
 func saveRulesFile(writeBytes []byte, path string) error {
 	fp, err := os.Create(path)
@@ -45,14 +32,23 @@ func saveRulesFile(writeBytes []byte, path string) error {
 	return fp.Sync()
 }
 
-func prepareRulesFile(thrPath string, outputPath string, closedRules []string) ([]byte, error) {
+func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]struct{}) ([]byte, error) {
 	rulesContext, err := decode.DoRulesDecode(thrPath)
 	if err != nil {
 		logging.Get().Err(err).Msgf("decode error. path: %s", thrPath)
 		return nil, err
 	}
 
-	writeBytes := closeRules(rulesContext, closedRules)
+	// DEBUG
+	logging.Get().Debug().Msgf("closedFiles: %v", closedRules)
+	// rules swith mutation
+	rulesSwitchMutate := holmesengine.GetRuleSwitchMutationFunc(closedRules)
+	writeBytes, err := holmesengine.RulesMutate(rulesContext, rulesSwitchMutate, namespaceMutator)
+	if err != nil {
+		return nil, err
+	}
+	// DEBUG
+	logging.Get().Debug().Msgf("after mutation: %s", writeBytes)
 
 	return writeBytes, saveRulesFile(writeBytes, outputPath)
 }
@@ -65,6 +61,12 @@ func main() {
 	} else {
 		consoleAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
 	}
+
+	myNamespace := os.Getenv("MY_NAMESPACE")
+	if len(myNamespace) == 0 {
+		myNamespace = "tensorsec"
+	}
+	namespaceMutator = holmesengine.GetTensorsecNamespaceChange(myNamespace)
 
 	url := consoleAddr
 	suffix := "/api/openapi/ATTCK/latestData"
@@ -81,7 +83,7 @@ func main() {
 
 	flag.Parse()
 
-	if *debug {
+	if *debug || os.Getenv("DEBUG_MODE") == "1" {
 		log.SetLevel(log.DebugLevel)
 		logging.SetVerbose()
 	} else {
@@ -93,7 +95,7 @@ func main() {
 	errorC := make(chan error)
 	quit := make(chan int)
 
-	hp := holmeshelper.NewProcessInfo()
+	hp := holmesengine.NewProcessInfo()
 	r := watch.NewHTTPRequest(url + suffix)
 
 	go watch.ConfigmapWatchInit(configmapUpdateC, errorC)
@@ -105,7 +107,7 @@ func main() {
 		err = nil
 		if hp.Handler == nil {
 			if hp.StartWithDefault {
-				_, err = prepareRulesFile(defaultThrPath, holmeshelper.DefaultRulesFile, r.CloseRules())
+				_, err = prepareRulesFile(defaultThrPath, holmesengine.DefaultRulesFile, r.CloseRules())
 				if err != nil {
 					logging.Get().Err(err).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
 				}
@@ -147,7 +149,7 @@ func main() {
 
 		case <-configmapUpdateC:
 			if hp.StartWithDefault {
-				_, perr := prepareRulesFile(defaultThrPath, holmeshelper.DefaultRulesFile, r.CloseRules())
+				_, perr := prepareRulesFile(defaultThrPath, holmesengine.DefaultRulesFile, r.CloseRules())
 				if perr != nil {
 					logging.Get().Err(perr).Msg("prepare rules file error when configmap update. try restart container")
 					os.Exit(1)

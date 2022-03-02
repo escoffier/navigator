@@ -72,7 +72,9 @@ func (rm *RulesManager) loadRules(ctx context.Context) (err error) {
 
 	newRules := make(map[string]string, len(data.AttackRules))
 	for _, rule := range data.AttackRules {
-		newRules[rule.Rule] = rule.Category
+		if rule.Rule != "" { // it may include macros/lists; filter out them
+			newRules[rule.Rule] = rule.Category
+		}
 	}
 	rm.setRules(newRules)
 	rm.setLocalDataVersion(uint64(data.LatestDataVersion))

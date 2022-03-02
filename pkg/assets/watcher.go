@@ -222,7 +222,7 @@ func ShouldResourceBeFiltered(res *TensorResource) bool {
 	return false
 }
 
-func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newClient *Clientset, stopChan chan struct{}) {
+func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newClient *Clientset) {
 	toWatchedTypes := make(map[WatchedType]struct{}, 4)
 	callbacks := make([]ClusterCallback, len(w.callbacks))
 	for i, cb := range w.callbacks {
@@ -1023,7 +1023,7 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 	})
 	honeyspotSynced := honeyspotInformers.HasSynced
 
-	stopChan = make(chan struct{})
+	stopChan := make(chan struct{})
 	w.putClusterStopChan(clusterKey, stopChan)
 
 	informerFactory.Start(stopChan)
@@ -1092,12 +1092,12 @@ func (w *Watcher) StartsToWatch(ctx context.Context, k8sClients map[string]*Clie
 	}
 
 	for clusterKey, newClient := range k8sClients {
-		stopChan, exist := w.getClusterStopChan(clusterKey)
+		_, exist := w.getClusterStopChan(clusterKey)
 		if exist {
 			logging.GetLogger().Warn().Msg(fmt.Sprintf("The cluster %s is already watched", clusterKey))
 			continue
 		}
-		w.watchForCluster(ctx, clusterKey, newClient, stopChan)
+		w.watchForCluster(ctx, clusterKey, newClient)
 	}
 
 	return nil

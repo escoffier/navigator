@@ -1,4 +1,4 @@
-package holmeshelper
+package holmesengine
 
 import (
 	"errors"

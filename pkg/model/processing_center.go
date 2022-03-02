@@ -1,9 +1,16 @@
 package model
 
 import (
-	"encoding/json"
 	"time"
+
+	json "github.com/json-iterator/go"
 )
+
+type PodInfo struct {
+	Cluster   string `json:"cluster"`
+	Namespace string `json:"namespace"`
+	PodName   string `json:"name"`
+}
 
 type ProcessingRecord struct {
 	ID         string   `json:"-"`

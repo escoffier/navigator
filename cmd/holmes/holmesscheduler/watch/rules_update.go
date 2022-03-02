@@ -40,10 +40,10 @@ func (i *HTTPRequestInfo) getCurrentRulesVersion() int64 {
 func (i *HTTPRequestInfo) getCurrentSettingVersion() int64 {
 	return atomic.LoadInt64(&i.currentSettingVersion)
 }
-func (i *HTTPRequestInfo) CloseRules() []string {
-	return i.closeRulesVal.Load().([]string)
+func (i *HTTPRequestInfo) CloseRules() map[string]struct{} {
+	return i.closeRulesVal.Load().(map[string]struct{})
 }
-func (i *HTTPRequestInfo) setCloseRules(r []string) {
+func (i *HTTPRequestInfo) setCloseRules(r map[string]struct{}) {
 	i.closeRulesVal.Store(r)
 }
 
@@ -68,7 +68,7 @@ func NewHTTPRequest(url string) *HTTPRequestInfo {
 		currentSettingVersion: -1,
 		closeRulesVal:         atomic.Value{},
 	}
-	r.setCloseRules(make([]string, 0))
+	r.setCloseRules(make(map[string]struct{}, 0))
 	return r
 }
 
@@ -90,6 +90,13 @@ func saveRulesFile(writeBytes []byte, path string) {
 	}
 }
 
+func toClosedRules(arr []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(arr))
+	for _, r := range arr {
+		m[r] = struct{}{}
+	}
+	return m
+}
 func (i *HTTPRequestInfo) rulesUpdate() ([]byte, bool, bool, error) {
 	httpStreamData, err := i.getData()
 	if err != nil {
@@ -107,7 +114,7 @@ func (i *HTTPRequestInfo) rulesUpdate() ([]byte, bool, bool, error) {
 		}
 		if i.getCurrentSettingVersion() != httpStreamData.Data.Item.LatestSettingVersion {
 			i.setCurrentSettingVersion(httpStreamData.Data.Item.LatestSettingVersion)
-			i.setCloseRules(httpStreamData.Data.Item.Closerules)
+			i.setCloseRules(toClosedRules(httpStreamData.Data.Item.Closerules))
 			settingsUpdated = true
 		}
 
