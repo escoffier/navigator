@@ -1346,7 +1346,7 @@
     and not weaveworks_scope
     and not user_known_change_thread_namespace_activities
     and not ignore_proc_args
-    and not (tensorsec_namespaec and k8s.pod.name contains "holmes")
+    and not (tensorsec_namespace and k8s.pod.name contains "holmes")
   output: >
     Namespace change (setns) by unexpected program (zh_msg=更改线程命名空间;通过调用setns尝试更改程序/线程的命名空间,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
     parent=%proc.pname %container.info container_id=%container.id image=%container.image.repository:%container.image.tag)
