@@ -15,7 +15,6 @@ import (
 	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -42,11 +41,10 @@ func (h *HarborV1) reqHarbor(url string) ([]byte, error) {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err))
 	}
 	req.SetBasicAuth(h.config.Username, h.config.Password)
-	var resp *http.Response
+	var bytes []byte
 
 	err = util.RetryWithBackoff(h.ctx, func() error {
-		var err error
-		resp, err = h.client.Do(req.WithContext(h.ctx))
+		resp, err := h.client.Do(req.WithContext(h.ctx))
 		if err != nil {
 			return err
 		}
@@ -54,19 +52,15 @@ func (h *HarborV1) reqHarbor(url string) ([]byte, error) {
 		if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
 			return fmt.Errorf("status code is %d", resp.StatusCode)
 		}
-		return nil
+		bytes, err = io.ReadAll(resp.Body)
+		return err
 	}, retry.Attempts(RetryCount))
 
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err))
 	}
-	bys, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("reqHarbor")
-		return nil, err
-	}
 
-	return bys, nil
+	return bytes, nil
 }
 
 func (h *HarborV1) ListProjects() ([]Project, error) {
