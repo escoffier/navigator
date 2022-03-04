@@ -9,13 +9,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type Scanner struct {
@@ -1130,13 +1131,13 @@ func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
 
 	taskID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("无效的taskId: %s", ctx.Param("id"))))
 		return
 	}
 
 	err = s.Srv.UpdateScanTaskStatus(ctx, taskID, data.Status)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
 	}
 	response.JSONOK(ctx)

@@ -14,11 +14,11 @@ func StatusCheck(current, next uint8) error {
 	}
 
 	// 当前状态为 等待中 或者 运行中 时，改变状态为 暂停中、已终止、运行
-	// 当前状态为 已暂停，改变状态为 运行中、已终止
+	// 当前状态为 已暂停，改变状态为 等待中、已终止
 	// 当前状态为 运行，改变状态为 暂停、终止、完成
 	if (current == consts.Pending && (next == consts.Pause || next == consts.Terminate || next == consts.InProgress)) ||
 		(current == consts.InProgress && (next == consts.Pause || next == consts.End || next == consts.Terminate)) ||
-		(current == consts.Pause && (next == consts.InProgress || next == consts.Terminate)) {
+		(current == consts.Pause && (next == consts.Pending || next == consts.Terminate)) {
 		return nil
 	}
 
