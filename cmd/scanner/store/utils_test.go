@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
@@ -46,7 +47,7 @@ func Test_TaskStatusCheck(t *testing.T) {
 				consts.Terminate,
 				consts.End,
 			},
-			[]bool{false, true, true, true, false},
+			[]bool{true, false, true, true, false},
 		},
 
 		{
