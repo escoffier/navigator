@@ -1004,6 +1004,24 @@
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
+- rule: CVE-2022-0185(in Linux Kernel Can Allow Container Escape in Kubernetes Linux)
+  hid: priv_13
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: in Linux Kernel Can Allow Container Escape in Kubernetes Linux
+  condition: >
+    evt.type = unshare and proc.name=unshare and proc.args contains r and container
+  output: >
+    in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185(Linux kernel bug可实现Kubernetes容器逃逸),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
 ##attck_rule_type=Defense_Evasion
 - rule: Clear Log Activities
   hid: def_01
