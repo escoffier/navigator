@@ -405,21 +405,24 @@ func (api *api) getResourcesInNamespaceForOpenapi() http.HandlerFunc {
 		defer cancel()
 
 		limit, offset := getLimitAndOffsetWithDefault(r)
+		rquery := dal.ResourcesQuery()
 		clusterKey, err := param.QueryString(r, "clusterKey")
-		if err != nil {
-			logging.GetLogger().Info().Msg("clusterKey param is empty.")
-			clusterKey = ""
+		if err == nil && clusterKey != "" {
+			rquery = rquery.WithCluster(clusterKey)
 		}
 		query, err := param.QueryString(r, "keyword")
-		if err != nil {
-			query = ""
+		if err == nil && query != "" {
+			rquery = rquery.WithColumnQuery("name", query)
 		}
 
-		namespace, _ := param.QueryString(r, "namespace")
-		kind, _ := param.QueryString(r, "resourceKind")
-		if namespace == "" || kind == "" {
-			response.RespError(w, http.StatusExpectationFailed, response.WithMessage("not get namespace or resourceKind"))
-			return
+		namespace, err := param.QueryString(r, "namespace")
+		if err == nil && namespace != "" {
+			rquery = rquery.WithNamespace(namespace)
+		}
+
+		kind, err := param.QueryString(r, "resourceKind")
+		if err == nil && kind != "" && kind != "_" {
+			rquery = rquery.WithResourceKind(assetsPkg.ResourceKind(kind))
 		}
 
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -428,19 +431,7 @@ func (api *api) getResourcesInNamespaceForOpenapi() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		rquery := dal.ResourcesQuery()
-		if clusterKey != "" {
-			rquery = rquery.WithCluster(clusterKey)
-		}
-		if namespace != "" {
-			rquery = rquery.WithNamespace(namespace)
-		}
-		if kind != "" && kind != "_" {
-			rquery = rquery.WithResourceKind(assetsPkg.ResourceKind(kind))
-		}
-		if query != "" {
-			rquery = rquery.WithColumnQuery("name", query)
-		}
+
 		resources, totalCnt, err := resSvc.GetResources(ctx, rquery, offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rquery, offset, limit)
