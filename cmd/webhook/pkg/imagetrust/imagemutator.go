@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -16,7 +17,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const configFile = "image-trust-mutator.yaml"
@@ -175,10 +175,10 @@ func getImageDigestFromHarbor(_ context.Context, image string, secret *ImageRepo
 
 	if secret != nil {
 		logging.GetLogger().Info().Msgf("image [%s] pulling secret %v", image, *secret)
-		digest, err = util.GetImageDigest(secret.user, secret.password, true, image)
+		digest, err = utils.GetImageDigest(secret.user, secret.password, true, image)
 	} else {
 		logging.GetLogger().Info().Msgf("image [%s] pulling secret is empty", image)
-		digest, err = util.GetImageDigest("", "", true, image)
+		digest, err = utils.GetImageDigest("", "", true, image)
 	}
 
 	if err != nil {
@@ -204,7 +204,7 @@ func loadMutatorConfig(path string) (*MutatorConfig, error) {
 }
 
 func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []string) *ImageRepoSecret {
-	imageUrl, err := util.GetImageUrl(image)
+	imageUrl, err := utils.GetImageUrl(image)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("get %s url err", image)
 		return nil
