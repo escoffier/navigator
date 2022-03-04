@@ -1169,19 +1169,29 @@ func (api *api) getNodes() http.HandlerFunc {
 			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
+		query, err := param.QueryString(r, "query")
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			query = ""
+		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.GetLogger().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		nodes, err := resSvc.GetNodes(ctx, dal.NodeQuery().WithCluster(clusterKey), offset, limit)
+		queryOpt := dal.NodeQuery()
+		queryOpt.WithCluster(clusterKey)
+		if query != "" {
+			queryOpt.WithCustom("host_name", query)
+		}
+		nodes, err := resSvc.GetNodes(ctx, queryOpt, offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("getNodes error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		totalCnt, err := resSvc.CountNodes(ctx, dal.NodeQuery().WithCluster(clusterKey))
+		totalCnt, err := resSvc.CountNodes(ctx, queryOpt)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("countNodes error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
