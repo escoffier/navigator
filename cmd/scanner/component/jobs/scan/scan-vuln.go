@@ -78,7 +78,13 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 	tag := ref.Identifier()
 	repositoryName := ref.Context().RepositoryStr()
 	Newimage := "0.0.0.0:5566/" + repositoryName + ":" + tag
-
+	dockerFlag, ok := param["docker"].(int)
+	if ok && dockerFlag == 1 {
+		Image, ok := param["dockerImage"].(string)
+		if ok {
+			Newimage = Image
+		}
+	}
 	// scan
 	if component.TrivyService == nil {
 		logging.GetLogger().Error().Msg("TrivyService didn't start")

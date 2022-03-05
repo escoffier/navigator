@@ -240,9 +240,13 @@ func (w *Worker) saveManifest(task RequestLayerInfo) {
 	}
 	manifest, err := w.rc.readManifest(context.Background(), "v2", task.Repository, task.Tag)
 	if err != nil {
-		logging.Get().Error().Err(err).Msg("read manifest err")
-		task.Response <- fmt.Sprintf("GetManifestError %v", err)
-		return
+		logging.Get().Error().Err(err).Msg("read V2 manifest err will test V1 manifest")
+		manifest, err = w.rc.readManifest(context.Background(), "v1", task.Repository, task.Tag)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("read V1 manifest err will return error")
+			task.Response <- fmt.Sprintf("GetManifestError %v", err)
+			return
+		}
 	}
 
 	fp := filepath.Join(w.llms.fs.rootPath, "manifests", task.Repository+"/"+task.Tag)

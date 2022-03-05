@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os/exec"
 	"strings"
 	"time"
+
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
@@ -20,7 +23,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 const (
@@ -222,6 +224,18 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 	for i, v := range scanDetails.VulnDetails { // 这一层量级为个位数
 		for _, vuln := range v.Vulns { // 漏洞数
 			for _, trivyVvuln := range vuln.Trivy { // 个位数
+				if trivyVvuln.Layer.Digest == "" {
+					continue
+				}
+				_, ok := layerMp[trivyVvuln.Layer.Digest]
+				if !ok {
+					logging.GetLogger().Warn().Msgf("Maybe layer Error layer Digest:%v", trivyVvuln.Layer.Digest)
+					continue
+				}
+				if len(layerMp[trivyVvuln.Layer.Digest].VulnDetails) <= i {
+					logging.GetLogger().Warn().Msgf("Maybe Result len Error layerMpLen:%v,i:%v", len(layerMp[trivyVvuln.Layer.Digest].VulnDetails), i)
+					continue
+				}
 				layerVulns, ok := layerMp[trivyVvuln.Layer.Digest].VulnDetails[i].Vulns[vuln.CVEID]
 				if !ok {
 					tmp := &model.NewVulnDetail{CVEID: vuln.CVEID, Cnvd: vuln.Cnvd, Cnnvd: vuln.Cnnvd}
@@ -771,6 +785,17 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	s.updateRiskVulnCacheEntry(ctx, param, &scanDetails)
 	s.updateRiskVirusCacheEntry(ctx, param, &scanDetails)
 	s.logPostgresWebFrame(ctx, param)
+	dockerFlag, ok := param["docker"].(int)
+	if ok && dockerFlag == 1 {
+		if imageName, ok := param["imageName"]; ok {
+			if im, ok := imageName.(string); ok {
+				if err := rmImage(im); err != nil {
+					logging.GetLogger().Err(err).Str("imageName", im).Msg("docker rm image")
+				}
+			}
+		}
+		return nil, nil
+	}
 	_, ok = param["pullImageJob"].(pullImage.Config)
 	if ok {
 		client1, err := imageCache.NewLocalLayerManageClientT("/layer")
@@ -791,6 +816,19 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	// scannerOrm.InsertToScanImage(context.Background(), &tmpScanImage)
 
 	return nil, nil
+}
+
+func rmImage(imageName string) error {
+	osCmd := exec.Command("docker", "rmi", imageName)
+
+	err := osCmd.Run()
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
+		return err
+	}
+	logging.GetLogger().Info().Msgf("scan-image docker delete image：%s", imageName)
+
+	return nil
 }
 
 func init() {

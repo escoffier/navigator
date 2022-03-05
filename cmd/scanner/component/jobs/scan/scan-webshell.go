@@ -22,6 +22,10 @@ type ExecutorScanWebshell struct {
 }
 
 func (e *ExecutorScanWebshell) Scan(ctx context.Context, param Param) (Artifact, error) {
+	dockerFlag, ok := param["docker"].(int)
+	if ok && dockerFlag == 1 {
+		return nil, nil
+	}
 	layers, ok := param["layers"].([]string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'layersFilePath' in parameter")
