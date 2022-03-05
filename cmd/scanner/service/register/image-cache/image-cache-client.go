@@ -66,7 +66,7 @@ func (icc *Client) GetManifest(username, password, url, repository, tag string, 
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
-		logging.Get().Error().Msgf("layer manage client request end. status code: %d", rsp.StatusCode)
+		logging.Get().Error().Msgf("manifest manage client request end. status code: %d", rsp.StatusCode)
 		return "", err
 	}
 

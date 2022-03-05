@@ -64,6 +64,17 @@ func NewRegistryClient(username, password, repository, url string, skipRegistryT
 func (rc *RegistryClient) readManifest(ctx context.Context, version, repository, digest string) ([]byte, error) {
 	//layers := make([]string, 0)
 	//uniqueLayers := make(map[string]bool)
+	if version == "v1" {
+		manifest, err := rc.registryClient.Manifest(repository, digest)
+		if err != nil {
+			return nil, fmt.Errorf("Could not read docker V1 manifest: %w", err)
+		}
+		res, err := manifest.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("Can't Marshal V1 manifest: %w", err)
+		}
+		return res, nil
+	}
 	if version == "v2" {
 		manifest, err := rc.registryClient.ManifestV2(repository, digest)
 		if err != nil {

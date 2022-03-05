@@ -2,6 +2,8 @@ package pullimage
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -10,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 const (
@@ -38,6 +41,7 @@ type Job struct {
 func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
 	logging.GetLogger().Debug().Msg("pull image start")
 
+	r := make(map[string]interface{})
 	client, err := image_cache.NewLocalLayerManageClientT("/manifest")
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("new manifest client error")
@@ -51,57 +55,106 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 	}
 
 	manifestTmp, err := client.GetManifest(p.config.Username, p.config.Password, p.config.URL, p.config.RepoName, p.config.Tag, true)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("new layer client error")
-		return nil, err
-	}
-	uniqueLayers := make(map[string]bool)
-	layers := make([]string, 0)
-	layersFilePath := make([]string, 0)
-	manifest := schema2.DeserializedManifest{}
-	err = manifest.UnmarshalJSON([]byte(manifestTmp))
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("unmarshall manifest error")
-		return nil, err
-	}
-	layers = append(layers, manifest.Config.Digest.String())
+	manifesttt := schema2.DeserializedManifest{}
+	tterr := manifesttt.UnmarshalJSON([]byte(manifestTmp))
 
-	for _, layer := range manifest.Manifest.Layers {
-		layerDigest := layer.Digest.String()
-		if _, ok := uniqueLayers[layerDigest]; ok {
-			// return []string{}, fmt.Errorf("Found duplicate layer digest in V2 manifest")
-			continue
-		}
-		uniqueLayers[layerDigest] = true
-		layers = append(layers, layerDigest)
-	}
+	if err != nil || tterr != nil {
+		// 说明是用的v1版本的manifest
+		logging.GetLogger().Err(err).Msg("docker client GetManifest")
+		logging.GetLogger().Info().Msg("try docker pull to GetManifest")
 
-	fixedPath := filepath.Join(image_cache.FileServerCache, image_cache.FileServerRootDir, image_cache.DataDir)
-	for layer := range layers {
-		layersFilePath = append(layersFilePath, filepath.Join(fixedPath, layers[layer]))
-		_, _, err := client1.GetLayer(p.config.Username, p.config.Password, p.config.URL, p.config.RepoName, layers[layer], true)
+		imageName := fmt.Sprintf("%s/%s:%s", getLib(p.config.URL), p.config.RepoName, p.config.Tag)
+
+		inspectInfo, err := getInspectInfo(p.config.URL, p.config.Username, p.config.Password, imageName)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("get layer failed")
+			logging.GetLogger().Err(err).Msg("docker client not get manifest,and docker pull not get manifest")
 			return nil, err
 		}
-	}
+		bts, err := json.Marshal(inspectInfo.Config)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("Marshal inspectInfo.Config")
+			return nil, err
+		}
+		r["imageName"] = imageName
+		r["docker"] = 1
+		r["layers"] = inspectInfo.RootFS.Layers
+		r["configJson"] = string(bts)
+	} else {
+		uniqueLayers := make(map[string]bool)
+		layers := make([]string, 0)
+		layersFilePath := make([]string, 0)
+		manifest := schema2.DeserializedManifest{}
+		err = manifest.UnmarshalJSON([]byte(manifestTmp))
+		if err == nil {
+			// 说明是V2版本
+			layers = append(layers, manifest.Config.Digest.String())
+			for _, layer := range manifest.Manifest.Layers {
+				layerDigest := layer.Digest.String()
+				if _, ok := uniqueLayers[layerDigest]; ok {
+					continue
+				}
+				uniqueLayers[layerDigest] = true
+				layers = append(layers, layerDigest)
+			}
+		} else {
+			// 说明是V1版本
+			logging.GetLogger().Err(err).Msg("unmarshal v2 manifest error ,try unmarshal v1")
 
-	configJSON, err := os.ReadFile(filepath.Join(layersFilePath[0], "layer.tar"))
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Get config json err in pull image")
-		return nil, err
+			maniFestV1 := new(model.ManifestV1)
+			if err := json.Unmarshal([]byte(manifestTmp), maniFestV1); err != nil {
+				logging.GetLogger().Err(err).Msg("unmarshal v1 manifest ")
+				// 不直接返回，后面直接用docker pull的方式再次验证
+			}
+
+			for _, his := range maniFestV1.History {
+				for _, v := range his {
+					hv1 := new(model.HistoryV1)
+					if err := json.Unmarshal([]byte(v), hv1); err != nil {
+						logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.HistoryV1 error:%s", err.Error()))
+						continue
+					}
+					ly := "sha256:" + hv1.LayerDegest
+					if _, ok := uniqueLayers[ly]; ok {
+						continue
+					}
+					uniqueLayers[ly] = true
+					layers = append(layers, ly)
+				}
+			}
+		}
+
+		fixedPath := filepath.Join(image_cache.FileServerCache, image_cache.FileServerRootDir, image_cache.DataDir)
+		for layer := range layers {
+			layersFilePath = append(layersFilePath, filepath.Join(fixedPath, layers[layer]))
+			_, _, err := client1.GetLayer(p.config.Username, p.config.Password, p.config.URL, p.config.RepoName, layers[layer], true)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("get layer failed")
+				return nil, err
+			}
+		}
+
+		configJSON, err := os.ReadFile(filepath.Join(layersFilePath[0], "layer.tar"))
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("Get config json err in pull image")
+			return nil, err
+		}
+		r["layers"] = layers
+		r["configJson"] = string(configJSON)
+		r["layersFilePath"] = layersFilePath
 	}
 	// return image http url and layers local path
-	r := make(map[string]interface{})
 	// r["imageCacheUrl"] = "192.168.134.26:80/fff/alltest:latest"
+	logging.GetLogger().Info().Msgf("dockerImage is %v:", p.config.URL+"/"+p.config.RepoName+":"+p.config.Tag)
+	r["dockerImage"] = fmt.Sprintf("%s/%s:%s", getLib(p.config.URL), p.config.RepoName, p.config.Tag)
 	r["pullImageJob"] = p.config
 	r["repoName"] = p.config.RepoName
 	r["tag"] = p.config.Tag
 	r["url"] = p.config.URL
+
 	r["imageCacheUrl"] = image_cache.GenerateImageCacheURL(p.config.RepoName, p.config.Tag)
-	r["layers"] = layers
-	r["layersFilePath"] = layersFilePath
-	r["configJson"] = string(configJSON)
+	// r["layers"] = layers
+	// r["layersFilePath"] = layersFilePath
+	// r["configJson"] = string(configJSON)
 	logging.GetLogger().Info().Msg("pull image end")
 
 	return r, nil

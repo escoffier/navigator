@@ -613,9 +613,17 @@ func CompareVersion(vtype string, old string, new string) bool {
 	if strings.Contains(vtype, "trivy") {
 		old = old[3:]
 		new = new[3:]
+		old = strings.TrimSpace(old)
+		new = strings.TrimSpace(new)
 		logging.GetLogger().Info().Msgf("CompareVersion old :%v new:%v", old, new)
-		oldNum, _ := strconv.Atoi(old)
-		newNum, _ := strconv.Atoi(new)
+		oldNum, err := strconv.Atoi(old)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("old version Atoi failed when CompareVersion")
+		}
+		newNum, err := strconv.Atoi(new)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("new version Atoi failed when CompareVersion")
+		}
 		return oldNum > newNum
 	} else if strings.Contains(vtype, "custom") {
 

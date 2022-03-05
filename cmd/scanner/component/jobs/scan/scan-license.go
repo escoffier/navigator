@@ -24,6 +24,10 @@ type executorScanLicense struct {
 
 func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, error) {
 	e.LicenseScan.Init()
+	dockerFlag, ok := param["docker"].(int)
+	if ok && dockerFlag == 1 {
+		return nil, nil
+	}
 	layers, ok := param["layers"].([]string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'layersFilePath' in parameter")
