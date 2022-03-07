@@ -7,19 +7,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune/config"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-
 	"github.com/sirupsen/logrus"
-
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune/config"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
@@ -43,7 +40,7 @@ func init() {
 }
 
 // RegisterMutateWebhook manages binding endpoint invocations to underlying business logic.
-func RegisterMutateWebhook(server *gin.Engine, holder *config.Holder, clientset *kubernetes.Clientset, db *rdbtools.GormWrapper, secProfManagerEndpoint string) {
+func RegisterMutateWebhook(server *gin.Engine, holder *config.Holder, clientset *kubernetes.Clientset, db *databases.RDBInstance, secProfManagerEndpoint string) {
 	webhook := &mutateWebhook{holder, clientset, db, &http.Client{Timeout: 10 * time.Second}, secProfManagerEndpoint}
 
 	server.POST("/mutate", func(ctx *gin.Context) {
@@ -54,7 +51,7 @@ func RegisterMutateWebhook(server *gin.Engine, holder *config.Holder, clientset 
 type mutateWebhook struct {
 	Holder                 *config.Holder
 	clientset              *kubernetes.Clientset
-	db                     *rdbtools.GormWrapper
+	db                     *databases.RDBInstance
 	HTTPClient             *http.Client
 	secProfManagerEndpoint string
 }

@@ -1,17 +1,16 @@
 package apiinfo
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/gorm/clause"
-	"time"
-)
-
-import (
 	"context"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-func UpsertApiInfo(ctx context.Context, rdb *rdbtools.GormWrapper, api *model.TensorApi) error {
+func UpsertAPIInfo(ctx context.Context, rdb *databases.RDBInstance, api *model.TensorApi) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
 	return rdb.Get().WithContext(oneCtx).Model(&model.TensorApi{}).Clauses(clause.OnConflict{
@@ -28,8 +27,8 @@ func UpsertApiInfo(ctx context.Context, rdb *rdbtools.GormWrapper, api *model.Te
 
 }
 
-func GetClusterByName(ctx context.Context, rdb *rdbtools.GormWrapper, name string) (*model.TensorCluster, error) {
+func GetClusterByName(ctx context.Context, rdb *gorm.DB, name string) (*model.TensorCluster, error) {
 	cluster := model.TensorCluster{}
-	err := rdb.Get().WithContext(ctx).Where("name = ?", name).First(&cluster).Error
+	err := rdb.WithContext(ctx).Where("name = ?", name).First(&cluster).Error
 	return &cluster, err
 }

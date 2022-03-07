@@ -10,8 +10,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
@@ -24,14 +24,14 @@ const (
 )
 
 type ResourcesWatcher struct {
-	rdb        *rdbtools.GormWrapper
+	rdb        *databases.RDBInstance
 	scannerURL string
 
 	clusterListeners map[string]*ResourcesClusterListener
 	clMux            sync.RWMutex
 }
 
-func newResourcesWatcher(rdb *rdbtools.GormWrapper, scannerURL string) *ResourcesWatcher {
+func newResourcesWatcher(rdb *databases.RDBInstance, scannerURL string) *ResourcesWatcher {
 	return &ResourcesWatcher{
 		rdb:              rdb,
 		scannerURL:       scannerURL,
@@ -191,7 +191,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if assets.ShouldResourceBeFiltered(resEvent.newResource) {
 				return nil
 			}
-			_, err := dal.UpsertResource(ctx, cl.parent.rdb, resEvent.newResource, resEvent.updateTime)
+			_, err := dal.UpsertResource(ctx, cl.parent.rdb.Get(), resEvent.newResource, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
 				// will periodically retry to write
@@ -202,7 +202,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if resEvent.newNamespace == nil {
 				return errors.New("newNamespace is nil")
 			}
-			_, err := dal.UpsertNamespace(ctx, cl.parent.rdb, resEvent.newNamespace, cl.clusterKey, resEvent.updateTime)
+			_, err := dal.UpsertNamespace(ctx, cl.parent.rdb.Get(), resEvent.newNamespace, cl.clusterKey, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert namespace error. namespace: %+v. action: %v", resEvent.newNamespace, resEvent.action)
 				// will periodically retry to write
@@ -232,7 +232,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if assets.ShouldResourceBeFiltered(resEvent.oldResource) {
 				return nil
 			}
-			err := dal.SoftDeleteResource(ctx, cl.parent.rdb, resEvent.oldResource, resEvent.updateTime)
+			err := dal.SoftDeleteResource(ctx, cl.parent.rdb.Get(), resEvent.oldResource, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("delete resource error. resource: %+v. action: %v", resEvent.oldResource, resEvent.action)
 				// will periodically retry to write
@@ -243,7 +243,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if resEvent.oldNamespace == nil {
 				return errors.New("oldNamespace is nil")
 			}
-			err := dal.SoftDeleteNamespace(ctx, cl.parent.rdb, resEvent.oldNamespace, cl.clusterKey, resEvent.updateTime)
+			err := dal.SoftDeleteNamespace(ctx, cl.parent.rdb.Get(), resEvent.oldNamespace, cl.clusterKey, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("delete namespace error. namespace: %+v. action: %v", resEvent.oldNamespace, resEvent.action)
 				// will periodically retry to write
@@ -324,16 +324,16 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 		return
 	}
 
-	err := dal.CleanUpUnUpdatedResourceContainers(ctx, cl.parent.rdb, cl.refreshTime, cl.clusterKey)
+	err := dal.CleanUpUnUpdatedResourceContainers(ctx, cl.parent.rdb.Get(), cl.refreshTime, cl.clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResourceContainers error. refreshTime: %v", cl.refreshTime)
 	}
-	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb, cl.refreshTime, cl.clusterKey)
+	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb.Get(), cl.refreshTime, cl.clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResources error. refreshTime: %v", cl.refreshTime)
 	}
 
-	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb, cl.refreshTime, cl.clusterKey)
+	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb.Get(), cl.refreshTime, cl.clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNamespaces error. refreshTime: %v", cl.refreshTime)
 	}

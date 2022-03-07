@@ -14,7 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -32,13 +32,13 @@ func getImageSHAFromContainer(container corev1.ContainerStatus) string {
 }
 
 type OnlineMonitor struct {
-	postgre    *rdbtools.GormWrapper
+	rdb        *databases.RDBInstance
 	scannerURL string
 }
 
-func NewOnlineMonitor(postgre *rdbtools.GormWrapper, scannerURL string) *OnlineMonitor {
+func NewOnlineMonitor(rdb *databases.RDBInstance, scannerURL string) *OnlineMonitor {
 	return &OnlineMonitor{
-		postgre:    postgre,
+		rdb:        rdb,
 		scannerURL: scannerURL,
 	}
 }

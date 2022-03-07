@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"github.com/badoux/checkmail"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/taskmanager"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
@@ -36,7 +35,7 @@ func GetService(_ context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 
-func Init(db *rdbtools.GormWrapper, emailConf *def.EmailConf) error {
+func Init(db *databases.RDBInstance, emailConf *def.EmailConf) error {
 	if db == nil {
 		return errors.New("illegal argument")
 	}
@@ -51,7 +50,7 @@ const (
 	MaxTaskTime = time.Hour * 5
 )
 
-func newService(db *rdbtools.GormWrapper, emailConf *def.EmailConf) (*Service, error) {
+func newService(db *databases.RDBInstance, emailConf *def.EmailConf) (*Service, error) {
 	service := &Service{
 		manager:   taskmanager.NewManager(db, MaxTaskTime),
 		emailConf: emailConf,
@@ -64,7 +63,7 @@ func newService(db *rdbtools.GormWrapper, emailConf *def.EmailConf) (*Service, e
 
 func (s *Service) AddReportTaskTemplate(ctx context.Context, template *model.ReportTaskTemplate) error {
 	if err := checkTemplate(template); err != nil {
-		logging.GetLogger().Err(err).Msg("invalid template")
+		logging.Get().Err(err).Msg("invalid template")
 		return ErrInvalidTemplate
 	}
 
@@ -80,7 +79,7 @@ func (s *Service) AddReportTaskTemplate(ctx context.Context, template *model.Rep
 	if template.Type == model.ReportTaskTypeOneTime {
 		go func() {
 			if _err := s.handleTaskAsync(taskMeta, nowTime); _err != nil {
-				logging.GetLogger().Err(_err).Msgf("handle task fail, taskID:%d", template.ID)
+				logging.Get().Err(_err).Msgf("handle task fail, taskID:%d", template.ID)
 			}
 		}()
 	}
@@ -116,7 +115,7 @@ func (s *Service) TriggerTask(ctx context.Context, id int32) error {
 
 func (s *Service) UpdateReportTaskTemplate(ctx context.Context, template *model.ReportTaskTemplate) error {
 	if err := checkTemplate(template); err != nil {
-		logging.GetLogger().Err(err).Msg("invalid template")
+		logging.Get().Err(err).Msg("invalid template")
 		return ErrInvalidTemplate
 	}
 
@@ -162,13 +161,13 @@ func (s *Service) handleTask(ctx context.Context, template *model.ReportTaskTemp
 	if template.Type != model.ReportTaskTypeOneTime {
 		createdTimestamp := util.GetMillisecondTimestampByTime(template.CreatedAt)
 		if createdTimestamp > endTimestamp {
-			logging.GetLogger().Info().Msg("not need to generate task")
+			logging.Get().Info().Msg("not need to generate task")
 			return nil
 		}
 	} else {
 		nowTimestamp := util.GetMillisecondTimestampByTime(time.Now())
 		if nowTimestamp < endTimestamp {
-			logging.GetLogger().Info().Msg("not reach oneTime task endTime")
+			logging.Get().Info().Msg("not reach oneTime task endTime")
 			return nil
 		}
 	}
@@ -176,14 +175,14 @@ func (s *Service) handleTask(ctx context.Context, template *model.ReportTaskTemp
 	uuid, err := s.manager.CreateTask(ctx, template.ID, startTimestamp, endTimestamp)
 	if err != nil {
 		if err == def.ErrTaskConflict {
-			logging.GetLogger().Info().Msgf("create report task conflict, taskID:%d, startTime:%s, endTime:%s",
+			logging.Get().Info().Msgf("create report task conflict, taskID:%d, startTime:%s, endTime:%s",
 				template.ID,
 				util.GetTimeByMillisecondTimestamp(startTimestamp),
 				util.GetTimeByMillisecondTimestamp(endTimestamp))
 			return nil
 		}
 
-		logging.GetLogger().Err(err).Msg("create report task fail")
+		logging.Get().Err(err).Msg("create report task fail")
 		return err
 	}
 
@@ -192,7 +191,7 @@ func (s *Service) handleTask(ctx context.Context, template *model.ReportTaskTemp
 			oneCtx, oneCancel := context.WithTimeout(context.Background(), time.Second)
 			defer oneCancel()
 			if _err := s.manager.UpdateTaskFailed(oneCtx, uuid); _err != nil {
-				logging.GetLogger().Err(_err).Msg("UpdateTaskFailed fail")
+				logging.Get().Err(_err).Msg("UpdateTaskFailed fail")
 			}
 		}
 	}()

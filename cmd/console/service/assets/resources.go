@@ -15,9 +15,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 const (
@@ -29,9 +29,9 @@ var (
 	rlOnce   sync.Once
 )
 
-func InitResourcesService(postgre *rdbtools.GormWrapper, scannerURL string) error {
+func InitResourcesService(rdb *databases.RDBInstance, scannerURL string) error {
 	rlOnce.Do(func() {
-		instance = newTensorResourcesService(postgre, scannerURL)
+		instance = newTensorResourcesService(rdb, scannerURL)
 	})
 	return nil
 }
@@ -41,11 +41,11 @@ func GetResourcesService(_ context.Context) (*TensorResourcesService, bool) {
 }
 
 type TensorResourcesService struct {
-	rdb        *rdbtools.GormWrapper
+	rdb        *databases.RDBInstance
 	scannerURL string
 }
 
-func newTensorResourcesService(rdb *rdbtools.GormWrapper, scannerURL string) *TensorResourcesService {
+func newTensorResourcesService(rdb *databases.RDBInstance, scannerURL string) *TensorResourcesService {
 	return &TensorResourcesService{
 		rdb:        rdb,
 		scannerURL: scannerURL,
@@ -53,32 +53,32 @@ func newTensorResourcesService(rdb *rdbtools.GormWrapper, scannerURL string) *Te
 }
 
 func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit int) ([]*model.TensorCluster, int64, error) {
-	return dal.GetClusters(ctx, rl.rdb, offset, limit)
+	return dal.GetClusters(ctx, rl.rdb.GetReadDB(), offset, limit)
 }
 
 func (rl *TensorResourcesService) GetClusterByKey(ctx context.Context, key string) *model.TensorCluster {
-	return dal.GetClustersByKey(ctx, rl.rdb, key)
+	return dal.GetClustersByKey(ctx, rl.rdb.GetReadDB(), key)
 }
 
 func (rl *TensorResourcesService) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
 	// TODO create the k8s client and so on
-	return dal.AddCluster(ctx, rl.rdb, cluster)
+	return dal.AddCluster(ctx, rl.rdb.Get(), cluster)
 }
 
 func (rl *TensorResourcesService) UpdateCluster(ctx context.Context, clusterKey, newClusterName, newDescription string) error {
-	return dal.UpdateCluster(ctx, rl.rdb, clusterKey, newClusterName, newDescription)
+	return dal.UpdateCluster(ctx, rl.rdb.Get(), clusterKey, newClusterName, newDescription)
 }
 
 func (rl *TensorResourcesService) DeleteCluster(ctx context.Context, clusterKey string) error {
-	return dal.DeleteCluster(ctx, rl.rdb, clusterKey)
+	return dal.DeleteCluster(ctx, rl.rdb.Get(), clusterKey)
 }
 
 func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
-	resources, err := dal.GetResources(ctx, rl.rdb.Get(), queryOptions, offset, limit)
+	resources, err := dal.GetResources(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-	resCnt, err := dal.CountResources(ctx, rl.rdb.Get(), queryOptions)
+	resCnt, err := dal.CountResources(ctx, rl.rdb.GetReadDB(), queryOptions)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -86,7 +86,7 @@ func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions
 }
 
 func (rl *TensorResourcesService) CountResource(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (int64, error) {
-	resCnt, err := dal.CountResources(ctx, rl.rdb.Get(), queryOptions)
+	resCnt, err := dal.CountResources(ctx, rl.rdb.GetReadDB(), queryOptions)
 	if err != nil {
 		return 0, err
 	}
@@ -95,7 +95,7 @@ func (rl *TensorResourcesService) CountResource(ctx context.Context, queryOption
 }
 
 func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, res *model.TensorResource) error {
-	return dal.UpdateResourceUserData(ctx, rl.rdb, res)
+	return dal.UpdateResourceUserData(ctx, rl.rdb.Get(), res)
 }
 
 func (rl *TensorResourcesService) GetResourceMap(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (map[dal.ResourceKey]*model.TensorResource, error) {
@@ -117,11 +117,11 @@ func (rl *TensorResourcesService) GetResourceMap(ctx context.Context, queryOptio
 }
 
 func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey, nameQuery string, offset, limit int) ([]*model.TensorNamespace, int64, error) {
-	ns, err := dal.GetNamespacesByCluster(ctx, rl.rdb, clusterKey, nameQuery, offset, limit)
+	ns, err := dal.GetNamespacesByCluster(ctx, rl.rdb.GetReadDB(), clusterKey, nameQuery, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-	cnt, err := dal.CountNamespaces(ctx, rl.rdb, clusterKey, nameQuery)
+	cnt, err := dal.CountNamespaces(ctx, rl.rdb.GetReadDB(), clusterKey, nameQuery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -129,7 +129,7 @@ func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey,
 }
 
 func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKey, nameQuery string) (int64, error) {
-	cnt, err := dal.CountNamespaces(ctx, rl.rdb, clusterKey, nameQuery)
+	cnt, err := dal.CountNamespaces(ctx, rl.rdb.GetReadDB(), clusterKey, nameQuery)
 	if err != nil {
 		return 0, err
 	}
@@ -137,21 +137,21 @@ func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKe
 }
 
 func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, clusterKey, name, alias string, manager []string, authority string) error {
-	err := dal.UpdateNamespace(ctx, rl.rdb, clusterKey, name, alias, manager, authority)
+	err := dal.UpdateNamespace(ctx, rl.rdb.Get(), clusterKey, name, alias, manager, authority)
 	return err
 }
 
 func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, queryOptions *dal.ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, int64, error) {
-	pods, err := dal.GetResourcePodsList(ctx, rl.rdb, queryOptions, offset, limit)
+	pods, err := dal.GetResourcePodsList(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-	cnt, err := dal.CountPods(ctx, rl.rdb, queryOptions, 0, 0)
+	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions, 0, 0)
 	return pods, cnt, err
 }
 
 func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *dal.ResPodsQueryOption) (int64, error) {
-	cnt, err := dal.CountPods(ctx, rl.rdb, queryOptions, 0, -1)
+	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions, 0, -1)
 	if err != nil {
 		return 0, err
 	}
@@ -159,17 +159,17 @@ func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *d
 }
 
 func (rl *TensorResourcesService) GetResourceContainers(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*model.TensorContainer, int64, error) {
-	containers, err := dal.GetResourceContainers(ctx, rl.rdb.Get(), queryOptions, offset, limit)
+	containers, err := dal.GetResourceContainers(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	cnt, err := dal.CountResourceContainers(ctx, rl.rdb.Get(), queryOptions)
+	cnt, err := dal.CountResourceContainers(ctx, rl.rdb.GetReadDB(), queryOptions)
 	return containers, cnt, err
 }
 
 func (rl *TensorResourcesService) CountContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption) (int64, error) {
-	cnt, err := dal.CountResourceContainers(ctx, rl.rdb.Get(), queryOptions)
+	cnt, err := dal.CountResourceContainers(ctx, rl.rdb.GetReadDB(), queryOptions)
 	if err != nil {
 		return 0, err
 	}
@@ -177,11 +177,11 @@ func (rl *TensorResourcesService) CountContainer(ctx context.Context, queryOptio
 }
 
 func (rl *TensorResourcesService) GetNodes(ctx context.Context, queryOptions *dal.NodeQueryOption, offset, limit int) ([]*model.TensorNode, error) {
-	return dal.GetNodes(ctx, rl.rdb.Get(), queryOptions, offset, limit)
+	return dal.GetNodes(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 }
 
 func (rl *TensorResourcesService) CountNodes(ctx context.Context, queryOptions *dal.NodeQueryOption) (int64, error) {
-	return dal.CountNodes(ctx, rl.rdb.Get(), queryOptions)
+	return dal.CountNodes(ctx, rl.rdb.GetReadDB(), queryOptions)
 }
 
 func (rl *TensorResourcesService) GetImagesWithGivenVuln(ctx context.Context, vulnName string) ([]*model.ImageInfo, error) {
@@ -289,7 +289,7 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 
 	netflows := make([]model.TensorNetworkFlow, 0)
 
-	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
@@ -333,7 +333,7 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 
 	netflows := make([]model.TensorNetworkFlow, 0)
 
-	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName).Error
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
@@ -383,7 +383,7 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 
 	netflows := make([]model.TensorNetworkFlow, 0)
 
-	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName, arg.ProcessName).Error
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName, arg.ProcessName).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
@@ -433,7 +433,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 
 	netflows := make([]model.TensorNetworkFlow, 0, 5)
 
-	err := rl.rdb.Get().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with dst info, %v", err)
 	}
@@ -460,7 +460,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		}
 	}
 
-	err = rl.rdb.Get().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
+	err = rl.rdb.GetReadDB().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with src info, %v", err)
 	}
@@ -489,15 +489,15 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 }
 
 func (rl *TensorResourcesService) GetFramework(ctx context.Context, imageID uint32) (*model.WebFrameScan, error) {
-	return dal.GetFramework(ctx, rl.rdb.Get(), imageID)
+	return dal.GetFramework(ctx, rl.rdb.GetReadDB(), imageID)
 }
 
 func (rl *TensorResourcesService) GetFrameworks(ctx context.Context) ([]*model.WebFrameScan, error) {
-	return dal.GetFrameworks(ctx, rl.rdb.Get())
+	return dal.GetFrameworks(ctx, rl.rdb.GetReadDB())
 }
 
 func (rl *TensorResourcesService) CountImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption) (int64, error) {
-	cnt, err := dal.CountContainer(ctx, rl.rdb.Get(), queryOptions)
+	cnt, err := dal.CountContainer(ctx, rl.rdb.GetReadDB(), queryOptions)
 	if err != nil {
 		return 0, err
 	}
@@ -505,7 +505,7 @@ func (rl *TensorResourcesService) CountImages(ctx context.Context, queryOptions 
 }
 
 func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOptions *dal.ResContainersQueryOption) ([]*ImageInfo, error) {
-	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.Get(), queryOptions, -1, -1)
+	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +521,7 @@ func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOption
 }
 
 func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*ImageResponse, error) {
-	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.Get(), queryOptions, offset, limit)
+	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, err
 	}

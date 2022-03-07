@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type PodResourceRelationInterface interface {
@@ -13,7 +13,7 @@ type PodResourceRelationInterface interface {
 }
 
 type PodResourceRelationDao struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
 func (s *PodResourceRelationDao) Search(ctx context.Context, nameSpace, clusterKey, podName string) ([]model.PodResourceRelation, error) {
@@ -24,6 +24,6 @@ func (s *PodResourceRelationDao) Search(ctx context.Context, nameSpace, clusterK
 	return res, err
 }
 
-func NewPodResourceRelationDao(db *rdbtools.GormWrapper) *PodResourceRelationDao {
+func NewPodResourceRelationDao(db *databases.RDBInstance) *PodResourceRelationDao {
 	return &PodResourceRelationDao{db: db}
 }

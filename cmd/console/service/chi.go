@@ -17,9 +17,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -29,7 +29,7 @@ var (
 
 func setupChiRouter(
 	ctx context.Context,
-	rdb *rdbtools.GormWrapper,
+	rdb *databases.RDBInstance,
 	es *elastic.Client,
 	scannerURL string,
 	secProfilesCoreURL string,
@@ -40,7 +40,7 @@ func setupChiRouter(
 	harborClient *harbor.HarborRESTClient,
 	ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
-	ch := make(chan model.AccessLog, 1000)
+	// ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
 	r := chi.NewRouter()
 	r.Use(jwtauth.Verifier(tokenAuth))
@@ -51,7 +51,7 @@ func setupChiRouter(
 	r.Use(middleware.Compress(5))
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(lang.AcceptLanguageMiddleware)
-	r.Use(AccessMiddlewares(ch))
+	// r.Use(AccessMiddlewares(ch))
 	if !httpLoggerDisabled {
 		r.Use(middleware.Logger)
 	}
@@ -67,7 +67,7 @@ func setupChiRouter(
 		harborClient,
 		ecCli,
 	)
-	go logWorker(es, ch)
+	// go logWorker(es, ch)
 
 	return r
 }
@@ -75,7 +75,7 @@ func setupChiRouter(
 func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -86,7 +86,7 @@ func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		_, err := es.Index().Index(indexStr).BodyJson(al).Do(ctx)
 		if err != nil {
-			logging.GetLogger().Info().Msgf("ES  write es error：%s", err)
+			logging.Get().Info().Msgf("ES  write es error：%s", err)
 		}
 		cancel()
 	}
@@ -103,7 +103,7 @@ func AccessMiddlewares(ch chan model.AccessLog) func(http.Handler) http.Handler 
 			headerData, _ := json.Marshal(r.Header)
 			err := json.Unmarshal(headerData, &headerMap)
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("unmarshal err")
+				logging.Get().Err(err).Msg("unmarshal err")
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -131,7 +131,7 @@ func AccessMiddlewares(ch chan model.AccessLog) func(http.Handler) http.Handler 
 				r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 				next.ServeHTTP(w, r)
 			case <-time.After(1 * time.Second):
-				logging.GetLogger().Error().Msg("access log write chan timeout")
+				logging.Get().Error().Msg("access log write chan timeout")
 			}
 
 		})

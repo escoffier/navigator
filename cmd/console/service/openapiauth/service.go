@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"go.uber.org/atomic"
 )
 
@@ -18,7 +18,7 @@ var (
 	once     sync.Once
 )
 
-func Init(rdb *rdbtools.GormWrapper, redisCli *redis.Client) error {
+func Init(rdb *databases.RDBInstance, redisCli *redis.Client) error {
 	if rdb == nil || redisCli == nil {
 		return errors.New("unexpected empty pointer")
 	}
@@ -41,11 +41,11 @@ func GetServiceInstance() (*Service, bool) {
 }
 
 type Service struct {
-	db       *rdbtools.GormWrapper
+	db       *databases.RDBInstance
 	redisCli *redis.Client
 }
 
-func newService(rdb *rdbtools.GormWrapper, redisCli *redis.Client) *Service {
+func newService(rdb *databases.RDBInstance, redisCli *redis.Client) *Service {
 	return &Service{
 		db:       rdb,
 		redisCli: redisCli,
@@ -77,7 +77,7 @@ func (s *Service) GetUsernameByToken(ctx context.Context, token string) (string,
 			return "", ErrInvalidToken
 		}
 
-		logging.GetLogger().Err(err).Msg("get username by token fail")
+		logging.Get().Err(err).Msg("get username by token fail")
 		return "", err
 	}
 

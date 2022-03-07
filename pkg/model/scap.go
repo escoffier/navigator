@@ -218,7 +218,7 @@ type CronScanTask struct {
 	CreatedAt int64  `json:"created_at" gorm:"column:created_at"`
 	CronTime  string `json:"cronString" gorm:"type:varchar(255);column:cron_time"`
 	CheckType string `json:"check_type" gorm:"type:varchar(255);column:check_type"`
-	ClusterId string `json:"cluster_id" gorm:"type:varchar(255);column:cluster_id"`
+	ClusterID string `json:"cluster_id" gorm:"type:varchar(255);column:cluster_id"`
 	CronId    int    `json:"cron_id" gorm:"column:cron_id"`
 }
 

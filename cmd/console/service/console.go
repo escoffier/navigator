@@ -46,7 +46,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -63,7 +62,7 @@ type Console struct {
 	lifecycle.Service
 	server        *http.Server
 	webHookServer *http.Server
-	postgresDB    *rdbtools.GormWrapper
+	rdb           *databases.RDBInstance
 	es            *elastic.Client
 	harborClient  *harbor.HarborRESTClient
 	cancel        context.CancelFunc
@@ -77,7 +76,6 @@ func NewConsole(
 	scannerOpts *flag.VegetaScannerOpts,
 	scapOpts *flag.ScapOpts,
 	elasticOpts *flag.ElasticOpts,
-	harborOpts *flag.HarborOpts,
 	secProfilesOpts *flag.SecProfilesOpts,
 ) (*Console, error) {
 	eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
@@ -128,16 +126,9 @@ func NewConsole(
 		return nil, err
 	}
 
-	rdb, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
-		db, err := databases.GetMysqlWithEnv(context.Background())
-		if err != nil {
-			logging.Get().Err(err).Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		return db, nil
-	})
+	rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
 	if err != nil {
-		logging.Get().Err(err).Msg("Init postgre error")
+		logging.Get().Err(err).Msg("Init DB error")
 		return nil, err
 	}
 
@@ -191,7 +182,7 @@ func NewConsole(
 			DataPath: elasticOpts.DataPath,
 		},
 
-		PostgrePod: &data.PodInfo{
+		RDBPod: &data.PodInfo{
 			PVC:       rdbOpts.PVC,
 			Pod:       rdbOpts.Pod,
 			DataPath:  rdbOpts.DataPath,
@@ -334,7 +325,7 @@ func NewConsole(
 			),
 		},
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},
-		postgresDB:    rdb,
+		rdb:           rdb,
 		es:            es,
 		cancel:        mainCancel,
 		harborClient:  nil, //harborClient,
@@ -387,7 +378,7 @@ func (c *Console) Run() func() {
 	//	logging.Get().Error().Err(err).Msg("Harbor connection and admin privilege check failed")
 	//}
 
-	err := postgreCheck(c.postgresDB)
+	err := rdbCheck(c.rdb.Get())
 	if err != nil {
 		logging.Get().Err(err).Msg("When check admin data in postgres")
 	}
@@ -434,17 +425,17 @@ const (
 	postgreCheckTimeout = time.Minute
 )
 
-func postgreCheck(db *rdbtools.GormWrapper) error {
+func rdbCheck(db *gorm.DB) error {
 	ctx, cancel := context.WithTimeout(context.Background(), postgreCheckTimeout)
 	defer cancel()
 	queryUser := model.User{}
-	err := db.Get().WithContext(ctx).Where("username = ?", model.UserSuperAdmin).First(&queryUser).Error
+	err := db.WithContext(ctx).Where("username = ?", model.UserSuperAdmin).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		salt := dal.RandStringBytesMaskImprSrcUnsafe(8)
 		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.PasswordSuperAdmin+salt)))
 		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreatedAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
 		authToken := util.GenerateUUIDHex()
-		err = db.Get().Transaction(func(tx *gorm.DB) error {
+		err = db.Transaction(func(tx *gorm.DB) error {
 			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
 				return _err
 			}
@@ -485,7 +476,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 
 	var modules = []*model.ModuleGroup{&mg1, &mg2, &mg3, &mg4}
 	for _, module := range modules {
-		if err = db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		if err = db.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(module).Error; err != nil {
@@ -501,7 +492,7 @@ func postgreCheck(db *rdbtools.GormWrapper) error {
 
 	urls := []*model.Url{&url1, &url2, &url3, &url4}
 	for _, url := range urls {
-		if err = db.Get().WithContext(ctx).Clauses(clause.OnConflict{
+		if err = db.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(url).Error; err != nil {

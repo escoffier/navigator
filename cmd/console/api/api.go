@@ -16,15 +16,15 @@ import (
 	param "github.com/oceanicdev/chi-param"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type api struct {
 	tokenAuth   *jwtauth.JWTAuth
-	rdb         *rdbtools.GormWrapper
+	rdb         *databases.RDBInstance
 	microsegURL string
 	webhookURL  *url.URL
 
@@ -40,7 +40,7 @@ type api struct {
 
 func newAPI(
 	tokenAuth *jwtauth.JWTAuth,
-	rdb *rdbtools.GormWrapper,
+	rdb *databases.RDBInstance,
 	scannerURL string,
 	secProfileCoreURL string,
 	microsegURL string,
@@ -51,7 +51,7 @@ func newAPI(
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("invalid webhook url: %v", whUrl)
+		logging.Get().Err(err).Msgf("invalid webhook url: %v", whUrl)
 		whUrl = nil
 	}
 
@@ -133,7 +133,7 @@ func (api *api) sortBy(first interface{}, second interface{}, sortBy string, sor
 				matched, err := regexp.MatchString(`^\d+\.\d+\.\d+$`, val1.String())
 				// Do we want to handle it or just do other sorting then?
 				if err != nil {
-					logging.GetLogger().Warn().
+					logging.Get().Warn().
 						Str("val1", val1.String()).
 						Msg("Error regex matching in sorting")
 					matched = false

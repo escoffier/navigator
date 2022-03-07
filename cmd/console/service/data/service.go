@@ -11,7 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/taskmanager"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/ttlmanager"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/waterlinemanager"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -39,8 +39,8 @@ type Service struct {
 	waterlineManager def.WaterlineManager
 	notifyHandler    def.NotifyHandler
 
-	esPod      *PodInfo
-	postgrePod *PodInfo
+	esPod  *PodInfo
+	rdbPod *PodInfo
 }
 
 type PodInfo struct {
@@ -51,17 +51,17 @@ type PodInfo struct {
 }
 
 type Conf struct {
-	RDB *rdbtools.GormWrapper
-	EmailConf  *notifyhandler.EmailConf
+	RDB       *databases.RDBInstance
+	EmailConf *notifyhandler.EmailConf
 
-	ESPod      *PodInfo
-	PostgrePod *PodInfo
+	ESPod  *PodInfo
+	RDBPod *PodInfo
 }
 
 func newService(conf *Conf) *Service {
 	service := &Service{
 		esPod:            conf.ESPod,
-		postgrePod:       conf.PostgrePod,
+		rdbPod:           conf.RDBPod,
 		taskManager:      taskmanager.NewManager(conf.RDB, def.TaskMaxTime+time.Hour),
 		ttlManager:       ttlmanager.NewManager(conf.RDB),
 		waterlineManager: waterlinemanager.NewManager(conf.RDB),

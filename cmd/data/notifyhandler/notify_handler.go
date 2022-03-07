@@ -8,12 +8,11 @@ import (
 	"strconv"
 
 	"github.com/badoux/checkmail"
-	"gopkg.in/gomail.v2"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/gomail.v2"
 )
 
 type EmailConf struct {
@@ -24,11 +23,11 @@ type EmailConf struct {
 }
 
 type Handler struct {
-	db        *rdbtools.GormWrapper
+	db        *databases.RDBInstance
 	emailConf *EmailConf
 }
 
-func NewHandler(db *rdbtools.GormWrapper, emailConf *EmailConf) *Handler {
+func NewHandler(db *databases.RDBInstance, emailConf *EmailConf) *Handler {
 	return &Handler{
 		db:        db,
 		emailConf: emailConf,
@@ -54,14 +53,14 @@ const (
 
 func (h *Handler) loadAdminEmails(ctx context.Context) ([]string, error) {
 	var module model.ModuleGroup
-	var err = h.db.Get().WithContext(ctx).Where("module_name_en = ?", ModulePlatform).Select("id").Find(&module).Error
+	var err = h.db.GetReadDB().WithContext(ctx).Where("module_name_en = ?", ModulePlatform).Select("id").Find(&module).Error
 	if err != nil {
 		return nil, fmt.Errorf("loadAdminEmails fail, err:%w", err)
 	}
 	platformModuleID := strconv.Itoa(module.Id)
 
 	var users []*model.User
-	err = h.db.Get().WithContext(ctx).Where("rule = ?", model.RoleAdmin).Select("username, module_id").Find(&users).Error
+	err = h.db.GetReadDB().WithContext(ctx).Where("rule = ?", model.RoleAdmin).Select("username, module_id").Find(&users).Error
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +72,14 @@ func (h *Handler) loadAdminEmails(ctx context.Context) ([]string, error) {
 	var emails = make([]string, 0, len(users))
 	for _, user := range users {
 		if checkErr := checkmail.ValidateFormat(user.UserName); checkErr != nil {
-			logging.GetLogger().Info().Msgf("username:%s is not email, checkErr:%s", user.UserName, checkErr.Error())
+			logging.Get().Info().Msgf("username:%s is not email, checkErr:%s", user.UserName, checkErr.Error())
 			continue
 		}
 
 		var moduleIDList []string
 		err = json.Unmarshal([]byte(user.ModuleID), &moduleIDList)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("decode moduleID fail, err:%s", err.Error())
+			logging.Get().Error().Msgf("decode moduleID fail, err:%s", err.Error())
 			continue
 		}
 
@@ -118,7 +117,6 @@ func makeEmailBody(dataType string, storageView *model.StorageView) string {
 }
 
 func (h *Handler) sendEmail(emails []string, body string) error {
-	logging.GetLogger().Info().Msgf("emails:%+v, body:%s", emails, body)
 	m := gomail.NewMessage()
 	m.SetHeader("From", m.FormatAddress(h.emailConf.Username,
 		env.GetEmailOfficialName()))

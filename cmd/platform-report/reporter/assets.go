@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
-func LoadAssetsReport(ctx context.Context, db *rdbtools.GormWrapper, clusterItems []*model.ClusterItem, endTimestamp int64) *model.AssetsReport {
+func LoadAssetsReport(ctx context.Context, db *gorm.DB, clusterItems []*model.ClusterItem, endTimestamp int64) *model.AssetsReport {
 	var result = &model.AssetsReport{Clusters: clusterItems}
 	clusterHash := GenerateClusterKeyHash(clusterItems)
 	var clusters = make([]string, 0, len(clusterHash))
@@ -35,12 +34,12 @@ func GenerateClusterKeyHash(clusters []*model.ClusterItem) map[string]string {
 	return result
 }
 
-func GetClusters(ctx context.Context, db *rdbtools.GormWrapper, clusterFilter []string, timeFilter time.Time) []*model.ClusterItem {
+func GetClusters(ctx context.Context, db *gorm.DB, clusterFilter []string, timeFilter time.Time) []*model.ClusterItem {
 	var clusters []*model.TensorCluster
 	get := func() error {
 		oneCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
-		return db.Get().WithContext(oneCtx).
+		return db.WithContext(oneCtx).
 			Where("id in (?) and created_at <= ? and status = 0", clusterFilter, timeFilter).
 			Select("name, id, created_at").Find(&clusters).Error
 	}
@@ -61,12 +60,12 @@ func GetClusters(ctx context.Context, db *rdbtools.GormWrapper, clusterFilter []
 	return result
 }
 
-func getNodes(ctx context.Context, db *rdbtools.GormWrapper, clusterFilter []string, timeFilter time.Time, clusterNameHash map[string]string) []*model.NodeItem {
+func getNodes(ctx context.Context, db *gorm.DB, clusterFilter []string, timeFilter time.Time, clusterNameHash map[string]string) []*model.NodeItem {
 	var nodes []*model.TensorNode
 	get := func() error {
 		oneCtx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
-		return db.Get().WithContext(oneCtx).
+		return db.WithContext(oneCtx).
 			Where("cluster_key in (?) and created_at <= ? and status = 0", clusterFilter, timeFilter).
 			Select("host_name, cluster_key").Find(&nodes).Error
 	}
@@ -91,12 +90,12 @@ func getNodes(ctx context.Context, db *rdbtools.GormWrapper, clusterFilter []str
 	return result
 }
 
-func getContainers(ctx context.Context, db *rdbtools.GormWrapper, clusterFilter []string, timeFilter time.Time, clusterNameHash map[string]string) []*model.ContainerItem {
+func getContainers(ctx context.Context, db *gorm.DB, clusterFilter []string, timeFilter time.Time, clusterNameHash map[string]string) []*model.ContainerItem {
 	var containers []*model.TensorContainer
 	get := func() error {
 		oneCtx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
-		return db.Get().WithContext(oneCtx).Where("cluster_key in (?) and created_at <= ? and status = 0", clusterFilter, timeFilter).
+		return db.WithContext(oneCtx).Where("cluster_key in (?) and created_at <= ? and status = 0", clusterFilter, timeFilter).
 			Select("name, type, resource_name, namespace, cluster_key, created_at").Find(&containers).Error
 	}
 

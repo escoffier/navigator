@@ -15,7 +15,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,7 +81,7 @@ type profileToAdd struct {
 }
 
 type SecPolicyService struct {
-	db                            *rdbtools.GormWrapper
+	db                            *databases.RDBInstance
 	mutex                         sync.Mutex
 	k8sClient                     *kubernetes.Clientset
 	namespace                     string
@@ -94,7 +94,7 @@ var (
 )
 
 func Init(
-	db *rdbtools.GormWrapper,
+	db *databases.RDBInstance,
 	kubeClient *kubernetes.Clientset,
 ) error {
 	myNamespace := os.Getenv("MY_POD_NAMESPACE")
@@ -149,7 +149,7 @@ func (s *SecPolicyService) ListPolicies(ctx context.Context, offset int, limit i
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return policies, int(totalCount), nil
 		}
-		return policies, int(totalCount), PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when listing policies in database: %w", result.Error))
+		return policies, int(totalCount), RDBError(http.StatusInternalServerError, fmt.Errorf("Error when listing policies in database: %w", result.Error))
 	}
 
 	return policies, int(totalCount), nil
@@ -164,7 +164,7 @@ func (s *SecPolicyService) AddResoruceToPolicy(ctx context.Context, policyID, re
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -181,7 +181,7 @@ func (s *SecPolicyService) AddResoruceToPolicy(ctx context.Context, policyID, re
 		result = tx.WithContext(dbctx).Where("id = ?", resourceID).Preload(clause.Associations).First(&r)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewResourceNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
@@ -189,7 +189,7 @@ func (s *SecPolicyService) AddResoruceToPolicy(ctx context.Context, policyID, re
 			r.SecurityPolicyID = &policyID
 			result := tx.WithContext(dbctx).Save(&r)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating security resource in db: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating security resource in db: %w", result.Error))
 			}
 		} else if *r.SecurityPolicyID == p.ID {
 			return NewResourceAlreadyAttachedToPolicyError(http.StatusInternalServerError, fmt.Errorf("Resource already attached to requested policy: %w", result.Error))
@@ -218,7 +218,7 @@ func (s *SecPolicyService) RemoveResourceFromPolicy(ctx context.Context, policyI
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -240,7 +240,7 @@ func (s *SecPolicyService) RemoveResourceFromPolicy(ctx context.Context, policyI
 				result = tx.WithContext(dbctx).Where("id = ?", resourceID).Preload(clause.Associations).First(&r)
 				if result.Error != nil {
 					if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-						return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+						return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 					}
 					return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 				}
@@ -248,7 +248,7 @@ func (s *SecPolicyService) RemoveResourceFromPolicy(ctx context.Context, policyI
 				// TODO: design choice - should profiles be removed from resource when detached from policy? Currently no
 				result = tx.WithContext(dbctx).Save(&r)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating resource in database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating resource in database: %w", result.Error))
 				}
 			}
 		}
@@ -284,7 +284,7 @@ func (s *SecPolicyService) GetPolicy(ctx context.Context, db *gorm.DB, policyID 
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, NewPolicyNotFoundError(http.StatusNotFound, fmt.Errorf("Policy with given ID doesn't exist in database: %w", result.Error))
 		}
-		return nil, PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+		return nil, RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 	}
 	if policy.ApparmorProfile.TrainingStatus == model.TrainingStatusInProgress {
 		if policy.ApparmorProfile.StartTrainingTime == nil {
@@ -341,7 +341,7 @@ func (s *SecPolicyService) SetSecurityMode(ctx context.Context, db *gorm.DB, pol
 			First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -356,7 +356,7 @@ func (s *SecPolicyService) SetSecurityMode(ctx context.Context, db *gorm.DB, pol
 			Omit("ApparmorProfile.ApparmorProfileData").
 			Omit(clause.Associations).Save(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 		}
 
 		if p.Active && oldStatus != *data.Mode {
@@ -436,7 +436,7 @@ func (s *SecPolicyService) SetStatus(ctx context.Context, db *gorm.DB, policyID 
 
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -455,7 +455,7 @@ func (s *SecPolicyService) SetStatus(ctx context.Context, db *gorm.DB, policyID 
 			Omit("ApparmorProfile.ApparmorProfileData").
 			Omit(clause.Associations).Save(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 		}
 
 		if !oldStatus && *data.Enabled {
@@ -584,7 +584,7 @@ func (s *SecPolicyService) DeletePolicy(ctx context.Context, secPolicyID int, us
 		}
 		result := tx.WithContext(dbctx).Delete(&model.SecurityPolicy{}, secPolicyID)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when deleting policy: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when deleting policy: %w", result.Error))
 		}
 		return nil
 	})
@@ -620,7 +620,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 		}
 		result := tx.WithContext(dbctx).Create(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when creating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when creating policy in database: %w", result.Error))
 		}
 
 		apparmorProfile := model.ApparmorProfile{
@@ -633,7 +633,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 		}
 		result = tx.WithContext(dbctx).Create(&apparmorProfile)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when creating apparmor profile in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when creating apparmor profile in database: %w", result.Error))
 		}
 
 		seccompProfile := model.SeccompProfile{
@@ -646,7 +646,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 		}
 		result = tx.WithContext(dbctx).Create(&seccompProfile)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when creating seccomp profile in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when creating seccomp profile in database: %w", result.Error))
 		}
 
 		defaultSyscalls := make([]model.SeccompProfileData, 0)
@@ -660,7 +660,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 
 		result = tx.WithContext(dbctx).Create(&seccompProfile.SeccompProfileData)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 		}
 
 		commandWhitelistProfile := model.CommandWhitelistProfile{
@@ -673,7 +673,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 		}
 		result = tx.WithContext(dbctx).Create(&commandWhitelistProfile)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when creating command whitelist profile in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when creating command whitelist profile in database: %w", result.Error))
 		}
 
 		driftProfile := model.DriftProfile{
@@ -682,7 +682,7 @@ func (s *SecPolicyService) AddPolicy(ctx context.Context, data model.SecurityPol
 		}
 		result = tx.WithContext(dbctx).Create(&driftProfile)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when creating drift profile in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when creating drift profile in database: %w", result.Error))
 		}
 		return nil
 	})
@@ -719,7 +719,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -737,7 +737,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 			p.ApparmorProfile.TrainingStartWhitelistOption = *data.TrainingStartWhitelistOption
 			result = tx.WithContext(dbctx).Save(&p.ApparmorProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
 			if p.CommandWhitelistProfile.TrainingStatus != model.TrainingStatusNotStarted {
@@ -752,7 +752,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 			p.CommandWhitelistProfile.TrainingStartWhitelistOption = *data.TrainingStartWhitelistOption
 			result = tx.WithContext(dbctx).Save(&p.CommandWhitelistProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
 			if p.SeccompProfile.TrainingStatus != model.TrainingStatusNotStarted {
@@ -767,7 +767,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 			p.SeccompProfile.TrainingStartWhitelistOption = *data.TrainingStartWhitelistOption
 			result = tx.WithContext(dbctx).Save(&p.SeccompProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindDrift {
 			previousEnabled := p.SeccompProfile.Enabled
@@ -777,7 +777,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 			p.DriftProfile.Enabled = *data.Enabled
 			result = tx.WithContext(dbctx).Save(&p.DriftProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		}
 
@@ -785,7 +785,7 @@ func (s *SecPolicyService) UpdatePolicyProfile(ctx context.Context, policyID int
 		p.UpdatedBy = username
 		result = tx.WithContext(dbctx).Save(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 		}
 
 		return nil
@@ -816,7 +816,7 @@ func (s *SecPolicyService) UpdatePolicy(ctx context.Context, policyID int, data 
 		result := tx.WithContext(dbctx).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -828,7 +828,7 @@ func (s *SecPolicyService) UpdatePolicy(ctx context.Context, policyID int, data 
 		logging.GetLogger().Info().Int("policy", policyID).Msg("Policy updated. About to persist")
 		result = tx.WithContext(dbctx).Save(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 		}
 		return nil
 	})
@@ -1066,10 +1066,10 @@ func (s *SecPolicyService) AddResource(ctx context.Context, resource model.Secur
 				}
 				result := tx.WithContext(dbctx).Create(&newResource)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when creating new resource: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when creating new resource: %w", result.Error))
 				}
 			} else {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource: %w", result.Error))
 			}
 		} else { // err == nil
 			secresource.ImageRegistry = resource.ImageRegistry
@@ -1077,14 +1077,14 @@ func (s *SecPolicyService) AddResource(ctx context.Context, resource model.Secur
 			secresource.ImageTag = resource.ImageTag
 			result := tx.WithContext(dbctx).Save(&secresource)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating resource: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating resource: %w", result.Error))
 			}
 			if secresource.SecurityPolicyID != nil {
 				var p model.SecurityPolicy
 				result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, *secresource.SecurityPolicyID)
 				if result.Error != nil {
 					if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-						return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+						return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 					}
 					return NewPolicyNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 				}
@@ -1131,14 +1131,14 @@ func (s *SecPolicyService) RemoveResource(ctx context.Context, resource model.Se
 			First(&secresource)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewResourceNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
 		// err == nil
 		result = tx.WithContext(dbctx).Delete(&secresource)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Failed to inactivate security resource: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Failed to inactivate security resource: %w", result.Error))
 		}
 		return nil
 	})

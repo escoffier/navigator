@@ -6,7 +6,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type ScanConfigDalInterface interface {
@@ -23,7 +23,7 @@ type ScanConfigDalInterface interface {
 }
 
 type ScanConfigDao struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
 func (s *ScanConfigDao) GetAllNodes(ctx context.Context) ([]string, error) {
@@ -186,6 +186,6 @@ func (s *ScanConfigDao) UpdateScanConfig(ctx context.Context, configID int64, up
 	return err
 }
 
-func NewScanConfigDao(db *rdbtools.GormWrapper) *ScanConfigDao {
+func NewScanConfigDao(db *databases.RDBInstance) *ScanConfigDao {
 	return &ScanConfigDao{db: db}
 }

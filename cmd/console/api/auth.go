@@ -17,9 +17,9 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gopkg.in/gomail.v2"
 )
 
@@ -85,7 +85,7 @@ func (api *api) login() http.HandlerFunc {
 		}
 
 		var findUser *model.User
-		ok, findUser, err = dal.GetUserByPassword(ctx, api.rdb, creds.Username, creds.Password)
+		ok, findUser, err = dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -191,7 +191,7 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
-		username, ok := dal.CheckHashCode(r.Context(), api.rdb, ru.HashCode)
+		username, ok := dal.CheckHashCode(r.Context(), api.rdb.Get(), ru.HashCode)
 		if !ok {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("hashcode is error")))
@@ -247,7 +247,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		exist, _, err := dal.SelectUser(ctx, api.rdb.Get(), rf.Username)
 		if err != nil {
 			RespAndLog(w, ctx,
-				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 		if !exist {
@@ -268,7 +268,7 @@ func (api *api) forgetPwd() http.HandlerFunc {
 		err = dal.InsertEmail(ctx, api.rdb.Get(), rf.Username, emailHashCode)
 		if err != nil {
 			RespAndLog(w, ctx,
-				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 
@@ -325,7 +325,7 @@ func SendEmail(username, host, emailHashCode string) bool {
 
 	err := SendMails([]string{username}, subject, mailBody)
 	if err != nil {
-		logging.GetLogger().Error().Msgf("send email error:%+v", err)
+		logging.Get().Error().Msgf("send email error:%+v", err)
 		return false
 	}
 

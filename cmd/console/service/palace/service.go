@@ -14,8 +14,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 const (
@@ -27,7 +27,7 @@ var (
 	once     sync.Once
 )
 
-func Init(rdb *rdbtools.GormWrapper, esCli *elastic.Client) error {
+func Init(rdb *databases.RDBInstance, esCli *elastic.Client) error {
 	once.Do(func() {
 		instance = newService(rdb, esCli)
 	})
@@ -38,18 +38,18 @@ func Get() (*Service, bool) {
 }
 
 type Service struct {
-	rdb          *rdbtools.GormWrapper
+	rdb          *databases.RDBInstance
 	elasticCli   *elastic.Client
 	rulesManager *echelper.RulesManager
 }
 
-func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) *Service {
+func newService(rdb *databases.RDBInstance, esCli *elastic.Client) *Service {
 	rm := echelper.NewRulesManager(rdb, loadRulesInterval)
 	return &Service{rdb: rdb, elasticCli: esCli, rulesManager: rm}
 }
 
 func (s *Service) GetAssociatedEvents(ctx context.Context, offsetID int64, limit int) ([]*model.PalaceAssociatedGraphEvent, int64, error) {
-	events, err := dal.GetAssociatedGraphEvents(ctx, s.rdb.Get(), offsetID, limit)
+	events, err := dal.GetAssociatedGraphEvents(ctx, s.rdb.GetReadDB(), offsetID, limit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -59,7 +59,7 @@ func (s *Service) GetAssociatedEvents(ctx context.Context, offsetID int64, limit
 	var totalCnt int64
 	err = util.RetryWithBackoff(tctx, func() error {
 		var err error
-		totalCnt, err = dal.CountAssociatedGraphEvents(ctx, s.rdb.Get())
+		totalCnt, err = dal.CountAssociatedGraphEvents(ctx, s.rdb.GetReadDB())
 		return err
 	})
 	if err != nil {
@@ -90,7 +90,7 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 	tctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
-	totalCnt, err := dal.CountSignalsOfEvent(tctx, s.rdb.Get(), evtID, query)
+	totalCnt, err := dal.CountSignalsOfEvent(tctx, s.rdb.GetReadDB(), evtID, query)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -101,7 +101,7 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 	var signals []*model.PalaceEventSignalAssociation
 	err = util.RetryWithBackoff(tctx, func() error {
 		var err error
-		signals, err = dal.GetOriginSignalsOfEvent(ctx, s.rdb.Get(), evtID, query, offsetTime, limit)
+		signals, err = dal.GetOriginSignalsOfEvent(ctx, s.rdb.GetReadDB(), evtID, query, offsetTime, limit)
 		return err
 	})
 
@@ -132,7 +132,7 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 }
 
 func (s *Service) GetProcessTree(ctx context.Context, evtID int64) (*TreeNode, error) {
-	links, err := dal.GetAssociationLinksOfEvent(ctx, s.rdb.Get(), evtID)
+	links, err := dal.GetAssociationLinksOfEvent(ctx, s.rdb.GetReadDB(), evtID)
 	if err != nil {
 		return nil, err
 	}

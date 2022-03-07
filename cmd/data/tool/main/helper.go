@@ -7,26 +7,21 @@ import (
 	"strconv"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
-func NewMysqlClientFromEnv() (*rdbtools.GormWrapper, error) {
-	return rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		db, err := databases.GetMysqlWithEnv(ctx)
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		return db, nil
-	})
+func NewMysqlClientFromEnv() (*databases.RDBInstance, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	db, err := databases.NewRDBWithMySQLByEnv(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
+		return nil, err
+	}
+	return db, nil
 }
 
 func getTaskID(ctx context.Context, manager def.TaskManager, taskType def.GCTaskType) (string, error) {

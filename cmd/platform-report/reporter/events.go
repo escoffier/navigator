@@ -2,16 +2,15 @@ package reporter
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
-	"gorm.io/datatypes"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type AssociationEvent struct {
@@ -47,7 +46,7 @@ const (
 	eventSeverityPivot = 7
 )
 
-func LoadEventsReport(ctx context.Context, db *rdbtools.GormWrapper, startTimestamp, endTimestamp int64, clusterHash map[string]string) *model.EventsReport {
+func LoadEventsReport(ctx context.Context, db *gorm.DB, startTimestamp, endTimestamp int64, clusterHash map[string]string) *model.EventsReport {
 	var result = &model.EventsReport{}
 	var offsetID = int32(math.MaxInt32)
 	var offsetTime = util.GetTimeByMillisecondTimestamp(endTimestamp)
@@ -57,7 +56,7 @@ func LoadEventsReport(ctx context.Context, db *rdbtools.GormWrapper, startTimest
 		get := func() error {
 			oneCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 			defer cancel()
-			return db.Get().WithContext(oneCtx).Where("severity >= ? and updated_at >= ? and updated_at < ? and id < ?",
+			return db.WithContext(oneCtx).Where("severity >= ? and updated_at >= ? and updated_at < ? and id < ?",
 				eventSeverityPivot, startTime, offsetTime, offsetID).
 				Order("updated_at desc, id desc").Limit(eventBatchSize).Find(&events).Error
 		}

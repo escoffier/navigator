@@ -4,21 +4,20 @@ import (
 	"context"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Manager struct {
-	db          *rdbtools.GormWrapper
+	db          *databases.RDBInstance
 	maxTaskTime time.Duration
 }
 
-func NewManager(db *rdbtools.GormWrapper, maxTaskTime time.Duration) *Manager {
+func NewManager(db *databases.RDBInstance, maxTaskTime time.Duration) *Manager {
 	return &Manager{
 		db:          db,
 		maxTaskTime: maxTaskTime,
@@ -54,7 +53,7 @@ func (m *Manager) CreateKubeHunterRecord(ctx context.Context, cluster, uuid, use
 
 func (m *Manager) GetLatestCompleteRecord(ctx context.Context, cluster string) (*model.KubeHunterRecord, error) {
 	var record model.KubeHunterRecord
-	var err = m.db.Get().WithContext(ctx).Where("cluster = ? and status = ?", cluster, model.KubeHunterRecordStatusComplete).
+	var err = m.db.GetReadDB().WithContext(ctx).Where("cluster = ? and status = ?", cluster, model.KubeHunterRecordStatusComplete).
 		Order("updated_at desc").
 		Limit(1).
 		First(&record).Error
@@ -88,7 +87,7 @@ func (m *Manager) DealExpireRecords(ctx context.Context, nowTime time.Time) erro
 
 func (m *Manager) CheckInProgress(ctx context.Context, cluster string) (bool, error) {
 	var count int64
-	var err = m.db.Get().WithContext(ctx).Model(&model.KubeHunterRecord{}).
+	var err = m.db.GetReadDB().WithContext(ctx).Model(&model.KubeHunterRecord{}).
 		Where("cluster = ? and status = ?", cluster, model.KubeHunterRecordStatusInit).Count(&count).Error
 	if err != nil {
 		return false, err

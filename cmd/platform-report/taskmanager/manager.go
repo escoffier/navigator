@@ -6,21 +6,20 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Manager struct {
-	db          *rdbtools.GormWrapper
+	db          *databases.RDBInstance
 	maxTaskTime time.Duration
 }
 
-func NewManager(db *rdbtools.GormWrapper, maxTaskTime time.Duration) *Manager {
+func NewManager(db *databases.RDBInstance, maxTaskTime time.Duration) *Manager {
 	return &Manager{
 		db:          db,
 		maxTaskTime: maxTaskTime,
@@ -89,7 +88,7 @@ func (m *Manager) DeleteTaskTemplate(ctx context.Context, id int32) error {
 
 func (m *Manager) LoadAllTaskTemplates(ctx context.Context) ([]*model.ReportTaskTemplateMeta, error) {
 	var records []*model.ReportTaskTemplateMeta
-	var err = m.db.Get().WithContext(ctx).Find(&records).Error
+	var err = m.db.GetReadDB().WithContext(ctx).Find(&records).Error
 	return records, err
 }
 
@@ -98,7 +97,7 @@ func (m *Manager) GetReportTaskTemplates(ctx context.Context, types []string, qu
 	var count int64
 
 	getBaseDB := func() *gorm.DB {
-		db := m.db.Get().WithContext(ctx).Model(&model.ReportTaskTemplateMeta{})
+		db := m.db.GetReadDB().WithContext(ctx).Model(&model.ReportTaskTemplateMeta{})
 		if query != "" {
 			q := "%" + query + "%"
 			db = db.Where("name like ? or emails like ?", q, q)
@@ -182,14 +181,14 @@ func (m *Manager) GetTemplateReports(ctx context.Context, templateID int32, offs
 	var records []*model.ReportRecord
 	var count int64
 
-	var err = m.db.Get().WithContext(ctx).Model(&model.ReportRecord{}).
+	var err = m.db.GetReadDB().WithContext(ctx).Model(&model.ReportRecord{}).
 		Where("template_id = ? and status = ?", templateID, model.ReportRecordStatusComplete).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = m.db.Get().WithContext(ctx).
+	err = m.db.GetReadDB().WithContext(ctx).
 		Where("template_id = ? and status = ?", templateID, model.ReportRecordStatusComplete).
 		Order("updated_at desc").
 		Offset(offset).Limit(limit).
@@ -200,7 +199,7 @@ func (m *Manager) GetTemplateReports(ctx context.Context, templateID int32, offs
 
 func (m *Manager) GetReport(ctx context.Context, uuid string) (*model.ReportDetail, error) {
 	var record model.ReportRecord
-	var err = m.db.Get().WithContext(ctx).Where("uuid = ?", uuid).
+	var err = m.db.GetReadDB().WithContext(ctx).Where("uuid = ?", uuid).
 		Select("content").First(&record).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {

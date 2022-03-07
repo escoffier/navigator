@@ -11,17 +11,16 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 var (
@@ -76,7 +75,7 @@ func getFromModel(m *model.TensorConfig) (usercenter.LimiterConfig, error) {
 }
 func (api *api) readConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		config, err := dal.GetConfig(r.Context(), api.rdb, usercenter.ConfigKey)
+		config, err := dal.GetConfig(r.Context(), api.rdb.GetReadDB(), usercenter.ConfigKey)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -121,7 +120,7 @@ func (api *api) setConfig() http.HandlerFunc {
 					fmt.Errorf("failed to encode json: %w", err)))
 			return
 		}
-		err = dal.SetConfig(r.Context(), api.rdb, usercenter.ConfigKey, configBytes)
+		err = dal.SetConfig(r.Context(), api.rdb.Get(), usercenter.ConfigKey, configBytes)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -160,7 +159,7 @@ func (api *api) userBan() http.HandlerFunc {
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-		err = dal.SetAccountBanStatus(r.Context(), api.rdb, rq.User, true)
+		err = dal.SetAccountBanStatus(r.Context(), api.rdb.Get(), rq.User, true)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -193,7 +192,7 @@ func (api *api) userUnban() http.HandlerFunc {
 					fmt.Errorf("no acess: %w", authErr)))
 			return
 		}
-		err = dal.SetAccountBanStatus(r.Context(), api.rdb, rq.User, false)
+		err = dal.SetAccountBanStatus(r.Context(), api.rdb.Get(), rq.User, false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
@@ -273,7 +272,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
-		ok, _, err = dal.GetUserByPassword(ctx, api.rdb, userSession.Username, rq.OldPwd)
+		ok, _, err = dal.GetUserByPassword(ctx, api.rdb.Get(), userSession.Username, rq.OldPwd)
 		if err != nil {
 			RespAndLog(w, ctx, err)
 			return
@@ -286,7 +285,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
-		err = dal.UpdateUserPwd(ctx, api.rdb, userSession.Username, rq.Pwd)
+		err = dal.UpdateUserPwd(ctx, api.rdb.Get(), userSession.Username, rq.Pwd)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError, fmt.Errorf("database err: %w", err)))
@@ -312,7 +311,7 @@ func (api *api) userList() http.HandlerFunc {
 
 		offset, limit := api.getOffsetAndLimit(r)
 
-		docNum, userList, err := dal.SelectUserAll(ctx, api.rdb, limit, offset)
+		docNum, userList, err := dal.SelectUserAll(ctx, api.rdb.GetReadDB(), limit, offset)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusInternalServerError,
@@ -338,7 +337,7 @@ func (api *api) userModule() http.HandlerFunc {
 			return
 		}
 		if user.External {
-			mdgroup, err := dal.GetModuleGroup(ctx, api.rdb, user.ModuleID)
+			mdgroup, err := dal.GetModuleGroup(ctx, api.rdb.GetReadDB(), user.ModuleID)
 			if err != nil {
 				RespAndLog(w, ctx, err)
 			} else {
@@ -348,14 +347,18 @@ func (api *api) userModule() http.HandlerFunc {
 		}
 
 		if user.Username == model.UserSuperAdmin {
-			moduleGroup := dal.GetAdminModuleGroup(ctx, api.rdb)
-			response.Ok(w, response.WithItems(moduleGroup))
+			moduleGroup, err := dal.GetAdminModuleGroup(ctx, api.rdb.GetReadDB())
+			if err != nil {
+				RespAndLog(w, ctx, err)
+			} else {
+				response.Ok(w, response.WithItems(moduleGroup))
+			}
 		} else {
-			moduleGroup, err := dal.GetModuleGroup(ctx, api.rdb, user.ModuleID)
+			moduleGroup, err := dal.GetModuleGroup(ctx, api.rdb.GetReadDB(), user.ModuleID)
 			if err == nil {
 				response.Ok(w, response.WithItems(moduleGroup))
 			} else {
-				RespAndLog(w, ctx, PostgresError(500, err))
+				RespAndLog(w, ctx, RDBError(500, err))
 			}
 		}
 	}
@@ -502,7 +505,7 @@ func (api *api) editUser() http.HandlerFunc {
 		exist, queryUser, err := dal.SelectUser(ctx, api.rdb.Get(), cliReq.UserName)
 		if err != nil {
 			RespAndLog(w, ctx,
-				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 		if !exist {
@@ -517,10 +520,10 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		err = dal.UpdateUser(ctx, api.rdb, cliReq.UserName, cliReq.RoleName, cliReq.ModuleID)
+		err = dal.UpdateUser(ctx, api.rdb.Get(), cliReq.UserName, cliReq.RoleName, cliReq.ModuleID)
 		if err != nil {
 			RespAndLog(w, ctx,
-				PostgresError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
+				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 
@@ -552,7 +555,7 @@ func VerifyEmailFormat(email string) bool {
 	pattern := fmt.Sprintf(`\w+([-+.]\w+)*@%s`, env.GetEmailSuffix())
 	reg, err := regexp.Compile(pattern)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("verify email compile expr error")
+		logging.Get().Err(err).Msgf("verify email compile expr error")
 		return false
 	}
 	return reg.MatchString(email)

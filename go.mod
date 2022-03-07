@@ -75,12 +75,12 @@ require (
 	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/yeka/zip v0.0.0-20180914125537-d046722c6feb
-	gitlab.com/security-rd/go-pkg v0.1.12
+	gitlab.com/security-rd/go-pkg v0.2.5
 	go.mongodb.org/mongo-driver v1.8.2
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.20.0 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.2 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.5.11 // indirect
@@ -261,7 +261,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mdlayher/netlink v1.6.0 // indirect
-	github.com/mdlayher/socket v0.2.1 // indirect
+	github.com/mdlayher/socket v0.2.2 // indirect
 	github.com/mitchellh/copystructure v1.1.1 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
@@ -296,7 +296,7 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/tmccombs/hcl2json v0.3.4-0.20220219194047-6a716d5407ef // indirect
 	github.com/twitchtv/twirp v8.1.1+incompatible // indirect
-	github.com/ugorji/go/codec v1.2.6 // indirect
+	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/ulikunitz/xz v0.5.8 // indirect
 	github.com/vbatts/tar-split v0.11.2 // indirect
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
@@ -321,7 +321,7 @@ require (
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.63.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220208230804-65c12eb4c068 // indirect
+	google.golang.org/genproto v0.0.0-20220304144024-325a89244dc8 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
@@ -335,4 +335,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.1.12
+replace gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.5

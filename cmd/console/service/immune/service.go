@@ -12,8 +12,8 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
@@ -23,7 +23,7 @@ var (
 	once     sync.Once
 )
 
-func Init(rdb *rdbtools.GormWrapper) error {
+func Init(rdb *databases.RDBInstance) error {
 	once.Do(func() {
 		instance = newService(rdb)
 	})
@@ -34,11 +34,11 @@ func Get() (*Service, bool) {
 }
 
 type Service struct {
-	rdb         *rdbtools.GormWrapper
+	rdb         *databases.RDBInstance
 	taskManager *TaskManager
 }
 
-func newService(rdb *rdbtools.GormWrapper) *Service {
+func newService(rdb *databases.RDBInstance) *Service {
 	taskManager := newTaskManager(rdb)
 	return &Service{
 		rdb:         rdb,

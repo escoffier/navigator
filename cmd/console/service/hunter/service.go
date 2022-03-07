@@ -15,11 +15,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	batchV1 "k8s.io/api/batch/v1"
-	coreV1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report/env"
@@ -27,10 +22,14 @@ import (
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	batchV1 "k8s.io/api/batch/v1"
+	coreV1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type Service struct {
@@ -47,7 +46,7 @@ func GetService(_ context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 
-func Init(db *rdbtools.GormWrapper) error {
+func Init(db *databases.RDBInstance) error {
 	if db == nil {
 		return errors.New("illegal argument")
 	}
@@ -62,17 +61,17 @@ const (
 	MaxScanTime = time.Hour * 2
 )
 
-func newService(db *rdbtools.GormWrapper) (*Service, error) {
+func newService(db *databases.RDBInstance) (*Service, error) {
 	confBytes, err := os.ReadFile("/kube-scanner/translate.json")
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("load kube-scanner translate conf fail")
+		logging.Get().Err(err).Msg("load kube-scanner translate conf fail")
 		return nil, err
 	}
 
 	var conf model.KubeHunterTranslateConf
 	err = json.Unmarshal(confBytes, &conf)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("parse kube-scanner translate conf fail")
+		logging.Get().Err(err).Msg("parse kube-scanner translate conf fail")
 		return nil, err
 	}
 
@@ -135,7 +134,7 @@ func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 			oneCtx, oneCancel := context.WithTimeout(context.Background(), time.Second)
 			defer oneCancel()
 			if _err := s.taskManager.UpdateRecord(oneCtx, uuid, model.KubeHunterRecordStatusFailed, nil); _err != nil {
-				logging.GetLogger().Err(_err).Msg("UpdateRecord fail")
+				logging.Get().Err(_err).Msg("UpdateRecord fail")
 			}
 		}
 	}()
@@ -268,17 +267,17 @@ func translateRecord(record *model.KubeHunterRecord, lang string, conf *model.Ku
 		key := fmt.Sprintf("%s@%s@%s", v.Category, v.SubCategory, v.Name)
 		item, ok := conf.Vulnerabilities[key]
 		if !ok {
-			logging.GetLogger().Warn().Msgf("not found kube vulnerability:%s", key)
+			logging.Get().Warn().Msgf("not found kube vulnerability:%s", key)
 			continue
 		}
 
 		transItem, ok := item[lang]
 		if !ok {
-			logging.GetLogger().Warn().Msgf("not found kube vulnerability trans:%s, lang:%s", key, lang)
+			logging.Get().Warn().Msgf("not found kube vulnerability trans:%s, lang:%s", key, lang)
 			transItem, ok = item[defaultLang]
 		}
 		if !ok {
-			logging.GetLogger().Warn().Msgf("not found kube vulnerability default trans:%s", key)
+			logging.Get().Warn().Msgf("not found kube vulnerability default trans:%s", key)
 			continue
 		}
 
@@ -341,14 +340,14 @@ func (s *Service) ReportKubeHunterResult(ctx context.Context, uuid string, origi
 			}
 
 			if _err := util.RetryWithBackoff(cleanCtx, set); _err != nil {
-				logging.GetLogger().Err(_err).Msgf("update record fail, uuid:%s", uuid)
+				logging.Get().Err(_err).Msgf("update record fail, uuid:%s", uuid)
 			}
 		}
 	}()
 
 	str, err := strconv.Unquote(util.Bytes2StringNoCopy(originBody))
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("try parse body failed")
+		logging.Get().Err(err).Msg("try parse body failed")
 		str = util.Bytes2StringNoCopy(originBody)
 	}
 
@@ -380,7 +379,7 @@ func parseMetaInfo(content *model.RawKubeHunterContent) ([]byte, error) {
 	for i := range content.Vulnerabilities {
 		categoryItems := strings.Split(content.Vulnerabilities[i].Category, " // ")
 		if len(categoryItems) != 2 {
-			logging.GetLogger().Error().Msgf("unexpected category:%s", content.Vulnerabilities[i].Category)
+			logging.Get().Error().Msgf("unexpected category:%s", content.Vulnerabilities[i].Category)
 			continue
 		}
 		meta.Vulnerabilities[i] = &model.VulnerabilityMeta{
@@ -394,6 +393,6 @@ func parseMetaInfo(content *model.RawKubeHunterContent) ([]byte, error) {
 	}
 
 	result, err := json.Marshal(meta)
-	logging.GetLogger().Debug().Msgf("metaInfo:%s", util.Bytes2StringNoCopy(result))
+	logging.Get().Debug().Msgf("metaInfo:%s", util.Bytes2StringNoCopy(result))
 	return result, err
 }

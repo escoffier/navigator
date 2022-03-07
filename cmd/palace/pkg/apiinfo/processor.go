@@ -9,13 +9,13 @@ import (
 	"github.com/nats-io/stan.go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"google.golang.org/protobuf/proto"
 )
 
 const APISubject = "security-api"
 
-var pgConn *rdbtools.GormWrapper
+var rdb *databases.RDBInstance
 
 func Process(msg *stan.Msg) {
 	info := ApiInfo{}
@@ -51,14 +51,14 @@ func Process(msg *stan.Msg) {
 		Kind:        info.OwnerKind,
 	}
 
-	err = UpsertApiInfo(ctx, pgConn, &tensorAPI)
+	err = UpsertAPIInfo(ctx, rdb, &tensorAPI)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("save api info err")
 		return
 	}
 }
 
-func InitDB(pg *rdbtools.GormWrapper) error {
-	pgConn = pg
+func InitDB(pg *databases.RDBInstance) error {
+	rdb = pg
 	return nil
 }

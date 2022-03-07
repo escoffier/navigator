@@ -12,9 +12,9 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 )
@@ -35,7 +35,7 @@ type ClusterManager struct {
 	clientsetMap map[string]*assets.Clientset
 	HostClient   *assets.Clientset
 	watcher      *assets.Watcher
-	rdb          *rdbtools.GormWrapper
+	rdb          *databases.RDBInstance
 	creator      CreateWatcherFunc
 
 	clusterManagerURL string
@@ -45,14 +45,14 @@ type ClusterManager struct {
 type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
 
 // InitClusterManager 通过 CreateWatcherFunc 解耦cluster manager与service
-func InitClusterManager(db *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
+func InitClusterManager(db *databases.RDBInstance, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
 	rlOnce.Do(func() {
 		for i := 0; i < 3; i++ {
 			instance, initErr = newClusterManger(db, creator, clusterManagerURL)
 			if initErr == nil {
 				break
 			} else {
-				logging.GetLogger().Err(initErr).Msg("create k8s cluster manager error")
+				logging.Get().Err(initErr).Msg("create k8s cluster manager error")
 			}
 		}
 	})
@@ -63,7 +63,7 @@ func GetClusterManager() (*ClusterManager, bool) {
 	return instance, instance != nil
 }
 
-func newClusterManger(rdb *rdbtools.GormWrapper, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
+func newClusterManger(rdb *databases.RDBInstance, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clsm := &ClusterManager{
@@ -96,7 +96,7 @@ func (m *ClusterManager) Start(ctx context.Context) error {
 		if m.creator != nil {
 			watcher, err := m.creator(ctx)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("create cluster Watcher error")
+				logging.Get().Error().Err(err).Msg("create cluster Watcher error")
 				return err
 			}
 			m.watcher = watcher
@@ -112,7 +112,7 @@ func (m *ClusterManager) Start(ctx context.Context) error {
 	})
 	err := m.watcher.StartsToWatch(ctx, copy)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
+		logging.Get().Error().Err(err).Msg("Watch kube clients error")
 		return err
 	}
 
@@ -180,7 +180,7 @@ func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model
 	m.addClient(clientMap)
 	err = m.watcher.StartsToWatch(ctx, clientMap)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Watch kube clients error")
+		logging.Get().Error().Err(err).Msg("Watch kube clients error")
 		// if the watcher start failed, need to delete client from cluster manager
 		m.DeleteClient(cluster.Key)
 		return err
@@ -191,17 +191,17 @@ func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model
 
 func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 	clientMap := make(map[string]*assets.Clientset)
-	clusters, num, err := dal.GetClusters(ctx, m.rdb, 0, maxClusterNum)
+	clusters, num, err := dal.GetClusters(ctx, m.rdb.GetReadDB(), 0, maxClusterNum)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("get cluster failed")
+		logging.Get().Error().Err(err).Msg("get cluster failed")
 		return err
 	}
-	logging.GetLogger().Info().Msgf("cluster number: %d", num)
+	logging.Get().Info().Msgf("cluster number: %d", num)
 
 	for _, c := range clusters {
 		tlsClientConfig := rest.TLSClientConfig{Insecure: false}
 		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
-			logging.GetLogger().Warn().Msgf("load root CA config for cluster %s err: %v", c.Key, err)
+			logging.Get().Warn().Msgf("load root CA config for cluster %s err: %v", c.Key, err)
 			tlsClientConfig.Insecure = true
 		} else {
 			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
@@ -218,7 +218,7 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 		})
 
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("create client for cluster %s err", c.Key)
+			logging.Get().Error().Err(err).Msgf("create client for cluster %s err", c.Key)
 			continue
 		}
 		clientMap[c.Key] = clientSet
@@ -226,7 +226,7 @@ func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
 			m.HostClient = clientSet
 		}
 	}
-	logging.GetLogger().Info().Msgf("get %d k8s client", len(clientMap))
+	logging.Get().Info().Msgf("get %d k8s client", len(clientMap))
 	m.addClient(clientMap)
 	return nil
 }

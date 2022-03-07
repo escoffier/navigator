@@ -5,7 +5,7 @@ import (
 	"hash/fnv"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type DispatchConfig struct {
@@ -14,13 +14,13 @@ type DispatchConfig struct {
 type EventDispatcher struct {
 	config            DispatchConfig
 	associationConfig Configuration
-	rdb               *rdbtools.GormWrapper
+	rdb               *databases.RDBInstance
 	rulesManager      *echelper.RulesManager
 
 	processors []*Processor
 }
 
-func NewEventDispatcher(config DispatchConfig, associationConfig Configuration, rdb *rdbtools.GormWrapper, rulesManager *echelper.RulesManager) (*EventDispatcher, error) {
+func NewEventDispatcher(config DispatchConfig, associationConfig Configuration, rdb *databases.RDBInstance, rulesManager *echelper.RulesManager) (*EventDispatcher, error) {
 	disp := new(EventDispatcher)
 	disp.config = config
 	disp.associationConfig = associationConfig

@@ -15,7 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -501,7 +501,7 @@ func (api *api) exportFile() http.HandlerFunc {
 			if task.Status == 2 {
 				delErr := api.rdb.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 				if delErr != nil {
-					logging.GetLogger().WithContext(ctx).Errorf(delErr, "delete export tasks error")
+					logging.Get().WithContext(ctx).Errorf(delErr, "delete export tasks error")
 				}
 			}
 
@@ -553,7 +553,7 @@ func (api *api) getFile() http.HandlerFunc {
 		query := "task_id = ? and username = ?"
 		err = api.rdb.Get().WithContext(ctx).Table(tbname).Take(&task, query, checkID, username).Error
 		if err != nil {
-			logging.GetLogger().Error().Msgf("get export task failed, taskId : %v, username : %v, %v", checkID, username, err)
+			logging.Get().Error().Msgf("get export task failed, taskId : %v, username : %v, %v", checkID, username, err)
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, errors.Errorf("get export task failed, %v", err)))
 			return
 		}
@@ -565,7 +565,7 @@ func (api *api) getFile() http.HandlerFunc {
 		// delete record
 		err = api.rdb.Get().WithContext(ctx).Table(tbname).Where(query, checkID, username).Delete(&task).Error
 		if err != nil {
-			logging.GetLogger().WithContext(ctx).Errorf(err, "delete export tasks error")
+			logging.Get().WithContext(ctx).Errorf(err, "delete export tasks error")
 		}
 
 		if task.Status == 2 {
@@ -582,9 +582,9 @@ func (api *api) getFile() http.HandlerFunc {
 		w.Header().Set("Content-Length", strconv.Itoa(dataLen))
 		dataLen, err = w.Write(task.Content[:dataLen])
 		if err != nil {
-			logging.GetLogger().Error().Msgf("download file failed, %v", err)
+			logging.Get().Error().Msgf("download file failed, %v", err)
 		}
-		logging.GetLogger().Info().Msgf("file bytes : %v.", dataLen)
+		logging.Get().Info().Msgf("file bytes : %v.", dataLen)
 	}
 }
 
@@ -604,14 +604,14 @@ func (api *api) addScanResults() http.HandlerFunc {
 		}
 		svc, ok := scapper.GetService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 
 		err = svc.AddScapScanResults(ctx, scanResults)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("add scanning result error")
+			logging.Get().Err(err).Msg("add scanning result error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("add scanning results error")))
 			return
 		}
@@ -642,7 +642,7 @@ func (api *api) updateRecordVariate() http.HandlerFunc {
 		}
 		svc, ok := scapper.GetService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}

@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -72,7 +71,7 @@ var rootCmd = &cobra.Command{
 			Int("port", secProfilesOpts.Port).
 			Msg("Security Profiles options")
 
-		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, scapOpts, elasticOpts, harborOpts, secProfilesOpts)
+		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, scapOpts, elasticOpts, secProfilesOpts)
 
 		if err != nil {
 			return err

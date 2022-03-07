@@ -10,13 +10,12 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/olivere/elastic/v7"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/processingcenter/podservice"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -63,7 +62,7 @@ type podService interface {
 
 type Service struct {
 	podService            podService
-	db                    *rdbtools.GormWrapper
+	db                    *databases.RDBInstance
 	esCli                 *elastic.Client
 	processingIndexPrefix string
 	recordSyncHash        map[string]struct{}
@@ -71,7 +70,7 @@ type Service struct {
 }
 
 type ServiceComponent struct {
-	DB              *rdbtools.GormWrapper
+	DB              *databases.RDBInstance
 	EsCli           *elastic.Client
 	RedisCli        *redis.Client
 	MicroSegBaseURL string
@@ -301,7 +300,7 @@ func (s *Service) UpdateProcessingRecordStatus(ctx context.Context, id, status s
 		return ErrInvalidOp
 	}
 
-	actions, err := dal.GetProcessingActions(ctx, s.db.Get(), record.ID)
+	actions, err := dal.GetProcessingActions(ctx, s.db.GetReadDB(), record.ID)
 	if err != nil {
 		return err
 	}
@@ -311,7 +310,7 @@ func (s *Service) UpdateProcessingRecordStatus(ctx context.Context, id, status s
 	for podStr := range isolatedPod {
 		pod, err := parsePodInfo(podStr)
 		if err != nil {
-			logging.GetLogger().Error().Msgf("unexpected pod:%s", podStr)
+			logging.Get().Error().Msgf("unexpected pod:%s", podStr)
 			continue
 		}
 		exist, err := s.podService.CheckPodExist(ctx, pod)
@@ -407,7 +406,7 @@ func (s *Service) AddProcessingAction(ctx context.Context, arg *AddProcessingAct
 	for podStr := range isolatedPod {
 		pod, _ := parsePodInfo(podStr)
 		if pod == nil {
-			logging.GetLogger().Error().Msgf("unexpected podStr:%s", podStr)
+			logging.Get().Error().Msgf("unexpected podStr:%s", podStr)
 			continue
 		}
 		if exist, err := s.podService.CheckPodExist(ctx, pod); err != nil || exist {
@@ -450,7 +449,7 @@ func (s *Service) GetRecordDetail(ctx context.Context, recordID string) (*model.
 		return nil, err
 	}
 
-	actions, err := dal.GetProcessingActions(ctx, s.db.Get(), recordID)
+	actions, err := dal.GetProcessingActions(ctx, s.db.GetReadDB(), recordID)
 	if err != nil {
 		return nil, err
 	}

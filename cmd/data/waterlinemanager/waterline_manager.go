@@ -5,18 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type Manager struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
-func NewManager(db *rdbtools.GormWrapper) *Manager {
+func NewManager(db *databases.RDBInstance) *Manager {
 	return &Manager{
 		db: db,
 	}
@@ -27,7 +26,7 @@ const (
 )
 
 func (m *Manager) GetWaterline(ctx context.Context) (int, error) {
-	conf, err := dal.GetConfig(ctx, m.db, ConfigKey)
+	conf, err := dal.GetConfig(ctx, m.db.GetReadDB(), ConfigKey)
 	if err != nil {
 		return 0, err
 	}
@@ -53,5 +52,5 @@ func (m *Manager) SetWaterline(ctx context.Context, percentage int) error {
 	if err != nil {
 		return err
 	}
-	return dal.SetConfig(ctx, m.db, ConfigKey, jsonBytes)
+	return dal.SetConfig(ctx, m.db.Get(), ConfigKey, jsonBytes)
 }

@@ -32,7 +32,7 @@ func (s *ScannerOrm) SearchTrustedImages(ctx context.Context, param SearchTruste
 
 	var result = make([]model.TrustedImages, 0)
 
-	db := s.psql.Get().WithContext(timeOutCtx).Model(model.TrustedImages{})
+	db := s.rdb.Get().WithContext(timeOutCtx).Model(model.TrustedImages{})
 	if len(param.Digests) > 0 {
 		db = db.Where("digest IN ?", param.Digests)
 	}
@@ -49,16 +49,16 @@ func (s *ScannerOrm) SearchTrustedImages(ctx context.Context, param SearchTruste
 }
 
 func (s *ScannerOrm) TrustedImageCreat(ctx context.Context, trustedImage *model.TrustedImages) error {
-	return s.psql.Get().WithContext(ctx).Create(trustedImage).Error
+	return s.rdb.Get().WithContext(ctx).Create(trustedImage).Error
 }
 
 func (s *ScannerOrm) ImageRsaCreate(ctx context.Context, data *model.ImageRsa) error {
-	return s.psql.Get().WithContext(ctx).Create(data).Error
+	return s.rdb.Get().WithContext(ctx).Create(data).Error
 }
 
 func (s *ScannerOrm) ImageRsaDetail(ctx context.Context, id int64) (*model.ImageRsa, error) {
 	data := new(model.ImageRsa)
-	err := s.psql.Get().WithContext(ctx).Model(data).Where("id = ?", id).First(data).Error
+	err := s.rdb.Get().WithContext(ctx).Model(data).Where("id = ?", id).First(data).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("暂无id<%d>数据", id)
@@ -70,7 +70,7 @@ func (s *ScannerOrm) ImageRsaDetail(ctx context.Context, id int64) (*model.Image
 }
 
 func (s *ScannerOrm) ImageRsaDelete(ctx context.Context, id int64) error {
-	err := s.psql.Get().WithContext(ctx).Delete(&model.ImageRsa{}, id).Error
+	err := s.rdb.Get().WithContext(ctx).Delete(&model.ImageRsa{}, id).Error
 	if err != nil {
 		return errors.Wrapf(err, "删除ID:<%d>失败", id)
 	}
@@ -83,13 +83,13 @@ func (s *ScannerOrm) ImageRsaList(ctx context.Context, limit, offset int64) ([]m
 		count int64
 	)
 
-	if err := s.psql.Get().WithContext(ctx).Model(model.ImageRsa{}).Count(&count).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageRsa{}).Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var r = make([]model.ImageRsa, 0, limit)
 
-	err = s.psql.Get().
+	err = s.rdb.Get().
 		Model(model.ImageRsa{}).
 		Limit(int(limit)).
 		Offset(int(offset)).
@@ -105,7 +105,7 @@ func (s *ScannerOrm) ImageRsaList(ctx context.Context, limit, offset int64) ([]m
 
 func (s *ScannerOrm) ImageRsaQueryByPrivateKey(ctx context.Context, privateKey string) (*model.ImageRsa, error) {
 	var data model.ImageRsa
-	err := s.psql.Get().WithContext(ctx).Where("private_key_digest = ?", privateKey).First(&data).Error
+	err := s.rdb.Get().WithContext(ctx).Where("private_key_digest = ?", privateKey).First(&data).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.Wrapf(err, "暂无私钥<%s>数据", privateKey)
@@ -125,7 +125,7 @@ func (s *ScannerOrm) ImageRsaUpdate(ctx context.Context, id int64, data *model.I
 		"comment":    data.Comment,
 	}
 
-	db := s.psql.Get().
+	db := s.rdb.Get().
 		WithContext(ctx).
 		Model(data).
 		Where("id = ?", id).

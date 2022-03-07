@@ -880,7 +880,7 @@ func LoginError(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
-func PostgresError(httpCode int, err error, suberrors ...Suberror) error {
+func RDBError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 
 	return MongoError{

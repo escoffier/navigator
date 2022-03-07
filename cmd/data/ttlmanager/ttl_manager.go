@@ -5,18 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type Manager struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
-func NewManager(db *rdbtools.GormWrapper) *Manager {
+func NewManager(db *databases.RDBInstance) *Manager {
 	return &Manager{
 		db: db,
 	}
@@ -30,7 +29,7 @@ func (m *Manager) GetTTLDayOffset(ctx context.Context, taskType def.GCTaskType) 
 	if !taskType.Check() {
 		return 0, def.ErrInvalidDataType
 	}
-	conf, err := dal.GetConfig(ctx, m.db, generateConfigKey(taskType))
+	conf, err := dal.GetConfig(ctx, m.db.GetReadDB(), generateConfigKey(taskType))
 	if err != nil {
 		return 0, fmt.Errorf("GetConfig fail, err:%w", err)
 	}
@@ -61,7 +60,7 @@ func (m *Manager) SetTTLDayOffset(ctx context.Context, taskType def.GCTaskType, 
 		return err
 	}
 
-	return dal.SetConfig(ctx, m.db, generateConfigKey(taskType), jsonBytes)
+	return dal.SetConfig(ctx, m.db.Get(), generateConfigKey(taskType), jsonBytes)
 }
 
 func generateConfigKey(taskType def.GCTaskType) string {

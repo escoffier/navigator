@@ -9,17 +9,17 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type RulesManager struct {
 	rulesVal atomic.Value // map[string]*model.EvtCenterRule
 
-	rdb      *rdbtools.GormWrapper
+	rdb      *databases.RDBInstance
 	interval time.Duration
 }
 
-func NewRulesManager(rdb *rdbtools.GormWrapper, interval time.Duration) *RulesManager {
+func NewRulesManager(rdb *databases.RDBInstance, interval time.Duration) *RulesManager {
 	r := RulesManager{
 		rdb:      rdb,
 		interval: interval,

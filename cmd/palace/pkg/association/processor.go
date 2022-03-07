@@ -11,8 +11,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -24,11 +24,11 @@ type Processor struct {
 	eventsChan chan Event
 
 	config       Configuration
-	rdb          *rdbtools.GormWrapper
+	rdb          *databases.RDBInstance
 	rulesManager *echelper.RulesManager
 }
 
-func NewAssociationProcessor(config Configuration, rdb *rdbtools.GormWrapper, rulesManager *echelper.RulesManager) *Processor {
+func NewAssociationProcessor(config Configuration, rdb *databases.RDBInstance, rulesManager *echelper.RulesManager) *Processor {
 	proc := Processor{
 		aggregators:  make(map[string]*ProcessTreeAggregator, 10),
 		inputsChan:   make(chan PodContainerEvent, 50),

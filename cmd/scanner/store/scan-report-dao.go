@@ -65,7 +65,7 @@ type ScanReportInterface interface {
 func (s *ScannerOrm) Create(ctx context.Context, task *scanreport.TensorScanReportTasks) (uint, error) {
 	subtask := task.GenSubtask()
 
-	err := s.psql.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(task).Error; err != nil {
 			return errors.Wrap(err, "crate scan report task failed")
 		}
@@ -84,7 +84,7 @@ func (s *ScannerOrm) Create(ctx context.Context, task *scanreport.TensorScanRepo
 func (s *ScannerOrm) Update(ctx context.Context, task *scanreport.TensorScanReportTasks) error {
 	subtask := task.GenSubtask()
 
-	err := s.psql.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 更新task
 		res := tx.
 			Select("*").
@@ -138,7 +138,7 @@ func (s *ScannerOrm) Update(ctx context.Context, task *scanreport.TensorScanRepo
 
 func (s *ScannerOrm) Delete(ctx context.Context, id uint) error {
 
-	err := s.psql.Get().WithContext(ctx).Transaction(
+	err := s.rdb.Get().WithContext(ctx).Transaction(
 
 		func(tx *gorm.DB) error {
 			// 删除任务
@@ -165,7 +165,7 @@ func (s *ScannerOrm) Delete(ctx context.Context, id uint) error {
 }
 
 func (s *ScannerOrm) List(ctx context.Context, query string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error) {
-	db := s.psql.Get().WithContext(ctx).Model(scanreport.TensorScanReportTasks{})
+	db := s.rdb.Get().WithContext(ctx).Model(scanreport.TensorScanReportTasks{})
 	if query != "" {
 		db = db.Where("name LIKE @query OR emails::TEXT LIKE @query", sql.Named("query", "%"+query+"%")) // fix don't use jsonb
 	}
@@ -197,7 +197,7 @@ func (s *ScannerOrm) List(ctx context.Context, query string, limit, offset int, 
 func (s *ScannerOrm) Detail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error) {
 	var data = new(scanreport.TensorScanReportTasks)
 
-	err := s.psql.Get().
+	err := s.rdb.Get().
 		WithContext(ctx).
 		Model(data).
 		Where("id = ?", id).
@@ -212,7 +212,7 @@ func (s *ScannerOrm) Detail(ctx context.Context, id uint) (*scanreport.TensorSca
 }
 
 func (s *ScannerOrm) FilesList(ctx context.Context, scanReportID uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error) {
-	db := s.psql.Get().
+	db := s.rdb.Get().
 		WithContext(ctx).
 		Model(scanreport.TensorScanReportSubTasks{}).
 		Where("scan_report_id = ?", scanReportID).
@@ -246,7 +246,7 @@ func (s *ScannerOrm) GetCurrentSubTask(ctx context.Context, now time.Time) ([]*s
 		data []*scanreport.TensorScanReportSubTasks
 		err  error
 	)
-	err = s.psql.Get().
+	err = s.rdb.Get().
 		WithContext(ctx).
 		Model(scanreport.TensorScanReportSubTasks{}).
 		Preload("TensorScanReportTasks").
@@ -278,7 +278,7 @@ func (s *ScannerOrm) UpdateSubTaskStatus(ctx context.Context, id uint, status sc
 		preStatus = []scanreport.SubTasksStatus{scanreport.SubTasksStatusRunning}
 	}
 
-	db := s.psql.Get().WithContext(ctx).Model(scanreport.TensorScanReportSubTasks{}).Where("id = ?", id)
+	db := s.rdb.Get().WithContext(ctx).Model(scanreport.TensorScanReportSubTasks{}).Where("id = ?", id)
 
 	if len(preStatus) > 0 {
 		db = db.Where("status IN (?)", preStatus)
@@ -311,7 +311,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		"tc.image_uuid as imageuuid",
 	}
 
-	db := s.psql.Get().
+	db := s.rdb.Get().
 		WithContext(ctx).
 		Table(fmt.Sprintf("%s AS t", model.ImageList{}.TableName())).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "t.id"}}).
@@ -330,12 +330,12 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 
 			switch task.TensorScanReportTasks.RegistryImageType {
 			case scanreport.TensorScanReportRegistryImageTypeProject: // 项目
-				db1 = s.psql.Get().Where("project IN ?", task.TensorScanReportTasks.RegistryImageObjects)
+				db1 = s.rdb.Get().Where("project IN ?", task.TensorScanReportTasks.RegistryImageObjects)
 			case scanreport.TensorScanReportRegistryImageTypeRegistry: // 仓库
-				db1 = s.psql.Get().
+				db1 = s.rdb.Get().
 					Where(
 						"registry_id IN (?)",
-						s.psql.Get().Model(model.Registry{}).Select("id").
+						s.rdb.Get().Model(model.Registry{}).Select("id").
 							Where("name IN ?", task.TensorScanReportTasks.RegistryImageObjects).
 							Where("deleted_at = ?", 0),
 					)
@@ -350,12 +350,12 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 					}
 				}
 
-				db1 = s.psql.Get().Where("project IN ?", project)
+				db1 = s.rdb.Get().Where("project IN ?", project)
 
 				db1 = db1.
 					Where(
 						"registry_id IN (?)",
-						s.psql.Get().Model(model.Registry{}).Select("id").
+						s.rdb.Get().Model(model.Registry{}).Select("id").
 							Where("name IN ?", registies),
 					)
 			}
@@ -364,10 +364,10 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		}
 
 		if task.TensorScanReportTasks.ImageTypeEnum&scanreport.TensorScanReportImageTypeNode == scanreport.TensorScanReportImageTypeNode {
-			db2 = s.psql.Get().
+			db2 = s.rdb.Get().
 				Where(
 					"node_hostname IN (?)",
-					s.psql.Get().Model(model.PodResourceRelation{}).
+					s.rdb.Get().Model(model.PodResourceRelation{}).
 						Distinct("node_name").
 						Where("cluster_key IN ?", task.TensorScanReportTasks.NodeImageObjects),
 				).
@@ -375,7 +375,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		}
 
 		if db1 != nil && db2 != nil {
-			db = db.Where(s.psql.Get().Where(db1).Or(db2))
+			db = db.Where(s.rdb.Get().Where(db1).Or(db2))
 		} else if db1 != nil && db2 == nil {
 			db = db.Where(db1)
 		} else if db1 == nil && db2 != nil {
@@ -396,7 +396,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 
 func (s *ScannerOrm) Download(ctx context.Context, taskID, fileID uint) (*scanreport.TensorScanReportSubTasks, error) {
 	var data scanreport.TensorScanReportSubTasks
-	err := s.psql.Get().
+	err := s.rdb.Get().
 		WithContext(ctx).
 		Model(&data).
 		Where("id = ?", fileID).
@@ -435,7 +435,7 @@ func (s *ScannerOrm) UpdateSubTaskStatusWithRunning(ctx context.Context, subtask
 		}
 	}
 
-	err := s.psql.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		db := tx.Model(&data).
 			Where("id = ?", subtask.ID).
 			Where("scan_report_id = ?", subtask.ScanReportId).
@@ -472,7 +472,7 @@ func (s *ScannerOrm) UpdateSubTaskStatusWithRunning(ctx context.Context, subtask
 }
 
 func (s *ScannerOrm) SaveScanReportFile(ctx context.Context, subtask *scanreport.TensorScanReportSubTasks, file []byte) error {
-	err := s.psql.Get().WithContext(ctx).Transaction(
+	err := s.rdb.Get().WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			// 保存文件，更新状态
 			db := tx.
@@ -508,7 +508,7 @@ func (s *ScannerOrm) SaveScanReportFile(ctx context.Context, subtask *scanreport
 }
 
 func (s *ScannerOrm) SubTaskCreate(ctx context.Context, subtask *scanreport.TensorScanReportSubTasks) (uint, error) {
-	if err := s.psql.Get().WithContext(ctx).Create(subtask).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Create(subtask).Error; err != nil {
 		return 0, err
 	}
 
